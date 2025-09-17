@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { createProxyMiddleware } from "http-proxy-middleware";
+import { CreatePostDto } from '@repo/dtos';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
