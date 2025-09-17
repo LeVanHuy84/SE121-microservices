@@ -5,6 +5,6 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  await app.listen(process.env.PORT ?? 4000);
+  await app.listen(process.env.GATEWAY_PORT ?? 4000);
 }
 bootstrap();
