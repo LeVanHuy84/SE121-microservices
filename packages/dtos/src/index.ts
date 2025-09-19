@@ -7,3 +7,6 @@ export * from './social/posts/create-post.dto';
 export * from './user/create-user.dto'
 export * from './user/get-user.dto'
 export * from './user/update-user.dto'
+
+// Enums
+export * from './social/enums/social.enum';

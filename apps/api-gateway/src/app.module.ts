@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from './common/constants';
@@ -28,13 +28,13 @@ import { UsersController } from './modules/users/users.controller';
         }),
       },
       {
-        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
+        name: MICROSERVICES_CLIENTS.POST_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('SOCIAL_SERVICE_PORT'),
+            port: config.get<number>('POST_SERVICE_PORT'),
           },
         }),
       },
@@ -47,6 +47,17 @@ import { UsersController } from './modules/users/users.controller';
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,
     },
+    {
+      provide: 'APP_PIPE',
+      useValue: new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+      }),
+    }
   ],
 
   controllers: [UsersController],

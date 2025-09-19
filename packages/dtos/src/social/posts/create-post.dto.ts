@@ -1,4 +1,5 @@
 import { IsArray, IsOptional, IsString } from "class-validator";
+import { Audience } from "../enums/social.enum";
 
 export class CreatePostDto {
     @IsString()
@@ -19,4 +20,7 @@ export class CreatePostDto {
     @IsArray()
     @IsString({ each: true })
     videoUrls?: string[];
+
+    @IsOptional()
+    audience: Audience;
 }
