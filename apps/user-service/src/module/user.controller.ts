@@ -1,31 +1,38 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+
 import { UserService } from './user.service';
+
+import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
+import { plainToInstance } from 'class-transformer';
+
+
 
 @Controller()
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @MessagePattern('createUser')
-  create(@Payload() createUserDto: CreateUserDto) {
+  async create(@Payload() createUserDto: CreateUserDTO) {
     return this.userService.create(createUserDto);
+    
   }
 
   @MessagePattern('findAllUser')
-  findAll() {
+  async findAll(){
     return this.userService.findAll();
+    
   }
 
   @MessagePattern('findOneUser')
-  findOne(@Payload() id: string) {
+  async findOne(@Payload() id: string) {
     return this.userService.findOne(id);
   }
 
   @MessagePattern('updateUser')
-  update(@Payload()id: string, updateUserDto: UpdateUserDto) {
+  async update(@Payload() id: string, updateUserDto: UpdateUserDTO){
     return this.userService.update(id, updateUserDto);
+   
   }
 
   @MessagePattern('removeUser')
