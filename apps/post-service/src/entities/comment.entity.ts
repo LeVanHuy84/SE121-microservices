@@ -8,7 +8,7 @@ export class Comment {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ name: 'user_id', nullable: false })
+    @Column('uuid', { name: 'user_id', nullable: false })
     userId: string;
 
     @Column('text')

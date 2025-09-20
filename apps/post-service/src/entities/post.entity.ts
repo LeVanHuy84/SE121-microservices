@@ -4,32 +4,33 @@ import { Reaction } from "./reaction.entity";
 import { Share } from "./share.entity";
 import { EditHisstory } from "./edit-history.entity";
 import { Report } from "./report.entity";
+import { Audience, MediaDto, PostStatus, StatsDto } from "@repo/dtos";
 
 @Entity('posts')
 export class Post {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ name: 'user_id', nullable: false })
+    @Column('uuid', { name: 'user_id', nullable: false })
     userId: string;
 
-    @Column('uuid', { name: 'group_id' })
+    @Column('uuid', { name: 'group_id', nullable: true })
     groupId: string;
 
     @Column('text')
     content: string;
 
     @Column('jsonb')
-    media: object;
+    media: MediaDto;
 
-    @Column('varchar', { length: 20 })
-    audience: string;
+    @Column('smallint', { default: Audience.PUBLIC })
+    audience: Audience;
 
-    @Column('jsonb')
-    stats: object;
+    @Column({ type: 'jsonb', default: () => `'{"reactions":0,"comments":0,"shares":0}'` })
+    stats: StatsDto;
 
-    @Column('varchar', { length: 20 })
-    status: string;
+    @Column('smallint', { default: PostStatus.ACTIVE })
+    status: PostStatus;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

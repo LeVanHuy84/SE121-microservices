@@ -8,14 +8,11 @@ export class Reaction {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ name: 'user_id', nullable: false })
+    @Column('uuid', { name: 'user_id', nullable: false })
     userId: string;
 
     @Column({ name: 'type', type: 'smallint' })
     type: ReactionType;
-
-    @CreateDateColumn({ name: 'created_at' })
-    createdAt: Date;
 
     @ManyToOne(() => Post, (post) => post.reactions)
     @JoinColumn({ name: 'post_id' })

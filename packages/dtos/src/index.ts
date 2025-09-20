@@ -2,6 +2,8 @@
 
 // Social DTOs
 export * from './social/posts/create-post.dto';
+export * from './social/posts/get-post.dto';
+export * from './social/posts/update-post.dto';
 
 //User DTOs
 export * from './user/create-user.dto'

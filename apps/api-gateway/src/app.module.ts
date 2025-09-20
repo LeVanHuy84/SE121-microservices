@@ -7,38 +7,16 @@ import { AuthModule } from './modules/auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
 import { UsersController } from './modules/users/users.controller';
+import { PostsModule } from './modules/posts/posts.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),
-    AuthModule,
 
-    ClientsModule.registerAsync([
-      {
-        name: MICROSERVICES_CLIENTS.USER_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('USER_SERVICE_PORT'),
-          },
-        }),
-      },
-      {
-        name: MICROSERVICES_CLIENTS.POST_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('POST_SERVICE_PORT'),
-          },
-        }),
-      },
-    ]),
+    AuthModule,
+    PostsModule,
   ],
 
   providers: [
@@ -60,6 +38,6 @@ import { UsersController } from './modules/users/users.controller';
     }
   ],
 
-  controllers: [UsersController],
+  controllers: [],
 })
 export class AppModule { }

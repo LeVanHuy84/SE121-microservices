@@ -12,3 +12,9 @@ export enum Audience {
     FRIENDS,
     ONLY_ME,
 }
+
+export enum PostStatus {
+    ACTIVE,
+    DELETED,
+    HIDDEN,
+}
