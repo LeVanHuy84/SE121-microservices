@@ -17,7 +17,6 @@ export class UsersController {
         return this.client.send('createUser', createUserDto);
     }
 
-    @Public()
     @Get()
     findAll() : Observable<UserResponseDTO[]> {
         return this.client.send<UserResponseDTO[]>('findAllUser', {});

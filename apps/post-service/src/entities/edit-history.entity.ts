@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, Jo
 import { Post } from './post.entity';
 
 @Entity('edit_histories')
-export class EditHisstory {
+export class EditHistory {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
