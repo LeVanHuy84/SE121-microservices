@@ -1,12 +1,14 @@
-import { IsArray, IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Audience } from "../enums/social.enum";
-import { Type } from "class-transformer";
+import { Expose, Type } from "class-transformer";
 
 export class MediaDto {
+    @Expose()
     @IsOptional()
     @IsString({ each: true })
     imageUrls?: string[];
 
+    @Expose()
     @IsOptional()
     @IsString({ each: true })
     videosUrls?: string[];

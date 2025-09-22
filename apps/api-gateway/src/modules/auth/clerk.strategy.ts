@@ -29,7 +29,7 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
             // gắn externalId để dùng ngay
             return {
                 sub: tokenPayload.sub,
-                userId: tokenPayload.userId ?? null, // bạn đã map ở JWT template
+                userId: tokenPayload.userId ?? null,
                 raw: tokenPayload,
             };
         } catch (error) {

@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
 import { UsersController } from './modules/users/users.controller';
 import { PostsModule } from './modules/posts/posts.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PostsModule } from './modules/posts/posts.module';
 
     AuthModule,
     PostsModule,
+    UsersModule
   ],
 
   providers: [
