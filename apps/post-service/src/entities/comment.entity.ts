@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { Post } from "./post.entity";
 import { Reaction } from "./reaction.entity";
 import { Report } from "./report.entity";
+import { StatsDto } from "@repo/dtos";
 
 @Entity('comments')
 export class Comment {
@@ -15,7 +16,7 @@ export class Comment {
     content: string;
 
     @Column('jsonb')
-    stats: object;
+    stats: StatsDto;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
@@ -26,9 +27,6 @@ export class Comment {
     @ManyToOne(() => Post, (post) => post.comments)
     @JoinColumn({ name: 'post_id' })
     post: Post;
-
-    @OneToMany(() => Reaction, (reactions) => reactions.comment)
-    reactions: Reaction[];
 
     @ManyToOne(() => Comment, (comment) => comment.children, { nullable: true })
     @JoinColumn({ name: 'parent_id' })

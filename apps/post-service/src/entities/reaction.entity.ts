@@ -1,24 +1,22 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { Post } from "./post.entity";
-import { ReactionType } from "@repo/dtos";
-import { Comment } from "./comment.entity";
+import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from "typeorm";
+import { ReactionType, TargetType } from "@repo/dtos";
 
 @Entity('reactions')
+@Unique(['userId', 'targetId', 'targetType'])
+@Index(['targetId', 'targetType'])
 export class Reaction {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column('uuid', { name: 'user_id', nullable: false })
+    @Column('uuid', { name: 'user_id' })
     userId: string;
 
-    @Column({ name: 'type', type: 'smallint' })
-    type: ReactionType;
+    @Column('uuid', { name: 'target_id' })
+    targetId: string;
 
-    @ManyToOne(() => Post, (post) => post.reactions)
-    @JoinColumn({ name: 'post_id' })
-    post: Post;
+    @Column({ name: 'target_type', type: 'enum', enum: TargetType })
+    targetType: TargetType;
 
-    @ManyToOne(() => Comment, (comment) => comment.reactions)
-    @JoinColumn({ name: 'comment_id' })
-    comment: Comment;
+    @Column({ name: 'reaction_type', type: 'enum', enum: ReactionType })
+    reactionType: ReactionType;
 }
