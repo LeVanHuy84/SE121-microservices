@@ -3,6 +3,7 @@ import { PostsController } from './posts.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ReactionsController } from './reactions.controller';
 
 @Module({
   imports: [
@@ -20,6 +21,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       },
     ])
   ],
-  controllers: [PostsController]
+  controllers: [PostsController, ReactionsController]
 })
 export class PostsModule { }
