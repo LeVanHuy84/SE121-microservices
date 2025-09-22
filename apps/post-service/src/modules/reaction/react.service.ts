@@ -1,6 +1,6 @@
 // src/services/reaction.service.ts
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import {
   DisReactDto,
   GetReactionsDto,
@@ -8,13 +8,13 @@ import {
   ReactionResponseDto,
   ReactionType,
   TargetType,
-} from "@repo/dtos";
-import { plainToInstance } from "class-transformer";
-import { Reaction } from "src/entities/reaction.entity";
-import { DataSource, EntityManager, Repository } from "typeorm";
-import { CommentStat } from "src/entities/comment-stat.entity";
-import { PostStat } from "src/entities/post-stat.entity";
-import { ReactionFieldMap } from "src/constant";
+} from '@repo/dtos';
+import { plainToInstance } from 'class-transformer';
+import { Reaction } from 'src/entities/reaction.entity';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { CommentStat } from 'src/entities/comment-stat.entity';
+import { PostStat } from 'src/entities/post-stat.entity';
+import { ReactionFieldMap } from 'src/constant';
 
 @Injectable()
 export class ReactionService {
@@ -96,10 +96,10 @@ export class ReactionService {
         .createQueryBuilder()
         .delete()
         .from(Reaction)
-        .where("userId = :userId", { userId })
-        .andWhere("targetId = :targetId", { targetId: dto.targetId })
-        .andWhere("targetType = :targetType", { targetType: dto.targetType })
-        .returning("reaction_type") // field trong DB
+        .where('userId = :userId', { userId })
+        .andWhere('targetId = :targetId', { targetId: dto.targetId })
+        .andWhere('targetType = :targetType', { targetType: dto.targetType })
+        .returning('reaction_type') // field trong DB
         .execute();
 
       if (deleted.affected && deleted.raw[0]) {
@@ -133,7 +133,7 @@ export class ReactionService {
           [field]: () => `"${field}" + ${delta}`,
           reactions: () => `"reactions" + ${delta}`,
         })
-        .where("postId = :postId", { postId: targetId })
+        .where('postId = :postId', { postId: targetId })
         .execute();
     }
 
@@ -146,7 +146,7 @@ export class ReactionService {
           [field]: () => `"${field}" + ${delta}`,
           reactions: () => `"reactions" + ${delta}`,
         })
-        .where("commentId = :commentId", { commentId: targetId })
+        .where('commentId = :commentId', { commentId: targetId })
         .execute();
     }
   }
