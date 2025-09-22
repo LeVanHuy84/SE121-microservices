@@ -14,7 +14,6 @@ export class PostService {
         const post = this.postRepo.create({
             ...dto,
             userId,
-            stats: { reactions: 0, comments: 0, shares: 0 },
         });
         const entity = await this.postRepo.save(post);
         return plainToInstance(PostResponseDTO, entity);

@@ -1,9 +1,8 @@
-import { Body, Controller, Delete, Get, HttpException, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CreatePostDto, GetPostQueryDto, PaginationDto } from '@repo/dtos';
+import { CreatePostDto, GetPostQueryDto } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { Public } from 'src/common/decorators/public.decorator';
 
 @Controller('posts')
 export class PostsController {

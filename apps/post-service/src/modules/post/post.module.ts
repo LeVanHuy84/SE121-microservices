@@ -11,7 +11,7 @@ import { PostService } from './post.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, Comment, Reaction, Share, EditHisstory, Report]),
+    TypeOrmModule.forFeature([Post, Comment, Share, EditHisstory, Report]),
   ],
   controllers: [
     PostController,

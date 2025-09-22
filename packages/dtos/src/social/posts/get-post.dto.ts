@@ -2,9 +2,33 @@ import { Expose, Type } from "class-transformer";
 import { MediaDto } from "./create-post.dto";
 import { Audience, PostStatus } from "../enums/social.enum";
 
+export class ReactionStatsDto {
+    @Expose()
+    like: number;
+
+    @Expose()
+    love: number;
+
+    @Expose()
+    haha: number;
+
+    @Expose()
+    wow: number;
+
+    @Expose()
+    angry: number;
+
+    @Expose()
+    sad: number;
+}
+
 export class StatsDto {
     @Expose()
-    reactions: number;
+    totalReactions: number;
+
+    @Expose()
+    @Type(() => ReactionStatsDto)
+    reactions: ReactionStatsDto;
 
     @Expose()
     comments: number;
@@ -12,6 +36,7 @@ export class StatsDto {
     @Expose()
     shares: number;
 }
+
 
 export class PostResponseDTO {
     @Expose()
