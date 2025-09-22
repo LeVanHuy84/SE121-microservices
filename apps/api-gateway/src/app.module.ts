@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
 import { PostsModule } from './modules/posts/posts.module';
+import { UsersModule } from './modules/users/users.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { SocialModule } from './modules/social/social.module';
@@ -16,6 +17,7 @@ import { SocialModule } from './modules/social/social.module';
 
     AuthModule,
     PostsModule,
+    UsersModule
     UserModule,
     SocialModule
   ],

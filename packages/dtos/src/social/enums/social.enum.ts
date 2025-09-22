@@ -18,3 +18,11 @@ export enum PostStatus {
     DELETED,
     HIDDEN,
 }
+
+export enum Feeling {
+    JOY,
+    SADNESS,
+    ANGER,
+    FEAR,
+    DISGUST,
+}

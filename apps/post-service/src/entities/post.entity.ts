@@ -1,10 +1,10 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { Comment } from "./comment.entity";
 import { Reaction } from "./reaction.entity";
 import { Share } from "./share.entity";
 import { EditHistory } from "./edit-history.entity";
 import { Report } from "./report.entity";
-import { Audience, MediaDto, PostStatus, StatsDto } from "@repo/dtos";
+import { Audience, Feeling, MediaDto, PostStatus, StatsDto } from "@repo/dtos";
 
 @Entity('posts')
 export class Post {
@@ -16,6 +16,9 @@ export class Post {
 
     @Column('uuid', { name: 'group_id', nullable: true })
     groupId: string;
+
+    @Column('smallint', { nullable: true })
+    feeling: Feeling;
 
     @Column('text')
     content: string;
