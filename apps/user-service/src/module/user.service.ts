@@ -20,7 +20,6 @@ export class UserService {
 
       const [user] = await tx.insert(users).values({
         email: dto.email,
-        username: dto.username,
         clerkId: dto.clerkId,
       }).returning();
 
@@ -124,5 +123,21 @@ export class UserService {
   async remove(id: string) {
     await this.db.delete(users).where(eq(users.id, id));
     return { success: true };
+  }
+
+  async getUsersBatch(ids: string[]): Promise<UserResponseDTO[]> {
+    if (!ids.length) return [];
+
+    const users = await this.db.query.users.findMany(
+      {
+        where: (fields, { inArray }) => inArray(fields.id, ids),
+        with: {profile: true}
+      }
+
+    )
+    return plainToInstance(UserResponseDTO, users, {
+      excludeExtraneousValues: true,
+    });
+    
   }
 }

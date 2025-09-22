@@ -8,7 +8,6 @@ export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   clerkId: varchar("clerk_id", { length: 255 }).notNull().unique(), // mapping sang Clerk user
   email: varchar("email", { length: 255 }).notNull().unique(),
-  username: varchar("username", { length: 50 }).notNull().unique(),
 
   isActive: boolean("is_active").default(true).notNull(),
   deletedAt: timestamp("deleted_at"),

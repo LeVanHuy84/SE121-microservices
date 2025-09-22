@@ -15,13 +15,13 @@ export class UserController {
   @MessagePattern('createUser')
   async create(@Payload() createUserDto: CreateUserDTO) {
     return this.userService.create(createUserDto);
-    
+
   }
 
   @MessagePattern('findAllUser')
-  async findAll(){
+  async findAll() {
     return this.userService.findAll();
-    
+
   }
 
   @MessagePattern('findOneUser')
@@ -30,13 +30,19 @@ export class UserController {
   }
 
   @MessagePattern('updateUser')
-  async update(@Payload() id: string, updateUserDto: UpdateUserDTO){
+  async update(@Payload() id: string, updateUserDto: UpdateUserDTO) {
     return this.userService.update(id, updateUserDto);
-   
+
   }
 
   @MessagePattern('removeUser')
-  remove(@Payload() id: string) {
+  async remove(@Payload() id: string) {
     return this.userService.remove(id);
   }
+
+  @MessagePattern('getUsersBatch')
+  async getUsersBatch(@Payload() ids: string[]) {
+    return this.userService.getUsersBatch(ids)
+  }
+
 }
