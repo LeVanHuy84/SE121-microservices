@@ -13,22 +13,22 @@ export class UsersController {
 
     @Public()
     @Post()
-    create(@Body() createUserDto: CreateUserDTO)  {
+    create(@Body() createUserDto: CreateUserDTO) {
         return this.client.send('createUser', createUserDto);
     }
 
     @Get()
-    findAll() : Observable<UserResponseDTO[]> {
+    findAll(): Observable<UserResponseDTO[]> {
         return this.client.send<UserResponseDTO[]>('findAllUser', {});
     }
 
     @Get(':id')
-    findOne(@Param('id') id: string)  {
+    findOne(@Param('id') id: string) {
         return this.client.send<UserResponseDTO>('findOneUser', id);
     }
 
     @Put(':id')
-    update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDTO)  {
+    update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDTO) {
         return this.client.send('updateUser', { id, dto: updateUserDto });
     }
 
