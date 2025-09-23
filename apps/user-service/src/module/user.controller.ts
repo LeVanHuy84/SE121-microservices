@@ -3,8 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 
 import { UserService } from './user.service';
 
-import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
+import { CreateUserDTO, UpdateUserDTO } from '@repo/dtos';
 
 
 

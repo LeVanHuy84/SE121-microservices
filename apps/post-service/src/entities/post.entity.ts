@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { Comment } from "./comment.entity";
 import { Reaction } from "./reaction.entity";
 import { Share } from "./share.entity";
-import { EditHisstory } from "./edit-history.entity";
+import { EditHistory } from "./edit-history.entity";
 import { Report } from "./report.entity";
 import { Audience, MediaDto, PostStatus, StatsDto } from "@repo/dtos";
 
@@ -47,8 +47,8 @@ export class Post {
     @OneToMany(() => Share, (shares) => shares.post)
     shares: Share[];
 
-    @OneToMany(() => EditHisstory, (editHistories) => editHistories.post)
-    editHistories: EditHisstory[];
+    @OneToMany(() => EditHistory, (editHistories) => editHistories.post)
+    editHistories: EditHistory[];
 
     @OneToMany(() => Report, (reports) => reports.post)
     reports: Report[];

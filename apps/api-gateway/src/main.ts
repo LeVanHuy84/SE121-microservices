@@ -6,18 +6,8 @@ import { GatewayExceptionsFilter } from './common/filters/gateway.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api/v1');
   app.enableCors();
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+
 
   app.useGlobalFilters(new GatewayExceptionsFilter());
   // set global prefix

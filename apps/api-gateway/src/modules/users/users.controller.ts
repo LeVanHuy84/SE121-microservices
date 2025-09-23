@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Req } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { Public } from 'src/common/decorators/public.decorator';

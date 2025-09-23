@@ -6,8 +6,6 @@ export class UserResponseDTO {
   @Expose()
   email: string;
   @Expose()
-  username: string;
-  @Expose()
   isActive: boolean;
   @Expose()
   firstName: string;

@@ -1,13 +1,12 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from './common/constants';
-import { ClerkClientProvider } from './providers/clerk-client.provider';
-import { AuthModule } from './modules/auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { AuthModule } from './modules/auth/auth.module';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
-import { UsersController } from './modules/users/users.controller';
 import { PostsModule } from './modules/posts/posts.module';
+import { UserModule } from './modules/users/users.module';
+import { ClerkClientProvider } from './providers/clerk-client.provider';
+import { SocialModule } from './modules/social/social.module';
 
 @Module({
   imports: [
@@ -17,6 +16,8 @@ import { PostsModule } from './modules/posts/posts.module';
 
     AuthModule,
     PostsModule,
+    UserModule,
+    SocialModule
   ],
 
   providers: [

@@ -4,10 +4,6 @@ export class CreateUserDTO {
   @IsEmail()
   email: string;
 
-
-  @IsString()
-  username: string;
-
   @IsOptional()
   @IsString()
   firstName: string;
