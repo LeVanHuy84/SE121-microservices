@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable } from '@nestjs/common';
 import { Transaction } from 'neo4j-driver';
 import { Neo4jService } from 'src/neo4j/neo4j.service';
 
@@ -41,11 +40,12 @@ export class FriendshipService {
     userId: string,
     targetId: string,
   ) {
-    return this.neo4j.write(
+    await this.neo4j.write(
       `MERGE (u:User {id:$userId}) MERGE (t:User {id:$targetId}) MERGE (u)-[:REQUESTED]->(t)`,
       { userId, targetId },
       databaseOrTransaction,
     );
+    return { success: true };
   }
   async acceptFriendRequest(
     databaseOrTransaction: string | Transaction,

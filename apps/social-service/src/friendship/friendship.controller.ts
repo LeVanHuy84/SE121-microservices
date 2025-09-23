@@ -5,9 +5,9 @@
 import { Controller, Inject, UseInterceptors } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { Transaction } from 'neo4j-driver';
+import { firstValueFrom } from 'rxjs';
 import { Neo4jTransactionInterceptor } from 'src/neo4j/neo4j-transaction.interceptor';
 import { FriendshipService } from './friendship.service';
-import { firstValueFrom } from 'rxjs';
 
 @Controller()
 export class FriendshipController {
@@ -16,7 +16,7 @@ export class FriendshipController {
     @Inject('USER_SERVICE') private readonly userRedisClient: ClientProxy,
   ) {}
 
-  @MessagePattern({ cmd: 'get_relationship_status' })
+  @MessagePattern('get_relationship_status')
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
     return this.friendshipService.getRelationshipStatus(
       data.userId,
@@ -96,7 +96,7 @@ export class FriendshipController {
 
     // gọi User Service để lấy profile
     const users = await firstValueFrom(
-      this.userRedisClient.send(
+      this.userRedisClient.emit(
         { cmd: 'getUserBatch' },
         { ids: recommendations.map((r) => r.id) },
       ),

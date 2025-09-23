@@ -1,4 +1,10 @@
-import neo4j, { Result, Driver, int, Transaction } from 'neo4j-driver';
+import neo4j, {
+  Result,
+  Driver,
+  int,
+  Transaction,
+  QueryResult,
+} from 'neo4j-driver';
 import { Injectable, Inject, OnApplicationShutdown } from '@nestjs/common';
 import type { Neo4jConfig } from './neo4j-config.interface';
 import { NEO4J_CONFIG, NEO4J_DRIVER } from './neo4j.constants';
@@ -42,11 +48,11 @@ export class Neo4jService implements OnApplicationShutdown {
     });
   }
 
-  read(
+  async read(
     cypher: string,
     params?: Record<string, any>,
     databaseOrTransaction?: string | Transaction,
-  ) {
+  ): Promise<QueryResult> {
     if (databaseOrTransaction instanceof Transaction) {
       return databaseOrTransaction.run(cypher, params);
     }
@@ -55,11 +61,11 @@ export class Neo4jService implements OnApplicationShutdown {
     return session.run(cypher, params);
   }
 
-  write(
+  async write(
     cypher: string,
     params?: Record<string, any>,
     databaseOrTransaction?: string | Transaction,
-  ): Result {
+  ): Promise<QueryResult> {
     if (databaseOrTransaction instanceof Transaction) {
       return databaseOrTransaction.run(cypher, params);
     }
