@@ -1,9 +1,9 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { ExceptionsFilter } from '@repo/common';
+import { AppModule } from './app.module';
 import { Neo4jTypeInterceptor } from './neo4j/neo4j-type.interceptor';
-import { Neo4jErrorFilter } from './neo4j/neo4j.filter';
 
 async function bootstrap() {
   const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -17,7 +17,7 @@ async function bootstrap() {
   );
   tcpApp.useGlobalPipes(new ValidationPipe());
   tcpApp.useGlobalInterceptors(new Neo4jTypeInterceptor());
-  tcpApp.useGlobalFilters(new Neo4jErrorFilter());
+  tcpApp.useGlobalFilters(new ExceptionsFilter());
 
   const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,

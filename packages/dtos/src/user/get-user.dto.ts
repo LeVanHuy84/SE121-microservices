@@ -1,4 +1,4 @@
-import { Expose } from "class-transformer";
+import { Expose } from 'class-transformer';
 
 export class UserResponseDTO {
   @Expose()
@@ -15,4 +15,8 @@ export class UserResponseDTO {
   coverImageUrl: string;
   @Expose()
   avatarUrl: string;
+  @Expose()
+  bio: string;
+  @Expose()
+  createdAt: Date
 }

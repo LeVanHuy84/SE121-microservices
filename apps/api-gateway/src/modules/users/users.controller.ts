@@ -1,39 +1,57 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Req,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { Public } from 'src/common/decorators/public.decorator';
 import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
 import { Observable } from 'rxjs';
+import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('users')
 export class UsersController {
-    constructor(
-        @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
-        private client: ClientProxy
-    ) { }
+  constructor(
+    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
+    private client: ClientProxy
+  ) {}
 
-    @Public()
-    @Post()
-    create(@Body() createUserDto: CreateUserDTO)  {
-        return this.client.send('createUser', createUserDto);
-    }
+  @Public()
+  @Post()
+  create(@Body() createUserDto: CreateUserDTO) {
+    return this.client.send('createUser', createUserDto);
+  }
 
-    @Get()
-    findAll() : Observable<UserResponseDTO[]> {
-        return this.client.send<UserResponseDTO[]>('findAllUser', {});
-    }
+  @Get()
+  findAll(): Observable<UserResponseDTO[]> {
+    return this.client.send<UserResponseDTO[]>('findAllUser', {});
+  }
 
-    @Get(':id')
-    findOne(@Param('id') id: string)  {
-        return this.client.send<UserResponseDTO>('findOneUser', id);
-    }
+  @Get(':id')
+  findOne(@Param('id') targetId: string, @CurrentUserId() userId: string) {
+    return this.client.send<UserResponseDTO>('findOneUser', {
+      userId,
+      targetId,
+    });
+  }
 
-    @Put(':id')
-    update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDTO)  {
-        return this.client.send('updateUser', { id, dto: updateUserDto });
-    }
+  @Patch()
+  update(@CurrentUserId() id: string, @Body() updateUserDto: UpdateUserDTO) {
+    return this.client.send('updateUser', {
+      id,
+      updateUserDto,
+    });
+  }
 
-    @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.client.send('removeUser', id);
-    }
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.client.send('removeUser', id);
+  }
 }
