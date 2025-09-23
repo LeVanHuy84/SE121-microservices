@@ -1,22 +1,33 @@
-import { IsArray, IsOptional, IsString } from "class-validator";
+import { IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
+import { Audience } from "../enums/social.enum";
+import { Expose, Type } from "class-transformer";
+
+export class MediaDto {
+    @Expose()
+    @IsOptional()
+    @IsString({ each: true })
+    imageUrls?: string[];
+
+    @Expose()
+    @IsOptional()
+    @IsString({ each: true })
+    videosUrls?: string[];
+}
 
 export class CreatePostDto {
+    @IsOptional()
     @IsString()
-    userId: string;
-
-    @IsString()
-    groupId: string;
+    groupId?: string; // NULL = cá nhân, NOT NULL = group
 
     @IsString()
     content: string;
 
     @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    imageUrls?: string[];
+    @ValidateNested()
+    @Type(() => MediaDto)
+    media?: MediaDto;
 
     @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    videoUrls?: string[];
+    @IsEnum(Audience)
+    audience?: Audience;
 }

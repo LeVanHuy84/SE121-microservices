@@ -5,6 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev",
+    "dev:test": "turbo run start:dev --filter=post-service --filter=api-gateway",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
@@ -25,6 +26,8 @@
   "dependencies": {
     "@nestjs/config": "^4.0.2",
     "@nestjs/microservices": "^11.1.6",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
     "http-proxy-middleware": "^3.0.5"
   }
 }
