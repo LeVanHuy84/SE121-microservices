@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { PostsController } from './posts.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ReactionsController } from './reactions.controller';
+import { Module } from "@nestjs/common";
+import { PostsController } from "./posts.controller";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ReactionsController } from "./reactions.controller";
 
 @Module({
   imports: [
@@ -15,12 +15,12 @@ import { ReactionsController } from './reactions.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('POST_SERVICE_PORT'),
+            port: config.get<number>("POST_SERVICE_PORT"),
           },
         }),
       },
-    ])
+    ]),
   ],
-  controllers: [PostsController, ReactionsController]
+  controllers: [PostsController, ReactionsController],
 })
-export class PostsModule { }
+export class PostsModule {}
