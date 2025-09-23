@@ -1,8 +1,7 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { Post } from "./post.entity";
-import { Reaction } from "./reaction.entity";
+import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { Report } from "./report.entity";
-import { StatsDto } from "@repo/dtos";
+import { MediaDto } from "@repo/dtos";
+import { CommentStat } from "./comment-stat.entity";
 
 @Entity('comments')
 export class Comment {
@@ -16,7 +15,7 @@ export class Comment {
     content: string;
 
     @Column('jsonb')
-    stats: StatsDto;
+    media: MediaDto;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
@@ -24,16 +23,12 @@ export class Comment {
     @UpdateDateColumn({ name: 'updated_at' })
     updatedAt: Date;
 
-    @ManyToOne(() => Post, (post) => post.comments)
-    @JoinColumn({ name: 'post_id' })
-    post: Post;
-
-    @ManyToOne(() => Comment, (comment) => comment.children, { nullable: true })
-    @JoinColumn({ name: 'parent_id' })
-    parent?: Comment;
-
-    @OneToMany(() => Comment, (comment) => comment.parent)
-    children: Comment[];
+    @OneToOne(
+        () => CommentStat,
+        (commentStat) => commentStat.comment,
+        { cascade: true, eager: true },
+    )
+    commentStat: CommentStat;
 
     @OneToMany(() => Report, (reports) => reports.comment)
     reports: Report[];

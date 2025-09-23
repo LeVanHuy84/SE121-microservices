@@ -1,9 +1,10 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { Comment } from "./comment.entity";
 import { Share } from "./share.entity";
 import { EditHistory } from "./edit-history.entity";
 import { Report } from "./report.entity";
 import { Audience, Feeling, MediaDto, PostStatus, StatsDto } from "@repo/dtos";
+import { PostStat } from "./post-stat.entity";
 
 @Entity('posts')
 export class Post {
@@ -28,26 +29,6 @@ export class Post {
   @Column('smallint', { default: Audience.PUBLIC })
   audience: Audience;
 
-  @Column({
-    type: 'jsonb',
-    default: () => `'
-        {
-          "totalReactions": 0,
-          "reactions": {
-            "like": 0,
-            "love": 0,
-            "haha": 0,
-            "wow": 0,
-            "angry": 0,
-            "sad": 0
-          },
-          "comments": 0,
-          "shares": 0
-        }
-      '`,
-  })
-  stats: StatsDto;
-
   @Column('smallint', { default: PostStatus.ACTIVE })
   status: PostStatus;
 
@@ -57,8 +38,12 @@ export class Post {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => Comment, (comments) => comments.post)
-  comments: Comment[];
+  @OneToOne(
+    () => PostStat,
+    (postStat) => postStat.post,
+    { cascade: true, eager: true },
+  )
+  postStat: PostStat;
 
   @OneToMany(() => Share, (shares) => shares.post)
   shares: Share[];

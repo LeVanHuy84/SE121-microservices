@@ -1,10 +1,10 @@
-import { ReactionStatsDto, ReactionType } from "@repo/dtos";
+import { ReactionType } from "@repo/dtos";
 
-export const ReactionFieldMap: Record<ReactionType, keyof ReactionStatsDto> = {
-    [ReactionType.LIKE]: "like",
-    [ReactionType.LOVE]: "love",
-    [ReactionType.HAHA]: "haha",
-    [ReactionType.WOW]: "wow",
-    [ReactionType.SAD]: "sad",
-    [ReactionType.ANGRY]: "angry",
+export const ReactionFieldMap: Record<ReactionType, string> = {
+    [ReactionType.LIKE]: "likes",
+    [ReactionType.LOVE]: "loves",
+    [ReactionType.HAHA]: "hahas",
+    [ReactionType.WOW]: "wows",
+    [ReactionType.SAD]: "sads",
+    [ReactionType.ANGRY]: "angrys",
 };
