@@ -1,14 +1,12 @@
-import { Module } from '@nestjs/common';
-import { ReactionController } from './react.controller';
-import { ReactionService } from './react.service';
-import { Reaction } from 'src/entities/reaction.entity';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Comment } from 'src/entities/comment.entity';
-import { Post } from 'src/entities/post.entity';
+import { Module } from "@nestjs/common";
+import { ReactionController } from "./react.controller";
+import { ReactionService } from "./react.service";
+import { Reaction } from "src/entities/reaction.entity";
+import { TypeOrmModule } from "@nestjs/typeorm";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Reaction, Post, Comment])],
+  imports: [TypeOrmModule.forFeature([Reaction])],
   controllers: [ReactionController],
-  providers: [ReactionService]
+  providers: [ReactionService],
 })
-export class ReactModule { }
+export class ReactModule {}

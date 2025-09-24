@@ -1,35 +1,43 @@
-import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { Report } from "./report.entity";
-import { MediaDto } from "@repo/dtos";
-import { CommentStat } from "./comment-stat.entity";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { MediaDto } from '@repo/dtos';
+import { CommentStat } from './comment-stat.entity';
 
 @Entity('comments')
 export class Comment {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column('uuid', { name: 'user_id', nullable: false })
-    userId: string;
+  @Column('uuid', { name: 'user_id', nullable: false })
+  userId: string;
 
-    @Column('text')
-    content: string;
+  @Column('uuid', { name: 'post_id' })
+  postId: string;
 
-    @Column('jsonb')
-    media: MediaDto;
+  @Column('uuid', { name: 'reply_id', nullable: true })
+  replyId: string;
 
-    @CreateDateColumn({ name: 'created_at' })
-    createdAt: Date;
+  @Column({ type: 'varchar', length: 1000 })
+  content: string;
 
-    @UpdateDateColumn({ name: 'updated_at' })
-    updatedAt: Date;
+  @Column('jsonb', { nullable: true })
+  media: MediaDto;
 
-    @OneToOne(
-        () => CommentStat,
-        (commentStat) => commentStat.comment,
-        { cascade: true, eager: true },
-    )
-    commentStat: CommentStat;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 
-    @OneToMany(() => Report, (reports) => reports.comment)
-    reports: Report[];
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @OneToOne(() => CommentStat, (commentStat) => commentStat.comment, {
+    cascade: true,
+    eager: true,
+  })
+  commentStat: CommentStat;
 }

@@ -1,18 +1,17 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Post } from "src/entities/post.entity";
-import { FindOptionsWhere, Repository } from "typeorm";
-import { plainToInstance } from "class-transformer";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Post } from 'src/entities/post.entity';
+import { Repository } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
 import {
   CreatePostDto,
   GetPostQueryDto,
   PageResponse,
-  PaginationDto,
-  PostResponseDTO,
+  PostResponseDto,
   PostStatus,
-} from "@repo/dtos";
-import { RpcException } from "@nestjs/microservices";
-import { PostStat } from "src/entities/post-stat.entity";
+} from '@repo/dtos';
+import { RpcException } from '@nestjs/microservices';
+import { PostStat } from 'src/entities/post-stat.entity';
 
 @Injectable()
 export class PostService {
@@ -24,57 +23,59 @@ export class PostService {
   async createPost(
     userId: string,
     dto: CreatePostDto
-  ): Promise<PostResponseDTO> {
+  ): Promise<PostResponseDto> {
     const post = this.postRepo.create({
       ...dto,
       userId,
       postStat: this.postStatRepo.create(),
     });
     const entity = await this.postRepo.save(post);
-    return plainToInstance(PostResponseDTO, entity);
+    return plainToInstance(PostResponseDto, entity, {
+      excludeExtraneousValues: true,
+    });
   }
 
-  async getPostById(postId: string): Promise<PostResponseDTO> {
+  async getPostById(postId: string): Promise<PostResponseDto> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
-      throw new RpcException("Post not found with id: " + postId);
+      throw new RpcException('Post not found with id: ' + postId);
     }
-    return plainToInstance(PostResponseDTO, post);
+    return plainToInstance(PostResponseDto, post, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async getPostsByUser(
     userId: string,
     query: GetPostQueryDto,
     currentUserId: string
-  ): Promise<PageResponse<PostResponseDTO>> {
+  ): Promise<PageResponse<PostResponseDto>> {
     const { page, limit, status, feeling } = query;
 
     const isOwner = userId === currentUserId;
 
-    let where: FindOptionsWhere<Post> = { userId };
+    const qb = this.postRepo
+      .createQueryBuilder('p')
+      .where('p.userId = :userId', { userId })
+      .orderBy('p.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    // Status filter
     if (isOwner) {
       if (status) {
-        where = { ...where, status };
+        qb.andWhere('p.status = :status', { status });
       }
     } else {
-      where = { ...where, status: PostStatus.ACTIVE };
+      qb.andWhere('p.status = :status', { status: PostStatus.ACTIVE });
     }
 
-    // Feeling filter
     if (feeling) {
-      where = { ...where, feeling };
+      qb.andWhere('p.feeling = :feeling', { feeling });
     }
 
-    const [posts, total] = await this.postRepo.findAndCount({
-      where,
-      order: { createdAt: "DESC" },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [posts, total] = await qb.getManyAndCount();
 
-    const postDtos = plainToInstance(PostResponseDTO, posts, {
+    const postDtos = plainToInstance(PostResponseDto, posts, {
       excludeExtraneousValues: true,
     });
 
@@ -85,27 +86,29 @@ export class PostService {
     userId: string,
     postId: string,
     dto: Partial<CreatePostDto>
-  ): Promise<PostResponseDTO> {
+  ): Promise<PostResponseDto> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
-      throw new RpcException("Post not found with id: " + postId);
+      throw new RpcException('Post not found with id: ' + postId);
     }
     if (post.userId !== userId) {
-      throw new RpcException("You are not authorized to update this post");
+      throw new RpcException('You are not authorized to update this post');
     }
 
     Object.assign(post, dto);
     const updatedPost = await this.postRepo.save(post);
-    return plainToInstance(PostResponseDTO, updatedPost);
+    return plainToInstance(PostResponseDto, updatedPost, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async updatePostStatus(userId: string, postId: string) {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
-      throw new RpcException("Post not found with id: " + postId);
+      throw new RpcException('Post not found with id: ' + postId);
     }
     if (post.userId !== userId) {
-      throw new RpcException("You are not authorized to update this post");
+      throw new RpcException('You are not authorized to update this post');
     }
 
     post.status =
@@ -115,12 +118,12 @@ export class PostService {
   async deletePost(postId: string, userId: string) {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
-      throw new RpcException("Post not found with id: " + postId);
+      throw new RpcException('Post not found with id: ' + postId);
     }
     if (post.userId !== userId) {
-      throw new RpcException("You are not authorized to delete this post");
+      throw new RpcException('You are not authorized to delete this post');
     }
     await this.postRepo.remove(post);
-    return "Post deleted successfully";
+    return 'Post deleted successfully';
   }
 }

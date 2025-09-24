@@ -1,33 +1,44 @@
-import { Expose } from "class-transformer";
-import { MediaDto } from "../common/media.dto";
+import { Expose, Type } from 'class-transformer';
+import { MediaDto } from '../common/media.dto';
 
-export class CommentStatsDto {
-    @Expose()
-    totalReactions: number;
-
-    @Expose()
-    replies: number;
+export class CommentStatDto {
+  @Expose() reactions: number;
+  @Expose() likes: number;
+  @Expose() loves: number;
+  @Expose() hahas: number;
+  @Expose() wows: number;
+  @Expose() angrys: number;
+  @Expose() sads: number;
+  @Expose() replies: number;
 }
 
-export class CommentResponseDTO {
-    @Expose()
-    id: string;
+export class CommentResponseDto {
+  @Expose()
+  id: string;
 
-    @Expose()
-    userId: string;
+  @Expose()
+  userId: string;
 
-    @Expose()
-    content: string;
+  @Expose()
+  postId: string;
 
-    @Expose()
-    media: MediaDto;
+  @Expose()
+  replyId?: string;
 
-    @Expose()
-    stats: CommentStatsDto;
+  @Expose()
+  content: string;
 
-    @Expose()
-    createdAt: Date;
+  @Expose()
+  @Type(() => MediaDto)
+  media?: MediaDto;
 
-    @Expose()
-    updatedAt: Date;
+  @Expose()
+  @Type(() => CommentStatDto)
+  commentStat: CommentStatDto;
+
+  @Expose()
+  createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
 }

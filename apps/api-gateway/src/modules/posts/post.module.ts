@@ -1,9 +1,10 @@
 import { Module } from "@nestjs/common";
-import { PostsController } from "./posts.controller";
+import { PostController } from "./post.controller";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { ReactionsController } from "./reactions.controller";
+import { ReactionController } from "./reaction.controller";
+import { CommentController } from "./comment.controller";
 
 @Module({
   imports: [
@@ -21,6 +22,6 @@ import { ReactionsController } from "./reactions.controller";
       },
     ]),
   ],
-  controllers: [PostsController, ReactionsController],
+  controllers: [PostController, ReactionController, CommentController],
 })
-export class PostsModule {}
+export class PostModule {}

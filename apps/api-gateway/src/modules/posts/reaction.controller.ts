@@ -13,7 +13,7 @@ import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
 @Controller("reactions")
-export class ReactionsController {
+export class ReactionController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
     private client: ClientProxy
