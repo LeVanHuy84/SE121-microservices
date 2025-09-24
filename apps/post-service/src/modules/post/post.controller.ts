@@ -8,19 +8,19 @@ export class PostController {
   constructor(private postService: PostService) {}
 
   @MessagePattern('create_post')
-  async createPost(
+  async create(
     @Payload() payload: { userId: string; createPostDTO: CreatePostDTO }
   ) {
-    return this.postService.createPost(payload.userId, payload.createPostDTO);
+    return this.postService.create(payload.userId, payload.createPostDTO);
   }
 
-  @MessagePattern('get_post_by_id')
-  async getPostById(@Payload() postId: string) {
-    return this.postService.getPostById(postId);
+  @MessagePattern('find_post_by_id')
+  async findById(@Payload() postId: string) {
+    return this.postService.findById(postId);
   }
 
-  @MessagePattern('get_posts_by_user')
-  async getPostsByUser(
+  @MessagePattern('find_posts_by_user_id')
+  async getPostsByUserId(
     @Payload()
     payload: {
       userId: string;
@@ -28,7 +28,7 @@ export class PostController {
       currentUserId: string;
     }
   ) {
-    return this.postService.getPostsByUser(
+    return this.postService.findByUserId(
       payload.userId,
       payload.pagination,
       payload.currentUserId
@@ -39,7 +39,7 @@ export class PostController {
   async updatePost(
     @Payload() payload: { userId: string; postId: string; updatePostDTO: any }
   ) {
-    return this.postService.updatePost(
+    return this.postService.update(
       payload.userId,
       payload.postId,
       payload.updatePostDTO
@@ -50,11 +50,11 @@ export class PostController {
   async updatePostStatus(
     @Payload() payload: { userId: string; postId: string }
   ) {
-    return this.postService.updatePostStatus(payload.userId, payload.postId);
+    return this.postService.updateStatus(payload.userId, payload.postId);
   }
 
-  @MessagePattern('delete_post')
+  @MessagePattern('remove_post')
   async deletePost(@Payload() payload: { id: string; userId: string }) {
-    return this.postService.deletePost(payload.id, payload.userId);
+    return this.postService.remove(payload.id, payload.userId);
   }
 }
