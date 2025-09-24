@@ -1,12 +1,12 @@
-import { Module, ValidationPipe } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { AuthModule } from './modules/auth/auth.module';
-import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
-import { PostsModule } from './modules/posts/posts.module';
-import { UserModule } from './modules/users/users.module';
-import { ClerkClientProvider } from './providers/clerk-client.provider';
-import { SocialModule } from './modules/social/social.module';
+import { Module, ValidationPipe } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { AuthModule } from "./modules/auth/auth.module";
+import { ClerkAuthGuard } from "./modules/auth/clerk-auth.guard";
+import { PostModule } from "./modules/posts/post.module";
+import { UserModule } from "./modules/users/users.module";
+import { ClerkClientProvider } from "./providers/clerk-client.provider";
+import { SocialModule } from "./modules/social/social.module";
 
 @Module({
   imports: [
@@ -15,9 +15,9 @@ import { SocialModule } from './modules/social/social.module';
     }),
 
     AuthModule,
-    PostsModule,
+    PostModule,
     UserModule,
-    SocialModule
+    SocialModule,
   ],
 
   providers: [
@@ -27,7 +27,7 @@ import { SocialModule } from './modules/social/social.module';
       useClass: ClerkAuthGuard,
     },
     {
-      provide: 'APP_PIPE',
+      provide: "APP_PIPE",
       useValue: new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
@@ -36,9 +36,9 @@ import { SocialModule } from './modules/social/social.module';
           enableImplicitConversion: true,
         },
       }),
-    }
+    },
   ],
 
   controllers: [],
 })
-export class AppModule { }
+export class AppModule {}

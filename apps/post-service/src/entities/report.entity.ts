@@ -1,26 +1,31 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Post } from './post.entity';
-import { Comment } from './comment.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { TargetType } from '@repo/dtos';
 
 @Entity('reports')
 export class Report {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column('uuid', { name: 'user_id', nullable: false })
-    userId: string;
+  @Column('uuid', { name: 'reporter_id' })
+  reporterId: string;
 
-    @Column({ type: 'text' })
-    caption: string;
+  @Column({ name: 'target_type', type: 'enum', enum: TargetType })
+  targetType: TargetType;
 
-    @CreateDateColumn({ name: 'created_at' })
-    createdAt: Date;
+  @Column('uuid', { name: 'target_id' })
+  targetId: string;
 
-    @ManyToOne(() => Post, (post) => post.reports)
-    @JoinColumn({ name: 'post_id' })
-    post: Post;
+  @Column('text', { nullable: true })
+  reason: string;
 
-    @ManyToOne(() => Comment, (comment) => comment.reports)
-    @JoinColumn({ name: 'comment_id' })
-    comment: Comment;
+  @Column({ type: 'varchar', length: 50, default: 'PENDING' })
+  status: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 }

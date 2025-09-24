@@ -1,4 +1,12 @@
-import { PartialType } from "@nestjs/mapped-types";
-import { CreatePostDto } from "./create-post.dto";
+import { IsEnum, IsOptional, IsString } from "class-validator";
+import { Audience } from "../enums/social.enum";
 
-export class UpdatePostDto extends PartialType(CreatePostDto) { }
+export class UpdatePostDto {
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @IsOptional()
+  @IsEnum(Audience)
+  audience?: Audience;
+}
