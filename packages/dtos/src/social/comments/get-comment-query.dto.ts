@@ -1,7 +1,7 @@
 import { IsOptional, IsUUID } from 'class-validator';
-import { PaginationDto } from '../../pagination/pagination.dto';
+import { PaginationDTO } from '../../pagination/pagination.dto';
 
-export class GetCommentQueryDto extends PaginationDto {
+export class GetCommentQueryDTO extends PaginationDTO {
   @IsOptional()
   @IsUUID()
   postId?: string;

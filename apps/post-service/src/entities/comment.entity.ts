@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { MediaDto } from '@repo/dtos';
+import { MediaDTO } from '@repo/dtos';
 import { CommentStat } from './comment-stat.entity';
 
 @Entity('comments')
@@ -27,7 +27,7 @@ export class Comment {
   content: string;
 
   @Column('jsonb', { nullable: true })
-  media: MediaDto;
+  media: MediaDTO;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

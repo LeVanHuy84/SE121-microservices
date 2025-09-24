@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { Share } from './share.entity';
 import { EditHistory } from './edit-history.entity';
-import { Audience, Feeling, MediaDto, PostStatus } from '@repo/dtos';
+import { Audience, Feeling, MediaDTO, PostStatus } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
 
 @Entity('posts')
@@ -30,7 +30,7 @@ export class Post {
   content: string;
 
   @Column('jsonb', { nullable: true })
-  media: MediaDto;
+  media: MediaDTO;
 
   @Column('smallint', { default: Audience.PUBLIC })
   audience: Audience;

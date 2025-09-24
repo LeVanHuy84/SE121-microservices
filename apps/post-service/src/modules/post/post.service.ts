@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Post } from 'src/entities/post.entity';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
-  CreatePostDto,
-  GetPostQueryDto,
+  CreatePostDTO,
+  GetPostQueryDTO,
   PageResponse,
-  PostResponseDto,
+  PostResponseDTO,
   PostStatus,
 } from '@repo/dtos';
 import { RpcException } from '@nestjs/microservices';
@@ -22,34 +22,34 @@ export class PostService {
 
   async createPost(
     userId: string,
-    dto: CreatePostDto
-  ): Promise<PostResponseDto> {
+    dto: CreatePostDTO
+  ): Promise<PostResponseDTO> {
     const post = this.postRepo.create({
       ...dto,
       userId,
       postStat: this.postStatRepo.create(),
     });
     const entity = await this.postRepo.save(post);
-    return plainToInstance(PostResponseDto, entity, {
+    return plainToInstance(PostResponseDTO, entity, {
       excludeExtraneousValues: true,
     });
   }
 
-  async getPostById(postId: string): Promise<PostResponseDto> {
+  async getPostById(postId: string): Promise<PostResponseDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
       throw new RpcException('Post not found with id: ' + postId);
     }
-    return plainToInstance(PostResponseDto, post, {
+    return plainToInstance(PostResponseDTO, post, {
       excludeExtraneousValues: true,
     });
   }
 
   async getPostsByUser(
     userId: string,
-    query: GetPostQueryDto,
+    query: GetPostQueryDTO,
     currentUserId: string
-  ): Promise<PageResponse<PostResponseDto>> {
+  ): Promise<PageResponse<PostResponseDTO>> {
     const { page, limit, status, feeling } = query;
 
     const isOwner = userId === currentUserId;
@@ -75,18 +75,18 @@ export class PostService {
 
     const [posts, total] = await qb.getManyAndCount();
 
-    const postDtos = plainToInstance(PostResponseDto, posts, {
+    const postDTOs = plainToInstance(PostResponseDTO, posts, {
       excludeExtraneousValues: true,
     });
 
-    return new PageResponse(postDtos, total, page, limit);
+    return new PageResponse(postDTOs, total, page, limit);
   }
 
   async updatePost(
     userId: string,
     postId: string,
-    dto: Partial<CreatePostDto>
-  ): Promise<PostResponseDto> {
+    dto: Partial<CreatePostDTO>
+  ): Promise<PostResponseDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) {
       throw new RpcException('Post not found with id: ' + postId);
@@ -97,7 +97,7 @@ export class PostService {
 
     Object.assign(post, dto);
     const updatedPost = await this.postRepo.save(post);
-    return plainToInstance(PostResponseDto, updatedPost, {
+    return plainToInstance(PostResponseDTO, updatedPost, {
       excludeExtraneousValues: true,
     });
   }

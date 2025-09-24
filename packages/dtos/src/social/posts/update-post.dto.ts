@@ -1,7 +1,7 @@
-import { IsEnum, IsOptional, IsString } from "class-validator";
-import { Audience } from "../enums/social.enum";
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Audience } from '../enums/social.enum';
 
-export class UpdatePostDto {
+export class UpdatePostDTO {
   @IsOptional()
   @IsString()
   content?: string;

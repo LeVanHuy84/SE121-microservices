@@ -1,8 +1,8 @@
 import { Type } from 'class-transformer';
 import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
-import { MediaDto } from '../common/media.dto';
+import { MediaDTO } from '../common/media.dto';
 
-export class CreateCommentDto {
+export class CreateCommentDTO {
   @IsUUID()
   postId: string;
 
@@ -15,6 +15,6 @@ export class CreateCommentDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => MediaDto)
-  media?: MediaDto;
+  @Type(() => MediaDTO)
+  media?: MediaDTO;
 }

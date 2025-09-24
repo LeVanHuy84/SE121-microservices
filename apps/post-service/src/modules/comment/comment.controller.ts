@@ -2,9 +2,9 @@ import { Controller } from '@nestjs/common';
 import { CommentService } from './comment.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
-  CreateCommentDto,
-  GetCommentQueryDto,
-  UpdateCommentDto,
+  CreateCommentDTO,
+  GetCommentQueryDTO,
+  UpdateCommentDTO,
 } from '@repo/dtos';
 
 @Controller('comment')
@@ -12,7 +12,7 @@ export class CommentController {
   constructor(private commentService: CommentService) {}
 
   @MessagePattern('create_comment')
-  create(@Payload() payload: { userId: string; dto: CreateCommentDto }) {
+  create(@Payload() payload: { userId: string; dto: CreateCommentDTO }) {
     return this.commentService.create(payload.userId, payload.dto);
   }
 
@@ -22,7 +22,7 @@ export class CommentController {
   }
 
   @MessagePattern('get_comment_of_target')
-  getComments(@Payload() query: GetCommentQueryDto) {
+  getComments(@Payload() query: GetCommentQueryDTO) {
     return this.commentService.getComments(query);
   }
 
@@ -32,7 +32,7 @@ export class CommentController {
     payload: {
       userId: string;
       commentId: string;
-      dto: UpdateCommentDto;
+      dto: UpdateCommentDTO;
     }
   ) {
     return this.commentService.update(
