@@ -7,9 +7,9 @@ import {
 } from 'class-validator';
 import { Audience } from '../enums/social.enum';
 import { Type } from 'class-transformer';
-import { MediaDto } from '../common/media.dto';
+import { MediaDTO } from '../common/media.dto';
 
-export class CreatePostDto {
+export class CreatePostDTO {
   @IsOptional()
   @IsString()
   groupId?: string; // NULL = cá nhân, NOT NULL = group
@@ -20,8 +20,8 @@ export class CreatePostDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => MediaDto)
-  media?: MediaDto;
+  @Type(() => MediaDTO)
+  media?: MediaDTO;
 
   @IsOptional()
   @IsEnum(Audience)

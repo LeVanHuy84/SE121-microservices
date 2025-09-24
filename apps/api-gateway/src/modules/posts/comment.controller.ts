@@ -11,9 +11,9 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import {
-  CreateCommentDto,
-  GetCommentQueryDto,
-  UpdateCommentDto,
+  CreateCommentDTO,
+  GetCommentQueryDTO,
+  UpdateCommentDTO,
 } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
@@ -26,7 +26,7 @@ export class CommentController {
   ) {}
 
   @Post()
-  create(@Body() dto: CreateCommentDto, @CurrentUserId() userId: string) {
+  create(@Body() dto: CreateCommentDTO, @CurrentUserId() userId: string) {
     return this.client.send('create_comment', { userId, dto });
   }
 
@@ -36,7 +36,7 @@ export class CommentController {
   }
 
   @Get()
-  getComments(@Query() query: GetCommentQueryDto) {
+  getComments(@Query() query: GetCommentQueryDTO) {
     return this.client.send('get_comment_of_target', query);
   }
 
@@ -44,7 +44,7 @@ export class CommentController {
   update(
     @CurrentUserId() userId: string,
     @Param('id') id: string,
-    @Body() dto: UpdateCommentDto
+    @Body() dto: UpdateCommentDTO
   ) {
     return this.client.send('update_comment', { userId, id, dto });
   }

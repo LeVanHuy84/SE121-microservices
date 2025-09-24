@@ -2,10 +2,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
-  DisReactDto,
-  GetReactionsDto,
-  ReactDto,
-  ReactionResponseDto,
+  DisReactDTO,
+  GetReactionsDTO,
+  ReactDTO,
+  ReactionResponseDTO,
   ReactionType,
   TargetType,
 } from '@repo/dtos';
@@ -24,21 +24,21 @@ export class ReactionService {
     private readonly dataSource: DataSource
   ) {}
 
-  async getReactions(dto: GetReactionsDto) {
+  async getReactions(dto: GetReactionsDTO) {
     const [reactions, total] = await this.reactionRepo.findAndCount({
       where: { targetId: dto.targetId, targetType: dto.targetType },
       skip: (dto.page - 1) * dto.limit,
       take: dto.limit,
     });
 
-    const reactionDtos = plainToInstance(ReactionResponseDto, reactions, {
+    const reactionDTOs = plainToInstance(ReactionResponseDTO, reactions, {
       excludeExtraneousValues: true,
     });
 
-    return { data: reactionDtos, total, page: dto.page, limit: dto.limit };
+    return { data: reactionDTOs, total, page: dto.page, limit: dto.limit };
   }
 
-  async react(userId: string, dto: ReactDto) {
+  async react(userId: string, dto: ReactDTO) {
     return this.dataSource.transaction(async (manager) => {
       const reactionRepo = manager.getRepository(Reaction);
 
@@ -87,7 +87,7 @@ export class ReactionService {
     });
   }
 
-  async disReact(userId: string, dto: DisReactDto) {
+  async disReact(userId: string, dto: DisReactDTO) {
     return this.dataSource.transaction(async (manager) => {
       const reactionRepo = manager.getRepository(Reaction);
 

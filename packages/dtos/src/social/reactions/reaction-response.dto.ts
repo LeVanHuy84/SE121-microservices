@@ -1,15 +1,15 @@
-import { Expose } from "class-transformer";
-import { ReactionType } from "../enums/social.enum";
-import { IsEnum } from "class-validator";
+import { Expose } from 'class-transformer';
+import { ReactionType } from '../enums/social.enum';
+import { IsEnum } from 'class-validator';
 
-export class ReactionResponseDto {
-    @Expose()
-    id: string;
+export class ReactionResponseDTO {
+  @Expose()
+  id: string;
 
-    @Expose()
-    userId: string;
+  @Expose()
+  userId: string;
 
-    @Expose()
-    @IsEnum(ReactionType)
-    reactionType: ReactionType;
+  @Expose()
+  @IsEnum(ReactionType)
+  reactionType: ReactionType;
 }

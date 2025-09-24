@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
-  CommentResponseDto,
-  CreateCommentDto,
-  GetCommentQueryDto,
+  CommentResponseDTO,
+  CreateCommentDTO,
+  GetCommentQueryDTO,
   PageResponse,
-  UpdateCommentDto,
+  UpdateCommentDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { CommentStat } from 'src/entities/comment-stat.entity';
@@ -23,8 +23,8 @@ export class CommentService {
 
   async create(
     userId: string,
-    dto: CreateCommentDto
-  ): Promise<CommentResponseDto> {
+    dto: CreateCommentDTO
+  ): Promise<CommentResponseDTO> {
     return this.dataSource.transaction(async (manager) => {
       const comment = manager.create(Comment, {
         ...dto,
@@ -36,27 +36,27 @@ export class CommentService {
 
       await this.updateStatsForComment(manager, dto.postId, dto.replyId, +1);
 
-      return plainToInstance(CommentResponseDto, entity, {
+      return plainToInstance(CommentResponseDTO, entity, {
         excludeExtraneousValues: true,
       });
     });
   }
 
-  async getCommentById(commentId: string): Promise<CommentResponseDto> {
+  async getCommentById(commentId: string): Promise<CommentResponseDTO> {
     const comment = await this.commentRepo.findOneBy({ id: commentId });
 
     if (!comment) {
       throw new RpcException(`Comment with id ${commentId} not found`);
     }
 
-    return plainToInstance(CommentResponseDto, comment, {
+    return plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
     });
   }
 
   async getComments(
-    query: GetCommentQueryDto
-  ): Promise<PageResponse<CommentResponseDto>> {
+    query: GetCommentQueryDTO
+  ): Promise<PageResponse<CommentResponseDTO>> {
     const { page, limit, postId, replyId } = query;
 
     const qb = this.commentRepo
@@ -76,17 +76,17 @@ export class CommentService {
     const [comments, total] = await qb.getManyAndCount();
 
     const data = comments.map((c) =>
-      plainToInstance(CommentResponseDto, c, { excludeExtraneousValues: true })
+      plainToInstance(CommentResponseDTO, c, { excludeExtraneousValues: true })
     );
 
-    return new PageResponse<CommentResponseDto>(data, total, page, limit);
+    return new PageResponse<CommentResponseDTO>(data, total, page, limit);
   }
 
   async update(
     userId: string,
     commentId: string,
-    dto: UpdateCommentDto
-  ): Promise<CommentResponseDto> {
+    dto: UpdateCommentDTO
+  ): Promise<CommentResponseDTO> {
     const comment = await this.commentRepo.findOne({
       where: { id: commentId },
     });
@@ -103,7 +103,7 @@ export class CommentService {
 
     await this.commentRepo.save(comment);
 
-    return plainToInstance(CommentResponseDto, comment, {
+    return plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
     });
   }

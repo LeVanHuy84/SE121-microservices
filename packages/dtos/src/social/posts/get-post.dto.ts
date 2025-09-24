@@ -1,8 +1,8 @@
 import { Expose, Type } from 'class-transformer';
 import { Audience, PostStatus } from '../enums/social.enum';
-import { MediaDto } from '../common/media.dto';
+import { MediaDTO } from '../common/media.dto';
 
-export class PostStatDto {
+export class PostStatDTO {
   @Expose() reactions: number;
   @Expose() likes: number;
   @Expose() loves: number;
@@ -28,15 +28,15 @@ export class PostResponseDto {
   content: string;
 
   @Expose()
-  @Type(() => MediaDto)
-  media: MediaDto;
+  @Type(() => MediaDTO)
+  media: MediaDTO;
 
   @Expose()
   audience: Audience;
 
   @Expose()
-  @Type(() => PostStatDto)
-  postStat: PostStatDto;
+  @Type(() => PostStatDTO)
+  postStat: PostStatDTO;
 
   @Expose()
   mainEmotion?: string;

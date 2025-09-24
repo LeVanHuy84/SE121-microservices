@@ -1,10 +1,10 @@
-import { IsEnum, IsUUID } from "class-validator";
-import { TargetType } from "../enums/social.enum";
+import { IsEnum, IsUUID } from 'class-validator';
+import { TargetType } from '../enums/social.enum';
 
-export class DisReactDto {
-    @IsUUID()
-    targetId: string;
+export class DisReactDTO {
+  @IsUUID()
+  targetId: string;
 
-    @IsEnum(TargetType)
-    targetType: TargetType;
+  @IsEnum(TargetType)
+  targetType: TargetType;
 }

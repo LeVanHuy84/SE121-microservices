@@ -1,7 +1,7 @@
 import { Expose, Type } from 'class-transformer';
-import { MediaDto } from '../common/media.dto';
+import { MediaDTO } from '../common/media.dto';
 
-export class CommentStatDto {
+export class CommentStatDTO {
   @Expose() reactions: number;
   @Expose() likes: number;
   @Expose() loves: number;
@@ -12,7 +12,7 @@ export class CommentStatDto {
   @Expose() replies: number;
 }
 
-export class CommentResponseDto {
+export class CommentResponseDTO {
   @Expose()
   id: string;
 
@@ -29,12 +29,12 @@ export class CommentResponseDto {
   content: string;
 
   @Expose()
-  @Type(() => MediaDto)
-  media?: MediaDto;
+  @Type(() => MediaDTO)
+  media?: MediaDTO;
 
   @Expose()
-  @Type(() => CommentStatDto)
-  commentStat: CommentStatDto;
+  @Type(() => CommentStatDTO)
+  commentStat: CommentStatDTO;
 
   @Expose()
   createdAt: Date;
