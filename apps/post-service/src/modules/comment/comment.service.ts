@@ -42,7 +42,7 @@ export class CommentService {
     });
   }
 
-  async getCommentById(commentId: string): Promise<CommentResponseDTO> {
+  async findById(commentId: string): Promise<CommentResponseDTO> {
     const comment = await this.commentRepo.findOneBy({ id: commentId });
 
     if (!comment) {
@@ -54,7 +54,7 @@ export class CommentService {
     });
   }
 
-  async getComments(
+  async findByQuery(
     query: GetCommentQueryDTO
   ): Promise<PageResponse<CommentResponseDTO>> {
     const { page, limit, postId, replyId } = query;
@@ -108,7 +108,7 @@ export class CommentService {
     });
   }
 
-  async delete(id: string) {
+  async remove(id: string) {
     return this.dataSource.transaction(async (manager) => {
       const comment = await manager.findOne(Comment, { where: { id } });
       if (!comment) {

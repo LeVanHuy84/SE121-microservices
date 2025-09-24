@@ -26,7 +26,7 @@ export class Post {
   @Column('smallint', { nullable: true })
   feeling: Feeling;
 
-  @Column('text')
+  @Column({ type: 'varchar', length: 10000 })
   content: string;
 
   @Column('jsonb', { nullable: true })

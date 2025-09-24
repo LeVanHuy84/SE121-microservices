@@ -16,14 +16,14 @@ export class CommentController {
     return this.commentService.create(payload.userId, payload.dto);
   }
 
-  @MessagePattern('get_comment_by_id')
-  getCommentById(@Payload() id: string) {
-    return this.commentService.getCommentById(id);
+  @MessagePattern('find_comment_by_id')
+  findById(@Payload() id: string) {
+    return this.commentService.findById(id);
   }
 
-  @MessagePattern('get_comment_of_target')
-  getComments(@Payload() query: GetCommentQueryDTO) {
-    return this.commentService.getComments(query);
+  @MessagePattern('find_comments_by_query')
+  findByQuery(@Payload() query: GetCommentQueryDTO) {
+    return this.commentService.findByQuery(query);
   }
 
   @MessagePattern('update_comment')
@@ -42,8 +42,8 @@ export class CommentController {
     );
   }
 
-  @MessagePattern('delete_comment')
-  delete(@Payload() id: string) {
-    return this.commentService.delete(id);
+  @MessagePattern('remove_comment')
+  remove(@Payload() id: string) {
+    return this.commentService.remove(id);
   }
 }

@@ -21,6 +21,10 @@ export * from './social/comments/create-comment.dto';
 export * from './social/comments/update-comment.dto';
 export * from './social/comments/get-comment-query.dto';
 
+export * from './social/shares/get-share.dto';
+export * from './social/shares/share-post.dto';
+export * from './social/shares/update-share-post.dto';
+
 //User DTOs
 export * from './user/create-user.dto';
 export * from './user/get-user.dto';

@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { ReactionService } from './react.service';
+import { ReactionService } from './reaction.service';
 import { MessagePattern } from '@nestjs/microservices';
 import { DisReactDTO, GetReactionsDTO, ReactDTO } from '@repo/dtos';
 

@@ -31,13 +31,13 @@ export class CommentController {
   }
 
   @Get('comment/:id')
-  getCommentById(@Param('id') id: string) {
-    return this.client.send('get_comment_by_id', id);
+  findById(@Param('id') id: string) {
+    return this.client.send('find_comment_by_id', id);
   }
 
   @Get()
-  getComments(@Query() query: GetCommentQueryDTO) {
-    return this.client.send('get_comment_of_target', query);
+  findByQuery(@Query() query: GetCommentQueryDTO) {
+    return this.client.send('find_comments_by_query', query);
   }
 
   @Put(':id')
@@ -50,7 +50,7 @@ export class CommentController {
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.client.send('delete_comment', id);
+  remove(@Param('id') id: string) {
+    return this.client.send('remove_comment', id);
   }
 }

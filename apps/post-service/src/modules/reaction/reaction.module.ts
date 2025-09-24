@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ReactionController } from './react.controller';
-import { ReactionService } from './react.service';
+import { ReactionController } from './reaction.controller';
+import { ReactionService } from './reaction.service';
 import { Reaction } from 'src/entities/reaction.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -9,4 +9,4 @@ import { TypeOrmModule } from '@nestjs/typeorm';
   controllers: [ReactionController],
   providers: [ReactionService],
 })
-export class ReactModule {}
+export class ReactionModule {}
