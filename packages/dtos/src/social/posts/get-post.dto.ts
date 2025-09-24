@@ -1,6 +1,6 @@
-import { Expose, Type } from "class-transformer";
-import { Audience, PostStatus } from "../enums/social.enum";
-import { MediaDto } from "../common/media.dto";
+import { Expose, Type } from 'class-transformer';
+import { Audience, PostStatus } from '../enums/social.enum';
+import { MediaDto } from '../common/media.dto';
 
 export class PostStatDto {
   @Expose() reactions: number;
@@ -14,7 +14,7 @@ export class PostStatDto {
   @Expose() shares: number;
 }
 
-export class PostResponseDto {
+export class PostResponseDTO {
   @Expose()
   id: string;
 

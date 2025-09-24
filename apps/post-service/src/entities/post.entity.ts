@@ -16,7 +16,11 @@ import { PostStat } from './post-stat.entity';
 export class Post {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
+  @Column('uuid', { name: 'user_id', nullable: false })
+  userId: string;
   @Column('uuid', { name: 'user_id', nullable: false })
   userId: string;
 
@@ -25,7 +29,14 @@ export class Post {
 
   @Column('smallint', { nullable: true })
   feeling: Feeling;
+  @Column('uuid', { name: 'group_id', nullable: true })
+  groupId: string;
 
+  @Column('smallint', { nullable: true })
+  feeling: Feeling;
+
+  @Column('text')
+  content: string;
   @Column('text')
   content: string;
 
@@ -37,10 +48,16 @@ export class Post {
 
   @Column('smallint', { default: PostStatus.ACTIVE })
   status: PostStatus;
+  @Column('smallint', { default: PostStatus.ACTIVE })
+  status: PostStatus;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
@@ -50,6 +67,8 @@ export class Post {
   })
   postStat: PostStat;
 
+  @OneToMany(() => Share, (shares) => shares.post)
+  shares: Share[];
   @OneToMany(() => Share, (shares) => shares.post)
   shares: Share[];
 
