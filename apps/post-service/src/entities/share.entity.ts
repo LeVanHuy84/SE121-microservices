@@ -5,10 +5,13 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Post } from './post.entity';
 
 @Entity('shares')
+@Index('idx_share_user', ['userId'])
+@Index('idx_share', ['id'])
 export class Share {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -21,6 +24,9 @@ export class Share {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @Column('uuid', { name: 'post_id' })
+  postId: string;
 
   @ManyToOne(() => Post, (post) => post.shares)
   @JoinColumn({ name: 'post_id' })

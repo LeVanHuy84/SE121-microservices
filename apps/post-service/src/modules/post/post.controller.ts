@@ -20,7 +20,7 @@ export class PostController {
   }
 
   @MessagePattern('find_posts_by_user_id')
-  async getPostsByUserId(
+  async findPostsByUserId(
     @Payload()
     payload: {
       userId: string;
@@ -54,7 +54,7 @@ export class PostController {
   }
 
   @MessagePattern('remove_post')
-  async deletePost(@Payload() payload: { id: string; userId: string }) {
+  async remove(@Payload() payload: { id: string; userId: string }) {
     return this.postService.remove(payload.id, payload.userId);
   }
 }

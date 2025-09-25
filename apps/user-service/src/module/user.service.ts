@@ -3,7 +3,12 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 
-import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
+import {
+  BaseUserDTO,
+  CreateUserDTO,
+  UpdateUserDTO,
+  UserResponseDTO,
+} from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { eq } from 'drizzle-orm';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
@@ -170,10 +175,8 @@ export class UserService {
           updatedAt: new Date(),
         })
         .where(eq(profiles.userId, id));
-
     });
-    return this.findOne(id)
-  
+    return this.findOne(id);
   }
 
   async remove(id: string) {
@@ -191,5 +194,30 @@ export class UserService {
     return plainToInstance(UserResponseDTO, users, {
       excludeExtraneousValues: true,
     });
+  }
+
+  async getBaseUsersBatch(ids: string[]): Promise<Record<string, BaseUserDTO>> {
+    if (!ids.length) return {};
+
+    const users = await this.db.query.users.findMany({
+      where: (fields, { inArray }) => inArray(fields.id, ids),
+      with: { profile: true },
+    });
+
+    const dtos = plainToInstance(
+      BaseUserDTO,
+      users.map((u) => ({
+        id: u.id,
+        firstName: u.profile?.firstName,
+        lastName: u.profile?.lastName,
+        avatarUrl: u.profile?.avatarUrl,
+      })),
+      { excludeExtraneousValues: true }
+    );
+
+    return dtos.reduce<Record<string, BaseUserDTO>>((acc, u) => {
+      acc[u.id] = u;
+      return acc;
+    }, {});
   }
 }

@@ -3,8 +3,6 @@ import { SocialController } from './social.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UserModule } from '../users/users.module';
-import { ReactionsController } from './reactions.controller';
 
 @Module({
   imports: [

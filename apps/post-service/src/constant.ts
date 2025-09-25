@@ -8,3 +8,8 @@ export const ReactionFieldMap: Record<ReactionType, string> = {
   [ReactionType.SAD]: 'sads',
   [ReactionType.ANGRY]: 'angrys',
 };
+
+export const MICROSERVICES_CLIENT = {
+  USER_SERVICE: 'USER_SERVICE',
+  REDIS_CLIENT: 'REDIS_CLIENT',
+};

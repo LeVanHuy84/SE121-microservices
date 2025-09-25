@@ -9,15 +9,16 @@ import {
   UpdateShareDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { promises } from 'dns';
 import { Share } from 'src/entities/share.entity';
 import { Repository } from 'typeorm';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class ShareService {
   constructor(
     @InjectRepository(Share)
-    private readonly shareRepo: Repository<Share>
+    private readonly shareRepo: Repository<Share>,
+    private readonly userService: UserService
   ) {}
 
   async sharePost(
@@ -52,18 +53,25 @@ export class ShareService {
     });
   }
 
-  async getById(shareId: string): Promise<ShareResponseDTO> {
+  async findById(shareId: string): Promise<ShareResponseDTO> {
     const share = await this.shareRepo.findOne({
       where: { id: shareId },
-      relations: ['Post'],
+      relations: ['post'],
     });
 
-    return plainToInstance(ShareResponseDTO, share, {
+    if (!share) {
+      throw new RpcException(`Share not found`);
+    }
+
+    const user = await this.userService.getUsersBatch([share.userId]);
+    const response = plainToInstance(ShareResponseDTO, share, {
       excludeExtraneousValues: true,
     });
+    response.user = user[share.userId];
+    return response;
   }
 
-  async getByUserId(
+  async findByUserId(
     userId: string,
     pagination: PaginationDTO
   ): Promise<PageResponse<ShareResponseDTO>> {
@@ -71,13 +79,21 @@ export class ShareService {
 
     const [items, total] = await this.shareRepo.findAndCount({
       where: { userId },
+      relations: { post: true },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    const data = plainToInstance(ShareResponseDTO, items, {
-      excludeExtraneousValues: true,
+    const userIds = [...new Set(items.map((p) => p.userId))];
+    const users = await this.userService.getUsersBatch(userIds);
+
+    const data = items.map((share) => {
+      const dto = plainToInstance(ShareResponseDTO, share, {
+        excludeExtraneousValues: true,
+      });
+      dto.user = users[share.userId];
+      return dto;
     });
 
     return {
@@ -89,17 +105,36 @@ export class ShareService {
     };
   }
 
+  async remove(userId: string, shareId: string) {
+    const share = await this.shareRepo.findOneBy({ id: shareId });
+    if (!share) {
+      throw new RpcException('Share not found with id: ' + shareId);
+    }
+    if (share.userId !== userId) {
+      throw new RpcException('You are not authorized to delete this share');
+    }
+    await this.shareRepo.delete({ id: shareId });
+    return { success: true };
+  }
+
   async getSharesBatch(ids: string[]): Promise<ShareResponseDTO[]> {
     if (!ids.length) return [];
 
-    const posts = await this.shareRepo
+    const shares = await this.shareRepo
       .createQueryBuilder('share')
       .leftJoinAndSelect('share.post', 'post')
       .where('share.id IN (:...ids)', { ids })
       .getMany();
 
-    return plainToInstance(ShareResponseDTO, posts, {
-      excludeExtraneousValues: true,
+    const userIds = [...new Set(shares.map((p) => p.userId))];
+    const users = await this.userService.getUsersBatch(userIds);
+
+    return shares.map((share) => {
+      const dto = plainToInstance(ShareResponseDTO, share, {
+        excludeExtraneousValues: true,
+      });
+      dto.user = users[share.userId];
+      return dto;
     });
   }
 }

@@ -13,12 +13,14 @@ import { CommentStat } from 'src/entities/comment-stat.entity';
 import { Comment } from 'src/entities/comment.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly userService: UserService
   ) {}
 
   async create(
@@ -43,15 +45,22 @@ export class CommentService {
   }
 
   async findById(commentId: string): Promise<CommentResponseDTO> {
-    const comment = await this.commentRepo.findOneBy({ id: commentId });
+    const comment = await this.commentRepo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.commentStat', 'stat')
+      .where('c.id = :commentId', { commentId })
+      .getOne();
 
     if (!comment) {
-      throw new RpcException(`Comment with id ${commentId} not found`);
+      throw new RpcException(`Comment not found`);
     }
 
-    return plainToInstance(CommentResponseDTO, comment, {
+    const user = await this.userService.getUsersBatch([comment.userId]);
+    const response = plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
     });
+    response.user = user[comment.userId];
+    return response;
   }
 
   async findByQuery(
@@ -61,6 +70,7 @@ export class CommentService {
 
     const qb = this.commentRepo
       .createQueryBuilder('c')
+      .leftJoinAndSelect('c.commentStat', 'stat')
       .orderBy('c.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -75,11 +85,23 @@ export class CommentService {
 
     const [comments, total] = await qb.getManyAndCount();
 
-    const data = comments.map((c) =>
-      plainToInstance(CommentResponseDTO, c, { excludeExtraneousValues: true })
-    );
+    const userIds = [...new Set(comments.map((c) => c.userId))];
+    const users = await this.userService.getUsersBatch(userIds);
 
-    return new PageResponse<CommentResponseDTO>(data, total, page, limit);
+    const commentDTOs = comments.map((comment) => {
+      const dto = plainToInstance(CommentResponseDTO, comment, {
+        excludeExtraneousValues: true,
+      });
+      dto.user = users[comment.userId];
+      return dto;
+    });
+
+    return new PageResponse<CommentResponseDTO>(
+      commentDTOs,
+      total,
+      page,
+      limit
+    );
   }
 
   async update(

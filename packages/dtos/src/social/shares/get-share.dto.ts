@@ -1,24 +1,24 @@
 import { PostResponseDTO } from '../posts/get-post.dto';
 import { IsString, IsDate, IsNotEmpty, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
+import { BaseUserDTO } from '../../user/get-user.dto';
 
 export class ShareResponseDTO {
-  @IsString()
-  @IsNotEmpty()
+  @Expose()
   id: string;
 
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
+  @Expose()
+  @Type(() => BaseUserDTO)
+  user: BaseUserDTO | null;
 
-  @IsString()
+  @Expose()
   content: string;
 
-  @IsDate()
+  @Expose()
   @Type(() => Date)
   createdAt: Date;
 
-  @ValidateNested()
+  @Expose()
   @Type(() => PostResponseDTO)
   post: PostResponseDTO;
 }

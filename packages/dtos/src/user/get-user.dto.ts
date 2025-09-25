@@ -18,5 +18,16 @@ export class UserResponseDTO {
   @Expose()
   bio: string;
   @Expose()
-  createdAt: Date
+  createdAt: Date;
+}
+
+export class BaseUserDTO {
+  @Expose()
+  id: string;
+  @Expose()
+  firstName: string;
+  @Expose()
+  lastName: string;
+  @Expose()
+  avatarUrl: string;
 }

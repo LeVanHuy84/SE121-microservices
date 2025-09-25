@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Post } from 'src/entities/post.entity';
 import { DataSource, Repository } from 'typeorm';
@@ -13,13 +13,15 @@ import {
 import { RpcException } from '@nestjs/microservices';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { EditHistory } from 'src/entities/edit-history.entity';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class PostService {
   constructor(
     @InjectRepository(Post) private postRepo: Repository<Post>,
     @InjectRepository(PostStat) private postStatRepo: Repository<PostStat>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly userService: UserService
   ) {}
 
   async create(userId: string, dto: CreatePostDTO): Promise<PostResponseDTO> {
@@ -35,13 +37,24 @@ export class PostService {
   }
 
   async findById(postId: string): Promise<PostResponseDTO> {
-    const post = await this.postRepo.findOneBy({ id: postId });
+    const post = await this.postRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.postStat', 'stat')
+      .where('p.id = :postId', { postId })
+      .getOne();
+
     if (!post) {
-      throw new RpcException('Post not found with id: ' + postId);
+      throw new RpcException('Post not found');
     }
-    return plainToInstance(PostResponseDTO, post, {
+
+    const users = await this.userService.getUsersBatch([post.userId]);
+
+    const response = plainToInstance(PostResponseDTO, post, {
       excludeExtraneousValues: true,
     });
+    response.user = users[post.userId];
+
+    return response;
   }
 
   async findByUserId(
@@ -50,11 +63,11 @@ export class PostService {
     currentUserId: string
   ): Promise<PageResponse<PostResponseDTO>> {
     const { page, limit, status, feeling } = query;
-
     const isOwner = userId === currentUserId;
 
     const qb = this.postRepo
       .createQueryBuilder('p')
+      .leftJoinAndSelect('p.postStat', 'stat')
       .where('p.userId = :userId', { userId })
       .orderBy('p.createdAt', 'DESC')
       .skip((page - 1) * limit)
@@ -74,8 +87,15 @@ export class PostService {
 
     const [posts, total] = await qb.getManyAndCount();
 
-    const postDTOs = plainToInstance(PostResponseDTO, posts, {
-      excludeExtraneousValues: true,
+    const userIds = [...new Set(posts.map((p) => p.userId))];
+    const users = await this.userService.getUsersBatch(userIds);
+
+    const postDTOs = posts.map((post) => {
+      const dto = plainToInstance(PostResponseDTO, post, {
+        excludeExtraneousValues: true,
+      });
+      dto.user = users[post.userId];
+      return dto;
     });
 
     return new PageResponse(postDTOs, total, page, limit);
@@ -157,12 +177,20 @@ export class PostService {
     if (!ids.length) return [];
 
     const posts = await this.postRepo
-      .createQueryBuilder('post')
-      .where('post.id IN (:...ids)', { ids })
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.postStat', 'stat')
+      .where('p.id IN (:...ids)', { ids })
       .getMany();
 
-    return plainToInstance(PostResponseDTO, posts, {
-      excludeExtraneousValues: true,
+    const userIds = [...new Set(posts.map((p) => p.userId))];
+    const users = await this.userService.getUsersBatch(userIds);
+
+    return posts.map((post) => {
+      const dto = plainToInstance(PostResponseDTO, post, {
+        excludeExtraneousValues: true,
+      });
+      dto.user = users[post.userId];
+      return dto;
     });
   }
 }

@@ -6,6 +6,8 @@ import { ReactionModule } from './modules/reaction/reaction.module';
 import { CommentModule } from './modules/comment/comment.module';
 import { ShareModule } from './modules/share/share.module';
 import dbConfig from './config/db.config';
+import { UserModule } from './modules/user/user.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import dbConfig from './config/db.config';
     ReactionModule,
     CommentModule,
     ShareModule,
+    UserModule,
+    RedisModule,
   ],
   controllers: [],
   providers: [],
