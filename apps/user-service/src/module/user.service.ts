@@ -120,8 +120,13 @@ export class UserService {
     );
   }
 
-  async update(id: string, dto: UpdateUserDTO) {
-    const user = await this.db.transaction(async (tx) => {
+  async update(
+    id: string,
+    dto: UpdateUserDTO,
+    avatar?: Express.Multer.File,
+    cover?: Express.Multer.File
+  ) {
+    await this.db.transaction(async (tx) => {
       const user = await tx
         .select()
         .from(users)
@@ -170,10 +175,8 @@ export class UserService {
           updatedAt: new Date(),
         })
         .where(eq(profiles.userId, id));
-
     });
-    return this.findOne(id)
-  
+    return this.findOne(id);
   }
 
   async remove(id: string) {

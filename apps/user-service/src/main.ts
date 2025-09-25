@@ -27,6 +27,16 @@ async function bootstrap() {
     })
   );
 
-  await tcpApp.listen();
+  const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+      AppModule,
+      {
+        transport: Transport.REDIS,
+        options: {
+          port: 6379,
+          host: 'localhost',
+        },
+      },
+    );
+    await Promise.all([tcpApp.listen(), redisApp.listen()]);
 }
 bootstrap();
