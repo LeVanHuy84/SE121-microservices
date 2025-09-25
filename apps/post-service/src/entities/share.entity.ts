@@ -15,10 +15,16 @@ import { Post } from './post.entity';
 export class Share {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column('uuid', { name: 'user_id', nullable: false })
   userId: string;
+  @Column('uuid', { name: 'user_id', nullable: false })
+  userId: string;
 
+  @Column({ type: 'varchar', length: 2000 })
+  content: string;
   @Column({ type: 'varchar', length: 2000 })
   content: string;
 
@@ -28,6 +34,9 @@ export class Share {
   @Column('uuid', { name: 'post_id' })
   postId: string;
 
+  @ManyToOne(() => Post, (post) => post.shares)
+  @JoinColumn({ name: 'post_id' })
+  post: Post;
   @ManyToOne(() => Post, (post) => post.shares)
   @JoinColumn({ name: 'post_id' })
   post: Post;

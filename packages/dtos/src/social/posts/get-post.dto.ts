@@ -13,9 +13,21 @@ export class PostStatDTO {
   @Expose() sads: number;
   @Expose() comments: number;
   @Expose() shares: number;
+export class PostStatDTO {
+  @Expose() reactions: number;
+  @Expose() likes: number;
+  @Expose() loves: number;
+  @Expose() hahas: number;
+  @Expose() wows: number;
+  @Expose() angrys: number;
+  @Expose() sads: number;
+  @Expose() comments: number;
+  @Expose() shares: number;
 }
 
 export class PostResponseDTO {
+  @Expose()
+  id: string;
   @Expose()
   id: string;
 
@@ -25,30 +37,50 @@ export class PostResponseDTO {
 
   @Expose()
   groupId?: string;
+  @Expose()
+  groupId?: string;
 
+  @Expose()
+  content: string;
   @Expose()
   content: string;
 
   @Expose()
   @Type(() => MediaDTO)
   media: MediaDTO;
+  @Expose()
+  @Type(() => MediaDTO)
+  media: MediaDTO;
 
+  @Expose()
+  audience: Audience;
   @Expose()
   audience: Audience;
 
   @Expose()
   @Type(() => PostStatDTO)
   postStat: PostStatDTO;
+  @Expose()
+  @Type(() => PostStatDTO)
+  postStat: PostStatDTO;
 
+  @Expose()
+  mainEmotion?: string;
   @Expose()
   mainEmotion?: string;
 
   @Expose()
   status: PostStatus;
+  @Expose()
+  status: PostStatus;
 
   @Expose()
   createdAt: Date;
+  @Expose()
+  createdAt: Date;
 
+  @Expose()
+  updatedAt: Date;
   @Expose()
   updatedAt: Date;
 }
