@@ -1,7 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Post } from 'src/entities/post.entity';
-import { DataSource, Repository } from 'typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
