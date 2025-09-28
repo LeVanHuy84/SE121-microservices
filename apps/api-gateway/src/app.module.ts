@@ -1,4 +1,4 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from './common/constants';
@@ -7,18 +7,38 @@ import { AuthModule } from './modules/auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
 import { UsersController } from './modules/users/users.controller';
-import { PostsModule } from './modules/posts/posts.module';
-import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),
-
     AuthModule,
-    PostsModule,
-    UsersModule
+
+    ClientsModule.registerAsync([
+      {
+        name: MICROSERVICES_CLIENTS.USER_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>('USER_SERVICE_PORT'),
+          },
+        }),
+      },
+      {
+        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>('SOCIAL_SERVICE_PORT'),
+          },
+        }),
+      },
+    ]),
   ],
 
   providers: [
@@ -27,19 +47,8 @@ import { UsersModule } from './modules/users/users.module';
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,
     },
-    {
-      provide: 'APP_PIPE',
-      useValue: new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
-      }),
-    }
   ],
 
-  controllers: [],
+  controllers: [UsersController],
 })
 export class AppModule { }
