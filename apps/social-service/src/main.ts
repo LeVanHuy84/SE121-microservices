@@ -1,36 +1,16 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ExceptionsFilter } from '@repo/common';
 import { AppModule } from './app.module';
-import { Neo4jTypeInterceptor } from './neo4j/neo4j-type.interceptor';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
-  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4006,
-      },
-    },
-  );
-  tcpApp.useGlobalPipes(new ValidationPipe());
-  tcpApp.useGlobalInterceptors(new Neo4jTypeInterceptor());
-  tcpApp.useGlobalFilters(new ExceptionsFilter());
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.TCP,
+    options: {
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4002,
+    }
+  });
+  await app.listen();
 
-  const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.REDIS,
-      options: {
-        port: 6379,
-        host: 'localhost',
-      },
-    },
-  );
-  await Promise.all([tcpApp.listen(), redisApp.listen()]);
-
-  console.log('Social service is running on port 4006');
+  console.log('Social serivce is running on port 4002');
 }
 bootstrap();
