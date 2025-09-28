@@ -199,18 +199,17 @@ export class UserService {
   async getBaseUsersBatch(ids: string[]): Promise<Record<string, BaseUserDTO>> {
     if (!ids.length) return {};
 
-    const users = await this.db.query.users.findMany({
-      where: (fields, { inArray }) => inArray(fields.id, ids),
-      with: { profile: true },
+    const profiles = await this.db.query.profiles.findMany({
+      where: (fields, { inArray }) => inArray(fields.userId, ids),
     });
 
     const dtos = plainToInstance(
       BaseUserDTO,
-      users.map((u) => ({
-        id: u.id,
-        firstName: u.profile?.firstName,
-        lastName: u.profile?.lastName,
-        avatarUrl: u.profile?.avatarUrl,
+      profiles.map((p) => ({
+        id: p.userId,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        avatarUrl: p.avatarUrl,
       })),
       { excludeExtraneousValues: true }
     );
