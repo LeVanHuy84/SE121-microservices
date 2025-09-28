@@ -1,8 +1,15 @@
 import { Module } from '@nestjs/common';
-import { UsersController } from './modules/users/users.controller';
+import { DrizzleModule } from './drizzle/drizzle.module';
+import { UserModule } from './module/user.module';
+import { ConfigModule } from '@nestjs/config';
+import { UserController } from './module/user.controller';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
-  imports: [],
-  controllers: [UsersController],
+  imports: [
+    DrizzleModule,
+    UserModule,
+    ConfigModule.forRoot({ isGlobal: true }),
+  ],
 })
-export class AppModule { }
+export class AppModule {}

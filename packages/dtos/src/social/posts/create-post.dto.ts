@@ -1,22 +1,33 @@
-import { IsArray, IsOptional, IsString } from "class-validator";
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+  ValidateNested,
+} from 'class-validator';
+import { Audience, Feeling } from '../enums/social.enum';
+import { Type } from 'class-transformer';
+import { MediaDTO } from '../common/media.dto';
 
-export class CreatePostDto {
-    @IsString()
-    userId: string;
+export class CreatePostDTO {
+  @IsOptional()
+  @IsString()
+  groupId?: string; // NULL = cá nhân, NOT NULL = group
 
-    @IsString()
-    groupId: string;
+  @IsOptional()
+  @IsEnum(Feeling)
+  feeling: Feeling;
 
-    @IsString()
-    content: string;
+  @IsString()
+  @Length(1, 10000)
+  content: string;
 
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    imageUrls?: string[];
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MediaDTO)
+  media?: MediaDTO;
 
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    videoUrls?: string[];
+  @IsOptional()
+  @IsEnum(Audience)
+  audience?: Audience;
 }
