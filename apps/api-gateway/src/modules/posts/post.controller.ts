@@ -30,17 +30,17 @@ export class PostController {
   }
 
   @Get('post/:id')
-  getById(@Param('id') postId: string) {
-    return this.client.send('get_post_by_id', postId);
+  findById(@Param('id') postId: string) {
+    return this.client.send('find_post_by_id', postId);
   }
 
   @Get('user/:id')
-  getByUser(
+  findByUserId(
     @Param('id') userId: string,
     @Query() pagination: GetPostQueryDTO,
     @CurrentUserId() currentUserId: string
   ) {
-    return this.client.send('get_posts_by_user', {
+    return this.client.send('find_posts_by_user_id', {
       userId,
       pagination,
       currentUserId,
@@ -57,15 +57,12 @@ export class PostController {
   }
 
   @Patch('update-status/:id')
-  updatePostStatus(
-    @Param('id') postId: string,
-    @CurrentUserId() userId: string
-  ) {
+  updateStatus(@Param('id') postId: string, @CurrentUserId() userId: string) {
     return this.client.send('update_post_status', { userId, postId });
   }
 
   @Delete('delete/:id')
-  deletePost(@Param('id') id: string, @CurrentUserId() userId: string) {
-    return this.client.send('delete_post', { id, userId });
+  remove(@Param('id') id: string, @CurrentUserId() userId: string) {
+    return this.client.send('remove_post', { id, userId });
   }
 }

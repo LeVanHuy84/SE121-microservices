@@ -1,5 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { MediaDTO } from '../common/media.dto';
+import { BaseUserDTO } from '../../user/get-user.dto';
 
 export class CommentStatDTO {
   @Expose() reactions: number;
@@ -20,7 +21,8 @@ export class CommentResponseDTO {
   userId: string;
 
   @Expose()
-  postId: string;
+  @Type(() => BaseUserDTO)
+  user: BaseUserDTO | null;
 
   @Expose()
   replyId?: string;

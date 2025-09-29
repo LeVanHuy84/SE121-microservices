@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
@@ -13,6 +14,7 @@ import { Audience, Feeling, MediaDTO, PostStatus } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
 
 @Entity('posts')
+@Index('idx_posts_userid_createdat', ['userId', 'createdAt'])
 export class Post {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -26,7 +28,7 @@ export class Post {
   @Column('smallint', { nullable: true })
   feeling: Feeling;
 
-  @Column('text')
+  @Column({ type: 'varchar', length: 10000 })
   content: string;
 
   @Column('jsonb', { nullable: true })
@@ -46,7 +48,6 @@ export class Post {
 
   @OneToOne(() => PostStat, (postStat) => postStat.post, {
     cascade: true,
-    eager: true,
   })
   postStat: PostStat;
 

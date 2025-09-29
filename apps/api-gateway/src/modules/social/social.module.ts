@@ -1,9 +1,8 @@
-import { Module } from "@nestjs/common";
-import { SocialController } from "./social.controller";
-import { ClientsModule, Transport } from "@nestjs/microservices";
-import { MICROSERVICES_CLIENTS } from "src/common/constants";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { UserModule } from "../users/users.module";
+import { Module } from '@nestjs/common';
+import { SocialController } from './social.controller';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -15,7 +14,7 @@ import { UserModule } from "../users/users.module";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>("SOCIAL_SERVICE_PORT"),
+            port: config.get<number>('SOCIAL_SERVICE_PORT'),
           },
         }),
       },

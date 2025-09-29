@@ -11,7 +11,7 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4002,
+        port: process.env.PORT ? parseInt(process.env.PORT) : 4006,
       },
     },
   );
@@ -31,6 +31,6 @@ async function bootstrap() {
   );
   await Promise.all([tcpApp.listen(), redisApp.listen()]);
 
-  console.log('Social service is running on port 4002');
+  console.log('Social service is running on port 4006');
 }
 bootstrap();

@@ -6,8 +6,6 @@ import { UserService } from './user.service';
 import { CreateUserDTO, UpdateUserDTO } from '@repo/dtos';
 import { firstValueFrom } from 'rxjs';
 
-
-
 @Controller()
 export class UserController {
   constructor(
@@ -45,13 +43,7 @@ export class UserController {
   }
 
   @MessagePattern('updateUser')
-  async update(
-    @Payload()
-    data: {
-      id: string;
-      updateUserDto: UpdateUserDTO;
-    }
-  ) {
+  async update(@Payload() data: { id: string; updateUserDto: UpdateUserDTO }) {
     return this.userService.update(data.id, data.updateUserDto);
   }
 
@@ -63,5 +55,10 @@ export class UserController {
   @MessagePattern('getUsersBatch')
   async getUsersBatch(@Payload() ids: string[]) {
     return this.userService.getUsersBatch(ids);
+  }
+
+  @MessagePattern('getBaseUsersBatch')
+  async getBaseUsersBatch(@Payload() ids: string[]) {
+    return this.userService.getBaseUsersBatch(ids);
   }
 }

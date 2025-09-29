@@ -1,6 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { Audience, PostStatus } from '../enums/social.enum';
 import { MediaDTO } from '../common/media.dto';
+import { BaseUserDTO } from '../../user/get-user.dto';
 
 export class PostStatDTO {
   @Expose() reactions: number;
@@ -19,7 +20,8 @@ export class PostResponseDTO {
   id: string;
 
   @Expose()
-  userId: string;
+  @Type(() => BaseUserDTO)
+  user: BaseUserDTO | null;
 
   @Expose()
   groupId?: string;

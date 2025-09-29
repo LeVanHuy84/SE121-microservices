@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -10,6 +11,9 @@ import { MediaDTO } from '@repo/dtos';
 import { CommentStat } from './comment-stat.entity';
 
 @Entity('comments')
+@Index('idx_comment_post', ['postId'])
+@Index('idx_comment_reply', ['replyId'])
+@Index('idx_comment_user', ['userId'])
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -37,7 +41,6 @@ export class Comment {
 
   @OneToOne(() => CommentStat, (commentStat) => commentStat.comment, {
     cascade: true,
-    eager: true,
   })
   commentStat: CommentStat;
 }

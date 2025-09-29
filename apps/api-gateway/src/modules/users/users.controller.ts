@@ -39,6 +39,7 @@ export class UsersController {
   findAll(): Observable<UserResponseDTO[]> {
     return this.client.send<UserResponseDTO[]>('findAllUser', {});
   }
+  
 
   @Get(':id')
   findOne(@Param('id') targetId: string, @CurrentUserId() userId: string) {
