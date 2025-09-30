@@ -1,11 +1,5 @@
-import neo4j, {
-  Result,
-  Driver,
-  int,
-  Transaction,
-  QueryResult,
-} from 'neo4j-driver';
-import { Injectable, Inject, OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
+import neo4j, { Driver, int, QueryResult, Transaction } from 'neo4j-driver';
 import type { Neo4jConfig } from './neo4j-config.interface';
 import { NEO4J_CONFIG, NEO4J_DRIVER } from './neo4j.constants';
 
