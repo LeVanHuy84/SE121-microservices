@@ -21,6 +21,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       },
     ]),
   ],
-  controllers: [MediaController],
+  exports: [ClientsModule],
+
 })
 export class MediaModule {}

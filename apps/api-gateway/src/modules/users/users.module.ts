@@ -3,6 +3,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersController } from './users.controller';
+import { MediaModule } from '../media/media.module';
+import { ClerkClientProvider } from 'src/providers/clerk-client.provider';
 
 @Module({
   imports: [
@@ -19,7 +21,10 @@ import { UsersController } from './users.controller';
         }),
       },
     ]),
+    MediaModule
   ],
+  providers: [ClerkClientProvider],
   controllers: [UsersController],
+  exports: [ClientsModule],
 })
 export class UserModule {}
