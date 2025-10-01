@@ -5,8 +5,7 @@ import { profiles } from './profiles.schema';
 
 
 export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  clerkId: varchar("clerk_id", { length: 255 }).notNull().unique(), // mapping sang Clerk user
+  id: varchar('id', { length: 255 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
 
   isActive: boolean("is_active").default(true).notNull(),

@@ -8,7 +8,6 @@ import { ImagesService } from './images.service';
 @Controller()
 export class ImagesController {
   constructor(
-    @Inject('USER_SERVICE') private readonly userClient: ClientProxy,
     private readonly imageService: ImagesService
   ) {}
 
@@ -20,10 +19,7 @@ export class ImagesController {
       data.userId,
       'avatars'
     );
-    return this.userClient.send('updateUser', {
-      id: data.userId,
-      updateUserDto: { avatarUrl: url },
-    });
+    return url
   }
 
   @MessagePattern('upload_cover_image')
@@ -34,9 +30,6 @@ export class ImagesController {
       data.userId,
       'cover_images'
     );
-    return this.userClient.send('updateUser', {
-      id: data.userId,
-      updateUserDto: { coverImageUrl: url },
-    });
+    return url
   }
 }

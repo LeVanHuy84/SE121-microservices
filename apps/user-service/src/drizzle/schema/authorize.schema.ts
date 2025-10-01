@@ -16,7 +16,7 @@ export const roles = pgTable('roles', {
 export const userRoles = pgTable(
   'user_roles',
   {
-    userId: uuid('user_id')
+    userId: varchar('user_id', { length: 255 })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     roleId: integer('role_id')

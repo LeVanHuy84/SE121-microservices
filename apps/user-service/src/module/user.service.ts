@@ -24,8 +24,8 @@ export class UserService {
       const [user] = await tx
         .insert(users)
         .values({
+          id: dto.id,
           email: dto.email,
-          clerkId: dto.clerkId,
         })
         .returning();
 
