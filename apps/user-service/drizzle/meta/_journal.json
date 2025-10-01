@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1758080979729,
-      "tag": "0000_futuristic_sunspot",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1758092660367,
-      "tag": "0001_wise_unicorn",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1758128684631,
-      "tag": "0002_woozy_colossus",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1758207840925,
-      "tag": "0003_grey_rick_jones",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1758216298010,
-      "tag": "0004_skinny_jamie_braddock",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1758558220710,
-      "tag": "0005_fancy_masked_marvel",
+      "when": 1759247149116,
+      "tag": "0000_low_night_thrasher",
       "breakpoints": true
     }
   ]

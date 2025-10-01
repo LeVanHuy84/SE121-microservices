@@ -10,6 +10,7 @@ import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -30,6 +31,7 @@ import { ClerkClientProvider } from './providers/clerk-client.provider';
         },
       ],
     }),
+ 
   ],
 
   providers: [

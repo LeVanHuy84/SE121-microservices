@@ -10,7 +10,7 @@ export const privacyLevelEnum = pgEnum(
 
 export const profiles = pgTable("profiles", {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid("user_id")
+  userId: varchar("user_id", { length: 255 })
     .references(() => users.id, { onDelete: "cascade" }),
 
   firstName: varchar("first_name", { length: 100 }),
