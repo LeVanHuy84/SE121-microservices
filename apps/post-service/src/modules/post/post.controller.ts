@@ -1,22 +1,26 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { PostService } from './post.service';
 import { CreatePostDTO, GetPostQueryDTO } from '@repo/dtos';
+import { PostQueryService } from './post-query.service';
+import { PostCommandService } from './post-command.service';
 
 @Controller('posts')
 export class PostController {
-  constructor(private postService: PostService) {}
+  constructor(
+    private postQuery: PostQueryService,
+    private postCommand: PostCommandService
+  ) {}
 
   @MessagePattern('create_post')
   async create(
     @Payload() payload: { userId: string; createPostDTO: CreatePostDTO }
   ) {
-    return this.postService.create(payload.userId, payload.createPostDTO);
+    return this.postCommand.create(payload.userId, payload.createPostDTO);
   }
 
   @MessagePattern('find_post_by_id')
   async findById(@Payload() postId: string) {
-    return this.postService.findById(postId);
+    return this.postQuery.findById(postId);
   }
 
   @MessagePattern('find_posts_by_user_id')
@@ -28,7 +32,7 @@ export class PostController {
       currentUserId: string;
     }
   ) {
-    return this.postService.findByUserId(
+    return this.postQuery.findByUserId(
       payload.userId,
       payload.pagination,
       payload.currentUserId
@@ -39,7 +43,7 @@ export class PostController {
   async updatePost(
     @Payload() payload: { userId: string; postId: string; updatePostDTO: any }
   ) {
-    return this.postService.update(
+    return this.postCommand.update(
       payload.userId,
       payload.postId,
       payload.updatePostDTO
@@ -50,11 +54,11 @@ export class PostController {
   async updatePostStatus(
     @Payload() payload: { userId: string; postId: string }
   ) {
-    return this.postService.updateStatus(payload.userId, payload.postId);
+    return this.postCommand.updateStatus(payload.userId, payload.postId);
   }
 
   @MessagePattern('remove_post')
   async remove(@Payload() payload: { id: string; userId: string }) {
-    return this.postService.remove(payload.id, payload.userId);
+    return this.postCommand.remove(payload.id, payload.userId);
   }
 }

@@ -1,14 +1,12 @@
 import { Expose } from 'class-transformer';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsString } from 'class-validator';
 
-export class MediaDTO {
+export class MediaItemDTO {
   @Expose()
-  @IsOptional()
-  @IsString({ each: true })
-  imageUrls?: string[];
+  @IsIn(['image', 'video'])
+  type: 'image' | 'video';
 
   @Expose()
-  @IsOptional()
-  @IsString({ each: true })
-  videosUrls?: string[];
+  @IsString()
+  url: string;
 }

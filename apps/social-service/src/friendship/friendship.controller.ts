@@ -136,4 +136,9 @@ export class FriendshipController {
   ) {
     return this.friendshipService.unblockUser(data.userId, data.targetId);
   }
+
+  @MessagePattern({ cmd: 'get_friend_ids' })
+  async getFriendIds(@Payload() payload: { userId: string; limit: number }) {
+    return this.friendshipService.getFriendIds(payload.userId, payload.limit);
+  }
 }

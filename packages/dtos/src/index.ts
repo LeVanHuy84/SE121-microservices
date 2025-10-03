@@ -2,8 +2,12 @@
 export * from './pagination/pagination.dto';
 export * from './pagination/page-response.dto';
 
-// media
+// common
 export * from './social/common/media.dto';
+export * from './social/common/create-event.dto';
+
+// feed DTOs
+export * from './feed/post-snapshot.dto';
 
 // Social DTOs
 export * from './social/posts/create-post.dto';

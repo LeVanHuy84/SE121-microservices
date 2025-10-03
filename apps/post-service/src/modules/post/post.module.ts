@@ -5,16 +5,20 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Share } from 'src/entities/share.entity';
 import { EditHistory } from 'src/entities/edit-history.entity';
 import { Report } from 'src/entities/report.entity';
-import { PostService } from './post.service';
+import { PostQueryService } from './post-query.service';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { UserModule } from '../user/user.module';
+import { PostCommandService } from './post-command.service';
+import { PostEventPublisher } from './post-event.service';
+import { KafkaModule } from '../kafka/kafka.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Post, Share, EditHistory, Report, PostStat]),
     UserModule,
+    KafkaModule,
   ],
   controllers: [PostController],
-  providers: [PostService],
+  providers: [PostQueryService, PostCommandService, PostEventPublisher],
 })
 export class PostModule {}
