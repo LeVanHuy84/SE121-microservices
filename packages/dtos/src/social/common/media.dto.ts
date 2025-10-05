@@ -1,10 +1,11 @@
 import { Expose } from 'class-transformer';
-import { IsIn, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsString } from 'class-validator';
+import { MediaType } from '../enums/social.enum';
 
 export class MediaItemDTO {
   @Expose()
-  @IsIn(['image', 'video'])
-  type: 'image' | 'video';
+  @IsEnum(MediaType)
+  type: MediaType;
 
   @Expose()
   @IsString()

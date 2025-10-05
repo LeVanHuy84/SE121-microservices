@@ -1,22 +1,26 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
-import { MediaDTO } from '../social/common/media.dto';
-import { Type } from 'class-transformer';
+import { MediaItemDTO } from '../social/common/media.dto';
+import { Expose, Type } from 'class-transformer';
 
 export class PostSnapshotDTO {
-  @IsUUID()
+  @Expose()
   postId: string;
 
-  @IsUUID()
+  @Expose()
   userId: string;
 
-  @IsOptional()
+  @Expose()
   groupId?: string;
 
-  @IsOptional()
-  @IsString()
-  contentSnippet?: string;
+  @Expose()
+  content?: string;
 
-  @IsOptional()
-  @Type(() => MediaDTO)
-  mediaPreview?: MediaDTO;
+  @Expose()
+  @Type(() => MediaItemDTO)
+  mediaPreview?: MediaItemDTO;
+
+  @Expose()
+  mediaRemaining?: number;
+
+  @Expose()
+  createdAt: Date;
 }

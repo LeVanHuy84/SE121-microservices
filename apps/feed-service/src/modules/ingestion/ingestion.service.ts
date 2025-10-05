@@ -26,7 +26,7 @@ export class IngestionService {
   async handleUpdated(payload: PostUpdatedEvent['payload']) {
     await this.snapshotModel.updateOne(
       { postId: payload.postId },
-      { $set: { contentSnippet: payload.contentSnippet } },
+      { $set: { contentSnippet: payload.content } },
     );
   }
 

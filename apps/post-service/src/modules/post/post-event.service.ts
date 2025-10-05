@@ -1,6 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
-import { PostCreatedEvent, PostEventMessage, PostEventType } from '@repo/dtos';
+import {
+  MediaItemDTO,
+  PostCreatedEvent,
+  PostEventMessage,
+  PostEventType,
+} from '@repo/dtos';
 import { MICROSERVICES_CLIENT } from 'src/constant';
 import { Post } from 'src/entities/post.entity';
 
@@ -16,17 +21,21 @@ export class PostEventPublisher {
   }
 
   async postCreated(post: Post) {
+    let mediaPreview: MediaItemDTO[] | undefined = undefined;
+    let mediaRemaining: number | undefined = undefined;
+
+    if (Array.isArray(post.media) && post.media.length > 0) {
+      mediaPreview = post.media.slice(0, 5);
+      mediaRemaining = post.media.length > 5 ? post.media.length - 5 : 0;
+    }
+
     const snapshot: PostCreatedEvent['payload'] = {
       postId: post.id,
       userId: post.userId,
       groupId: post.groupId ?? undefined,
-      contentSnippet: post.content?.substring(0, 100),
-      mediaPreview: post.media
-        ? {
-            imageUrls: post.media.imageUrls?.slice(0, 5),
-            videoUrls: post.media.videoUrls?.slice(0, 1),
-          }
-        : undefined,
+      content: post.content,
+      mediaPreview,
+      mediaRemaining,
       createdAt: post.createdAt,
     };
 
@@ -41,7 +50,7 @@ export class PostEventPublisher {
       type: PostEventType.POST_UPDATED,
       payload: {
         postId,
-        contentSnippet: content.substring(0, 100),
+        content: content,
       },
     });
   }

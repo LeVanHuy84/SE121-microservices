@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { EventType } from '@repo/dtos';
+import { FeedEventType } from '@repo/dtos';
 
 @Schema({ collection: 'feed_items', timestamps: true })
 export class FeedItem extends Document {
@@ -10,8 +10,8 @@ export class FeedItem extends Document {
   @Prop({ required: true })
   snapshotId: string; // tham chiếu tới post_snapshot
 
-  @Prop({ required: true, enum: EventType })
-  eventType: string;
+  @Prop({ required: true, enum: FeedEventType })
+  eventType: FeedEventType;
 
   @Prop({ required: true })
   timestamp: Date;

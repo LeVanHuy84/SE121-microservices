@@ -1,11 +1,12 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { FeedItem } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
 import { calculateRankingScore } from 'src/utils/utils';
+import { FeedEventType } from '@repo/dtos';
 
 @Injectable()
 export class DistributionService {
@@ -23,49 +24,57 @@ export class DistributionService {
   async distributePost(snapshotId: string, actorId: string) {
     this.logger.log(`Distributing snapshot ${snapshotId} from ${actorId}`);
 
-    // 1. Lấy danh sách bạn bè từ social-service
-    const friendIds: string[] = await firstValueFrom(
-      this.socialClient.send(
-        { cmd: 'get_friend_ids' },
-        { userId: actorId, limit: 200 },
-      ),
-    );
+    try {
+      // 1. Lấy danh sách bạn bè từ social-service
+      const friendIds: string[] = await firstValueFrom(
+        this.socialClient.send(
+          { cmd: 'get_friend_ids' },
+          { userId: actorId, limit: 200 },
+        ),
+      );
 
-    if (!friendIds?.length) {
-      this.logger.warn(`No friends found for ${actorId}`);
-      return;
+      if (!friendIds?.length) {
+        this.logger.warn(`No friends found for ${actorId}`);
+        return;
+      }
+
+      // 2. Chuẩn bị các FeedItem cho từng bạn bè
+      const now = new Date();
+      const rankingScore = calculateRankingScore('post');
+
+      const feedItems = friendIds.map((fid) => ({
+        userId: fid,
+        snapshotId: new Types.ObjectId(snapshotId),
+        eventType: FeedEventType.POST,
+        timestamp: now,
+        rankingScore,
+      }));
+
+      // 3. Bulk insert
+      await this.feedItemModel.insertMany(feedItems);
+
+      this.logger.log(
+        `✅ Distributed snapshot ${snapshotId} to ${friendIds.length} friends`,
+      );
+    } catch (error) {
+      throw new RpcException(error);
     }
-
-    // 2. Chuẩn bị các FeedItem cho từng bạn bè
-    const now = new Date();
-    const rankingScore = calculateRankingScore('post');
-
-    const feedItems = friendIds.map((fid) => ({
-      userId: fid,
-      snapshotId: new Types.ObjectId(snapshotId), // tham chiếu tới post_snapshot
-      eventType: 'post',
-      timestamp: now,
-      rankingScore,
-    }));
-
-    // 3. Bulk insert (MongoDB tự scale tốt hơn so với update array)
-    await this.feedItemModel.insertMany(feedItems);
-
-    this.logger.log(
-      `✅ Distributed snapshot ${snapshotId} to ${friendIds.length} friends`,
-    );
   }
 
   /**
-   * Xoá snapshot và feedItems liên quan (khi xoá post hoặc thay đổi quyền riêng tư)
+   * Xoá snapshot và feedItems liên quan
    */
   async removePost(snapshotId: string) {
     this.logger.log(`Removing snapshot ${snapshotId} and related feed items`);
 
-    await this.feedItemModel.deleteMany({
-      snapshotId: new Types.ObjectId(snapshotId),
-    });
+    try {
+      await this.feedItemModel.deleteMany({
+        snapshotId: new Types.ObjectId(snapshotId),
+      });
 
-    this.logger.log(`✅ Removed snapshot ${snapshotId} and its feed items`);
+      this.logger.log(`✅ Removed snapshot ${snapshotId} and its feed items`);
+    } catch (error) {
+      throw new RpcException(error);
+    }
   }
 }

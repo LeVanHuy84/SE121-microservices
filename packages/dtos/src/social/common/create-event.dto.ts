@@ -1,4 +1,4 @@
-import { Audience, PostStatus } from '../enums/social.enum';
+import { MediaItemDTO } from './media.dto';
 
 // post-event.dto.ts
 export enum PostEventType {
@@ -14,11 +14,9 @@ export class PostCreatedEvent {
     postId: string;
     userId: string;
     groupId?: string;
-    contentSnippet?: string;
-    mediaPreview?: {
-      imageUrls?: string[];
-      videoUrls?: string[];
-    };
+    content?: string;
+    mediaPreview?: MediaItemDTO[];
+    mediaRemaining?: number;
     createdAt: Date;
   };
 }
@@ -27,7 +25,7 @@ export class PostUpdatedEvent {
   type: PostEventType.POST_UPDATED;
   payload: {
     postId: string;
-    contentSnippet: string;
+    content: string;
   };
 }
 

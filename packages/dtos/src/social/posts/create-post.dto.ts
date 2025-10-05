@@ -7,7 +7,7 @@ import {
 } from 'class-validator';
 import { Audience, Feeling } from '../enums/social.enum';
 import { Type } from 'class-transformer';
-import { MediaDTO } from '../common/media.dto';
+import { MediaItemDTO } from '../common/media.dto';
 
 export class CreatePostDTO {
   @IsOptional()
@@ -24,8 +24,8 @@ export class CreatePostDTO {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => MediaDTO)
-  media?: MediaDTO;
+  @Type(() => MediaItemDTO)
+  media?: MediaItemDTO[];
 
   @IsOptional()
   @IsEnum(Audience)

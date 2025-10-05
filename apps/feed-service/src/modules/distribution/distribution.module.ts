@@ -10,9 +10,6 @@ import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
     MongooseModule.forFeature([
       { name: FeedItem.name, schema: FeedItemSchema },
     ]),
@@ -33,5 +30,6 @@ import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
   ],
   controllers: [DistributionController],
   providers: [DistributionService],
+  exports: [DistributionService],
 })
 export class DistributionModule {}

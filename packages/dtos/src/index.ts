@@ -36,3 +36,5 @@ export * from './user/update-user.dto';
 
 // Enums
 export * from './social/enums/social.enum';
+
+export * from './feed/enums/feed-event.enum';

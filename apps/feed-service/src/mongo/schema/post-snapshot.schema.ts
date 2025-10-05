@@ -1,8 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { MediaType } from '@repo/dtos';
 import { Document } from 'mongoose';
 
 export class MediaPreview {
-  type: 'image' | 'video';
+  type: MediaType;
   url: string;
 }
 
@@ -11,7 +12,7 @@ export class PostSnapshot extends Document {
   @Prop({ required: true })
   postId: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, unique: true })
   userId: string;
 
   @Prop()
@@ -23,8 +24,11 @@ export class PostSnapshot extends Document {
   @Prop({ type: Object })
   mediaPreviews: MediaPreview[];
 
-  @Prop({ default: Date.now })
+  @Prop()
   createdAt: Date;
+
+  @Prop({ default: Date.now })
+  timeStamp: Date;
 }
 
 export const PostSnapshotSchema = SchemaFactory.createForClass(PostSnapshot);

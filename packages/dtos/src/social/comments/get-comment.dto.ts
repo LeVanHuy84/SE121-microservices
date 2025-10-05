@@ -1,5 +1,5 @@
 import { Expose, Type } from 'class-transformer';
-import { MediaDTO } from '../common/media.dto';
+import { MediaItemDTO } from '../common/media.dto';
 import { BaseUserDTO } from '../../user/get-user.dto';
 
 export class CommentStatDTO {
@@ -31,8 +31,8 @@ export class CommentResponseDTO {
   content: string;
 
   @Expose()
-  @Type(() => MediaDTO)
-  media?: MediaDTO;
+  @Type(() => MediaItemDTO)
+  media?: MediaItemDTO;
 
   @Expose()
   @Type(() => CommentStatDTO)
