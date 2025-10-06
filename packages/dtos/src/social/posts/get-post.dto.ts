@@ -1,7 +1,8 @@
 import { Expose, Type } from 'class-transformer';
-import { Audience, PostStatus } from '../enums/social.enum';
+import { Audience, Feeling, PostStatus } from '../enums/social.enum';
 import { MediaDTO } from '../common/media.dto';
 import { BaseUserDTO } from '../../user/get-user.dto';
+import { IsEnum, IsString } from 'class-validator';
 
 export class PostStatDTO {
   @Expose() reactions: number;
@@ -20,11 +21,14 @@ export class PostResponseDTO {
   id: string;
 
   @Expose()
-  @Type(() => BaseUserDTO)
-  user: BaseUserDTO | null;
+  userId: string;
 
   @Expose()
   groupId?: string;
+
+  @Expose()
+  @IsEnum(Feeling)
+  feeling: Feeling;
 
   @Expose()
   content: string;

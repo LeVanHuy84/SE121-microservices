@@ -7,12 +7,9 @@ import { EditHistory } from 'src/entities/edit-history.entity';
 import { Report } from 'src/entities/report.entity';
 import { PostService } from './post.service';
 import { PostStat } from 'src/entities/post-stat.entity';
-import { UserModule } from '../user/user.module';
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([Post, Share, EditHistory, Report, PostStat]),
-    UserModule,
   ],
   controllers: [PostController],
   providers: [PostService],
