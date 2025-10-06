@@ -56,11 +56,6 @@ export class PostController {
     return this.client.send('update_post', { userId, postId, updatePostDTO });
   }
 
-  @Patch('update-status/:id')
-  updateStatus(@Param('id') postId: string, @CurrentUserId() userId: string) {
-    return this.client.send('update_post_status', { userId, postId });
-  }
-
   @Delete('delete/:id')
   remove(@Param('id') id: string, @CurrentUserId() userId: string) {
     return this.client.send('remove_post', { id, userId });

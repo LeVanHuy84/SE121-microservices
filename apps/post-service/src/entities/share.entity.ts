@@ -6,8 +6,10 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
 import { Post } from './post.entity';
+import { ShareStat } from './share-stat.entity';
 
 @Entity('shares')
 @Index('idx_share_user', ['userId'])
@@ -31,4 +33,7 @@ export class Share {
   @ManyToOne(() => Post, (post) => post.shares)
   @JoinColumn({ name: 'post_id' })
   post: Post;
+
+  @OneToOne(() => ShareStat, (shareStat) => shareStat.share, { cascade: true })
+  shareStat: ShareStat;
 }
