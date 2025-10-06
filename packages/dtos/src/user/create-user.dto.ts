@@ -1,6 +1,9 @@
 import { IsEmail, IsOptional, IsString } from "class-validator";
 
 export class CreateUserDTO {
+  @IsString()
+  id: string;
+
   @IsEmail()
   email: string;
 
@@ -9,9 +12,6 @@ export class CreateUserDTO {
 
   @IsString()
   lastName: string;
-
-  @IsString()
-  clerkId: string;
 
   @IsOptional()
   avatarUrl?: string;

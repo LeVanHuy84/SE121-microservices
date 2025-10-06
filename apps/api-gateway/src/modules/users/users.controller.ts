@@ -1,3 +1,4 @@
+import type { ClerkClient } from '@clerk/backend';
 import {
   Body,
   Controller,
@@ -7,20 +8,26 @@ import {
   Param,
   Patch,
   Post,
-  Put,
-  Req,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { Public } from 'src/common/decorators/public.decorator';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
-import { Observable } from 'rxjs';
+// import { File } from 'web-file-polyfill';
+import { lastValueFrom, Observable } from 'rxjs';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 @Controller('users')
 export class UsersController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.MEDIA_SERVICE)
+    private readonly mediaClient: ClientProxy,
+    @Inject('ClerkClient')
+    private readonly clerkClient: ClerkClient
   ) {}
 
   @Public()
@@ -43,11 +50,61 @@ export class UsersController {
   }
 
   @Patch()
-  update(@CurrentUserId() id: string, @Body() updateUserDto: UpdateUserDTO) {
-    return this.client.send('updateUser', {
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'avatarUrl', maxCount: 1 },
+        { name: 'coverImageUrl', maxCount: 1 },
+      ],
+      {
+        limits: {
+          fileSize: 2 * 1024 * 1024, // 2MB
+        },
+      }
+    )
+  )
+  async update(
+    @CurrentUserId() id: string,
+    @UploadedFiles()
+    files: {
+      avatarUrl?: Express.Multer.File[];
+      coverImageUrl?: Express.Multer.File[];
+    },
+    @Body() updateUserDto: UpdateUserDTO
+  ) {
+    if (files?.avatarUrl?.[0]) {
+      const multerFile = files.avatarUrl[0];
+
+      // const clerkFile = new File([multerFile.buffer], multerFile.originalname, {
+      //   type: multerFile.mimetype,
+      // });
+
+      // await this.clerkClient.users.updateUserProfileImage(id, {
+      //   file: clerkFile,
+      // });
+      const url = await this.clerkClient.users
+        .getUser(id)
+        .then((user) => user.imageUrl);
+      updateUserDto.avatarUrl = url;
+    }
+    if (files?.coverImageUrl?.[0]) {
+      updateUserDto.coverImageUrl = await lastValueFrom(
+        this.mediaClient.send('upload_cover_image', {
+          file: files.coverImageUrl[0].buffer,
+          userId: id,
+        })
+      );
+    }
+    const user = this.client.send('updateUser', {
       id,
       updateUserDto,
     });
+    // Update user in Clerk
+    await this.clerkClient.users.updateUser(id, {
+      firstName: updateUserDto.firstName,
+      lastName: updateUserDto.lastName,
+    });
+    return user;
   }
 
   @Delete(':id')

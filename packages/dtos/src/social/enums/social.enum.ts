@@ -7,9 +7,15 @@ export enum ReactionType {
   ANGRY,
 }
 
+export enum RootTargetType {
+  POST,
+  SHARE,
+}
+
 export enum TargetType {
   POST,
   COMMENT,
+  SHARE,
 }
 
 export enum Audience {
