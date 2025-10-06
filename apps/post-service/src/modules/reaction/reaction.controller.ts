@@ -1,18 +1,18 @@
 import { Controller } from '@nestjs/common';
 import { ReactionService } from './reaction.service';
-import { MessagePattern } from '@nestjs/microservices';
+import { EventPattern, MessagePattern } from '@nestjs/microservices';
 import { DisReactDTO, GetReactionsDTO, ReactDTO } from '@repo/dtos';
 
 @Controller('react')
 export class ReactionController {
   constructor(private reactionService: ReactionService) {}
 
-  @MessagePattern('react')
+  @EventPattern('react')
   react(data: { userId: string; dto: ReactDTO }) {
     this.reactionService.react(data.userId, data.dto);
   }
 
-  @MessagePattern('dis_react')
+  @EventPattern('dis_react')
   disReact(data: { userId: string; dto: DisReactDTO }) {
     this.reactionService.disReact(data.userId, data.dto);
   }

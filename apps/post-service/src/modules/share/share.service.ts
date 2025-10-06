@@ -9,16 +9,16 @@ import {
   UpdateShareDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { ShareStat } from 'src/entities/share-stat.entity';
 import { Share } from 'src/entities/share.entity';
 import { Repository } from 'typeorm';
-import { UserService } from '../user/user.service';
 
 @Injectable()
 export class ShareService {
   constructor(
-    @InjectRepository(Share)
-    private readonly shareRepo: Repository<Share>,
-    private readonly userService: UserService
+    @InjectRepository(Share) private readonly shareRepo: Repository<Share>,
+    @InjectRepository(ShareStat)
+    private readonly shareStatRepo: Repository<ShareStat>
   ) {}
 
   async sharePost(
@@ -28,6 +28,7 @@ export class ShareService {
     const share = this.shareRepo.create({
       ...dto,
       userId,
+      shareStat: this.shareStatRepo.create(),
     });
     const entity = await this.shareRepo.save(share);
     return plainToInstance(ShareResponseDTO, entity, {
@@ -56,19 +57,16 @@ export class ShareService {
   async findById(shareId: string): Promise<ShareResponseDTO> {
     const share = await this.shareRepo.findOne({
       where: { id: shareId },
-      relations: ['post'],
+      relations: ['post', 'shareStat'],
     });
 
     if (!share) {
       throw new RpcException(`Share not found`);
     }
 
-    const user = await this.userService.getUsersBatch([share.userId]);
-    const response = plainToInstance(ShareResponseDTO, share, {
+    return plainToInstance(ShareResponseDTO, share, {
       excludeExtraneousValues: true,
     });
-    response.user = user[share.userId];
-    return response;
   }
 
   async findByUserId(
@@ -79,21 +77,14 @@ export class ShareService {
 
     const [items, total] = await this.shareRepo.findAndCount({
       where: { userId },
-      relations: { post: true },
+      relations: { post: true, shareStat: true },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    const userIds = [...new Set(items.map((p) => p.userId))];
-    const users = await this.userService.getUsersBatch(userIds);
-
-    const data = items.map((share) => {
-      const dto = plainToInstance(ShareResponseDTO, share, {
-        excludeExtraneousValues: true,
-      });
-      dto.user = users[share.userId];
-      return dto;
+    const data = plainToInstance(ShareResponseDTO, items, {
+      excludeExtraneousValues: true,
     });
 
     return {
@@ -126,15 +117,8 @@ export class ShareService {
       .where('share.id IN (:...ids)', { ids })
       .getMany();
 
-    const userIds = [...new Set(shares.map((p) => p.userId))];
-    const users = await this.userService.getUsersBatch(userIds);
-
-    return shares.map((share) => {
-      const dto = plainToInstance(ShareResponseDTO, share, {
-        excludeExtraneousValues: true,
-      });
-      dto.user = users[share.userId];
-      return dto;
+    return plainToInstance(ShareResponseDTO, shares, {
+      excludeExtraneousValues: true,
     });
   }
 }

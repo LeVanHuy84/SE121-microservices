@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { DisReactDTO, GetReactionsDTO, ReactDTO } from '@repo/dtos';
+import { firstValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -21,16 +22,16 @@ export class ReactionController {
 
   @Post('react')
   react(@CurrentUserId() userId: string, @Body() dto: ReactDTO) {
-    this.client.send('react', { userId, dto });
+    this.client.emit('react', { userId, dto });
   }
 
   @Delete('dis-react')
   disReact(@CurrentUserId() userId: string, @Body() dto: DisReactDTO) {
-    this.client.send('dis_react', { userId, dto });
+    this.client.emit('dis_react', { userId, dto });
   }
 
   @Get()
-  getReactions(@Query() dto: GetReactionsDTO) {
-    return this.client.send('get_reactions', dto);
+  async getReactions(@Query() dto: GetReactionsDTO) {
+    return await firstValueFrom(this.client.send('get_reactions', dto));
   }
 }

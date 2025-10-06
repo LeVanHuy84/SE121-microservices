@@ -15,6 +15,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ReactionFieldMap } from 'src/constant';
+import { ShareStat } from 'src/entities/share-stat.entity';
 
 @Injectable()
 export class ReactionService {
@@ -39,6 +40,7 @@ export class ReactionService {
   }
 
   async react(userId: string, dto: ReactDTO) {
+    console.log('React called');
     return this.dataSource.transaction(async (manager) => {
       const reactionRepo = manager.getRepository(Reaction);
 
@@ -48,6 +50,7 @@ export class ReactionService {
 
       if (existing) {
         // Nếu đổi reaction
+        console.log('Existing reaction found:', existing);
         if (existing.reactionType !== dto.reactionType) {
           await this.updateStatsWithManager(
             manager,
@@ -68,6 +71,7 @@ export class ReactionService {
           );
         }
       } else {
+        console.log('No existing reaction, creating new one');
         await reactionRepo.save(
           reactionRepo.create({
             userId,
@@ -124,30 +128,51 @@ export class ReactionService {
   ) {
     const field = ReactionFieldMap[reactionType];
 
-    if (targetType === TargetType.POST) {
-      await manager
-        .getRepository(PostStat)
-        .createQueryBuilder()
-        .update()
-        .set({
-          [field]: () => `"${field}" + ${delta}`,
-          reactions: () => `"reactions" + ${delta}`,
-        })
-        .where('postId = :postId', { postId: targetId })
-        .execute();
-    }
+    console.log('Updating stats:', {
+      targetType,
+      targetId,
+      reactionType,
+      delta,
+    });
 
-    if (targetType === TargetType.COMMENT) {
-      await manager
-        .getRepository(CommentStat)
-        .createQueryBuilder()
-        .update()
-        .set({
-          [field]: () => `"${field}" + ${delta}`,
-          reactions: () => `"reactions" + ${delta}`,
-        })
-        .where('commentId = :commentId', { commentId: targetId })
-        .execute();
+    const updateQuery = {
+      [field]: () => `"${field}" + ${delta}`,
+      reactions: () => `"reactions" + ${delta}`,
+    };
+
+    switch (targetType) {
+      case TargetType.POST:
+        await manager
+          .getRepository(PostStat)
+          .createQueryBuilder()
+          .update()
+          .set(updateQuery)
+          .where('postId = :id', { id: targetId })
+          .execute();
+        break;
+
+      case TargetType.COMMENT:
+        await manager
+          .getRepository(CommentStat)
+          .createQueryBuilder()
+          .update()
+          .set(updateQuery)
+          .where('commentId = :id', { id: targetId })
+          .execute();
+        break;
+
+      case TargetType.SHARE:
+        await manager
+          .getRepository(ShareStat)
+          .createQueryBuilder()
+          .update()
+          .set(updateQuery)
+          .where('shareId = :id', { id: targetId })
+          .execute();
+        break;
+
+      default:
+        throw new Error(`Unsupported target type: ${targetType}`);
     }
   }
 }

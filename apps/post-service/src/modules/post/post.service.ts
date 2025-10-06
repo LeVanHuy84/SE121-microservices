@@ -13,15 +13,13 @@ import {
 import { RpcException } from '@nestjs/microservices';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { EditHistory } from 'src/entities/edit-history.entity';
-import { UserService } from '../user/user.service';
 
 @Injectable()
 export class PostService {
   constructor(
     @InjectRepository(Post) private postRepo: Repository<Post>,
     @InjectRepository(PostStat) private postStatRepo: Repository<PostStat>,
-    private readonly dataSource: DataSource,
-    private readonly userService: UserService
+    private readonly dataSource: DataSource
   ) {}
 
   async create(userId: string, dto: CreatePostDTO): Promise<PostResponseDTO> {
@@ -47,13 +45,9 @@ export class PostService {
       throw new RpcException('Post not found');
     }
 
-    const users = await this.userService.getUsersBatch([post.userId]);
-
     const response = plainToInstance(PostResponseDTO, post, {
       excludeExtraneousValues: true,
     });
-    response.user = users[post.userId];
-
     return response;
   }
 
@@ -87,15 +81,8 @@ export class PostService {
 
     const [posts, total] = await qb.getManyAndCount();
 
-    const userIds = [...new Set(posts.map((p) => p.userId))];
-    const users = await this.userService.getUsersBatch(userIds);
-
-    const postDTOs = posts.map((post) => {
-      const dto = plainToInstance(PostResponseDTO, post, {
-        excludeExtraneousValues: true,
-      });
-      dto.user = users[post.userId];
-      return dto;
+    const postDTOs = plainToInstance(PostResponseDTO, posts, {
+      excludeExtraneousValues: true,
     });
 
     return new PageResponse(postDTOs, total, page, limit);
@@ -127,19 +114,6 @@ export class PostService {
         excludeExtraneousValues: true,
       });
     });
-  }
-
-  async updateStatus(userId: string, postId: string) {
-    const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) {
-      throw new RpcException('Post not found with id: ' + postId);
-    }
-    if (post.userId !== userId) {
-      throw new RpcException('You are not authorized to update this post');
-    }
-
-    post.status =
-      post.status === PostStatus.ACTIVE ? PostStatus.HIDDEN : PostStatus.ACTIVE;
   }
 
   async remove(postId: string, userId: string) {
@@ -182,15 +156,8 @@ export class PostService {
       .where('p.id IN (:...ids)', { ids })
       .getMany();
 
-    const userIds = [...new Set(posts.map((p) => p.userId))];
-    const users = await this.userService.getUsersBatch(userIds);
-
-    return posts.map((post) => {
-      const dto = plainToInstance(PostResponseDTO, post, {
-        excludeExtraneousValues: true,
-      });
-      dto.user = users[post.userId];
-      return dto;
+    return plainToInstance(PostResponseDTO, posts, {
+      excludeExtraneousValues: true,
     });
   }
 }

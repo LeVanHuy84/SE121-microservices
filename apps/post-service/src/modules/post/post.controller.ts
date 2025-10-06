@@ -46,13 +46,6 @@ export class PostController {
     );
   }
 
-  @MessagePattern('update_post_status')
-  async updatePostStatus(
-    @Payload() payload: { userId: string; postId: string }
-  ) {
-    return this.postService.updateStatus(payload.userId, payload.postId);
-  }
-
   @MessagePattern('remove_post')
   async remove(@Payload() payload: { id: string; userId: string }) {
     return this.postService.remove(payload.id, payload.userId);

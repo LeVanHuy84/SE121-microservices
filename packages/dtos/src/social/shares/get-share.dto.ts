@@ -1,15 +1,24 @@
 import { PostResponseDTO } from '../posts/get-post.dto';
-import { IsString, IsDate, IsNotEmpty, ValidateNested } from 'class-validator';
 import { Expose, Type } from 'class-transformer';
-import { BaseUserDTO } from '../../user/get-user.dto';
+
+export class ShareStatDTO {
+  @Expose() reactions: number;
+  @Expose() likes: number;
+  @Expose() loves: number;
+  @Expose() hahas: number;
+  @Expose() wows: number;
+  @Expose() angrys: number;
+  @Expose() sads: number;
+  @Expose() comments: number;
+  @Expose() shares: number;
+}
 
 export class ShareResponseDTO {
   @Expose()
   id: string;
 
   @Expose()
-  @Type(() => BaseUserDTO)
-  user: BaseUserDTO | null;
+  userId: string;
 
   @Expose()
   content: string;
@@ -21,4 +30,8 @@ export class ShareResponseDTO {
   @Expose()
   @Type(() => PostResponseDTO)
   post: PostResponseDTO;
+
+  @Expose()
+  @Type(() => ShareStatDTO)
+  shareStat: ShareStatDTO;
 }

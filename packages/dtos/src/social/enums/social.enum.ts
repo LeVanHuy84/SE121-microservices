@@ -1,33 +1,44 @@
 export enum ReactionType {
-    LIKE,
-    LOVE,
-    HAHA,
-    WOW,
-    SAD,
-    ANGRY,
+  LIKE,
+  LOVE,
+  HAHA,
+  WOW,
+  SAD,
+  ANGRY,
+}
+
+export enum RootTargetType {
+  POST,
+  SHARE,
 }
 
 export enum TargetType {
-    POST,
-    COMMENT,
+  POST,
+  COMMENT,
+  SHARE,
 }
 
 export enum Audience {
-    PUBLIC,
-    FRIENDS,
-    ONLY_ME,
+  PUBLIC,
+  FRIENDS,
+  ONLY_ME,
 }
 
 export enum PostStatus {
-    ACTIVE,
-    DELETED,
-    HIDDEN,
+  ACTIVE,
+  DELETED,
+  HIDDEN,
 }
 
 export enum Feeling {
-    JOY,
-    SADNESS,
-    ANGER,
-    FEAR,
-    DISGUST,
+  JOY,
+  SADNESS,
+  ANGER,
+  FEAR,
+  DISGUST,
+}
+
+export enum MediaType {
+  IMAGE,
+  VIDEO,
 }

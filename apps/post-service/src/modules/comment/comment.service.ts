@@ -13,14 +13,12 @@ import { CommentStat } from 'src/entities/comment-stat.entity';
 import { Comment } from 'src/entities/comment.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { UserService } from '../user/user.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
-    private readonly dataSource: DataSource,
-    private readonly userService: UserService
+    private readonly dataSource: DataSource
   ) {}
 
   async create(
@@ -55,12 +53,9 @@ export class CommentService {
       throw new RpcException(`Comment not found`);
     }
 
-    const user = await this.userService.getUsersBatch([comment.userId]);
-    const response = plainToInstance(CommentResponseDTO, comment, {
+    return plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
     });
-    response.user = user[comment.userId];
-    return response;
   }
 
   async findByQuery(
@@ -85,15 +80,8 @@ export class CommentService {
 
     const [comments, total] = await qb.getManyAndCount();
 
-    const userIds = [...new Set(comments.map((c) => c.userId))];
-    const users = await this.userService.getUsersBatch(userIds);
-
-    const commentDTOs = comments.map((comment) => {
-      const dto = plainToInstance(CommentResponseDTO, comment, {
-        excludeExtraneousValues: true,
-      });
-      dto.user = users[comment.userId];
-      return dto;
+    const commentDTOs = plainToInstance(CommentResponseDTO, comments, {
+      excludeExtraneousValues: true,
     });
 
     return new PageResponse<CommentResponseDTO>(
