@@ -82,16 +82,21 @@ export class UsersController {
       // await this.clerkClient.users.updateUserProfileImage(id, {
       //   file: clerkFile,
       // });
-      const url = await this.clerkClient.users
-        .getUser(id)
-        .then((user) => user.imageUrl);
-      updateUserDto.avatarUrl = url;
+      // const url = await this.clerkClient.users
+      //   .getUser(id)
+      //   .then((user) => user.imageUrl);
+       const avatarUrl = await this.clerkClient.users
+         .getUser(id)
+         .then((user) => user.imageUrl);
+      updateUserDto.avatarUrl = avatarUrl;
     }
     if (files?.coverImageUrl?.[0]) {
       updateUserDto.coverImageUrl = await lastValueFrom(
-        this.mediaClient.send('upload_cover_image', {
+        this.mediaClient.send('upload', {
           file: files.coverImageUrl[0].buffer,
           userId: id,
+          folder: 'cover-image',
+          type: 'image'
         })
       );
     }

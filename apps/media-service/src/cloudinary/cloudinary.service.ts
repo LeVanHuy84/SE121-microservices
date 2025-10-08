@@ -16,6 +16,10 @@ export class CloudinaryService {
         {
           folder: folderName,
           overwrite: true,
+          resource_type: options.resource_type || 'auto',
+          public_id: options.public_id,
+          eager: options.eager,
+          notification_url: options.notification_url,
           ...options,
         },
         (error, result) => {
@@ -29,16 +33,34 @@ export class CloudinaryService {
     });
   }
 
-  extractPublicId(url: string): string | null {
-    // URL Cloudinary: https://res.cloudinary.com/<cloud>/image/upload/v123456789/folder/file.jpg
-    try {
-      const parts = url.split('/');
-      const fileWithExt = parts[parts.length - 1];
-      const folder = parts[parts.length - 2];
-      const fileName = fileWithExt.split('.')[0];
-      return `${folder}/${fileName}`;
-    } catch (e) {
-      return null;
-    }
+  generateImageUrl(
+    publicId: string,
+    opts: { w?: number; h?: number; crop?: string } = {}
+  ) {
+    return cloudinary.url(publicId, {
+      secure: true,
+      transformation: [
+        { width: opts.w, height: opts.h, crop: opts.crop || 'fill' },
+      ],
+    });
+  }
+
+  generateVideoThumbnail(
+    publicId: string,
+    opts: { w?: number; h?: number; start_offset?: string } = {}
+  ) {
+    return cloudinary.url(publicId, {
+      resource_type: 'video',
+      format: 'jpg',
+      secure: true,
+      transformation: [
+        {
+          width: opts.w,
+          height: opts.h,
+          crop: 'fill',
+          start_offset: opts.start_offset || '1',
+        },
+      ],
+    });
   }
 }
