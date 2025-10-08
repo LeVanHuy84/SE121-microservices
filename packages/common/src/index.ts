@@ -4,3 +4,8 @@ export * from './filters/rpc-exception.filter';
 // redis module
 export * from './redis/redis.module';
 export * from './redis/redis.service';
+
+//kafka module
+
+export * from './kafka/kafka.module'
+export * from './kafka/kafka.service'

@@ -1,7 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { createProxyMiddleware } from "http-proxy-middleware";
-import { ValidationPipe } from '@nestjs/common';
 import { GatewayExceptionsFilter } from './common/filters/gateway.filter';
 
 async function bootstrap() {

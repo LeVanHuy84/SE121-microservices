@@ -9,14 +9,13 @@ import { PostModule } from './modules/posts/post.module';
 import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
-
+import { GatewayModule } from './modules/gateway/gateway.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),
-
 
     AuthModule,
     PostModule,
@@ -31,7 +30,7 @@ import { ClerkClientProvider } from './providers/clerk-client.provider';
         },
       ],
     }),
- 
+    GatewayModule,
   ],
 
   providers: [
@@ -59,5 +58,4 @@ import { ClerkClientProvider } from './providers/clerk-client.provider';
 
   controllers: [],
 })
-
 export class AppModule {}
