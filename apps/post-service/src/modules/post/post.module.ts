@@ -10,10 +10,18 @@ import { PostStat } from 'src/entities/post-stat.entity';
 import { PostCommandService } from './post-command.service';
 import { PostEventPublisher } from './post-event.service';
 import { KafkaModule } from '../kafka/kafka.module';
+import { Reaction } from 'src/entities/reaction.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, Share, EditHistory, Report, PostStat]),
+    TypeOrmModule.forFeature([
+      Post,
+      Share,
+      EditHistory,
+      Report,
+      PostStat,
+      Reaction,
+    ]),
     KafkaModule,
   ],
   controllers: [PostController],

@@ -7,27 +7,21 @@ export enum ReactionType {
   ANGRY,
 }
 
-export enum RootTargetType {
+export enum RootType {
   POST,
   SHARE,
 }
 
 export enum TargetType {
   POST,
-  COMMENT,
   SHARE,
+  COMMENT,
 }
 
 export enum Audience {
   PUBLIC,
   FRIENDS,
   ONLY_ME,
-}
-
-export enum PostStatus {
-  ACTIVE,
-  DELETED,
-  HIDDEN,
 }
 
 export enum Feeling {

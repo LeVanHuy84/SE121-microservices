@@ -1,6 +1,8 @@
 import { Expose, Type } from 'class-transformer';
 import { MediaItemDTO } from '../common/media.dto';
 import { BaseUserDTO } from '../../user/get-user.dto';
+import { IsEnum } from 'class-validator';
+import { ReactionType, RootType } from '../enums/social.enum';
 
 export class CommentStatDTO {
   @Expose() reactions: number;
@@ -21,11 +23,14 @@ export class CommentResponseDTO {
   userId: string;
 
   @Expose()
-  @Type(() => BaseUserDTO)
-  user: BaseUserDTO | null;
+  @IsEnum(RootType)
+  rootType: RootType;
 
   @Expose()
-  replyId?: string;
+  rootId: string;
+
+  @Expose()
+  parentId: string;
 
   @Expose()
   content: string;
@@ -43,4 +48,11 @@ export class CommentResponseDTO {
 
   @Expose()
   updatedAt: Date;
+
+  @Expose()
+  isOwner: boolean;
+
+  @Expose()
+  @IsEnum(ReactionType)
+  reactedType?: ReactionType;
 }

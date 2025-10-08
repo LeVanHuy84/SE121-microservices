@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Audience, CreatePostDTO, PostStatus, UpdatePostDTO } from '@repo/dtos';
+import { Audience, CreatePostDTO, UpdatePostDTO } from '@repo/dtos';
 import { EditHistory } from 'src/entities/edit-history.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
@@ -25,7 +25,8 @@ export class PostCommandService {
     });
     const entity = await this.postRepo.save(post);
 
-    this.eventPublisher.postCreated(entity);
+    if (dto.audience !== Audience.ONLY_ME)
+      this.eventPublisher.postCreated(entity);
 
     return entity;
   }
@@ -55,17 +56,6 @@ export class PostCommandService {
 
       return await manager.save(post);
     });
-  }
-
-  async updateStatus(userId: string, postId: string): Promise<Post> {
-    const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) throw new RpcException('Post not found');
-    if (post.userId !== userId) throw new RpcException('Unauthorized');
-
-    const isActive = post.status === PostStatus.ACTIVE;
-    post.status = isActive ? PostStatus.HIDDEN : PostStatus.ACTIVE;
-
-    return await this.postRepo.save(post);
   }
 
   async remove(userId: string, postId: string): Promise<void> {

@@ -9,30 +9,35 @@ import {
   UpdateShareDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { PostStat } from 'src/entities/post-stat.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { Share } from 'src/entities/share.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 @Injectable()
 export class ShareService {
   constructor(
-    @InjectRepository(Share) private readonly shareRepo: Repository<Share>,
-    @InjectRepository(ShareStat)
-    private readonly shareStatRepo: Repository<ShareStat>
+    @InjectRepository(Share) private readonly shareRepo: Repository<Share>
   ) {}
 
   async sharePost(
     userId: string,
     dto: CreateShareDTO
   ): Promise<ShareResponseDTO> {
-    const share = this.shareRepo.create({
-      ...dto,
-      userId,
-      shareStat: this.shareStatRepo.create(),
-    });
-    const entity = await this.shareRepo.save(share);
-    return plainToInstance(ShareResponseDTO, entity, {
-      excludeExtraneousValues: true,
+    return await this.shareRepo.manager.transaction(async (manager) => {
+      const share = manager.create(Share, {
+        ...dto,
+        userId,
+        shareStat: manager.create(ShareStat, {}),
+      });
+
+      const entity = await manager.save(share);
+
+      await this.updateStatsForPost(manager, dto.postId, +1);
+
+      return plainToInstance(ShareResponseDTO, entity, {
+        excludeExtraneousValues: true,
+      });
     });
   }
 
@@ -97,15 +102,25 @@ export class ShareService {
   }
 
   async remove(userId: string, shareId: string) {
-    const share = await this.shareRepo.findOneBy({ id: shareId });
-    if (!share) {
-      throw new RpcException('Share not found with id: ' + shareId);
-    }
-    if (share.userId !== userId) {
-      throw new RpcException('You are not authorized to delete this share');
-    }
-    await this.shareRepo.delete({ id: shareId });
-    return { success: true };
+    return await this.shareRepo.manager.transaction(async (manager) => {
+      const share = await manager.findOne(Share, {
+        where: { id: shareId },
+        relations: ['post'],
+      });
+
+      if (!share) {
+        throw new RpcException('Share not found with id: ' + shareId);
+      }
+      if (share.userId !== userId) {
+        throw new RpcException('You are not authorized to delete this share');
+      }
+
+      await manager.delete(Share, { id: shareId });
+
+      await this.updateStatsForPost(manager, share.postId, -1);
+
+      return { success: true };
+    });
   }
 
   async getSharesBatch(ids: string[]): Promise<ShareResponseDTO[]> {
@@ -120,5 +135,21 @@ export class ShareService {
     return plainToInstance(ShareResponseDTO, shares, {
       excludeExtraneousValues: true,
     });
+  }
+
+  private async updateStatsForPost(
+    manager: EntityManager,
+    postId: string,
+    delta: number = 1
+  ) {
+    await manager
+      .getRepository(PostStat)
+      .createQueryBuilder()
+      .update()
+      .set({
+        shares: () => `"shares" + ${delta}`,
+      })
+      .where('postId = :postId', { postId })
+      .execute();
   }
 }

@@ -17,6 +17,7 @@ export class IngestionService {
   ) {}
 
   async handleCreated(payload: PostCreatedEvent['payload']) {
+    console.log('IngestionService handleCreated', payload);
     const entity = await this.snapshotModel.create({
       ...payload,
     });

@@ -1,3 +1,4 @@
+import { ReactionType } from '../enums/social.enum';
 import { PostResponseDTO } from '../posts/get-post.dto';
 import { Expose, Type } from 'class-transformer';
 
@@ -10,7 +11,6 @@ export class ShareStatDTO {
   @Expose() angrys: number;
   @Expose() sads: number;
   @Expose() comments: number;
-  @Expose() shares: number;
 }
 
 export class ShareResponseDTO {
@@ -34,4 +34,7 @@ export class ShareResponseDTO {
   @Expose()
   @Type(() => ShareStatDTO)
   shareStat: ShareStatDTO;
+
+  @Expose()
+  reactedType: ReactionType;
 }

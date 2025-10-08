@@ -19,8 +19,17 @@ export class PostController {
   }
 
   @MessagePattern('find_post_by_id')
-  async findById(@Payload() postId: string) {
-    return this.postQuery.findById(postId);
+  async findById(
+    @Payload() payload: { currentUserId: string; postId: string }
+  ) {
+    return this.postQuery.findById(payload.currentUserId, payload.postId);
+  }
+
+  @MessagePattern('get_my_posts')
+  async getMyPosts(
+    @Payload() payload: { currentUserId: string; query: GetPostQueryDTO }
+  ) {
+    return this.postQuery.getMyPosts(payload.currentUserId, payload.query);
   }
 
   @MessagePattern('find_posts_by_user_id')
@@ -32,10 +41,10 @@ export class PostController {
       currentUserId: string;
     }
   ) {
-    return this.postQuery.findByUserId(
+    return this.postQuery.getUserPosts(
       payload.userId,
-      payload.pagination,
-      payload.currentUserId
+      payload.currentUserId,
+      payload.pagination
     );
   }
 

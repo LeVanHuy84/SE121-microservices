@@ -15,7 +15,7 @@ export class PostCreatedEvent {
     userId: string;
     groupId?: string;
     content?: string;
-    mediaPreview?: MediaItemDTO[];
+    mediaPreviews?: MediaItemDTO[];
     mediaRemaining?: number;
     createdAt: Date;
   };

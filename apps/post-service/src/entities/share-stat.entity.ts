@@ -20,5 +20,4 @@ export class ShareStat {
   @Column({ type: 'int', default: 0 }) angrys: number;
 
   @Column({ type: 'int', default: 0 }) comments: number;
-  @Column({ type: 'int', default: 0 }) shares: number;
 }

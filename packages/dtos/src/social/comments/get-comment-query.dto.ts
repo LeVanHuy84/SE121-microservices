@@ -1,12 +1,17 @@
-import { IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { PaginationDTO } from '../../pagination/pagination.dto';
+import { RootType } from '../enums/social.enum';
 
 export class GetCommentQueryDTO extends PaginationDTO {
   @IsOptional()
   @IsUUID()
-  postId?: string;
+  rootId?: string;
+
+  @IsOptional()
+  @IsEnum(RootType)
+  rootType?: RootType;
 
   @IsOptional()
   @IsUUID()
-  replyId?: string;
+  parentId?: string;
 }

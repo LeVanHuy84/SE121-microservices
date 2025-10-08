@@ -40,7 +40,6 @@ export class ReactionService {
   }
 
   async react(userId: string, dto: ReactDTO) {
-    console.log('React called');
     return this.dataSource.transaction(async (manager) => {
       const reactionRepo = manager.getRepository(Reaction);
 
@@ -71,7 +70,6 @@ export class ReactionService {
           );
         }
       } else {
-        console.log('No existing reaction, creating new one');
         await reactionRepo.save(
           reactionRepo.create({
             userId,
@@ -127,13 +125,6 @@ export class ReactionService {
     delta: number
   ) {
     const field = ReactionFieldMap[reactionType];
-
-    console.log('Updating stats:', {
-      targetType,
-      targetId,
-      reactionType,
-      delta,
-    });
 
     const updateQuery = {
       [field]: () => `"${field}" + ${delta}`,

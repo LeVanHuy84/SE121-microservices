@@ -21,11 +21,11 @@ export class PostEventPublisher {
   }
 
   async postCreated(post: Post) {
-    let mediaPreview: MediaItemDTO[] | undefined = undefined;
+    let mediaPreviews: MediaItemDTO[] | undefined = undefined;
     let mediaRemaining: number | undefined = undefined;
 
     if (Array.isArray(post.media) && post.media.length > 0) {
-      mediaPreview = post.media.slice(0, 5);
+      mediaPreviews = post.media.slice(0, 5);
       mediaRemaining = post.media.length > 5 ? post.media.length - 5 : 0;
     }
 
@@ -34,7 +34,7 @@ export class PostEventPublisher {
       userId: post.userId,
       groupId: post.groupId ?? undefined,
       content: post.content,
-      mediaPreview,
+      mediaPreviews,
       mediaRemaining,
       createdAt: post.createdAt,
     };

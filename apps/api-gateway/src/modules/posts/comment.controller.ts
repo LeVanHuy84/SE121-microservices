@@ -31,13 +31,19 @@ export class CommentController {
   }
 
   @Get('comment/:id')
-  findById(@Param('id') id: string) {
-    return this.client.send('find_comment_by_id', id);
+  findById(@CurrentUserId() userRequestId: string, @Param('id') id: string) {
+    return this.client.send('find_comment_by_id', {
+      userRequestId,
+      commentId: id,
+    });
   }
 
   @Get()
-  findByQuery(@Query() query: GetCommentQueryDTO) {
-    return this.client.send('find_comments_by_query', query);
+  findByQuery(
+    @CurrentUserId() userRequestId: string,
+    @Query() query: GetCommentQueryDTO
+  ) {
+    return this.client.send('find_comments_by_query', { userRequestId, query });
   }
 
   @Put(':id')

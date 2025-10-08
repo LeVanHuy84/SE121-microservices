@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Share } from './share.entity';
 import { EditHistory } from './edit-history.entity';
-import { Audience, Feeling, MediaItemDTO, PostStatus } from '@repo/dtos';
+import { Audience, Feeling, MediaItemDTO } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
 
 @Entity('posts')
@@ -36,9 +36,6 @@ export class Post {
 
   @Column('smallint', { default: Audience.PUBLIC })
   audience: Audience;
-
-  @Column('smallint', { default: PostStatus.ACTIVE })
-  status: PostStatus;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

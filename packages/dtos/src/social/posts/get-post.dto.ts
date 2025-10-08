@@ -1,5 +1,5 @@
 import { Expose, Type } from 'class-transformer';
-import { Audience, Feeling, PostStatus } from '../enums/social.enum';
+import { Audience, Feeling, ReactionType } from '../enums/social.enum';
 import { MediaItemDTO } from '../common/media.dto';
 import { IsEnum } from 'class-validator';
 
@@ -34,7 +34,7 @@ export class PostResponseDTO {
 
   @Expose()
   @Type(() => MediaItemDTO)
-  media: MediaItemDTO;
+  media: MediaItemDTO[];
 
   @Expose()
   audience: Audience;
@@ -47,11 +47,11 @@ export class PostResponseDTO {
   mainEmotion?: string;
 
   @Expose()
-  status: PostStatus;
-
-  @Expose()
   createdAt: Date;
 
   @Expose()
   updatedAt: Date;
+
+  @Expose()
+  reactedType?: ReactionType;
 }
