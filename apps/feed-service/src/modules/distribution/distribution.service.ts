@@ -19,9 +19,13 @@ export class DistributionService {
   ) {}
 
   /**
-   * Phân phối post snapshot tới bạn bè của actor
+   * Phân phối snapshot tới bạn bè của actor
    */
-  async distributePost(snapshotId: string, actorId: string) {
+  async distributeCreated(
+    type: FeedEventType,
+    snapshotId: string,
+    actorId: string,
+  ) {
     this.logger.log(`Distributing snapshot ${snapshotId} from ${actorId}`);
 
     try {
@@ -45,7 +49,7 @@ export class DistributionService {
       const feedItems = friendIds.map((fid) => ({
         userId: fid,
         snapshotId: new Types.ObjectId(snapshotId),
-        eventType: FeedEventType.POST,
+        eventType: type,
         timestamp: now,
         rankingScore,
       }));
@@ -64,7 +68,7 @@ export class DistributionService {
   /**
    * Xoá snapshot và feedItems liên quan
    */
-  async removePost(snapshotId: string) {
+  async distributeRemoved(snapshotId: string) {
     this.logger.log(`Removing snapshot ${snapshotId} and related feed items`);
 
     try {

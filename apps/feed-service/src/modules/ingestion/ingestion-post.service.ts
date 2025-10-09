@@ -6,38 +6,47 @@ import {
   PostCreatedEvent,
   PostUpdatedEvent,
   PostDeletedEvent,
+  FeedEventType,
 } from '@repo/dtos';
 import { DistributionService } from '../distribution/distribution.service';
+import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 
 @Injectable()
-export class IngestionService {
+export class IngestionPostService {
   constructor(
-    @InjectModel(PostSnapshot.name) private snapshotModel: Model<PostSnapshot>,
+    @InjectModel(PostSnapshot.name) private postModel: Model<PostSnapshot>,
+    @InjectModel(ShareSnapshot.name) private shareModel: Model<ShareSnapshot>,
     private readonly distributionService: DistributionService,
   ) {}
 
   async handleCreated(payload: PostCreatedEvent['payload']) {
     console.log('IngestionService handleCreated', payload);
-    const entity = await this.snapshotModel.create({
+    const entity = await this.postModel.create({
       ...payload,
     });
-    this.distributionService.distributePost(entity.id, entity.userId);
+    this.distributionService.distributeCreated(
+      FeedEventType.POST,
+      entity.id,
+      entity.userId,
+    );
   }
 
   async handleUpdated(payload: PostUpdatedEvent['payload']) {
-    await this.snapshotModel.updateOne(
+    await this.postModel.updateOne(
       { postId: payload.postId },
-      { $set: { contentSnippet: payload.content } },
+      { $set: { content: payload.content } },
     );
   }
 
   async handleDeleted(payload: PostDeletedEvent['payload']) {
-    const snapshot = await this.snapshotModel.findOneAndDelete({
+    const snapshot = await this.postModel.findOneAndDelete({
       postId: payload.postId,
     });
 
+    await this.shareModel.deleteMany({ postId: payload.postId });
+
     if (snapshot) {
-      await this.distributionService.removePost(snapshot.id);
+      await this.distributionService.distributeRemoved(snapshot.id);
     }
   }
 }

@@ -1,23 +1,27 @@
 import { Module } from '@nestjs/common';
 import { IngestionController } from './ingestion.controller';
-import { IngestionService } from './ingestion.service';
+import { IngestionPostService } from './ingestion-post.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   PostSnapshot,
   PostSnapshotSchema,
 } from 'src/mongo/schema/post-snapshot.schema';
-import { DistributionService } from '../distribution/distribution.service';
-import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
 import { DistributionModule } from '../distribution/distribution.module';
+import {
+  ShareSnapshot,
+  ShareSnapshotSchema,
+} from 'src/mongo/schema/share-snapshot.schema';
+import { IngestionShareService } from './ingestion-share.service';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PostSnapshot.name, schema: PostSnapshotSchema },
+      { name: ShareSnapshot.name, schema: ShareSnapshotSchema },
     ]),
     DistributionModule,
   ],
   controllers: [IngestionController],
-  providers: [IngestionService],
+  providers: [IngestionPostService, IngestionShareService],
 })
 export class IngestionModule {}

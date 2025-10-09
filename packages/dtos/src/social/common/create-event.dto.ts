@@ -5,7 +5,6 @@ export enum PostEventType {
   POST_CREATED = 'POST_CREATED',
   POST_UPDATED = 'POST_UPDATED',
   REMOVE_FEED = 'REMOVE_FEED',
-  SHARED_POST = 'SHARED_POST',
 }
 
 export class PostCreatedEvent {
@@ -36,19 +35,7 @@ export class PostDeletedEvent {
   };
 }
 
-export class SharedEvent {
-  type: PostEventType.SHARED_POST;
-  payload: {
-    shareId: string;
-    userId: string;
-    contentSnippet: string;
-    createdAt: Date;
-    postId: string;
-  };
-}
-
 export type PostEventMessage =
   | PostCreatedEvent
   | PostUpdatedEvent
-  | PostDeletedEvent
-  | SharedEvent;
+  | PostDeletedEvent;

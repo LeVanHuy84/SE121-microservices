@@ -10,8 +10,6 @@ export class MediaPreview {
   url: string;
 }
 
-const MediaPreviewSchema = SchemaFactory.createForClass(MediaPreview);
-
 @Schema({ collection: 'post_snapshots', timestamps: true })
 export class PostSnapshot extends Document {
   @Prop({ required: true, unique: true })
