@@ -41,10 +41,7 @@ export class ShareSnapshot extends Document {
   content: string;
 
   @Prop()
-  createdAt: Date;
-
-  @Prop({ default: Date.now })
-  timeStamp: Date;
+  shareCreatedAt: Date;
 }
 
 export const ShareSnapshotSchema = SchemaFactory.createForClass(ShareSnapshot);

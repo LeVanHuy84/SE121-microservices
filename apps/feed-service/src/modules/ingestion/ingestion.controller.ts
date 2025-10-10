@@ -6,52 +6,68 @@ import { IngestionShareService } from './ingestion-share.service';
 
 @Controller('ingestion')
 export class IngestionController {
+  private readonly logger = new Logger(IngestionController.name);
+
   constructor(
     private readonly ingestionPost: IngestionPostService,
     private readonly ingestionShare: IngestionShareService,
   ) {}
-  private readonly logger = new Logger(IngestionPostService.name);
 
-  @EventPattern('post-events')
+  // ----------------------------
+  // 🧩 POST TOPIC HANDLER
+  // ----------------------------
+  @EventPattern(dtos.EventTopic.POST)
   async handlePostEvents(@Payload() message: dtos.PostEventMessage) {
-    switch (message.type) {
-      case dtos.PostEventType.POST_CREATED:
-        this.logger.log(`Post created: ${message.payload.postId}`);
-        this.ingestionPost.handleCreated(message.payload);
+    const { type, payload } = message;
+
+    switch (type) {
+      case dtos.PostEventType.CREATED:
+        this.logger.log(`Post created: ${payload.postId}`);
+        await this.ingestionPost.handleCreated(payload);
         break;
 
-      case dtos.PostEventType.POST_UPDATED:
-        this.logger.log(`Post updated: ${message.payload.postId}`);
-        this.ingestionPost.handleUpdated(message.payload);
+      case dtos.PostEventType.UPDATED:
+        this.logger.log(`Post updated: ${payload.postId}`);
+        await this.ingestionPost.handleUpdated(payload);
         break;
 
-      case dtos.PostEventType.REMOVE_FEED:
-        this.logger.log(`Post deleted: ${message.payload.postId}`);
-        this.ingestionPost.handleDeleted(message.payload);
+      case dtos.PostEventType.REMOVED:
+        this.logger.log(`Post removed: ${payload.postId}`);
+        await this.ingestionPost.handleRemoved(payload);
         break;
 
       default:
-        this.logger.warn(`Unknown post event: ${message}`);
+        this.logger.warn(`Unknown POST event type: ${type}`);
+        break;
     }
   }
 
-  @EventPattern('share-events')
+  // ----------------------------
+  // 🔁 SHARE TOPIC HANDLER
+  // ----------------------------
+  @EventPattern(dtos.EventTopic.SHARE)
   async handleShareEvents(@Payload() message: dtos.ShareEventMessage) {
-    switch (message.type) {
-      case dtos.ShareEventType.SHARED_POST:
-        this.logger.log(`Post shared: ${message.payload.shareId}`);
-        this.ingestionShare.handleShared(message.payload);
+    const { type, payload } = message;
+
+    switch (type) {
+      case dtos.ShareEventType.CREATED:
+        this.logger.log(`Share created: ${payload.shareId}`);
+        await this.ingestionShare.handleCreated(payload);
         break;
-      case dtos.ShareEventType.UPDATE_SHARE:
-        this.logger.log(`Share updated: ${message.payload.shareId}`);
-        this.ingestionShare.handleUpdated(message.payload);
+
+      case dtos.ShareEventType.UPDATED:
+        this.logger.log(`Share updated: ${payload.shareId}`);
+        await this.ingestionShare.handleUpdated(payload);
         break;
-      case dtos.ShareEventType.REMOVE_SHARE:
-        this.logger.log(`Share removed: ${message.payload.shareId}`);
-        this.ingestionShare.handleDeleted(message.payload);
+
+      case dtos.ShareEventType.REMOVED:
+        this.logger.log(`Share removed: ${payload.shareId}`);
+        await this.ingestionShare.handleRemoved(payload);
         break;
+
       default:
-        this.logger.warn(`Unknown share event: ${message}`);
+        this.logger.warn(`Unknown SHARE event type: ${type}`);
+        break;
     }
   }
 }

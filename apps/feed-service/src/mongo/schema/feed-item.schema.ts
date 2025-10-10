@@ -13,9 +13,6 @@ export class FeedItem extends Document {
   @Prop({ required: true, enum: FeedEventType })
   eventType: FeedEventType;
 
-  @Prop({ required: true })
-  timestamp: Date;
-
   @Prop({ default: 0, index: true })
   rankingScore: number;
 }

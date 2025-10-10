@@ -1,12 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  FeedEventType,
-  ShareDeletedEvent,
-  SharedPostEvent,
-  ShareUpdatedEvent,
-} from '@repo/dtos';
+import { FeedEventType, InferSharePayload, ShareEventType } from '@repo/dtos';
 import { DistributionService } from '../distribution/distribution.service';
 import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 
@@ -17,9 +12,16 @@ export class IngestionShareService {
     private readonly distributionService: DistributionService,
   ) {}
 
-  async handleShared(payload: SharedPostEvent['payload']) {
+  async handleCreated(payload: InferSharePayload<ShareEventType.CREATED>) {
+    if (!payload.shareId) return;
+    const exists = await this.shareModel.findOne({
+      where: { id: payload.shareId },
+    });
+    if (exists) return;
+
     const shareSnapshot = await this.shareModel.create({
       ...payload,
+      shareCreatedAt: payload.createdAt,
     });
 
     this.distributionService.distributeCreated(
@@ -29,14 +31,16 @@ export class IngestionShareService {
     );
   }
 
-  async handleUpdated(payload: ShareUpdatedEvent['payload']) {
+  async handleUpdated(payload: InferSharePayload<ShareEventType.UPDATED>) {
+    if (!payload.shareId) return;
     await this.shareModel.updateOne(
       { shareId: payload.shareId },
       { $set: { content: payload.content } },
     );
   }
 
-  async handleDeleted(payload: ShareDeletedEvent['payload']) {
+  async handleRemoved(payload: InferSharePayload<ShareEventType.REMOVED>) {
+    if (!payload.shareId) return;
     const snapshot = await this.shareModel.findOneAndDelete({
       shareId: payload.shareId,
     });

@@ -6,6 +6,8 @@ import { ReactionModule } from './modules/reaction/reaction.module';
 import { CommentModule } from './modules/comment/comment.module';
 import { ShareModule } from './modules/share/share.module';
 import dbConfig from './config/db.config';
+import { Kafka } from 'kafkajs';
+import { KafkaModule } from './modules/kafka/kafka.module';
 
 @Module({
   imports: [
@@ -21,6 +23,7 @@ import dbConfig from './config/db.config';
     ReactionModule,
     CommentModule,
     ShareModule,
+    KafkaModule,
   ],
   controllers: [],
   providers: [],

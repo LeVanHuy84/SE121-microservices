@@ -1,30 +1,27 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+import { KafkaProducerService } from './kafka.producer.service';
+import { OutboxProcessor } from './outbox.processor';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 
 @Module({
-  imports: [
-    ClientsModule.registerAsync([
-      {
-        name: MICROSERVICES_CLIENT.KAFKA_PRODUCER,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.KAFKA,
-          options: {
-            client: {
-              clientId: config.get<string>('KAFKA_CLIENT_ID') || 'post-service',
-              brokers: (
-                config.get<string>('KAFKA_BROKERS') || 'localhost:9092'
-              ).split(',') as string[],
-            },
-            producerOnlyMode: true,
-          },
-        }),
+  imports: [ConfigModule, TypeOrmModule.forFeature([OutboxEvent])],
+  providers: [
+    {
+      provide: KafkaProducerService,
+      useFactory: (config: ConfigService) => {
+        const brokers = (
+          config.get<string>('KAFKA_BROKERS') || 'localhost:9092'
+        ).split(',');
+        const clientId =
+          config.get<string>('KAFKA_CLIENT_ID') || 'post-service';
+        return new KafkaProducerService(brokers, clientId);
       },
-    ]),
+      inject: [ConfigService],
+    },
+    OutboxProcessor,
   ],
-  exports: [ClientsModule],
+  exports: [KafkaProducerService, OutboxProcessor],
 })
 export class KafkaModule {}

@@ -8,9 +8,8 @@ import { Report } from 'src/entities/report.entity';
 import { PostQueryService } from './post-query.service';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { PostCommandService } from './post-command.service';
-import { PostEventPublisher } from './post-event.service';
-import { KafkaModule } from '../kafka/kafka.module';
 import { Reaction } from 'src/entities/reaction.entity';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 
 @Module({
   imports: [
@@ -21,10 +20,10 @@ import { Reaction } from 'src/entities/reaction.entity';
       Report,
       PostStat,
       Reaction,
+      OutboxEvent,
     ]),
-    KafkaModule,
   ],
   controllers: [PostController],
-  providers: [PostQueryService, PostCommandService, PostEventPublisher],
+  providers: [PostQueryService, PostCommandService],
 })
 export class PostModule {}

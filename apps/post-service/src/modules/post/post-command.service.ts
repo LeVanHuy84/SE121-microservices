@@ -1,34 +1,55 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Audience, CreatePostDTO, UpdatePostDTO } from '@repo/dtos';
 import { EditHistory } from 'src/entities/edit-history.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 import { DataSource, Repository } from 'typeorm';
-import { PostEventPublisher } from './post-event.service';
+import {
+  Audience,
+  CreatePostDTO,
+  EventTopic,
+  PostEventType,
+  UpdatePostDTO,
+} from '@repo/dtos';
 
 @Injectable()
 export class PostCommandService {
   constructor(
-    @InjectRepository(Post) private postRepo: Repository<Post>,
-    @InjectRepository(PostStat) private postStatRepo: Repository<PostStat>,
-    private readonly dataSource: DataSource,
-    private readonly eventPublisher: PostEventPublisher
+    @InjectRepository(Post) private readonly postRepo: Repository<Post>,
+    private readonly dataSource: DataSource
   ) {}
 
   async create(userId: string, dto: CreatePostDTO): Promise<Post> {
-    const post = this.postRepo.create({
-      ...dto,
-      userId,
-      postStat: this.postStatRepo.create(),
+    return this.dataSource.transaction(async (manager) => {
+      const post = manager.create(Post, {
+        ...dto,
+        userId,
+        postStat: manager.create(PostStat),
+      });
+      const entity = await manager.save(post);
+
+      // nếu không phải bài private thì emit event
+      if (dto.audience !== Audience.ONLY_ME) {
+        const outbox = manager.create(OutboxEvent, {
+          topic: EventTopic.POST,
+          eventType: PostEventType.CREATED,
+          payload: {
+            postId: entity.id,
+            userId: entity.userId,
+            groupId: entity.groupId ?? undefined,
+            content: entity.content,
+            mediaPreviews: post.media?.slice(0, 5),
+            mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 5),
+            createdAt: entity.createdAt,
+          },
+        });
+        await manager.save(outbox);
+      }
+
+      return entity;
     });
-    const entity = await this.postRepo.save(post);
-
-    if (dto.audience !== Audience.ONLY_ME)
-      this.eventPublisher.postCreated(entity);
-
-    return entity;
   }
 
   async update(
@@ -40,7 +61,7 @@ export class PostCommandService {
     if (!post) throw new RpcException('Post not found');
     if (post.userId !== userId) throw new RpcException('Unauthorized');
 
-    return await this.dataSource.transaction(async (manager) => {
+    return this.dataSource.transaction(async (manager) => {
       if (dto.content && dto.content !== post.content) {
         const history = manager.create(EditHistory, {
           oldContent: post.content,
@@ -48,13 +69,31 @@ export class PostCommandService {
         });
         await manager.save(history);
       }
-      Object.assign(post, dto);
 
+      Object.assign(post, dto);
+      const updated = await manager.save(post);
+
+      // Nếu bài chuyển về ONLY_ME → có thể outbox gửi REMOVE event
       if (dto.audience === Audience.ONLY_ME) {
-        this.eventPublisher.removeFeed(postId);
+        const outbox = manager.create(OutboxEvent, {
+          topic: EventTopic.POST,
+          eventType: PostEventType.REMOVED,
+          payload: { postId },
+        });
+        await manager.save(outbox);
+      } else {
+        const outbox = manager.create(OutboxEvent, {
+          topic: EventTopic.POST,
+          eventType: PostEventType.UPDATED,
+          payload: {
+            postId,
+            content: dto.content,
+          },
+        });
+        await manager.save(outbox);
       }
 
-      return await manager.save(post);
+      return updated;
     });
   }
 
@@ -63,7 +102,16 @@ export class PostCommandService {
     if (!post) throw new RpcException('Post not found');
     if (post.userId !== userId) throw new RpcException('Unauthorized');
 
-    await this.postRepo.remove(post);
-    this.eventPublisher.removeFeed(postId);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.remove(post);
+
+      const outbox = manager.create(OutboxEvent, {
+        topic: EventTopic.POST,
+        eventType: PostEventType.REMOVED,
+        payload: { postId },
+      });
+
+      await manager.save(outbox);
+    });
   }
 }

@@ -31,10 +31,7 @@ export class PostSnapshot extends Document {
   mediaRemaining: number;
 
   @Prop()
-  createdAt: Date;
-
-  @Prop({ default: Date.now })
-  timeStamp: Date;
+  postCreatedAt: Date;
 }
 
 export const PostSnapshotSchema = SchemaFactory.createForClass(PostSnapshot);
