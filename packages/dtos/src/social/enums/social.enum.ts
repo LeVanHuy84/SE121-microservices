@@ -1,3 +1,5 @@
+import { StatsEventType } from '../events';
+
 export enum ReactionType {
   LIKE,
   LOVE,

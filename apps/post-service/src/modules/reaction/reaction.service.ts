@@ -7,6 +7,7 @@ import {
   ReactDTO,
   ReactionResponseDTO,
   ReactionType,
+  StatsEventType,
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
@@ -16,13 +17,15 @@ import { CommentStat } from 'src/entities/comment-stat.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ReactionFieldMap } from 'src/constant';
 import { ShareStat } from 'src/entities/share-stat.entity';
+import { StatsBufferService } from '../stats/stats.buffer.service';
 
 @Injectable()
 export class ReactionService {
   constructor(
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly statBuffer: StatsBufferService
   ) {}
 
   async getReactions(dto: GetReactionsDTO) {
@@ -78,6 +81,7 @@ export class ReactionService {
             reactionType: dto.reactionType,
           })
         );
+
         await this.updateStatsWithManager(
           manager,
           dto.targetType,
@@ -85,6 +89,8 @@ export class ReactionService {
           dto.reactionType,
           +1
         );
+        if (dto.targetType === TargetType.POST)
+          this.statBuffer.updateStat(dto.targetId, StatsEventType.REACTION, 1);
       }
     });
   }
@@ -113,6 +119,8 @@ export class ReactionService {
           reactionType,
           -1
         );
+        if (dto.targetType === TargetType.POST)
+          this.statBuffer.updateStat(dto.targetId, StatsEventType.REACTION, -1);
       }
     });
   }

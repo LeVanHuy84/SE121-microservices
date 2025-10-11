@@ -6,30 +6,21 @@ export enum StatsEventType {
   SHARE = 'stats.share',
 }
 
-export interface StatsEventPayloads {
-  [StatsEventType.REACTION]: {
-    postId: string;
-    action: 'add' | 'remove';
-  };
-  [StatsEventType.COMMENT]: {
-    postId: string;
-    action: 'add' | 'remove';
-  };
-  [StatsEventType.SHARE]: {
-    postId: string;
-    action: 'add' | 'remove';
-  };
+export interface StatsDelta {
+  [StatsEventType.REACTION]?: number;
+  //[StatsEventType.VIEW]?: number;
+  [StatsEventType.COMMENT]?: number;
+  [StatsEventType.SHARE]?: number;
+  // hoặc nếu bạn có field động hơn:
+  [key: string]: number | undefined;
 }
 
-export type StatsEvent<K extends StatsEventType> = {
-  topic: EventTopic.STATS;
-  type: K;
-  payload: StatsEventPayloads[K];
+export interface StatsRecord {
+  postId: string;
+  deltas: StatsDelta;
+}
+
+export type StatPayload = {
+  timestamp: number;
+  payload: StatsRecord[];
 };
-
-export type StatsEventMessage =
-  | StatsEvent<StatsEventType.REACTION>
-  | StatsEvent<StatsEventType.COMMENT>
-  | StatsEvent<StatsEventType.SHARE>;
-
-export type InferStatsPayload<T extends StatsEventType> = StatsEventPayloads[T];
