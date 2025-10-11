@@ -33,4 +33,13 @@ export class RedisService implements OnModuleDestroy {
   async del(key: string) {
     await this.client.del(key);
   }
+  /** Tăng giá trị số nguyên trong Redis */
+  async incr(key: string): Promise<number> {
+    return await this.client.incr(key);
+  }
+
+  /** Set thời gian hết hạn cho một key */
+  async expire(key: string, ttlSeconds: number): Promise<number> {
+    return await this.client.expire(key, ttlSeconds);
+  }
 }
