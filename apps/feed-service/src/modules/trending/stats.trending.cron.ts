@@ -12,8 +12,8 @@ export class StatsTrendingCron {
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
-  //@Cron(CronExpression.EVERY_10_MINUTES)
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  //@Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async updateTrendingScores() {
     const now = Date.now();
 
