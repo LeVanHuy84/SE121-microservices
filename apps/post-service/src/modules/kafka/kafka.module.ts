@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { KafkaProducerService } from './kafka.producer.service';
 import { OutboxProcessor } from './outbox.processor';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 
+@Global()
 @Module({
   imports: [ConfigModule, TypeOrmModule.forFeature([OutboxEvent])],
   providers: [

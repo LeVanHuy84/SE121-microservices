@@ -9,6 +9,7 @@ import { PostModule } from './modules/posts/post.module';
 import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
+import { FeedModule } from './modules/feed/feed.module';
 
 
 @Module({
@@ -31,6 +32,7 @@ import { ClerkClientProvider } from './providers/clerk-client.provider';
         },
       ],
     }),
+    FeedModule,
  
   ],
 

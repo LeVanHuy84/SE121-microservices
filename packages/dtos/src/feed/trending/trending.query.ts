@@ -1,9 +1,9 @@
 import { IsEnum, IsOptional } from 'class-validator';
 import { PaginationDTO } from '../../pagination/pagination.dto';
-import { Emotion } from '../enums/social.enum';
+import { Emotion } from '../../social/enums/social.enum';
 
-export class GetPostQueryDTO extends PaginationDTO {
+export class TrendingQuery extends PaginationDTO {
   @IsOptional()
   @IsEnum(Emotion)
-  feeling?: Emotion;
+  mainEmotion?: Emotion;
 }

@@ -3,6 +3,9 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -28,6 +31,17 @@ export class Comment {
 
   @Column('uuid', { name: 'parent_id', nullable: true })
   parentId: string;
+
+  @ManyToOne(() => Comment, (comment) => comment.replies, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'parent_id' })
+  parent?: Comment;
+
+  @OneToMany(() => Comment, (comment) => comment.parent, {
+    cascade: ['remove'],
+  })
+  replies?: Comment[];
 
   @Column({ type: 'varchar', length: 1000 })
   content: string;

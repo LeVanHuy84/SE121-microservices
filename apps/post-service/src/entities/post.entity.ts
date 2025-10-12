@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Share } from './share.entity';
 import { EditHistory } from './edit-history.entity';
-import { Audience, Feeling, MediaItemDTO } from '@repo/dtos';
+import { Audience, Emotion, MediaItemDTO } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
 
 @Entity('posts')
@@ -26,7 +26,7 @@ export class Post {
   groupId: string;
 
   @Column('smallint', { nullable: true })
-  feeling: Feeling;
+  feeling: Emotion;
 
   @Column({ type: 'varchar', length: 10000 })
   content: string;
@@ -36,6 +36,9 @@ export class Post {
 
   @Column('smallint', { default: Audience.PUBLIC })
   audience: Audience;
+
+  @Column('smallint', { nullable: true })
+  mainEmotion: Emotion;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -1,5 +1,3 @@
-import { EventTopic } from './event.enum';
-
 export enum StatsEventType {
   REACTION = 'stats.reaction',
   COMMENT = 'stats.comment',
@@ -15,12 +13,12 @@ export interface StatsDelta {
   [key: string]: number | undefined;
 }
 
-export interface StatsRecord {
+export type StatsRecord = {
   postId: string;
   deltas: StatsDelta;
-}
+};
 
-export type StatPayload = {
+export type StatsPayload = {
   timestamp: number;
   payload: StatsRecord[];
 };

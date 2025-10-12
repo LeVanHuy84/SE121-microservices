@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { FeedItem } from 'src/mongo/schema/feed-item.schema';
+import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
 import { calculateRankingScore } from 'src/utils/utils';
 import { FeedEventType } from '@repo/dtos';
@@ -13,7 +13,7 @@ export class DistributionService {
   private readonly logger = new Logger(DistributionService.name);
 
   constructor(
-    @InjectModel(FeedItem.name) private feedItemModel: Model<FeedItem>,
+    @InjectModel(FeedItem.name) private feedItemModel: Model<FeedItemDocument>,
     @Inject(MICROSERVICE_CLIENT.SOCIAL_SERVICE)
     private readonly socialClient: ClientProxy,
   ) {}

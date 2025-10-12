@@ -5,12 +5,14 @@ import {
   CommentResponseDTO,
   CreateCommentDTO,
   RootType,
+  TargetType,
   UpdateCommentDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { Comment } from 'src/entities/comment.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
+import { Reaction } from 'src/entities/reaction.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
@@ -48,25 +50,6 @@ export class CommentService {
     });
   }
 
-  async findById(
-    commentId: string,
-    userRequestId: string
-  ): Promise<CommentResponseDTO> {
-    const comment = await this.commentRepo
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.commentStat', 'stat')
-      .where('c.id = :commentId', { commentId })
-      .getOne();
-
-    if (!comment) {
-      throw new RpcException(`Comment not found`);
-    }
-
-    return plainToInstance(CommentResponseDTO, comment, {
-      excludeExtraneousValues: true,
-    });
-  }
-
   async update(
     userId: string,
     commentId: string,
@@ -100,6 +83,12 @@ export class CommentService {
         throw new RpcException(`Comment with id ${id} not found`);
       }
 
+      await manager.delete(Reaction, {
+        targetType: TargetType.COMMENT,
+        targetId: id,
+      });
+
+      // 2️⃣ Xoá comment (cascade tự xử lý comment con)
       await manager.remove(comment);
 
       await this.updateStatsForComment(

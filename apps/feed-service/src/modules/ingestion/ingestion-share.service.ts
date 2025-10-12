@@ -2,20 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FeedEventType, InferSharePayload, ShareEventType } from '@repo/dtos';
-import { DistributionService } from '../distribution/distribution.service';
-import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
+import {
+  ShareSnapshot,
+  ShareSnapshotDocument,
+} from 'src/mongo/schema/share-snapshot.schema';
+import { DistributionService } from './distribution.service';
 
 @Injectable()
 export class IngestionShareService {
   constructor(
-    @InjectModel(ShareSnapshot.name) private shareModel: Model<ShareSnapshot>,
+    @InjectModel(ShareSnapshot.name)
+    private shareModel: Model<ShareSnapshotDocument>,
     private readonly distributionService: DistributionService,
   ) {}
 
   async handleCreated(payload: InferSharePayload<ShareEventType.CREATED>) {
     if (!payload.shareId) return;
     const exists = await this.shareModel.findOne({
-      where: { id: payload.shareId },
+      where: { shareId: payload.shareId },
     });
     if (exists) return;
 

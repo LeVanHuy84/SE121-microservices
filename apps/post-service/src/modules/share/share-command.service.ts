@@ -9,6 +9,8 @@ import {
   EventTopic,
   ShareEventType,
   MediaItemDTO,
+  RootType,
+  TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -17,6 +19,7 @@ import { Share } from 'src/entities/share.entity';
 import { EntityManager, Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Post } from 'src/entities/post.entity';
+import { Reaction } from 'src/entities/reaction.entity';
 
 @Injectable()
 export class ShareCommandService {
@@ -117,23 +120,41 @@ export class ShareCommandService {
     return await this.shareRepo.manager.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
-        relations: ['post'],
       });
 
       if (!share) throw new RpcException('Share not found');
       if (share.userId !== userId) throw new RpcException('Unauthorized');
 
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(Reaction)
+        .where('target_id = :shareId AND target_type = :targetType', {
+          shareId,
+          targetType: TargetType.SHARE,
+        })
+        .execute();
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(Comment)
+        .where('root_target_id = :shareId AND root_target_type = :rootType', {
+          shareId,
+          rootType: RootType.SHARE,
+        })
+        .execute();
+
       await manager.delete(Share, { id: shareId });
 
-      await this.updateStatsForPost(manager, share.postId, -1);
+      if (share.postId) {
+        await this.updateStatsForPost(manager, share.postId, -1);
+      }
 
       const outbox = manager.create(OutboxEvent, {
+        topic: EventTopic.SHARE,
         eventType: ShareEventType.REMOVED,
-        payload: {
-          topic: EventTopic.SHARE,
-          type: ShareEventType.REMOVED,
-          payload: { shareId },
-        },
+        payload: { shareId },
       });
       await manager.save(outbox);
 

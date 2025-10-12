@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { MediaPreview } from './post-snapshot.schema';
 
 @Schema({ _id: false })
@@ -27,7 +27,9 @@ export class PostSnapshotEmbedded {
 }
 
 @Schema({ collection: 'share_snapshots', timestamps: true })
-export class ShareSnapshot extends Document {
+export class ShareSnapshot {
+  _id?: Types.ObjectId;
+
   @Prop({ required: true, unique: true })
   shareId: string;
 
@@ -44,4 +46,5 @@ export class ShareSnapshot extends Document {
   shareCreatedAt: Date;
 }
 
+export type ShareSnapshotDocument = HydratedDocument<ShareSnapshot>;
 export const ShareSnapshotSchema = SchemaFactory.createForClass(ShareSnapshot);

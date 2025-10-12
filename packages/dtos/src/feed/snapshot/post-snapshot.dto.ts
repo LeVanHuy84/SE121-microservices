@@ -1,4 +1,4 @@
-import { MediaItemDTO } from '../social/common/media.dto';
+import { MediaItemDTO } from '../../social/common/media.dto';
 import { Expose, Type } from 'class-transformer';
 
 export class PostSnapshotDTO {
@@ -16,7 +16,7 @@ export class PostSnapshotDTO {
 
   @Expose()
   @Type(() => MediaItemDTO)
-  mediaPreview?: MediaItemDTO;
+  mediaPreviews?: MediaItemDTO[];
 
   @Expose()
   mediaRemaining?: number;

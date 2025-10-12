@@ -1,5 +1,3 @@
-import { StatsEventType } from '../events';
-
 export enum ReactionType {
   LIKE,
   LOVE,
@@ -26,12 +24,14 @@ export enum Audience {
   ONLY_ME,
 }
 
-export enum Feeling {
-  JOY,
-  SADNESS,
-  ANGER,
-  FEAR,
-  DISGUST,
+export enum Emotion {
+  JOY = 'JOY',
+  SADNESS = 'SADNESS',
+  ANGER = 'ANGER',
+  FEAR = 'FEAR',
+  DISGUST = 'DISGUST',
+  SURPRISE = 'SURPRISE',
+  NEUTRAL = 'NEUTRAL',
 }
 
 export enum EventType {

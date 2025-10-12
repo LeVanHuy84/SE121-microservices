@@ -6,7 +6,7 @@ export * from './pagination/page-response.dto';
 export * from './social/common/media.dto';
 
 // feed DTOs
-export * from './feed/post-snapshot.dto';
+export * from './feed';
 
 // Post DTOs
 export * from './social';

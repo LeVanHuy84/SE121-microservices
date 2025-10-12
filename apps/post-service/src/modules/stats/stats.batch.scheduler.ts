@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { StatsBufferService } from './stats.buffer.service';
 import { KafkaProducerService } from '../kafka/kafka.producer.service';
-import { EventTopic, StatPayload } from '@repo/dtos';
+import { EventTopic, StatsPayload } from '@repo/dtos';
 
 @Injectable()
 export class StatsBatchScheduler {
@@ -11,18 +11,20 @@ export class StatsBatchScheduler {
   constructor(
     private readonly buffer: StatsBufferService,
     private readonly kafka: KafkaProducerService
-  ) {}
+  ) {
+    console.log('🔥 StatsBatchScheduler initialized');
+  }
 
   @Cron('*/60 * * * * *') // mỗi 60 giây
   async flushStatsToKafka() {
     const allStats = await this.buffer.getAllBufferedStats();
     if (!Object.keys(allStats).length) return;
 
-    const payload: StatPayload = {
+    const payload: StatsPayload = {
       timestamp: Date.now(),
       payload: Object.entries(allStats).map(([postId, data]) => ({
         postId,
-        ...data,
+        deltas: data,
       })),
     };
 

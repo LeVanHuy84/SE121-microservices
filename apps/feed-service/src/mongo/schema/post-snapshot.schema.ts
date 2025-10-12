@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ _id: false })
 export class MediaPreview {
@@ -11,7 +11,9 @@ export class MediaPreview {
 }
 
 @Schema({ collection: 'post_snapshots', timestamps: true })
-export class PostSnapshot extends Document {
+export class PostSnapshot {
+  _id?: Types.ObjectId;
+
   @Prop({ required: true, unique: true })
   postId: string;
 
@@ -34,4 +36,5 @@ export class PostSnapshot extends Document {
   postCreatedAt: Date;
 }
 
+export type PostSnapshotDocument = HydratedDocument<PostSnapshot>;
 export const PostSnapshotSchema = SchemaFactory.createForClass(PostSnapshot);

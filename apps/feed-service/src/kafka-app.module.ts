@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { MongoModule } from './mongo/mongo.module';
 import { ConfigModule } from '@nestjs/config';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
-import { DistributionModule } from './modules/distribution/distribution.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
@@ -12,11 +10,19 @@ import { DistributionModule } from './modules/distribution/distribution.module';
       isGlobal: true,
       expandVariables: true,
     }),
+    RedisModule.forRoot({
+      type: 'single',
+      options: {
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT
+          ? parseInt(process.env.REDIS_PORT, 10)
+          : 6379,
+      },
+    }),
     MongoModule,
     IngestionModule,
-    DistributionModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [],
+  providers: [],
 })
-export class AppModule {}
+export class KafkaAppModule {}

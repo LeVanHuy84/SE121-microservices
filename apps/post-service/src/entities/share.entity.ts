@@ -30,7 +30,10 @@ export class Share {
   @Column('uuid', { name: 'post_id' })
   postId: string;
 
-  @ManyToOne(() => Post, (post) => post.shares)
+  @ManyToOne(() => Post, (post) => post.shares, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
   @JoinColumn({ name: 'post_id' })
   post: Post;
 

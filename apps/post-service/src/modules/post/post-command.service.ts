@@ -11,8 +11,11 @@ import {
   CreatePostDTO,
   EventTopic,
   PostEventType,
+  RootType,
+  TargetType,
   UpdatePostDTO,
 } from '@repo/dtos';
+import { Reaction } from 'src/entities/reaction.entity';
 
 @Injectable()
 export class PostCommandService {
@@ -103,6 +106,26 @@ export class PostCommandService {
     if (post.userId !== userId) throw new RpcException('Unauthorized');
 
     await this.dataSource.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(Reaction)
+        .where('target_id = :postId AND target_type = :targetType', {
+          postId,
+          targetType: TargetType.POST,
+        })
+        .execute();
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(Comment)
+        .where('root_target_id = :postId AND root_target_type = :rootType', {
+          postId,
+          rootType: RootType.POST,
+        })
+        .execute();
+
       await manager.remove(post);
 
       const outbox = manager.create(OutboxEvent, {
