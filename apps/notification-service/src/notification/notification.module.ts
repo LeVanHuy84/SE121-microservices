@@ -7,7 +7,7 @@ import {
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
-import { RabbitmqModule } from '@repo/common';
+import { RabbitmqModule, RedisModule } from '@repo/common';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
 
@@ -33,6 +33,7 @@ import { BullModule } from '@nestjs/bull';
     BullModule.registerQueue({
       name: 'notifications',
     }),
+    RedisModule
   ],
   controllers: [NotificationController],
   providers: [NotificationService, TemplateService],

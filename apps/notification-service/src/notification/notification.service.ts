@@ -1,7 +1,12 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { CreateNotificationDto, PageResponse, PaginationDTO } from '@repo/dtos';
+import {
+  CreateNotificationDto,
+  NotificationResponseDto,
+  PageResponse,
+  PaginationDTO,
+} from '@repo/dtos';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Queue } from 'bull';
 import { Model, ObjectId } from 'mongoose';
@@ -12,6 +17,7 @@ import {
 import { UserPreferenceService } from 'src/user-preference/user-preference.service';
 import { TemplateService } from './template.service';
 import { plainToInstance } from 'class-transformer';
+import { RedisService } from '@repo/common';
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -22,7 +28,8 @@ export class NotificationService {
     private readonly templateService: TemplateService,
     private readonly userPreferenceService: UserPreferenceService,
     @InjectQueue('notifications') private notificationQueue: Queue,
-    @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper
+    @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper,
+    private readonly redis: RedisService
   ) {}
 
   async create(dto: CreateNotificationDto) {
@@ -101,7 +108,17 @@ export class NotificationService {
       this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
     } else {
       // immediate -> publish to channels
-      await this.publishToChannels(doc);
+      try {
+        await Promise.all([
+          this.publishToChannels(doc),
+          this.updateUserCache(doc),
+        ]);
+      } catch (err) {
+        this.logger.error(
+          `Failed to process immediate notification ${doc._id}`,
+          err
+        );
+      }
     }
 
     return doc;
@@ -146,7 +163,19 @@ export class NotificationService {
   async findByUser(
     userId: string,
     query: PaginationDTO
-  ): Promise<PageResponse<Notification>> {
+  ): Promise<PageResponse<NotificationResponseDto>> {
+    const key = `user:${userId}:notifications`;
+    const start = (query.page - 1) * query.limit;
+    const end = start + query.limit - 1;
+
+    const cached = await this.redis.zrevrange(key, start, end);
+    if (cached.length) {
+      const items = cached.map((c) => JSON.parse(c));
+      const total = await this.redis.zcard(key);
+      const notiDTOs = plainToInstance(NotificationResponseDto, items, {});
+      return new PageResponse(notiDTOs, total, query.page, query.limit);
+    }
+
     const skip = (query.page - 1) * query.limit;
 
     const [items, total] = await Promise.all([
@@ -158,24 +187,46 @@ export class NotificationService {
         .lean(),
       this.notificationModel.countDocuments({ userId }),
     ]);
+    if (items.length) {
+      const pipeline = this.redis.pipeline();
+      for (const item of items) {
+        let score: number;
+        if ((item as any).createdAt) {
+          score = new Date((item as any).createdAt).getTime();
+        } else {
+          this.logger.warn(`Notification item missing createdAt: ${JSON.stringify(item)}`);
+          score = Date.now();
+        }
+        pipeline.zadd(key, score, JSON.stringify(item));
+      }
+      pipeline.zremrangebyrank(key, 0, -101);
+      pipeline.expire(key, 60 * 60 * 24);
+      await pipeline.exec();
+    }
 
-    const notiDTOs = plainToInstance(Notification, items, {});
+    const notiDTOs = plainToInstance(NotificationResponseDto, items, {});
     return new PageResponse(notiDTOs, total, query.page, query.limit);
   }
 
   async markRead(id: string) {
-    return await this.notificationModel.findByIdAndUpdate(
+    const doc = await this.notificationModel.findByIdAndUpdate(
       id,
       { status: 'read' },
       { new: true }
     );
+    if (doc) await this.refreshUserCache(doc.userId);
+    return plainToInstance(NotificationResponseDto, doc, {});
   }
 
   async markAllRead(userId: string) {
-    return await this.notificationModel.updateMany(
-      { userId },
-      { status: 'read' }
+    const result = await this.notificationModel.updateMany(
+      { userId, status: { $ne: 'read' } },
+      { $set: { status: 'read', updatedAt: new Date() } }
     );
+
+    await this.refreshUserCache(userId);
+
+    return { modified: result.modifiedCount };
   }
 
   async remove(id: string) {
@@ -188,5 +239,35 @@ export class NotificationService {
 
   async findById(id: string) {
     return await this.notificationModel.findById(id).lean();
+  }
+
+  private async updateUserCache(doc: NotificationDocument) {
+    const key = `user:${doc.userId}:notifications`;
+    const score = new Date(doc.get('createdAt') || Date.now()).getTime();
+
+    await this.redis.zadd(key, score, JSON.stringify(doc));
+
+    // chỉ giữ tối đa 100 noti gần nhất
+    await this.redis.zremrangebyrank(key, 0, -101);
+
+    // expire sau 1 ngày nếu user không hoạt động
+    await this.redis.expire(key, 60 * 60 * 24);
+  }
+
+  private async refreshUserCache(userId: string) {
+    const key = `user:${userId}:notifications`;
+    const items = await this.notificationModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    const pipeline = this.redis.pipeline();
+    pipeline.del(key);
+    for (const item of items) {
+      const score = new Date((item as any).createdAt ?? Date.now()).getTime();
+      pipeline.zadd(key, score, JSON.stringify(item));
+    }
+    pipeline.expire(key, 60 * 60 * 24);
+    await pipeline.exec();
   }
 }
