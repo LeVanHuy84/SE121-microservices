@@ -11,6 +11,7 @@ import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { RabbitmqModule } from '@repo/common';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RabbitmqModule } from '@repo/common';
         { name: 'broadcast', type: 'fanout' },
       ],
     }),
+    ChatModule,
   ],
 
   providers: [

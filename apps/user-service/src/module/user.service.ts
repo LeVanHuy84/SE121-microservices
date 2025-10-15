@@ -14,11 +14,15 @@ import { eq } from 'drizzle-orm';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
 import { profiles } from 'src/drizzle/schema/profiles.schema';
 import { users } from 'src/drizzle/schema/users.schema';
+import { RedisService } from '@repo/common';
 
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger();
-  constructor(@Inject(DRIZZLE) private db: DrizzleDB) {}
+  private readonly logger = new Logger(UserService.name);
+  constructor(
+    @Inject(DRIZZLE) private db: DrizzleDB,
+    private redisService: RedisService
+  ) {}
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
     const user = await this.db.transaction(async (tx) => {
       const [user] = await tx
@@ -68,6 +72,8 @@ export class UserService {
   }
 
   async findAll(): Promise<UserResponseDTO[]> {
+
+
     const users = await this.db.query.users.findMany({
       with: {
         profile: {
@@ -99,6 +105,13 @@ export class UserService {
   }
 
   async findOne(id: string): Promise<UserResponseDTO> {
+    const cacheKey = `user:${id}`;
+    const cached = await this.redisService.get<UserResponseDTO>(cacheKey);
+
+    if (cached) {
+      this.logger.debug(`Cache hit: ${cacheKey}`);
+      return cached;
+    }
     const user = await this.db.query.users.findFirst({
       where: eq(users.id, id),
       with: {
@@ -113,7 +126,8 @@ export class UserService {
         },
       },
     });
-    return plainToInstance(
+    if (!user) throw new NotFoundException('User not found');
+    const dto = plainToInstance(
       UserResponseDTO,
       {
         ...user,
@@ -123,10 +137,12 @@ export class UserService {
         excludeExtraneousValues: true,
       }
     );
+    await this.redisService.set(cacheKey, dto, 60 * 10);
+    return dto;
   }
 
   async update(id: string, dto: UpdateUserDTO) {
-    const user = await this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       const user = await tx
         .select()
         .from(users)
@@ -176,47 +192,65 @@ export class UserService {
         })
         .where(eq(profiles.userId, id));
     });
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+    // Clear cache
+    const cacheKey = `user:${id}`;
+    await this.redisService.del(cacheKey);
+
+    // Optionally, you can set the updated value in cache
+    await this.redisService.set(cacheKey, updated, 60 * 10);
+    return updated;
   }
 
   async remove(id: string) {
     await this.db.delete(users).where(eq(users.id, id));
+    // Clear cache
+    await this.redisService.del(`user:${id}`);
     return { success: true };
   }
 
   async getUsersBatch(ids: string[]): Promise<UserResponseDTO[]> {
     if (!ids.length) return [];
 
-    const users = await this.db.query.users.findMany({
-      where: (fields, { inArray }) => inArray(fields.id, ids),
-      with: { profile: true },
-    });
-    return plainToInstance(UserResponseDTO, users, {
-      excludeExtraneousValues: true,
-    });
-  }
+    const results: UserResponseDTO[] = [];
+    const missingIds: string[] = [];
 
-  async getBaseUsersBatch(ids: string[]): Promise<Record<string, BaseUserDTO>> {
-    if (!ids.length) return {};
+    for (const id of ids) {
+      const cached = await this.redisService.get<UserResponseDTO>(`user:${id}`);
+      if (cached) {
+        results.push(cached);
+      } else {
+        missingIds.push(id);
+      }
+    }
 
-    const profiles = await this.db.query.profiles.findMany({
-      where: (fields, { inArray }) => inArray(fields.userId, ids),
-    });
+    
+    if (missingIds.length > 0) {
+      const usersFromDB = await this.db.query.users.findMany({
+        where: (fields, { inArray }) => inArray(fields.id, missingIds),
+        with: { profile: true },
+      });
 
-    const dtos = plainToInstance(
-      BaseUserDTO,
-      profiles.map((p) => ({
-        id: p.userId,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        avatarUrl: p.avatarUrl,
-      })),
-      { excludeExtraneousValues: true }
-    );
+      const userDtos = usersFromDB.map((user) =>
+        plainToInstance(
+          UserResponseDTO,
+          { ...user, ...user.profile },
+          { excludeExtraneousValues: true }
+        )
+      );
 
-    return dtos.reduce<Record<string, BaseUserDTO>>((acc, u) => {
-      acc[u.id] = u;
-      return acc;
-    }, {});
+      // Cache lại từng user
+      for (const dto of userDtos) {
+        await this.redisService.set(`user:${dto.id}`, dto, 60 * 30); // cache 30 phút
+        results.push(dto);
+      }
+    }
+
+    // 3️⃣ Giữ đúng thứ tự theo mảng ids đầu vào
+    const ordered = ids
+      .map((id) => results.find((u) => u.id === id))
+      .filter(Boolean) as UserResponseDTO[];
+
+    return ordered;
   }
 }

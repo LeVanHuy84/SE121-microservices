@@ -8,6 +8,7 @@ import { Server, Socket } from 'socket.io';
     origin: '*', // hoặc domain frontend
     methods: ['GET', 'POST'],
   },
+  transport : ['websocket'],
 })
 export class NotificationGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
@@ -20,11 +21,11 @@ export class NotificationGateway
   afterInit(server: Server) {
     this.logger.log('NotificationGateway initialized');
     this.rabbitChannel.addSetup(async (channel) => {
-      await channel.consume('notification_queue', async (msg) => {
+      await channel.consume('notification_queue', async (msg: any) => {
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
-          this.io.to(`user:${payload.userId}`).emit('notification', payload);
+          this.io.to(`user-notification:${payload.userId}`).emit('notification', payload);
           channel.ack(msg);
           this.logger.log(`Sent notification to user ${payload.userId}`);
         } catch (err) {
@@ -46,7 +47,7 @@ export class NotificationGateway
     @MessageBody() data: { userId: string },
     @ConnectedSocket() client: Socket
   ) {
-    client.join(`user-notif:${data.userId}`);
+    client.join(`user-notification:${data.userId}`);
     console.log(`Client ${client.id} joined room user:${data.userId}`);
   }
 }
