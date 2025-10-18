@@ -40,8 +40,3 @@ export enum EventType {
   SHARE = 'SHARE',
   REACT = 'REACT',
 }
-
-export enum MediaType {
-  IMAGE,
-  VIDEO,
-}

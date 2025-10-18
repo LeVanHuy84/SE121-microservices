@@ -20,12 +20,14 @@ import { EntityManager, Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Post } from 'src/entities/post.entity';
 import { Reaction } from 'src/entities/reaction.entity';
+import { ShareCacheService } from './share-cache.service';
 
 @Injectable()
 export class ShareCommandService {
   constructor(
     @InjectRepository(Share)
-    private readonly shareRepo: Repository<Share>
+    private readonly shareRepo: Repository<Share>,
+    private readonly shareCache: ShareCacheService
   ) {}
 
   /**
@@ -93,6 +95,8 @@ export class ShareCommandService {
     Object.assign(share, dto);
     const updatedShare = await this.shareRepo.save(share);
 
+    await this.shareCache.removeCachedShare(shareId);
+
     // Lưu event outbox
     await this.shareRepo.manager.save(
       this.shareRepo.manager.create(OutboxEvent, {
@@ -150,6 +154,8 @@ export class ShareCommandService {
       if (share.postId) {
         await this.updateStatsForPost(manager, share.postId, -1);
       }
+
+      await this.shareCache.removeCachedShare(shareId);
 
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.SHARE,

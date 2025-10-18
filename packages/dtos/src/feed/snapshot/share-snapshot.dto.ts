@@ -1,5 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { PostSnapshotDTO } from './post-snapshot.dto';
+import { ReactionType } from '../../social/enums/social.enum';
+import { ShareStatDTO } from '../../common';
 
 export class ShareSnapshotDTO {
   @Expose()
@@ -17,4 +19,11 @@ export class ShareSnapshotDTO {
 
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  reactedType?: ReactionType;
+
+  @Expose()
+  @Type(() => ShareStatDTO)
+  shareStat?: ShareStatDTO;
 }

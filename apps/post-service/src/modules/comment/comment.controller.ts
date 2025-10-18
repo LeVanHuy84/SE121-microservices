@@ -1,12 +1,12 @@
 import { Controller } from '@nestjs/common';
-import { CommentService } from './comment.service';
+import { CommentService } from './service/comment.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreateCommentDTO,
   GetCommentQueryDTO,
   UpdateCommentDTO,
 } from '@repo/dtos';
-import { CommentQueryService } from './comment-query.service';
+import { CommentQueryService } from './service/comment-query.service';
 
 @Controller('comment')
 export class CommentController {

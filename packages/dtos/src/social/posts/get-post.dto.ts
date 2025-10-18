@@ -1,19 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { Audience, Emotion, ReactionType } from '../enums/social.enum';
-import { MediaItemDTO } from '../common/media.dto';
 import { IsEnum } from 'class-validator';
-
-export class PostStatDTO {
-  @Expose() reactions: number;
-  @Expose() likes: number;
-  @Expose() loves: number;
-  @Expose() hahas: number;
-  @Expose() wows: number;
-  @Expose() angrys: number;
-  @Expose() sads: number;
-  @Expose() comments: number;
-  @Expose() shares: number;
-}
+import { MediaItemDTO, PostStatDTO } from '../../common';
 
 export class PostResponseDTO {
   @Expose()

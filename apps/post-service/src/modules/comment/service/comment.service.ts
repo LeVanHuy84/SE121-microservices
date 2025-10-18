@@ -15,12 +15,14 @@ import { PostStat } from 'src/entities/post-stat.entity';
 import { Reaction } from 'src/entities/reaction.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { CommentCacheService } from './comment-cache.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly commentCache: CommentCacheService
   ) {}
 
   async create(
@@ -58,7 +60,6 @@ export class CommentService {
     const comment = await this.commentRepo.findOne({
       where: { id: commentId },
     });
-
     if (!comment) {
       throw new RpcException(`Comment with id ${commentId} not found`);
     }
@@ -68,8 +69,10 @@ export class CommentService {
     }
 
     comment.content = dto.content;
-
     await this.commentRepo.save(comment);
+
+    // 🧹 Xoá cache liên quan
+    await this.commentCache.invalidateComment(comment.rootId, comment.parentId);
 
     return plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
@@ -88,7 +91,6 @@ export class CommentService {
         targetId: id,
       });
 
-      // 2️⃣ Xoá comment (cascade tự xử lý comment con)
       await manager.remove(comment);
 
       await this.updateStatsForComment(
@@ -97,6 +99,12 @@ export class CommentService {
         comment.rootId,
         comment.parentId,
         -1
+      );
+
+      // 🧹 Xoá cache liên quan
+      await this.commentCache.invalidateComment(
+        comment.rootId,
+        comment.parentId
       );
 
       return { message: 'Comment deleted successfully' };

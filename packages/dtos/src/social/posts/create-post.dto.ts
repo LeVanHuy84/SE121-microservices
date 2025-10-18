@@ -7,7 +7,7 @@ import {
 } from 'class-validator';
 import { Audience, Emotion } from '../enums/social.enum';
 import { Type } from 'class-transformer';
-import { MediaItemDTO } from '../common/media.dto';
+import { MediaItemDTO } from '../../common';
 
 export class CreatePostDTO {
   @IsOptional()

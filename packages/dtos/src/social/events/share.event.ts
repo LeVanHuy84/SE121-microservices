@@ -1,4 +1,4 @@
-import { MediaItemDTO } from '../common/media.dto';
+import { MediaItemDTO } from '../../common';
 import { EventTopic } from './event.enum';
 
 export enum ShareEventType {

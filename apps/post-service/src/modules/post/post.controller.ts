@@ -1,8 +1,8 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreatePostDTO, GetPostQueryDTO } from '@repo/dtos';
-import { PostQueryService } from './post-query.service';
-import { PostCommandService } from './post-command.service';
+import { PostQueryService } from './service/post-query.service';
+import { PostCommandService } from './service/post-command.service';
 
 @Controller('posts')
 export class PostController {

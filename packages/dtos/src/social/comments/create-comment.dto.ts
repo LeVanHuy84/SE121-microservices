@@ -6,8 +6,8 @@ import {
   IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { MediaItemDTO } from '../common/media.dto';
-import { RootType, TargetType } from '../enums/social.enum';
+import { RootType } from '../enums/social.enum';
+import { MediaItemDTO } from '../../common';
 
 export class CreateCommentDTO {
   @IsUUID()

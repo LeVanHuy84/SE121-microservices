@@ -11,13 +11,11 @@ import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { FeedModule } from './modules/feed/feed.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),
-
 
     AuthModule,
     PostModule,
@@ -28,12 +26,11 @@ import { FeedModule } from './modules/feed/feed.module';
       throttlers: [
         {
           ttl: 60000,
-          limit: 3,
+          limit: 50,
         },
       ],
     }),
     FeedModule,
- 
   ],
 
   providers: [
@@ -61,5 +58,4 @@ import { FeedModule } from './modules/feed/feed.module';
 
   controllers: [],
 })
-
 export class AppModule {}

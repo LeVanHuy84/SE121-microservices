@@ -1,8 +1,7 @@
 import { Expose, Type } from 'class-transformer';
-import { MediaItemDTO } from '../common/media.dto';
-import { BaseUserDTO } from '../../user/get-user.dto';
 import { IsEnum } from 'class-validator';
 import { ReactionType, RootType } from '../enums/social.enum';
+import { MediaItemDTO } from '../../common';
 
 export class CommentStatDTO {
   @Expose() reactions: number;

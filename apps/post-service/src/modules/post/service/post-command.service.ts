@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
+
 import { EditHistory } from 'src/entities/edit-history.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
+import { Reaction } from 'src/entities/reaction.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { DataSource, Repository } from 'typeorm';
+import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu chưa có
+
 import {
   Audience,
   CreatePostDTO,
@@ -15,15 +19,19 @@ import {
   TargetType,
   UpdatePostDTO,
 } from '@repo/dtos';
-import { Reaction } from 'src/entities/reaction.entity';
+import { PostCacheService } from './post-cache.service';
 
 @Injectable()
 export class PostCommandService {
   constructor(
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly postCache: PostCacheService
   ) {}
 
+  // ----------------------------------------
+  // 📝 Tạo post
+  // ----------------------------------------
   async create(userId: string, dto: CreatePostDTO): Promise<Post> {
     return this.dataSource.transaction(async (manager) => {
       const post = manager.create(Post, {
@@ -33,7 +41,7 @@ export class PostCommandService {
       });
       const entity = await manager.save(post);
 
-      // nếu không phải bài private thì emit event
+      // Nếu không phải bài private thì emit event
       if (dto.audience !== Audience.ONLY_ME) {
         const outbox = manager.create(OutboxEvent, {
           topic: EventTopic.POST,
@@ -55,6 +63,9 @@ export class PostCommandService {
     });
   }
 
+  // ----------------------------------------
+  // ✏️ Cập nhật post
+  // ----------------------------------------
   async update(
     userId: string,
     postId: string,
@@ -65,6 +76,7 @@ export class PostCommandService {
     if (post.userId !== userId) throw new RpcException('Unauthorized');
 
     return this.dataSource.transaction(async (manager) => {
+      // Lưu lịch sử chỉnh sửa
       if (dto.content && dto.content !== post.content) {
         const history = manager.create(EditHistory, {
           oldContent: post.content,
@@ -76,30 +88,31 @@ export class PostCommandService {
       Object.assign(post, dto);
       const updated = await manager.save(post);
 
-      // Nếu bài chuyển về ONLY_ME → có thể outbox gửi REMOVE event
-      if (dto.audience === Audience.ONLY_ME) {
-        const outbox = manager.create(OutboxEvent, {
-          topic: EventTopic.POST,
-          eventType: PostEventType.REMOVED,
-          payload: { postId },
-        });
-        await manager.save(outbox);
-      } else {
-        const outbox = manager.create(OutboxEvent, {
-          topic: EventTopic.POST,
-          eventType: PostEventType.UPDATED,
-          payload: {
-            postId,
-            content: dto.content,
-          },
-        });
-        await manager.save(outbox);
-      }
+      // 🧹 Xóa cache Redis
+      await this.postCache.removeCache(postId);
 
+      // Emit outbox event
+      const outbox =
+        dto.audience === Audience.ONLY_ME
+          ? manager.create(OutboxEvent, {
+              topic: EventTopic.POST,
+              eventType: PostEventType.REMOVED,
+              payload: { postId },
+            })
+          : manager.create(OutboxEvent, {
+              topic: EventTopic.POST,
+              eventType: PostEventType.UPDATED,
+              payload: { postId, content: dto.content },
+            });
+
+      await manager.save(outbox);
       return updated;
     });
   }
 
+  // ----------------------------------------
+  // 🗑️ Xóa post
+  // ----------------------------------------
   async remove(userId: string, postId: string): Promise<void> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) throw new RpcException('Post not found');
@@ -127,6 +140,9 @@ export class PostCommandService {
         .execute();
 
       await manager.remove(post);
+
+      // 🧹 Xóa cache Redis
+      await this.postCache.removeCache(postId);
 
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.POST,

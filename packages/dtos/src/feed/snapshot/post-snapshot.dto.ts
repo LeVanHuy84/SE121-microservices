@@ -1,5 +1,7 @@
-import { MediaItemDTO } from '../../social/common/media.dto';
 import { Expose, Type } from 'class-transformer';
+import { ReactionType } from '../../social/enums/social.enum';
+import { MediaItemDTO } from '../../common/media.dto';
+import { PostStatDTO } from '../../common';
 
 export class PostSnapshotDTO {
   @Expose()
@@ -23,4 +25,11 @@ export class PostSnapshotDTO {
 
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  reactedType?: ReactionType;
+
+  @Expose()
+  @Type(() => PostStatDTO)
+  postStat?: PostStatDTO;
 }

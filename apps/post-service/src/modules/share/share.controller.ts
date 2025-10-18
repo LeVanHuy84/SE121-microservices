@@ -1,8 +1,8 @@
 import { Controller } from '@nestjs/common';
-import { ShareCommandService } from './share-command.service';
+import { ShareCommandService } from './service/share-command.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreateShareDTO, PaginationDTO, UpdateShareDTO } from '@repo/dtos';
-import { ShareQueryService } from './share-query.service';
+import { ShareQueryService } from './service/share-query.service';
 
 @Controller('share')
 export class ShareController {
@@ -28,8 +28,8 @@ export class ShareController {
   }
 
   @MessagePattern('find_share_by_id')
-  async findById(@Payload() shareId: string) {
-    return this.queryService.findById(shareId);
+  async findById(@Payload() payload: { userId: string; shareId: string }) {
+    return this.queryService.findById(payload.userId, payload.shareId);
   }
 
   @MessagePattern('find_share_by_user_id')

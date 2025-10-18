@@ -1,6 +1,6 @@
 import { Expose } from 'class-transformer';
-import { IsEnum, IsIn, IsString } from 'class-validator';
-import { MediaType } from '../enums/social.enum';
+import { IsEnum, IsString } from 'class-validator';
+import { MediaType } from './enum';
 
 export class MediaItemDTO {
   @Expose()
