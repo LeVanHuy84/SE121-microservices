@@ -27,4 +27,5 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy = async () => {
     if (this.kafkaClient) await this.kafkaClient.close();
   };
+
 }

@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import Redis from 'ioredis';
+import Redis, { ChainableCommander } from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -32,5 +32,46 @@ export class RedisService implements OnModuleDestroy {
 
   async del(key: string) {
     await this.client.del(key);
+  }
+  /** Tăng giá trị số nguyên trong Redis */
+  async incr(key: string): Promise<number> {
+    return await this.client.incr(key);
+  }
+
+  /** Set thời gian hết hạn cho một key */
+  async expire(key: string, ttlSeconds: number): Promise<number> {
+    return await this.client.expire(key, ttlSeconds);
+  }
+
+  // ---------- ZSET (sorted set) ----------
+  async zadd(key: string, score: number, value: any) {
+    const str = typeof value === 'string' ? value : JSON.stringify(value);
+    await this.client.zadd(key, score, str);
+  }
+
+  async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
+    return this.client.zrevrange(key, start, stop);
+  }
+
+  async zcard(key: string): Promise<number> {
+    return this.client.zcard(key);
+  }
+
+  async zremrangebyrank(key: string, start: number, stop: number) {
+    await this.client.zremrangebyrank(key, start, stop);
+  }
+
+  // ---------- Pipeline (multi-ops) ----------
+  pipeline(): ChainableCommander {
+    return this.client.pipeline();
+  }
+
+  // ---------- Utility ----------
+  async flushAll() {
+    await this.client.flushall();
+  }
+
+  get raw(): Redis {
+    return this.client;
   }
 }
