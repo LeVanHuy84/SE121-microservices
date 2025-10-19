@@ -1,4 +1,3 @@
-
 // saga.orchestrator.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,7 +10,8 @@ export class SagaOrchestratorService {
   private logger = new Logger(SagaOrchestratorService.name);
 
   constructor(
-    @InjectRepository(Saga) private readonly sagaRepo: Repository<Saga>
+    @InjectRepository(Saga) private readonly sagaRepo: Repository<Saga>,
+    @InjectRepository(Media) private readonly mediaRepo: Repository<Media>
   ) {}
 
   async startVideoSaga(media: Media) {
@@ -40,8 +40,16 @@ export class SagaOrchestratorService {
     if (media.status === 'READY') {
       saga.state = 'completed';
     } else {
-      saga.state = 'failed';
-      // compensation: delete media in cloudinary or mark for cleanup
+      try {
+        saga.state = 'failed';
+        // compensation: delete media in cloudinary or mark for cleanup
+        await this.mediaRepo.remove(media);
+      } catch (error) {
+        this.logger.error(
+          'Error during compensation for saga ' + saga.id,
+          error
+        );
+      }
     }
     await this.sagaRepo.save(saga);
   }
