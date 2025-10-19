@@ -1,3 +1,4 @@
+import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bull';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -9,6 +10,8 @@ import {
 } from '@repo/dtos';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Queue } from 'bull';
+import { plainToInstance } from 'class-transformer';
+import Redis from 'ioredis';
 import { Model, ObjectId } from 'mongoose';
 import {
   Notification,
@@ -16,12 +19,11 @@ import {
 } from 'src/mongo/schema/notification.schema';
 import { UserPreferenceService } from 'src/user-preference/user-preference.service';
 import { TemplateService } from './template.service';
-import { plainToInstance } from 'class-transformer';
-import { RedisService } from '@repo/common';
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  private defaultMaxRetries = 3;
+  private readonly defaultMaxRetries = 3;
+  private readonly NOTIF_CACHE_TTL = 2 * 60 * 60;
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<Notification>,
@@ -29,7 +31,7 @@ export class NotificationService {
     private readonly userPreferenceService: UserPreferenceService,
     @InjectQueue('notifications') private notificationQueue: Queue,
     @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper,
-    private readonly redis: RedisService
+    @InjectRedis() private readonly redis: Redis
   ) {}
 
   async create(dto: CreateNotificationDto) {
@@ -37,7 +39,7 @@ export class NotificationService {
       const exists = await this.notificationModel
         .findOne({ requestId: dto.requestId })
         .lean();
-      if (exists) return exists;
+      if (exists) return plainToInstance(NotificationResponseDto, exists, {});
     }
 
     // 2. Get user preference and rate-limit
@@ -103,7 +105,12 @@ export class NotificationService {
       await this.notificationQueue.add(
         'send',
         { id: doc._id },
-        { delay, attempts: 3 }
+        {
+          delay,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: true,
+        }
       );
       this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
     } else {
@@ -194,14 +201,21 @@ export class NotificationService {
         if ((item as any).createdAt) {
           score = new Date((item as any).createdAt).getTime();
         } else {
-          this.logger.warn(`Notification item missing createdAt: ${JSON.stringify(item)}`);
+          this.logger.warn(
+            `Notification item missing createdAt: ${JSON.stringify(item)}`
+          );
           score = Date.now();
         }
-        pipeline.zadd(key, score, JSON.stringify(item));
+        pipeline.zadd(key, score, JSON.stringify(item), 'NX');
       }
       pipeline.zremrangebyrank(key, 0, -101);
-      pipeline.expire(key, 60 * 60 * 24);
+      pipeline.expire(
+        key,
+        this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+      );
       await pipeline.exec();
+    } else {
+      await this.redis.set(key, '__empty__', 'EX', 60); // cache sentinel for empty result
     }
 
     const notiDTOs = plainToInstance(NotificationResponseDto, items, {});
@@ -214,7 +228,7 @@ export class NotificationService {
       { status: 'read' },
       { new: true }
     );
-    if (doc) await this.refreshUserCache(doc.userId);
+    if (doc) await this.updateUserCache(doc);
     return plainToInstance(NotificationResponseDto, doc, {});
   }
 
@@ -230,11 +244,13 @@ export class NotificationService {
   }
 
   async remove(id: string) {
-    return await this.notificationModel.findByIdAndDelete(id);
+    const doc = await this.notificationModel.findByIdAndDelete(id);
+    if (doc) await this.refreshUserCache(doc.userId);
   }
 
   async removeAll(userId: string) {
-    return await this.notificationModel.deleteMany({ userId });
+    await this.notificationModel.deleteMany({ userId });
+    await this.redis.del(`user:${userId}:notifications`);
   }
 
   async findById(id: string) {
@@ -243,15 +259,20 @@ export class NotificationService {
 
   private async updateUserCache(doc: NotificationDocument) {
     const key = `user:${doc.userId}:notifications`;
-    const score = new Date(doc.get('createdAt') || Date.now()).getTime();
+    const createdAt = doc.get('createdAt');
+    const score = createdAt ? new Date(createdAt).getTime() : Date.now();
 
-    await this.redis.zadd(key, score, JSON.stringify(doc));
-
-    // chỉ giữ tối đa 100 noti gần nhất
-    await this.redis.zremrangebyrank(key, 0, -101);
-
-    // expire sau 1 ngày nếu user không hoạt động
-    await this.redis.expire(key, 60 * 60 * 24);
+    // Convert doc to plain object and DTO before caching
+    const plainDoc = doc.toObject ? doc.toObject() : doc;
+    const dto = plainToInstance(NotificationResponseDto, plainDoc, {});
+    const pipeline = this.redis.pipeline();
+    pipeline.zadd(key, score, JSON.stringify(dto));
+    pipeline.zremrangebyrank(key, 0, -101); // giữ 100 mới nhất
+    pipeline.expire(
+      key,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
+    await pipeline.exec();
   }
 
   private async refreshUserCache(userId: string) {
@@ -265,9 +286,12 @@ export class NotificationService {
     pipeline.del(key);
     for (const item of items) {
       const score = new Date((item as any).createdAt ?? Date.now()).getTime();
-      pipeline.zadd(key, score, JSON.stringify(item));
+      pipeline.zadd(key, score, JSON.stringify(item), 'NX');
     }
-    pipeline.expire(key, 60 * 60 * 24);
+    pipeline.expire(
+      key,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
     await pipeline.exec();
   }
 }
