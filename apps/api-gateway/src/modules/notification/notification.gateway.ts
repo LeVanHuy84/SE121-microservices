@@ -24,7 +24,7 @@ export class NotificationGateway
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
-          this.io.to(`user:${payload.userId}`).emit('notification', payload);
+          this.io.to(`user-notif:${payload.userId}`).emit('notification', payload);
           channel.ack(msg);
           this.logger.log(`Sent notification to user ${payload.userId}`);
         } catch (err) {

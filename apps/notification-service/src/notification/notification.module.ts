@@ -7,9 +7,10 @@ import {
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
-import { RabbitmqModule, RedisModule } from '@repo/common';
+import { RabbitmqModule } from '@repo/common';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
+
 
 @Module({
   imports: [
@@ -17,7 +18,6 @@ import { BullModule } from '@nestjs/bull';
       urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
       exchanges: [
         { name: 'notification', type: 'topic' },
-        { name: 'broadcast', type: 'fanout' },
       ],
     }),
     MongooseModule.forFeature([
@@ -33,7 +33,7 @@ import { BullModule } from '@nestjs/bull';
     BullModule.registerQueue({
       name: 'notifications',
     }),
-    RedisModule
+    
   ],
   controllers: [NotificationController],
   providers: [NotificationService, TemplateService],
