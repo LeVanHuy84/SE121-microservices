@@ -23,6 +23,7 @@ export class SnapshotMapper {
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
       mediaRemaining: post.mediaRemaining,
       createdAt: post.postCreatedAt,
+      postStat: post.stats,
     };
   }
 
@@ -47,6 +48,7 @@ export class SnapshotMapper {
         createdAt: share.post.createdAt,
       },
       createdAt: share.shareCreatedAt,
+      shareStat: share.stats,
     };
   }
 

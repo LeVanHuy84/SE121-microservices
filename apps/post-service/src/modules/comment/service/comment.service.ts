@@ -5,6 +5,7 @@ import {
   CommentResponseDTO,
   CreateCommentDTO,
   RootType,
+  StatsEventType,
   TargetType,
   UpdateCommentDTO,
 } from '@repo/dtos';
@@ -16,13 +17,15 @@ import { Reaction } from 'src/entities/reaction.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CommentCacheService } from './comment-cache.service';
+import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
     private readonly dataSource: DataSource,
-    private readonly commentCache: CommentCacheService
+    private readonly commentCache: CommentCacheService,
+    private readonly statsBuffer: StatsBufferService
   ) {}
 
   async create(
@@ -43,6 +46,13 @@ export class CommentService {
         dto.rootType,
         dto.rootId,
         dto.parentId,
+        +1
+      );
+
+      await this.statsBuffer.updateStat(
+        dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
+        dto.rootId,
+        StatsEventType.COMMENT,
         +1
       );
 
@@ -98,6 +108,13 @@ export class CommentService {
         comment.rootType,
         comment.rootId,
         comment.parentId,
+        -1
+      );
+
+      await this.statsBuffer.updateStat(
+        comment.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
+        comment.rootId,
+        StatsEventType.COMMENT,
         -1
       );
 

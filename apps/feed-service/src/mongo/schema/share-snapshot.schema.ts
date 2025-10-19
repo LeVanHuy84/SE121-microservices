@@ -26,6 +26,18 @@ export class PostSnapshotEmbedded {
   createdAt: Date;
 }
 
+@Schema({ _id: false })
+export class StatsEmbedded {
+  @Prop({ default: 0 }) reactions: number;
+  @Prop({ default: 0 }) likes: number;
+  @Prop({ default: 0 }) loves: number;
+  @Prop({ default: 0 }) hahas: number;
+  @Prop({ default: 0 }) wows: number;
+  @Prop({ default: 0 }) angrys: number;
+  @Prop({ default: 0 }) sads: number;
+  @Prop({ default: 0 }) comments: number;
+}
+
 @Schema({ collection: 'share_snapshots', timestamps: true })
 export class ShareSnapshot {
   _id?: Types.ObjectId;
@@ -44,6 +56,9 @@ export class ShareSnapshot {
 
   @Prop()
   shareCreatedAt: Date;
+
+  @Prop({ type: StatsEmbedded, default: {} })
+  stats: StatsEmbedded;
 }
 
 export type ShareSnapshotDocument = HydratedDocument<ShareSnapshot>;

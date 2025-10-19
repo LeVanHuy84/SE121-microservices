@@ -1,27 +1,27 @@
 export enum ReactionType {
-  LIKE,
-  LOVE,
-  HAHA,
-  WOW,
-  SAD,
-  ANGRY,
+  LIKE = 'LIKE',
+  LOVE = 'LOVE',
+  HAHA = 'HAHA',
+  WOW = 'WOW',
+  SAD = 'SAD',
+  ANGRY = 'ANGRY',
 }
 
 export enum RootType {
-  POST,
-  SHARE,
+  POST = 'POST',
+  SHARE = 'SHARE',
 }
 
 export enum TargetType {
-  POST,
-  SHARE,
-  COMMENT,
+  POST = 'POST',
+  SHARE = 'SHARE',
+  COMMENT = 'COMMENT',
 }
 
 export enum Audience {
-  PUBLIC,
-  FRIENDS,
-  ONLY_ME,
+  PUBLIC = 'PUBLIC',
+  FRIENDS = 'FRIENDS',
+  ONLY_ME = 'ONLY_ME',
 }
 
 export enum Emotion {

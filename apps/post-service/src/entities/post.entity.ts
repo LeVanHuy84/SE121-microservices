@@ -25,7 +25,7 @@ export class Post {
   @Column('uuid', { name: 'group_id', nullable: true })
   groupId: string;
 
-  @Column('smallint', { nullable: true })
+  @Column({ type: 'enum', enum: Emotion, nullable: true })
   feeling: Emotion;
 
   @Column({ type: 'varchar', length: 10000 })
@@ -34,10 +34,10 @@ export class Post {
   @Column('jsonb', { nullable: true })
   media: MediaItemDTO[];
 
-  @Column('smallint', { default: Audience.PUBLIC })
+  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
   audience: Audience;
 
-  @Column('smallint', { nullable: true })
+  @Column({ type: 'enum', enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
   @CreateDateColumn({ name: 'created_at' })

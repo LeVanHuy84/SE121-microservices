@@ -1,24 +1,46 @@
+import { ReactionType, TargetType } from '../enums';
+import { EventTopic } from './event.enum';
+
 export enum StatsEventType {
   REACTION = 'stats.reaction',
   COMMENT = 'stats.comment',
   SHARE = 'stats.share',
 }
 
-export interface StatsDelta {
-  [StatsEventType.REACTION]?: number;
-  //[StatsEventType.VIEW]?: number;
-  [StatsEventType.COMMENT]?: number;
-  [StatsEventType.SHARE]?: number;
-  // hoặc nếu bạn có field động hơn:
-  [key: string]: number | undefined;
+export interface StatsReactionDelta {
+  type: StatsEventType.REACTION;
+  reactionType: ReactionType;
+  delta: number;
 }
 
-export type StatsRecord = {
-  postId: string;
-  deltas: StatsDelta;
-};
+export interface StatsCommentDelta {
+  type: StatsEventType.COMMENT;
+  delta: number;
+}
 
-export type StatsPayload = {
+export interface StatsShareDelta {
+  type: StatsEventType.SHARE;
+  delta: number;
+}
+
+export type StatsDeltaUnion =
+  | StatsReactionDelta
+  | StatsCommentDelta
+  | StatsShareDelta;
+
+export interface StatsRecord {
+  targetType: TargetType;
+  targetId: string;
+  deltas: StatsDeltaUnion[];
+}
+
+export interface StatsPayload {
   timestamp: number;
-  payload: StatsRecord[];
+  stats: StatsRecord[];
+}
+
+export type StatsEvent = {
+  topic: EventTopic.STATS;
+  type: 'stats.batch';
+  payload: StatsPayload;
 };

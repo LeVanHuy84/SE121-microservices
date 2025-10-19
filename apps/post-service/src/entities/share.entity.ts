@@ -27,7 +27,7 @@ export class Share {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @Column('uuid', { name: 'post_id' })
+  @Column('uuid', { name: 'post_id', nullable: true })
   postId: string;
 
   @ManyToOne(() => Post, (post) => post.shares, {

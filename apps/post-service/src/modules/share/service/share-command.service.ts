@@ -8,40 +8,41 @@ import {
   UpdateShareDTO,
   EventTopic,
   ShareEventType,
-  MediaItemDTO,
   RootType,
   TargetType,
+  StatsEventType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { Share } from 'src/entities/share.entity';
-import { EntityManager, Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Post } from 'src/entities/post.entity';
 import { Reaction } from 'src/entities/reaction.entity';
+import { Comment } from 'src/entities/comment.entity';
+import { EntityManager, Repository } from 'typeorm';
 import { ShareCacheService } from './share-cache.service';
+import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
+import { ShareShortenMapper } from '../share-shorten.mapper';
 
 @Injectable()
 export class ShareCommandService {
   constructor(
     @InjectRepository(Share)
     private readonly shareRepo: Repository<Share>,
-    private readonly shareCache: ShareCacheService
+    private readonly shareCache: ShareCacheService,
+    private readonly statsBuffer: StatsBufferService
   ) {}
 
   /**
-   * Create a new share of a public post.
+   * 🟢 Create a new share of a public post.
    */
   async sharePost(
     userId: string,
     dto: CreateShareDTO
   ): Promise<ShareResponseDTO> {
     return await this.shareRepo.manager.transaction(async (manager) => {
-      const post = await manager.findOne(Post, {
-        where: { id: dto.postId },
-      });
-
+      const post = await manager.findOne(Post, { where: { id: dto.postId } });
       if (!post || post.audience !== Audience.PUBLIC) {
         throw new RpcException(`Can't share this post`);
       }
@@ -55,22 +56,25 @@ export class ShareCommandService {
 
       const savedShare = await manager.save(share);
 
+      // 🔹 Update DB (source of truth)
       await this.updateStatsForPost(manager, dto.postId, +1);
 
-      // build snapshot nhẹ của post (feed cần)
-      const postSnapshot = this.buildPostSnapshot(post);
+      // 🔹 Update Redis buffer (for async/stat flush later)
+      await this.statsBuffer.updateStat(
+        TargetType.POST,
+        dto.postId,
+        StatsEventType.SHARE,
+        +1
+      );
 
-      // ghi OutboxEvent để Kafka consumer xử lý sau
+      // 🔹 Build lightweight snapshot
+      const snapshot = ShareShortenMapper.toShareSnapshotDTO(savedShare);
+
+      // 🔹 Write Outbox event for Feed / Realtime
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.SHARE,
         eventType: ShareEventType.CREATED,
-        payload: {
-          shareId: savedShare.id,
-          userId,
-          content: savedShare.content,
-          post: postSnapshot,
-          createdAt: savedShare.createdAt,
-        },
+        payload: snapshot,
       });
       await manager.save(outbox);
 
@@ -81,14 +85,17 @@ export class ShareCommandService {
   }
 
   /**
-   * Update content of a share.
+   * ✏️ Update content of a share.
    */
   async update(
     userId: string,
     shareId: string,
     dto: UpdateShareDTO
   ): Promise<ShareResponseDTO> {
-    const share = await this.shareRepo.findOneBy({ id: shareId });
+    const share = await this.shareRepo.findOne({
+      where: { id: shareId },
+      relations: ['post', 'shareStat'],
+    });
     if (!share) throw new RpcException('Share not found');
     if (share.userId !== userId) throw new RpcException('Unauthorized');
 
@@ -97,18 +104,12 @@ export class ShareCommandService {
 
     await this.shareCache.removeCachedShare(shareId);
 
-    // Lưu event outbox
+    // 🔹 Outbox event for feed update
     await this.shareRepo.manager.save(
       this.shareRepo.manager.create(OutboxEvent, {
+        topic: EventTopic.SHARE,
         eventType: ShareEventType.UPDATED,
-        payload: {
-          topic: EventTopic.SHARE,
-          type: ShareEventType.UPDATED,
-          payload: {
-            shareId,
-            content: dto.content,
-          },
-        },
+        payload: { shareId, content: dto.content },
       })
     );
 
@@ -118,17 +119,19 @@ export class ShareCommandService {
   }
 
   /**
-   * Remove a share and update post stats.
+   * ❌ Remove a share and update post stats.
    */
   async remove(userId: string, shareId: string) {
     return await this.shareRepo.manager.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
+        relations: ['post'],
       });
 
       if (!share) throw new RpcException('Share not found');
       if (share.userId !== userId) throw new RpcException('Unauthorized');
 
+      // Xóa reactions, comments thuộc share
       await manager
         .createQueryBuilder()
         .delete()
@@ -151,8 +154,15 @@ export class ShareCommandService {
 
       await manager.delete(Share, { id: shareId });
 
+      // 🔹 Update DB + Redis stat cho post gốc
       if (share.postId) {
         await this.updateStatsForPost(manager, share.postId, -1);
+        await this.statsBuffer.updateStat(
+          TargetType.POST,
+          share.postId,
+          StatsEventType.SHARE,
+          -1
+        );
       }
 
       await this.shareCache.removeCachedShare(shareId);
@@ -169,7 +179,7 @@ export class ShareCommandService {
   }
 
   /**
-   * Helper: update post's share count.
+   * 🧮 Helper: update post's share count (DB).
    */
   private async updateStatsForPost(
     manager: EntityManager,
@@ -183,28 +193,5 @@ export class ShareCommandService {
       .set({ shares: () => `"shares" + ${delta}` })
       .where('postId = :postId', { postId })
       .execute();
-  }
-
-  /**
-   * Helper: build lightweight post snapshot for event payload.
-   */
-  private buildPostSnapshot(post: Post) {
-    let mediaPreviews: MediaItemDTO[] | undefined;
-    let mediaRemaining: number | undefined;
-
-    if (Array.isArray(post.media) && post.media.length > 0) {
-      mediaPreviews = post.media.slice(0, 5);
-      mediaRemaining = Math.max(0, post.media.length - 5);
-    }
-
-    return {
-      postId: post.id,
-      userId: post.userId,
-      groupId: post.groupId ?? undefined,
-      content: post.content,
-      mediaPreviews,
-      mediaRemaining,
-      createdAt: post.createdAt,
-    };
   }
 }
