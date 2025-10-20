@@ -1,7 +1,9 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject, Logger, UseGuards } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import { Server, Socket } from 'socket.io';
+import { ClerkWsGuard } from '../auth/clerk-auth-ws.guard';
+@UseGuards(ClerkWsGuard)
 @WebSocketGateway({
   namespace: '/api/v1/notifications',
   cors: {
@@ -35,19 +37,19 @@ export class NotificationGateway
       });
     });
   }
-  handleConnection(client: any, ...args: any[]) {
-    this.logger.log(`Client connected: ${client.id}`);
+  handleConnection(client: Socket) {
+    const user = client.data.user;
+    if (!user) {
+      this.logger.warn(`Unauthorized client tried to connect: ${client.id}`);
+      client.disconnect();
+      return;
+    }
+    const room = `user-notification:${user.userId}`;
+    client.join(room);
+    this.logger.log(`Client connected: ${client.id}, joined room: ${room}`);
   }
-  handleDisconnect(client: any) {
+  handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
-
-  @SubscribeMessage('subscribe')
-  handleSubscribe(
-    @MessageBody() data: { userId: string },
-    @ConnectedSocket() client: Socket
-  ) {
-    client.join(`user-notification:${data.userId}`);
-    console.log(`Client ${client.id} joined room user:${data.userId}`);
-  }
+ 
 }

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
+import { RabbitmqModule } from './rabbitmq.module';
 
 async function bootstrap() {
   const tcp_app = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -14,7 +15,7 @@ async function bootstrap() {
     }
   );
   const rabbitmq_app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
+    RabbitmqModule,
     {
       transport: Transport.RMQ,
       options: {
