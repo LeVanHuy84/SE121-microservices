@@ -118,4 +118,23 @@ export class FriendshipService {
       { userId, targetId },
     );
   }
+
+  async getFriendIds(userId: string, limit?: number) {
+    const safeLimit =
+      typeof limit !== 'undefined' ? Math.max(0, Math.floor(limit)) : undefined;
+
+    const query = `
+    MATCH (u:User {id: $userId})- [r:FRIEND_WITH]-> (f:User)
+    RETURN f.id as id, r.since as since
+    ORDER BY r.since DESC
+    ${safeLimit ? 'LIMIT $limit' : ''}
+  `;
+
+    const params: any = { userId };
+    if (safeLimit !== undefined) params.limit = this.neo4j.int(safeLimit);
+
+    const result = await this.neo4j.read(query, params);
+    const records = result.records || result;
+    return records.map((r) => r.get('id'));
+  }
 }

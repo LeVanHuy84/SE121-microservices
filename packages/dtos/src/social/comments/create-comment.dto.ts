@@ -1,20 +1,30 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
-import { MediaDTO } from '../common/media.dto';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
+import { RootType } from '../enums/social.enum';
+import { MediaItemDTO } from '../../common';
 
 export class CreateCommentDTO {
   @IsUUID()
-  postId: string;
+  rootId: string;
 
-  @IsOptional()
+  @IsEnum(RootType)
+  rootType: RootType;
+
   @IsUUID()
-  replyId?: string;
+  @IsOptional()
+  parentId?: string;
 
   @IsString()
   content: string;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => MediaDTO)
-  media?: MediaDTO;
+  @Type(() => MediaItemDTO)
+  media?: MediaItemDTO;
 }

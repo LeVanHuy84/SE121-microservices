@@ -1,20 +1,7 @@
 import { Expose, Type } from 'class-transformer';
-import { Audience, Feeling, PostStatus } from '../enums/social.enum';
-import { MediaDTO } from '../common/media.dto';
-import { BaseUserDTO } from '../../user/get-user.dto';
-import { IsEnum, IsString } from 'class-validator';
-
-export class PostStatDTO {
-  @Expose() reactions: number;
-  @Expose() likes: number;
-  @Expose() loves: number;
-  @Expose() hahas: number;
-  @Expose() wows: number;
-  @Expose() angrys: number;
-  @Expose() sads: number;
-  @Expose() comments: number;
-  @Expose() shares: number;
-}
+import { Audience, Emotion, ReactionType } from '../enums/social.enum';
+import { IsEnum } from 'class-validator';
+import { MediaItemDTO, PostStatDTO } from '../../common';
 
 export class PostResponseDTO {
   @Expose()
@@ -27,15 +14,15 @@ export class PostResponseDTO {
   groupId?: string;
 
   @Expose()
-  @IsEnum(Feeling)
-  feeling: Feeling;
+  @IsEnum(Emotion)
+  feeling: Emotion;
 
   @Expose()
   content: string;
 
   @Expose()
-  @Type(() => MediaDTO)
-  media: MediaDTO;
+  @Type(() => MediaItemDTO)
+  media: MediaItemDTO[];
 
   @Expose()
   audience: Audience;
@@ -48,11 +35,11 @@ export class PostResponseDTO {
   mainEmotion?: string;
 
   @Expose()
-  status: PostStatus;
-
-  @Expose()
   createdAt: Date;
 
   @Expose()
   updatedAt: Date;
+
+  @Expose()
+  reactedType?: ReactionType;
 }
