@@ -61,4 +61,14 @@ export class MessageController {
       data.emoji,
     );
   }
+
+  @MessagePattern('deleteMessage')
+  async deleteMessage(
+    @Payload()
+    data: {
+      messageId: string;
+    },
+  ) {
+    return this.messageService.deleteMessage(data.messageId);
+  }
 }

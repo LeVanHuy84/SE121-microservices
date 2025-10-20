@@ -1,12 +1,20 @@
-import { OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
-import { Inject, Logger } from '@nestjs/common';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { Inject, Logger, UseGuards } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Socket } from 'socket.io';
-import { Send } from 'express';
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  SubscribeMessage,
+  WebSocketGateway,
+} from '@nestjs/websockets';
 import { SendMessageDTO } from '@repo/dtos';
 import { firstValueFrom } from 'rxjs';
+import { Socket } from 'socket.io';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { ClerkWsGuard } from '../auth/clerk-auth-ws.guard';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
+@UseGuards(ClerkWsGuard)
 @WebSocketGateway({
   namespace: '/api/v1/chat',
   cors: {
@@ -18,65 +26,71 @@ import { firstValueFrom } from 'rxjs';
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ChatGateway.name);
 
-  private onlineUsers = new Map<string, string>();
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
-    private readonly chatClient: ClientProxy
+    private readonly chatClient: ClientProxy,
+    @InjectRedis() private readonly redis: Redis
   ) {}
-  handleDisconnect(client: Socket) {
-    for (const [userId, socketId] of this.onlineUsers.entries()) {
-      if (socketId === client.id) {
-        this.onlineUsers.delete(userId);
-        this.logger.log(`User disconnected: ${userId}, socketId: ${client.id}`);
-        break;
-      }
-    }
-  }
-  handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
-    if (userId) {
-      this.onlineUsers.set(userId, client.id);
-      this.logger.log(`User connected: ${userId}, socketId: ${client.id}`);
-    } else {
+
+  async handleConnection(client: Socket) {
+    const user = client.data.user;
+    if (!user) {
+      this.logger.warn(`Unauthorized client tried to connect: ${client.id}`);
       client.disconnect();
-      this.logger.warn(`Connection rejected: No userId provided, socketId: ${client.id}`);
+      return;
+    }
+    // Store mapping of userId to socketId in Redis
+    await this.redis.hset('onlineUsers', user.userId, client.id);
+    client.join(`user-chat:${user.userId}`);
+    this.logger.log(`Client connected: ${client.id} for user: ${user.userId}`);
+
+
+  }
+  async handleDisconnect(client: Socket) {
+    const user = client.data.user;
+    if (user) {
+      // Remove mapping of userId to socketId from Redis
+      await this.redis.hdel('onlineUsers', user.userId);
+      this.logger.log(`Client disconnected: ${client.id} for user: ${user.userId}`);
+    } else {
+      this.logger.log(`Client disconnected: ${client.id}`);
     }
   }
 
   @SubscribeMessage('message.send')
   async handleMessageSend(
     client: Socket,
-    payload: { conversationId: string; senderId: string; dto: SendMessageDTO },
+    payload: { conversationId: string; senderId: string; dto: SendMessageDTO }
   ) {
     try {
       const message = await firstValueFrom(
-        this.chatClient.send('sendMessage', {
+        this.chatClient.send('createMessage', {
           conversationId: payload.conversationId,
           senderId: payload.senderId,
           dto: payload.dto,
         })
-      ); 
+      );
       
-
-      // Emit to sender
-      client.emit('message.sent', message);
-
-      // Emit to other participants if online
-      // Here you would typically fetch the conversation participants from your service
-      const participants = [payload.senderId]; // Replace with actual participant IDs
-
+      // Notify all participants in the conversation about the new message
+      const participants = await firstValueFrom(
+        this.chatClient.send('getParticipantInConversation', {
+          conversationId: payload.conversationId,
+        })
+      ); 
       for (const participantId of participants) {
-        if (participantId !== payload.senderId && this.onlineUsers.has(participantId)) {
-          const socketId = this.onlineUsers.get(participantId);
+        if (await this.redis.hexists('onlineUsers', participantId)) {
+          const socketId = await this.redis.hget('onlineUsers', participantId);
           if (socketId) {
-            client.to(socketId).emit('message.received', message);
+            client.to(socketId).emit('message.new', message);
           }
         }
-      }
+    }
+
     } catch (error) {
       this.logger.error('Error handling message.send', error);
       client.emit('message.error', { error: 'Failed to send message' });
     }
+      
   }
 
   // @SubscribeMessage('message.typing')
@@ -104,7 +118,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message.seen')
   async handleMessageSeen(
     client: Socket,
-    payload: { messageId: string; userId: string },
+    payload: { messageId: string; userId: string }
   ) {
     try {
       const message = await firstValueFrom(
@@ -133,7 +147,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message.react')
   async handleMessageReact(
     client: Socket,
-    payload: { messageId: string; userId: string; emoji: string },
+    payload: { messageId: string; userId: string; emoji: string }
   ) {
     try {
       const message = await firstValueFrom(

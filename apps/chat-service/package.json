@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@nestjs-modules/ioredis": "^2.0.2",
     "@repo/common": "*",
     "@repo/dtos": "*",
     "@nestjs/common": "^11.0.1",
@@ -31,7 +32,9 @@
     "@nestjs/platform-express": "^11.0.1",
     "mongoose": "^8.19.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "redis": "^5.8.3",
+    "ioredis": "^5.7.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

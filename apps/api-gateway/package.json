@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@nestjs-modules/ioredis": "^2.0.2",
     "@clerk/backend": "^2.13.0",
     "@nestjs/core": "^11.0.1",
     "@nestjs/mapped-types": "*",
@@ -28,16 +29,19 @@
     "@nestjs/platform-socket.io": "^11.1.6",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/websockets": "^11.1.6",
-    "@repo/dtos": "*",
     "@repo/common": "*",
+    "@repo/dtos": "*",
+    "@socket.io/redis-adapter": "^8.3.0",
     "@types/http-proxy-middleware": "^0.19.3",
     "amqp-connection-manager": "^5.0.0",
     "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.7.0",
     "passport": "^0.7.0",
     "passport-custom": "^1.1.1",
+    "redis": "^5.8.3",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
