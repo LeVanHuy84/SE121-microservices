@@ -1,5 +1,9 @@
 import { Expose, Type } from 'class-transformer';
-import { ReactionType } from '../../social/enums/social.enum';
+import {
+  Audience,
+  Emotion,
+  ReactionType,
+} from '../../social/enums/social.enum';
 import { MediaItemDTO } from '../../common/media.dto';
 import { PostStatDTO } from '../../common';
 
@@ -14,6 +18,9 @@ export class PostSnapshotDTO {
   groupId?: string;
 
   @Expose()
+  audience?: Audience;
+
+  @Expose()
   content?: string;
 
   @Expose()
@@ -22,6 +29,9 @@ export class PostSnapshotDTO {
 
   @Expose()
   mediaRemaining?: number;
+
+  @Expose()
+  mainEmotion?: Emotion;
 
   @Expose()
   createdAt: Date;

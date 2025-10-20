@@ -24,6 +24,7 @@ export class DistributionService {
   async distributeCreated(
     type: FeedEventType,
     snapshotId: string,
+    refId: string,
     actorId: string,
   ) {
     this.logger.log(`Distributing snapshot ${snapshotId} from ${actorId}`);
@@ -50,6 +51,7 @@ export class DistributionService {
         userId: fid,
         snapshotId: new Types.ObjectId(snapshotId),
         eventType: type,
+        refId: refId,
         timestamp: now,
         rankingScore,
       }));

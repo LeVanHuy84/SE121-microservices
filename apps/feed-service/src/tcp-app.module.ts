@@ -5,6 +5,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TrendingModule } from './modules/trending/trending.module';
 import { PersonalFeedModule } from './modules/personal-feed/personal-feed.module';
+import { CacheLayerModule } from './modules/cache-layer/cache-layer.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { PersonalFeedModule } from './modules/personal-feed/personal-feed.module
     MongoModule,
     TrendingModule,
     PersonalFeedModule,
+    CacheLayerModule,
   ],
   controllers: [],
   providers: [],

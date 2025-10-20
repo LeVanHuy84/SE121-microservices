@@ -15,8 +15,17 @@ export class FeedItem {
   @Prop({ required: true, enum: FeedEventType })
   eventType: FeedEventType;
 
+  @Prop()
+  refId: string; // tham chiếu tới postId hoặc shareId
+
   @Prop({ default: 0, index: true })
   rankingScore: number;
+
+  @Prop()
+  createdAt?: Date;
+
+  @Prop()
+  updatedAt?: Date;
 }
 
 export type FeedItemDocument = HydratedDocument<FeedItem>;

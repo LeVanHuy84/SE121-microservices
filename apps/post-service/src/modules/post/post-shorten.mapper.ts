@@ -23,6 +23,7 @@ export class PostShortenMapper {
       userId: post.userId,
       groupId: post.groupId,
       content: post.content,
+      audience: post.audience,
       mediaPreviews: post.media?.slice(0, 5),
       mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 5),
       createdAt: post.createdAt,

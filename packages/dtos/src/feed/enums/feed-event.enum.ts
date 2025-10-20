@@ -1,4 +1,4 @@
 export enum FeedEventType {
-  POST,
-  SHARE,
+  POST = 'POST',
+  SHARE = 'SHARE',
 }

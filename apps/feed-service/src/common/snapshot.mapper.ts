@@ -9,9 +9,11 @@ import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 @Injectable()
 export class SnapshotMapper {
   static toPostSnapshotDTOs(posts: PostSnapshot[]): PostSnapshotDTO[] {
-    return posts.map((post) => {
-      return this.toPostSnapshotDTO(post);
-    });
+    const result: PostSnapshotDTO[] = new Array(posts.length);
+    for (let i = 0; i < posts.length; i++) {
+      result[i] = this.toPostSnapshotDTO(posts[i]);
+    }
+    return result;
   }
 
   static toPostSnapshotDTO(post: PostSnapshot): PostSnapshotDTO {
@@ -19,18 +21,22 @@ export class SnapshotMapper {
       postId: post.postId,
       userId: post.userId,
       groupId: post.groupId,
+      audience: post.audience,
       content: post.content,
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
       mediaRemaining: post.mediaRemaining,
+      mainEmotion: post.mainEmotion,
       createdAt: post.postCreatedAt,
       postStat: post.stats,
     };
   }
 
   static toShareSnapshotDTOs(shares: ShareSnapshot[]): ShareSnapshotDTO[] {
-    return shares.map((share) => {
-      return this.toShareSnapshotDTO(share);
-    });
+    const result: ShareSnapshotDTO[] = new Array(shares.length);
+    for (let i = 0; i < shares.length; i++) {
+      result[i] = this.toShareSnapshotDTO(shares[i]);
+    }
+    return result;
   }
 
   static toShareSnapshotDTO(share: ShareSnapshot): ShareSnapshotDTO {
@@ -45,6 +51,7 @@ export class SnapshotMapper {
         content: share.post.content,
         mediaPreviews: this.toMediaItemDTOs(share.post.mediaPreviews),
         mediaRemaining: share.post.mediaRemaining,
+        mainEmotion: share.post.mainEmotion,
         createdAt: share.post.createdAt,
       },
       createdAt: share.shareCreatedAt,

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IngestionController } from './ingestion.controller';
-import { IngestionPostService } from './ingestion-post.service';
+import { IngestionPostService } from './service/ingestion-post.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   PostSnapshot,
@@ -10,13 +10,13 @@ import {
   ShareSnapshot,
   ShareSnapshotSchema,
 } from 'src/mongo/schema/share-snapshot.schema';
-import { IngestionShareService } from './ingestion-share.service';
-import { StatsIngestionService } from './ingestion-stats.service';
+import { IngestionShareService } from './service/ingestion-share.service';
+import { StatsIngestionService } from './service/ingestion-stats.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
-import { DistributionService } from './distribution.service';
+import { DistributionService } from './service/distribution.service';
 
 @Module({
   imports: [

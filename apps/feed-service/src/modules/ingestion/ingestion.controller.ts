@@ -1,9 +1,9 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import * as dtos from '@repo/dtos';
-import { IngestionPostService } from './ingestion-post.service';
-import { IngestionShareService } from './ingestion-share.service';
-import { StatsIngestionService } from './ingestion-stats.service';
+import { IngestionPostService } from './service/ingestion-post.service';
+import { IngestionShareService } from './service/ingestion-share.service';
+import { StatsIngestionService } from './service/ingestion-stats.service';
 
 @Controller('ingestion')
 export class IngestionController {

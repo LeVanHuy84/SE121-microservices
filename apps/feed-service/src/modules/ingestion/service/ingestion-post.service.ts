@@ -51,6 +51,7 @@ export class IngestionPostService {
     await this.distributionService.distributeCreated(
       FeedEventType.POST,
       entity._id.toString(),
+      entity.postId,
       entity.userId,
     );
   }

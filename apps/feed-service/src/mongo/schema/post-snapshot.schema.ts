@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Audience, Emotion } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ _id: false })
@@ -37,6 +38,9 @@ export class PostSnapshot {
   groupId?: string;
 
   @Prop()
+  audience: Audience;
+
+  @Prop()
   content: string;
 
   @Prop({ type: [MediaPreview], default: [] })
@@ -44,6 +48,9 @@ export class PostSnapshot {
 
   @Prop({ default: 0 })
   mediaRemaining: number;
+
+  @Prop()
+  mainEmotion?: Emotion;
 
   @Prop()
   postCreatedAt: Date;

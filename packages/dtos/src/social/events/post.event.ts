@@ -1,4 +1,5 @@
 import { MediaItemDTO } from '../../common';
+import { Audience } from '../enums';
 import { EventTopic } from './event.enum';
 
 export enum PostEventType {
@@ -12,6 +13,7 @@ export interface PostEventPayloads {
     postId: string;
     userId: string;
     groupId?: string;
+    audience: Audience;
     content?: string;
     mediaPreviews?: MediaItemDTO[];
     mediaRemaining?: number;

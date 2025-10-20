@@ -31,6 +31,7 @@ export class IngestionShareService {
     this.distributionService.distributeCreated(
       FeedEventType.SHARE,
       shareSnapshot.id,
+      shareSnapshot.shareId,
       shareSnapshot.userId,
     );
   }

@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { MediaPreview } from './post-snapshot.schema';
+import { Emotion } from '@repo/dtos';
 
 @Schema({ _id: false })
 export class PostSnapshotEmbedded {
@@ -21,6 +22,9 @@ export class PostSnapshotEmbedded {
 
   @Prop({ default: 0 })
   mediaRemaining: number;
+
+  @Prop()
+  mainEmotion?: Emotion;
 
   @Prop()
   createdAt: Date;

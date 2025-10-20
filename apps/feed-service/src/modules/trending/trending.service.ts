@@ -1,53 +1,77 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { CursorPageResponse, TrendingQuery, Emotion } from '@repo/dtos';
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
-import { TrendingQuery } from '@repo/dtos';
+import { SnapshotMapper } from 'src/common/snapshot.mapper';
+import { CacheLayerService } from '../cache-layer/cache-layer.service';
+import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
 
 @Injectable()
 export class TrendingService {
-  private readonly logger = new Logger(TrendingService.name);
-  private readonly GLOBAL_TRENDING_KEY = 'trending:posts';
-
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    @InjectModel(PostSnapshot.name)
-    private readonly postModel: Model<PostSnapshot>,
+    private readonly snapshotCache: CacheLayerService,
+    private readonly snapshotRepo: SnapshotRepository,
   ) {}
 
-  async getTrendingPosts(query: TrendingQuery): Promise<PostSnapshot[]> {
-    const { page, limit, mainEmotion } = query;
-    const key = mainEmotion
-      ? `trending:emotion:${mainEmotion}`
-      : this.GLOBAL_TRENDING_KEY;
+  private getKey(mainEmotion?: Emotion): string {
+    return mainEmotion
+      ? `post:score:emotion:${mainEmotion.toLowerCase()}`
+      : 'post:score';
+  }
 
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
+  /**
+   * 🔥 Lấy danh sách bài trending (cursor pagination)
+   */
+  async getTrendingPosts(query: TrendingQuery) {
+    const { cursor, limit = 10, mainEmotion } = query;
+    const key = this.getKey(mainEmotion);
 
-    const total = await this.redis.llen(key);
-    if (total === 0) return [];
+    // Nếu key emotion chưa tồn tại => fallback về key tổng
+    const exists = await this.redis.exists(key);
+    const effectiveKey = exists ? key : 'post:score';
 
-    // Lấy danh sách postId trong range
-    const postIds = await this.redis.lrange(key, start, end);
-    if (postIds.length === 0) return [];
+    // 🔹 Cursor-based pagination
+    let startIndex = 0;
+    if (cursor) {
+      const rank = await this.redis.zrevrank(effectiveKey, cursor);
+      startIndex = rank !== null ? rank + 1 : 0;
+    }
 
-    // Lấy dữ liệu bài viết từ MongoDB
-    const posts = await this.postModel
-      .find({ postId: { $in: postIds } })
-      .lean()
-      .exec();
-
-    // Giữ đúng thứ tự theo Redis (vì Mongo không đảm bảo thứ tự)
-    const ordered = postIds
-      .map((id) => posts.find((p) => p.postId === id))
-      .filter(Boolean) as unknown as PostSnapshot[];
-
-    this.logger.log(
-      `📊 Fetch trending posts: page=${page}, limit=${limit}, emotion=${mainEmotion ?? 'all'}, found=${ordered.length}`,
+    // 🔹 Lấy danh sách postId (không cần score)
+    const ids = await this.redis.zrevrange(
+      effectiveKey,
+      startIndex,
+      startIndex + limit - 1,
     );
 
-    return ordered;
+    if (!ids.length) {
+      return new CursorPageResponse([], limit, null, false);
+    }
+
+    const postCache = await this.snapshotCache.getPostBatch(ids);
+    const missingIds = ids.filter((id) => !postCache.has(id));
+
+    const postsFromDB = await this.snapshotRepo.findPostsByIds(missingIds);
+    await this.snapshotCache.setPostBatch(postsFromDB);
+
+    const allPosts = [...postCache.values(), ...postsFromDB];
+
+    const snapshotMap = new Map<string, PostSnapshot>(
+      allPosts.map((p) => [String(p.postId), p]),
+    );
+
+    const orderedSnapshots = ids
+      .map((id) => snapshotMap.get(id))
+      .filter((p): p is PostSnapshot => p != null);
+
+    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(orderedSnapshots);
+
+    // 🔹 Cursor info
+    const nextCursor =
+      dtoPosts.length === limit ? dtoPosts[dtoPosts.length - 1].postId : null;
+
+    return new CursorPageResponse(dtoPosts, limit, nextCursor, !!nextCursor);
   }
 }

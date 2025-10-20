@@ -1,102 +1,63 @@
 import { Injectable } from '@nestjs/common';
+import {
+  CursorPageResponse,
+  FeedEventType,
+  FeedItemDTO,
+  PersonalFeedQuery,
+} from '@repo/dtos';
 import { InjectModel } from '@nestjs/mongoose';
-import { FeedEventType, FeedItemDTO, PaginationDTO } from '@repo/dtos';
 import { Model } from 'mongoose';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
-import {
-  PostSnapshot,
-  PostSnapshotDocument,
-} from 'src/mongo/schema/post-snapshot.schema';
-import {
-  ShareSnapshot,
-  ShareSnapshotDocument,
-} from 'src/mongo/schema/share-snapshot.schema';
-import { PageResponse } from '@repo/dtos';
-import { SnapshotMapper } from '../personal-feed/snapshot.mapper';
+import { SnapshotMapper } from '../../common/snapshot.mapper';
+import { CacheLayerService } from '../cache-layer/cache-layer.service';
+import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
+import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
+import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 
 @Injectable()
 export class PersonalFeedService {
   constructor(
     @InjectModel(FeedItem.name)
     private readonly feedItemModel: Model<FeedItemDocument>,
-
-    @InjectModel(PostSnapshot.name)
-    private readonly postSnapshotModel: Model<PostSnapshotDocument>,
-
-    @InjectModel(ShareSnapshot.name)
-    private readonly shareSnapshotModel: Model<ShareSnapshotDocument>,
+    private readonly snapshotCache: CacheLayerService,
+    private readonly snapshotRepo: SnapshotRepository,
   ) {}
 
-  /**
-   * 📄 Lấy feed của user (trả về FeedItemDTO)
-   */
+  // ========================================================
+  // Public API
+  // ========================================================
+
   async getUserFeed(
     userId: string,
-    query: PaginationDTO,
-  ): Promise<PageResponse<FeedItemDTO>> {
-    const { page, limit } = query;
-    const skip = (page - 1) * limit;
+    query: PersonalFeedQuery,
+  ): Promise<CursorPageResponse<FeedItemDTO>> {
+    const { cursor, limit, mainEmotion } = query;
 
-    const [feedItems, total] = await Promise.all([
-      this.feedItemModel
-        .find({ userId })
-        .sort({ rankingScore: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
-      this.feedItemModel.countDocuments({ userId }),
-    ]);
+    const feedItems = await this.getFeedItems(userId, cursor, limit);
+    console.log('feedItems: ', feedItems);
+    if (!feedItems.length)
+      return new CursorPageResponse([], limit, null, false);
 
-    if (!feedItems.length) return new PageResponse([], total, page, limit);
+    const hasNextPage = feedItems.length > limit;
+    const items = feedItems.slice(0, limit);
 
-    const postIds = feedItems
-      .filter((f) => f.eventType === FeedEventType.POST)
-      .map((f) => f.snapshotId);
-    const shareIds = feedItems
-      .filter((f) => f.eventType === FeedEventType.SHARE)
-      .map((f) => f.snapshotId);
+    const { postMap, shareMap } = await this.resolveSnapshots(
+      items,
+      mainEmotion,
+    );
 
-    const [posts, shares] = await Promise.all([
-      this.postSnapshotModel
-        .find({ _id: { $in: postIds } })
-        .lean()
-        .exec()
-        .then((docs) => docs as unknown as PostSnapshot[]),
-      this.shareSnapshotModel
-        .find({ _id: { $in: shareIds } })
-        .lean()
-        .exec()
-        .then((docs) => docs as unknown as ShareSnapshot[]),
-    ]);
+    console.log('postMap: ', postMap.entries());
 
-    const postMap = new Map(posts.map((p) => [String(p._id), p]));
-    const shareMap = new Map(shares.map((s) => [String(s._id), s]));
+    const data = this.buildFeedDTO(items, postMap, shareMap);
 
-    const data: FeedItemDTO[] = feedItems.reduce((acc: FeedItemDTO[], item) => {
-      if (item.eventType === FeedEventType.POST) {
-        const post = postMap.get(item.snapshotId);
-        if (post) {
-          acc.push({
-            id: item._id.toString(),
-            type: FeedEventType.POST,
-            item: SnapshotMapper.toPostSnapshotDTO(post),
-          });
-        }
-      } else if (item.eventType === FeedEventType.SHARE) {
-        const share = shareMap.get(item.snapshotId);
-        if (share) {
-          acc.push({
-            id: item._id.toString(),
-            type: FeedEventType.SHARE,
-            item: SnapshotMapper.toShareSnapshotDTO(share),
-          });
-        }
-      }
-      return acc;
-    }, []);
+    console.log('data: ', data);
 
-    return new PageResponse(data, total, page, limit);
+    const last = items[items.length - 1];
+    const nextCursor = `${last.rankingScore}_${new Date(
+      last.createdAt ?? Date.now(),
+    ).getTime()}`;
+
+    return new CursorPageResponse(data, limit, nextCursor, hasNextPage);
   }
 
   /**
@@ -115,20 +76,104 @@ export class PersonalFeedService {
     ]);
   }
 
-  /**
-   * 🧠 Tính điểm ranking tổng hợp
-   */
-  private calculateRankingScore(
-    baseScore: number,
-    viewCount = 0,
-    createdAt?: Date,
-  ): number {
-    const now = Date.now();
-    const ageHours = createdAt
-      ? (now - createdAt.getTime()) / (1000 * 60 * 60)
-      : 0;
-    const timeDecay = Math.exp(-0.01 * ageHours);
-    const viewDecay = Math.pow(0.95, viewCount);
-    return baseScore * timeDecay * viewDecay;
+  // ========================================================
+  // Private helpers
+  // ========================================================
+
+  /** 🔹 Truy vấn feed items từ Mongo */
+  private async getFeedItems(userId: string, cursor?: string, limit = 10) {
+    const filter: any = { userId };
+    if (cursor) {
+      const [rankingScore, createdAt] = cursor.split('_').map(Number);
+      filter.$or = [
+        { rankingScore: { $lt: rankingScore } },
+        { rankingScore, createdAt: { $lt: new Date(createdAt) } },
+      ];
+    }
+
+    return this.feedItemModel
+      .find(filter)
+      .sort({ rankingScore: -1, createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+  }
+
+  /** 🔹 Resolve snapshot từ cache + DB fallback */
+  private async resolveSnapshots(
+    items: FeedItem[],
+    mainEmotion?: string,
+  ): Promise<{
+    postMap: Map<string, PostSnapshot>;
+    shareMap: Map<string, ShareSnapshot>;
+  }> {
+    const postIds = items
+      .filter((f) => f.eventType === FeedEventType.POST)
+      .map((f) => f.refId);
+    const shareIds = items
+      .filter((f) => f.eventType === FeedEventType.SHARE)
+      .map((f) => f.refId);
+
+    // Cache layer
+    const [postCache, shareCache] = await Promise.all([
+      this.snapshotCache.getPostBatch(postIds),
+      this.snapshotCache.getShareBatch(shareIds),
+    ]);
+
+    const missingPostIds = postIds.filter((id) => !postCache.has(id));
+    const missingShareIds = shareIds.filter((id) => !shareCache.has(id));
+
+    // Fallback DB
+    const [postDB, shareDB] = await Promise.all([
+      this.snapshotRepo.findPostsByIds(missingPostIds, mainEmotion),
+      this.snapshotRepo.findSharesByIds(missingShareIds, mainEmotion),
+    ]);
+
+    // Cache new
+    await Promise.all([
+      this.snapshotCache.setPostBatch(postDB),
+      this.snapshotCache.setShareBatch(shareDB),
+    ]);
+
+    // Merge
+    const postMap = new Map<string, PostSnapshot>([
+      ...postCache.entries(),
+      ...postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
+    ]);
+    const shareMap = new Map<string, ShareSnapshot>([
+      ...shareCache.entries(),
+      ...shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
+    ]);
+
+    return { postMap, shareMap };
+  }
+
+  /** 🔹 Build danh sách DTO từ snapshot map */
+  private buildFeedDTO(
+    items: FeedItem[],
+    postMap: Map<string, PostSnapshot>,
+    shareMap: Map<string, ShareSnapshot>,
+  ): FeedItemDTO[] {
+    return items.reduce((acc: FeedItemDTO[], item) => {
+      if (item.eventType === FeedEventType.POST) {
+        const post = postMap.get(item.refId);
+        if (post) {
+          acc.push({
+            id: item._id?.toString() ?? '',
+            type: FeedEventType.POST,
+            item: SnapshotMapper.toPostSnapshotDTO(post),
+          });
+        }
+      } else if (item.eventType === FeedEventType.SHARE) {
+        const share = shareMap.get(item.refId);
+        if (share) {
+          acc.push({
+            id: item._id?.toString() ?? '',
+            type: FeedEventType.SHARE,
+            item: SnapshotMapper.toShareSnapshotDTO(share),
+          });
+        }
+      }
+      return acc;
+    }, []);
   }
 }
