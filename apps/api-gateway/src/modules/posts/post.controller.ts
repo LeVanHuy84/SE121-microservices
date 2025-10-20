@@ -47,6 +47,14 @@ export class PostController {
     });
   }
 
+  @Get('me')
+  getMyPosts(
+    @Query() query: GetPostQueryDTO,
+    @CurrentUserId() currentUserId: string
+  ) {
+    return this.client.send('get_my_posts', { currentUserId, query });
+  }
+
   @Patch('update/:id')
   update(
     @Param('id') postId: string,

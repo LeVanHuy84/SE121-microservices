@@ -12,4 +12,5 @@ export const ReactionFieldMap: Record<ReactionType, string> = {
 export const MICROSERVICES_CLIENT = {
   USER_SERVICE: 'USER_SERVICE',
   REDIS_CLIENT: 'REDIS_CLIENT',
+  KAFKA_PRODUCER: 'KAFKA_PRODUCER',
 };

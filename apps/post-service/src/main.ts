@@ -4,30 +4,25 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
 
 async function bootstrap() {
-  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4002,
-      },
-    }
-  );
+  const app = await NestFactory.create(AppModule);
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4002,
+    },
+  });
 
-  const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.REDIS,
-      options: {
-        port: 6379,
-        host: 'localhost',
-      },
-    }
-  );
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.REDIS,
+    options: {
+      port: 6379,
+      host: 'localhost',
+    },
+  });
 
-  tcpApp.useGlobalFilters(new ExceptionsFilter());
-  redisApp.useGlobalFilters(new ExceptionsFilter());
+  app.useGlobalFilters(new ExceptionsFilter());
 
-  await Promise.all([tcpApp.listen(), redisApp.listen()]);
+  await app.startAllMicroservices();
+  await app.init();
 }
 bootstrap();

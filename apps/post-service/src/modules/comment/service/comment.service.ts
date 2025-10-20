@@ -4,21 +4,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   CommentResponseDTO,
   CreateCommentDTO,
-  GetCommentQueryDTO,
-  PageResponse,
+  RootType,
+  StatsEventType,
+  TargetType,
   UpdateCommentDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { Comment } from 'src/entities/comment.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
+import { Reaction } from 'src/entities/reaction.entity';
+import { ShareStat } from 'src/entities/share-stat.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { CommentCacheService } from './comment-cache.service';
+import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly commentCache: CommentCacheService,
+    private readonly statsBuffer: StatsBufferService
   ) {}
 
   async create(
@@ -34,62 +41,25 @@ export class CommentService {
 
       const entity = await manager.save(comment);
 
-      await this.updateStatsForComment(manager, dto.postId, dto.replyId, +1);
+      await this.updateStatsForComment(
+        manager,
+        dto.rootType,
+        dto.rootId,
+        dto.parentId,
+        +1
+      );
+
+      await this.statsBuffer.updateStat(
+        dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
+        dto.rootId,
+        StatsEventType.COMMENT,
+        +1
+      );
 
       return plainToInstance(CommentResponseDTO, entity, {
         excludeExtraneousValues: true,
       });
     });
-  }
-
-  async findById(commentId: string): Promise<CommentResponseDTO> {
-    const comment = await this.commentRepo
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.commentStat', 'stat')
-      .where('c.id = :commentId', { commentId })
-      .getOne();
-
-    if (!comment) {
-      throw new RpcException(`Comment not found`);
-    }
-
-    return plainToInstance(CommentResponseDTO, comment, {
-      excludeExtraneousValues: true,
-    });
-  }
-
-  async findByQuery(
-    query: GetCommentQueryDTO
-  ): Promise<PageResponse<CommentResponseDTO>> {
-    const { page, limit, postId, replyId } = query;
-
-    const qb = this.commentRepo
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.commentStat', 'stat')
-      .orderBy('c.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
-
-    if (postId && !replyId) {
-      qb.andWhere('c.postId = :postId', { postId }).andWhere(
-        'c.replyId IS NULL'
-      );
-    } else {
-      qb.andWhere('c.replyId = :replyId', { replyId });
-    }
-
-    const [comments, total] = await qb.getManyAndCount();
-
-    const commentDTOs = plainToInstance(CommentResponseDTO, comments, {
-      excludeExtraneousValues: true,
-    });
-
-    return new PageResponse<CommentResponseDTO>(
-      commentDTOs,
-      total,
-      page,
-      limit
-    );
   }
 
   async update(
@@ -100,7 +70,6 @@ export class CommentService {
     const comment = await this.commentRepo.findOne({
       where: { id: commentId },
     });
-
     if (!comment) {
       throw new RpcException(`Comment with id ${commentId} not found`);
     }
@@ -110,8 +79,10 @@ export class CommentService {
     }
 
     comment.content = dto.content;
-
     await this.commentRepo.save(comment);
+
+    // 🧹 Xoá cache liên quan
+    await this.commentCache.invalidateComment(comment.rootId, comment.parentId);
 
     return plainToInstance(CommentResponseDTO, comment, {
       excludeExtraneousValues: true,
@@ -125,13 +96,32 @@ export class CommentService {
         throw new RpcException(`Comment with id ${id} not found`);
       }
 
+      await manager.delete(Reaction, {
+        targetType: TargetType.COMMENT,
+        targetId: id,
+      });
+
       await manager.remove(comment);
 
       await this.updateStatsForComment(
         manager,
-        comment.postId,
-        comment.replyId,
+        comment.rootType,
+        comment.rootId,
+        comment.parentId,
         -1
+      );
+
+      await this.statsBuffer.updateStat(
+        comment.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
+        comment.rootId,
+        StatsEventType.COMMENT,
+        -1
+      );
+
+      // 🧹 Xoá cache liên quan
+      await this.commentCache.invalidateComment(
+        comment.rootId,
+        comment.parentId
       );
 
       return { message: 'Comment deleted successfully' };
@@ -140,11 +130,12 @@ export class CommentService {
 
   private async updateStatsForComment(
     manager: EntityManager,
-    postId: string,
-    replyId?: string,
+    rootType: RootType,
+    rootId: string,
+    parentId?: string,
     delta: number = 1
   ) {
-    if (replyId) {
+    if (parentId) {
       await manager
         .getRepository(CommentStat)
         .createQueryBuilder()
@@ -152,18 +143,35 @@ export class CommentService {
         .set({
           replies: () => `"replies" + ${delta}`,
         })
-        .where('commentId = :commentId', { commentId: replyId })
+        .where('commentId = :commentId', { commentId: parentId })
         .execute();
     }
 
-    await manager
-      .getRepository(PostStat)
-      .createQueryBuilder()
-      .update()
-      .set({
-        comments: () => `"comments" + ${delta}`,
-      })
-      .where('postId = :postId', { postId })
-      .execute();
+    switch (rootType) {
+      case RootType.POST:
+        await manager
+          .getRepository(PostStat)
+          .createQueryBuilder()
+          .update()
+          .set({
+            comments: () => `"comments" + ${delta}`,
+          })
+          .where('postId = :postId', { postId: rootId })
+          .execute();
+        break;
+      case RootType.SHARE:
+        await manager
+          .getRepository(ShareStat)
+          .createQueryBuilder()
+          .update()
+          .set({
+            comments: () => `"comments" + ${delta}`,
+          })
+          .where('shareId = :shareId', { shareId: rootId })
+          .execute();
+        break;
+      default:
+        break;
+    }
   }
 }
