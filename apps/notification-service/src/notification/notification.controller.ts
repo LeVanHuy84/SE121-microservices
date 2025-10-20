@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { PaginationDTO } from '@repo/dtos';
@@ -8,12 +16,12 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('create_notification')
-  create(@Body() createNotificationDto: any) {
-    return this.notificationService.create(createNotificationDto);
+  create(@Payload() data: { createNotificationDto: any }) {
+    return this.notificationService.create(data.createNotificationDto);
   }
 
   @MessagePattern('get_notifications')
-  findAll(@Payload() data: { userId: string, pagination: PaginationDTO }) {
+  findAll(@Payload() data: { userId: string; pagination: PaginationDTO }) {
     return this.notificationService.findByUser(data.userId, data.pagination);
   }
 

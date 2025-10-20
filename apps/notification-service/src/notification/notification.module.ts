@@ -17,7 +17,6 @@ import { BullModule } from '@nestjs/bull';
       urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
       exchanges: [
         { name: 'notification', type: 'topic' },
-        { name: 'broadcast', type: 'fanout' },
       ],
     }),
     MongooseModule.forFeature([
@@ -33,6 +32,7 @@ import { BullModule } from '@nestjs/bull';
     BullModule.registerQueue({
       name: 'notifications',
     }),
+    
   ],
   controllers: [NotificationController],
   providers: [NotificationService, TemplateService],

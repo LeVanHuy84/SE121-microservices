@@ -21,6 +21,7 @@
     "test:unit": "jest -t 'NotificationService \\(unit\\)'"
   },
   "dependencies": {
+    "@nestjs-modules/ioredis": "^2.0.2",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
