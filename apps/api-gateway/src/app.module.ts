@@ -12,6 +12,7 @@ import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { RabbitmqModule } from '@repo/common';
 import { FeedModule } from './modules/feed/feed.module';
+import { GroupModule } from './modules/group/group.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { FeedModule } from './modules/feed/feed.module';
         { name: 'broadcast', type: 'fanout' },
       ],
     }),
+    GroupModule,
   ],
 
   providers: [
