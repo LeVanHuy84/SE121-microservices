@@ -37,6 +37,7 @@ export * from './social/enums/social.enum';
 // Notification
 export * from './notification/create-noti.dto';
 export * from './notification/get-noti.dto';
+export * from './notification/enums/channel-notication.enum'
 
 // Chat
 export * from './chat/conversation/create-conversation.dto';

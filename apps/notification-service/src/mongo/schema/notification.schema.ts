@@ -1,5 +1,6 @@
 // src/notification/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ChannelNotification } from '@repo/dtos';
 import { Document } from 'mongoose';
 
 export type NotificationDocument = Notification & Document;
@@ -10,7 +11,12 @@ export class Notification {
   @Prop({ required: true, index: true }) userId: string;
   @Prop({ required: true }) type: string;
   @Prop({ type: Object, default: {} }) payload: any;
-  @Prop({ type: [String], default: ['web'] }) channels: string[];
+  @Prop({
+    type: [String],
+    enum: ChannelNotification,
+    default: [ChannelNotification.WEBSOCKET],
+  })
+  channels: ChannelNotification[];
   @Prop({ default: 'unread' }) status: 'unread' | 'read';
   @Prop({ default: 0 }) retries: number;
   @Prop() sendAt?: Date; // optional scheduled time

@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
+  ChannelNotification,
   CreateNotificationDto,
   NotificationResponseDto,
   PageResponse,
@@ -58,7 +59,7 @@ export class NotificationService {
         userId: dto.userId,
         type: dto.type,
         payload: dto.payload,
-        channels: [],
+        channels: [ChannelNotification.NONE],
         status: 'unread',
         meta: { suppressed: true },
       });
@@ -79,7 +80,7 @@ export class NotificationService {
         userId: dto.userId,
         type: dto.type,
         payload: dto.payload,
-        channels: [],
+        channels: [ChannelNotification.NONE],
         status: 'unread',
         meta: { rateLimited: true },
       });

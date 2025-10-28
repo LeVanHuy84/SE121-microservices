@@ -1,8 +1,16 @@
 import { Inject, Logger, UseGuards } from '@nestjs/common';
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  WebSocketGateway,
+  WebSocketServer,
+} from '@nestjs/websockets';
 import type { ChannelWrapper } from 'amqp-connection-manager';
+import * as amqp from 'amqplib';
 import { Server, Socket } from 'socket.io';
 import { ClerkWsGuard } from '../auth/clerk-auth-ws.guard';
+import { ChannelNotification } from '@repo/dtos';
 @UseGuards(ClerkWsGuard)
 @WebSocketGateway({
   namespace: '/api/v1/notifications',
@@ -10,7 +18,7 @@ import { ClerkWsGuard } from '../auth/clerk-auth-ws.guard';
     origin: '*', // hoặc domain frontend
     methods: ['GET', 'POST'],
   },
-  transport : ['websocket'],
+  transport: ['websocket'],
 })
 export class NotificationGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
@@ -22,12 +30,17 @@ export class NotificationGateway
   @WebSocketServer() io: Server;
   afterInit(server: Server) {
     this.logger.log('NotificationGateway initialized');
-    this.rabbitChannel.addSetup(async (channel) => {
-      await channel.consume('notification_queue', async (msg: any) => {
+    this.rabbitChannel.addSetup(async (channel: amqp.Channel) => {
+      await channel.consume('notification_queue', async (msg) => {
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
-          this.io.to(`user-notification:${payload.userId}`).emit('notification', payload);
+          const routingKey = msg.fields.routingKey;
+          if (routingKey === `channel.${ChannelNotification.WEBSOCKET}`) {
+            this.io
+              .to(`user-notification:${payload.userId}`)
+              .emit('notification', payload);
+          }
           channel.ack(msg);
           this.logger.log(`Sent notification to user ${payload.userId}`);
         } catch (err) {
@@ -51,5 +64,4 @@ export class NotificationGateway
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
- 
 }
