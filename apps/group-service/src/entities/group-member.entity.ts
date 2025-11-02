@@ -1,4 +1,4 @@
-import { GroupMemberStatus, GroupRole } from '@repo/dtos';
+import { GroupMemberStatus, GroupPermission, GroupRole } from '@repo/dtos';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Group } from './group.entity';
@@ -13,6 +13,9 @@ export class GroupMember extends BaseEntity {
 
   @Column({ type: 'enum', enum: GroupRole, default: GroupRole.MEMBER })
   role: GroupRole;
+
+  @Column({ type: 'jsonb', nullable: true })
+  customPermissions?: GroupPermission[];
 
   @Column({
     type: 'enum',

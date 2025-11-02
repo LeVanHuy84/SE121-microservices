@@ -6,7 +6,7 @@ import {
   OneToMany,
   OneToOne,
 } from 'typeorm';
-import { MediaItemDTO } from '@repo/dtos';
+import { GroupPrivacy, GroupStatus, MediaItemDTO } from '@repo/dtos';
 import { AuditableEntity } from './auditable.entity';
 import { GroupSetting } from './group-setting.entity';
 import { GroupCategory } from './group-category.entity';
@@ -17,6 +17,7 @@ import { GroupBan } from './group-ban.entity';
 import { GroupReport } from './group-report.entity';
 import { GroupEvent } from './group-event.entity';
 import { GroupPinnedPost } from './group-pinned-post.entity';
+import { GroupStatistic } from './group-statistic.entity';
 
 @Entity('groups')
 export class Group extends AuditableEntity {
@@ -26,20 +27,26 @@ export class Group extends AuditableEntity {
   @Column({ type: 'varchar', length: 1000, nullable: true })
   description: string;
 
-  @Column({ type: 'jsonb', name: 'cover_image_url' })
-  coverImageUrl: MediaItemDTO;
+  @Column({ type: 'varchar', name: 'avatar_url' })
+  avatarUrl: string;
 
-  @Column({ type: 'jsonb' })
-  privacy: Object;
+  @Column({ type: 'varchar', name: 'cover_image_url', nullable: true })
+  coverImageUrl: string;
+
+  @Column({ type: 'enum', enum: GroupPrivacy, default: GroupPrivacy.PUBLIC })
+  privacy: GroupPrivacy;
 
   @Column({ type: 'varchar', length: 10000, nullable: true })
   rules: string;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'int', default: 1 })
   members: number;
 
   @Column({ type: 'uuid', name: 'group_category_id', nullable: true })
   groupCategoryId: string;
+
+  @Column({ type: 'enum', enum: GroupStatus, default: GroupStatus.ACTIVE })
+  status: GroupStatus;
 
   @ManyToOne(() => GroupCategory, (groupCategory) => groupCategory.groups, {
     onDelete: 'SET NULL',
@@ -76,4 +83,7 @@ export class Group extends AuditableEntity {
 
   @OneToMany(() => GroupPinnedPost, (groupPinnedPost) => groupPinnedPost.group)
   groupPinnedPosts: GroupPinnedPost[];
+
+  @OneToMany(() => GroupStatistic, (statistic) => statistic.group)
+  statistics: GroupStatistic[];
 }
