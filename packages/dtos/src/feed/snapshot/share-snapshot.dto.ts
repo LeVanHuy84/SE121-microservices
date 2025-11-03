@@ -1,6 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { PostSnapshotDTO } from './post-snapshot.dto';
-import { ReactionType } from '../../social/enums/social.enum';
+import { Audience, ReactionType } from '../../social/enums/social.enum';
 import { ShareStatDTO } from '../../common';
 
 export class ShareSnapshotDTO {
@@ -9,6 +9,9 @@ export class ShareSnapshotDTO {
 
   @Expose()
   userId: string;
+
+  @Expose()
+  audience?: Audience;
 
   @Expose()
   content?: string;

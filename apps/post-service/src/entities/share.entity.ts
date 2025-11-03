@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Post } from './post.entity';
 import { ShareStat } from './share-stat.entity';
+import { Audience } from '@repo/dtos';
 
 @Entity('shares')
 @Index('idx_share_user', ['userId'])
@@ -20,6 +21,9 @@ export class Share {
 
   @Column('uuid', { name: 'user_id', nullable: false })
   userId: string;
+
+  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
+  audience: Audience;
 
   @Column({ type: 'varchar', length: 2000 })
   content: string;

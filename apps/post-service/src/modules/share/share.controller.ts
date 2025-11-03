@@ -1,7 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { ShareCommandService } from './service/share-command.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateShareDTO, PaginationDTO, UpdateShareDTO } from '@repo/dtos';
+import {
+  CreateShareDTO,
+  CursorPaginationDTO,
+  UpdateShareDTO,
+} from '@repo/dtos';
 import { ShareQueryService } from './service/share-query.service';
 
 @Controller('share')
@@ -32,20 +36,45 @@ export class ShareController {
     return this.queryService.findById(payload.userId, payload.shareId);
   }
 
-  @MessagePattern('find_share_by_user_id')
-  async findByUserId(
-    @Payload() payload: { userId: string; query: PaginationDTO }
+  @MessagePattern('get_my_shares')
+  async getMyPosts(
+    @Payload() payload: { currentUserId: string; query: CursorPaginationDTO }
   ) {
-    return this.queryService.findByUserId(payload.userId, payload.query);
+    return this.queryService.getMyPosts(payload.currentUserId, payload.query);
+  }
+
+  @MessagePattern('find_shares_by_user_id')
+  async findPostsByUserId(
+    @Payload()
+    payload: {
+      userId: string;
+      pagination: CursorPaginationDTO;
+      currentUserId: string;
+    }
+  ) {
+    return this.queryService.getUserShares(
+      payload.userId,
+      payload.currentUserId,
+      payload.pagination
+    );
+  }
+
+  @MessagePattern('find_shares_by_post_id')
+  async findSharesByPostId(
+    @Payload()
+    payload: {
+      postId: string;
+      pagination: CursorPaginationDTO;
+    }
+  ) {
+    return this.queryService.findSharesByPostId(
+      payload.postId,
+      payload.pagination
+    );
   }
 
   @MessagePattern('remove_share')
   remove(@Payload() payload: { userId: string; shareId: string }) {
     return this.commandService.remove(payload.userId, payload.shareId);
-  }
-
-  @MessagePattern('get_share_batch')
-  async getSharesBatch(@Payload() ids: string[]) {
-    return this.queryService.getSharesBatch(ids);
   }
 }

@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { PersonalFeedService } from './personal-feed.service';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
-import { PaginationDTO } from '@repo/dtos';
+import { PersonalFeedQuery } from '@repo/dtos';
 
 @Controller('personal-feed')
 export class PersonalFeedController {
@@ -9,7 +9,7 @@ export class PersonalFeedController {
 
   @MessagePattern('get_my_feed')
   async getUserFeeds(
-    @Payload() payload: { userId: string; query: PaginationDTO },
+    @Payload() payload: { userId: string; query: PersonalFeedQuery },
   ) {
     return await this.queryService.getUserFeed(payload.userId, payload.query);
   }

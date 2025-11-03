@@ -4,8 +4,8 @@ import { In, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
   Audience,
+  CursorPageResponse,
   GetPostQueryDTO,
-  PageResponse,
   PostResponseDTO,
   PostSnapshotDTO,
   ReactionType,
@@ -63,7 +63,7 @@ export class PostQueryService {
   async getMyPosts(
     currentUserId: string,
     query: GetPostQueryDTO
-  ): Promise<PageResponse<PostSnapshotDTO>> {
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const qb = this.buildPostQuery(query).where('p.userId = :userId', {
       userId: currentUserId,
     });
@@ -73,7 +73,7 @@ export class PostQueryService {
 
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length)
-      return new PageResponse([], total, query.page, query.limit);
+      return new CursorPageResponse([], query.limit, null, false);
 
     return this.buildPagedPostResponse(currentUserId, posts, total, query);
   }
@@ -85,7 +85,7 @@ export class PostQueryService {
     userId: string,
     currentUserId: string,
     query: GetPostQueryDTO
-  ): Promise<PageResponse<PostSnapshotDTO>> {
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const relation = await this.postCache.getRelationship(
       currentUserId,
       userId,
@@ -106,7 +106,7 @@ export class PostQueryService {
     if (userId === currentUserId) {
       // chính mình → xem hết
     } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
-      return new PageResponse([], 0, query.page, query.limit);
+      return new CursorPageResponse([], query.limit, null, false);
     } else if (relation === 'FRIENDS') {
       qb.andWhere('p.audience IN (:...audiences)', {
         audiences: [Audience.PUBLIC, Audience.FRIENDS],
@@ -120,7 +120,7 @@ export class PostQueryService {
 
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length)
-      return new PageResponse([], total, query.page, query.limit);
+      return new CursorPageResponse([], query.limit, null, false);
 
     return this.buildPagedPostResponse(currentUserId, posts, total, query);
   }
@@ -129,12 +129,15 @@ export class PostQueryService {
   // ⚙️ Helpers chung
   // ----------------------------------------
   private buildPostQuery(query: GetPostQueryDTO) {
-    const { page, limit, feeling } = query;
+    const { cursor, limit, feeling } = query;
     const qb = this.postRepo
       .createQueryBuilder('p')
       .orderBy('p.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
+
+    if (cursor) {
+      qb.andWhere('p.createdAt < :cursor', { cursor });
+    }
 
     if (feeling) qb.andWhere('p.feeling = :feeling', { feeling });
     return qb;
@@ -145,12 +148,22 @@ export class PostQueryService {
     posts: Post[],
     total: number,
     query: GetPostQueryDTO
-  ): Promise<PageResponse<PostSnapshotDTO>> {
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const postIds = posts.map((p) => p.id);
     const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
 
     const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
-    return new PageResponse(postDTOs, total, query.page, query.limit);
+    let nextCursor: string | null = null;
+    if (total > query.limit) {
+      const lastPost = posts[posts.length - 1];
+      nextCursor = lastPost.createdAt.toISOString();
+    }
+    return new CursorPageResponse(
+      postDTOs,
+      query.limit,
+      nextCursor,
+      total > query.limit
+    );
   }
 
   private async getReactedTypesBatch(
