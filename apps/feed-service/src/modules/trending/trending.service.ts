@@ -47,7 +47,7 @@ export class TrendingService {
     );
 
     if (!ids.length) {
-      return new CursorPageResponse([], limit, null, false);
+      return new CursorPageResponse([], null, false);
     }
 
     const postCache = await this.snapshotCache.getPostBatch(ids);
@@ -72,6 +72,6 @@ export class TrendingService {
     const nextCursor =
       dtoPosts.length === limit ? dtoPosts[dtoPosts.length - 1].postId : null;
 
-    return new CursorPageResponse(dtoPosts, limit, nextCursor, !!nextCursor);
+    return new CursorPageResponse(dtoPosts, nextCursor, !!nextCursor);
   }
 }

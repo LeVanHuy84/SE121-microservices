@@ -71,14 +71,15 @@ export class ShareQueryService {
       userId: currentUserId,
     });
 
-    const [ids, total] = await qb.select('s.id').getManyAndCount();
+    const ids = await qb.select('s.id').getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const shareIds = ids.map((s) => s.id);
 
     const shares = await this.shareCache.getSharesBatch(shareIds);
-    if (!shares.length)
-      return new CursorPageResponse([], query.limit, null, false);
+    if (!shares.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedShareResponse(currentUserId, shares, total, query);
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
   }
 
   // ----------------------------------------
@@ -109,7 +110,7 @@ export class ShareQueryService {
     if (userId === currentUserId) {
       // chính mình → xem hết
     } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
-      return new CursorPageResponse([], query.limit, null, false);
+      return new CursorPageResponse([], null, false);
     } else if (relation === 'FRIENDS') {
       qb.andWhere('s.audience IN (:...audiences)', {
         audiences: [Audience.PUBLIC, Audience.FRIENDS],
@@ -118,14 +119,15 @@ export class ShareQueryService {
       qb.andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
     }
 
-    const [ids, total] = await qb.select('s.id').getManyAndCount();
+    const ids = await qb.select('s.id').getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const shareIds = ids.map((s) => s.id);
 
     const shares = await this.shareCache.getSharesBatch(shareIds);
-    if (!shares.length)
-      return new CursorPageResponse([], query.limit, null, false);
+    if (!shares.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedShareResponse(currentUserId, shares, total, query);
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
   }
 
   // ----------------------------------------
@@ -140,7 +142,9 @@ export class ShareQueryService {
       .andWhere('s.audience = :audience', { audience: Audience.PUBLIC })
       .select(['s.id', 's.userId', 's.audience', 's.content', 's.createdAt']);
 
-    const [shares, total] = await qb.getManyAndCount();
+    const shares = await qb.getMany();
+    const hasNextPage = shares.length > query.limit;
+    if (hasNextPage) shares.pop();
 
     const previews: SharePreviewDTO[] = shares.map((s) => ({
       shareId: s.id,
@@ -150,17 +154,11 @@ export class ShareQueryService {
       createdAt: s.createdAt,
     }));
 
-    const hasNextPage = total > query.limit;
     const nextCursor = hasNextPage
       ? shares[shares.length - 1].createdAt.toISOString()
       : null;
 
-    return new CursorPageResponse(
-      previews,
-      query.limit,
-      nextCursor,
-      hasNextPage
-    );
+    return new CursorPageResponse(previews, nextCursor, hasNextPage);
   }
 
   // ----------------------------------------
@@ -182,8 +180,7 @@ export class ShareQueryService {
   private async buildPagedShareResponse(
     currentUserId: string,
     shares: Share[],
-    total: number,
-    query: CursorPaginationDTO
+    hasNextPage: boolean
   ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
     const shareIds = shares.map((s) => s.id);
     const reactionMap = await this.getReactedTypesBatch(
@@ -196,16 +193,11 @@ export class ShareQueryService {
       reactionMap
     );
     let nextCursor: string | null = null;
-    if (total > query.limit) {
-      const lastShare = shares[shares.length - 1];
-      nextCursor = lastShare.createdAt.toISOString();
+    if (hasNextPage && shares.length > 0) {
+      nextCursor = shares[shares.length - 1].createdAt.toISOString();
     }
-    return new CursorPageResponse(
-      shareDTOs,
-      query.limit,
-      nextCursor,
-      total > query.limit
-    );
+
+    return new CursorPageResponse(shareDTOs, nextCursor, hasNextPage);
   }
 
   /** 🔹 Batch get user's reacted types for multiple shares */

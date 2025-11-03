@@ -68,14 +68,15 @@ export class PostQueryService {
       userId: currentUserId,
     });
 
-    const [ids, total] = await qb.select('p.id').getManyAndCount();
+    const ids = await qb.select('p.id').getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const postIds = ids.map((p) => p.id);
 
     const posts = await this.postCache.getPostsBatch(postIds);
-    if (!posts.length)
-      return new CursorPageResponse([], query.limit, null, false);
+    if (!posts.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedPostResponse(currentUserId, posts, total, query);
+    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
   }
 
   // ----------------------------------------
@@ -106,7 +107,7 @@ export class PostQueryService {
     if (userId === currentUserId) {
       // chính mình → xem hết
     } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
-      return new CursorPageResponse([], query.limit, null, false);
+      return new CursorPageResponse([], null, false);
     } else if (relation === 'FRIENDS') {
       qb.andWhere('p.audience IN (:...audiences)', {
         audiences: [Audience.PUBLIC, Audience.FRIENDS],
@@ -115,14 +116,15 @@ export class PostQueryService {
       qb.andWhere('p.audience = :audience', { audience: Audience.PUBLIC });
     }
 
-    const [ids, total] = await qb.select('p.id').getManyAndCount();
+    const ids = await qb.select('p.id').getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop();
     const postIds = ids.map((p) => p.id);
 
     const posts = await this.postCache.getPostsBatch(postIds);
-    if (!posts.length)
-      return new CursorPageResponse([], query.limit, null, false);
+    if (!posts.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedPostResponse(currentUserId, posts, total, query);
+    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
   }
 
   // ----------------------------------------
@@ -146,24 +148,18 @@ export class PostQueryService {
   private async buildPagedPostResponse(
     currentUserId: string,
     posts: Post[],
-    total: number,
-    query: GetPostQueryDTO
+    hasNextPage: boolean
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const postIds = posts.map((p) => p.id);
     const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
-
     const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
     let nextCursor: string | null = null;
-    if (total > query.limit) {
-      const lastPost = posts[posts.length - 1];
-      nextCursor = lastPost.createdAt.toISOString();
+    if (hasNextPage && posts.length > 0) {
+      nextCursor = posts[posts.length - 1].createdAt.toISOString();
     }
-    return new CursorPageResponse(
-      postDTOs,
-      query.limit,
-      nextCursor,
-      total > query.limit
-    );
+
+    return new CursorPageResponse(postDTOs, nextCursor, hasNextPage);
   }
 
   private async getReactedTypesBatch(

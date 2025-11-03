@@ -1,4 +1,11 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 import { ReactionType, TargetType } from '@repo/dtos';
 
 @Entity('reactions')
@@ -19,4 +26,7 @@ export class Reaction {
 
   @Column({ name: 'reaction_type', type: 'enum', enum: ReactionType })
   reactionType: ReactionType;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 }
