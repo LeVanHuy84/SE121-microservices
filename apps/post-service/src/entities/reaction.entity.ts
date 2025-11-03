@@ -15,7 +15,7 @@ export class Reaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id' })
+  @Column('varchar', { name: 'user_id' })
   userId: string;
 
   @Column('uuid', { name: 'target_id' })
