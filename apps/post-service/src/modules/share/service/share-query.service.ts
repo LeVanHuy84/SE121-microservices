@@ -6,7 +6,6 @@ import {
   CursorPageResponse,
   CursorPaginationDTO,
   ReactionType,
-  SharePreviewDTO,
   ShareResponseDTO,
   ShareSnapshotDTO,
   TargetType,
@@ -131,34 +130,26 @@ export class ShareQueryService {
   }
 
   // ----------------------------------------
-  // 🌍 2️⃣ Get share theo postId
+  // 🌍 3️⃣ Get share theo postId
   // ----------------------------------------
   async findSharesByPostId(
+    currentUserId: string,
     postId: string,
     query: CursorPaginationDTO
-  ): Promise<CursorPageResponse<SharePreviewDTO>> {
+  ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
     const qb = this.buildShareQuery(query)
       .where('s.postId = :postId', { postId })
-      .andWhere('s.audience = :audience', { audience: Audience.PUBLIC })
-      .select(['s.id', 's.userId', 's.audience', 's.content', 's.createdAt']);
+      .andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
 
-    const shares = await qb.getMany();
-    const hasNextPage = shares.length > query.limit;
-    if (hasNextPage) shares.pop();
+    const ids = await qb.select('s.id').getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
+    const shareIds = ids.map((s) => s.id);
 
-    const previews: SharePreviewDTO[] = shares.map((s) => ({
-      shareId: s.id,
-      userId: s.userId,
-      audience: s.audience,
-      content: s.content,
-      createdAt: s.createdAt,
-    }));
+    const shares = await this.shareCache.getSharesBatch(shareIds);
+    if (!shares.length) return new CursorPageResponse([], null, false);
 
-    const nextCursor = hasNextPage
-      ? shares[shares.length - 1].createdAt.toISOString()
-      : null;
-
-    return new CursorPageResponse(previews, nextCursor, hasNextPage);
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
   }
 
   // ----------------------------------------
