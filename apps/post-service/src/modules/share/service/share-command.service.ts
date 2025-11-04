@@ -56,27 +56,31 @@ export class ShareCommandService {
 
       const savedShare = await manager.save(share);
 
-      // 🔹 Update DB (source of truth)
-      await this.updateStatsForPost(manager, dto.postId, +1);
+      if (savedShare.audience === Audience.PUBLIC) {
+        // 🔹 Update DB (source of truth)
+        await this.updateStatsForPost(manager, dto.postId, +1);
 
-      // 🔹 Update Redis buffer (for async/stat flush later)
-      await this.statsBuffer.updateStat(
-        TargetType.POST,
-        dto.postId,
-        StatsEventType.SHARE,
-        +1
-      );
+        // 🔹 Update Redis buffer (for async/stat flush later)
+        await this.statsBuffer.updateStat(
+          TargetType.POST,
+          dto.postId,
+          StatsEventType.SHARE,
+          +1
+        );
+      }
 
-      // 🔹 Build lightweight snapshot
-      const snapshot = ShareShortenMapper.toShareSnapshotDTO(savedShare);
+      if (savedShare.audience !== Audience.ONLY_ME) {
+        // 🔹 Build lightweight snapshot
+        const snapshot = ShareShortenMapper.toShareSnapshotDTO(savedShare);
 
-      // 🔹 Write Outbox event for Feed / Realtime
-      const outbox = manager.create(OutboxEvent, {
-        topic: EventTopic.SHARE,
-        eventType: ShareEventType.CREATED,
-        payload: snapshot,
-      });
-      await manager.save(outbox);
+        // 🔹 Write Outbox event for Feed / Realtime
+        const outbox = manager.create(OutboxEvent, {
+          topic: EventTopic.SHARE,
+          eventType: ShareEventType.CREATED,
+          payload: snapshot,
+        });
+        await manager.save(outbox);
+      }
 
       return plainToInstance(ShareResponseDTO, savedShare, {
         excludeExtraneousValues: true,
@@ -90,7 +94,7 @@ export class ShareCommandService {
   async update(
     userId: string,
     shareId: string,
-    dto: UpdateShareDTO
+    dto: Partial<UpdateShareDTO>
   ): Promise<ShareResponseDTO> {
     const share = await this.shareRepo.findOne({
       where: { id: shareId },
@@ -99,10 +103,35 @@ export class ShareCommandService {
     if (!share) throw new RpcException('Share not found');
     if (share.userId !== userId) throw new RpcException('Unauthorized');
 
+    const oldAudience = share.audience;
     Object.assign(share, dto);
     const updatedShare = await this.shareRepo.save(share);
 
-    await this.shareCache.removeCachedShare(shareId);
+    await this.shareCache.removeCache(shareId);
+
+    // 🧮 Nếu audience thay đổi, cập nhật thống kê
+    if (oldAudience !== updatedShare.audience && share.postId) {
+      const delta =
+        updatedShare.audience === Audience.PUBLIC
+          ? +1
+          : oldAudience === Audience.PUBLIC
+            ? -1
+            : 0;
+
+      if (delta !== 0) {
+        await this.updateStatsForPost(
+          this.shareRepo.manager,
+          share.postId,
+          delta
+        );
+        await this.statsBuffer.updateStat(
+          TargetType.POST,
+          share.postId,
+          StatsEventType.SHARE,
+          delta
+        );
+      }
+    }
 
     // 🔹 Outbox event for feed update
     await this.shareRepo.manager.save(
@@ -121,7 +150,7 @@ export class ShareCommandService {
   /**
    * ❌ Remove a share and update post stats.
    */
-  async remove(userId: string, shareId: string) {
+  async remove(userId: string, shareId: string): Promise<boolean> {
     return await this.shareRepo.manager.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
@@ -154,8 +183,8 @@ export class ShareCommandService {
 
       await manager.delete(Share, { id: shareId });
 
-      // 🔹 Update DB + Redis stat cho post gốc
-      if (share.postId) {
+      // 🔹 Update DB + Redis stat cho post gốc (chỉ nếu share công khai)
+      if (share.postId && share.audience === Audience.PUBLIC) {
         await this.updateStatsForPost(manager, share.postId, -1);
         await this.statsBuffer.updateStat(
           TargetType.POST,
@@ -165,7 +194,7 @@ export class ShareCommandService {
         );
       }
 
-      await this.shareCache.removeCachedShare(shareId);
+      await this.shareCache.removeCache(shareId);
 
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.SHARE,
@@ -174,7 +203,7 @@ export class ShareCommandService {
       });
       await manager.save(outbox);
 
-      return { success: true };
+      return true;
     });
   }
 

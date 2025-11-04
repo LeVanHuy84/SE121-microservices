@@ -1,5 +1,5 @@
 import { ShareStatDTO } from '../../common';
-import { ReactionType } from '../enums/social.enum';
+import { Audience, ReactionType } from '../enums/social.enum';
 import { PostResponseDTO } from '../posts/get-post.dto';
 import { Expose, Type } from 'class-transformer';
 
@@ -9,6 +9,9 @@ export class ShareResponseDTO {
 
   @Expose()
   userId: string;
+
+  @Expose()
+  audience: Audience;
 
   @Expose()
   content: string;
