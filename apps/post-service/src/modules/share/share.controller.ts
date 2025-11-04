@@ -63,11 +63,13 @@ export class ShareController {
   async findSharesByPostId(
     @Payload()
     payload: {
+      currentUserId: string;
       postId: string;
       pagination: CursorPaginationDTO;
     }
   ) {
     return this.queryService.findSharesByPostId(
+      payload.currentUserId,
       payload.postId,
       payload.pagination
     );

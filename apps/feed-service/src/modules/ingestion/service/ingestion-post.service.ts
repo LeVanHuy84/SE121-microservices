@@ -17,6 +17,7 @@ import { DistributionService } from './distribution.service';
 @Injectable()
 export class IngestionPostService {
   private readonly META_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 ngày
+  private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
   constructor(
     @InjectModel(PostSnapshot.name)
@@ -54,6 +55,11 @@ export class IngestionPostService {
       entity.postId,
       entity.userId,
     );
+
+    // Điểm khởi tạo ban đầu cho bài mới
+    const INITIAL_TRENDING_SCORE = 8; // ~ tương đương 2 comment hoặc 1 share
+    await this.redis.zadd('post:score', INITIAL_TRENDING_SCORE, payload.postId);
+    await this.redis.expire('post:score', this.SCORE_TTL_SECONDS);
   }
 
   // ------------------------------------------------

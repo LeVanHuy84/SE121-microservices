@@ -67,10 +67,15 @@ export class ShareController {
 
   @Get('post/:id')
   findByPostId(
+    @CurrentUserId() currentUserId: string,
     @Param('id') postId: string,
     @Query() pagination: CursorPaginationDTO
   ) {
-    return this.client.send('find_shares_by_post_id', { postId, pagination });
+    return this.client.send('find_shares_by_post_id', {
+      currentUserId,
+      postId,
+      pagination,
+    });
   }
 
   @Delete('share/:id')
