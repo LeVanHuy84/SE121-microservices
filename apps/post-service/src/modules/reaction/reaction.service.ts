@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  CursorPageResponse,
   DisReactDTO,
   GetReactionsDTO,
   ReactDTO,
@@ -34,20 +35,46 @@ export class ReactionService {
   ) {}
 
   // --------------------------------------------------
-  // 🧩 Lấy danh sách reaction
+  // 🧩 Lấy danh sách reaction (dùng QueryBuilder)
   // --------------------------------------------------
-  async getReactions(dto: GetReactionsDTO) {
-    const [reactions, total] = await this.reactionRepo.findAndCount({
-      where: { targetId: dto.targetId, targetType: dto.targetType },
-      skip: (dto.page - 1) * dto.limit,
-      take: dto.limit,
-    });
+  async getReactions(
+    dto: GetReactionsDTO
+  ): Promise<CursorPageResponse<ReactionResponseDTO>> {
+    const qb = this.reactionRepo
+      .createQueryBuilder('r')
+      .where('r.targetId = :targetId', { targetId: dto.targetId })
+      .andWhere('r.targetType = :targetType', { targetType: dto.targetType });
 
-    const reactionDTOs = plainToInstance(ReactionResponseDTO, reactions, {
+    if (dto.reactionType) {
+      qb.andWhere('r.reactionType = :reactionType', {
+        reactionType: dto.reactionType,
+      });
+    }
+
+    qb.orderBy('r.createdAt', 'DESC').take(dto.limit + 1);
+
+    if (dto.cursor) {
+      qb.andWhere('r.createdAt < :cursor', { cursor: dto.cursor });
+    }
+
+    const reactions = await qb.getMany();
+
+    const hasNextPage = reactions.length > dto.limit;
+    const data = reactions.slice(0, dto.limit);
+
+    const nextCursor = hasNextPage
+      ? data[data.length - 1].createdAt.toISOString()
+      : null;
+
+    const reactionDTOs = plainToInstance(ReactionResponseDTO, data, {
       excludeExtraneousValues: true,
     });
 
-    return { data: reactionDTOs, total, page: dto.page, limit: dto.limit };
+    return new CursorPageResponse<ReactionResponseDTO>(
+      reactionDTOs,
+      nextCursor,
+      hasNextPage
+    );
   }
 
   // --------------------------------------------------

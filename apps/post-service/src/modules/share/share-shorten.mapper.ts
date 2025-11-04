@@ -6,10 +6,10 @@ import { Share } from 'src/entities/share.entity';
 export class ShareShortenMapper {
   static toShareSnapshotDTOs(
     shares: Share[],
-    reactionMap: Map<string, ReactionType | undefined>
+    reactionMap?: Map<string, ReactionType | undefined>
   ): ShareSnapshotDTO[] {
     return shares.map((share) => {
-      const reactedType = reactionMap.get(share.id);
+      const reactedType = reactionMap?.get(share.id);
       return this.toShareSnapshotDTO(share, reactedType);
     });
   }
@@ -21,6 +21,7 @@ export class ShareShortenMapper {
     return {
       shareId: share.id,
       userId: share.userId,
+      audience: share.audience,
       content: share.content,
       post: {
         postId: share.post.id,

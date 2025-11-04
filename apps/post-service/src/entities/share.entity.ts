@@ -5,21 +5,22 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
   OneToOne,
 } from 'typeorm';
 import { Post } from './post.entity';
 import { ShareStat } from './share-stat.entity';
+import { Audience } from '@repo/dtos';
 
 @Entity('shares')
-@Index('idx_share_user', ['userId'])
-@Index('idx_share', ['id'])
 export class Share {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id', nullable: false })
+  @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
+
+  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
+  audience: Audience;
 
   @Column({ type: 'varchar', length: 2000 })
   content: string;

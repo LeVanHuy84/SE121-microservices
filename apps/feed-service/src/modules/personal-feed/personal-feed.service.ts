@@ -35,8 +35,7 @@ export class PersonalFeedService {
 
     const feedItems = await this.getFeedItems(userId, cursor, limit);
     console.log('feedItems: ', feedItems);
-    if (!feedItems.length)
-      return new CursorPageResponse([], limit, null, false);
+    if (!feedItems.length) return new CursorPageResponse([], null, false);
 
     const hasNextPage = feedItems.length > limit;
     const items = feedItems.slice(0, limit);
@@ -57,7 +56,7 @@ export class PersonalFeedService {
       last.createdAt ?? Date.now(),
     ).getTime()}`;
 
-    return new CursorPageResponse(data, limit, nextCursor, hasNextPage);
+    return new CursorPageResponse(data, nextCursor, hasNextPage);
   }
 
   /**

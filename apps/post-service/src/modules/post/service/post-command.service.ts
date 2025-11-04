@@ -15,11 +15,13 @@ import {
   CreatePostDTO,
   EventTopic,
   PostEventType,
+  PostSnapshotDTO,
   RootType,
   TargetType,
   UpdatePostDTO,
 } from '@repo/dtos';
 import { PostCacheService } from './post-cache.service';
+import { PostShortenMapper } from '../post-shorten.mapper';
 
 @Injectable()
 export class PostCommandService {
@@ -32,7 +34,7 @@ export class PostCommandService {
   // ----------------------------------------
   // 📝 Tạo post
   // ----------------------------------------
-  async create(userId: string, dto: CreatePostDTO): Promise<Post> {
+  async create(userId: string, dto: CreatePostDTO): Promise<PostSnapshotDTO> {
     return this.dataSource.transaction(async (manager) => {
       const post = manager.create(Post, {
         ...dto,
@@ -60,7 +62,7 @@ export class PostCommandService {
         await manager.save(outbox);
       }
 
-      return entity;
+      return PostShortenMapper.toPostSnapshotDTO(entity);
     });
   }
 
@@ -71,7 +73,7 @@ export class PostCommandService {
     userId: string,
     postId: string,
     dto: Partial<UpdatePostDTO>
-  ): Promise<Post> {
+  ): Promise<PostSnapshotDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) throw new RpcException('Post not found');
     if (post.userId !== userId) throw new RpcException('Unauthorized');
@@ -107,14 +109,14 @@ export class PostCommandService {
             });
 
       await manager.save(outbox);
-      return updated;
+      return PostShortenMapper.toPostSnapshotDTO(updated);
     });
   }
 
   // ----------------------------------------
   // 🗑️ Xóa post
   // ----------------------------------------
-  async remove(userId: string, postId: string): Promise<void> {
+  async remove(userId: string, postId: string): Promise<boolean> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) throw new RpcException('Post not found');
     if (post.userId !== userId) throw new RpcException('Unauthorized');
@@ -153,5 +155,6 @@ export class PostCommandService {
 
       await manager.save(outbox);
     });
+    return true;
   }
 }

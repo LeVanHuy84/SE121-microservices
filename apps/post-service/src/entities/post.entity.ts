@@ -19,7 +19,7 @@ export class Post {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id', nullable: false })
+  @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
 
   @Column('uuid', { name: 'group_id', nullable: true })

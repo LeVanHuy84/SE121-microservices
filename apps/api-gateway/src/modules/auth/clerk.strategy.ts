@@ -28,8 +28,7 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
 
       // gắn externalId để dùng ngay
       return {
-        sub: tokenPayload.sub,
-        userId: tokenPayload.userId ?? null,
+        userId: tokenPayload.sub,
         raw: tokenPayload,
       };
     } catch (error) {

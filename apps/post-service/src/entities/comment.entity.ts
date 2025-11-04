@@ -20,7 +20,7 @@ export class Comment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id', nullable: false })
+  @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
 
   @Column({ name: 'root_target_type', type: 'enum', enum: RootType })
