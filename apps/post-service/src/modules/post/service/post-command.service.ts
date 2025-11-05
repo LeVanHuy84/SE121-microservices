@@ -13,6 +13,7 @@ import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu ch�
 import {
   Audience,
   CreatePostDTO,
+  EventDestination,
   EventTopic,
   PostEventType,
   PostSnapshotDTO,
@@ -47,6 +48,7 @@ export class PostCommandService {
       if (dto.audience !== Audience.ONLY_ME) {
         const outbox = manager.create(OutboxEvent, {
           topic: EventTopic.POST,
+          destination: EventDestination.KAFKA,
           eventType: PostEventType.CREATED,
           payload: {
             postId: entity.id,
@@ -99,6 +101,7 @@ export class PostCommandService {
         dto.audience === Audience.ONLY_ME
           ? manager.create(OutboxEvent, {
               topic: EventTopic.POST,
+              destination: EventDestination.KAFKA,
               eventType: PostEventType.REMOVED,
               payload: { postId },
             })
@@ -149,6 +152,7 @@ export class PostCommandService {
 
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.POST,
+        destination: EventDestination.KAFKA,
         eventType: PostEventType.REMOVED,
         payload: { postId },
       });

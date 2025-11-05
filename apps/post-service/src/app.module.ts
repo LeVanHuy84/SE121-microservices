@@ -6,10 +6,11 @@ import { ReactionModule } from './modules/reaction/reaction.module';
 import { CommentModule } from './modules/comment/comment.module';
 import { ShareModule } from './modules/share/share.module';
 import dbConfig from './config/db.config';
-import { KafkaModule } from './modules/kafka/kafka.module';
+import { KafkaModule } from './modules/event/kafka/kafka.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { StatsModule } from './modules/stats/stats.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventModule } from './modules/event/event.module';
 
 @Module({
   imports: [
@@ -35,7 +36,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ReactionModule,
     CommentModule,
     ShareModule,
-    KafkaModule,
+    EventModule,
     StatsModule,
   ],
   controllers: [],
