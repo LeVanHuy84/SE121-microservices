@@ -12,7 +12,7 @@ import { Reaction } from 'src/entities/reaction.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PostCacheService } from './service/post-cache.service';
-import { SocialClientModule } from '../client/social-client.module';
+import { SocialClientModule } from '../client/social/social-client.module';
 
 @Module({
   imports: [

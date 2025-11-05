@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { KafkaProducerService } from './kafka.producer.service';
+import { KafkaProducerService } from './kafka/kafka.producer.service';
+import { NotificationService } from './rabbitmq/notification.service';
+import { EventDestination } from '@repo/dtos';
 
 @Injectable()
 export class OutboxProcessor {
@@ -13,14 +15,14 @@ export class OutboxProcessor {
   constructor(
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
-    private readonly kafkaProducer: KafkaProducerService
+    private readonly kafkaProducer: KafkaProducerService,
+    private readonly notificationService: NotificationService
   ) {
-    this.logger.log('🧩 OutboxProcessor constructed');
+    this.logger.log('🧩 OutboxProcessor initialized');
   }
 
   /**
-   * 🕒 Chạy mỗi 5 giây (Cron job)
-   * Bạn có thể đổi chu kỳ ở đây, ví dụ EVERY_SECOND hoặc EVERY_MINUTE.
+   * 🕒 Cron chạy mỗi 5 giây để xử lý batch Outbox
    */
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleOutboxBatch() {
@@ -73,20 +75,41 @@ export class OutboxProcessor {
     return result.affected === 1;
   }
 
+  /**
+   * Gửi sự kiện đến đích tương ứng (Kafka hoặc RabbitMQ)
+   */
   private async processEvent(event: OutboxEvent) {
+    const { id, destination, topic, eventType, payload } = event;
+
     try {
-      const { id, topic, eventType, payload } = event;
+      switch (destination) {
+        case EventDestination.KAFKA:
+          await this.kafkaProducer.sendMessage(
+            topic,
+            { type: eventType, payload },
+            id
+          );
+          this.logger.debug(`✅ [Kafka] Sent event ${id} -> ${topic}`);
+          break;
 
-      await this.kafkaProducer.sendMessage(
-        topic,
-        { type: eventType, payload },
-        id
-      );
+        case EventDestination.RABBITMQ:
+          await this.notificationService.sendNotification({
+            id,
+            eventType,
+            payload,
+          });
+          this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
+          break;
 
-      this.logger.debug(`✅ Sent event ${id} -> ${topic}`);
+        default:
+          this.logger.warn(
+            `⚠️ Unknown destination "${destination}" for event ${id}`
+          );
+          break;
+      }
     } catch (err) {
-      await this.outboxRepo.update({ id: event.id }, { processed: false });
-      this.logger.error(`❌ Error sending event ${event.id}: ${err.message}`);
+      await this.outboxRepo.update({ id }, { processed: false });
+      this.logger.error(`❌ Error sending event ${id}: ${err.message}`);
     }
   }
 }
