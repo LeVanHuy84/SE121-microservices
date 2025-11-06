@@ -6,10 +6,10 @@ import { Share } from 'src/entities/share.entity';
 export class ShareShortenMapper {
   static toShareSnapshotDTOs(
     shares: Share[],
-    reactionMap: Map<string, ReactionType | undefined>
+    reactionMap?: Map<string, ReactionType | undefined>
   ): ShareSnapshotDTO[] {
     return shares.map((share) => {
-      const reactedType = reactionMap.get(share.id);
+      const reactedType = reactionMap?.get(share.id);
       return this.toShareSnapshotDTO(share, reactedType);
     });
   }
@@ -21,6 +21,7 @@ export class ShareShortenMapper {
     return {
       shareId: share.id,
       userId: share.userId,
+      audience: share.audience,
       content: share.content,
       post: {
         postId: share.post.id,
@@ -34,6 +35,29 @@ export class ShareShortenMapper {
       createdAt: share.createdAt,
       reactedType: reactedType,
       shareStat: share.shareStat,
+    };
+  }
+
+  static toShareSnapshotEvent(
+    share: Share,
+    reactedType?: ReactionType
+  ): ShareSnapshotDTO {
+    return {
+      shareId: share.id,
+      userId: share.userId,
+      audience: share.audience,
+      content: share.content,
+      post: {
+        postId: share.post.id,
+        userId: share.post.userId,
+        groupId: share.post.groupId,
+        content: share.post.content,
+        mediaPreviews: share.post.media?.slice(0, 5),
+        mediaRemaining: Math.max(0, (share.post.media?.length ?? 0) - 5),
+        createdAt: share.post.createdAt,
+      },
+      createdAt: share.createdAt,
+      reactedType: reactedType,
     };
   }
 }

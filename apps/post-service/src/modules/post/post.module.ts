@@ -12,6 +12,7 @@ import { Reaction } from 'src/entities/reaction.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PostCacheService } from './service/post-cache.service';
+import { SocialClientModule } from '../client/social/social-client.module';
 
 @Module({
   imports: [
@@ -24,16 +25,7 @@ import { PostCacheService } from './service/post-cache.service';
       Reaction,
       OutboxEvent,
     ]),
-    ClientsModule.register([
-      {
-        name: 'SOCIAL_SERVICE',
-        transport: Transport.REDIS,
-        options: {
-          host: 'localhost',
-          port: 6379,
-        },
-      },
-    ]),
+    SocialClientModule,
   ],
   controllers: [PostController],
   providers: [PostQueryService, PostCommandService, PostCacheService],

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  CursorPageResponse,
   DisReactDTO,
   GetReactionsDTO,
   ReactDTO,
@@ -17,6 +18,10 @@ import { PostStat } from 'src/entities/post-stat.entity';
 import { ReactionFieldMap } from 'src/constant';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { StatsBufferService } from '../stats/stats.buffer.service';
+import {
+  RecentActivity,
+  RecentActivityBufferService,
+} from '../event/recent-activity.buffer.service';
 
 @Injectable()
 export class ReactionService {
@@ -30,31 +35,57 @@ export class ReactionService {
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     private readonly dataSource: DataSource,
-    private readonly statBuffer: StatsBufferService
+    private readonly statBuffer: StatsBufferService,
+    private readonly recentActivityBuffer: RecentActivityBufferService
   ) {}
 
   // --------------------------------------------------
-  // 🧩 Lấy danh sách reaction
+  // 🧩 Lấy danh sách reaction (dùng QueryBuilder)
   // --------------------------------------------------
-  async getReactions(dto: GetReactionsDTO) {
-    const [reactions, total] = await this.reactionRepo.findAndCount({
-      where: { targetId: dto.targetId, targetType: dto.targetType },
-      skip: (dto.page - 1) * dto.limit,
-      take: dto.limit,
-    });
+  async getReactions(
+    dto: GetReactionsDTO
+  ): Promise<CursorPageResponse<ReactionResponseDTO>> {
+    const qb = this.reactionRepo
+      .createQueryBuilder('r')
+      .where('r.targetId = :targetId', { targetId: dto.targetId })
+      .andWhere('r.targetType = :targetType', { targetType: dto.targetType });
 
-    const reactionDTOs = plainToInstance(ReactionResponseDTO, reactions, {
+    if (dto.reactionType) {
+      qb.andWhere('r.reactionType = :reactionType', {
+        reactionType: dto.reactionType,
+      });
+    }
+
+    qb.orderBy('r.createdAt', 'DESC').take(dto.limit + 1);
+
+    if (dto.cursor) {
+      qb.andWhere('r.createdAt < :cursor', { cursor: dto.cursor });
+    }
+
+    const reactions = await qb.getMany();
+
+    const hasNextPage = reactions.length > dto.limit;
+    const data = reactions.slice(0, dto.limit);
+
+    const nextCursor = hasNextPage
+      ? data[data.length - 1].createdAt.toISOString()
+      : null;
+
+    const reactionDTOs = plainToInstance(ReactionResponseDTO, data, {
       excludeExtraneousValues: true,
     });
 
-    return { data: reactionDTOs, total, page: dto.page, limit: dto.limit };
+    return new CursorPageResponse<ReactionResponseDTO>(
+      reactionDTOs,
+      nextCursor,
+      hasNextPage
+    );
   }
 
   // --------------------------------------------------
   // ❤️ React
   // --------------------------------------------------
   async react(userId: string, dto: ReactDTO) {
-    // Chạy transaction DB
     const result = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Reaction);
 
@@ -64,10 +95,15 @@ export class ReactionService {
 
       if (!existing) {
         await this.createReaction(manager, userId, dto);
-        return { buffer: { delta: +1, type: dto.reactionType } };
+        return {
+          buffer: [{ delta: +1, type: dto.reactionType }],
+          isNew: true,
+        };
       }
 
-      if (existing.reactionType === dto.reactionType) return null;
+      if (existing.reactionType === dto.reactionType) {
+        return { buffer: null, isNew: false };
+      }
 
       await this.switchReaction(manager, existing, dto.reactionType);
       return {
@@ -75,25 +111,35 @@ export class ReactionService {
           { delta: -1, type: existing.reactionType },
           { delta: +1, type: dto.reactionType },
         ],
+        isNew: false,
       };
     });
 
-    // Gọi Redis ngoài transaction
-    if (dto.targetType === TargetType.POST && result?.buffer) {
-      const bufferUpdates = Array.isArray(result.buffer)
-        ? result.buffer
-        : [result.buffer];
+    if (dto.targetType !== TargetType.POST) return;
 
-      await this.statBuffer.updateMultipleStats(
-        dto.targetType,
-        dto.targetId,
-        bufferUpdates.map((b) => ({
-          type: StatsEventType.REACTION,
-          delta: b.delta,
-          subType: ReactionType[b.type], // convert enum number -> string
-        }))
-      );
-    }
+    const updates = result.buffer?.map((b) => ({
+      type: StatsEventType.REACTION,
+      delta: b.delta,
+      subType: ReactionType[b.type],
+    }));
+
+    await Promise.allSettled([
+      updates
+        ? this.statBuffer.updateMultipleStats(
+            dto.targetType,
+            dto.targetId,
+            updates
+          )
+        : Promise.resolve(),
+      result.isNew
+        ? this.recentActivityBuffer.addRecentActivity({
+            actorId: userId,
+            type: 'reaction',
+            targetType: dto.targetType,
+            targetId: dto.targetId,
+          })
+        : Promise.resolve(),
+    ]);
   }
 
   // --------------------------------------------------

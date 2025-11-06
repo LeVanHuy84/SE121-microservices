@@ -11,6 +11,7 @@ import {
   RootType,
   TargetType,
   StatsEventType,
+  EventDestination,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -24,6 +25,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { ShareCacheService } from './share-cache.service';
 import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 import { ShareShortenMapper } from '../share-shorten.mapper';
+import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
 
 @Injectable()
 export class ShareCommandService {
@@ -31,7 +33,8 @@ export class ShareCommandService {
     @InjectRepository(Share)
     private readonly shareRepo: Repository<Share>,
     private readonly shareCache: ShareCacheService,
-    private readonly statsBuffer: StatsBufferService
+    private readonly statsBuffer: StatsBufferService,
+    private readonly recentActivityBuffer: RecentActivityBufferService
   ) {}
 
   /**
@@ -41,46 +44,78 @@ export class ShareCommandService {
     userId: string,
     dto: CreateShareDTO
   ): Promise<ShareResponseDTO> {
-    return await this.shareRepo.manager.transaction(async (manager) => {
-      const post = await manager.findOne(Post, { where: { id: dto.postId } });
-      if (!post || post.audience !== Audience.PUBLIC) {
-        throw new RpcException(`Can't share this post`);
+    const savedShare = await this.shareRepo.manager.transaction(
+      async (manager) => {
+        const post = await manager.findOne(Post, {
+          where: { id: dto.postId },
+        });
+
+        if (!post || post.audience !== Audience.PUBLIC) {
+          throw new RpcException(`Can't share this post`);
+        }
+
+        // ✅ Tạo entity Share và ShareStat
+        const share = manager.create(Share, {
+          ...dto,
+          userId,
+          post,
+          shareStat: manager.create(ShareStat, {}),
+        });
+
+        const saved = await manager.save(share);
+
+        // ✅ Gom các tác vụ độc lập vào mảng promises
+        const promises: Promise<any>[] = [];
+
+        if (saved.audience === Audience.PUBLIC) {
+          // Cập nhật thống kê DB và buffer song song
+          promises.push(
+            this.updateStatsForPost(manager, dto.postId, +1),
+            this.statsBuffer.updateStat(
+              TargetType.POST,
+              dto.postId,
+              StatsEventType.SHARE,
+              +1
+            )
+          );
+        }
+
+        if (saved.audience !== Audience.ONLY_ME) {
+          // Gửi event outbox cho hệ thống khác (Feed / Kafka)
+          const snapshot = ShareShortenMapper.toShareSnapshotEvent(saved);
+          const outbox = manager.create(OutboxEvent, {
+            topic: EventTopic.SHARE,
+            destination: EventDestination.KAFKA,
+            eventType: ShareEventType.CREATED,
+            payload: snapshot,
+          });
+          promises.push(manager.save(outbox));
+        }
+
+        // ✅ Chạy tất cả các tác vụ song song (trong transaction)
+        await Promise.all(promises);
+
+        return saved;
       }
+    );
 
-      const share = manager.create(Share, {
-        ...dto,
-        userId,
-        post,
-        shareStat: manager.create(ShareStat, {}),
-      });
+    // 🔹 Các tác vụ async nhẹ sau transaction (không cần rollback nếu lỗi)
+    this.statsBuffer
+      .updateStat(TargetType.POST, dto.postId, StatsEventType.SHARE, +1)
+      .catch(console.error);
 
-      const savedShare = await manager.save(share);
+    this.recentActivityBuffer
+      .addRecentActivity({
+        actorId: userId,
+        type: 'share',
+        targetType: TargetType.POST,
+        targetId: dto.postId,
+      })
+      .catch(console.error);
 
-      // 🔹 Update DB (source of truth)
-      await this.updateStatsForPost(manager, dto.postId, +1);
-
-      // 🔹 Update Redis buffer (for async/stat flush later)
-      await this.statsBuffer.updateStat(
-        TargetType.POST,
-        dto.postId,
-        StatsEventType.SHARE,
-        +1
-      );
-
-      // 🔹 Build lightweight snapshot
-      const snapshot = ShareShortenMapper.toShareSnapshotDTO(savedShare);
-
-      // 🔹 Write Outbox event for Feed / Realtime
-      const outbox = manager.create(OutboxEvent, {
-        topic: EventTopic.SHARE,
-        eventType: ShareEventType.CREATED,
-        payload: snapshot,
-      });
-      await manager.save(outbox);
-
-      return plainToInstance(ShareResponseDTO, savedShare, {
-        excludeExtraneousValues: true,
-      });
+    // 🔹 Trả về kết quả DTO gọn nhẹ
+    return plainToInstance(ShareResponseDTO, savedShare, {
+      excludeExtraneousValues: true,
     });
   }
 
@@ -90,7 +125,7 @@ export class ShareCommandService {
   async update(
     userId: string,
     shareId: string,
-    dto: UpdateShareDTO
+    dto: Partial<UpdateShareDTO>
   ): Promise<ShareResponseDTO> {
     const share = await this.shareRepo.findOne({
       where: { id: shareId },
@@ -99,15 +134,41 @@ export class ShareCommandService {
     if (!share) throw new RpcException('Share not found');
     if (share.userId !== userId) throw new RpcException('Unauthorized');
 
+    const oldAudience = share.audience;
     Object.assign(share, dto);
     const updatedShare = await this.shareRepo.save(share);
 
-    await this.shareCache.removeCachedShare(shareId);
+    await this.shareCache.removeCache(shareId);
+
+    // 🧮 Nếu audience thay đổi, cập nhật thống kê
+    if (oldAudience !== updatedShare.audience && share.postId) {
+      const delta =
+        updatedShare.audience === Audience.PUBLIC
+          ? +1
+          : oldAudience === Audience.PUBLIC
+            ? -1
+            : 0;
+
+      if (delta !== 0) {
+        await this.updateStatsForPost(
+          this.shareRepo.manager,
+          share.postId,
+          delta
+        );
+        await this.statsBuffer.updateStat(
+          TargetType.POST,
+          share.postId,
+          StatsEventType.SHARE,
+          delta
+        );
+      }
+    }
 
     // 🔹 Outbox event for feed update
     await this.shareRepo.manager.save(
       this.shareRepo.manager.create(OutboxEvent, {
         topic: EventTopic.SHARE,
+        destination: EventDestination.KAFKA,
         eventType: ShareEventType.UPDATED,
         payload: { shareId, content: dto.content },
       })
@@ -121,7 +182,7 @@ export class ShareCommandService {
   /**
    * ❌ Remove a share and update post stats.
    */
-  async remove(userId: string, shareId: string) {
+  async remove(userId: string, shareId: string): Promise<boolean> {
     return await this.shareRepo.manager.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
@@ -154,8 +215,8 @@ export class ShareCommandService {
 
       await manager.delete(Share, { id: shareId });
 
-      // 🔹 Update DB + Redis stat cho post gốc
-      if (share.postId) {
+      // 🔹 Update DB + Redis stat cho post gốc (chỉ nếu share công khai)
+      if (share.postId && share.audience === Audience.PUBLIC) {
         await this.updateStatsForPost(manager, share.postId, -1);
         await this.statsBuffer.updateStat(
           TargetType.POST,
@@ -165,16 +226,17 @@ export class ShareCommandService {
         );
       }
 
-      await this.shareCache.removeCachedShare(shareId);
+      await this.shareCache.removeCache(shareId);
 
       const outbox = manager.create(OutboxEvent, {
         topic: EventTopic.SHARE,
+        destination: EventDestination.KAFKA,
         eventType: ShareEventType.REMOVED,
         payload: { shareId },
       });
       await manager.save(outbox);
 
-      return { success: true };
+      return true;
     });
   }
 

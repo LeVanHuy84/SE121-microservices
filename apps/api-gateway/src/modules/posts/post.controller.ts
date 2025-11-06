@@ -30,8 +30,11 @@ export class PostController {
   }
 
   @Get('post/:id')
-  findById(@Param('id') postId: string) {
-    return this.client.send('find_post_by_id', postId);
+  findById(
+    @Param('id') postId: string,
+    @CurrentUserId() currentUserId: string
+  ) {
+    return this.client.send('find_post_by_id', { currentUserId, postId });
   }
 
   @Get('user/:id')

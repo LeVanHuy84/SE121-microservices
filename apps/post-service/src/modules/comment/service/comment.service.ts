@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   CommentResponseDTO,
   CreateCommentDTO,
+  EventDestination,
   RootType,
   StatsEventType,
   TargetType,
@@ -15,24 +15,30 @@ import { Comment } from 'src/entities/comment.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Reaction } from 'src/entities/reaction.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { CommentCacheService } from './comment-cache.service';
 import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
+import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
+import { OutboxEvent } from 'src/entities/outbox.entity';
+import { UserClientService } from 'src/modules/client/user/user-client.service';
 
 @Injectable()
 export class CommentService {
   constructor(
-    @InjectRepository(Comment) private commentRepo: Repository<Comment>,
     private readonly dataSource: DataSource,
     private readonly commentCache: CommentCacheService,
-    private readonly statsBuffer: StatsBufferService
+    private readonly statsBuffer: StatsBufferService,
+    private readonly recentActivityBuffer: RecentActivityBufferService,
+    private readonly userClient: UserClientService
   ) {}
 
   async create(
     userId: string,
     dto: CreateCommentDTO
   ): Promise<CommentResponseDTO> {
-    return this.dataSource.transaction(async (manager) => {
+    // 🧩 Transaction đảm bảo toàn vẹn dữ liệu
+    const savedComment = await this.dataSource.transaction(async (manager) => {
+      // ✅ 1. Tạo comment & stat
       const comment = manager.create(Comment, {
         ...dto,
         userId,
@@ -41,7 +47,8 @@ export class CommentService {
 
       const entity = await manager.save(comment);
 
-      await this.updateStatsForComment(
+      // ✅ 2. Cập nhật thống kê comment gốc (Post/Share + parent)
+      const updateStatsPromise = this.updateStatsForComment(
         manager,
         dto.rootType,
         dto.rootId,
@@ -49,16 +56,45 @@ export class CommentService {
         +1
       );
 
-      await this.statsBuffer.updateStat(
+      // ✅ 3. Nếu là reply → chuẩn bị outbox event cho thông báo
+      let outboxPromise: Promise<any> | null = null;
+      if (dto.parentId) {
+        outboxPromise = this.createReplyNotificationEvent(
+          manager,
+          entity,
+          dto.parentId
+        );
+      }
+
+      // ✅ 4. Chạy song song các tác vụ không phụ thuộc
+      await Promise.all([updateStatsPromise, outboxPromise].filter(Boolean));
+
+      return entity;
+    });
+
+    // 🧠 5. Các thao tác async nhẹ sau transaction (không cần rollback)
+    this.recentActivityBuffer
+      .addRecentActivity({
+        actorId: userId,
+        type: 'comment',
+        targetId: dto.rootId,
+        targetType:
+          dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
+      })
+      .catch(console.error);
+
+    this.statsBuffer
+      .updateStat(
         dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
         dto.rootId,
         StatsEventType.COMMENT,
         +1
-      );
+      )
+      .catch(console.error);
 
-      return plainToInstance(CommentResponseDTO, entity, {
-        excludeExtraneousValues: true,
-      });
+    // ✅ 6. Trả kết quả
+    return plainToInstance(CommentResponseDTO, savedComment, {
+      excludeExtraneousValues: true,
     });
   }
 
@@ -67,38 +103,51 @@ export class CommentService {
     commentId: string,
     dto: UpdateCommentDTO
   ): Promise<CommentResponseDTO> {
-    const comment = await this.commentRepo.findOne({
-      where: { id: commentId },
-    });
-    if (!comment) {
-      throw new RpcException(`Comment with id ${commentId} not found`);
-    }
+    return await this.dataSource.transaction(async (manager) => {
+      const commentRepo = manager.getRepository(Comment);
 
-    if (comment.userId !== userId) {
-      throw new RpcException('You are not allowed to update this comment');
-    }
+      // 1️⃣ Tìm comment
+      const comment = await commentRepo.findOne({ where: { id: commentId } });
+      if (!comment) {
+        throw new RpcException(`Comment with id ${commentId} not found`);
+      }
 
-    comment.content = dto.content;
-    await this.commentRepo.save(comment);
+      // 2️⃣ Kiểm tra quyền
+      if (comment.userId !== userId) {
+        throw new RpcException('You are not allowed to update this comment');
+      }
 
-    // 🧹 Xoá cache liên quan
-    await this.commentCache.invalidateComment(comment.rootId, comment.parentId);
+      // 3️⃣ Cập nhật nội dung
+      comment.content = dto.content;
+      await commentRepo.save(comment);
 
-    return plainToInstance(CommentResponseDTO, comment, {
-      excludeExtraneousValues: true,
+      // 4️⃣ Xoá cache (sau transaction)
+      await this.commentCache.invalidateComment(
+        comment.rootId,
+        comment.parentId
+      );
+
+      // 5️⃣ Trả về DTO
+      return plainToInstance(CommentResponseDTO, comment, {
+        excludeExtraneousValues: true,
+      });
     });
   }
 
-  async remove(id: string) {
+  async remove(userId: string, commentId: string) {
     return this.dataSource.transaction(async (manager) => {
-      const comment = await manager.findOne(Comment, { where: { id } });
+      const comment = await manager.findOne(Comment, {
+        where: { id: commentId },
+      });
       if (!comment) {
-        throw new RpcException(`Comment with id ${id} not found`);
+        throw new RpcException(`Comment with id ${commentId} not found`);
+      } else if (comment.userId !== userId) {
+        throw new RpcException('You are not allowed to delete this comment');
       }
 
       await manager.delete(Reaction, {
         targetType: TargetType.COMMENT,
-        targetId: id,
+        targetId: commentId,
       });
 
       await manager.remove(comment);
@@ -124,7 +173,7 @@ export class CommentService {
         comment.parentId
       );
 
-      return { message: 'Comment deleted successfully' };
+      return true;
     });
   }
 
@@ -173,5 +222,44 @@ export class CommentService {
       default:
         break;
     }
+  }
+
+  /**
+   * Tạo outbox event cho reply comment.
+   * (Tách riêng cho gọn và dễ test)
+   */
+  private async createReplyNotificationEvent(
+    manager: EntityManager,
+    entity: Comment,
+    parentId: string
+  ): Promise<OutboxEvent> {
+    const [actor, parentComment] = await Promise.all([
+      this.userClient.getUserInfo(entity.userId),
+      manager.findOne(Comment, { select: ['userId'], where: { id: parentId } }),
+    ]);
+
+    if (!parentComment?.userId) throw new Error('Parent comment not found');
+
+    const outbox = manager.create(OutboxEvent, {
+      topic: 'notification',
+      eventType: 'reply_comment',
+      destination: EventDestination.RABBITMQ,
+      payload: {
+        userId: parentComment.userId,
+        actorId: actor?.id,
+        actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+        actorAvatar: actor?.avatarUrl,
+        targetType:
+          entity.rootType === RootType.POST
+            ? TargetType.POST
+            : TargetType.SHARE,
+        targetId: entity.rootId,
+        commentText: entity.content.slice(0, 100),
+        commentId: entity.id,
+        parentId,
+      },
+    });
+
+    return manager.save(outbox);
   }
 }
