@@ -29,10 +29,12 @@ export class IngestionPostService {
   ) {}
 
   // ------------------------------------------------
-  // 🧩 HANDLE CREATED
+  // 🧩 HANDLE CREATED (đã fix hiển thị trending ngay)
   // ------------------------------------------------
   async handleCreated(payload: InferPostPayload<PostEventType.CREATED>) {
     if (!payload.postId) return;
+
+    // Không tạo trùng
     const exists = await this.postModel.findOne({ postId: payload.postId });
     if (exists) return;
 
@@ -40,15 +42,25 @@ export class IngestionPostService {
 
     console.log('IngestionPostService handleCreated', payload);
 
+    // Tạo snapshot trong Mongo
     const entity = await this.postModel.create({
       ...payload,
       postCreatedAt: createdAt,
     });
 
+    // ------------------------------
+    // 🧠 Ghi meta key
+    // ------------------------------
     const metaKey = `post:meta:${payload.postId}`;
-    await this.redis.hset(metaKey, 'createdAt', createdAt.getTime());
+    await this.redis.hset(metaKey, {
+      createdAt: createdAt.getTime(),
+      lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
+    });
     await this.redis.expire(metaKey, this.META_TTL_SECONDS);
 
+    // ------------------------------
+    // 📢 Phân phối bài mới tới feed
+    // ------------------------------
     await this.distributionService.distributeCreated(
       FeedEventType.POST,
       entity._id.toString(),
@@ -56,10 +68,11 @@ export class IngestionPostService {
       entity.userId,
     );
 
-    // Điểm khởi tạo ban đầu cho bài mới
-    const INITIAL_TRENDING_SCORE = 8; // ~ tương đương 2 comment hoặc 1 share
+    // ------------------------------
+    // 🔥 Ghi điểm khởi tạo trending
+    // ------------------------------
+    const INITIAL_TRENDING_SCORE = 8;
     await this.redis.zadd('post:score', INITIAL_TRENDING_SCORE, payload.postId);
-    await this.redis.expire('post:score', this.SCORE_TTL_SECONDS);
   }
 
   // ------------------------------------------------

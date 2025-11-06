@@ -37,4 +37,27 @@ export class ShareShortenMapper {
       shareStat: share.shareStat,
     };
   }
+
+  static toShareSnapshotEvent(
+    share: Share,
+    reactedType?: ReactionType
+  ): ShareSnapshotDTO {
+    return {
+      shareId: share.id,
+      userId: share.userId,
+      audience: share.audience,
+      content: share.content,
+      post: {
+        postId: share.post.id,
+        userId: share.post.userId,
+        groupId: share.post.groupId,
+        content: share.post.content,
+        mediaPreviews: share.post.media?.slice(0, 5),
+        mediaRemaining: Math.max(0, (share.post.media?.length ?? 0) - 5),
+        createdAt: share.post.createdAt,
+      },
+      createdAt: share.createdAt,
+      reactedType: reactedType,
+    };
+  }
 }

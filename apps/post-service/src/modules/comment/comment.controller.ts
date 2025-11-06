@@ -49,7 +49,7 @@ export class CommentController {
   }
 
   @MessagePattern('remove_comment')
-  remove(@Payload() id: string) {
-    return this.commentService.remove(id);
+  remove(@Payload() payload: { userId: string; commentId: string }) {
+    return this.commentService.remove(payload.userId, payload.commentId);
   }
 }
