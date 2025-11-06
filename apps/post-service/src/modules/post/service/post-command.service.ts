@@ -107,6 +107,7 @@ export class PostCommandService {
             })
           : manager.create(OutboxEvent, {
               topic: EventTopic.POST,
+              destination: EventDestination.KAFKA,
               eventType: PostEventType.UPDATED,
               payload: { postId, content: dto.content },
             });

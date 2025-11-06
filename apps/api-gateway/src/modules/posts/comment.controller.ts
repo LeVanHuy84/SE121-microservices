@@ -56,7 +56,7 @@ export class CommentController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.client.send('remove_comment', id);
+  remove(@CurrentUserId() userId: string, @Param('id') commentId: string) {
+    return this.client.send('remove_comment', { userId, commentId });
   }
 }

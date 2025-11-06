@@ -47,7 +47,6 @@ export class ShareCommandService {
     const savedShare = await this.shareRepo.manager.transaction(
       async (manager) => {
         const post = await manager.findOne(Post, {
-          select: ['id', 'audience'],
           where: { id: dto.postId },
         });
 
@@ -83,7 +82,7 @@ export class ShareCommandService {
 
         if (saved.audience !== Audience.ONLY_ME) {
           // Gửi event outbox cho hệ thống khác (Feed / Kafka)
-          const snapshot = ShareShortenMapper.toShareSnapshotDTO(saved);
+          const snapshot = ShareShortenMapper.toShareSnapshotEvent(saved);
           const outbox = manager.create(OutboxEvent, {
             topic: EventTopic.SHARE,
             destination: EventDestination.KAFKA,

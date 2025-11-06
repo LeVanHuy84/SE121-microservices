@@ -8,7 +8,13 @@ import {
   Delete,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import {
+  Ctx,
+  EventPattern,
+  MessagePattern,
+  Payload,
+  RmqContext,
+} from '@nestjs/microservices';
 import { PaginationDTO } from '@repo/dtos';
 
 @Controller('notification')
@@ -16,8 +22,18 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('create_notification')
-  create(@Payload() data: { createNotificationDto: any }) {
-    return this.notificationService.create(data.createNotificationDto);
+  async handleNotification(@Payload() data: any, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.notificationService.create(data.createNotificationDto);
+      console.log('✅ Done processing — should ACK now');
+      channel.ack(originalMsg); // <-- phải nằm ở đây
+    } catch (err) {
+      console.error('❌ Error processing message:', err);
+      channel.nack(originalMsg, false, false); // bỏ hoặc requeue tùy ý
+    }
   }
 
   @MessagePattern('get_notifications')
