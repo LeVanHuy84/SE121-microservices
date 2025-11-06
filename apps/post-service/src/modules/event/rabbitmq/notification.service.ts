@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { CreateNotificationDto } from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
 
 export type NotificationSample = {
@@ -15,18 +16,21 @@ export class NotificationService {
   }
 
   async sendNotification(dto: NotificationSample) {
-    const message = {
-      createNotificationDto: {
-        requestId: dto.id,
-        userId: dto.payload?.userId,
-        type: dto.eventType,
-        payload: dto.payload,
-        meta: {
-          priority: 1,
-          maxRetries: 3,
-        },
+    const createNotificationDto: CreateNotificationDto = {
+      requestId: dto.id,
+      userId: dto.payload?.userId,
+      type: dto.eventType,
+      payload: dto.payload,
+      sendAt: new Date(),
+      meta: {
+        priority: 1,
+        maxRetries: 3,
       },
-      timestamp: new Date().toISOString(),
+    };
+
+    const message = {
+      createNotificationDto,
+      origin: 'post-service',
     };
 
     await lastValueFrom(this.client.emit('create_notification', message));

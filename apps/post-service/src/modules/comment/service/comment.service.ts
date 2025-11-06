@@ -134,16 +134,20 @@ export class CommentService {
     });
   }
 
-  async remove(id: string) {
+  async remove(userId: string, commentId: string) {
     return this.dataSource.transaction(async (manager) => {
-      const comment = await manager.findOne(Comment, { where: { id } });
+      const comment = await manager.findOne(Comment, {
+        where: { id: commentId },
+      });
       if (!comment) {
-        throw new RpcException(`Comment with id ${id} not found`);
+        throw new RpcException(`Comment with id ${commentId} not found`);
+      } else if (comment.userId !== userId) {
+        throw new RpcException('You are not allowed to delete this comment');
       }
 
       await manager.delete(Reaction, {
         targetType: TargetType.COMMENT,
-        targetId: id,
+        targetId: commentId,
       });
 
       await manager.remove(comment);
@@ -169,7 +173,7 @@ export class CommentService {
         comment.parentId
       );
 
-      return { message: 'Comment deleted successfully' };
+      return true;
     });
   }
 

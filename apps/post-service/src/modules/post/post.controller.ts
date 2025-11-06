@@ -69,6 +69,6 @@ export class PostController {
   async remove(
     @Payload() payload: { id: string; userId: string }
   ): Promise<boolean> {
-    return this.postCommand.remove(payload.id, payload.userId);
+    return this.postCommand.remove(payload.userId, payload.id);
   }
 }
