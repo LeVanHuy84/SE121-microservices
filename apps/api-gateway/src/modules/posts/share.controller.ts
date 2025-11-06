@@ -36,12 +36,15 @@ export class ShareController {
     @Param('id') shareId: string,
     @Body() dto: UpdateShareDTO
   ) {
-    this.client.send('update_share_post', { userId, shareId, dto });
+    return this.client.send('update_share_post', { userId, shareId, dto });
   }
 
   @Get('share/:id')
-  findById(@Param('id') id: string) {
-    return this.client.send('find_share_by_id', id);
+  findById(@Param('id') id: string, @CurrentUserId() currentUserId: string) {
+    return this.client.send('find_share_by_id', {
+      userId: currentUserId,
+      shareId: id,
+    });
   }
 
   @Get('me')
