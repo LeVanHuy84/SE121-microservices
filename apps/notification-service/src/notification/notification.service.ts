@@ -153,7 +153,7 @@ export class NotificationService {
         'x-max-retries': doc.meta?.maxRetries ?? maxRetries,
       };
       await this.rabbitChannel.publish(
-        'notification_exchange',
+        'notification', // đổi từ notification_exchange thành 'notification'
         routingKey,
         Buffer.from(JSON.stringify(basePayload)),
         {
