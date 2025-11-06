@@ -1,22 +1,41 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { PostService } from './post.service';
-import { CreatePostDTO, GetPostQueryDTO } from '@repo/dtos';
+import {
+  CreatePostDTO,
+  CursorPageResponse,
+  GetPostQueryDTO,
+  PostResponseDTO,
+  PostSnapshotDTO,
+} from '@repo/dtos';
+import { PostQueryService } from './service/post-query.service';
+import { PostCommandService } from './service/post-command.service';
 
 @Controller('posts')
 export class PostController {
-  constructor(private postService: PostService) {}
+  constructor(
+    private postQuery: PostQueryService,
+    private postCommand: PostCommandService
+  ) {}
 
   @MessagePattern('create_post')
   async create(
     @Payload() payload: { userId: string; createPostDTO: CreatePostDTO }
-  ) {
-    return this.postService.create(payload.userId, payload.createPostDTO);
+  ): Promise<PostSnapshotDTO> {
+    return this.postCommand.create(payload.userId, payload.createPostDTO);
   }
 
   @MessagePattern('find_post_by_id')
-  async findById(@Payload() postId: string) {
-    return this.postService.findById(postId);
+  async findById(
+    @Payload() payload: { currentUserId: string; postId: string }
+  ): Promise<PostResponseDTO> {
+    return this.postQuery.findById(payload.currentUserId, payload.postId);
+  }
+
+  @MessagePattern('get_my_posts')
+  async getMyPosts(
+    @Payload() payload: { currentUserId: string; query: GetPostQueryDTO }
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    return this.postQuery.getMyPosts(payload.currentUserId, payload.query);
   }
 
   @MessagePattern('find_posts_by_user_id')
@@ -27,19 +46,19 @@ export class PostController {
       pagination: GetPostQueryDTO;
       currentUserId: string;
     }
-  ) {
-    return this.postService.findByUserId(
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    return this.postQuery.getUserPosts(
       payload.userId,
-      payload.pagination,
-      payload.currentUserId
+      payload.currentUserId,
+      payload.pagination
     );
   }
 
   @MessagePattern('update_post')
   async updatePost(
     @Payload() payload: { userId: string; postId: string; updatePostDTO: any }
-  ) {
-    return this.postService.update(
+  ): Promise<PostSnapshotDTO> {
+    return this.postCommand.update(
       payload.userId,
       payload.postId,
       payload.updatePostDTO
@@ -47,7 +66,9 @@ export class PostController {
   }
 
   @MessagePattern('remove_post')
-  async remove(@Payload() payload: { id: string; userId: string }) {
-    return this.postService.remove(payload.id, payload.userId);
+  async remove(
+    @Payload() payload: { id: string; userId: string }
+  ): Promise<boolean> {
+    return this.postCommand.remove(payload.userId, payload.id);
   }
 }

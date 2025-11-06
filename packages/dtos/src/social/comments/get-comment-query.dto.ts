@@ -1,12 +1,17 @@
-import { IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID, ValidateIf } from 'class-validator';
 import { PaginationDTO } from '../../pagination/pagination.dto';
+import { RootType } from '../enums/social.enum';
 
 export class GetCommentQueryDTO extends PaginationDTO {
-  @IsOptional()
+  @ValidateIf((o) => !o.parentId) // chỉ cần rootId khi không có parentId
   @IsUUID()
-  postId?: string;
+  rootId?: string;
 
-  @IsOptional()
+  @ValidateIf((o) => !o.parentId) // rootType bắt buộc khi query root
+  @IsEnum(RootType)
+  rootType?: RootType;
+
+  @ValidateIf((o) => !o.rootId && !o.rootType) // parentId chỉ khi không có root
   @IsUUID()
-  replyId?: string;
+  parentId?: string;
 }

@@ -5,9 +5,9 @@ import {
   Length,
   ValidateNested,
 } from 'class-validator';
-import { Audience, Feeling } from '../enums/social.enum';
+import { Audience, Emotion } from '../enums/social.enum';
 import { Type } from 'class-transformer';
-import { MediaDTO } from '../common/media.dto';
+import { MediaItemDTO } from '../../common';
 
 export class CreatePostDTO {
   @IsOptional()
@@ -15,8 +15,8 @@ export class CreatePostDTO {
   groupId?: string; // NULL = cá nhân, NOT NULL = group
 
   @IsOptional()
-  @IsEnum(Feeling)
-  feeling: Feeling;
+  @IsEnum(Emotion)
+  feeling: Emotion;
 
   @IsString()
   @Length(1, 10000)
@@ -24,8 +24,8 @@ export class CreatePostDTO {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => MediaDTO)
-  media?: MediaDTO;
+  @Type(() => MediaItemDTO)
+  media?: MediaItemDTO[];
 
   @IsOptional()
   @IsEnum(Audience)

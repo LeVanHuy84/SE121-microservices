@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Share } from './share.entity';
 import { EditHistory } from './edit-history.entity';
-import { Audience, Feeling, MediaDTO, PostStatus } from '@repo/dtos';
+import { Audience, Emotion, MediaItemDTO } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
 
 @Entity('posts')
@@ -19,26 +19,26 @@ export class Post {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id', nullable: false })
+  @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
 
   @Column('uuid', { name: 'group_id', nullable: true })
   groupId: string;
 
-  @Column('smallint', { nullable: true })
-  feeling: Feeling;
+  @Column({ type: 'enum', enum: Emotion, nullable: true })
+  feeling: Emotion;
 
   @Column({ type: 'varchar', length: 10000 })
   content: string;
 
   @Column('jsonb', { nullable: true })
-  media: MediaDTO;
+  media: MediaItemDTO[];
 
-  @Column('smallint', { default: Audience.PUBLIC })
+  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
   audience: Audience;
 
-  @Column('smallint', { default: PostStatus.ACTIVE })
-  status: PostStatus;
+  @Column({ type: 'enum', enum: Emotion, nullable: true })
+  mainEmotion: Emotion;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

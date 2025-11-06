@@ -1,7 +1,7 @@
-import { IsEnum, IsString, IsUUID, Length } from 'class-validator';
+import { IsEnum, IsString, IsUUID } from 'class-validator';
 import { TargetType } from '../enums/social.enum';
 
-export class ReactDTO {
+export class ReportDTO {
   @IsUUID()
   targetId: string;
 

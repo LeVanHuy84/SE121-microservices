@@ -5,13 +5,29 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Share } from 'src/entities/share.entity';
 import { EditHistory } from 'src/entities/edit-history.entity';
 import { Report } from 'src/entities/report.entity';
-import { PostService } from './post.service';
+import { PostQueryService } from './service/post-query.service';
 import { PostStat } from 'src/entities/post-stat.entity';
+import { PostCommandService } from './service/post-command.service';
+import { Reaction } from 'src/entities/reaction.entity';
+import { OutboxEvent } from 'src/entities/outbox.entity';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { PostCacheService } from './service/post-cache.service';
+import { SocialClientModule } from '../client/social/social-client.module';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, Share, EditHistory, Report, PostStat]),
+    TypeOrmModule.forFeature([
+      Post,
+      Share,
+      EditHistory,
+      Report,
+      PostStat,
+      Reaction,
+      OutboxEvent,
+    ]),
+    SocialClientModule,
   ],
   controllers: [PostController],
-  providers: [PostService],
+  providers: [PostQueryService, PostCommandService, PostCacheService],
 })
 export class PostModule {}

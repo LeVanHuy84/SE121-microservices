@@ -11,6 +11,7 @@ import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { RabbitmqModule } from '@repo/common';
+import { FeedModule } from './modules/feed/feed.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 
@@ -25,11 +26,12 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     UserModule,
     SocialModule,
     MediaModule,
+    FeedModule,
     ThrottlerModule.forRoot({
       throttlers: [
         {
           ttl: 60000,
-          limit: 3,
+          limit: 50,
         },
       ],
     }),
