@@ -8,7 +8,7 @@ import {
   CallHandler,
 } from '@nestjs/common';
 import { Neo4jService } from './neo4j.service';
-import { Observable } from 'rxjs';
+import { from, Observable } from 'rxjs';
 import { Transaction } from 'neo4j-driver';
 import { catchError, mergeMap } from 'rxjs/operators';
 
@@ -18,20 +18,21 @@ export class Neo4jTransactionInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const rpcContext = context.switchToRpc();
-    const transaction: Transaction = this.neo4jService.beginTransaction();
+    const payload = rpcContext.getData(); // chính là payload
+    const transaction = this.neo4jService.beginTransaction();
 
-    const data = rpcContext.getContext() || {};
-    data.transaction = transaction;
+    // gắn transaction vào payload
+    payload.transaction = transaction;
 
     return next.handle().pipe(
-      mergeMap(async (result) => {
-        await transaction.commit();
-        return result;
-      }),
-      catchError(async (err) => {
-        await transaction.rollback();
-        throw err;
-      }),
+      mergeMap((result) => from(transaction.commit().then(() => result))),
+      catchError((err) =>
+        from(
+          transaction.rollback().then(() => {
+            throw err;
+          }),
+        ),
+      ),
     );
   }
 }

@@ -25,7 +25,7 @@ export class Neo4jModule {
         },
         Neo4jService,
       ],
-      exports: [Neo4jService, Neo4jTransactionInterceptor],
+      exports: [Neo4jService,],
     };
   }
 

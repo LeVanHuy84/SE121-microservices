@@ -15,7 +15,6 @@ async function bootstrap() {
       },
     },
   );
-  tcpApp.useGlobalPipes(new ValidationPipe());
   tcpApp.useGlobalInterceptors(new Neo4jTypeInterceptor());
   tcpApp.useGlobalFilters(new ExceptionsFilter());
 
@@ -29,6 +28,7 @@ async function bootstrap() {
       },
     },
   );
+  redisApp.useGlobalFilters(new ExceptionsFilter());
   await Promise.all([tcpApp.listen(), redisApp.listen()]);
 
   console.log('Social service is running on port 4006');
