@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { MediaItemDTO, PostSnapshotDTO, ShareSnapshotDTO } from '@repo/dtos';
+import {
+  Audience,
+  MediaItemDTO,
+  PostSnapshotDTO,
+  ReactionType,
+  ShareSnapshotDTO,
+} from '@repo/dtos';
 import {
   MediaPreview,
   PostSnapshot,
@@ -8,15 +14,19 @@ import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 
 @Injectable()
 export class SnapshotMapper {
-  static toPostSnapshotDTOs(posts: PostSnapshot[]): PostSnapshotDTO[] {
-    const result: PostSnapshotDTO[] = new Array(posts.length);
-    for (let i = 0; i < posts.length; i++) {
-      result[i] = this.toPostSnapshotDTO(posts[i]);
-    }
-    return result;
+  static toPostSnapshotDTOs(
+    posts: PostSnapshot[],
+    record?: Record<string, ReactionType>,
+  ): PostSnapshotDTO[] {
+    return posts.map((post) =>
+      this.toPostSnapshotDTO(post, record?.[post.postId]),
+    );
   }
 
-  static toPostSnapshotDTO(post: PostSnapshot): PostSnapshotDTO {
+  static toPostSnapshotDTO(
+    post: PostSnapshot,
+    reactedType?: ReactionType,
+  ): PostSnapshotDTO {
     return {
       postId: post.postId,
       userId: post.userId,
@@ -28,26 +38,33 @@ export class SnapshotMapper {
       mainEmotion: post.mainEmotion,
       createdAt: post.postCreatedAt,
       postStat: post.stats,
+      reactedType: reactedType,
     };
   }
 
-  static toShareSnapshotDTOs(shares: ShareSnapshot[]): ShareSnapshotDTO[] {
-    const result: ShareSnapshotDTO[] = new Array(shares.length);
-    for (let i = 0; i < shares.length; i++) {
-      result[i] = this.toShareSnapshotDTO(shares[i]);
-    }
-    return result;
+  static toShareSnapshotDTOs(
+    shares: ShareSnapshot[],
+    reactedMap?: Record<string, ReactionType>,
+  ): ShareSnapshotDTO[] {
+    return shares.map((share) =>
+      this.toShareSnapshotDTO(share, reactedMap?.[share.shareId]),
+    );
   }
 
-  static toShareSnapshotDTO(share: ShareSnapshot): ShareSnapshotDTO {
+  static toShareSnapshotDTO(
+    share: ShareSnapshot,
+    reactedType?: ReactionType,
+  ): ShareSnapshotDTO {
     return {
       shareId: share.shareId,
       userId: share.userId,
       content: share.content,
+      audience: share.audience ? share.audience : Audience.PUBLIC,
       post: {
         postId: share.post.postId,
         userId: share.post.userId,
         groupId: share.post.groupId,
+        audience: Audience.PUBLIC,
         content: share.post.content,
         mediaPreviews: this.toMediaItemDTOs(share.post.mediaPreviews),
         mediaRemaining: share.post.mediaRemaining,
@@ -56,6 +73,7 @@ export class SnapshotMapper {
       },
       createdAt: share.shareCreatedAt,
       shareStat: share.stats,
+      reactedType: reactedType,
     };
   }
 

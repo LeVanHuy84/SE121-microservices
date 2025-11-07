@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { MediaPreview } from './post-snapshot.schema';
-import { Emotion } from '@repo/dtos';
+import { Audience, Emotion } from '@repo/dtos';
 
 @Schema({ _id: false })
 export class PostSnapshotEmbedded {
@@ -51,6 +51,9 @@ export class ShareSnapshot {
 
   @Prop({ required: true })
   userId: string;
+
+  @Prop()
+  audience?: Audience;
 
   @Prop({ type: PostSnapshotEmbedded })
   post: PostSnapshotEmbedded;
