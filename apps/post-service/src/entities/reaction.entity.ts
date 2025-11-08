@@ -27,6 +27,10 @@ export class Reaction {
   @Column({ name: 'reaction_type', type: 'enum', enum: ReactionType })
   reactionType: ReactionType;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 }

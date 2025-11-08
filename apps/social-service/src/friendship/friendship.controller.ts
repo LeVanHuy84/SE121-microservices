@@ -1,13 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Controller, Inject, UseInterceptors } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { Transaction } from 'neo4j-driver';
 import { firstValueFrom } from 'rxjs';
 import { Neo4jTransactionInterceptor } from 'src/neo4j/neo4j-transaction.interceptor';
 import { FriendshipService } from './friendship.service';
+import { CursorPaginationDTO } from '@repo/dtos';
 
 @Controller()
 export class FriendshipController {
@@ -39,9 +36,25 @@ export class FriendshipController {
       data.targetId,
     );
   }
+  @UseInterceptors(Neo4jTransactionInterceptor)
+  @MessagePattern('cancel_friend_request')
+  async cancelFriendRequest(
+    @Payload()
+    data: {
+      userId: string;
+      targetId: string;
+      transaction: Transaction;
+    },
+  ) {
+    return this.friendshipService.cancelFriendRequest(
+      data.transaction,
+      data.userId,
+      data.targetId,
+    );
+  }
 
   @UseInterceptors(Neo4jTransactionInterceptor)
-  @MessagePattern({ cmd: 'accept_friend_request' })
+  @MessagePattern('accept_friend_request')
   async acceptFriendRequest(
     @Payload()
     data: {
@@ -57,60 +70,63 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern({ cmd: 'remove_friend' })
+  @UseInterceptors(Neo4jTransactionInterceptor)
+  @MessagePattern('decline_friend_request')
+  async declineFriendRequest(
+    @Payload()
+    data: {
+      userId: string;
+      requesterId: string;
+      transaction: Transaction;
+    },
+  ) {
+    return this.friendshipService.declineFriendRequest(
+      data.transaction,
+      data.userId,
+      data.requesterId,
+    );
+  }
+
+  @UseInterceptors(Neo4jTransactionInterceptor)
+  @MessagePattern('remove_friend')
   async removeFriend(
     @Payload()
     data: {
       userId: string;
       friendId: string;
+      transaction: Transaction;
     },
   ) {
-    return this.friendshipService.removeFriend(data.userId, data.friendId);
-  }
-
-  @MessagePattern({ cmd: 'get_friends' })
-  async getFriends(@Payload() data: { userId: string }) {
-    const friendIds = await this.friendshipService.getFriends(data.userId);
-    if (!friendIds.length) {
-      return { friends: [] };
-    }
-
-    // gọi User Service để lấy profile
-    const friends = await firstValueFrom(
-      this.userRedisClient.send({ cmd: 'getUsersBatch' }, { ids: friendIds }),
-    );
-
-    const ordered = friendIds.map((id) => friends.find((f) => f.id === id));
-
-    return { friends: ordered };
-  }
-  @MessagePattern({ cmd: 'recommend_friends' })
-  async recommendFriends(@Payload() data: { userId: string }) {
-    const recommendations = await this.friendshipService.recommendFriends(
+    return this.friendshipService.removeFriend(
+      data.transaction,
       data.userId,
+      data.friendId,
     );
+  }
 
-    if (!recommendations.length) {
-      return { recommendations: [] };
-    }
+  @MessagePattern('get_friends_request')
+  async getFriendsRequest(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.friendshipService.getFriendRequests(data.userId, data.query);
+  }
 
-    // gọi User Service để lấy profile
-    const users = await firstValueFrom(
-      this.userRedisClient.emit(
-        { cmd: 'getUserBatch' },
-        { ids: recommendations.map((r) => r.id) },
-      ),
-    );
-
-    return recommendations.map((r) => ({
-      ...users.find((u) => u.id === r.id),
-      mutualFriends: r.mutualFriends,
-    }));
+  @MessagePattern('get_friends')
+  async getFriends(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.friendshipService.getFriends(data.userId, data.query);
+  }
+  @MessagePattern('recommend_friends')
+  async recommendFriends(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.friendshipService.recommendFriends(data.userId, data.query);
   }
 
   // ---------- BLOCK ----------
   @UseInterceptors(Neo4jTransactionInterceptor)
-  @MessagePattern({ cmd: 'block_user' })
+  @MessagePattern('block_user')
   async blockUser(
     @Payload()
     data: {
@@ -120,21 +136,26 @@ export class FriendshipController {
     },
   ) {
     return this.friendshipService.blockUser(
+      data.transaction,
       data.userId,
       data.targetId,
-      data.transaction,
     );
   }
 
-  @MessagePattern({ cmd: 'unblock_user' })
+  @MessagePattern('unblock_user')
   async unblockUser(
     @Payload()
     data: {
       userId: string;
       targetId: string;
+      transaction: Transaction;
     },
   ) {
-    return this.friendshipService.unblockUser(data.userId, data.targetId);
+    return this.friendshipService.unblockUser(
+      data.transaction,
+      data.userId,
+      data.targetId,
+    );
   }
 
   @MessagePattern({ cmd: 'get_friend_ids' })

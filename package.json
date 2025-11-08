@@ -31,6 +31,7 @@
     "@nestjs/schedule": "^6.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "dayjs": "^1.11.19",
     "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.8.1",
     "kafkajs": "^2.2.4",

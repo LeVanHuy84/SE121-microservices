@@ -12,16 +12,13 @@ import {
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { Reaction } from 'src/entities/reaction.entity';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ReactionFieldMap } from 'src/constant';
 import { ShareStat } from 'src/entities/share-stat.entity';
 import { StatsBufferService } from '../stats/stats.buffer.service';
-import {
-  RecentActivity,
-  RecentActivityBufferService,
-} from '../event/recent-activity.buffer.service';
+import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 
 @Injectable()
 export class ReactionService {
@@ -182,6 +179,23 @@ export class ReactionService {
         ReactionType[result.buffer.type]
       );
     }
+  }
+
+  // --------------------------------------------------
+  // Get reactedType batch by userId + targetIds
+  // --------------------------------------------------
+  async getReactedTypesBatch(
+    userId: string,
+    targetType: TargetType,
+    targetIds: string[]
+  ): Promise<Record<string, ReactionType>> {
+    if (!targetIds.length) return {};
+    const reactions = await this.reactionRepo.find({
+      where: { userId, targetId: In(targetIds), targetType },
+    });
+    return Object.fromEntries(
+      reactions.map((r) => [r.targetId, r.reactionType])
+    );
   }
 
   // --------------------------------------------------
