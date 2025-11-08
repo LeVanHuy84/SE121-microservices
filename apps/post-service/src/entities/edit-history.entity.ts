@@ -16,7 +16,11 @@ export class EditHistory {
   @Column({ type: 'text', name: 'old_content' })
   oldContent: string;
 
-  @CreateDateColumn({ name: 'edit_at' })
+  @CreateDateColumn({
+    name: 'edit_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   editAt: Date;
 
   @ManyToOne(() => Post, (post) => post.editHistories)

@@ -26,6 +26,10 @@ export class OutboxEvent {
   @Column({ default: false })
   processed: boolean;
 
-  @CreateDateColumn()
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 }

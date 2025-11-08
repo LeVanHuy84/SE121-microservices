@@ -12,8 +12,11 @@ export class FeedController {
   ) {}
 
   @Get('trending')
-  getTrendingFeed(@Query() query: TrendingQuery) {
-    return this.client.send('get_trending', query);
+  getTrendingFeed(
+    @Query() query: TrendingQuery,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('get_trending', { query, userId });
   }
 
   @Get('my_feed')

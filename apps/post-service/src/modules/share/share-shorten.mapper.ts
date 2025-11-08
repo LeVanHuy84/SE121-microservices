@@ -26,6 +26,7 @@ export class ShareShortenMapper {
       post: {
         postId: share.post.id,
         userId: share.post.userId,
+        audience: share.post.audience,
         groupId: share.post.groupId,
         content: share.post.content,
         mediaPreviews: share.post.media?.slice(0, 5),
@@ -51,6 +52,7 @@ export class ShareShortenMapper {
         postId: share.post.id,
         userId: share.post.userId,
         groupId: share.post.groupId,
+        audience: share.post.audience,
         content: share.post.content,
         mediaPreviews: share.post.media?.slice(0, 5),
         mediaRemaining: Math.max(0, (share.post.media?.length ?? 0) - 5),

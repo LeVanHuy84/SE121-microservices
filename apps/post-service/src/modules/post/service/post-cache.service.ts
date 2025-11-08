@@ -9,7 +9,7 @@ import { PostStat } from 'src/entities/post-stat.entity';
 @Injectable()
 export class PostCacheService {
   private readonly POST_TTL = 3600;
-  private readonly POST_STAT_TTL = 60;
+  private readonly POST_STAT_TTL = 3;
   private readonly RELATION_TTL = 300;
 
   constructor(

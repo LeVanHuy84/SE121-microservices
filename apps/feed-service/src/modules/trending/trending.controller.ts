@@ -8,7 +8,12 @@ export class TrendingController {
   constructor(private readonly trendingService: TrendingService) {}
 
   @MessagePattern('get_trending')
-  async getTrending(@Payload() query: TrendingQuery) {
-    return await this.trendingService.getTrendingPosts(query);
+  async getTrending(
+    @Payload() payload: { query: TrendingQuery; userId?: string },
+  ) {
+    return await this.trendingService.getTrendingPosts(
+      payload.query,
+      payload.userId,
+    );
   }
 }

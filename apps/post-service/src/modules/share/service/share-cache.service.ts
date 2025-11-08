@@ -9,7 +9,7 @@ import { In, Repository } from 'typeorm';
 @Injectable()
 export class ShareCacheService {
   private readonly SHARE_TTL = 3600; // 1h
-  private readonly SHARE_STAT_TTL = 60; // 1min
+  private readonly SHARE_STAT_TTL = 3; // 1min
   private readonly RELATION_TTL = 300;
 
   constructor(

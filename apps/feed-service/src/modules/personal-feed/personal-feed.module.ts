@@ -11,6 +11,8 @@ import {
   ShareSnapshot,
   ShareSnapshotSchema,
 } from 'src/mongo/schema/share-snapshot.schema';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -18,6 +20,20 @@ import {
       { name: FeedItem.name, schema: FeedItemSchema },
       { name: PostSnapshot.name, schema: PostSnapshotSchema },
       { name: ShareSnapshot.name, schema: ShareSnapshotSchema },
+    ]),
+    ClientsModule.registerAsync([
+      {
+        name: 'POST_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: config.get<string>('POST_SERVICE_HOST') || 'localhost',
+            port: config.get<number>('POST_SERVICE_PORT'),
+          },
+        }),
+      },
     ]),
   ],
   controllers: [PersonalFeedController],

@@ -26,6 +26,10 @@ export class Report {
   @Column({ type: 'varchar', length: 50, default: 'PENDING' })
   status: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 }

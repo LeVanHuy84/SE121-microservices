@@ -14,7 +14,6 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
-// import { File } from 'web-file-polyfill';
 import { lastValueFrom, Observable } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
@@ -75,19 +74,22 @@ export class UsersController {
     if (files?.avatarUrl?.[0]) {
       const multerFile = files.avatarUrl[0];
 
-      // const clerkFile = new File([multerFile.buffer], multerFile.originalname, {
-      //   type: multerFile.mimetype,
-      // });
+      const clerkFile = new File(
+        [new Uint8Array(multerFile.buffer)],
+        multerFile.originalname,
+        {
+          type: multerFile.mimetype,
+        }
+      );
 
-      // await this.clerkClient.users.updateUserProfileImage(id, {
-      //   file: clerkFile,
-      // });
-      // const url = await this.clerkClient.users
-      //   .getUser(id)
-      //   .then((user) => user.imageUrl);
-       const avatarUrl = await this.clerkClient.users
-         .getUser(id)
-         .then((user) => user.imageUrl);
+      await this.clerkClient.users.updateUserProfileImage(id, {
+        file: clerkFile,
+      });
+
+      const avatarUrl = await this.clerkClient.users
+        .getUser(id)
+        .then((user) => user.imageUrl);
+
       updateUserDto.avatarUrl = avatarUrl;
     }
     if (files?.coverImageUrl?.[0]) {
@@ -96,7 +98,7 @@ export class UsersController {
           file: files.coverImageUrl[0].buffer,
           userId: id,
           folder: 'cover-image',
-          type: 'image'
+          type: 'image',
         })
       );
     }

@@ -17,7 +17,6 @@ import { DistributionService } from './distribution.service';
 @Injectable()
 export class IngestionPostService {
   private readonly META_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 ngày
-  private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
   constructor(
     @InjectModel(PostSnapshot.name)
@@ -57,6 +56,7 @@ export class IngestionPostService {
       lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
     });
     await this.redis.expire(metaKey, this.META_TTL_SECONDS);
+    await this.redis.zadd('post:score', 8, payload.postId);
 
     // ------------------------------
     // 📢 Phân phối bài mới tới feed
@@ -67,12 +67,6 @@ export class IngestionPostService {
       entity.postId,
       entity.userId,
     );
-
-    // ------------------------------
-    // 🔥 Ghi điểm khởi tạo trending
-    // ------------------------------
-    const INITIAL_TRENDING_SCORE = 8;
-    await this.redis.zadd('post:score', INITIAL_TRENDING_SCORE, payload.postId);
   }
 
   // ------------------------------------------------
@@ -102,7 +96,5 @@ export class IngestionPostService {
     if (snapshot) {
       await this.distributionService.distributeRemoved(snapshot.postId);
     }
-
-    await this.redis.del(`post:meta:${payload.postId}`);
   }
 }

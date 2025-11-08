@@ -156,7 +156,13 @@ export class PostQueryService {
 
     let nextCursor: string | null = null;
     if (hasNextPage && posts.length > 0) {
-      nextCursor = posts[posts.length - 1].createdAt.toISOString();
+      const lastPost = posts[posts.length - 1];
+      const createdAt =
+        lastPost.createdAt instanceof Date
+          ? lastPost.createdAt
+          : new Date(lastPost.createdAt);
+
+      nextCursor = createdAt.toISOString();
     }
 
     return new CursorPageResponse(postDTOs, nextCursor, hasNextPage);
