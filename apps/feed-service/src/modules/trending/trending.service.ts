@@ -1,18 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { CursorPageResponse, TrendingQuery, Emotion } from '@repo/dtos';
+import {
+  CursorPageResponse,
+  TrendingQuery,
+  Emotion,
+  ReactionType,
+  TargetType,
+} from '@repo/dtos';
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
 import { SnapshotMapper } from 'src/common/snapshot.mapper';
-import { CacheLayerService } from '../cache-layer/cache-layer.service';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class TrendingService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly snapshotCache: CacheLayerService,
     private readonly snapshotRepo: SnapshotRepository,
+    @Inject('POST_SERVICE') private readonly postClient: ClientProxy, // 👈 thêm dòng này
   ) {}
 
   private getKey(mainEmotion?: Emotion): string {
@@ -25,7 +32,7 @@ export class TrendingService {
    * 🔥 Lấy danh sách bài trending (cursor pagination chuẩn)
    * Cursor = `${rankingScore}_${createdAt}`
    */
-  async getTrendingPosts(query: TrendingQuery) {
+  async getTrendingPosts(query: TrendingQuery, userId?: string) {
     const { cursor, limit = 10, mainEmotion } = query;
     const key = this.getKey(mainEmotion);
 
@@ -40,10 +47,8 @@ export class TrendingService {
     let minScore = '-inf';
 
     if (cursor) {
-      // cursor = "score_createdAt"
       const [scoreStr] = cursor.split('_');
       const score = parseFloat(scoreStr);
-      // Redis hỗ trợ inclusive/exclusive bằng ( )
       maxScore = `(${score}`; // exclude bài cuối cùng của trang trước
     }
 
@@ -64,54 +69,65 @@ export class TrendingService {
     }
 
     // ------------------------------
-    // 3️⃣ Lấy snapshot từ cache hoặc DB
+    // 3️⃣ Lấy snapshot trực tiếp từ DB (bỏ cache)
     // ------------------------------
-    const postCache = await this.snapshotCache.getPostBatch(ids);
-    const missingIds = ids.filter((id) => !postCache.has(id));
-
-    const postsFromDB = missingIds.length
-      ? await this.snapshotRepo.findPostsByIds(missingIds)
+    const postsFromDB = ids.length
+      ? await this.snapshotRepo.findPostsByIds(ids)
       : [];
 
-    // Cache lại snapshot vừa lấy từ DB
-    if (postsFromDB.length) {
-      await this.snapshotCache.setPostBatch(postsFromDB);
-    }
+    const snapshotMap = new Map(postsFromDB.map((p) => [String(p.postId), p]));
 
-    // Gộp cache + DB
-    const allPosts = [...postCache.values(), ...postsFromDB];
-    const snapshotMap = new Map(allPosts.map((p) => [String(p.postId), p]));
-
-    // Giữ đúng thứ tự theo Redis
     const orderedSnapshots = ids
       .map((id) => snapshotMap.get(id))
       .filter((p): p is PostSnapshot => p != null);
 
-    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(orderedSnapshots);
+    // ------------------------------
+    // 4️⃣ Gọi sang POST_SERVICE lấy reaction của user
+    // ------------------------------
+    let reactions: Record<string, ReactionType> = {};
+    if (userId && orderedSnapshots.length) {
+      try {
+        reactions = await firstValueFrom(
+          this.postClient.send<Record<string, ReactionType>>(
+            'get_reacted_types_batch',
+            {
+              userId,
+              targetType: TargetType.POST,
+              targetIds: orderedSnapshots.map((p) => p.postId),
+            },
+          ),
+        );
+      } catch (err) {
+        console.warn('⚠️ Failed to fetch reactions, continuing without them');
+      }
+    }
 
     // ------------------------------
-    // 4️⃣ Tính nextCursor (score_createdAt)
+    // 5️⃣ Map sang DTO kèm reaction
+    // ------------------------------
+    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(
+      orderedSnapshots,
+      reactions,
+    );
+
+    // ------------------------------
+    // 6️⃣ Tính nextCursor
     // ------------------------------
     let nextCursor: string | null = null;
     if (dtoPosts.length === limit) {
       const last = orderedSnapshots[orderedSnapshots.length - 1];
       const meta = await this.redis.hgetall(`post:meta:${last.postId}`);
 
-      // Lấy createdAt từ Redis meta (được lưu khi post được tạo)
-      let createdAt = meta?.createdAt
+      const createdAt = meta?.createdAt
         ? parseInt(meta.createdAt, 10)
         : new Date(last.postCreatedAt ?? Date.now()).getTime();
 
-      // Lấy score hiện tại trong Redis
       const score = await this.redis.zscore(effectiveKey, last.postId);
       if (score) {
         nextCursor = `${score}_${createdAt}`;
       }
     }
 
-    // ------------------------------
-    // 5️⃣ Trả kết quả
-    // ------------------------------
     return new CursorPageResponse(dtoPosts, nextCursor, !!nextCursor);
   }
 }
