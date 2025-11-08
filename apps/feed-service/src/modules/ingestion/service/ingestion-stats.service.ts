@@ -130,13 +130,5 @@ export class StatsIngestionService {
         { $inc: updates },
       );
     }
-
-    const snapshotCacheKey =
-      targetType === TargetType.POST
-        ? `cache:post:${targetId}`
-        : `cache:share:${targetId}`;
-    const pipeline = this.redis.pipeline();
-
-    pipeline.del(snapshotCacheKey);
   }
 }

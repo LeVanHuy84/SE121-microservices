@@ -79,9 +79,6 @@ export class IngestionPostService {
       { postId: payload.postId },
       { $set: { content: payload.content } },
     );
-
-    await this.redis.del(`cache:post:${payload.postId}`);
-    await this.redis.del(`post:${payload.postId}`);
   }
 
   // ------------------------------------------------
@@ -99,22 +96,5 @@ export class IngestionPostService {
     if (snapshot) {
       await this.distributionService.distributeRemoved(snapshot.postId);
     }
-
-    await this.cleanupCacheOnPostRemoved(payload.postId);
-  }
-
-  // ------------------------------------------------
-  // 🧩 HELPER
-  // ------------------------------------------------
-  private async cleanupCacheOnPostRemoved(postId: string) {
-    // 1️⃣ Xoá meta key
-    await this.redis.del(`post:meta:${postId}`);
-
-    // 2️⃣ Xoá cache key nếu có
-    await this.redis.del(`cache:post:${postId}`);
-    await this.redis.del(`post:${postId}`);
-
-    // 3️⃣ Gỡ khỏi ranking/trending
-    await this.redis.zrem('post:score', postId);
   }
 }

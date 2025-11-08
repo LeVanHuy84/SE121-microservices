@@ -6,6 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
   OneToOne,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Post } from './post.entity';
 import { ShareStat } from './share-stat.entity';
@@ -25,8 +26,19 @@ export class Share {
   @Column({ type: 'varchar', length: 2000 })
   content: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'",
+  })
   createdAt: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  updatedAt: Date;
 
   @Column('uuid', { name: 'post_id', nullable: true })
   postId: string;

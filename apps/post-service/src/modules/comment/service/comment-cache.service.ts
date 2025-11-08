@@ -6,8 +6,8 @@ import { Repository, In } from 'typeorm';
 
 @Injectable()
 export class CommentCacheService {
-  private readonly COMMENT_TTL = 300; // 5 phút (comment đơn)
-  private readonly COMMENT_LIST_TTL = 60; // 1 phút (danh sách comment)
+  private readonly COMMENT_TTL = 5; // 5 giây (comment đơn)
+  private readonly COMMENT_LIST_TTL = 5; // 1 phút (danh sách comment)
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 

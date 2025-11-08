@@ -10,7 +10,6 @@ import {
 } from '@repo/dtos';
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
 import { SnapshotMapper } from 'src/common/snapshot.mapper';
-import { CacheLayerService } from '../cache-layer/cache-layer.service';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -19,7 +18,6 @@ import { firstValueFrom } from 'rxjs';
 export class TrendingService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly snapshotCache: CacheLayerService,
     private readonly snapshotRepo: SnapshotRepository,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy, // 👈 thêm dòng này
   ) {}
@@ -71,21 +69,13 @@ export class TrendingService {
     }
 
     // ------------------------------
-    // 3️⃣ Lấy snapshot từ cache hoặc DB
+    // 3️⃣ Lấy snapshot trực tiếp từ DB (bỏ cache)
     // ------------------------------
-    const postCache = await this.snapshotCache.getPostBatch(ids);
-    const missingIds = ids.filter((id) => !postCache.has(id));
-
-    const postsFromDB = missingIds.length
-      ? await this.snapshotRepo.findPostsByIds(missingIds)
+    const postsFromDB = ids.length
+      ? await this.snapshotRepo.findPostsByIds(ids)
       : [];
 
-    if (postsFromDB.length) {
-      await this.snapshotCache.setPostBatch(postsFromDB);
-    }
-
-    const allPosts = [...postCache.values(), ...postsFromDB];
-    const snapshotMap = new Map(allPosts.map((p) => [String(p.postId), p]));
+    const snapshotMap = new Map(postsFromDB.map((p) => [String(p.postId), p]));
 
     const orderedSnapshots = ids
       .map((id) => snapshotMap.get(id))

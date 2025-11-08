@@ -11,7 +11,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { SnapshotMapper } from '../../common/snapshot.mapper';
-import { CacheLayerService } from '../cache-layer/cache-layer.service';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
 import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
@@ -23,14 +22,9 @@ export class PersonalFeedService {
   constructor(
     @InjectModel(FeedItem.name)
     private readonly feedItemModel: Model<FeedItemDocument>,
-    private readonly snapshotCache: CacheLayerService,
     private readonly snapshotRepo: SnapshotRepository,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
   ) {}
-
-  // ========================================================
-  // Public API
-  // ========================================================
 
   async getUserFeed(
     userId: string,
@@ -144,36 +138,19 @@ export class PersonalFeedService {
       .filter((f) => f.eventType === FeedEventType.SHARE)
       .map((f) => f.refId);
 
-    // Cache layer
-    const [postCache, shareCache] = await Promise.all([
-      this.snapshotCache.getPostBatch(postIds),
-      this.snapshotCache.getShareBatch(shareIds),
-    ]);
-
-    const missingPostIds = postIds.filter((id) => !postCache.has(id));
-    const missingShareIds = shareIds.filter((id) => !shareCache.has(id));
-
-    // Fallback DB
+    // 🔹 Truy vấn trực tiếp DB (bỏ cache layer)
     const [postDB, shareDB] = await Promise.all([
-      this.snapshotRepo.findPostsByIds(missingPostIds, mainEmotion),
-      this.snapshotRepo.findSharesByIds(missingShareIds, mainEmotion),
+      this.snapshotRepo.findPostsByIds(postIds, mainEmotion),
+      this.snapshotRepo.findSharesByIds(shareIds, mainEmotion),
     ]);
 
-    // Cache new
-    await Promise.all([
-      this.snapshotCache.setPostBatch(postDB),
-      this.snapshotCache.setShareBatch(shareDB),
-    ]);
-
-    // Merge
-    const postMap = new Map<string, PostSnapshot>([
-      ...postCache.entries(),
-      ...postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
-    ]);
-    const shareMap = new Map<string, ShareSnapshot>([
-      ...shareCache.entries(),
-      ...shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
-    ]);
+    // 🔹 Tạo Map trả về
+    const postMap = new Map<string, PostSnapshot>(
+      postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
+    );
+    const shareMap = new Map<string, ShareSnapshot>(
+      shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
+    );
 
     return { postMap, shareMap };
   }

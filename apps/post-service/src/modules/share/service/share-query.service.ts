@@ -185,7 +185,13 @@ export class ShareQueryService {
     );
     let nextCursor: string | null = null;
     if (hasNextPage && shares.length > 0) {
-      nextCursor = shares[shares.length - 1].createdAt.toISOString();
+      const lastShare = shares[shares.length - 1];
+      const createdAt =
+        lastShare.createdAt instanceof Date
+          ? lastShare.createdAt
+          : new Date(lastShare.createdAt);
+
+      nextCursor = createdAt.toISOString();
     }
 
     return new CursorPageResponse(shareDTOs, nextCursor, hasNextPage);
