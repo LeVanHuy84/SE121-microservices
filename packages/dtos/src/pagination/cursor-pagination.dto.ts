@@ -1,5 +1,6 @@
-import { IsOptional, IsString, IsInt, Min } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { SortOrder } from './sort.enum';
 
 export class CursorPaginationDTO {
   @IsOptional()
@@ -11,4 +12,11 @@ export class CursorPaginationDTO {
   @IsInt()
   @Min(1)
   limit: number = 10;
+
+  @IsOptional()
+  sortBy?: any;
+
+  @IsOptional()
+  @IsEnum(SortOrder)
+  order?: SortOrder = SortOrder.DESC;
 }

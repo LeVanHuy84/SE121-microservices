@@ -10,18 +10,8 @@ export class GroupSetting extends AuditableEntity {
   @Column({ type: 'boolean', name: 'required_post_approval', default: false })
   requiredPostApproval: boolean;
 
-  @Column({ type: 'boolean', name: 'allow_invites', default: true })
-  allowInvites: boolean;
-
   @Column({ type: 'int', name: 'max_members', default: 1000 })
   maxMembers: number;
-
-  @Column({
-    type: 'boolean',
-    name: 'require_admin_approval_to_join',
-    default: false,
-  })
-  requireAdminApprovalToJoin: boolean;
 
   @OneToOne(() => Group, (group) => group.groupSetting, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'group_id' })

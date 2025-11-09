@@ -1,23 +1,22 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { GroupPrivacy } from '../enums';
+import { GroupPrivacy } from '../../enums';
 
-export class CreateGroupDTO {
+export class UpdateGroupDTO {
   @IsString()
-  name: string;
-
   @IsOptional()
+  name?: string;
+
   @IsString()
+  @IsOptional()
   description?: string;
 
   @IsString()
-  avatarUrl: string;
-
-  @IsString()
   @IsOptional()
-  coverImageUrl?: string;
+  coverImage?: string;
 
+  @IsOptional()
   @IsEnum(GroupPrivacy)
-  privacy: GroupPrivacy;
+  privacy?: GroupPrivacy;
 
   @IsString()
   @IsOptional()

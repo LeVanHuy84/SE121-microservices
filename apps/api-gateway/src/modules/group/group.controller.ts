@@ -7,9 +7,15 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CreateGroupDTO, UpdateGroupDTO } from '@repo/dtos';
+import {
+  CreateGroupDTO,
+  SearchGroupDTO,
+  UpdateGroupDTO,
+  UpdateGroupSettingDTO,
+} from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -26,8 +32,13 @@ export class GroupController {
   }
 
   @Get('group/:id')
-  findById(@Param('id') id: string) {
-    return this.client.send('find_group_by_id', { id });
+  findById(@Param('id') groupId: string) {
+    return this.client.send('find_group_by_id', { groupId });
+  }
+
+  @Get('search')
+  search(@Query() query: SearchGroupDTO) {
+    return this.client.send('search_groups', { query });
   }
 
   @Post()
@@ -54,5 +65,27 @@ export class GroupController {
   @Delete('group/:id')
   delete(@CurrentUserId() userId: string, @Param('id') id: string) {
     return this.client.send('delete_group', { userId, groupId: id });
+  }
+
+  // Setting
+  @Get('group/:id/settings')
+  getGroupSettings(
+    @CurrentUserId() userId: string,
+    @Param('id') groupId: string
+  ) {
+    return this.client.send('get-group-setting', { userId, groupId });
+  }
+
+  @Patch('group/:id/settings')
+  updateGroupSettings(
+    @CurrentUserId() userId: string,
+    @Param('id') groupId: string,
+    @Body() settings: UpdateGroupSettingDTO
+  ) {
+    return this.client.send('update-group-setting', {
+      userId,
+      groupId,
+      settings,
+    });
   }
 }

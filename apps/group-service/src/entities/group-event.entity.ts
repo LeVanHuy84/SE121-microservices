@@ -8,7 +8,7 @@ export class GroupEvent extends BaseEntity {
   @Column({ type: 'uuid', name: 'group_id', nullable: false })
   groupId: string;
 
-  @Column({ type: 'uuid', name: 'user_id', nullable: false })
+  @Column({ type: 'varchar', name: 'user_id', nullable: false })
   userId: string;
 
   @Column({

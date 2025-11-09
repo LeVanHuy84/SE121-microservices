@@ -5,7 +5,7 @@ import { Group } from './group.entity';
 
 @Entity('group_join_requests')
 export class GroupJoinRequest extends AuditableEntity {
-  @Column({ type: 'uuid', name: 'user_id', nullable: false })
+  @Column({ type: 'varchar', name: 'user_id', nullable: false })
   userId: string;
 
   @Column({ type: 'uuid', name: 'group_id', nullable: false })

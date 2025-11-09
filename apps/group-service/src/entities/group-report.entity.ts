@@ -5,7 +5,7 @@ import { Group } from './group.entity';
 
 @Entity()
 export class GroupReport extends AuditableEntity {
-  @Column({ type: 'uuid', name: 'reporter_id', nullable: false })
+  @Column({ type: 'varchar', name: 'reporter_id', nullable: false })
   reporterId: string;
 
   @Column({ type: 'uuid', name: 'group_id', nullable: false })
@@ -19,7 +19,7 @@ export class GroupReport extends AuditableEntity {
   })
   target_type: GroupTargetReportType;
 
-  @Column({ type: 'uuid', name: 'target_id', nullable: false })
+  @Column({ type: 'varchar', name: 'target_id', nullable: false })
   targetId: string;
 
   @Column({ type: 'text', name: 'reason', nullable: true })

@@ -1,5 +1,5 @@
 import { Expose } from 'class-transformer';
-import { GroupPrivacy, GroupStatus } from '../enums';
+import { GroupPrivacy, GroupStatus } from '../../enums';
 
 export class GroupResponseDTO {
   @Expose()

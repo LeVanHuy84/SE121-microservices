@@ -34,8 +34,6 @@ export class GroupPermissionGuard implements CanActivate {
 
     if (!userId || !groupId)
       throw new RpcException('Missing user or group context');
-
-    // 🔎 Kiểm tra membership
     const member = await this.memberRepo.findOne({
       where: { userId, groupId },
     });

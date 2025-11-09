@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RedisModule } from '@nestjs-modules/ioredis';
 import { GroupCoreModule } from './modules/group-core/group-core.module';
 import { GroupMemberModule } from './modules/member/group-member.module';
 import dbConfig from './config/db.config';
-import { APP_GUARD } from '@nestjs/core';
-import { GroupPermissionGuard } from './modules/group-authorization/group-permission.guard';
 import { GroupAuthorizationModule } from './modules/group-authorization/group-authorization.module';
+import { GroupRequestModule } from './modules/group-request/group-request.module';
 
 @Module({
   imports: [
@@ -31,6 +29,7 @@ import { GroupAuthorizationModule } from './modules/group-authorization/group-au
     GroupAuthorizationModule,
     GroupCoreModule,
     GroupMemberModule,
+    GroupRequestModule,
   ],
   controllers: [],
   providers: [],
