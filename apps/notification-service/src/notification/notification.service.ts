@@ -35,6 +35,7 @@ export class NotificationService {
   ) {}
 
   async create(dto: CreateNotificationDto) {
+    // 1️⃣ Check trùng requestId
     if (dto.requestId) {
       const exists = await this.notificationModel
         .findOne({ requestId: dto.requestId })
@@ -42,7 +43,7 @@ export class NotificationService {
       if (exists) return plainToInstance(NotificationResponseDto, exists, {});
     }
 
-    // 2. Get user preference and rate-limit
+    // 2️⃣ Get user preference và rate-limit
     const prefs = await this.userPreferenceService.getUserPreferences(
       dto.userId
     );
@@ -50,14 +51,15 @@ export class NotificationService {
       dto.channels && dto.channels.length
         ? dto.channels.filter((ch) => prefs.allowedChannels.includes(ch))
         : prefs.allowedChannels;
+
     if (!allowedChannels || allowedChannels.length === 0) {
       this.logger.warn(`User ${dto.userId} has no allowed channels — skipping`);
-      // still store record as "suppressed" if you want; here simply return
       const suppressed = await this.notificationModel.create({
         requestId: dto.requestId,
         userId: dto.userId,
         type: dto.type,
         payload: dto.payload,
+        message: null,
         channels: [],
         status: 'unread',
         meta: { suppressed: true },
@@ -65,7 +67,6 @@ export class NotificationService {
       return suppressed;
     }
 
-    // Rate-limiting check (simple daily limit)
     const limit = prefs.limits?.dailyLimit ?? 100;
     const allowed =
       await this.userPreferenceService.checkAndIncrementDailyLimit(
@@ -79,6 +80,7 @@ export class NotificationService {
         userId: dto.userId,
         type: dto.type,
         payload: dto.payload,
+        message: null,
         channels: [],
         status: 'unread',
         meta: { rateLimited: true },
@@ -86,21 +88,26 @@ export class NotificationService {
       return blocked;
     }
 
-    // 3. save to DB
+    // 3️⃣ Render message trước khi lưu DB
+    const renderedMessage = this.templateService.render(dto.type, dto.payload);
+
     const sendAt = dto.sendAt ? new Date(dto.sendAt) : undefined;
+
+    // 4️⃣ Lưu notification vào DB, đã có message
     const doc = await this.notificationModel.create({
       requestId: dto.requestId,
       userId: dto.userId,
       type: dto.type,
       payload: dto.payload,
+      message: renderedMessage,
       channels: allowedChannels,
       sendAt,
+      status: 'unread',
       meta: dto.meta || {},
     });
 
-    // 4. scheduling vs immediate
+    // 5️⃣ Schedule hoặc gửi ngay
     if (sendAt && sendAt.getTime() > Date.now()) {
-      // schedule via Bull
       const delay = Math.max(0, sendAt.getTime() - Date.now());
       await this.notificationQueue.add(
         'send',
@@ -114,7 +121,6 @@ export class NotificationService {
       );
       this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
     } else {
-      // immediate -> publish to channels
       try {
         await Promise.all([
           this.publishToChannels(doc),
@@ -130,17 +136,17 @@ export class NotificationService {
 
     return doc;
   }
+
   async publishToChannels(doc: NotificationDocument) {
-    const rendered = this.templateService.render(doc.type, doc.payload);
-    const basePayload = {
-      id: (doc._id as ObjectId).toString(),
-      requestId: doc.requestId,
-      userId: doc.userId,
-      type: doc.type,
-      message: rendered,
-      payload: doc.payload,
-      meta: doc.meta,
-    };
+  const basePayload = {
+    id: (doc._id as ObjectId).toString(),
+    requestId: doc.requestId,
+    userId: doc.userId,
+    type: doc.type,
+    message: doc.message, 
+    payload: doc.payload,
+    meta: doc.meta,
+  };
 
     // ensure maxRetries in meta
     const maxRetries = doc.meta?.maxRetries ?? this.defaultMaxRetries;
@@ -150,7 +156,10 @@ export class NotificationService {
       const headers = {
         'x-request-id': doc.requestId || (doc._id as ObjectId).toString(),
         'x-retries': 0,
-        'x-max-retries': doc.meta?.maxRetries ?? maxRetries,
+        'x-max-retries':
+          doc.meta?.maxRetries === 0
+            ? maxRetries
+            : doc.meta?.maxRetries || maxRetries,
       };
       await this.rabbitChannel.publish(
         'notification', // đổi từ notification_exchange thành 'notification'

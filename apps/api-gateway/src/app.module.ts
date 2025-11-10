@@ -12,6 +12,7 @@ import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { RabbitmqModule } from '@repo/common';
 import { FeedModule } from './modules/feed/feed.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
@@ -40,6 +41,15 @@ import { FeedModule } from './modules/feed/feed.module';
         { name: 'notification', type: 'topic' },
         { name: 'broadcast', type: 'fanout' },
       ],
+    }),
+    RedisModule.forRoot({
+      type: 'single',
+      options: {
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT
+          ? parseInt(process.env.REDIS_PORT, 10)
+          : 6379,
+      },
     }),
   ],
 
