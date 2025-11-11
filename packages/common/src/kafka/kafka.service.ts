@@ -1,5 +1,11 @@
-import { Injectable, Inject, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { Kafka, Producer } from 'kafkajs';
 
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
@@ -27,5 +33,4 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy = async () => {
     if (this.kafkaClient) await this.kafkaClient.close();
   };
-
 }

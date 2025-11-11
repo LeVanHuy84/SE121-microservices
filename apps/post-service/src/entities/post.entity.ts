@@ -22,7 +22,7 @@ export class Post {
   @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
 
-  @Column('uuid', { name: 'group_id', nullable: true })
+  @Column('text', { name: 'group_id', nullable: true })
   groupId: string;
 
   @Column({ type: 'enum', enum: Emotion, nullable: true })
