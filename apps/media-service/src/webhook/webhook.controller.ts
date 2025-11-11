@@ -5,6 +5,7 @@ import { WebhookEvent } from 'src/entities/webhook.entity';
 import { MediaService } from 'src/media/media.service';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import { EventPattern, Payload } from '@nestjs/microservices';
 
 @Controller('webhook/cloudinary')
 export class WebhookController {
@@ -16,11 +17,11 @@ export class WebhookController {
     private readonly config: ConfigService
   ) {}
 
-  @Post()
+  @EventPattern('')
   async handle(
-    @Body() body: any,
-    @Headers('x-cld-timestamp') ts: string,
-    @Headers('x-cld-signature') signature: string
+    @Payload() body: any,
+    @Payload() signature: string,
+    @Payload() ts: string
   ) {
     // Cloudinary has different header names depending on account settings — adjust accordingly.
     const eventId = body.notification_id || body.id || `${Date.now()}`;

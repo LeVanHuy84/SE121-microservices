@@ -14,11 +14,24 @@ import { eq } from 'drizzle-orm';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
 import { profiles } from 'src/drizzle/schema/profiles.schema';
 import { users } from 'src/drizzle/schema/users.schema';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
+
+const CACHE_TTL = {
+  USER: 300,
+  USERS_LIST: 600,
+  BASE_USER: 300,
+};
 
 @Injectable()
 export class UserService {
   private readonly logger = new Logger();
-  constructor(@Inject(DRIZZLE) private db: DrizzleDB) {}
+
+  constructor(
+    @Inject(DRIZZLE) private db: DrizzleDB,
+    @InjectRedis() private redis: Redis
+  ) {}
+
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
     const user = await this.db.transaction(async (tx) => {
       const [user] = await tx
@@ -62,12 +75,20 @@ export class UserService {
       return user;
     });
 
+    await this.redis.del('users:all');
+
     return plainToInstance(UserResponseDTO, user, {
       excludeExtraneousValues: true,
     });
   }
 
   async findAll(): Promise<UserResponseDTO[]> {
+    const cacheKey = 'users:all';
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      this.logger.debug('✅ Loaded users from Redis cache');
+      return JSON.parse(cached);
+    }
     const users = await this.db.query.users.findMany({
       with: {
         profile: {
@@ -94,11 +115,22 @@ export class UserService {
         }
       )
     );
-
+    await this.redis.set(
+      cacheKey,
+      JSON.stringify(dtos),
+      'EX',
+      CACHE_TTL.USERS_LIST
+    );
     return dtos;
   }
 
   async findOne(id: string): Promise<UserResponseDTO> {
+    const cacheKey = `user:${id}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      this.logger.debug(`✅ Loaded user:${id} from Redis cache`);
+      return JSON.parse(cached);
+    }
     const user = await this.db.query.users.findFirst({
       where: eq(users.id, id),
       with: {
@@ -113,28 +145,26 @@ export class UserService {
         },
       },
     });
-    return plainToInstance(
+    if (!user) throw new NotFoundException('User not found');
+
+    const dto = plainToInstance(
       UserResponseDTO,
-      {
-        ...user,
-        ...user?.profile,
-      },
-      {
-        excludeExtraneousValues: true,
-      }
+      { ...user, ...user.profile },
+      { excludeExtraneousValues: true }
     );
+
+    await this.redis.set(cacheKey, JSON.stringify(dto), 'EX', CACHE_TTL.USER);
+    return dto;
   }
 
   async update(id: string, dto: UpdateUserDTO) {
-    const user = await this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       const user = await tx
         .select()
         .from(users)
         .where(eq(users.id, id))
         .then((u) => u[0]);
-      if (!user) {
-        throw new NotFoundException('User not found');
-      }
+      if (!user) throw new NotFoundException('User not found');
 
       if (dto.email && dto.email !== user.email) {
         const existingUser = await tx
@@ -142,9 +172,7 @@ export class UserService {
           .from(users)
           .where(eq(users.email, dto.email))
           .then((u) => u[0]);
-        if (existingUser) {
-          throw new Error('Email already in use');
-        }
+        if (existingUser) throw new Error('Email already in use');
       }
 
       await tx
@@ -154,15 +182,13 @@ export class UserService {
           updatedAt: new Date(),
         })
         .where(eq(users.id, id));
+
       const profile = await tx
         .select()
         .from(profiles)
         .where(eq(profiles.userId, id))
         .then((p) => p[0]);
-
-      if (!profile) {
-        throw new NotFoundException('Profile not found');
-      }
+      if (!profile) throw new NotFoundException('Profile not found');
 
       await tx
         .update(profiles)
@@ -176,11 +202,20 @@ export class UserService {
         })
         .where(eq(profiles.userId, id));
     });
+
+    // 🧹 Invalidate cache
+    await this.redis.del(`user:${id}`);
+    await this.redis.del('users:all');
+
     return this.findOne(id);
   }
 
   async remove(id: string) {
     await this.db.delete(users).where(eq(users.id, id));
+
+    await this.redis.del(`user:${id}`);
+    await this.redis.del('users:all');
+
     return { success: true };
   }
 
@@ -199,6 +234,9 @@ export class UserService {
   async getBaseUsersBatch(ids: string[]): Promise<Record<string, BaseUserDTO>> {
     if (!ids.length) return {};
 
+    const cacheKey = `baseUsers:${ids.sort().join(',')}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
     const profiles = await this.db.query.profiles.findMany({
       where: (fields, { inArray }) => inArray(fields.userId, ids),
     });
@@ -214,9 +252,17 @@ export class UserService {
       { excludeExtraneousValues: true }
     );
 
-    return dtos.reduce<Record<string, BaseUserDTO>>((acc, u) => {
+    const result = dtos.reduce<Record<string, BaseUserDTO>>((acc, u) => {
       acc[u.id] = u;
       return acc;
     }, {});
+
+    await this.redis.set(
+      cacheKey,
+      JSON.stringify(result),
+      'EX',
+      CACHE_TTL.BASE_USER
+    );
+    return result;
   }
 }
