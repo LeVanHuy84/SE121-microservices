@@ -10,6 +10,7 @@ export class Notification {
   @Prop({ required: true, index: true }) userId: string;
   @Prop({ required: true }) type: string;
   @Prop({ type: Object, default: {} }) payload: any;
+  @Prop() message?: string;
   @Prop({ type: [String], default: ['web'] }) channels: string[];
   @Prop({ default: 'unread' }) status: 'unread' | 'read';
   @Prop({ default: 0 }) retries: number;

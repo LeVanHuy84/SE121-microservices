@@ -18,7 +18,7 @@ export class NotificationService {
   async sendNotification(dto: NotificationSample) {
     const createNotificationDto: CreateNotificationDto = {
       requestId: dto.id,
-      userId: dto.payload?.userId,
+      userId: dto.payload?.targetId,
       type: dto.eventType,
       payload: dto.payload,
       sendAt: new Date(),
@@ -31,7 +31,7 @@ export class NotificationService {
 
     const message = {
       createNotificationDto,
-      origin: 'post-service',
+      origin: 'social-service',
     };
 
     await lastValueFrom(this.client.emit('create_notification', message));

@@ -6,30 +6,25 @@ import { AppModule } from './app.module';
 import { Neo4jTypeInterceptor } from './neo4j/neo4j-type.interceptor';
 
 async function bootstrap() {
-  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4006,
-      },
+  const app = await NestFactory.create(AppModule);
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4006,
     },
-  );
-  tcpApp.useGlobalInterceptors(new Neo4jTypeInterceptor());
-  tcpApp.useGlobalFilters(new ExceptionsFilter());
+  });
 
-  const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.REDIS,
-      options: {
-        port: 6379,
-        host: 'localhost',
-      },
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.REDIS,
+    options: {
+      port: 6379,
+      host: 'localhost',
     },
-  );
-  redisApp.useGlobalFilters(new ExceptionsFilter());
-  await Promise.all([tcpApp.listen(), redisApp.listen()]);
+  });
+  app.useGlobalFilters(new ExceptionsFilter());
+
+  await app.startAllMicroservices();
+  await app.init();
 
   console.log('Social service is running on port 4006');
 }

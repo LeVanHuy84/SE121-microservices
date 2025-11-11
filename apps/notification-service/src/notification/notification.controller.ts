@@ -15,7 +15,7 @@ import {
   Payload,
   RmqContext,
 } from '@nestjs/microservices';
-import { PaginationDTO } from '@repo/dtos';
+import { CursorPaginationDTO, PaginationDTO } from '@repo/dtos';
 
 @Controller('notification')
 export class NotificationController {
@@ -37,8 +37,8 @@ export class NotificationController {
   }
 
   @MessagePattern('get_notifications')
-  findAll(@Payload() data: { userId: string; pagination: PaginationDTO }) {
-    return this.notificationService.findByUser(data.userId, data.pagination);
+  findAll(@Payload() data: { userId: string; query: CursorPaginationDTO }) {
+    return this.notificationService.findByUser(data.userId, data.query);
   }
 
   @MessagePattern('mark_read')
@@ -53,7 +53,7 @@ export class NotificationController {
 
   @MessagePattern('delete_notification')
   remove(@Payload() id: string) {
-    return this.notificationService.remove(id);
+    return this.notificationService.removeById(id);
   }
 
   @MessagePattern('delete_all_notifications')
