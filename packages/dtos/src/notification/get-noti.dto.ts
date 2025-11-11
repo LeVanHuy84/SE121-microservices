@@ -1,5 +1,5 @@
 export class NotificationResponseDto {
-  id: string;
+  _id: string;
   userId: string;
   type: string;
   payload: any;

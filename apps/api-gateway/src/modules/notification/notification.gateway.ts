@@ -42,6 +42,7 @@ export class NotificationGateway
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
+          this.logger.log('Log payload', payload);
           this.server
             .to(`user-notif:${payload.userId}`)
             .emit('notification', payload);
@@ -78,12 +79,19 @@ export class NotificationGateway
     @ConnectedSocket() client: Socket
   ) {
     try {
+      const userId = client.user?.id;
+      if (!userId) {
+        this.logger.warn(`Client ${client.id} has no user ID`);
+        return;
+      }
+
+      this.logger.log(`Marking notification ${id} as read`);
       const result = await firstValueFrom(
         this.notificationClient.send('mark_read', id)
       );
 
       console.log('result', result);
-      client.emit('mark_read_success', { id });
+      this.server.to(`user-notif:${userId}`).emit('mark_read', id);
     } catch (err) {
       this.logger.error(`Failed to mark notification ${id} as read`, err);
       client.emit('mark_read_error', { id, error: err.message });
@@ -93,19 +101,20 @@ export class NotificationGateway
   @SubscribeMessage('mark_read_all')
   async handleMarkAllAsRead(@ConnectedSocket() client: Socket) {
     const userId = client.user?.id;
-    if (!userId) {
-      this.logger.warn(
-        `Client ${client.id} has no authenticated user ID; cannot mark all as read`
-      );
-      client.emit('mark_read_all_error', { error: 'Unauthenticated' });
-      return;
-    }
+
     try {
+      if (!userId) {
+        this.logger.warn(
+          `Client ${client.id} has no authenticated user ID; cannot mark all as read`
+        );
+        client.emit('mark_read_all_error', { error: 'Unauthenticated' });
+        return;
+      }
       const result = await firstValueFrom(
         this.notificationClient.send('mark_read_all', userId)
       );
       console.log('result', result);
-      client.emit('mark_read_all_success');
+      this.server.to(`user-notif:${userId}`).emit('mark_read_all');
     } catch (err) {
       this.logger.error(
         `Failed to mark all notifications as read for user ${userId}`,
