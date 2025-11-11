@@ -5,27 +5,40 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
   OneToOne,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Post } from './post.entity';
 import { ShareStat } from './share-stat.entity';
+import { Audience } from '@repo/dtos';
 
 @Entity('shares')
-@Index('idx_share_user', ['userId'])
-@Index('idx_share', ['id'])
 export class Share {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id', nullable: false })
+  @Column('varchar', { name: 'user_id', nullable: false })
   userId: string;
+
+  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
+  audience: Audience;
 
   @Column({ type: 'varchar', length: 2000 })
   content: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'",
+  })
   createdAt: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  updatedAt: Date;
 
   @Column('uuid', { name: 'post_id', nullable: true })
   postId: string;

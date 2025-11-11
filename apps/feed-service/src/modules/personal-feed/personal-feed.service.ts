@@ -1,31 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   CursorPageResponse,
   FeedEventType,
   FeedItemDTO,
   PersonalFeedQuery,
+  ReactionType,
+  TargetType,
 } from '@repo/dtos';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { SnapshotMapper } from '../../common/snapshot.mapper';
-import { CacheLayerService } from '../cache-layer/cache-layer.service';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
 import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class PersonalFeedService {
   constructor(
     @InjectModel(FeedItem.name)
     private readonly feedItemModel: Model<FeedItemDocument>,
-    private readonly snapshotCache: CacheLayerService,
     private readonly snapshotRepo: SnapshotRepository,
+    @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
   ) {}
-
-  // ========================================================
-  // Public API
-  // ========================================================
 
   async getUserFeed(
     userId: string,
@@ -34,9 +33,7 @@ export class PersonalFeedService {
     const { cursor, limit, mainEmotion } = query;
 
     const feedItems = await this.getFeedItems(userId, cursor, limit);
-    console.log('feedItems: ', feedItems);
-    if (!feedItems.length)
-      return new CursorPageResponse([], limit, null, false);
+    if (!feedItems.length) return new CursorPageResponse([], null, false);
 
     const hasNextPage = feedItems.length > limit;
     const items = feedItems.slice(0, limit);
@@ -46,18 +43,46 @@ export class PersonalFeedService {
       mainEmotion,
     );
 
-    console.log('postMap: ', postMap.entries());
+    const postIds = [...postMap.keys()];
+    const shareIds = [...shareMap.keys()];
 
-    const data = this.buildFeedDTO(items, postMap, shareMap);
+    const [postReactions, shareReactions] = await Promise.all([
+      firstValueFrom(
+        this.postClient.send<Record<string, ReactionType>>(
+          'get_reacted_types_batch',
+          {
+            userId,
+            targetType: TargetType.POST,
+            targetIds: postIds,
+          },
+        ),
+      ),
+      firstValueFrom(
+        this.postClient.send<Record<string, ReactionType>>(
+          'get_reacted_types_batch',
+          {
+            userId,
+            targetType: TargetType.SHARE,
+            targetIds: shareIds,
+          },
+        ),
+      ),
+    ]);
 
-    console.log('data: ', data);
+    const data = this.buildFeedDTO(
+      items,
+      postMap,
+      shareMap,
+      postReactions,
+      shareReactions,
+    );
 
     const last = items[items.length - 1];
     const nextCursor = `${last.rankingScore}_${new Date(
       last.createdAt ?? Date.now(),
     ).getTime()}`;
 
-    return new CursorPageResponse(data, limit, nextCursor, hasNextPage);
+    return new CursorPageResponse(data, nextCursor, hasNextPage);
   }
 
   /**
@@ -113,36 +138,19 @@ export class PersonalFeedService {
       .filter((f) => f.eventType === FeedEventType.SHARE)
       .map((f) => f.refId);
 
-    // Cache layer
-    const [postCache, shareCache] = await Promise.all([
-      this.snapshotCache.getPostBatch(postIds),
-      this.snapshotCache.getShareBatch(shareIds),
-    ]);
-
-    const missingPostIds = postIds.filter((id) => !postCache.has(id));
-    const missingShareIds = shareIds.filter((id) => !shareCache.has(id));
-
-    // Fallback DB
+    // 🔹 Truy vấn trực tiếp DB (bỏ cache layer)
     const [postDB, shareDB] = await Promise.all([
-      this.snapshotRepo.findPostsByIds(missingPostIds, mainEmotion),
-      this.snapshotRepo.findSharesByIds(missingShareIds, mainEmotion),
+      this.snapshotRepo.findPostsByIds(postIds, mainEmotion),
+      this.snapshotRepo.findSharesByIds(shareIds, mainEmotion),
     ]);
 
-    // Cache new
-    await Promise.all([
-      this.snapshotCache.setPostBatch(postDB),
-      this.snapshotCache.setShareBatch(shareDB),
-    ]);
-
-    // Merge
-    const postMap = new Map<string, PostSnapshot>([
-      ...postCache.entries(),
-      ...postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
-    ]);
-    const shareMap = new Map<string, ShareSnapshot>([
-      ...shareCache.entries(),
-      ...shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
-    ]);
+    // 🔹 Tạo Map trả về
+    const postMap = new Map<string, PostSnapshot>(
+      postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
+    );
+    const shareMap = new Map<string, ShareSnapshot>(
+      shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
+    );
 
     return { postMap, shareMap };
   }
@@ -152,24 +160,28 @@ export class PersonalFeedService {
     items: FeedItem[],
     postMap: Map<string, PostSnapshot>,
     shareMap: Map<string, ShareSnapshot>,
+    postReactions?: Record<string, ReactionType>,
+    shareReactions?: Record<string, ReactionType>,
   ): FeedItemDTO[] {
     return items.reduce((acc: FeedItemDTO[], item) => {
       if (item.eventType === FeedEventType.POST) {
         const post = postMap.get(item.refId);
+        const reactedType = postReactions?.[item.refId]; // 👈 thay .get() bằng []
         if (post) {
           acc.push({
             id: item._id?.toString() ?? '',
             type: FeedEventType.POST,
-            item: SnapshotMapper.toPostSnapshotDTO(post),
+            item: SnapshotMapper.toPostSnapshotDTO(post, reactedType),
           });
         }
       } else if (item.eventType === FeedEventType.SHARE) {
         const share = shareMap.get(item.refId);
+        const reactedType = shareReactions?.[item.refId]; // 👈 tương tự
         if (share) {
           acc.push({
             id: item._id?.toString() ?? '',
             type: FeedEventType.SHARE,
-            item: SnapshotMapper.toShareSnapshotDTO(share),
+            item: SnapshotMapper.toShareSnapshotDTO(share, reactedType),
           });
         }
       }

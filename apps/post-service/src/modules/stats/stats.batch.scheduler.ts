@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { StatsBufferService } from './stats.buffer.service';
 import {
+  EventDestination,
   EventTopic,
   ReactionType,
   StatsCommentDelta,
@@ -27,7 +28,7 @@ export class StatsBatchScheduler {
     console.log('🔥 StatsBatchScheduler initialized');
   }
 
-  @Cron('*/60 * * * * *') // mỗi 60 giây
+  @Cron('*/10 * * * * *') // mỗi 10 giây
   async flushStatsToKafka() {
     const allStats = await this.buffer.getAllBufferedStats();
     const payload: StatsPayload = {
@@ -79,6 +80,7 @@ export class StatsBatchScheduler {
 
     const outboxEvent = this.outboxRepo.create({
       topic: EventTopic.STATS,
+      destination: EventDestination.KAFKA,
       eventType: 'stats.batch',
       payload,
     });

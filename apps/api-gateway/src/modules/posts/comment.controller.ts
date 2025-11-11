@@ -49,14 +49,14 @@ export class CommentController {
   @Put(':id')
   update(
     @CurrentUserId() userId: string,
-    @Param('id') id: string,
+    @Param('id') commentId: string,
     @Body() dto: UpdateCommentDTO
   ) {
-    return this.client.send('update_comment', { userId, id, dto });
+    return this.client.send('update_comment', { userId, commentId, dto });
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.client.send('remove_comment', id);
+  remove(@CurrentUserId() userId: string, @Param('id') commentId: string) {
+    return this.client.send('remove_comment', { userId, commentId });
   }
 }

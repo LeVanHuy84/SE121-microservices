@@ -11,7 +11,7 @@ export class Report {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'reporter_id' })
+  @Column('varchar', { name: 'reporter_id' })
   reporterId: string;
 
   @Column({ name: 'target_type', type: 'enum', enum: TargetType })
@@ -26,6 +26,10 @@ export class Report {
   @Column({ type: 'varchar', length: 50, default: 'PENDING' })
   status: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 }

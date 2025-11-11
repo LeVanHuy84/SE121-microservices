@@ -7,9 +7,13 @@ import { Comment } from 'src/entities/comment.entity';
 import { CommentQueryService } from './service/comment-query.service';
 import { Reaction } from 'src/entities/reaction.entity';
 import { CommentCacheService } from './service/comment-cache.service';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Comment, CommentStat, Reaction])],
+  imports: [
+    TypeOrmModule.forFeature([Comment, CommentStat, Reaction]),
+    UserClientModule,
+  ],
   controllers: [CommentController],
   providers: [CommentService, CommentQueryService, CommentCacheService],
 })

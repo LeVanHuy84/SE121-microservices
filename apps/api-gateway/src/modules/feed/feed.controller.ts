@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { PaginationDTO, TrendingQuery } from '@repo/dtos';
+import { PersonalFeedQuery, TrendingQuery } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -12,12 +12,18 @@ export class FeedController {
   ) {}
 
   @Get('trending')
-  getTrendingFeed(@Query() query: TrendingQuery) {
-    return this.client.send('get_trending', query);
+  getTrendingFeed(
+    @Query() query: TrendingQuery,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('get_trending', { query, userId });
   }
 
   @Get('my_feed')
-  getMyFeed(@CurrentUserId() userId: string, @Query() query: PaginationDTO) {
+  getMyFeed(
+    @CurrentUserId() userId: string,
+    @Query() query: PersonalFeedQuery
+  ) {
     return this.client.send('get_my_feed', { userId, query });
   }
 

@@ -1,4 +1,11 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 import { ReactionType, TargetType } from '@repo/dtos';
 
 @Entity('reactions')
@@ -8,7 +15,7 @@ export class Reaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid', { name: 'user_id' })
+  @Column('varchar', { name: 'user_id' })
   userId: string;
 
   @Column('uuid', { name: 'target_id' })
@@ -19,4 +26,11 @@ export class Reaction {
 
   @Column({ name: 'reaction_type', type: 'enum', enum: ReactionType })
   reactionType: ReactionType;
+
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  createdAt: Date;
 }
