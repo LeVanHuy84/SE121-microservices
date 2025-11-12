@@ -68,4 +68,11 @@ export class GroupMemberController {
   ) {
     return this.groupMemberService.getMembers(payload.groupId, payload.filter);
   }
+
+  @MessagePattern('get_group_member_user_ids')
+  async getMemberUserIds(
+    @Payload() payload: { groupId: string },
+  ): Promise<string[]> {
+    return this.groupMemberService.getMemberUserIds(payload.groupId);
+  }
 }

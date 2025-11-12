@@ -7,8 +7,8 @@ import {
   PostResponseDTO,
   PostSnapshotDTO,
 } from '@repo/dtos';
-import { PostQueryService } from './service/post-query.service';
-import { PostCommandService } from './service/post-command.service';
+import { PostQueryService } from '../service/post-query.service';
+import { PostCommandService } from '../service/post-command.service';
 
 @Controller('posts')
 export class PostController {
@@ -49,6 +49,22 @@ export class PostController {
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     return this.postQuery.getUserPosts(
       payload.userId,
+      payload.currentUserId,
+      payload.pagination
+    );
+  }
+
+  @MessagePattern('get_group_posts')
+  async getGroupPosts(
+    @Payload()
+    payload: {
+      groupId: string;
+      pagination: GetPostQueryDTO;
+      currentUserId: string;
+    }
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    return this.postQuery.getGroupPost(
+      payload.groupId,
       payload.currentUserId,
       payload.pagination
     );

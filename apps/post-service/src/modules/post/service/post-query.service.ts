@@ -12,7 +12,7 @@ import {
   TargetType,
 } from '@repo/dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { lastValueFrom } from 'rxjs';
 import { Reaction } from 'src/entities/reaction.entity';
 import { Post } from 'src/entities/post.entity';
 import { PostCacheService } from './post-cache.service';
@@ -25,7 +25,8 @@ export class PostQueryService {
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
-    private readonly postCache: PostCacheService
+    private readonly postCache: PostCacheService,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy
   ) {}
 
   // ----------------------------------------
@@ -64,11 +65,13 @@ export class PostQueryService {
     currentUserId: string,
     query: GetPostQueryDTO
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
-    const qb = this.buildPostQuery(query).where('p.userId = :userId', {
-      userId: currentUserId,
-    });
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId: currentUserId })
+      .andWhere('p.groupId IS NULL');
 
     const ids = await qb.select('p.id').getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const postIds = ids.map((p) => p.id);
@@ -91,7 +94,7 @@ export class PostQueryService {
       currentUserId,
       userId,
       async () => {
-        return await firstValueFrom(
+        return await lastValueFrom(
           this.socialClient.send('get_relationship_status', {
             userId: currentUserId,
             targetId: userId,
@@ -100,9 +103,9 @@ export class PostQueryService {
       }
     );
 
-    const qb = this.buildPostQuery(query).where('p.userId = :userId', {
-      userId,
-    });
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId })
+      .andWhere('p.groupId IS NULL');
 
     if (userId === currentUserId) {
       // chính mình → xem hết
@@ -117,6 +120,8 @@ export class PostQueryService {
     }
 
     const ids = await qb.select('p.id').getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop();
     const postIds = ids.map((p) => p.id);
@@ -125,6 +130,48 @@ export class PostQueryService {
     if (!posts.length) return new CursorPageResponse([], null, false);
 
     return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // Get group posts
+  // ----------------------------------------
+  async getGroupPost(
+    groupId: string,
+    userId: string,
+    query: GetPostQueryDTO
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const canGetPosts = await this.postCache.getRelationship(
+      userId,
+      groupId,
+      async () => {
+        return await lastValueFrom(
+          this.groupClient.send('can_user_view_group_posts', {
+            groupId,
+            userId,
+          })
+        );
+      }
+    );
+
+    if (!canGetPosts) {
+      throw new RpcException('Access denied to view group posts');
+    }
+
+    const qb = this.buildPostQuery(query).where('p.groupId = :groupId', {
+      groupId,
+    });
+
+    const ids = await qb.select('p.id').getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop();
+    const postIds = ids.map((p) => p.id);
+
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedPostResponse(userId, posts, hasNextPage);
   }
 
   // ----------------------------------------
@@ -186,7 +233,7 @@ export class PostQueryService {
       userId,
       post.userId,
       async () => {
-        return await firstValueFrom(
+        return await lastValueFrom(
           this.socialClient.send('get_relationship_status', {
             userId,
             targetId: post.userId,

@@ -50,13 +50,15 @@ export class IngestionPostService {
     // ------------------------------
     // 🧠 Ghi meta key
     // ------------------------------
-    const metaKey = `post:meta:${payload.postId}`;
-    await this.redis.hset(metaKey, {
-      createdAt: createdAt.getTime(),
-      lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
-    });
-    await this.redis.expire(metaKey, this.META_TTL_SECONDS);
-    await this.redis.zadd('post:score', 8, payload.postId);
+    if (!payload.groupId) {
+      const metaKey = `post:meta:${payload.postId}`;
+      await this.redis.hset(metaKey, {
+        createdAt: createdAt.getTime(),
+        lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
+      });
+      await this.redis.expire(metaKey, this.META_TTL_SECONDS);
+      await this.redis.zadd('post:score', 8, payload.postId);
+    }
 
     // ------------------------------
     // 📢 Phân phối bài mới tới feed
@@ -66,6 +68,7 @@ export class IngestionPostService {
       entity._id.toString(),
       entity.postId,
       entity.userId,
+      entity.groupId,
     );
   }
 

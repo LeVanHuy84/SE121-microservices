@@ -106,6 +106,16 @@ export class GroupMemberService {
     };
   }
 
+  async getMemberUserIds(groupId: string): Promise<string[]> {
+    const rows = await this.repo
+      .createQueryBuilder('member')
+      .select('member.userId', 'userId')
+      .where('member.groupId = :groupId', { groupId })
+      .getRawMany<{ userId: string }>();
+
+    return rows.map((r) => r.userId);
+  }
+
   async isMember(groupId: string, userId: string): Promise<boolean> {
     const member = await this.repo.findOne({ where: { groupId, userId } });
     return !!member;

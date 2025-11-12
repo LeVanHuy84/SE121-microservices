@@ -48,9 +48,14 @@ export class ShareCommandService {
       async (manager) => {
         const post = await manager.findOne(Post, {
           where: { id: dto.postId },
+          relations: ['postGroupInfo'],
         });
 
-        if (!post || post.audience !== Audience.PUBLIC) {
+        if (
+          !post ||
+          post.audience !== Audience.PUBLIC ||
+          post.postGroupInfo?.isPrivateGroup
+        ) {
           throw new RpcException(`Can't share this post`);
         }
 

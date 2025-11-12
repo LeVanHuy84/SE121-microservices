@@ -14,7 +14,7 @@ export class CursorPaginationDTO {
   limit: number = 10;
 
   @IsOptional()
-  sortBy?: any;
+  sortBy?: any = 'createdAt';
 
   @IsOptional()
   @IsEnum(SortOrder)

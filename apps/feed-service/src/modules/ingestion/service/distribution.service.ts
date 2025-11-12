@@ -2,7 +2,7 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { lastValueFrom } from 'rxjs';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
 import { calculateRankingScore } from 'src/utils/utils';
@@ -26,19 +26,27 @@ export class DistributionService {
     snapshotId: string,
     refId: string,
     actorId: string,
+    groupId?: string,
   ) {
     this.logger.log(`Distributing snapshot ${snapshotId} from ${actorId}`);
 
     try {
-      // 1. Lấy danh sách bạn bè từ social-service
-      const friendIds: string[] = await firstValueFrom(
-        this.socialClient.send(
-          { cmd: 'get_friend_ids' },
-          { userId: actorId, limit: 200 },
-        ),
-      );
+      let receiver: string[] = [];
 
-      if (!friendIds?.length) {
+      if (groupId) {
+        receiver = await lastValueFrom(
+          this.socialClient.send('get_group_member_user_ids', { groupId }),
+        );
+      } else {
+        receiver = await lastValueFrom(
+          this.socialClient.send(
+            { cmd: 'get_friend_ids' },
+            { userId: actorId, limit: 200 },
+          ),
+        );
+      }
+
+      if (!receiver?.length) {
         this.logger.warn(`No friends found for ${actorId}`);
         return;
       }
@@ -47,7 +55,7 @@ export class DistributionService {
       const now = new Date();
       const rankingScore = calculateRankingScore('post');
 
-      const feedItems = friendIds.map((fid) => ({
+      const feedItems = receiver.map((fid) => ({
         userId: fid,
         snapshotId: new Types.ObjectId(snapshotId),
         eventType: type,
@@ -60,7 +68,7 @@ export class DistributionService {
       await this.feedItemModel.insertMany(feedItems);
 
       this.logger.log(
-        `✅ Distributed snapshot ${snapshotId} to ${friendIds.length} friends`,
+        `✅ Distributed snapshot ${snapshotId} to ${receiver.length} friends`,
       );
     } catch (error) {
       throw new RpcException(error);

@@ -3,6 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import {
   CreateGroupDTO,
   CursorPageResponse,
+  GroupPrivacy,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
@@ -149,6 +150,50 @@ export class GroupService {
     group.updatedBy = userId;
     group.status = GroupStatus.DELETED;
     await repo.save(group);
+    return true;
+  }
+
+  async checkBeforeCreatePost(groupId: string, userId: string) {
+    const groupRepo = this.dataSource.getRepository(Group);
+    const memberRepo = this.dataSource.getRepository(GroupMember);
+
+    const group = await groupRepo.findOne({ where: { id: groupId } });
+    const member = await memberRepo.findOne({ where: { groupId, userId } });
+
+    if (!group || group.status !== GroupStatus.ACTIVE) {
+      throw new RpcException('Group not found');
+    }
+
+    if (!member) {
+      throw new RpcException('User is not a member of the group');
+    }
+
+    const canPost =
+      member.role === GroupRole.ADMIN || member.role === GroupRole.MODERATOR;
+    const groupPrivacy = group.privacy;
+
+    return { canPost, groupPrivacy };
+  }
+
+  async canUserViewGroupPosts(groupId: string, userId: string) {
+    const group = await this.dataSource
+      .getRepository(Group)
+      .findOne({ where: { id: groupId } });
+
+    if (!group || group.status !== GroupStatus.ACTIVE) {
+      throw new RpcException('Group not found');
+    }
+    if (group.privacy === GroupPrivacy.PUBLIC) {
+      return true;
+    }
+
+    const member = await this.dataSource
+      .getRepository(GroupMember)
+      .findOne({ where: { groupId, userId } });
+
+    if (!member) {
+      return false;
+    }
     return true;
   }
 }

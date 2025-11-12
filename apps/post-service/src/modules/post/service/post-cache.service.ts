@@ -208,4 +208,25 @@ export class PostCacheService {
         return relation;
     }
   }
+
+  // Cache group permission
+  async getGroupPermission(
+    userId: string,
+    groupId: string,
+    fetchFn: () => Promise<boolean>,
+    ttlSeconds = 30 // mặc định cache 30 giây
+  ): Promise<boolean> {
+    const key = `group_permission:${userId}:${groupId}`;
+    const cached = await this.redis.get(key);
+
+    if (cached !== null) {
+      return cached === '1';
+    }
+
+    const permission = await fetchFn();
+
+    await this.redis.set(key, permission ? '1' : '0', 'EX', ttlSeconds);
+
+    return permission;
+  }
 }
