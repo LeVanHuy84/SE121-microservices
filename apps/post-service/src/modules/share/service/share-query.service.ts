@@ -35,12 +35,12 @@ export class ShareQueryService {
     shareId: string
   ): Promise<ShareResponseDTO> {
     // Try cache first
-    const post = await this.shareCache.getShare(shareId);
-    if (!post) throw new RpcException(`Share not found`);
+    const share = await this.shareCache.getShare(shareId);
+    if (!share || share.isDeleted) throw new RpcException(`Share not found`);
 
     // Get user reaction (not cached, low-cost)
     const [_, userReaction] = await Promise.all([
-      this.ensureCanView(userRequestId, post.userId, post.audience),
+      this.ensureCanView(userRequestId, share.userId, share.audience),
       this.reactionRepo.findOne({
         where: {
           userId: userRequestId,
@@ -51,7 +51,7 @@ export class ShareQueryService {
       }),
     ]);
 
-    const response = plainToInstance(ShareResponseDTO, post, {
+    const response = plainToInstance(ShareResponseDTO, share, {
       excludeExtraneousValues: true,
     });
 
@@ -70,7 +70,9 @@ export class ShareQueryService {
       userId: currentUserId,
     });
 
-    const ids = await qb.select('s.id').getMany();
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const shareIds = ids.map((s) => s.id);
@@ -118,7 +120,9 @@ export class ShareQueryService {
       qb.andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
     }
 
-    const ids = await qb.select('s.id').getMany();
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const shareIds = ids.map((s) => s.id);
@@ -141,7 +145,9 @@ export class ShareQueryService {
       .where('s.postId = :postId', { postId })
       .andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
 
-    const ids = await qb.select('s.id').getMany();
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const shareIds = ids.map((s) => s.id);
@@ -159,6 +165,7 @@ export class ShareQueryService {
     const { cursor, limit } = query;
     const qb = this.shareRepo
       .createQueryBuilder('s')
+      .where('s.isDeleted = false')
       .orderBy('s.createdAt', 'DESC')
       .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
 

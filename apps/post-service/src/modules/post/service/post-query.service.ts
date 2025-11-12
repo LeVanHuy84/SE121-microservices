@@ -9,7 +9,6 @@ import {
   GetPostQueryDTO,
   GroupPermission,
   GroupPrivacy,
-  GroupRole,
   PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
@@ -41,7 +40,7 @@ export class PostQueryService {
     postId: string
   ): Promise<PostResponseDTO> {
     const post = await this.postCache.getPost(postId);
-    if (!post) throw new RpcException('Post not found');
+    if (!post || post.isDeleted) throw new RpcException('Post not found');
 
     const [_, userReaction] = await Promise.all([
       this.ensureCanView(userRequestId, post),
@@ -73,7 +72,9 @@ export class PostQueryService {
       .where('p.userId = :userId', { userId: currentUserId })
       .andWhere('p.groupId IS NULL');
 
-    const ids = await qb.select('p.id').getMany();
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
     if (ids.length === 0) return new CursorPageResponse([], null, false);
 
     const hasNextPage = ids.length > query.limit;
@@ -123,7 +124,9 @@ export class PostQueryService {
       qb.andWhere('p.audience = :audience', { audience: Audience.PUBLIC });
     }
 
-    const ids = await qb.select('p.id').getMany();
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
     if (ids.length === 0) return new CursorPageResponse([], null, false);
 
     const hasNextPage = ids.length > query.limit;
@@ -132,7 +135,6 @@ export class PostQueryService {
 
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return new CursorPageResponse([], null, false);
-
     return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
   }
 
@@ -169,7 +171,9 @@ export class PostQueryService {
       .where('p.groupId = :groupId', { groupId })
       .andWhere('pgi.status = :status', { status });
 
-    const ids = await qb.select(['p.id', 'p.createdAt']).getMany();
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
     if (ids.length === 0) return new CursorPageResponse([], null, false);
 
     const hasNextPage = ids.length > query.limit;
@@ -189,6 +193,7 @@ export class PostQueryService {
     const { cursor, limit, feeling, mainEmotion } = query;
     const qb = this.postRepo
       .createQueryBuilder('p')
+      .where('p.isDeleted = false')
       .orderBy('p.createdAt', 'DESC')
       .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
 

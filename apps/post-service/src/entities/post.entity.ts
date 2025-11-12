@@ -41,6 +41,9 @@ export class Post {
   @Column({ type: 'enum', enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
+  @Column({ type: 'boolean', name: 'is_deleted', default: false })
+  isDeleted: boolean;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamptz',

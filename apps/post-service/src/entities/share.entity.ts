@@ -26,6 +26,9 @@ export class Share {
   @Column({ type: 'varchar', length: 2000 })
   content: string;
 
+  @Column({ type: 'boolean', name: 'is_deleted', default: false })
+  isDeleted: boolean;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamptz',

@@ -10,6 +10,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { StatsModule } from './modules/stats/stats.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventModule } from './modules/event/event.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { EventModule } from './modules/event/event.module';
     ShareModule,
     EventModule,
     StatsModule,
+    ReportModule,
   ],
   controllers: [],
   providers: [],

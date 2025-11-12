@@ -49,6 +49,9 @@ export class Comment {
   @Column('jsonb', { nullable: true })
   media: MediaItemDTO;
 
+  @Column({ type: 'boolean', name: 'is_deleted', default: false })
+  isDeleted: boolean;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamptz',

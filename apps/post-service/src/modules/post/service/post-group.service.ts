@@ -71,7 +71,7 @@ export class PostGroupService {
     });
   }
 
-  async approvePost(userId: string, postId: string): Promise<void> {
+  async approvePost(userId: string, postId: string): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
@@ -79,6 +79,10 @@ export class PostGroupService {
       });
       if (!post || !post.postGroupInfo)
         throw new RpcException('Post not found');
+
+      if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
+        throw new RpcException('Post is not pending approval');
+      }
 
       const info = await this.postCache.getGroupUserPermission(
         userId,
@@ -95,6 +99,7 @@ export class PostGroupService {
       if (post) {
         await this.createOutboxEvent(manager, post);
       }
+      return true;
     });
   }
 
