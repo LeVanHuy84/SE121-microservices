@@ -58,42 +58,10 @@ export class GroupController {
     return this.groupService.deleteGroup(data.userId, data.groupId);
   }
 
-  @MessagePattern('check_before_create_post')
-  async checkBeforeCreatePost(
-    @Payload()
-    payload: {
-      groupId: string;
-      userId: string;
-    },
+  @MessagePattern('get_group_user_permissions')
+  async getGroupUserPermissions(
+    @Payload() data: { userId: string; groupId: string },
   ) {
-    return this.groupService.checkBeforeCreatePost(
-      payload.groupId,
-      payload.userId,
-    );
-  }
-
-  @MessagePattern('can_user_view_group_posts')
-  async canUserViewGroupPosts(
-    @Payload()
-    payload: {
-      groupId: string;
-      userId: string;
-    },
-  ) {
-    return this.groupService.canUserViewGroupPosts(
-      payload.groupId,
-      payload.userId,
-    );
-  }
-
-  @MessagePattern('can_user_approve_post')
-  async canUserApprovePost(
-    @Payload()
-    payload: {
-      groupId: string;
-      userId: string;
-    },
-  ) {
-    return true;
+    return this.groupService.getGroupUserPermissions(data.userId, data.groupId);
   }
 }

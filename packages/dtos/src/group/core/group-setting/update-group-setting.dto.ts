@@ -5,9 +5,6 @@ export class UpdateGroupSettingDTO {
   requiredPostApproval?: boolean;
 
   @IsOptional()
-  allowInvites?: boolean;
-
-  @IsOptional()
   maxMembers?: number;
 
   @IsOptional()

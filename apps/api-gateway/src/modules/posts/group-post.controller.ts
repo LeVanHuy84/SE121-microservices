@@ -8,7 +8,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CreatePostDTO, GetPostQueryDTO } from '@repo/dtos';
+import {
+  CreatePostDTO,
+  GetGroupPostQueryDTO,
+  GetPostQueryDTO,
+  PostGroupStatus,
+} from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -23,7 +28,7 @@ export class GroupPostController {
   getGroupPosts(
     @Param('groupId') groupId: string,
     @CurrentUserId() currentUserId: string,
-    @Query() pagination: GetPostQueryDTO
+    @Query() pagination: GetGroupPostQueryDTO
   ) {
     return this.client.send('get_group_posts', {
       groupId,
@@ -38,5 +43,13 @@ export class GroupPostController {
     @CurrentUserId() userId: string
   ) {
     return this.client.send('create_post_in_group', { userId, createPostDTO });
+  }
+
+  @Post('/group/approve/:postId')
+  approvePostInGroup(
+    @Param('postId') postId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('approve_post_in_group', { userId, postId });
   }
 }

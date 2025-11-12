@@ -3,10 +3,10 @@ import { RpcException } from '@nestjs/microservices';
 import {
   CreateGroupDTO,
   CursorPageResponse,
-  GroupPrivacy,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
+  PostPermissionDTO,
   SearchGroupDTO,
   UpdateGroupDTO,
 } from '@repo/dtos';
@@ -16,6 +16,8 @@ import { GroupMember } from 'src/entities/group-member.entity';
 import { GroupSetting } from 'src/entities/group-setting.entity';
 import { DataSource } from 'typeorm';
 import { validate as isUUID } from 'uuid';
+import { permission } from 'process';
+import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
 
 @Injectable()
 export class GroupService {
@@ -153,47 +155,32 @@ export class GroupService {
     return true;
   }
 
-  async checkBeforeCreatePost(groupId: string, userId: string) {
+  async getGroupUserPermissions(userId: string, groupId: string) {
     const groupRepo = this.dataSource.getRepository(Group);
-    const memberRepo = this.dataSource.getRepository(GroupMember);
+    const groupMemberRepo = this.dataSource.getRepository(GroupMember);
 
-    const group = await groupRepo.findOne({ where: { id: groupId } });
-    const member = await memberRepo.findOne({ where: { groupId, userId } });
+    const group = await groupRepo.findOne({
+      where: { id: groupId },
+      relations: ['groupSetting'],
+    });
 
-    if (!group || group.status !== GroupStatus.ACTIVE) {
+    if (!group) {
       throw new RpcException('Group not found');
     }
 
-    if (!member) {
-      throw new RpcException('User is not a member of the group');
-    }
+    const member = await groupMemberRepo.findOneBy({ userId, groupId });
 
-    const canPost =
-      member.role === GroupRole.ADMIN || member.role === GroupRole.MODERATOR;
-    const groupPrivacy = group.privacy;
+    const finalPermissions: PostPermissionDTO = {
+      isMember: !!member,
+      privacy: group?.privacy,
+      requireApproval: group?.groupSetting?.requiredPostApproval ?? false,
+      role: member?.role ?? null,
+      permissions: [
+        ...ROLE_PERMISSIONS[member?.role ?? GroupRole.MEMBER],
+        ...(member?.customPermissions ?? []),
+      ],
+    };
 
-    return { canPost, groupPrivacy };
-  }
-
-  async canUserViewGroupPosts(groupId: string, userId: string) {
-    const group = await this.dataSource
-      .getRepository(Group)
-      .findOne({ where: { id: groupId } });
-
-    if (!group || group.status !== GroupStatus.ACTIVE) {
-      throw new RpcException('Group not found');
-    }
-    if (group.privacy === GroupPrivacy.PUBLIC) {
-      return true;
-    }
-
-    const member = await this.dataSource
-      .getRepository(GroupMember)
-      .findOne({ where: { groupId, userId } });
-
-    if (!member) {
-      return false;
-    }
-    return true;
+    return finalPermissions;
   }
 }

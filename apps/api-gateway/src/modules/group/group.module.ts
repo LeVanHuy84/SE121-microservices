@@ -5,6 +5,7 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GroupMemberController } from './group-member.controller';
 import { GroupJoinRequestController } from './group-join-request.controller';
+import { GroupReportController } from './group-report.controller';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { GroupJoinRequestController } from './group-join-request.controller';
     GroupController,
     GroupMemberController,
     GroupJoinRequestController,
+    GroupReportController,
   ],
 })
 export class GroupModule {}

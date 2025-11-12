@@ -3,6 +3,7 @@ import {
   CreatePostDTO,
   EventDestination,
   EventTopic,
+  GroupPermission,
   GroupPrivacy,
   PostEventType,
   PostGroupStatus,
@@ -13,16 +14,15 @@ import { Post } from 'src/entities/post.entity';
 import { DataSource, EntityManager } from 'typeorm';
 import { PostShortenMapper } from '../post-shorten.mapper';
 import { PostGroupInfo } from 'src/entities/post-group-info.entity';
-import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
+import { RpcException } from '@nestjs/microservices';
 import { OutboxEvent } from 'src/entities/outbox.entity';
+import { PostCacheService } from './post-cache.service';
 
 @Injectable()
 export class PostGroupService {
   constructor(
     private readonly dataSource: DataSource,
-    @Inject('GROUP_SERVICE')
-    private readonly groupClient: ClientProxy
+    private readonly postCache: PostCacheService
   ) {}
 
   // ----------------------------------------
@@ -37,24 +37,31 @@ export class PostGroupService {
         postGroupInfo: manager.create(PostGroupInfo),
       });
 
-      console.log('groupId', dto.groupId);
+      if (!dto.groupId) {
+        throw new RpcException('Group ID is required for group posts');
+      }
 
       // Nếu không phải bài private thì emit event
-      const checkInfo = await lastValueFrom(
-        this.groupClient.send('check_before_create_post', {
-          groupId: dto.groupId,
-          userId,
-        })
+      const info = await this.postCache.getGroupUserPermission(
+        userId,
+        dto.groupId
       );
 
-      if (checkInfo.canPost) {
+      if (!info.isMember) {
+        throw new RpcException('User is not a member of the group');
+      }
+
+      if (
+        info.requireApproval === false ||
+        info.permissions.includes(GroupPermission.APPROVE_POST)
+      ) {
         post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
         await this.createOutboxEvent(manager, post);
       } else {
         post.postGroupInfo.status = PostGroupStatus.PENDING;
       }
 
-      if (checkInfo.groupPrivacy === GroupPrivacy.PRIVATE) {
+      if (info.privacy === GroupPrivacy.PRIVATE) {
         post.postGroupInfo.isPrivateGroup = true;
       }
 
@@ -64,7 +71,7 @@ export class PostGroupService {
     });
   }
 
-  async approvePost(postId: string): Promise<void> {
+  async approvePost(userId: string, postId: string): Promise<void> {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
@@ -72,6 +79,16 @@ export class PostGroupService {
       });
       if (!post || !post.postGroupInfo)
         throw new RpcException('Post not found');
+
+      const info = await this.postCache.getGroupUserPermission(
+        userId,
+        post.groupId
+      );
+
+      if (!info.permissions.includes(GroupPermission.APPROVE_POST)) {
+        throw new RpcException('No permission to approve post');
+      }
+
       post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
       await manager.save(post.postGroupInfo);
 

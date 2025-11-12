@@ -5,6 +5,9 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Post } from 'src/entities/post.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
+import { ClientProxy } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
+import { GroupPrivacy, PostPermissionDTO } from '@repo/dtos';
 
 @Injectable()
 export class PostCacheService {
@@ -16,7 +19,9 @@ export class PostCacheService {
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
     @InjectRepository(PostStat)
     private readonly postStatRepo: Repository<PostStat>,
-    @InjectRedis() private readonly redis: Redis
+    @InjectRedis() private readonly redis: Redis,
+    @Inject('GROUP_SERVICE')
+    private readonly groupClient: ClientProxy
   ) {}
 
   // ----------------------------------------
@@ -210,23 +215,25 @@ export class PostCacheService {
   }
 
   // Cache group permission
-  async getGroupPermission(
+  async getGroupUserPermission(
     userId: string,
     groupId: string,
-    fetchFn: () => Promise<boolean>,
-    ttlSeconds = 30 // mặc định cache 30 giây
-  ): Promise<boolean> {
+    ttlSeconds = 60
+  ): Promise<PostPermissionDTO> {
     const key = `group_permission:${userId}:${groupId}`;
     const cached = await this.redis.get(key);
-
     if (cached !== null) {
-      return cached === '1';
+      return JSON.parse(cached) as PostPermissionDTO;
     }
 
-    const permission = await fetchFn();
+    const permission = await lastValueFrom(
+      this.groupClient.send('get_group_user_permissions', {
+        userId,
+        groupId,
+      })
+    );
 
-    await this.redis.set(key, permission ? '1' : '0', 'EX', ttlSeconds);
-
+    await this.redis.setex(key, ttlSeconds, JSON.stringify(permission));
     return permission;
   }
 }

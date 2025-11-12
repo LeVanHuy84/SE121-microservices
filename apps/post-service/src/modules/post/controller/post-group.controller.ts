@@ -16,7 +16,9 @@ export class PostGroupController {
   }
 
   @MessagePattern('approve_post_in_group')
-  async approvePostInGroup(@Payload() postId: string) {
-    return this.postGroup.approvePost(postId);
+  async approvePostInGroup(
+    @Payload() payload: { userId: string; postId: string }
+  ) {
+    return this.postGroup.approvePost(payload.userId, payload.postId);
   }
 }

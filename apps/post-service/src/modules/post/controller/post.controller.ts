@@ -3,7 +3,9 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreatePostDTO,
   CursorPageResponse,
+  GetGroupPostQueryDTO,
   GetPostQueryDTO,
+  PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
 } from '@repo/dtos';
@@ -59,7 +61,7 @@ export class PostController {
     @Payload()
     payload: {
       groupId: string;
-      pagination: GetPostQueryDTO;
+      pagination: GetGroupPostQueryDTO;
       currentUserId: string;
     }
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {

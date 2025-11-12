@@ -6,6 +6,7 @@ import { GroupMemberModule } from './modules/member/group-member.module';
 import dbConfig from './config/db.config';
 import { GroupAuthorizationModule } from './modules/group-authorization/group-authorization.module';
 import { GroupRequestModule } from './modules/group-request/group-request.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { GroupRequestModule } from './modules/group-request/group-request.module
     GroupCoreModule,
     GroupMemberModule,
     GroupRequestModule,
+    ReportModule,
   ],
   controllers: [],
   providers: [],

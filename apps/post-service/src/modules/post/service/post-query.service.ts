@@ -5,7 +5,12 @@ import { plainToInstance } from 'class-transformer';
 import {
   Audience,
   CursorPageResponse,
+  GetGroupPostQueryDTO,
   GetPostQueryDTO,
+  GroupPermission,
+  GroupPrivacy,
+  GroupRole,
+  PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
   ReactionType,
@@ -25,8 +30,7 @@ export class PostQueryService {
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
-    private readonly postCache: PostCacheService,
-    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy
+    private readonly postCache: PostCacheService
   ) {}
 
   // ----------------------------------------
@@ -138,30 +142,34 @@ export class PostQueryService {
   async getGroupPost(
     groupId: string,
     userId: string,
-    query: GetPostQueryDTO
+    query: GetGroupPostQueryDTO
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
-    const canGetPosts = await this.postCache.getRelationship(
+    const memberInfo = await this.postCache.getGroupUserPermission(
       userId,
-      groupId,
-      async () => {
-        return await lastValueFrom(
-          this.groupClient.send('can_user_view_group_posts', {
-            groupId,
-            userId,
-          })
-        );
-      }
+      groupId
     );
+    const status = query.status || PostGroupStatus.PUBLISHED;
 
-    if (!canGetPosts) {
-      throw new RpcException('Access denied to view group posts');
+    // Nếu là bài đã duyệt
+    if (status === PostGroupStatus.PUBLISHED) {
+      if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
+        throw new RpcException('User is not a member of the group');
+      }
+    } else {
+      const canReview = memberInfo.permissions.includes(
+        GroupPermission.APPROVE_POST
+      );
+      if (!canReview) {
+        throw new RpcException('No permission to view pending/rejected posts');
+      }
     }
 
-    const qb = this.buildPostQuery(query).where('p.groupId = :groupId', {
-      groupId,
-    });
+    const qb = this.buildPostQuery(query)
+      .innerJoin('p.postGroupInfo', 'pgi')
+      .where('p.groupId = :groupId', { groupId })
+      .andWhere('pgi.status = :status', { status });
 
-    const ids = await qb.select('p.id').getMany();
+    const ids = await qb.select(['p.id', 'p.createdAt']).getMany();
     if (ids.length === 0) return new CursorPageResponse([], null, false);
 
     const hasNextPage = ids.length > query.limit;
@@ -178,7 +186,7 @@ export class PostQueryService {
   // ⚙️ Helpers chung
   // ----------------------------------------
   private buildPostQuery(query: GetPostQueryDTO) {
-    const { cursor, limit, feeling } = query;
+    const { cursor, limit, feeling, mainEmotion } = query;
     const qb = this.postRepo
       .createQueryBuilder('p')
       .orderBy('p.createdAt', 'DESC')
@@ -189,6 +197,8 @@ export class PostQueryService {
     }
 
     if (feeling) qb.andWhere('p.feeling = :feeling', { feeling });
+    if (mainEmotion)
+      qb.andWhere('p.mainEmotion = :mainEmotion', { mainEmotion });
     return qb;
   }
 
