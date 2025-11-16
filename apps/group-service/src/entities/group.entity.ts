@@ -5,7 +5,7 @@ import { GroupSetting } from './group-setting.entity';
 import { GroupMember } from './group-member.entity';
 import { GroupJoinRequest } from './group-join-request.entity';
 import { GroupReport } from './group-report.entity';
-import { GroupEvent } from './group-event.entity';
+import { GroupEvent } from './group-event-log.entity';
 import { GroupStatistic } from './group-statistic.entity';
 
 @Entity('groups')

@@ -2,12 +2,15 @@ import { Controller } from '@nestjs/common';
 import { GroupMemberService } from './group-member.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { GroupMemberFilter, GroupPermission, GroupRole } from '@repo/dtos';
+import { RequireGroupPermission } from '../group-authorization/require-group-permission.decorator';
+import { RequireGroupRole } from '../group-authorization/require-group-role.decatator';
 
 @Controller('member')
 export class GroupMemberController {
   constructor(private readonly groupMemberService: GroupMemberService) {}
 
   @MessagePattern('remove-member')
+  @RequireGroupPermission(GroupPermission.MANAGE_MEMBERS)
   async removeMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
   ) {
@@ -18,6 +21,7 @@ export class GroupMemberController {
   }
 
   @MessagePattern('ban-member')
+  @RequireGroupPermission(GroupPermission.BAN_MEMBER)
   async banMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
   ) {
@@ -25,6 +29,7 @@ export class GroupMemberController {
   }
 
   @MessagePattern('change-member-role')
+  @RequireGroupRole(GroupRole.ADMIN)
   async changeRole(
     @Payload()
     payload: {
@@ -42,6 +47,7 @@ export class GroupMemberController {
   }
 
   @MessagePattern('change-member-permission')
+  @RequireGroupRole(GroupRole.ADMIN)
   async changePermission(
     @Payload()
     payload: {

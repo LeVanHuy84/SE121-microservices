@@ -111,6 +111,7 @@ export class ShareCommandService {
 
     this.recentActivityBuffer
       .addRecentActivity({
+        idempotentKey: savedShare.id,
         actorId: userId,
         type: 'share',
         targetType: TargetType.POST,

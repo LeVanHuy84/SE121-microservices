@@ -3,36 +3,23 @@ import { ClientProxy } from '@nestjs/microservices';
 import { CreateNotificationDto } from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
 
-export type NotificationSample = {
-  id: string;
-  eventType: string;
-  payload: any;
-};
-
 @Injectable()
 export class NotificationService {
   constructor(@Inject('NOTIFICATION_SERVICE') private client: ClientProxy) {
     console.log('🔥 NotificationService initialized');
   }
 
-  async sendNotification(dto: NotificationSample, origin: string) {
-    const createNotificationDto: CreateNotificationDto = {
-      requestId: dto.id,
-      userId: dto.payload?.userId,
-      type: dto.eventType,
-      payload: dto.payload,
-      sendAt: new Date(),
-      meta: {
-        priority: 1,
-        maxRetries: 3,
-      },
-    };
+  async sendNotification(
+    createNotificationDto: CreateNotificationDto
+    // origin: string
+  ) {
+    // const message = {
+    //   createNotificationDto,
+    //   origin,
+    // };
 
-    const message = {
-      createNotificationDto,
-      origin,
-    };
-
-    await lastValueFrom(this.client.emit('create_notification', message));
+    await lastValueFrom(
+      this.client.emit('create_notification', { createNotificationDto })
+    );
   }
 }

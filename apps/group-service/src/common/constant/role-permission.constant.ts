@@ -13,7 +13,6 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     GroupPermission.UPDATE_GROUP_SETTINGS,
     GroupPermission.MANAGE_JOIN_REQUESTS,
     GroupPermission.MANAGE_EVENTS,
-    GroupPermission.DELETE_GROUP,
   ],
   [GroupRole.MODERATOR]: [
     GroupPermission.MANAGE_MEMBERS,

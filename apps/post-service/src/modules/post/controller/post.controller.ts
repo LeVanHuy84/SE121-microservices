@@ -3,9 +3,9 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreatePostDTO,
   CursorPageResponse,
+  EditHistoryReponseDTO,
   GetGroupPostQueryDTO,
   GetPostQueryDTO,
-  PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
 } from '@repo/dtos';
@@ -88,5 +88,12 @@ export class PostController {
     @Payload() payload: { id: string; userId: string }
   ): Promise<boolean> {
     return this.postCommand.remove(payload.userId, payload.id);
+  }
+
+  @MessagePattern('get_post_edit_histories')
+  async getPostEditHistories(
+    @Payload() payload: { userId: string; postId: string }
+  ) {
+    return this.postQuery.getPostEditHistories(payload.userId, payload.postId);
   }
 }

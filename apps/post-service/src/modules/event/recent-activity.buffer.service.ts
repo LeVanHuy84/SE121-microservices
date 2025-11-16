@@ -6,6 +6,7 @@ import { TargetType } from '@repo/dtos';
 export type ActivityType = 'reaction' | 'comment' | 'share';
 
 export interface RecentActivity {
+  idempotentKey: string;
   actorId: string;
   type: ActivityType;
   targetType: TargetType;

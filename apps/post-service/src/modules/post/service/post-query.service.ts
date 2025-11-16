@@ -5,6 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   Audience,
   CursorPageResponse,
+  EditHistoryReponseDTO,
   GetGroupPostQueryDTO,
   GetPostQueryDTO,
   GroupPermission,
@@ -184,6 +185,27 @@ export class PostQueryService {
     if (!posts.length) return new CursorPageResponse([], null, false);
 
     return this.buildPagedPostResponse(userId, posts, hasNextPage);
+  }
+
+  async getPostEditHistories(
+    userId: string,
+    postId: string
+  ): Promise<EditHistoryReponseDTO[]> {
+    const postEdit = await this.postRepo.findOne({
+      where: { id: postId },
+      relations: { editHistories: true },
+    });
+    if (!postEdit) throw new RpcException('Post not found');
+    if (userId !== postEdit.userId)
+      throw new RpcException('Forbidden: You are not the owner of the post');
+
+    return plainToInstance(
+      EditHistoryReponseDTO,
+      postEdit.editHistories || [],
+      {
+        excludeExtraneousValues: true,
+      }
+    );
   }
 
   // ----------------------------------------

@@ -4,10 +4,12 @@ import { GroupService } from './group.service';
 import {
   CreateGroupDTO,
   GroupPermission,
+  GroupRole,
   SearchGroupDTO,
   UpdateGroupDTO,
 } from '@repo/dtos';
 import { RequireGroupPermission } from 'src/modules/group-authorization/require-group-permission.decorator';
+import { RequireGroupRole } from 'src/modules/group-authorization/require-group-role.decatator';
 
 @Controller('group')
 export class GroupController {
@@ -46,8 +48,8 @@ export class GroupController {
     return this.groupService.updateGroup(data.userId, data.groupId, data.dto);
   }
 
-  @RequireGroupPermission(GroupPermission.DELETE_GROUP)
   @MessagePattern('delete_group')
+  @RequireGroupRole(GroupRole.ADMIN)
   async deleteGroup(
     @Payload()
     data: {
