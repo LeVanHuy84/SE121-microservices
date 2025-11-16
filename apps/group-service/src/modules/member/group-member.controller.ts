@@ -73,6 +73,10 @@ export class GroupMemberController {
   async getMemberUserIds(
     @Payload() payload: { groupId: string },
   ): Promise<string[]> {
-    return this.groupMemberService.getMemberUserIds(payload.groupId);
+    const result = await this.groupMemberService.getMemberUserIds(
+      payload.groupId,
+    );
+    console.log('Group member user IDs:', result);
+    return result;
   }
 }

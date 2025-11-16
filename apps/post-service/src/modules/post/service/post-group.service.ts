@@ -41,7 +41,6 @@ export class PostGroupService {
         throw new RpcException('Group ID is required for group posts');
       }
 
-      // Nếu không phải bài private thì emit event
       const info = await this.postCache.getGroupUserPermission(
         userId,
         dto.groupId
@@ -51,12 +50,13 @@ export class PostGroupService {
         throw new RpcException('User is not a member of the group');
       }
 
+      // set status based on permissions/approval
       if (
         info.requireApproval === false ||
         info.permissions.includes(GroupPermission.APPROVE_POST)
       ) {
         post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
-        await this.createOutboxEvent(manager, post);
+        // NOTE: don't create outbox yet — must save post first to get id/createdAt
       } else {
         post.postGroupInfo.status = PostGroupStatus.PENDING;
       }
@@ -65,7 +65,12 @@ export class PostGroupService {
         post.postGroupInfo.isPrivateGroup = true;
       }
 
+      // Save post first so it has id, timestamps, ... then create outbox if published
       const entity = await manager.save(post);
+
+      if (entity.postGroupInfo?.status === PostGroupStatus.PUBLISHED) {
+        await this.createOutboxEvent(manager, entity);
+      }
 
       return PostShortenMapper.toPostSnapshotDTO(entity);
     });

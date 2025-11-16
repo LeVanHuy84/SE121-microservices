@@ -74,7 +74,10 @@ export class RecentActivityBatch {
             },
           };
 
-          await this.notificationService.sendNotification(message);
+          await this.notificationService.sendNotification(
+            message,
+            'post-service'
+          );
           this.logger.debug(`✅ Sent ${type} for ${targetType}:${targetId}`);
         } catch (err) {
           this.logger.error(

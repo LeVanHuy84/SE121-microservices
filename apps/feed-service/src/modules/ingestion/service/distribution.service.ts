@@ -16,6 +16,8 @@ export class DistributionService {
     @InjectModel(FeedItem.name) private feedItemModel: Model<FeedItemDocument>,
     @Inject(MICROSERVICE_CLIENT.SOCIAL_SERVICE)
     private readonly socialClient: ClientProxy,
+    @Inject(MICROSERVICE_CLIENT.GROUP_SERVICE)
+    private readonly groupClient: ClientProxy,
   ) {}
 
   /**
@@ -34,9 +36,11 @@ export class DistributionService {
       let receiver: string[] = [];
 
       if (groupId) {
+        console.log('Fetching group members for groupId:', groupId);
         receiver = await lastValueFrom(
-          this.socialClient.send('get_group_member_user_ids', { groupId }),
+          this.groupClient.send('get_group_member_user_ids', { groupId }),
         );
+        console.log('Group members fetched:', receiver);
       } else {
         receiver = await lastValueFrom(
           this.socialClient.send(
