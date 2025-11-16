@@ -10,17 +10,20 @@ export class Outbox {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({nullable: true})
+  topic: string;
+
   @Column()
   eventType: string;
 
   @Column({ type: 'jsonb' })
-  payload: any;
+  payload: Record<string, any>;
 
   @Column({ default: false })
-  published: boolean;
+  processed: boolean;
 
   @Column({ nullable: true })
-  publishedAt?: Date;
+  processedAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { GatewayExceptionsFilter } from './common/filters/gateway.filter';
+import { DateFormatInterceptor } from './common/interceptors/date-format.interceptor';
 import { RedisIoAdapter } from './redis.adapter';
 
 async function bootstrap() {
@@ -10,12 +11,11 @@ async function bootstrap() {
 
   app.enableCors();
 
-  
-
-
   app.useGlobalFilters(new GatewayExceptionsFilter());
+  app.useGlobalInterceptors(new DateFormatInterceptor());
   // set global prefix
   app.setGlobalPrefix('api/v1');
+
 
 
   app.useWebSocketAdapter(redisIoAdapter);

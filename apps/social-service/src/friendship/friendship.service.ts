@@ -2,10 +2,14 @@ import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { int, Transaction } from 'neo4j-driver';
 import { Neo4jService } from 'src/neo4j/neo4j.service';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
+import { RecentActivityBufferService } from 'src/event/recent-activity.buffer.service';
 
 @Injectable()
 export class FriendshipService {
-  constructor(private readonly neo4j: Neo4jService) {}
+  constructor(
+    private readonly neo4j: Neo4jService,
+    private readonly buffer: RecentActivityBufferService,
+  ) {}
 
   // ----- Get relationship status -----
   async getRelationshipStatus(userId: string, targetId: string) {
@@ -55,6 +59,12 @@ export class FriendshipService {
       tx,
     );
 
+    this.buffer.addRecentActivity({
+      actorId: userId,
+      targetId: targetId,
+      type: 'friendship_request',
+    });
+
     return { message: 'Friend request sent successfully' };
   }
   async cancelFriendRequest(tx: Transaction, userId: string, targetId: string) {
@@ -73,6 +83,8 @@ export class FriendshipService {
       { userId, targetId },
       tx,
     );
+
+    this.buffer.clearActivity('friendship_request', targetId, userId);
 
     return { message: 'Friend request canceled successfully' };
   }
@@ -96,6 +108,11 @@ export class FriendshipService {
       { userId, requesterId },
       tx,
     );
+    this.buffer.addRecentActivity({
+      actorId: userId,
+      targetId: requesterId,
+      type: 'friendship_accept',
+    });
 
     return { message: 'Friend request accepted' };
   }
@@ -275,5 +292,24 @@ export class FriendshipService {
       nextCursor,
       hasNextPage,
     };
+  }
+
+  async getFriendIds(userId: string, limit?: number) {
+    const safeLimit =
+      typeof limit !== 'undefined' ? Math.max(0, Math.floor(limit)) : undefined;
+
+    const query = `
+    MATCH (u:User {id: $userId})- [r:FRIEND_WITH]-> (f:User)
+    RETURN f.id as id, r.since as since
+    ORDER BY r.since DESC
+    ${safeLimit ? 'LIMIT $limit' : ''}
+  `;
+
+    const params: any = { userId };
+    if (safeLimit !== undefined) params.limit = this.neo4j.int(safeLimit);
+
+    const result = await this.neo4j.read(query, params);
+    const records = result.records || result;
+    return records.map((r) => r.get('id'));
   }
 }

@@ -1,16 +1,14 @@
-import { Controller, Inject, UseInterceptors } from '@nestjs/common';
-import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
+import { Controller, UseInterceptors } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { CursorPaginationDTO } from '@repo/dtos';
 import { Transaction } from 'neo4j-driver';
-import { firstValueFrom } from 'rxjs';
 import { Neo4jTransactionInterceptor } from 'src/neo4j/neo4j-transaction.interceptor';
 import { FriendshipService } from './friendship.service';
-import { CursorPaginationDTO } from '@repo/dtos';
 
 @Controller()
 export class FriendshipController {
   constructor(
     private readonly friendshipService: FriendshipService,
-    @Inject('USER_SERVICE') private readonly userRedisClient: ClientProxy,
   ) {}
 
   @MessagePattern('get_relationship_status')
@@ -156,5 +154,10 @@ export class FriendshipController {
       data.userId,
       data.targetId,
     );
+  }
+
+  @MessagePattern({ cmd: 'get_friend_ids' })
+  async getFriendIds(@Payload() payload: { userId: string; limit: number }) {
+    return this.friendshipService.getFriendIds(payload.userId, payload.limit);
   }
 }

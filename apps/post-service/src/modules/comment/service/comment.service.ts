@@ -105,7 +105,6 @@ export class CommentService {
   ): Promise<CommentResponseDTO> {
     return await this.dataSource.transaction(async (manager) => {
       const commentRepo = manager.getRepository(Comment);
-
       // 1️⃣ Tìm comment
       const comment = await commentRepo.findOne({ where: { id: commentId } });
       if (!comment) {
@@ -123,6 +122,7 @@ export class CommentService {
 
       // 4️⃣ Xoá cache (sau transaction)
       await this.commentCache.invalidateComment(
+        comment.id,
         comment.rootId,
         comment.parentId
       );
@@ -169,6 +169,7 @@ export class CommentService {
 
       // 🧹 Xoá cache liên quan
       await this.commentCache.invalidateComment(
+        comment.id,
         comment.rootId,
         comment.parentId
       );

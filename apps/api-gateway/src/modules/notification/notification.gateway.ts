@@ -1,19 +1,24 @@
-import { Inject, Logger, UseGuards } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import * as amqp from 'amqplib';
 import { Server, Socket } from 'socket.io';
-import { ClerkWsGuard } from '../auth/clerk-auth-ws.guard';
-import { ChannelNotification } from '@repo/dtos';
-@UseGuards(ClerkWsGuard)
+import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { Client } from '@clerk/backend';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 @WebSocketGateway({
-  namespace: '/api/v1/notifications',
+  namespace: '/notifications',
   cors: {
     origin: '*', // hoặc domain frontend
     methods: ['GET', 'POST'],
@@ -25,22 +30,23 @@ export class NotificationGateway
 {
   private readonly logger = new Logger(NotificationGateway.name);
   constructor(
-    @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper
+    @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper,
+    @Inject(MICROSERVICES_CLIENTS.NOTIFICATION_SERVICE)
+    private readonly notificationClient: ClientProxy
   ) {}
-  @WebSocketServer() io: Server;
+  @WebSocketServer() server: Server;
   afterInit(server: Server) {
+    server.use(clerkWsMiddleware);
     this.logger.log('NotificationGateway initialized');
     this.rabbitChannel.addSetup(async (channel: amqp.Channel) => {
       await channel.consume('notification_queue', async (msg) => {
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
-          const routingKey = msg.fields.routingKey;
-          if (routingKey === `channel.${ChannelNotification.WEBSOCKET}`) {
-            this.io
-              .to(`user-notification:${payload.userId}`)
-              .emit('notification', payload);
-          }
+          this.logger.log('Log payload', payload);
+          this.server
+            .to(`user-notif:${payload.userId}`)
+            .emit('notification', payload);
           channel.ack(msg);
           this.logger.log(`Sent notification to user ${payload.userId}`);
         } catch (err) {
@@ -51,17 +57,71 @@ export class NotificationGateway
     });
   }
   handleConnection(client: Socket) {
-    const user = client.data.user;
-    if (!user) {
-      this.logger.warn(`Unauthorized client tried to connect: ${client.id}`);
+    this.logger.log(`Client connected: ${client.id}`);
+    const userId = client.user?.id;
+    if (userId) {
+      client.join(`user-notif:${userId}`);
+      this.logger.log(`Client ${client.id} joined room user-notif:${userId}`);
+    } else {
+      this.logger.warn(
+        `Client ${client.id} has no authenticated user ID; disconnecting`
+      );
       client.disconnect();
-      return;
     }
-    const room = `user-notification:${user.userId}`;
-    client.join(room);
-    this.logger.log(`Client connected: ${client.id}, joined room: ${room}`);
   }
   handleDisconnect(client: Socket) {
+    client.disconnect();
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('mark_read')
+  async handleMarkAsRead(
+    @MessageBody() id: string,
+    @ConnectedSocket() client: Socket
+  ) {
+    try {
+      const userId = client.user?.id;
+      if (!userId) {
+        this.logger.warn(`Client ${client.id} has no user ID`);
+        return;
+      }
+
+      this.logger.log(`Marking notification ${id} as read`);
+      const result = await firstValueFrom(
+        this.notificationClient.send('mark_read', id)
+      );
+
+      console.log('result', result);
+      this.server.to(`user-notif:${userId}`).emit('mark_read', id);
+    } catch (err) {
+      this.logger.error(`Failed to mark notification ${id} as read`, err);
+      client.emit('mark_read_error', { id, error: err.message });
+    }
+  }
+
+  @SubscribeMessage('mark_read_all')
+  async handleMarkAllAsRead(@ConnectedSocket() client: Socket) {
+    const userId = client.user?.id;
+
+    try {
+      if (!userId) {
+        this.logger.warn(
+          `Client ${client.id} has no authenticated user ID; cannot mark all as read`
+        );
+        client.emit('mark_read_all_error', { error: 'Unauthenticated' });
+        return;
+      }
+      const result = await firstValueFrom(
+        this.notificationClient.send('mark_read_all', userId)
+      );
+      console.log('result', result);
+      this.server.to(`user-notif:${userId}`).emit('mark_read_all');
+    } catch (err) {
+      this.logger.error(
+        `Failed to mark all notifications as read for user ${userId}`,
+        err
+      );
+      client.emit('mark_read_all_error', { error: err.message });
+    }
   }
 }
