@@ -7,7 +7,7 @@ import { Post } from 'src/entities/post.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
-import { GroupPrivacy, PostPermissionDTO } from '@repo/dtos';
+import { PostPermissionDTO } from '@repo/dtos';
 
 @Injectable()
 export class PostCacheService {

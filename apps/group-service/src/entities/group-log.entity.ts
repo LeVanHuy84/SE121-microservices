@@ -3,8 +3,8 @@ import { BaseEntity } from './base.entity';
 import { GroupEventLog } from '@repo/dtos';
 import { Group } from './group.entity';
 
-@Entity('group_events')
-export class GroupEvent extends BaseEntity {
+@Entity('group_logs')
+export class GroupLog extends BaseEntity {
   @Column({ type: 'uuid', name: 'group_id', nullable: false })
   groupId: string;
 
@@ -19,10 +19,10 @@ export class GroupEvent extends BaseEntity {
   })
   eventType: GroupEventLog;
 
-  @Column({ type: 'jsonb', nullable: true })
-  metadata: Object;
+  @Column({ type: 'text', nullable: true })
+  content: string;
 
-  @ManyToOne(() => Group, (group) => group.groupEvents, {
+  @ManyToOne(() => Group, (group) => group.groupLogs, {
     onDelete: 'CASCADE',
   })
   group: Group;

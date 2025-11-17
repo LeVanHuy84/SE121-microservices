@@ -36,11 +36,9 @@ export class DistributionService {
       let receiver: string[] = [];
 
       if (groupId) {
-        console.log('Fetching group members for groupId:', groupId);
         receiver = await lastValueFrom(
           this.groupClient.send('get_group_member_user_ids', { groupId }),
         );
-        console.log('Group members fetched:', receiver);
       } else {
         receiver = await lastValueFrom(
           this.socialClient.send(

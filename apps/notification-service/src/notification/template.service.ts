@@ -18,6 +18,14 @@ export class TemplateService {
     share: (payload) =>
       `${payload.actorName} shared your post: ${payload.content || ''}`,
     follow: (payload) => `${payload.actorName} started following you`,
+    group_event: (payload) =>
+      `${payload.groupName} has new activity: ${payload.content || ''}`,
+    post_pending: (payload) =>
+      `There is a new post pending approval in ${payload.groupName}: ${payload.content || ''}`,
+    post_approved: (payload) =>
+      `Your post has been approved in ${payload.groupName}: ${payload.content || ''}`,
+    post_rejected: (payload) =>
+      `Your post has been rejected in ${payload.groupName}: ${payload.content || ''}`,
     // 👉 sau này thêm type mới chỉ cần thêm key ở đây
   };
 

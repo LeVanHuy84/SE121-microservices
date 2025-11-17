@@ -2,19 +2,38 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
+import { KafkaAppModule } from './kafka-app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      port: process.env.PORT ? parseInt(process.env.PORT) : 4008,
+  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      transport: Transport.TCP,
+      options: {
+        port: process.env.PORT ? parseInt(process.env.PORT) : 4008,
+      },
     },
-  });
+  );
 
-  app.useGlobalFilters(new ExceptionsFilter());
+  const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+    KafkaAppModule,
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: process.env.KAFKA_BROKERS!.split(','),
+          clientId: process.env.KAFKA_CLIENT_ID!,
+        },
+        consumer: {
+          groupId: process.env.KAFKA_GROUP_ID!,
+        },
+      },
+    },
+  );
 
-  await app.startAllMicroservices();
-  await app.init();
+  tcpApp.useGlobalFilters(new ExceptionsFilter());
+  kafkaApp.useGlobalFilters(new ExceptionsFilter());
+
+  await Promise.all([tcpApp.listen(), kafkaApp.listen()]);
 }
 bootstrap();

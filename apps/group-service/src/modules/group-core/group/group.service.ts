@@ -3,6 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import {
   CreateGroupDTO,
   CursorPageResponse,
+  GroupEventLog,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
@@ -16,17 +17,27 @@ import { GroupMember } from 'src/entities/group-member.entity';
 import { GroupSetting } from 'src/entities/group-setting.entity';
 import { DataSource } from 'typeorm';
 import { validate as isUUID } from 'uuid';
-import { permission } from 'process';
 import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
+import { GroupCacheService } from './group-cache.service';
+import { GroupLogService } from 'src/modules/group-log/group-log.service';
 
 @Injectable()
 export class GroupService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly groupLogService: GroupLogService,
+    private readonly groupCacheService: GroupCacheService,
+  ) {}
 
   // 📌 Find group by ID
   async findById(groupId: string): Promise<GroupResponseDTO> {
     if (!isUUID(groupId)) {
       throw new RpcException('Invalid group ID format');
+    }
+
+    const cachedData = await this.groupCacheService.getGroupData(groupId);
+    if (cachedData) {
+      return cachedData;
     }
 
     const entity = await this.dataSource
@@ -36,6 +47,8 @@ export class GroupService {
     if (!entity) {
       throw new RpcException('Group not found');
     }
+
+    await this.groupCacheService.cacheGroupData(groupId, entity);
 
     return plainToInstance(GroupResponseDTO, entity, {
       excludeExtraneousValues: true,
@@ -123,20 +136,29 @@ export class GroupService {
     userId: string,
     groupId: string,
     dto: Partial<UpdateGroupDTO>,
-  ): Promise<GroupResponseDTO> {
-    const repo = this.dataSource.getRepository(Group);
-    const group = await repo.findOne({ where: { id: groupId } });
+  ) {
+    return await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Group);
 
-    if (!group) {
-      throw new RpcException('Group not found');
-    }
+      const group = await repo.findOne({ where: { id: groupId } });
+      if (!group) throw new RpcException('Group not found');
 
-    const assignedGroup = Object.assign(group, dto);
-    assignedGroup.updatedBy = userId;
-    const updatedGroup = await repo.save(assignedGroup);
+      Object.assign(group, dto);
+      group.updatedBy = userId;
 
-    return plainToInstance(GroupResponseDTO, updatedGroup, {
-      excludeExtraneousValues: true,
+      const updatedGroup = await repo.save(group);
+
+      // Gọi EventService, nhưng dùng chung manager
+      await this.groupLogService.log(manager, {
+        groupId: updatedGroup.id,
+        userId,
+        eventType: GroupEventLog.GROUP_UPDATED,
+        content: `Group updated: ${Object.entries(dto)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(', ')}`,
+      });
+
+      return updatedGroup;
     });
   }
 

@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { JoinRequestFilter } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
@@ -29,7 +21,7 @@ export class GroupJoinRequestController {
   }
 
   // Admin duyệt yêu cầu
-  @Patch(':requestId/approve')
+  @Post(':requestId/approve')
   async approveJoinRequest(
     @Param('groupId') groupId: string,
     @Param('requestId') requestId: string,
@@ -43,13 +35,27 @@ export class GroupJoinRequestController {
   }
 
   // Admin từ chối yêu cầu
-  @Patch(':requestId/reject')
+  @Post(':requestId/reject')
   async rejectJoinRequest(
     @Param('groupId') groupId: string,
     @Param('requestId') requestId: string,
     @CurrentUserId() userId: string
   ) {
     return this.client.send('reject_group_join_request', {
+      groupId,
+      requestId,
+      userId,
+    });
+  }
+
+  // User hủy yêu cầu tham gia
+  @Post(':requestId/cancel')
+  async cancelJoinRequest(
+    @Param('groupId') groupId: string,
+    @Param('requestId') requestId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('cancel_group_join_request', {
       groupId,
       requestId,
       userId,

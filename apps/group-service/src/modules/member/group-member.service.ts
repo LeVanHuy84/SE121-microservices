@@ -2,13 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   CursorPageResponse,
+  EventDestination,
+  GroupEventLog,
+  GroupMemberDTO,
   GroupMemberFilter,
   GroupMemberStatus,
+  GroupNotificationType,
   GroupPermission,
   GroupRole,
 } from '@repo/dtos';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { DataSource, Repository } from 'typeorm';
+import { RpcException } from '@nestjs/microservices';
+import { OutboxEvent } from 'src/entities/outbox.entity';
+import { Group } from 'src/entities/group.entity';
+import { plainToInstance } from 'class-transformer';
+import { GroupLogService } from '../group-log/group-log.service';
 
 @Injectable()
 export class GroupMemberService {
@@ -16,30 +25,67 @@ export class GroupMemberService {
     @InjectRepository(GroupMember)
     private readonly repo: Repository<GroupMember>,
     private readonly dataSource: DataSource,
+    private readonly groupLogService: GroupLogService,
   ) {}
 
-  async removeMember(groupId: string, memberId: string) {
+  async removeMember(userId: string, groupId: string, memberId: string) {
     return this.dataSource.transaction(async (manager) => {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new Error('Member not found');
+      if (!member) throw new RpcException('Member not found');
 
       member.status = GroupMemberStatus.REMOVED;
       await manager.save(member);
+
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId,
+        eventType: GroupEventLog.MEMBER_REMOVED,
+        content: `Member ${memberId} removed from group by ${userId}`,
+      });
+
       return true;
     });
   }
 
-  banMember(groupId: string, memberId: string) {
+  banMember(userId: string, groupId: string, memberId: string) {
     return this.dataSource.transaction(async (manager) => {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new Error('Member not found');
+      if (!member) throw new RpcException('Member not found');
 
       member.status = GroupMemberStatus.BANNED;
       await manager.save(member);
+
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId,
+        eventType: GroupEventLog.MEMBER_BANNED,
+        content: `Member ${memberId} banned from group by ${userId}`,
+      });
+      return true;
+    });
+  }
+
+  unbanMember(userId: string, groupId: string, memberId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const member = await manager.findOne(GroupMember, {
+        where: { id: memberId, groupId },
+      });
+      if (!member) throw new RpcException('Member not found');
+      if (member.status !== GroupMemberStatus.BANNED) {
+        throw new RpcException('Member is not banned');
+      }
+      member.status = GroupMemberStatus.REMOVED;
+      await manager.save(member);
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId,
+        eventType: GroupEventLog.MEMBER_UNBANNED,
+        content: `Member ${memberId} unbanned in group by ${userId}`,
+      });
       return true;
     });
   }
@@ -48,11 +94,24 @@ export class GroupMemberService {
     return this.dataSource.transaction(async (manager) => {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
+        relations: ['group'],
       });
-      if (!member) throw new Error('Member not found');
+      if (!member) throw new RpcException('Member not found');
 
       member.role = newRole;
       await manager.save(member);
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId: memberId,
+        eventType: GroupEventLog.MEMBER_ROLE_CHANGED,
+        content: `Member ${memberId} role changed to ${newRole}`,
+      });
+      await this.createOutboxEvent(
+        manager,
+        member.group,
+        member.userId,
+        `Your role in group ${member.group.name} has been changed to ${newRole}`,
+      );
       return member;
     });
   }
@@ -66,10 +125,25 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new Error('Member not found');
+      if (!member) throw new RpcException('Member not found');
 
       member.customPermissions = permissions;
       await manager.save(member);
+
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId: memberId,
+        eventType: GroupEventLog.MEMBER_PERMISSION_CHANGED,
+        content: `Member ${memberId} permissions changed to ${permissions.join(', ')}`,
+      });
+
+      await this.createOutboxEvent(
+        manager,
+        member.group,
+        member.userId,
+        `Your permissions in group ${member.group.name} have been updated`,
+      );
+
       return member;
     });
   }
@@ -77,7 +151,7 @@ export class GroupMemberService {
   async getMembers(
     groupId: string,
     query: GroupMemberFilter,
-  ): Promise<CursorPageResponse<GroupMember>> {
+  ): Promise<CursorPageResponse<GroupMemberDTO>> {
     const { role, status, sortBy, order, cursor, limit } = query;
 
     const qb = this.repo.createQueryBuilder('member');
@@ -98,9 +172,14 @@ export class GroupMemberService {
     const data = await qb.getMany();
     const hasNextPage = data.length > limit;
     const nextCursor = hasNextPage ? data[limit - 1].id : null;
+    const resultData = hasNextPage ? data.slice(0, limit) : data;
+
+    const dtoData = plainToInstance(GroupMemberDTO, resultData, {
+      excludeExtraneousValues: true,
+    });
 
     return {
-      data,
+      data: dtoData,
       nextCursor,
       hasNextPage,
     };
@@ -119,5 +198,29 @@ export class GroupMemberService {
   async isMember(groupId: string, userId: string): Promise<boolean> {
     const member = await this.repo.findOne({ where: { groupId, userId } });
     return !!member;
+  }
+
+  private async createOutboxEvent(
+    manager,
+    group: Group,
+    receiverId: string,
+    content: string,
+  ) {
+    const outboxRepo = manager.getRepository(OutboxEvent);
+
+    const event = outboxRepo.create({
+      destination: EventDestination.RABBITMQ,
+      topic: 'group_event',
+      eventType: GroupNotificationType.GROUP_ROLE_CHANGED,
+      payload: {
+        groupId: group.id,
+        groupName: group.name,
+        groupAvatarUrl: group.avatarUrl,
+        content,
+        reviewerIds: [receiverId],
+      },
+    });
+
+    await outboxRepo.save(event);
   }
 }

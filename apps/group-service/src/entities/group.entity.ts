@@ -5,8 +5,8 @@ import { GroupSetting } from './group-setting.entity';
 import { GroupMember } from './group-member.entity';
 import { GroupJoinRequest } from './group-join-request.entity';
 import { GroupReport } from './group-report.entity';
-import { GroupEvent } from './group-event-log.entity';
 import { GroupStatistic } from './group-statistic.entity';
+import { GroupLog } from './group-log.entity';
 
 @Entity('groups')
 export class Group extends AuditableEntity {
@@ -57,8 +57,8 @@ export class Group extends AuditableEntity {
   @OneToMany(() => GroupReport, (groupReport) => groupReport.group)
   groupReports: GroupReport[];
 
-  @OneToMany(() => GroupEvent, (groupEvent) => groupEvent.group)
-  groupEvents: GroupEvent[];
+  @OneToMany(() => GroupLog, (groupLog) => groupLog.group)
+  groupLogs: GroupLog[];
 
   @OneToMany(() => GroupStatistic, (statistic) => statistic.group)
   statistics: GroupStatistic[];

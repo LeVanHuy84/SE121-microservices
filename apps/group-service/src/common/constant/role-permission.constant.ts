@@ -16,6 +16,7 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
   ],
   [GroupRole.MODERATOR]: [
     GroupPermission.MANAGE_MEMBERS,
+    GroupPermission.MANAGE_JOIN_REQUESTS,
     GroupPermission.APPROVE_POST,
     GroupPermission.DELETE_POST,
     GroupPermission.BAN_MEMBER,

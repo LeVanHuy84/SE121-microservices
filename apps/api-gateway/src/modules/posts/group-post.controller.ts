@@ -52,4 +52,12 @@ export class GroupPostController {
   ) {
     return this.client.send('approve_post_in_group', { userId, postId });
   }
+
+  @Post('/group/reject/:postId')
+  rejectPostInGroup(
+    @Param('postId') postId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('reject_post_in_group', { userId, postId });
+  }
 }

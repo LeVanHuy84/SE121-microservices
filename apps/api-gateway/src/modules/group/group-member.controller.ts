@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Param,
+  Post,
   Put,
   Query,
 } from '@nestjs/common';
@@ -19,7 +20,7 @@ export class GroupMemberController {
     private client: ClientProxy
   ) {}
 
-  @Put(':memberId/remove')
+  @Post(':memberId/remove')
   async removeMember(
     @Param('groupId') groupId: string,
     @Param('memberId') memberId: string,
@@ -28,13 +29,22 @@ export class GroupMemberController {
     return this.client.send('remove-member', { groupId, memberId, userId });
   }
 
-  @Put(':memberId/ban')
+  @Post(':memberId/ban')
   async banMember(
     @Param('groupId') groupId: string,
     @Param('memberId') memberId: string,
     @CurrentUserId() userId: string
   ) {
     return this.client.send('ban-member', { groupId, memberId, userId });
+  }
+
+  @Post(':memberId/unban')
+  async unbanMember(
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('unban-member', { groupId, memberId, userId });
   }
 
   @Put(':memberId/change-role')

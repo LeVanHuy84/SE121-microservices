@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GroupMemberController } from './group-member.controller';
 import { GroupJoinRequestController } from './group-join-request.controller';
 import { GroupReportController } from './group-report.controller';
+import { GroupLogController } from './group-log.controller';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { GroupReportController } from './group-report.controller';
     GroupMemberController,
     GroupJoinRequestController,
     GroupReportController,
+    GroupLogController,
   ],
 })
 export class GroupModule {}

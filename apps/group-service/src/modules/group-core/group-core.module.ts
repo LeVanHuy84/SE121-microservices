@@ -7,10 +7,17 @@ import { GroupSetting } from 'src/entities/group-setting.entity';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { GroupSettingController } from './group-setting/group-setting.controller';
 import { GroupSettingService } from './group-setting/group-setting.service';
+import { GroupCacheService } from './group/group-cache.service';
+import { GroupLog } from 'src/entities/group-log.entity';
+import { GroupLogModule } from '../group-log/group-log.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Group, GroupSetting, GroupMember])],
+  imports: [
+    TypeOrmModule.forFeature([Group, GroupSetting, GroupMember, GroupLog]),
+    GroupLogModule,
+  ],
   controllers: [GroupController, GroupSettingController],
-  providers: [GroupService, GroupSettingService],
+  providers: [GroupService, GroupSettingService, GroupCacheService],
+  exports: [GroupService],
 })
 export class GroupCoreModule {}

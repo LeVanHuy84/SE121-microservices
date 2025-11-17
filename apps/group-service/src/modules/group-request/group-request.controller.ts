@@ -3,11 +3,13 @@ import { GroupJoinRequestService } from './group-request.service';
 import { GroupPermission, JoinRequestFilter } from '@repo/dtos';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { RequireGroupPermission } from '../group-authorization/require-group-permission.decorator';
+import { GroupJoinRequestQueryService } from './group-request-query.service';
 
 @Controller('group-request')
 export class GroupJoinRequestController {
   constructor(
     private readonly groupJoinRequestService: GroupJoinRequestService,
+    private readonly groupJoinRequestQueryService: GroupJoinRequestQueryService,
   ) {}
 
   // 📨 Gửi yêu cầu tham gia nhóm
@@ -43,6 +45,17 @@ export class GroupJoinRequestController {
     );
   }
 
+  // 🛑 Hủy yêu cầu tham gia nhóm
+  @MessagePattern('cancel_group_join_request')
+  async cancelRequest(
+    @Payload() payload: { requestId: string; userId: string },
+  ) {
+    return this.groupJoinRequestService.cancelRequest(
+      payload.requestId,
+      payload.userId,
+    );
+  }
+
   // 🔍 Lọc yêu cầu tham gia nhóm
   @RequireGroupPermission(GroupPermission.MANAGE_JOIN_REQUESTS)
   @MessagePattern('filter_group_join_requests')
@@ -54,7 +67,7 @@ export class GroupJoinRequestController {
       filter: JoinRequestFilter;
     },
   ) {
-    return this.groupJoinRequestService.filterRequests(
+    return this.groupJoinRequestQueryService.filterRequests(
       payload.groupId,
       payload.filter,
     );

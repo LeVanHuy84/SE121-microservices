@@ -15,6 +15,7 @@ export class GroupMemberController {
     @Payload() payload: { groupId: string; memberId: string; userId: string },
   ) {
     return this.groupMemberService.removeMember(
+      payload.userId,
       payload.groupId,
       payload.memberId,
     );
@@ -25,7 +26,23 @@ export class GroupMemberController {
   async banMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
   ) {
-    return this.groupMemberService.banMember(payload.groupId, payload.memberId);
+    return this.groupMemberService.banMember(
+      payload.userId,
+      payload.groupId,
+      payload.memberId,
+    );
+  }
+
+  @MessagePattern('unban-member')
+  @RequireGroupPermission(GroupPermission.BAN_MEMBER)
+  async unbanMember(
+    @Payload() payload: { groupId: string; memberId: string; userId: string },
+  ) {
+    return this.groupMemberService.unbanMember(
+      payload.userId,
+      payload.groupId,
+      payload.memberId,
+    );
   }
 
   @MessagePattern('change-member-role')
@@ -79,10 +96,6 @@ export class GroupMemberController {
   async getMemberUserIds(
     @Payload() payload: { groupId: string },
   ): Promise<string[]> {
-    const result = await this.groupMemberService.getMemberUserIds(
-      payload.groupId,
-    );
-    console.log('Group member user IDs:', result);
-    return result;
+    return await this.groupMemberService.getMemberUserIds(payload.groupId);
   }
 }

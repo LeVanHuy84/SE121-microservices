@@ -3,9 +3,12 @@ import {
   CreatePostDTO,
   EventDestination,
   EventTopic,
+  GroupEventLog,
   GroupPermission,
   GroupPrivacy,
   PostEventType,
+  PostGroupEventPayload,
+  PostGroupEventType,
   PostGroupStatus,
   PostSnapshotDTO,
 } from '@repo/dtos';
@@ -28,7 +31,14 @@ export class PostGroupService {
   // ----------------------------------------
   // 📝 Tạo post trong group
   // ----------------------------------------
-  async create(userId: string, dto: CreatePostDTO): Promise<PostSnapshotDTO> {
+  async create(
+    userId: string,
+    dto: CreatePostDTO
+  ): Promise<{
+    post: PostSnapshotDTO;
+    status: PostGroupStatus;
+    message: string;
+  }> {
     return this.dataSource.transaction(async (manager) => {
       const post = manager.create(Post, {
         ...dto,
@@ -56,7 +66,6 @@ export class PostGroupService {
         info.permissions.includes(GroupPermission.APPROVE_POST)
       ) {
         post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
-        // NOTE: don't create outbox yet — must save post first to get id/createdAt
       } else {
         post.postGroupInfo.status = PostGroupStatus.PENDING;
       }
@@ -70,9 +79,22 @@ export class PostGroupService {
 
       if (entity.postGroupInfo?.status === PostGroupStatus.PUBLISHED) {
         await this.createOutboxEvent(manager, entity);
+      } else {
+        await this.createOutboxGroupEvent(
+          manager,
+          post,
+          PostGroupEventType.POST_PENDING
+        );
       }
 
-      return PostShortenMapper.toPostSnapshotDTO(entity);
+      return {
+        post: PostShortenMapper.toPostSnapshotDTO(entity),
+        status: entity.postGroupInfo.status,
+        message:
+          entity.postGroupInfo.status === PostGroupStatus.PUBLISHED
+            ? 'Your post has been published.'
+            : 'Your post is pending approval by group admins.',
+      };
     });
   }
 
@@ -102,7 +124,47 @@ export class PostGroupService {
       await manager.save(post.postGroupInfo);
 
       if (post) {
-        await this.createOutboxEvent(manager, post);
+        await Promise.all([
+          this.createOutboxEvent(manager, post),
+          this.createOutboxGroupEvent(
+            manager,
+            post,
+            PostGroupEventType.POST_APPROVED,
+            userId
+          ),
+        ]);
+      }
+      return true;
+    });
+  }
+
+  async rejectPost(userId: string, postId: string): Promise<boolean> {
+    return this.dataSource.transaction(async (manager) => {
+      const post = await manager.findOne(Post, {
+        where: { id: postId },
+        relations: ['postGroupInfo'],
+      });
+      if (!post || !post.postGroupInfo)
+        throw new RpcException('Post not found');
+      if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
+        throw new RpcException('Post is not pending approval');
+      }
+      const info = await this.postCache.getGroupUserPermission(
+        userId,
+        post.groupId
+      );
+      if (!info.permissions.includes(GroupPermission.APPROVE_POST)) {
+        throw new RpcException('No permission to reject post');
+      }
+      post.postGroupInfo.status = PostGroupStatus.REJECTED;
+      await manager.save(post.postGroupInfo);
+      if (post) {
+        await this.createOutboxGroupEvent(
+          manager,
+          post,
+          PostGroupEventType.POST_REJECTED,
+          userId
+        );
       }
       return true;
     });
@@ -124,6 +186,28 @@ export class PostGroupService {
         mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 4),
         createdAt: post.createdAt,
       },
+    });
+    await manager.save(outbox);
+  }
+
+  private async createOutboxGroupEvent(
+    manager: EntityManager,
+    post: Post,
+    eventType: PostGroupEventType,
+    actorId?: string
+  ) {
+    const payload: PostGroupEventPayload = {
+      postId: post.id,
+      userId: post.userId,
+      groupId: post.groupId,
+      content: post.content.slice(0, 100),
+      actorId,
+    };
+    const outbox = manager.create(OutboxEvent, {
+      topic: EventTopic.GROUP,
+      destination: EventDestination.KAFKA,
+      eventType,
+      payload,
     });
     await manager.save(outbox);
   }

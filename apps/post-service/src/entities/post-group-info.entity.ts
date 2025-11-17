@@ -20,7 +20,4 @@ export class PostGroupInfo {
 
   @Column('boolean', { name: 'is_private_group', default: false })
   isPrivateGroup: boolean;
-
-  @Column('varchar', { name: 'approvedBy', nullable: true })
-  approvedBy: string;
 }

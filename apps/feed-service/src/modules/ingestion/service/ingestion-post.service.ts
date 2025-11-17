@@ -39,8 +39,6 @@ export class IngestionPostService {
 
     const createdAt = new Date(payload.createdAt);
 
-    console.log('IngestionPostService handleCreated', payload);
-
     // Tạo snapshot trong Mongo
     const entity = await this.postModel.create({
       ...payload,
