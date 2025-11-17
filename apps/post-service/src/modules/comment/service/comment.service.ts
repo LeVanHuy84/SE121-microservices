@@ -75,6 +75,7 @@ export class CommentService {
     // 🧠 5. Các thao tác async nhẹ sau transaction (không cần rollback)
     this.recentActivityBuffer
       .addRecentActivity({
+        idempotentKey: savedComment.id,
         actorId: userId,
         type: 'comment',
         targetId: dto.rootId,

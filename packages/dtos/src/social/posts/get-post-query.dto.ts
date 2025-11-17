@@ -6,4 +6,8 @@ export class GetPostQueryDTO extends CursorPaginationDTO {
   @IsOptional()
   @IsEnum(Emotion)
   feeling?: Emotion;
+
+  @IsOptional()
+  @IsEnum(Emotion)
+  mainEmotion?: Emotion;
 }

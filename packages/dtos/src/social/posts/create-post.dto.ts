@@ -29,5 +29,5 @@ export class CreatePostDTO {
 
   @IsOptional()
   @IsEnum(Audience)
-  audience?: Audience;
+  audience?: Audience; // Nhóm thì không cần audience
 }

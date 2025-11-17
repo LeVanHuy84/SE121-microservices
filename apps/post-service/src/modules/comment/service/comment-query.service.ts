@@ -36,7 +36,8 @@ export class CommentQueryService {
         where: { id: commentId },
         relations: ['commentStat'],
       });
-      if (!comment) throw new RpcException('Comment not found');
+      if (!comment || comment.isDeleted)
+        throw new RpcException('Comment not found');
       await this.commentCache.setCachedComment(comment);
     }
 
@@ -87,6 +88,7 @@ export class CommentQueryService {
     // 🔹 Query DB
     const qb = this.commentRepo
       .createQueryBuilder('c')
+      .where('c.isDeleted = false')
       .leftJoinAndSelect('c.commentStat', 'stat')
       .orderBy('c.createdAt', 'DESC')
       .skip((page - 1) * limit)

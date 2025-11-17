@@ -32,6 +32,7 @@ export interface StatsRecord {
   targetType: TargetType;
   targetId: string;
   deltas: StatsDeltaUnion[];
+  isTrendingCandidate: boolean;
 }
 
 export interface StatsPayload {

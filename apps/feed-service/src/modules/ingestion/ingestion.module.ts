@@ -39,6 +39,18 @@ import { DistributionService } from './service/distribution.service';
           },
         }),
       },
+      {
+        name: MICROSERVICE_CLIENT.GROUP_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get<string>('GROUP_SERVICE_HOST', 'localhost'),
+            port: configService.get<number>('GROUP_SERVICE_PORT', 4008),
+          },
+        }),
+      },
     ]),
   ],
   controllers: [IngestionController],

@@ -22,12 +22,12 @@ export class ReactionController {
 
   @Post('react')
   react(@CurrentUserId() userId: string, @Body() dto: ReactDTO) {
-    this.client.emit('react', { userId, dto });
+    return this.client.send('react', { userId, dto });
   }
 
   @Delete('dis-react')
   disReact(@CurrentUserId() userId: string, @Body() dto: DisReactDTO) {
-    this.client.emit('dis_react', { userId, dto });
+    return this.client.send('dis_react', { userId, dto });
   }
 
   @Get()

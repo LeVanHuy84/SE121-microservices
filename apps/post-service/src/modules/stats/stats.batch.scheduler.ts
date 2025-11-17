@@ -15,6 +15,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Repository } from 'typeorm';
+import { PostGroupInfo } from 'src/entities/post-group-info.entity';
 
 @Injectable()
 export class StatsBatchScheduler {
@@ -23,7 +24,9 @@ export class StatsBatchScheduler {
   constructor(
     private readonly buffer: StatsBufferService,
     @InjectRepository(OutboxEvent)
-    private readonly outboxRepo: Repository<OutboxEvent>
+    private readonly outboxRepo: Repository<OutboxEvent>,
+    @InjectRepository(PostGroupInfo)
+    private readonly postGroupInfoRepo: Repository<PostGroupInfo>
   ) {
     console.log('🔥 StatsBatchScheduler initialized');
   }
@@ -66,10 +69,21 @@ export class StatsBatchScheduler {
           }
         });
 
+        let isTrendingCandidate = false;
+        if (targetType === TargetType.POST) {
+          const postGroupInfo = await this.postGroupInfoRepo.findOne({
+            where: { postId: targetId },
+          });
+          if (postGroupInfo && !postGroupInfo.isPrivateGroup) {
+            isTrendingCandidate = true;
+          }
+        }
+
         payload.stats.push({
           targetType,
           targetId,
           deltas,
+          isTrendingCandidate,
         });
 
         clearedBuffers.push({ targetType, targetId });

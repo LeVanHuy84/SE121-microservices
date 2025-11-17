@@ -56,8 +56,8 @@ export class PostCommandService {
             groupId: entity.groupId ?? undefined,
             audience: entity.audience,
             content: entity.content,
-            mediaPreviews: post.media?.slice(0, 5),
-            mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 5),
+            mediaPreviews: post.media?.slice(0, 4),
+            mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 4),
             createdAt: entity.createdAt,
           },
         });

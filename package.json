@@ -6,6 +6,7 @@
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev",
     "dev:test": "turbo run start:dev --filter=post-service --filter=api-gateway --filter=user-service --filter=social-service --filter=feed-service",
+    "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"

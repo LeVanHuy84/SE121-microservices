@@ -7,14 +7,14 @@ import { DisReactDTO, GetReactionsDTO, ReactDTO, TargetType } from '@repo/dtos';
 export class ReactionController {
   constructor(private reactionService: ReactionService) {}
 
-  @EventPattern('react')
+  @MessagePattern('react')
   react(data: { userId: string; dto: ReactDTO }) {
-    this.reactionService.react(data.userId, data.dto);
+    return this.reactionService.react(data.userId, data.dto);
   }
 
-  @EventPattern('dis_react')
+  @MessagePattern('dis_react')
   disReact(data: { userId: string; dto: DisReactDTO }) {
-    this.reactionService.disReact(data.userId, data.dto);
+    return this.reactionService.disReact(data.userId, data.dto);
   }
 
   @MessagePattern('get_reactions')

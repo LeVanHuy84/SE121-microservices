@@ -1,17 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { RecentActivityBufferService } from './recent-activity.buffer.service';
-import {
-  NotificationSample,
-  NotificationService,
-} from './rabbitmq/notification.service';
-import { randomUUID } from 'crypto';
 import { UserClientService } from '../client/user/user-client.service';
 import { DataSource } from 'typeorm';
-import { TargetType } from '@repo/dtos';
+import { CreateNotificationDto, TargetType } from '@repo/dtos';
 import { Post } from 'src/entities/post.entity';
 import { Share } from 'src/entities/share.entity';
 import pLimit from 'p-limit';
+import { NotificationService } from '@repo/common';
 
 @Injectable()
 export class RecentActivityBatch {
@@ -26,7 +22,7 @@ export class RecentActivityBatch {
     this.logger.log('🚀 RecentActivityBatch initialized');
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron('*/15 * * * * *')
   async flushRecentActivities() {
     const activities = await this.buffer.snapshotAndGetAll();
     const count = Object.keys(activities).length;
@@ -39,7 +35,7 @@ export class RecentActivityBatch {
     const tasks = Object.keys(activities).map((key) =>
       limit(async () => {
         const activity = activities[key];
-        const { actorId, targetId, targetType, type } = activity;
+        const { idempotentKey, actorId, targetId, targetType, type } = activity;
 
         try {
           const actor = await this.userClient.getUserInfo(actorId);
@@ -59,9 +55,10 @@ export class RecentActivityBatch {
           }
           if (!target) return;
 
-          const message: NotificationSample = {
-            id: randomUUID(),
-            eventType: type,
+          const createNotificationDto: CreateNotificationDto = {
+            requestId: idempotentKey,
+            userId: target.userId,
+            type,
             payload: {
               userId: target.userId,
               actorId: actor.id,
@@ -72,9 +69,17 @@ export class RecentActivityBatch {
               targetId,
               content: target.content?.slice(0, 100) ?? '',
             },
+            sendAt: new Date(),
+            meta: {
+              priority: 1,
+              maxRetries: 3,
+            },
           };
 
-          await this.notificationService.sendNotification(message);
+          await this.notificationService.sendNotification(
+            createNotificationDto
+            // 'post-service'
+          );
           this.logger.debug(`✅ Sent ${type} for ${targetType}:${targetId}`);
         } catch (err) {
           this.logger.error(

@@ -13,6 +13,7 @@ import { ClerkClientProvider } from './providers/clerk-client.provider';
 import { RabbitmqModule } from '@repo/common';
 import { FeedModule } from './modules/feed/feed.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { GroupModule } from './modules/group/group.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
           : 6379,
       },
     }),
+    GroupModule,
   ],
 
   providers: [
