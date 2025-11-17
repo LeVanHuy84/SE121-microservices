@@ -39,6 +39,8 @@ export class GroupPermissionGuard implements CanActivate {
     });
     if (!member) throw new RpcException('You are not a group member');
 
+    if (member.role === GroupRole.OWNER) return true; // Chủ nhóm có tất cả quyền
+
     // ✅ Ưu tiên custom permission
     if (member.customPermissions?.includes(requiredAction)) return true;
 

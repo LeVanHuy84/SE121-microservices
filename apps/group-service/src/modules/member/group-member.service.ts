@@ -35,6 +35,30 @@ export class GroupMemberService {
       });
       if (!member) throw new RpcException('Member not found');
 
+      if (member.role === GroupRole.OWNER) {
+        throw new RpcException('Cannot remove the group owner');
+      }
+
+      const executor = await this.getMemberWithRole(manager, groupId, userId);
+
+      // Nếu victim là admin, executor phải là OWNER mới được remove
+      if (
+        member.role === GroupRole.ADMIN &&
+        executor.role !== GroupRole.OWNER
+      ) {
+        throw new RpcException('Only owner can remove an admin');
+      }
+
+      // Không remove chính mình
+      if (userId === member.userId) {
+        throw new RpcException('You cannot remove yourself');
+      }
+
+      // Chỉ remove member đang active
+      if (member.status !== GroupMemberStatus.ACTIVE) {
+        throw new RpcException('Member is not active');
+      }
+
       member.status = GroupMemberStatus.REMOVED;
       await manager.save(member);
 
@@ -55,6 +79,30 @@ export class GroupMemberService {
         where: { id: memberId, groupId },
       });
       if (!member) throw new RpcException('Member not found');
+
+      if (member.role === GroupRole.OWNER) {
+        throw new RpcException('Cannot remove the group owner');
+      }
+
+      const executor = await this.getMemberWithRole(manager, groupId, userId);
+
+      // Nếu victim là admin, executor phải là OWNER mới được remove
+      if (
+        member.role === GroupRole.ADMIN &&
+        executor.role !== GroupRole.OWNER
+      ) {
+        throw new RpcException('Only owner can remove an admin');
+      }
+
+      // Không remove chính mình
+      if (userId === member.userId) {
+        throw new RpcException('You cannot remove yourself');
+      }
+
+      // Chỉ remove member đang active
+      if (member.status !== GroupMemberStatus.ACTIVE) {
+        throw new RpcException('Member is not active');
+      }
 
       member.status = GroupMemberStatus.BANNED;
       await manager.save(member);
@@ -90,13 +138,35 @@ export class GroupMemberService {
     });
   }
 
-  async changeRole(groupId: string, newRole: GroupRole, memberId: string) {
+  async changeRole(
+    userId: string,
+    groupId: string,
+    newRole: GroupRole,
+    memberId: string,
+  ) {
     return this.dataSource.transaction(async (manager) => {
+      if (newRole === GroupRole.OWNER) {
+        throw new RpcException('Cannot assign OWNER role');
+      }
+
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
         relations: ['group'],
       });
       if (!member) throw new RpcException('Member not found');
+
+      if (member.role === GroupRole.OWNER) {
+        throw new RpcException('Cannot change role of the group owner');
+      }
+
+      const executor = await this.getMemberWithRole(manager, groupId, userId);
+
+      if (
+        member.role === GroupRole.ADMIN &&
+        executor.role !== GroupRole.OWNER
+      ) {
+        throw new RpcException('Only owner can change role of admin');
+      }
 
       member.role = newRole;
       await manager.save(member);
@@ -126,6 +196,10 @@ export class GroupMemberService {
         where: { id: memberId, groupId },
       });
       if (!member) throw new RpcException('Member not found');
+
+      if (member.role === GroupRole.OWNER) {
+        throw new RpcException('Cannot change permissions of the group owner');
+      }
 
       member.customPermissions = permissions;
       await manager.save(member);
@@ -222,5 +296,12 @@ export class GroupMemberService {
     });
 
     await outboxRepo.save(event);
+  }
+
+  private async getMemberWithRole(manager, groupId: string, userId: string) {
+    return manager.findOne(GroupMember, {
+      where: { groupId, userId },
+      relations: ['group'],
+    });
   }
 }

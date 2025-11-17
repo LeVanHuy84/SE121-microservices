@@ -1,6 +1,7 @@
 import { GroupPermission, GroupRole } from '@repo/dtos';
 
 export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
+  [GroupRole.OWNER]: [],
   [GroupRole.ADMIN]: [
     GroupPermission.MANAGE_GROUP,
     GroupPermission.MANAGE_MEMBERS,

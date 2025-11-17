@@ -6,6 +6,7 @@ import {
   GroupEventLog,
   GroupPermission,
   GroupPrivacy,
+  GroupRole,
   PostEventType,
   PostGroupEventPayload,
   PostGroupEventType,
@@ -62,8 +63,9 @@ export class PostGroupService {
 
       // set status based on permissions/approval
       if (
-        info.requireApproval === false ||
-        info.permissions.includes(GroupPermission.APPROVE_POST)
+        info.role === GroupRole.OWNER ||
+        info.permissions.includes(GroupPermission.APPROVE_POST) ||
+        info.requireApproval === false
       ) {
         post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
       } else {
@@ -116,7 +118,10 @@ export class PostGroupService {
         post.groupId
       );
 
-      if (!info.permissions.includes(GroupPermission.APPROVE_POST)) {
+      if (
+        !info.permissions.includes(GroupPermission.APPROVE_POST) &&
+        info.role !== GroupRole.OWNER
+      ) {
         throw new RpcException('No permission to approve post');
       }
 
@@ -153,9 +158,14 @@ export class PostGroupService {
         userId,
         post.groupId
       );
-      if (!info.permissions.includes(GroupPermission.APPROVE_POST)) {
-        throw new RpcException('No permission to reject post');
+
+      if (
+        !info.permissions.includes(GroupPermission.APPROVE_POST) &&
+        info.role !== GroupRole.OWNER
+      ) {
+        throw new RpcException('No permission to approve post');
       }
+
       post.postGroupInfo.status = PostGroupStatus.REJECTED;
       await manager.save(post.postGroupInfo);
       if (post) {

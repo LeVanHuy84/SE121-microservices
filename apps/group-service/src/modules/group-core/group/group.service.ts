@@ -119,7 +119,7 @@ export class GroupService {
       const groupMember = manager.create(GroupMember, {
         userId,
         groupId: savedGroup.id,
-        role: GroupRole.ADMIN,
+        role: GroupRole.OWNER,
         group: savedGroup,
       });
       await manager.save(groupMember);

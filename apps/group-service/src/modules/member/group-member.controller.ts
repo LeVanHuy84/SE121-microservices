@@ -57,6 +57,7 @@ export class GroupMemberController {
     },
   ) {
     return this.groupMemberService.changeRole(
+      payload.userId,
       payload.groupId,
       payload.newRole,
       payload.memberId,
