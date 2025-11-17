@@ -12,6 +12,7 @@ import { Share } from './share.entity';
 import { EditHistory } from './edit-history.entity';
 import { Audience, Emotion, MediaItemDTO } from '@repo/dtos';
 import { PostStat } from './post-stat.entity';
+import { PostGroupInfo } from './post-group-info.entity';
 
 @Entity('posts')
 @Index('idx_posts_userid_createdat', ['userId', 'createdAt'])
@@ -40,6 +41,9 @@ export class Post {
   @Column({ type: 'enum', enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
+  @Column({ type: 'boolean', name: 'is_deleted', default: false })
+  isDeleted: boolean;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamptz',
@@ -58,6 +62,11 @@ export class Post {
     cascade: true,
   })
   postStat: PostStat;
+
+  @OneToOne(() => PostGroupInfo, (postGroupInfo) => postGroupInfo.post, {
+    cascade: true,
+  })
+  postGroupInfo: PostGroupInfo;
 
   @OneToMany(() => Share, (shares) => shares.post)
   shares: Share[];

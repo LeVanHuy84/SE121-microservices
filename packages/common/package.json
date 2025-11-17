@@ -6,6 +6,9 @@
   "scripts": {
     "build": "tsc"
   },
+  "dependencies": {
+    "@repo/dtos": "*"
+  },
   "devDependencies": {
     "@repo/typescript-config": "*",
     "typescript": "latest"

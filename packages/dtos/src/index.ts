@@ -18,3 +18,6 @@ export * from './user/update-user.dto';
 // Notification
 export * from './notification/create-noti.dto';
 export * from './notification/get-noti.dto';
+
+// Group DTOs
+export * from './group';

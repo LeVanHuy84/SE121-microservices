@@ -71,4 +71,12 @@ export class PostController {
   remove(@Param('id') id: string, @CurrentUserId() userId: string) {
     return this.client.send('remove_post', { id, userId });
   }
+
+  @Get('post/:postId/edit-histories')
+  getPostEditHistories(
+    @Param('postId') postId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('get_post_edit_histories', { userId, postId });
+  }
 }

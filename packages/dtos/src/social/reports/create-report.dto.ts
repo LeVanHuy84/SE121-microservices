@@ -1,8 +1,8 @@
 import { IsEnum, IsString, IsUUID } from 'class-validator';
 import { TargetType } from '../enums/social.enum';
 
-export class ReportDTO {
-  @IsUUID()
+export class CreateReportDTO {
+  @IsString()
   targetId: string;
 
   @IsEnum(TargetType)

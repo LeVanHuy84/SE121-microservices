@@ -3,12 +3,14 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreatePostDTO,
   CursorPageResponse,
+  EditHistoryReponseDTO,
+  GetGroupPostQueryDTO,
   GetPostQueryDTO,
   PostResponseDTO,
   PostSnapshotDTO,
 } from '@repo/dtos';
-import { PostQueryService } from './service/post-query.service';
-import { PostCommandService } from './service/post-command.service';
+import { PostQueryService } from '../service/post-query.service';
+import { PostCommandService } from '../service/post-command.service';
 
 @Controller('posts')
 export class PostController {
@@ -54,6 +56,22 @@ export class PostController {
     );
   }
 
+  @MessagePattern('get_group_posts')
+  async getGroupPosts(
+    @Payload()
+    payload: {
+      groupId: string;
+      pagination: GetGroupPostQueryDTO;
+      currentUserId: string;
+    }
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    return this.postQuery.getGroupPost(
+      payload.groupId,
+      payload.currentUserId,
+      payload.pagination
+    );
+  }
+
   @MessagePattern('update_post')
   async updatePost(
     @Payload() payload: { userId: string; postId: string; updatePostDTO: any }
@@ -70,5 +88,12 @@ export class PostController {
     @Payload() payload: { id: string; userId: string }
   ): Promise<boolean> {
     return this.postCommand.remove(payload.userId, payload.id);
+  }
+
+  @MessagePattern('get_post_edit_histories')
+  async getPostEditHistories(
+    @Payload() payload: { userId: string; postId: string }
+  ) {
+    return this.postQuery.getPostEditHistories(payload.userId, payload.postId);
   }
 }
