@@ -41,6 +41,7 @@ export class MediaService {
     // persist outbox for handler to publish (so other services can react)
     await this.outboxRepo.save(
       this.outboxRepo.create({
+        topic: 'media.events',
         eventType: 'MediaUploadRequested',
         payload: { mediaId: saved.id, userId, publicId },
       })
@@ -94,6 +95,7 @@ export class MediaService {
     // outbox - publish higher-level events
     await this.outboxRepo.save(
       this.outboxRepo.create({
+        topic: 'media.events',
         eventType: resourceType === 'video' ? 'VideoUploaded' : 'ImageUploaded',
         payload: {
           mediaId: media.id,
@@ -132,6 +134,7 @@ export class MediaService {
     // outbox publish
     await this.outboxRepo.save(
       this.outboxRepo.create({
+        topic: 'media.events',
         eventType: 'VideoProcessed',
         payload: { mediaId: media.id, status: media.status, url: media.url },
       })

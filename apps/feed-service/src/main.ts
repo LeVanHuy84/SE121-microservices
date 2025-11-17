@@ -10,7 +10,7 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4007,
+        port: process.env.PORT ? parseInt(process.env.PORT) : 4003,
       },
     },
   );
@@ -36,4 +36,4 @@ async function bootstrap() {
 
   await Promise.all([tcpApp.listen(), kafkaApp.listen()]);
 }
-bootstrap();
+void bootstrap();
