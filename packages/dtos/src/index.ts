@@ -21,3 +21,6 @@ export * from './notification/get-noti.dto';
 
 // Group DTOs
 export * from './group';
+
+// Search DTOs
+export * from './search';
