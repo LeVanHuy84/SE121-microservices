@@ -10,5 +10,6 @@ import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
   ],
   controllers: [MessageController],
   providers: [MessageService],
+  exports: [MessageService],
 })
 export class MessageModule {}

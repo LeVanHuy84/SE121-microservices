@@ -1,8 +1,7 @@
-import { IsArray, IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsEnum, IsBoolean } from 'class-validator';
 
 export class CreateConversationDTO {
-  @IsEnum(['private', 'group'])
-  type: 'private' | 'group';
+  
 
   @IsArray()
   participants: string[];
@@ -14,4 +13,5 @@ export class CreateConversationDTO {
   @IsOptional()
   @IsString()
   groupAvatar?: string;
+
 }

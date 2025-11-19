@@ -28,17 +28,21 @@ export class AttachmentDTO {
 
 export class SendMessageDTO {
 
+  @IsString()
+  conversationId: string;
+
   @IsOptional()
   @IsString()
   content?: string;
 
-  @IsOptional()
-  @IsEnum(['text', 'image', 'video', 'file', 'system'])
-  messageType?: 'text' | 'image' | 'video' | 'file' | 'system';
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => AttachmentDTO)
   attachments?: AttachmentDTO[];
+
+  @IsOptional()
+  @IsString()
+  replyTo?: string;
 }

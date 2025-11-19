@@ -6,6 +6,12 @@ import { MongoModule } from './mongo/mongo.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { MessageModule } from './message/message.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { RealtimeModule } from './realtime/realtime.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { KafkaModule } from './kafka/kafka.module';
+import { PresenceModule } from './presence/presence.module';
+
+
 
 @Module({
   imports: [
@@ -25,6 +31,10 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     MongoModule,
     ConversationModule,
     MessageModule,
+    RealtimeModule,
+    ScheduleModule.forRoot(),
+    KafkaModule,
+    PresenceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

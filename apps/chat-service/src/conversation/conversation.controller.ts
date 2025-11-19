@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CursorPaginationDTO } from '@repo/dtos';
+import { CreateConversationDTO, CursorPaginationDTO } from '@repo/dtos';
 import { ConversationService } from './conversation.service';
 
 @Controller()
@@ -15,17 +15,18 @@ export class ConversationController {
       query: CursorPaginationDTO;
     },
   ) {
-    return this.conversationService.getConversations(data.userId, data.query);
+    // return this.conversationService.getConversations(data.userId, data.query);
   }
 
   @MessagePattern('getConversationById')
   async getConversationById(
     @Payload()
     data: {
+      userId: string;
       conversationId: string;
     },
   ) {
-    return this.conversationService.getConversationById(data.conversationId);
+    // return this.conversationService.getConversationById(data.userId ,data.conversationId);
   }
 
   @MessagePattern('getParticipantInConversation')
@@ -35,24 +36,29 @@ export class ConversationController {
       conversationId: string;
     },
   ) {
-    return this.conversationService.getParticipantsInConversation(
-      data.conversationId,
-    );
+    // return this.conversationService.getParticipantsInConversation(
+    //   data.conversationId,
+    // );
   }
 
   @MessagePattern('createConversation')
   async createConversation(
     @Payload()
     data: {
-      type: 'private' | 'group';
-      participants: string[];
-      groupName?: string;
+      dto: CreateConversationDTO;
     },
   ) {
-    return this.conversationService.createConversation(
-      data.type,
-      data.participants,
-      data.groupName,
-    );
+    // return this.conversationService.createConversation(data.dto);
+  }
+
+  @MessagePattern('deleteConversation')
+  async deleteConversation(
+    @Payload()
+    data: {
+      userId: string;
+      conversationId: string;
+    },
+  ) {
+    // return this.conversationService.deleteConversation(data.conversationId);
   }
 }

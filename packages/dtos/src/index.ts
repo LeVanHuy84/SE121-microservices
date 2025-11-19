@@ -30,5 +30,6 @@ export * from './chat/message/mark-seen-message.dto'
 export * from './chat/message/react-message.dto'
 
 // Cursor Pagination
-export * from './pagination/cursor-pagination.dto'
-export * from './pagination/cursor-response.dto'
+export * from './pagination';
+
+

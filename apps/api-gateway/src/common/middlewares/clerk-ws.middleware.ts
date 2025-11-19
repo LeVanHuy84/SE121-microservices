@@ -9,7 +9,7 @@ export const clerkWsMiddleware = async (socket, next) => {
   
   try {
     // ✅ 1️⃣ Lấy token từ handshake.auth (browser gửi được)
-    const authToken = socket.handshake?.auth?.token;
+    const authToken = socket.handshake?.headers?.token;
 
  
     const token = authToken;

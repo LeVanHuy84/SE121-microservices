@@ -1,11 +1,12 @@
-import { Expose } from "class-transformer";
+import { Expose, Type } from "class-transformer";
+import { MessageResponseDTO } from "../message/get-message.dto";
 
 export class ConversationResponseDTO {
   @Expose()
   id: string;
 
   @Expose()
-  type: 'private' | 'group';
+  isGroup: boolean;
 
   @Expose()
   participants: string[];
@@ -18,7 +19,8 @@ export class ConversationResponseDTO {
   
 
   @Expose()
-  lastMessageId?: string;
+  @Type(() => MessageResponseDTO)
+  lastMessage?: MessageResponseDTO;
 
   @Expose()
   admins?: string[];

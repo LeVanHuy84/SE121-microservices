@@ -21,8 +21,6 @@
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
-    "@repo/common": "*",
-    "@repo/dtos": "*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -30,11 +28,14 @@
     "@nestjs/microservices": "^11.1.6",
     "@nestjs/mongoose": "^11.0.3",
     "@nestjs/platform-express": "^11.0.1",
+    "@repo/common": "*",
+    "@repo/dtos": "*",
+    "ioredis": "^5.7.0",
     "mongoose": "^8.19.1",
+    "redis": "^5.8.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "redis": "^5.8.3",
-    "ioredis": "^5.7.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

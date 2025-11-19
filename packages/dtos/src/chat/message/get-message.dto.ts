@@ -39,9 +39,6 @@ export class MessageResponseDTO {
   content?: string;
 
   @Expose()
-  messageType: 'text' | 'image' | 'video' | 'file' | 'system';
-
-  @Expose()
   @Type(() => AttachmentResponseDTO)
   attachments?: AttachmentResponseDTO[];
 
@@ -49,12 +46,28 @@ export class MessageResponseDTO {
   seenBy: string[];
 
   @Expose()
+  deliveredBy: string[];
+
+  @Expose()
   @Type(() => ReactionDTO)
   reactions: ReactionDTO[];
 
   @Expose()
-  deliveryStatus: 'sending' | 'sent' | 'delivered' | 'read';
+  status: 'sending' | 'sent' | 'delivered' | 'read';
 
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
+
+  @Expose()
+  @Type(() => MessageResponseDTO)
+  replyTo?: MessageResponseDTO;
+
+  @Expose()
+  isDeleted: boolean;
+
+  @Expose()
+  deletedAt?: Date;
 }

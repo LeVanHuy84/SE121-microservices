@@ -3,20 +3,16 @@ import { InjectQueue } from '@nestjs/bull';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
-  ChannelNotification,
   CreateNotificationDto,
   CursorPageResponse,
   CursorPaginationDTO,
-  CursorPaginationResponseDTO,
-  NotificationResponseDto,
-  PageResponse,
-  PaginationDTO,
+  NotificationResponseDto
 } from '@repo/dtos';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
-import { Cursor, Model, ObjectId } from 'mongoose';
+import { Model, ObjectId, Types } from 'mongoose';
 import {
   Notification,
   NotificationDocument,
@@ -154,7 +150,7 @@ export class NotificationService {
     for (const ch of doc.channels) {
       const routingKey = `channel.${ch}`; // e.g. channel.inapp, channel.email
       const headers = {
-        'x-request-id': doc.requestId || (doc._id as ObjectId).toString(),
+        'x-request-id': doc.requestId || (doc._id as Types.ObjectId).toString(),
         'x-retries': 0,
         'x-max-retries':
           doc.meta?.maxRetries === 0
@@ -335,7 +331,7 @@ private async updateNotificationCache(doc: NotificationDocument) {
   const key = `user:${doc.userId}:notifications`;
   const dataKey = `${key}:data`;
   const emptyKey = `${key}:empty`;
-  const member = (doc._id as ObjectId).toString();
+  const member = (doc._id as Types.ObjectId).toString();
   const score = (doc as any).createdAt ? new Date((doc as any).createdAt).getTime() : Date.now();
 
   const pipeline = this.redis.pipeline();
