@@ -15,3 +15,5 @@ export * from './rabbimq/rabbitmq.module';
 
 // notification module
 export * from './notification';
+
+export * from './kafka-producer';
