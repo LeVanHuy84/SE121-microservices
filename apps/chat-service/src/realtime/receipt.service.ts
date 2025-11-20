@@ -9,6 +9,8 @@ import { Conversation } from 'src/mongo/schema/conversation.schema';
 import { Message } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { KAFKA } from '../kafka/kafka.module';
+import { ConversationService } from 'src/conversation/conversation.service';
+import { MessageService } from 'src/message/message.service';
 
 type DeliveredPayload = {
   messageId: string;
@@ -62,6 +64,8 @@ export class ReceiptService implements OnModuleInit {
     private readonly convModel: Model<Conversation>,
     @Inject('REDIS_CHAT') private readonly redis: RedisPubSubService,
     @Inject(KAFKA.PRODUCER) private readonly producer: kafkajs.Producer,
+    private readonly conversationService: ConversationService,
+    private readonly messageService: MessageService,
   ) {
     this.consumer = consumerFactory(
       process.env.KAFKA_GROUP_RECEIPT || 'receipt-service-group',
@@ -173,19 +177,22 @@ export class ReceiptService implements OnModuleInit {
 
     await this.convModel.updateOne(
       { _id: updated.conversationId.toString() },
-      { $set: { updatedAt: new Date() } },
+      { $set: { status: 'delivered', updatedAt: new Date() } },
     );
 
-    await this.redis.publish(
-      'chat:message.status.updated',
-      JSON.stringify({
-        conversationId: updated.conversationId.toString(),
-        messageId: updated._id.toString(),
-        update: 'delivered',
-        userId: deliveredBy,
-        timestamp: Date.now(),
-      }),
-    );
+    await Promise.all([
+      this.redis.publish(
+        'chat:message.status.updated',
+        JSON.stringify({
+          conversationId: updated.conversationId.toString(),
+          messageId: updated._id.toString(),
+          update: 'delivered',
+          userId: deliveredBy,
+          timestamp: Date.now(),
+        }),
+      ),
+      this.messageService.updateMessageCache(updated),
+    ]);
   }
 
   private async handleRead(payload: ReadPayload) {
@@ -219,22 +226,28 @@ export class ReceiptService implements OnModuleInit {
     const updated = await this.messageModel
       .findOneAndUpdate(
         { _id: messageId },
-        { $addToSet: { seenBy }, $set: { updatedAt: new Date() } },
+        {
+          $addToSet: { seenBy },
+          $set: { status: 'seen', updatedAt: new Date() },
+        },
         { new: true },
       )
       .lean();
     if (!updated) return;
 
-    await this.redis.publish(
-      'chat:message.status.updated',
-      JSON.stringify({
-        conversationId: updated.conversationId.toString(),
-        messageId: updated._id.toString(),
-        update: 'seen',
-        userId: seenBy,
-        timestamp: Date.now(),
-      }),
-    );
+    await Promise.all([
+      this.redis.publish(
+        'chat:message.status.updated',
+        JSON.stringify({
+          conversationId: updated.conversationId.toString(),
+          messageId: updated._id.toString(),
+          update: 'seen',
+          userId: seenBy,
+          timestamp: Date.now(),
+        }),
+      ),
+      this.messageService.updateMessageCache(updated),
+    ]);
 
     const convDoc = await this.convModel
       .findByIdAndUpdate(
@@ -247,10 +260,14 @@ export class ReceiptService implements OnModuleInit {
 
     if (updated._id.toString() === convDoc?.lastMessage?._id.toString()) {
       const convDto = await populateAndMapConversation(convDoc);
-      await this.redis.publish(
-        'chat:conversation.updated',
-        JSON.stringify(convDto),
-      );
+
+      await Promise.all([
+        this.redis.publish(
+          'chat:conversation.updated',
+          JSON.stringify(convDto),
+        ),
+        this.conversationService.updateConversationCache(convDto),
+      ]);
     }
   }
 
@@ -313,16 +330,19 @@ export class ReceiptService implements OnModuleInit {
       .lean();
     if (!updated) return;
 
-    await this.redis.publish(
-      'chat:message.status.updated',
-      JSON.stringify({
-        conversationId: updated.conversationId.toString(),
-        messageId: updated._id.toString(),
-        update: 'deleted',
-        userId: deletedBy,
-        timestamp: Date.now(),
-      }),
-    );
+    await Promise.all([
+      this.redis.publish(
+        'chat:message.status.updated',
+        JSON.stringify({
+          conversationId: updated.conversationId.toString(),
+          messageId: updated._id.toString(),
+          update: 'deleted',
+          userId: deletedBy,
+          timestamp: Date.now(),
+        }),
+      ),
+      this.messageService.updateMessageCache(updated),
+    ]);
 
     const convDoc = await this.convModel
       .findByIdAndUpdate(
@@ -335,10 +355,14 @@ export class ReceiptService implements OnModuleInit {
 
     if (updated._id.toString() === convDoc?.lastMessage?._id.toString()) {
       const convDto = await populateAndMapConversation(convDoc);
-      await this.redis.publish(
-        'chat:conversation.updated',
-        JSON.stringify(convDto),
-      );
+
+      await Promise.all([
+        this.redis.publish(
+          'chat:conversation.updated',
+          JSON.stringify(convDto),
+        ),
+        this.conversationService.updateConversationCache(convDto),
+      ]);
     }
   }
 
@@ -385,10 +409,12 @@ export class ReceiptService implements OnModuleInit {
     });
 
     const convDto = await populateAndMapConversation(conv);
-    await this.redis.publish(
-      'chat:conversation.created',
-      JSON.stringify(convDto),
-    );
+
+    await Promise.all([
+      this.redis.publish('chat:conversation.created', JSON.stringify(convDto)),
+
+      this.conversationService.updateConversationCache(conv),
+    ]);
   }
 
   private async handleConversationRead(payload: ConvReadPayload) {
@@ -415,7 +441,7 @@ export class ReceiptService implements OnModuleInit {
         conversationId,
         createdAt: { $lte: timestamp ? new Date(timestamp) : new Date() },
       },
-      { $addToSet: { seenBy: userId } },
+      { $addToSet: { status: 'seen', seenBy: userId } },
     );
 
     const conDoc = await this.convModel
@@ -430,15 +456,18 @@ export class ReceiptService implements OnModuleInit {
     );
 
     if (convDto.lastMessage) {
-      await this.redis.publish(
-        'chat:message.status.updated',
-        JSON.stringify({
-          message: convDto.lastMessage,
-          update: 'seen',
-          seenBy: userId,
-          timestamp: Date.now(),
-        }),
-      );
+      await Promise.all([
+        this.redis.publish(
+          'chat:message.status.updated',
+          JSON.stringify({
+            message: convDto.lastMessage,
+            update: 'seen',
+            seenBy: userId,
+            timestamp: Date.now(),
+          }),
+        ),
+        this.conversationService.updateConversationCache(conDoc),
+      ]);
     }
   }
 

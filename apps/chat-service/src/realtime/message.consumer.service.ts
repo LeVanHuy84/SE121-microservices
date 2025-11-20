@@ -11,6 +11,8 @@ import {
   populateAndMapMessage,
 } from 'src/utils/mapping';
 import { KAFKA } from '../kafka/kafka.module';
+import { MessageService } from 'src/message/message.service';
+import { ConversationService } from 'src/conversation/conversation.service';
 
 type Envelope = {
   messageId: string;
@@ -44,6 +46,9 @@ export class MessageConsumerService implements OnModuleInit {
     @InjectModel(Conversation.name)
     private readonly convModel: Model<Conversation>,
     @Inject('REDIS_CHAT') private readonly redis: RedisPubSubService,
+
+    private readonly messageService: MessageService,
+    private readonly conversationService: ConversationService,
   ) {
     this.consumer = consumerFactory(
       process.env.KAFKA_GROUP_MESSAGE_STORAGE || 'message-storage-group',
@@ -174,6 +179,8 @@ export class MessageConsumerService implements OnModuleInit {
       await Promise.all([
         this.publishStoredMessage(env.conversationId, msgDto),
         this.publishConversationUpdated(convDto),
+        this.messageService.updateMessageCache(msgDoc),
+        this.conversationService.updateConversationCache(convDoc)
       ]);
 
       await this.fanOutMessage(env, convDoc);

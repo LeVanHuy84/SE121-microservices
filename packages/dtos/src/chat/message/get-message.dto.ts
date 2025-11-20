@@ -27,7 +27,7 @@ export class AttachmentResponseDTO {
 
 export class MessageResponseDTO {
   @Expose()
-  id: string;
+  _id: string;
 
   @Expose()
   conversationId: string;

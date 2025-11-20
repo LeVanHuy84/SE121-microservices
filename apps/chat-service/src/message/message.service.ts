@@ -11,6 +11,7 @@ import {
 } from '@repo/dtos';
 import { Message } from 'src/mongo/schema/message.schema';
 import Redis from 'ioredis';
+import { populateAndMapMessage } from 'src/utils/mapping';
 
 @Injectable()
 export class MessageService {
@@ -22,7 +23,7 @@ export class MessageService {
   ) {}
 
   // ==================== Helper: Update cache ====================
-  private async updateMessageCache(msg: any) {
+  async updateMessageCache(msg: any) {
     const msgKey = `msg:${msg._id}`;
     const zKey = `conv:${msg.conversationId}:messages`;
     const score = new Date(msg.createdAt).getTime();
@@ -117,8 +118,11 @@ export class MessageService {
           ? results[results.length - 1]._id.toString()
           : null;
 
+        const dtoList = await Promise.all(
+          results.map((m) => populateAndMapMessage(m)),
+        );
         return new CursorPageResponse(
-          plainToInstance(MessageResponseDTO, results, {
+          plainToInstance(MessageResponseDTO, dtoList, {
             excludeExtraneousValues: true,
           }),
           nextCursor,
@@ -162,8 +166,12 @@ export class MessageService {
       ? results[results.length - 1]._id.toString()
       : null;
 
+    const dtoList = await Promise.all(
+      results.map((m) => populateAndMapMessage(m)),
+    );
+
     return new CursorPageResponse(
-      plainToInstance(MessageResponseDTO, results, {
+      plainToInstance(MessageResponseDTO, dtoList, {
         excludeExtraneousValues: true,
       }),
       nextCursor,
@@ -171,76 +179,6 @@ export class MessageService {
     );
   }
 
-  // ==================== CREATE MESSAGE ====================
-  async createMessage(
-    conversationId: string,
-    senderId: string,
-    dto: SendMessageDTO,
-  ): Promise<MessageResponseDTO> {
-    if (!conversationId)
-      throw new NotFoundException('Conversation ID is required');
-
-    const msg = await this.messageModel.create({
-      conversationId,
-      senderId,
-      content: dto.content,
-      attachments: dto?.attachments || [],
-      replyTo: dto?.replyTo || null,
-      status: 'sent',
-      seenBy: [senderId],
-    });
-
-    const msgObj = msg.toObject();
-    await this.updateMessageCache(msgObj);
-
-    if (msgObj.replyTo) {
-      const replyRaw = await this.redis.get(`msg:${msgObj.replyTo}`);
-      if (replyRaw) msgObj.replyTo = JSON.parse(replyRaw);
-    }
-
-    return plainToInstance(MessageResponseDTO, msgObj, {
-      excludeExtraneousValues: true,
-    });
-  }
-
-  // ==================== MARK SEEN ====================
-  async markSeen(
-    messageId: string,
-    userId: string,
-  ): Promise<MessageResponseDTO> {
-    const msg = await this.messageModel.findById(messageId);
-    if (!msg) throw new NotFoundException('Message not found');
-
-    if (!msg.seenBy.includes(userId)) {
-      msg.seenBy.push(userId);
-      msg.status = 'seen';
-      await msg.save();
-      await this.updateMessageCache(msg.toObject());
-    }
-
-    return plainToInstance(MessageResponseDTO, msg.toObject(), {
-      excludeExtraneousValues: true,
-    });
-  }
-
-  // ==================== MARK DELIVERED ====================
-  async markDelivered(
-    messageId: string,
-    userId: string,
-  ): Promise<MessageResponseDTO> {
-    const msg = await this.messageModel.findById(messageId);
-    if (!msg) throw new NotFoundException('Message not found');
-
-    if (!msg.deliveredBy.includes(userId)) {
-      msg.deliveredBy.push(userId);
-      await msg.save();
-      await this.updateMessageCache(msg.toObject());
-    }
-
-    return plainToInstance(MessageResponseDTO, msg.toObject(), {
-      excludeExtraneousValues: true,
-    });
-  }
 
   // ==================== REACT MESSAGE ====================
   async reactMessage(

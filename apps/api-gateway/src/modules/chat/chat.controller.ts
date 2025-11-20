@@ -37,6 +37,7 @@ export class ChatController {
   ) {
     return this.chatClient.send('getConversationById', { userId, conversationId });
   }
+
   @Get('conversations/:conversationId/messages')
   getMessages(
     @Param('conversationId') conversationId: string,
@@ -45,12 +46,4 @@ export class ChatController {
     return this.chatClient.send('getMessages', { conversationId, query });
   }
 
-
-  @Delete('conversations/:conversationId')
-  deleteConversation(
-    @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
-  ) {
-    return this.chatClient.send('deleteConversation', { userId, conversationId });
-  }
 }

@@ -8,9 +8,9 @@ function mapMessage(obj: any): MessageResponseDTO {
   const base = typeof obj.toObject === 'function' ? obj.toObject() : obj;
   return plainToInstance(MessageResponseDTO, {
     ...base,
-    id: base._id?.toString(),
+    _id: base._id?.toString(),
     conversationId: base.conversationId?.toString(),
-    replyTo: obj.replyTo ? mapMessage(obj.replyTo) : undefined,
+    replyTo: obj.replyTo ? mapMessage(obj.replyTo) : null,
   });
 }
 
@@ -25,7 +25,7 @@ export async function populateAndMapConversation(convDoc: any) : Promise<Convers
     typeof convDoc.toObject === 'function' ? convDoc.toObject() : convDoc;
   return plainToInstance(ConversationResponseDTO, {
     ...base,
-    id: base._id?.toString(),
+    _id: base._id?.toString(),
     participants: (base.participants || []).map((p: any) => String(p)),
     admins: (base.admins || []).map((a: any) => String(a)),
     lastMessage: convDoc.lastMessage

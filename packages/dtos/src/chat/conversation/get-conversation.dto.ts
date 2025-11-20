@@ -3,7 +3,7 @@ import { MessageResponseDTO } from "../message/get-message.dto";
 
 export class ConversationResponseDTO {
   @Expose()
-  id: string;
+  _id: string;
 
   @Expose()
   isGroup: boolean;
