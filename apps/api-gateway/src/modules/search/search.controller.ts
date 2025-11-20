@@ -48,4 +48,12 @@ export class SearchController {
     );
     return result;
   }
+
+  @Get('users')
+  async searchUsers(@Query() filter: SearchPostDto) {
+    const result = await lastValueFrom(
+      this.searchClient.send('search_users', filter)
+    );
+    return result;
+  }
 }

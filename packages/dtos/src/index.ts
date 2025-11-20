@@ -11,9 +11,7 @@ export * from './feed';
 export * from './social';
 
 //User DTOs
-export * from './user/create-user.dto';
-export * from './user/get-user.dto';
-export * from './user/update-user.dto';
+export * from './user';
 
 // Notification
 export * from './notification/create-noti.dto';

@@ -6,7 +6,9 @@ import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import {
   BaseUserDTO,
   CreateUserDTO,
+  InferUserPayload,
   UpdateUserDTO,
+  UserEventType,
   UserResponseDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
@@ -16,6 +18,7 @@ import { profiles } from 'src/drizzle/schema/profiles.schema';
 import { users } from 'src/drizzle/schema/users.schema';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { OutboxService } from './event/outbox.service';
 
 const CACHE_TTL = {
   USER: 300,
@@ -29,7 +32,8 @@ export class UserService {
 
   constructor(
     @Inject(DRIZZLE) private db: DrizzleDB,
-    @InjectRedis() private redis: Redis
+    @InjectRedis() private redis: Redis,
+    private outboxService: OutboxService
   ) {}
 
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
@@ -76,6 +80,23 @@ export class UserService {
     });
 
     await this.redis.del('users:all');
+
+    const payload: InferUserPayload<UserEventType.CREATED> = {
+      userId: user.id,
+      email: user.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      avatarUrl: dto.avatarUrl,
+      bio: dto.bio,
+      isActive: true,
+      createdAt: new Date(),
+    };
+
+    await this.outboxService.createUserOutboxEvent(
+      this.db,
+      UserEventType.CREATED,
+      payload
+    );
 
     return plainToInstance(UserResponseDTO, user, {
       excludeExtraneousValues: true,
@@ -207,6 +228,21 @@ export class UserService {
     await this.redis.del(`user:${id}`);
     await this.redis.del('users:all');
 
+    const payload: InferUserPayload<UserEventType.UPDATED> = {
+      userId: id,
+      email: dto.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      avatarUrl: dto.avatarUrl,
+      bio: dto.bio,
+    };
+
+    await this.outboxService.createUserOutboxEvent(
+      this.db,
+      UserEventType.UPDATED,
+      payload
+    );
+
     return this.findOne(id);
   }
 
@@ -215,6 +251,15 @@ export class UserService {
 
     await this.redis.del(`user:${id}`);
     await this.redis.del('users:all');
+
+    const payload: InferUserPayload<UserEventType.REMOVED> = {
+      userId: id,
+    };
+    await this.outboxService.createUserOutboxEvent(
+      this.db,
+      UserEventType.REMOVED,
+      payload
+    );
 
     return { success: true };
   }

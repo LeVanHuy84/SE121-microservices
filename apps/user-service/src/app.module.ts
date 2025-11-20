@@ -1,15 +1,16 @@
-import { Module } from "@nestjs/common";
-import { DrizzleModule } from "./drizzle/drizzle.module";
-import { UserModule } from "./module/user.module";
-import { ConfigModule } from "@nestjs/config";
-import { UserController } from "./module/user.controller";
-import { ClientsModule, Transport } from "@nestjs/microservices";
+import { Module } from '@nestjs/common';
+import { DrizzleModule } from './drizzle/drizzle.module';
+import { UserModule } from './module/user.module';
+import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { EventModule } from './module/event/event.module';
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     DrizzleModule,
     UserModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     RedisModule.forRoot({
       type: 'single',
       options: {
@@ -19,7 +20,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
           : 6379,
       },
     }),
+    EventModule,
   ],
 })
 export class AppModule {}
-

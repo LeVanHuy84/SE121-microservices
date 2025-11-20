@@ -3,10 +3,12 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { OutboxService } from './event/outbox.service';
 
 @Module({
   controllers: [UserController],
-  providers: [UserService],
+  providers: [UserService, OutboxService],
+  exports: [UserService],
   imports: [
     DrizzleModule,
     ClientsModule.register([
