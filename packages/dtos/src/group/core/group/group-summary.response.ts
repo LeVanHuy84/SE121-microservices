@@ -1,25 +1,19 @@
 import { Expose } from 'class-transformer';
-import { GroupPrivacy, GroupStatus } from '../../enums';
+import { GroupPrivacy } from '../../enums';
 
-export class GroupResponseDTO {
+export class GroupSummaryResponse {
   @Expose()
-  id: string;
+  groupId: string;
   @Expose()
   name: string;
   @Expose()
   description?: string;
   @Expose()
-  avatarUrl: string;
-  @Expose()
-  coverImageUrl: string;
+  avatarUrl?: string;
   @Expose()
   privacy: GroupPrivacy;
   @Expose()
-  rules?: string;
-  @Expose()
   members: number;
-  @Expose()
-  status: GroupStatus;
   @Expose()
   createdAt: Date;
 }

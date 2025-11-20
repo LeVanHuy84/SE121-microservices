@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseIndexService } from 'src/common/search/base-index.service';
 import { IndexerService } from '../indexer/indexer.service';
-import { POST_INDEX } from './post.mapping';
+import { GROUP_INDEX } from './group.mapping';
 
 @Injectable()
-export class PostIndexService extends BaseIndexService {
-  indexName = POST_INDEX;
+export class GroupIndexService extends BaseIndexService {
+  indexName = GROUP_INDEX;
   constructor(indexer: IndexerService) {
     super(indexer);
   }

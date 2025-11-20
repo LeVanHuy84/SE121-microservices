@@ -18,6 +18,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           },
         }),
       },
+      {
+        name: MICROSERVICES_CLIENTS.POST_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>('POST_SERVICE_PORT'),
+          },
+        }),
+      },
     ]),
   ],
   controllers: [SearchController],

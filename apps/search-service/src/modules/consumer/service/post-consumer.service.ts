@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PostIndexService } from '../post/post-index.service';
+import { PostIndexService } from '../../post/post-index.service';
 import { InferPostPayload, PostEventType } from '@repo/dtos';
 
 @Injectable()
-export class KafkaConsumerService {
+export class PostConsumerService {
   constructor(private readonly postIndexService: PostIndexService) {}
 
   createPostIndex(payload: InferPostPayload<PostEventType.CREATED>) {

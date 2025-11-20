@@ -2,7 +2,7 @@ import { Client } from '@elastic/elasticsearch';
 import { Injectable } from '@nestjs/common';
 import { BaseSearchService } from 'src/common/search/base-search.service';
 import { POST_INDEX } from './post.mapping';
-import { SearchPostDto } from '@repo/dtos';
+import { SearchPostDto, SortOrder } from '@repo/dtos';
 
 @Injectable()
 export class PostSearchService extends BaseSearchService {
@@ -15,6 +15,8 @@ export class PostSearchService extends BaseSearchService {
   async searchPosts(dto: SearchPostDto) {
     const must: any[] = [];
     const filter: any[] = [];
+    const sortOrder = dto.order === SortOrder.ASC ? 'asc' : 'desc';
+    const sortFields = [{ [dto.sortBy]: sortOrder }, { id: 'asc' }];
 
     if (dto.query) {
       must.push({
@@ -32,7 +34,8 @@ export class PostSearchService extends BaseSearchService {
     const result = await this.boolSearch(
       { must, filter },
       dto.cursor,
-      dto.size,
+      dto.limit,
+      sortFields,
     );
 
     return {

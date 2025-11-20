@@ -1,15 +1,9 @@
 import { IsOptional, IsString } from 'class-validator';
+import { CursorPaginationDTO } from '../pagination';
 
-export class SearchPostDto {
+export class SearchPostDto extends CursorPaginationDTO {
   @IsString()
   query: string;
-
-  @IsOptional()
-  cursor?: string;
-
-  @IsOptional()
-  size?: number = 10;
-
   @IsOptional()
   userId?: string;
   @IsOptional()

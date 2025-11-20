@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ElasticsearchModule } from './elastic/elastic.module';
 import { IndexerModule } from './modules/indexer/indexer.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { InitModule } from './modules/_init/init.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ElasticsearchModule,
     SearchModule,
     IndexerModule,
+    InitModule,
   ],
   controllers: [],
   providers: [],

@@ -9,6 +9,11 @@ import { RequireGroupRole } from '../group-authorization/require-group-role.deca
 export class GroupMemberController {
   constructor(private readonly groupMemberService: GroupMemberService) {}
 
+  @MessagePattern('leave-group')
+  async leaveGroup(@Payload() payload: { groupId: string; userId: string }) {
+    return this.groupMemberService.leaveGroup(payload.userId, payload.groupId);
+  }
+
   @MessagePattern('remove-member')
   @RequireGroupPermission(GroupPermission.MANAGE_MEMBERS)
   async removeMember(

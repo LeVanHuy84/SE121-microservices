@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { KafkaConsumerController } from './kafka-consumer.controller';
-import { KafkaConsumerService } from './kafka-consumer.service';
 import { PostModule } from '../post/post.module';
 import { GroupModule } from '../group/group.module';
 import { UserModule } from '../user/user.module';
+import { PostConsumerService } from './service/post-consumer.service';
+import { GroupConsumerService } from './service/group-consumer.service';
 
 @Module({
   imports: [PostModule, GroupModule, UserModule],
   controllers: [KafkaConsumerController],
-  providers: [KafkaConsumerService],
+  providers: [PostConsumerService, GroupConsumerService],
 })
 export class KafkaConsumerModule {}

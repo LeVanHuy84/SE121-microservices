@@ -8,152 +8,90 @@ export abstract class BaseSearchService {
 
   constructor(@Inject(ELASTIC_CLIENT) private readonly es: Client) {}
 
-  // Text search with cursor (for infinite scroll)
-  async textSearch(
-    query: string,
+  /** Mặc định sort, service con override nếu muốn */
+  defaultSort(): any[] {
+    return [{ createdAt: 'desc' }, { id: 'asc' }];
+  }
+
+  /** Build search params + cursor */
+  private buildParams(query: any, cursor?: string, size = 10, sort?: any[]) {
+    const params: any = {
+      index: this.indexName,
+      size,
+      query,
+      sort: sort ?? this.defaultSort(),
+    };
+
+    if (cursor) {
+      const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString());
+      params.search_after = decoded;
+    }
+
+    return params;
+  }
+
+  /** Execute search + handle cursor */
+  private async execute(
+    params: any,
+    hitsMapper?: (hit: any, idx: number) => any,
+  ): Promise<CursorPageResponse<any>> {
+    const result = await this.es.search(params);
+    const hits = result.hits?.hits ?? [];
+
+    const nextCursor =
+      hits.length === params.size && hits[hits.length - 1]?.sort
+        ? Buffer.from(JSON.stringify(hits[hits.length - 1].sort)).toString(
+            'base64',
+          )
+        : null;
+
+    const data = hitsMapper ? hits.map(hitsMapper) : hits.map((h) => h._source);
+
+    return { data, nextCursor, hasNextPage: hits.length === params.size };
+  }
+
+  /** Text search */
+  textSearch(
+    text: string,
     fields: string[],
     cursor?: string,
     size = 10,
-  ): Promise<CursorPageResponse<any>> {
-    const searchParams: any = {
-      index: this.indexName,
+    sort?: any[],
+  ) {
+    const params = this.buildParams(
+      { multi_match: { query: text, fields } },
+      cursor,
       size,
-      query: {
-        multi_match: { query, fields },
-      },
-      sort: [
-        { _score: 'desc' },
-        { createdAt: 'desc' }, // hoặc timestamp field của bạn
-        { id: 'asc' }, // tie-breaker
-      ],
-    };
-
-    if (cursor) {
-      const decodedCursor = JSON.parse(
-        Buffer.from(cursor, 'base64').toString(),
-      );
-      searchParams.search_after = decodedCursor;
-    }
-
-    const result = await this.es.search(searchParams);
-    const hits = result.hits.hits;
-
-    let nextCursor: string | null = null;
-    if (hits.length === size) {
-      const lastHit = hits[hits.length - 1];
-      nextCursor = Buffer.from(JSON.stringify(lastHit.sort)).toString('base64');
-    }
-
-    return {
-      data: hits.map((h) => h._source),
-      nextCursor,
-      hasNextPage: hits.length === size,
-    };
+      sort,
+    );
+    return this.execute(params);
   }
 
-  // Bool query with cursor
-  async boolSearch(
-    body: any,
-    cursor?: string,
-    size = 10,
-    sortFields = [{ createdAt: 'desc' }, { id: 'asc' }],
-  ): Promise<CursorPageResponse<any>> {
-    const searchParams: any = {
-      index: this.indexName,
-      size,
-      query: { bool: body },
-      sort: sortFields,
-    };
-
-    if (cursor) {
-      const decodedCursor = JSON.parse(
-        Buffer.from(cursor, 'base64').toString(),
-      );
-      searchParams.search_after = decodedCursor;
-    }
-
-    const result = await this.es.search(searchParams);
-    const hits = result.hits.hits;
-
-    let nextCursor: string | null = null;
-    if (hits.length === size) {
-      const lastHit = hits[hits.length - 1];
-      nextCursor = Buffer.from(JSON.stringify(lastHit.sort)).toString('base64');
-    }
-
-    return {
-      data: hits.map((h) => h._source),
-      nextCursor,
-      hasNextPage: hits.length === size,
-    };
+  /** Bool search */
+  boolSearch(boolQuery: any, cursor?: string, size = 10, sort?: any[]) {
+    const params = this.buildParams({ bool: boolQuery }, cursor, size, sort);
+    return this.execute(params);
   }
 
-  // Search with highlight + cursor
-  async highlightSearch(
-    query: string,
+  /** Highlight search */
+  highlightSearch(
+    text: string,
     fields: string[],
     cursor?: string,
     size = 10,
-  ): Promise<CursorPageResponse<any>> {
-    const searchParams: any = {
-      index: this.indexName,
+    sort?: any[],
+  ) {
+    const params = this.buildParams(
+      { multi_match: { query: text, fields } },
+      cursor,
       size,
-      query: {
-        multi_match: { query, fields },
-      },
-      highlight: {
-        fields: fields.reduce((acc, f) => ({ ...acc, [f]: {} }), {}),
-      },
-      sort: [{ _score: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
-    };
+      sort,
+    );
+    params.highlight = fields.reduce((acc, f) => ({ ...acc, [f]: {} }), {});
 
-    if (cursor) {
-      const decodedCursor = JSON.parse(
-        Buffer.from(cursor, 'base64').toString(),
-      );
-      searchParams.search_after = decodedCursor;
-    }
-
-    const result = await this.es.search(searchParams);
-    const hits = result.hits.hits;
-
-    let nextCursor: string | null = null;
-    if (hits.length === size) {
-      const lastHit = hits[hits.length - 1];
-      nextCursor = Buffer.from(JSON.stringify(lastHit.sort)).toString('base64');
-    }
-
-    return {
-      data: hits.map((h) => {
-        const src = (h._source ?? {}) as Record<string, any>;
-        return {
-          ...src,
-          highlight: h.highlight,
-        };
-      }),
-      nextCursor,
-      hasNextPage: hits.length === size,
-    };
+    return this.execute(params, (h) => ({
+      ...(h._source ?? {}),
+      highlight: h.highlight,
+    }));
   }
 }
-
-// USAGE IN CONTROLLER/SERVICE:
-/*
-// First load
-const result = await searchService.textSearch('keyword', ['title', 'content']);
-// { data: [...], nextCursor: "eyJ...", hasMore: true }
-
-// Load more (infinite scroll)
-const nextResult = await searchService.textSearch(
-  'keyword', 
-  ['title', 'content'],
-  result.nextCursor
-);
-
-// Frontend:
-while (hasMore) {
-  const { data, nextCursor, hasMore } = await loadMore(cursor);
-  posts.push(...data);
-  cursor = nextCursor;
-}
-*/

@@ -12,7 +12,7 @@ import { KafkaProducerService } from './kafka.producer.service';
           config.get<string>('KAFKA_BROKERS') || 'localhost:9092'
         ).split(',');
         const clientId =
-          config.get<string>('KAFKA_CLIENT_ID') || 'post-service';
+          config.get<string>('KAFKA_CLIENT_ID') || 'group-service';
         return new KafkaProducerService(brokers, clientId);
       },
       inject: [ConfigService],
