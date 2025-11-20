@@ -12,7 +12,7 @@ import {
 import { RealtimeController } from './realtime.controller';
 import { MessageConsumerService } from './message.consumer.service';
 import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
-import { ReceiptService } from './recepit.service';
+import { ReceiptService } from './receipt.service';
 
 @Module({
   imports: [

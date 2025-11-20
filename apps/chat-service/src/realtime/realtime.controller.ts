@@ -14,16 +14,4 @@ export class RealtimeController {
     return this.realtimeService.isParticipant(data.conversationId, data.userId);
   }
 
-  @MessagePattern('sendMessage')
-  async sendMessage(@Payload() data: { senderId: string; dto: SendMessageDTO }) {
-    return this.realtimeService.sendMessage(data.senderId, data.dto);
-  }
-
-  @MessagePattern('createConversation')
-  async createConversation(@Payload() data: { creatorId: string; dto: CreateConversationDTO }) {
-    return this.realtimeService.createConversation(
-      data.creatorId,
-      data.dto,
-    );
-  }
 }

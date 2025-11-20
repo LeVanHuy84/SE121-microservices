@@ -1,4 +1,5 @@
 import { Inject, Logger, OnModuleDestroy } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   ConnectedSocket,
   MessageBody,
@@ -13,16 +14,13 @@ import { RedisPubSubService } from '@repo/common';
 import {
   ConversationResponseDTO,
   CreateConversationDTO,
-  MessageResponseDTO,
   SendMessageDTO,
 } from '@repo/dtos';
 import * as kafkajs from 'kafkajs';
+import { firstValueFrom } from 'rxjs';
 import { Server, Socket } from 'socket.io';
-import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
-import { KAFKA } from './chat.module';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ClientProxy } from '@nestjs/microservices';
-import { first, firstValueFrom } from 'rxjs';
+import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
 
 const CMDS = {
   CONNECT: 'chat_gateway.connect',
@@ -36,6 +34,7 @@ const EVENTS = {
   MESSAGE_STATUS_UPDATED: 'chat:message.status.updated',
   CONVERSATION_CREATED: 'chat:conversation.created',
   CONVERSATION_UPDATED: 'chat:conversation.updated',
+  ERROR: 'chat:error',
 };
 @WebSocketGateway({
   namespace: '/chat',
@@ -53,6 +52,7 @@ export class ChatGateway
 {
   private readonly logger = new Logger(ChatGateway.name);
   @WebSocketServer() server: Server;
+
   private serverId = `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
   constructor(
     @Inject('REDIS_CHAT_GATEWAY') private readonly redis: RedisPubSubService,
@@ -77,6 +77,9 @@ export class ChatGateway
       this.redis.subscribe(EVENTS.CONVERSATION_UPDATED, (raw) =>
         this.onConversationUpdated(raw)
       ),
+      this.redis.subscribe(EVENTS.ERROR, (raw) => {
+        this.onHandleError(raw);
+      }),
     ]);
     await this.ensureInboxGroup();
     this.startInboxLoop();
@@ -90,6 +93,7 @@ export class ChatGateway
       this.redis.unsubscribe(EVENTS.MESSAGE_STATUS_UPDATED),
       this.redis.unsubscribe(EVENTS.CONVERSATION_CREATED),
       this.redis.unsubscribe(EVENTS.CONVERSATION_UPDATED),
+      this.redis.unsubscribe(EVENTS.ERROR),
     ]);
     this.logger.log('✅ Unsubscribed from presence channels via Redis');
   }
@@ -168,12 +172,28 @@ export class ChatGateway
       })
     );
     if (!ok)
-      return client.emit('error', {
-        code: 'not_member',
-        conversationId: payload.conversationId,
-      });
+      return this.server
+        .to(`user:${userId}`)
+        .emit('error', { code: 'not_member' });
+
     client.join(`conversation:${payload.conversationId}`);
-    client.emit('joined', { conversationId: payload.conversationId });
+
+    await this.kafkaProducer.send({
+      topic: 'chat_gateway.conversation.read',
+      messages: [
+        {
+          key: payload.conversationId,
+          value: JSON.stringify({
+            conversationId: payload.conversationId,
+            userId,
+            timestamp: Date.now(),
+          }),
+        },
+      ],
+    });
+    this.logger.debug(
+      `User ${userId} joined conversation ${payload.conversationId}`
+    );
   }
 
   @SubscribeMessage('create_conversation')
@@ -183,49 +203,10 @@ export class ChatGateway
     dto: CreateConversationDTO
   ) {
     const userId = client.user?.id;
-    try {
-      const res = await firstValueFrom(
-        this.chatClient.send('createConversation', { creatorId: userId, dto })
-      );
-      client.emit('conversation_queued', res);
-    } catch (err) {
-      client.emit('error', { code: String(err) });
-    }
-  }
-
-  @SubscribeMessage('conversation_read')
-  async onConversationRead(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    payload: { conversationId: string }
-  ) {
-    try {
-      const userId = client.user?.id;
-      const ok = await firstValueFrom(
-        this.chatClient.send('isParticipant', {
-          conversationId: payload.conversationId,
-          userId,
-        })
-      );
-      if (!ok) return client.emit('error', { code: 'not_member' });
-      await this.kafkaProducer.send({
-        topic:
-          process.env.KAFKA_TOPIC_CONVERSATION_READ ||
-          'chat_gateway.conversation.read',
-        messages: [
-          {
-            key: payload.conversationId,
-            value: JSON.stringify({
-              conversationId: payload.conversationId,
-              userId,
-              timestamp: Date.now(),
-            }),
-          },
-        ],
-      });
-    } catch (err) {
-      client.emit('error', { code: String(err) });
-    }
+    await this.redis.publish(
+      'chat_gateway:create_conversation',
+      JSON.stringify({ creatorId: userId, dto })
+    );
   }
 
   @SubscribeMessage('send_message')
@@ -234,54 +215,34 @@ export class ChatGateway
     @MessageBody() dto: SendMessageDTO
   ) {
     const userId = client.user?.id;
-    if (!userId) return client.emit('error', { code: 'unauth' });
-    try {
-      const ack = await firstValueFrom(
-        this.chatClient.send('sendMessage', {
-          conversationId: dto.conversationId,
-          senderId: userId,
-          dto,
-        })
-      );
-      client.emit('message_queued', {
-        messageId: ack.messageId,
-        timestamp: ack.timestamp,
-      });
-    } catch (err) {
-      client.emit('message_failed', { error: String(err) });
-    }
+    await this.redis.publish(
+      'chat_gateway:send_message',
+      JSON.stringify({ senderId: userId, dto })
+    );
   }
 
-  @SubscribeMessage('message_read')
+  @SubscribeMessage('read_message')
   async onRead(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { conversationId: string; messageId: string }
   ) {
-    try {
-      const userId = client.user?.id;
-      const ok = await firstValueFrom(
-        this.chatClient.send('is_participant', {
-          conversationId: payload.conversationId,
-          userId,
-        })
-      );
-      if (!ok) return client.emit('error', { code: 'not_member' });
-      await this.kafkaProducer.send({
-        topic: process.env.KAFKA_TOPIC_READ || 'chat_gateway.message.read',
-        messages: [
-          {
-            key: payload.conversationId,
-            value: JSON.stringify({
-              messageId: payload.messageId,
-              seenBy: userId,
-              timestamp: Date.now(),
-            }),
-          },
-        ],
-      });
-    } catch (error) {
-      client.emit('error', { code: String(error) });
-    }
+    const userId = client.user?.id;
+    await this.kafkaProducer.send({
+      topic: 'chat_gateway.message.read',
+      messages: [
+        {
+          key: payload.conversationId,
+          value: JSON.stringify({
+            messageId: payload.messageId,
+            seenBy: userId,
+            timestamp: Date.now(),
+          }),
+        },
+      ],
+    });
+    this.logger.debug(
+      `Sent read receipt for message ${payload.messageId} by user ${userId}`
+    );
   }
 
   @SubscribeMessage('delete_message')
@@ -289,31 +250,15 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { messageId: string; conversationId: string }
   ) {
-    try {
-      const userId = client.user?.id;
-      const ok = await firstValueFrom(
-        this.chatClient.send('is_participant', {
-          conversationId: payload.conversationId,
-          userId,
-        })
-      );
-      if (!ok) return client.emit('error', { code: 'not_member' });
-
-      await this.kafkaProducer.send({
-        topic:
-          process.env.KAFKA_TOPIC_DELETE || 'chat_gatewway.message.delete',
-        messages: [
-          {
-            key: payload.conversationId,
-            value: JSON.stringify({
-              messageId: payload.messageId,
-              deletedBy: userId,
-              timestamp: Date.now(),
-            }),
-          },
-        ],
-      });
-    } catch (error) {}
+    const userId = client.user?.id;
+    await this.redis.publish(
+      'chat_gateway:delete_message',
+      JSON.stringify({
+        deleterId: userId,
+        messageId: payload.messageId,
+        conversationId: payload.conversationId,
+      })
+    );
   }
 
   // ================= PRESENCE EVENTS =================
@@ -321,8 +266,15 @@ export class ChatGateway
     try {
       const p = JSON.parse(raw);
       const { userId, lastActive, serverId, timestamp } = p;
+
+      this.logger.debug(`Handling presence.online for user ${userId}`);
       // Emit to user's sockets so FE updates presence; optionally emit to contacts
-      this.server.emit('user_online', { userId, lastActive, serverId, timestamp });
+      this.server.emit('user_online', {
+        userId,
+        lastActive,
+        serverId,
+        timestamp,
+      });
       this.logger.debug(`Emitted user_online for ${userId}`);
     } catch (err) {
       this.logger.warn('invalid presence.online payload', err);
@@ -351,13 +303,6 @@ export class ChatGateway
     this.server
       .to(`conversation:${conversationId}`)
       .emit('message:new', message);
-    this.server
-      .to(`conversation:${conversationId}`)
-      .emit('conversation:update', {
-        conversationId,
-        lastMessage: message,
-        updatedAt: new Date(),
-      });
   }
 
   private onStatusUpdated(raw: string) {
@@ -366,8 +311,12 @@ export class ChatGateway
       messageId: string;
       update: 'seen' | 'deleted' | 'delivered';
       userId: string;
-      timestamp: number;
+      timestamp: Date;
     };
+    this.logger.debug(
+      `Processing message status update: ${data.update} for message ${data.messageId}`,
+      data
+    );
     if (data.update === 'seen') {
       this.server
         .to(`conversation:${data.conversationId}`)
@@ -376,6 +325,7 @@ export class ChatGateway
           seenBy: data.userId,
           timestamp: data.timestamp,
         });
+      this.logger.debug(`Emitted message:seen for ${data.messageId}`);
     } else if (data.update === 'deleted') {
       this.server
         .to(`conversation:${data.conversationId}`)
@@ -384,6 +334,7 @@ export class ChatGateway
           userId: data.userId,
           timestamp: data.timestamp,
         });
+      this.logger.debug(`Emitted message:deleted for ${data.messageId}`);
     } else if (data.update === 'delivered') {
       this.server
         .to(`conversation:${data.conversationId}`)
@@ -392,13 +343,16 @@ export class ChatGateway
           deliveredBy: data.userId,
           timestamp: data.timestamp,
         });
+      this.logger.debug(`Emitted message:delivered for ${data.messageId}`);
     }
+    this.logger.debug(`Emitted message:${data.update} for ${data.messageId}`);
   }
 
   private onConversationCreated(raw: string) {
     const converastion = JSON.parse(raw) as ConversationResponseDTO;
     for (const uid of converastion.participants) {
       this.server.to(`user:${uid}`).emit('conversation:new', converastion);
+      this.logger.debug(`Emitted conversation:new to user ${uid}`);
     }
   }
 
@@ -406,6 +360,7 @@ export class ChatGateway
     const data = JSON.parse(raw) as ConversationResponseDTO;
     for (const uid of data.participants) {
       this.server.to(`user:${uid}`).emit('conversation:update', data);
+      this.logger.debug(`Emitted conversation:update to user ${uid}`);
     }
   }
 
@@ -413,6 +368,8 @@ export class ChatGateway
     await this.redis.baseClient
       .xgroup('CREATE', 'server.inbox', 'server_inbox_group', '$', 'MKSTREAM')
       .catch(() => {});
+
+      this.logger.log('✅ Ensured inbox consumer group exists');
   }
 
   private startInboxLoop() {
@@ -444,12 +401,12 @@ export class ChatGateway
                 if (type === 'deliver_batch') {
                   const { toUserIds, message } = JSON.parse(payload);
                   for (const uid of toUserIds) {
-                    this.server.to(`user:${uid}`).emit('message:new', message);
+                    // this.server.to(`user:${uid}`).emit('message:new', message);
 
                     await this.kafkaProducer.send({
                       topic:
                         process.env.KAFKA_TOPIC_DELIVER ||
-                        'chat_gateway:message.delivery',
+                        'chat_gateway.message.delivery',
                       messages: [
                         {
                           key: message.messageId,
@@ -461,6 +418,9 @@ export class ChatGateway
                         },
                       ],
                     });
+                    this.logger.debug(
+                      `Emitted message:new to user ${uid} from inbox`
+                    );
                   }
                 }
               } finally {
@@ -473,5 +433,11 @@ export class ChatGateway
         }
       }
     })();
+  }
+
+  private onHandleError(raw: string) {
+    const { userId, code } = JSON.parse(raw);
+    this.server.to(`user:${userId}`).emit('error', { code });
+    this.logger.debug(`Emitted error to user ${userId}: ${code}`);
   }
 }

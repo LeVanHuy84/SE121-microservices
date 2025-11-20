@@ -46,7 +46,7 @@ export const KAFKA = {
         const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(
           ','
         );
-        const clientId = process.env.KAFKA_CLIENT_ID || 'chat-app';
+        const clientId = process.env.KAFKA_CLIENT_ID || 'gateway-chat';
         return new Kafka({
           clientId,
           brokers,
@@ -71,5 +71,10 @@ export const KAFKA = {
       },
     },
   ],
-})
+  exports: [
+    KAFKA.CLIENT,
+    KAFKA.PRODUCER,
+  ]
+},
+)
 export class ChatModule {}

@@ -52,9 +52,4 @@ export const MessageSchema = SchemaFactory.createForClass(Message);
 MessageSchema.index({ messageId: 1 }, { unique: true });
 MessageSchema.index({ conversationId: 1, createdAt: -1 });
 MessageSchema.index({ senderId: 1 });
-
-MessageSchema.index(
-  { conversationId: 1, createdAt: -1 },
-  { partialFilterExpression: { isDeleted: false } },
-);
 MessageSchema.index({ replyTo: 1 });

@@ -21,15 +21,11 @@ const SOCKETS_KEY = (u: string) => `presence:user:${u}:sockets`;
 export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PresenceService.name);
 
-  private readonly ONLINE_THRESHOLD_MS =
-    Number(process.env.ONLINE_THRESHOLD_MS) || 5000;
-  private readonly PRESENCE_KEY_TTL =
-    Number(process.env.PRESENCE_KEY_TTL) || 36000;
-  private readonly DISCONNECT_GRACE_MS =
-    Number(process.env.PRESENCE_DISCONNECT_GRACE_MS) || 5000;
-  private readonly SCAN_BATCH = Number(process.env.PRESENCE_SCAN_BATCH) || 200;
-  private readonly SCAN_LOCK_TTL_MS =
-    Number(process.env.PRESENCE_SCAN_LOCK_TTL_MS) || 25_000;
+  private readonly ONLINE_THRESHOLD_MS= 5000;
+  private readonly PRESENCE_KEY_TTL=36000;
+  private readonly DISCONNECT_GRACE_MS= 5000;
+  private readonly SCAN_BATCH= 200;
+  private readonly SCAN_LOCK_TTL_MS = 25_000;
 
   private disconnectTimers = new Map<string, NodeJS.Timeout>();
   private running = true;
