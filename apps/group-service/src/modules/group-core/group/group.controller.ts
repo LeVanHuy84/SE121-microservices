@@ -3,9 +3,9 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { GroupService } from './group.service';
 import {
   CreateGroupDTO,
+  CursorPaginationDTO,
   GroupPermission,
   GroupRole,
-  SearchGroupDTO,
   UpdateGroupDTO,
 } from '@repo/dtos';
 import { RequireGroupPermission } from 'src/modules/group-authorization/require-group-permission.decorator';
@@ -25,9 +25,18 @@ export class GroupController {
     return this.groupService.findById(data.groupId);
   }
 
-  @MessagePattern('search_groups')
-  async searchGroups(@Payload() data: { query: SearchGroupDTO }) {
-    return this.groupService.search(data.query);
+  @MessagePattern('get_my_groups')
+  async searchGroups(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.groupService.getMyGroups(data.userId, data.query);
+  }
+
+  @MessagePattern('recommend_groups')
+  async recommendGroups(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.groupService.recommendGroups(data.userId, data.query);
   }
 
   @MessagePattern('create_group')

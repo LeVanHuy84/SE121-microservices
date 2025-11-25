@@ -1,6 +1,7 @@
 // src/common/modules/social-client.module.ts
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { SocialClientService } from './social-client.service';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
       },
     ]),
   ],
-  exports: [ClientsModule],
+  providers: [SocialClientService],
+  exports: [ClientsModule, SocialClientService],
 })
 export class SocialClientModule {}

@@ -12,7 +12,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import {
   CreateGroupDTO,
-  SearchGroupDTO,
+  CursorPaginationDTO,
   UpdateGroupDTO,
   UpdateGroupSettingDTO,
 } from '@repo/dtos';
@@ -36,9 +36,17 @@ export class GroupController {
     return this.client.send('find_group_by_id', { groupId });
   }
 
-  @Get('search')
-  search(@Query() query: SearchGroupDTO) {
-    return this.client.send('search_groups', { query });
+  @Get('my-groups')
+  search(@Query() query: CursorPaginationDTO, @CurrentUserId() userId: string) {
+    return this.client.send('get_my_groups', { userId, query });
+  }
+
+  @Get('recommendations')
+  recommend(
+    @Query() query: CursorPaginationDTO,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('recommend_groups', { userId, query });
   }
 
   @Post()
