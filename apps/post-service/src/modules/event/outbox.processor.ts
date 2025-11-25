@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { KafkaProducerService } from './kafka/kafka.producer.service';
 import { CreateNotificationDto, EventDestination } from '@repo/dtos';
-import { NotificationService } from '@repo/common';
+import { KafkaProducerService, NotificationService } from '@repo/common';
 
 @Injectable()
 export class OutboxProcessor {

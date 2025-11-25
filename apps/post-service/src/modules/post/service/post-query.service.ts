@@ -187,6 +187,34 @@ export class PostQueryService {
     return this.buildPagedPostResponse(userId, posts, hasNextPage);
   }
 
+  // ----------------------------------------
+  // 🗂 Lấy nhiều post theo listId
+  // ----------------------------------------
+  async getPostBatch(
+    currentUserId: string,
+    postIds: string[]
+  ): Promise<PostSnapshotDTO[]> {
+    if (!postIds.length) return [];
+
+    // Lấy post từ cache hoặc DB
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return [];
+
+    // Lấy reaction của user cho batch post
+    const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
+
+    // Chuyển sang DTO
+    const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
+    // Optional: sort theo thứ tự truyền vào (để giữ order của postIds)
+    const postOrderMap = new Map(postIds.map((id, idx) => [id, idx]));
+    postDTOs.sort(
+      (a, b) => postOrderMap.get(a.postId)! - postOrderMap.get(b.postId)!
+    );
+
+    return postDTOs;
+  }
+
   async getPostEditHistories(
     userId: string,
     postId: string

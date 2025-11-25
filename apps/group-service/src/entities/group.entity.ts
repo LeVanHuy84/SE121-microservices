@@ -34,9 +34,6 @@ export class Group extends AuditableEntity {
   @Column({ type: 'int', default: 0 })
   reports: number;
 
-  @Column({ type: 'uuid', name: 'group_category_id', nullable: true })
-  groupCategoryId: string;
-
   @Column({ type: 'enum', enum: GroupStatus, default: GroupStatus.ACTIVE })
   status: GroupStatus;
 
