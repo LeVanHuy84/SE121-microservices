@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { GroupPrivacy } from '../../enums';
 
 export class UpdateGroupDTO {
@@ -21,8 +21,4 @@ export class UpdateGroupDTO {
   @IsString()
   @IsOptional()
   rules?: string;
-
-  @IsUUID()
-  @IsOptional()
-  groupCategoryId?: string;
 }

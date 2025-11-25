@@ -3,3 +3,4 @@ export * from './create-group.dto';
 export * from './update-group.dto';
 export * from './group.query';
 export * from './post-permission.dto';
+export * from './group-summary.response';

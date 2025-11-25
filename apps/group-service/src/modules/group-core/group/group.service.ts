@@ -3,10 +3,14 @@ import { RpcException } from '@nestjs/microservices';
 import {
   CreateGroupDTO,
   CursorPageResponse,
+  EventDestination,
+  EventTopic,
   GroupEventLog,
+  GroupEventType,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
+  InferGroupPayload,
   PostPermissionDTO,
   SearchGroupDTO,
   UpdateGroupDTO,
@@ -20,6 +24,7 @@ import { validate as isUUID } from 'uuid';
 import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
 import { GroupCacheService } from './group-cache.service';
 import { GroupLogService } from 'src/modules/group-log/group-log.service';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 
 @Injectable()
 export class GroupService {
@@ -124,6 +129,20 @@ export class GroupService {
       });
       await manager.save(groupMember);
 
+      // Outbox
+      const payload: InferGroupPayload<GroupEventType.CREATED> = {
+        groupId: savedGroup.id,
+        name: savedGroup.name,
+        description: savedGroup.description,
+        avatarUrl: savedGroup.avatarUrl,
+        privacy: savedGroup.privacy,
+        members: 1,
+        createdAt: savedGroup.createdAt,
+      };
+      await this.createOutboxEvent(manager, GroupEventType.CREATED, {
+        data: payload,
+      });
+
       // 3️⃣ Trả về DTO
       return plainToInstance(GroupResponseDTO, savedGroup, {
         excludeExtraneousValues: true,
@@ -158,6 +177,18 @@ export class GroupService {
           .join(', ')}`,
       });
 
+      const payload: InferGroupPayload<GroupEventType.UPDATED> = {
+        groupId: updatedGroup.id,
+        name: updatedGroup.name,
+        description: updatedGroup.description,
+        avatarUrl: updatedGroup.avatarUrl,
+        privacy: updatedGroup.privacy,
+        members: updatedGroup.members,
+      };
+      await this.createOutboxEvent(manager, GroupEventType.UPDATED, {
+        data: payload,
+      });
+
       return updatedGroup;
     });
   }
@@ -174,6 +205,18 @@ export class GroupService {
     group.updatedBy = userId;
     group.status = GroupStatus.DELETED;
     await repo.save(group);
+
+    const payload: InferGroupPayload<GroupEventType.REMOVED> = {
+      groupId: group.id,
+    };
+    await this.createOutboxEvent(
+      this.dataSource.manager,
+      GroupEventType.REMOVED,
+      {
+        data: payload,
+      },
+    );
+
     return true;
   }
 
@@ -204,5 +247,20 @@ export class GroupService {
     };
 
     return finalPermissions;
+  }
+
+  private async createOutboxEvent(
+    manager: any,
+    eventType: GroupEventType,
+    payload: any,
+  ) {
+    const outboxRepo = manager.getRepository(OutboxEvent);
+    const event = outboxRepo.create({
+      destination: EventDestination.KAFKA,
+      topic: EventTopic.GROUP_CRUD,
+      eventType,
+      payload: payload.data,
+    });
+    await outboxRepo.save(event);
   }
 }

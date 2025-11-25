@@ -38,6 +38,7 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
 
+  # Vào production có thể bỏ qua kafka-ui
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -77,6 +78,33 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.7
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    ports:
+      - '9200:9200'
+    networks:
+      - app-network
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.1.7
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - '5601:5601'
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
@@ -87,3 +115,4 @@ volumes:
   kafka_data:
   redis_data:
   rabbitmq_data:
+  elastic_data:

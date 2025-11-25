@@ -19,8 +19,6 @@ export class GroupResponseDTO {
   @Expose()
   members: number;
   @Expose()
-  groupCategoryId?: string;
-  @Expose()
   status: GroupStatus;
   @Expose()
   createdAt: Date;

@@ -28,6 +28,29 @@ export class GroupMemberService {
     private readonly groupLogService: GroupLogService,
   ) {}
 
+  async leaveGroup(userId: string, groupId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const member = await manager.findOne(GroupMember, {
+        where: { userId, groupId },
+      });
+      if (!member) throw new RpcException('Member not found');
+      if (member.role === GroupRole.OWNER) {
+        throw new RpcException('Owner cannot leave the group');
+      }
+      member.status = GroupMemberStatus.LEFT;
+      await manager.save(member);
+      await this.groupLogService.log(manager, {
+        groupId,
+        userId,
+        eventType: GroupEventLog.MEMBER_LEFT,
+        content: `Member ${userId} left the group`,
+      });
+
+      await this.updateMemberCount(manager, groupId, -1);
+      return true;
+    });
+  }
+
   async removeMember(userId: string, groupId: string, memberId: string) {
     return this.dataSource.transaction(async (manager) => {
       const member = await manager.findOne(GroupMember, {
@@ -68,6 +91,8 @@ export class GroupMemberService {
         eventType: GroupEventLog.MEMBER_REMOVED,
         content: `Member ${memberId} removed from group by ${userId}`,
       });
+
+      await this.updateMemberCount(manager, groupId, -1);
 
       return true;
     });
@@ -113,6 +138,8 @@ export class GroupMemberService {
         eventType: GroupEventLog.MEMBER_BANNED,
         content: `Member ${memberId} banned from group by ${userId}`,
       });
+
+      await this.updateMemberCount(manager, groupId, -1);
       return true;
     });
   }
@@ -296,6 +323,14 @@ export class GroupMemberService {
     });
 
     await outboxRepo.save(event);
+  }
+
+  private async updateMemberCount(manager, groupId: string, delta: number) {
+    const groupRepo = manager.getRepository(Group);
+    const group = await groupRepo.findOne({ where: { id: groupId } });
+    if (!group) throw new RpcException('Group not found');
+    group.members += delta;
+    const savedGroup = await groupRepo.save(group);
   }
 
   private async getMemberWithRole(manager, groupId: string, userId: string) {

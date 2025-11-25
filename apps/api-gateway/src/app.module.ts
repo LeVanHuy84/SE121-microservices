@@ -14,6 +14,7 @@ import { RabbitmqModule } from '@repo/common';
 import { FeedModule } from './modules/feed/feed.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { GroupModule } from './modules/group/group.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { GroupModule } from './modules/group/group.module';
       },
     }),
     GroupModule,
+    SearchModule,
   ],
 
   providers: [

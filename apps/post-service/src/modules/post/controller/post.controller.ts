@@ -90,6 +90,13 @@ export class PostController {
     return this.postCommand.remove(payload.userId, payload.id);
   }
 
+  @MessagePattern('get_posts_batch')
+  async getPostsBatch(
+    @Payload() payload: { currentUserId: string; postIds: string[] }
+  ): Promise<PostSnapshotDTO[]> {
+    return this.postQuery.getPostBatch(payload.currentUserId, payload.postIds);
+  }
+
   @MessagePattern('get_post_edit_histories')
   async getPostEditHistories(
     @Payload() payload: { userId: string; postId: string }

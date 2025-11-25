@@ -20,6 +20,14 @@ export class GroupMemberController {
     private client: ClientProxy
   ) {}
 
+  @Post('leave')
+  async leaveGroup(
+    @Param('groupId') groupId: string,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('leave-group', { groupId, userId });
+  }
+
   @Post(':memberId/remove')
   async removeMember(
     @Param('groupId') groupId: string,

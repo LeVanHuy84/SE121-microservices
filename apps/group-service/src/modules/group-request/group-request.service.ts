@@ -17,6 +17,7 @@ import { Group } from 'src/entities/group.entity';
 import { DataSource, In } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { GroupLogService } from '../group-log/group-log.service';
+import { GroupBufferService } from '../batch/buffer.service';
 
 @Injectable()
 export class GroupJoinRequestService {
@@ -24,6 +25,7 @@ export class GroupJoinRequestService {
     private readonly dataSource: DataSource,
     @InjectRepository(GroupJoinRequest)
     private readonly groupLogService: GroupLogService,
+    private readonly groupBufferService: GroupBufferService,
   ) {}
 
   // 📨 User gửi yêu cầu tham gia nhóm
@@ -86,6 +88,8 @@ export class GroupJoinRequestService {
       });
 
       if (member) {
+        member.role = GroupRole.MEMBER;
+        member.customPermissions = [];
         member.status = GroupMemberStatus.ACTIVE;
         await memberRepo.save(member);
       } else {
@@ -98,7 +102,7 @@ export class GroupJoinRequestService {
       }
 
       group.members += 1;
-      await groupRepo.save(group);
+      const savedGroup = await groupRepo.save(group);
 
       joinRequest.status = JoinRequestStatus.APPROVED;
       joinRequest.updatedBy = approverId;
@@ -110,6 +114,8 @@ export class GroupJoinRequestService {
         eventType: GroupEventLog.JOIN_REQUEST_APPROVED,
         content: `Join request with id: ${joinRequest.id} approved by: ${approverId}`,
       });
+
+      await this.groupBufferService.buffer(savedGroup.id, savedGroup.members);
 
       return true;
     });
@@ -202,6 +208,8 @@ export class GroupJoinRequestService {
     });
 
     if (member) {
+      member.role = GroupRole.MEMBER;
+      member.customPermissions = [];
       member.status = GroupMemberStatus.ACTIVE;
     } else {
       member = memberRepo.create({
@@ -214,7 +222,9 @@ export class GroupJoinRequestService {
     await memberRepo.save(member);
 
     group.members += 1;
-    await groupRepo.save(group);
+    const savedGroup = await groupRepo.save(group);
+
+    await this.groupBufferService.buffer(savedGroup.id, savedGroup.members);
 
     return { success: true, response: 'Joined' };
   }
