@@ -21,8 +21,8 @@ export class GroupController {
   }
 
   @MessagePattern('find_group_by_id')
-  async getGroup(@Payload() data: { groupId: string }) {
-    return this.groupService.findById(data.groupId);
+  async getGroup(@Payload() data: { userId: string; groupId: string }) {
+    return this.groupService.findById(data.groupId, data.userId);
   }
 
   @MessagePattern('get_my_groups')
