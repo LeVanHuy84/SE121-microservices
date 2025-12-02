@@ -1,12 +1,14 @@
 from fastapi import FastAPI
 import uvicorn
-from app.api.health import health_router
+from app.api.text_api import text_router
+from app.api.image_api import image_router
 from app.core.config import settings
 
 app = FastAPI()
 
 # Register routes
-app.include_router(health_router, prefix="/health")
+app.include_router(text_router, prefix="/text")
+app.include_router(image_router, prefix="/image")
 
 
 def start():
