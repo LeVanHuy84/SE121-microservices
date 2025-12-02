@@ -1,24 +1,21 @@
 # app/utils/image_downloader.py
-import aiohttp
-import cv2
 import numpy as np
-from typing import Optional
+import requests
+import cv2
 
-async def download_image_to_cv2(url: str, timeout: int = 15) -> Optional[np.ndarray]:
+
+def download_image_to_cv2(url: str, timeout: int = 10) -> np.ndarray:
     """
-    Download image bytes from url and return OpenCV BGR numpy array.
-    Returns None if failed.
+    Download an image from URL using requests and convert to OpenCV BGR numpy array.
     """
     try:
-        timeout_cfg = aiohttp.ClientTimeout(total=timeout)
-        async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.read()
-
-        nparr = np.frombuffer(data, dtype=np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # BGR
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+        arr = np.frombuffer(resp.content, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Invalid image data")
         return img
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to download image %s: %s", url, e)
         return None

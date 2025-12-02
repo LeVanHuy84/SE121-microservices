@@ -77,46 +77,34 @@ class ModelLoader:
     #  IMAGE EMOTION API (FER)
     # -----------------------------
     def analyze_image_emotion(self, image):
-        """
-        Phân tích cảm xúc từ ảnh bằng FER (PyTorch).
-        Input:
-            - image: numpy array (BGR) hoặc raw bytes sau khi decode cv2
-        Output:
-            {
-                "dominant_emotion": "happy",
-                "emotions": {...},
-                "box": [...]
-            }
-        """
-
-        # Nếu image là bytes -> decode
+        # decode if bytes
         if isinstance(image, bytes):
             nparr = np.frombuffer(image, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         result = self.fer_detector.detect_emotions(image)
 
-        if not result:
+        face_count = len(result)
+
+        if face_count == 0:
             return {
+                "face_count": 0,
                 "dominant_emotion": "neutral",
                 "emotions": {
-                    "angry": 0,
-                    "disgust": 0,
-                    "fear": 0,
-                    "happy": 0,
-                    "sad": 0,
-                    "surprise": 0,
+                    "angry": 0, "disgust": 0, "fear": 0,
+                    "happy": 0, "sad": 0, "surprise": 0,
                     "neutral": 1,
                 },
                 "box": None,
             }
 
+        # Chỉ lấy mặt đầu tiên
         data = result[0]
         emotions = data["emotions"]
-
         dominant = max(emotions, key=emotions.get)
 
         return {
+            "face_count": face_count,
             "dominant_emotion": dominant,
             "emotions": emotions,
             "box": data["box"]

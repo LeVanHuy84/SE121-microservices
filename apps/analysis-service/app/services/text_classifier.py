@@ -1,13 +1,39 @@
 from app.services.model_loader import model_loader
+import torch.nn.functional as F
+import torch
+from app.utils.emotion_normalizer import normalize_text_label
+from app.enums.emotion_enum import EmotionEnum
 
 class TextClassifier:
     @staticmethod
     def classify_emotion(text: str):
-        # gọi pipeline mới của BartPho Emotion
-        result = model_loader.emotion_pipeline(text)[0]
+        tokenizer = model_loader.tokenizer
+        model = model_loader.model
+
+        inputs = tokenizer(text, return_tensors="pt")
+
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probs = F.softmax(logits, dim=1)[0].tolist()
+
+        labels = model.config.id2label
+
+        # Normalize scores to canonical emotions
+        emotion_scores = {}
+        for i, prob in enumerate(probs):
+            raw_label = labels[i]
+            canonical_label = normalize_text_label(raw_label)
+            emotion_scores.setdefault(canonical_label, 0)
+            emotion_scores[canonical_label] += float(round(prob, 4))
+
+        # Dominant emotion
+        dominant = max(emotion_scores, key=emotion_scores.get)
+
         return {
-            "label": result["label"],           # sẽ là 7 nhãn: Anger, Disgust, Enjoyment, Fear, Sadness, Surprise, Other
-            "score": round(result["score"], 4)
+            "dominant_emotion": dominant.value,
+            "emotion_scores": {k.value: v for k, v in emotion_scores.items()}
         }
 
 text_classifier = TextClassifier()
+

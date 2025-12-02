@@ -1,13 +1,30 @@
-# app/models/analyze_response.py
-from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import List, Dict, Any
+from pydantic import BaseModel, HttpUrl, Field
+
+class EmotionScores(BaseModel):
+    anger: float
+    disgust: float
+    joy: float
+    fear: float
+    neutral: float
+    sadness: float
+    surprise: float
+
+class TextEmotion(BaseModel):
+    dominant_emotion: str
+    emotion_scores: EmotionScores
 
 class ImageEmotion(BaseModel):
-    url: str
-    dominant_emotion: Optional[str] = None
-    emotion_scores: Optional[Dict[str, float]] = None
-    error: Optional[str] = None
+    url: HttpUrl
+    face_count: int
+    dominant_emotion: str
+    emotion_scores: EmotionScores
 
-class AnalyzeResponse(BaseModel):
-    postId: Optional[int] = None
-    images: List[ImageEmotion]
+class AnalysisResponse(BaseModel):
+    userId: str
+    targetId: str
+    targetType: str
+    text_emotion: TextEmotion
+    image_emotions: List[ImageEmotion]
+    final_emotion: str
+    final_scores: EmotionScores

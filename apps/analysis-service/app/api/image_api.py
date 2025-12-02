@@ -1,15 +1,16 @@
 from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter
-from app.models.analyze_request import AnalyzeRequest
-from app.models.analyze_response import AnalyzeResponse, ImageEmotion
+from app.models.analyze_response import ImageEmotion
 from app.services.emotion_detector import analyze_multiple_image_urls
 from fastapi import HTTPException
+from typing import List
+from pydantic import BaseModel, HttpUrl
 
 image_router = APIRouter()
 
-@image_router.post("/analyze_images", response_model=AnalyzeResponse)
-async def analyze_images(req: AnalyzeRequest):
-    if not req.images:
+@image_router.post("/analyze_images")
+async def analyze_images(images: List[HttpUrl]):
+    if not images:
         raise HTTPException(status_code=400, detail="images list is empty")
 
     # chạy hàm sync trong threadpool
@@ -28,15 +29,9 @@ async def analyze_images(req: AnalyzeRequest):
                 )
             )
         else:
-            images_out.append(
-                ImageEmotion(
-                    url=r.get("url"),
-                    dominant_emotion=r.get("dominant_emotion"),
-                    emotion_scores=r.get("emotion_scores")
-                )
-            )
+            images_out.append(r)
 
-    return AnalyzeResponse(
-        postId=req.postId,
-        images=images_out
-    )
+    return {
+        "success": True,
+        "data": images_out
+    }
