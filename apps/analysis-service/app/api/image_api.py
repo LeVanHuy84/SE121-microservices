@@ -8,9 +8,12 @@ from pydantic import BaseModel, HttpUrl
 
 image_router = APIRouter()
 
+class ImagesRequest(BaseModel):
+    images: List[HttpUrl]
+
 @image_router.post("/analyze_images")
-async def analyze_images(images: List[HttpUrl]):
-    if not images:
+async def analyze_images(req: ImagesRequest):
+    if not req.images:
         raise HTTPException(status_code=400, detail="images list is empty")
 
     # chạy hàm sync trong threadpool
