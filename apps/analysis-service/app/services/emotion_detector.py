@@ -3,8 +3,9 @@
 from typing import Dict, Any, List
 import numpy as np
 import logging
-import requests
 import cv2
+import asyncio
+
 from app.utils.image_downloader import download_image_to_cv2
 from app.utils.emotion_normalizer import normalize_image_label
 from app.enums.emotion_enum import EmotionEnum
@@ -12,9 +13,6 @@ from app.services.model_loader import model_loader
 
 logger = logging.getLogger(__name__)
 
-
-from app.utils.emotion_normalizer import normalize_image_label
-from app.enums.emotion_enum import EmotionEnum
 
 def analyze_image_cv2(img_bgr: np.ndarray) -> Dict[str, Any]:
     if img_bgr is None:
@@ -27,10 +25,8 @@ def analyze_image_cv2(img_bgr: np.ndarray) -> Dict[str, Any]:
     emotions = result.get("emotions", {})
     dominant_raw = result.get("dominant_emotion")
 
-    # Normalize dominant
     dominant = normalize_image_label(dominant_raw)
 
-    # Normalize scores
     clean_scores = {}
     for k, v in emotions.items():
         try:
@@ -46,26 +42,36 @@ def analyze_image_cv2(img_bgr: np.ndarray) -> Dict[str, Any]:
     }
 
 
-def analyze_multiple_image_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, Any]]:
+# ----------------------------
+#       ASYNC FUNCTION
+# ----------------------------
+async def analyze_multiple_image_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, Any]]:
+    # Download images concurrently
+    download_tasks = [download_image_to_cv2(url) for url in urls]
+    images = await asyncio.gather(*download_tasks)
+
     results = []
 
-    for url in urls:
+    for url, img in zip(urls, images):
         try:
-            img = download_image_to_cv2(url, timeout=timeout)
             if img is None:
-                results.append({"url": url, "error": "download_failed_or_invalid_image"})
+                results.append({
+                    "url": url,
+                    "error": "download_failed_or_invalid_image"
+                })
                 continue
 
             analysis = analyze_image_cv2(img)
+
             results.append({
                 "url": url,
                 "face_count": analysis["face_count"],
                 "dominant_emotion": analysis["dominant_emotion"],
                 "emotion_scores": analysis["emotion_scores"]
             })
+
         except Exception as e:
             logger.exception("Error analyzing image %s: %s", url, e)
             results.append({"url": url, "error": str(e)})
 
     return results
-

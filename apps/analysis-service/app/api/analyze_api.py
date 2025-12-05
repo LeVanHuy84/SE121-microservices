@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.models.analyze_request import CreateAnalyzeRequest
 from app.models.analyze_response import AnalysisResponse
-from app.services.post_emotion_analyzer import EmotionAnalyzer
+from app.services.emotion_analyzer import EmotionAnalyzer
 
 analyze_router = APIRouter()
 

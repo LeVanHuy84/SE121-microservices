@@ -8,6 +8,7 @@ import { RecentActivityBatch } from './recent-activity.batch';
 import { UserClientModule } from '../client/user/user-client.module';
 import { KafkaProducerModule, NotificationModule } from '@repo/common';
 import { ConfigService } from '@nestjs/config';
+import { OutboxService } from './outbox.service';
 
 @Global()
 @Module({
@@ -30,7 +31,13 @@ import { ConfigService } from '@nestjs/config';
     OutboxProcessor,
     RecentActivityBufferService,
     RecentActivityBatch,
+    OutboxService,
   ],
-  exports: [OutboxProcessor, RecentActivityBufferService, RecentActivityBatch],
+  exports: [
+    OutboxProcessor,
+    RecentActivityBufferService,
+    RecentActivityBatch,
+    OutboxService,
+  ],
 })
 export class EventModule {}

@@ -8,6 +8,7 @@ import { CommentQueryService } from './service/comment-query.service';
 import { Reaction } from 'src/entities/reaction.entity';
 import { CommentCacheService } from './service/comment-cache.service';
 import { UserClientModule } from '../client/user/user-client.module';
+import { OutboxService } from '../event/outbox.service';
 
 @Module({
   imports: [
@@ -15,6 +16,11 @@ import { UserClientModule } from '../client/user/user-client.module';
     UserClientModule,
   ],
   controllers: [CommentController],
-  providers: [CommentService, CommentQueryService, CommentCacheService],
+  providers: [
+    CommentService,
+    CommentQueryService,
+    CommentCacheService,
+    OutboxService,
+  ],
 })
 export class CommentModule {}

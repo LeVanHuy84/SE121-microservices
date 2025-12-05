@@ -1,6 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { IsEnum } from 'class-validator';
-import { ReactionType, RootType } from '../enums/social.enum';
+import { Emotion, ReactionType, RootType } from '../enums/social.enum';
 import { MediaItemDTO } from '../../common';
 
 export class CommentStatDTO {
@@ -37,6 +37,13 @@ export class CommentResponseDTO {
   @Expose()
   @Type(() => MediaItemDTO)
   media?: MediaItemDTO;
+
+  @Expose()
+  @IsEnum(Emotion)
+  mainEmotion: Emotion;
+
+  @Expose()
+  mainEmotionScore: number;
 
   @Expose()
   @Type(() => CommentStatDTO)
