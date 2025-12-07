@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PresenceService } from './presence.service';
 import { RedisModule } from '@repo/common';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { RedisModule } from '@repo/common';
         db: 0,
       },
     }),
+    ScheduleModule.forRoot(),
   ],
   providers: [PresenceService],
 })

@@ -1,4 +1,5 @@
 import { Expose, Type } from 'class-transformer';
+import { ReactionStatsDTO } from './message-reaction-stats.dto';
 
 export class ReactionDTO {
   @Expose()
@@ -49,11 +50,11 @@ export class MessageResponseDTO {
   deliveredBy: string[];
 
   @Expose()
-  @Type(() => ReactionDTO)
-  reactions: ReactionDTO[];
+  @Type(() => ReactionStatsDTO)
+  reactionStats: ReactionStatsDTO;
 
   @Expose()
-  status: 'sending' | 'sent' | 'delivered' | 'read';
+  status:  'sent' | 'delivered' | 'read';
 
   @Expose()
   createdAt: Date;

@@ -21,13 +21,7 @@ export * from './notification/get-noti.dto';
 export * from './notification/enums/channel-notication.enum'
 
 // Chat
-export * from './chat/conversation/create-conversation.dto';
-export * from './chat/conversation/get-conversation.dto';
-export * from './chat/conversation/update-conversation.dto';
-export * from './chat/message/send-message.dto';
-export * from './chat/message/get-message.dto'
-export * from './chat/message/mark-seen-message.dto'
-export * from './chat/message/react-message.dto'
+export * from './chat';
 
 // Cursor Pagination
 export * from './pagination';

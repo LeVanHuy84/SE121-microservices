@@ -4,15 +4,13 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ChatGateway } from './chat.gateway';
-import { RedisModule } from '@repo/common';
+
 import { Kafka, logLevel, Producer } from 'kafkajs';
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { ChatMessageStreamConsumer } from './chat.consumer';
 
 
-export const KAFKA = {
-  CLIENT: 'KAFKA_CLIENT',
-  PRODUCER: 'KAFKA_PRODUCER',
-  CONSUMER_FACTORY: 'KAFKA_CONSUMER_FACTORY',
-};
+
 @Module({
   imports: [
     ClientsModule.registerAsync([
@@ -29,52 +27,16 @@ export const KAFKA = {
       },
     ]),
     RedisModule.forRoot({
-      name: 'chat_gateway',
-      config: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: +(process.env.REDIS_PORT ?? 6379),
-        db: 0,
+      type: 'single',
+      options: {
+        host: process.env.POST_REDIS_HOST,
+        port: process.env.POST_REDIS_PORT
+          ? parseInt(process.env.POST_REDIS_PORT, 10)
+          : 6379,
       },
     }),
   ],
   controllers: [ChatController],
-  providers: [
-    ChatGateway,
-    {
-      provide: KAFKA.CLIENT,
-      useFactory: () => {
-        const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(
-          ','
-        );
-        const clientId = process.env.KAFKA_CLIENT_ID || 'gateway-chat';
-        return new Kafka({
-          clientId,
-          brokers,
-          connectionTimeout: 5000,
-          requestTimeout: 30000,
-          logLevel: logLevel.ERROR,
-          // add ssl/sasl here if needed
-        });
-      },
-    },
-    {
-      provide: KAFKA.PRODUCER,
-      inject: [KAFKA.CLIENT],
-      useFactory: async (kafka: Kafka) => {
-        const producer: Producer = kafka.producer({
-          idempotent: true,
-          maxInFlightRequests: 1,
-          retry: { retries: 8, initialRetryTime: 300 },
-        });
-        await producer.connect();
-        return producer;
-      },
-    },
-  ],
-  exports: [
-    KAFKA.CLIENT,
-    KAFKA.PRODUCER,
-  ]
-},
-)
+  providers: [ChatGateway, ChatMessageStreamConsumer],
+})
 export class ChatModule {}

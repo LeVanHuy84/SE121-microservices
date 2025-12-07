@@ -1,4 +1,3 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
@@ -10,12 +9,22 @@ import {
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import Redis from 'ioredis';
-import { Model, Types } from 'mongoose';
-import { Conversation } from 'src/mongo/schema/conversation.schema';
+import { Model } from 'mongoose';
+import {
+  Conversation,
+  ConversationDocument,
+} from 'src/mongo/schema/conversation.schema';
+import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
+import { ConversationCacheService } from './conversation-cache.service';
 
 const TTL = 60 * 5;
+
+type CachedConversation = ConversationResponseDTO & {
+  participants: string[];
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
 
 @Injectable()
 export class ConversationService {
@@ -24,7 +33,10 @@ export class ConversationService {
   constructor(
     @InjectModel(Conversation.name)
     private readonly conversationModel: Model<Conversation>,
-    @InjectRedis() private readonly redis: Redis,
+    @InjectModel(Message.name)
+    private readonly messageModel: Model<Message>,
+
+    private readonly cache: ConversationCacheService,
   ) {}
 
   // ==================== GET BY ID ====================
@@ -32,19 +44,13 @@ export class ConversationService {
     userId: string,
     conversationId: string,
   ): Promise<ConversationResponseDTO> {
-    const key = `conv:${conversationId}:detail`;
-    const cached = await this.redis.get(key);
-
+    const cached = await this.cache.getConversationDetail(conversationId);
     if (cached) {
-      const conv = JSON.parse(cached);
-
-      //  Check quyền từ cached
-      if (!conv.participants?.includes(userId)) {
+      if (!cached.participants?.includes(userId)) {
         throw new RpcException('You are not in this conversation');
       }
 
-      // Trả về DTO đã cache sẵn
-      return plainToInstance(ConversationResponseDTO, conv, {
+      return plainToInstance(ConversationResponseDTO, cached, {
         excludeExtraneousValues: true,
       });
     }
@@ -52,7 +58,7 @@ export class ConversationService {
     // DB fallback
     const convDoc = await this.conversationModel
       .findById(conversationId)
-      .populate('lastMessage')
+      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
       .exec();
 
     if (!convDoc) throw new RpcException('Conversation not found');
@@ -66,7 +72,7 @@ export class ConversationService {
     const dto = await populateAndMapConversation(convDoc);
 
     // Cache lại DTO để lần sau lấy ra dùng luôn
-    await this.redis.set(key, JSON.stringify(dto), 'EX', TTL);
+    await this.cache.setConversationDetail(dto);
 
     return dto;
   }
@@ -75,20 +81,19 @@ export class ConversationService {
   async getParticipantsInConversation(
     conversationId: string,
   ): Promise<string[]> {
-    const key = `conv:${conversationId}:participants`;
-    const cached = await this.redis.smembers(key);
-    if (cached.length) return cached;
+    const cached = await this.cache.getParticipants(conversationId);
+    if (cached) return cached;
 
     const conversation = await this.conversationModel
       .findById(conversationId)
       .lean();
     if (!conversation) throw new RpcException('Conversation not found');
 
-    const participants = conversation.participants.map((id) => id.toString());
-    if (participants.length) {
-      await this.redis.sadd(key, ...participants);
-      await this.redis.expire(key, TTL);
-    }
+    const participants = (conversation.participants || []).map((id: any) =>
+      String(id),
+    );
+    await this.cache.setParticipants(conversationId, participants);
+
     return participants;
   }
 
@@ -97,45 +102,26 @@ export class ConversationService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<ConversationResponseDTO>> {
-    const zKey = `user:${userId}:conversations:z`;
-    const dataKey = `user:${userId}:conversations:data`;
-    const emptyKey = `user:${userId}:conversations:empty`;
-
     const limit = query.limit;
-    if (await this.redis.exists(emptyKey))
+    // 1) Nếu đã có flag "empty" thì trả về luôn
+    if (await this.cache.hasEmptyFlag(userId)) {
       return new CursorPageResponse([], null, false);
+    }
 
-    let maxScore: string | number = '+inf';
-    if (query.cursor) maxScore = `(${query.cursor}`;
-
-    const ids = await this.redis.zrevrangebyscore(
-      zKey,
-      maxScore,
-      '-inf',
-      'LIMIT',
-      0,
-      limit + 1,
+    // 2) Thử lấy từ Redis ZSET + HASH
+    const page = await this.cache.getUserConversationsPage(
+      userId,
+      query.cursor ?? null,
+      limit,
     );
 
-    if (ids.length > 0) {
-      const hasNext = ids.length > limit;
-      const selected = ids.slice(0, limit);
-
-      const cached = await this.redis.hmget(dataKey, ...selected);
-      const items = cached
-        .filter((c): c is string => c !== null)
-        .map((c) => JSON.parse(c));
-
-      const lastItem = items[items.length - 1];
-      const nextCursor =
-        hasNext && lastItem?.updatedAt
-          ? new Date(lastItem.updatedAt).getTime().toString()
-          : null;
-
+    if (page && page.items.length) {
       return new CursorPageResponse(
-        plainToInstance(ConversationResponseDTO, items),
-        nextCursor,
-        hasNext,
+        plainToInstance(ConversationResponseDTO, page.items, {
+          excludeExtraneousValues: true,
+        }),
+        page.nextCursor,
+        page.hasNext,
       );
     }
 
@@ -146,17 +132,16 @@ export class ConversationService {
     const dbItems = await this.conversationModel
       .find({ participants: userId, ...dbFilter })
       .sort({ updatedAt: -1 })
-      .populate('lastMessage')
+      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
       .limit(limit + 1)
-      .lean();
+      .exec();
 
     if (dbItems.length > 0) {
-
       const mapped = await Promise.all(
         dbItems.map((doc) => populateAndMapConversation(doc)),
       );
 
-      await this.cacheConversations([userId], mapped);
+      await this.cache.cacheConversationsForUsers(userId, mapped);
 
       const hasNext = mapped.length > limit;
       const items = mapped.slice(0, limit);
@@ -173,66 +158,333 @@ export class ConversationService {
       );
     }
 
-    await this.redis.set(emptyKey, '1', 'EX', 60);
+    await this.cache.markEmpty(userId);
     return new CursorPageResponse([], null, false);
   }
 
- 
+  // ============ CREATE (DIRECT + GROUP) ============
 
-  // ==================== CACHE HELPERS ====================
-  private async cacheConversations(users: string[] | string, items: any[]) {
-    const userList = Array.isArray(users) ? users : [users];
+  async createConversation(
+    userId: string,
+    dto: CreateConversationDTO,
+  ): Promise<ConversationResponseDTO> {
+    const participants = Array.from(
+      new Set([userId, ...(dto.participants || [])]),
+    );
 
-    for (const userId of userList) {
-      const zKey = `user:${userId}:conversations:z`;
-      const dataKey = `user:${userId}:conversations:data`;
-      const emptyKey = `user:${userId}:conversations:empty`;
+    if (participants.length < 2) {
+      throw new RpcException('Conversation must have at least 2 participants');
+    }
 
-      const pipeline = this.redis.pipeline();
-      for (const item of items) {
-        const id = item._id.toString();
-        const score = new Date(item.updatedAt ?? item.createdAt).getTime();
-        pipeline.zadd(zKey, score, id);
-        await this.redis.hset(
-          dataKey,
-          id,
-          JSON.stringify(item.toObject ? item.toObject() : item),
+    // Mặc định: nếu >2 user thì là group
+    const isGroup = dto.isGroup ?? participants.length > 2;
+
+    // ----- DIRECT (1–1) -----
+    if (!isGroup) {
+      if (participants.length !== 2) {
+        throw new RpcException(
+          'Direct conversation must have exactly 2 participants',
         );
       }
-      pipeline.zremrangebyrank(zKey, 0, -101);
-      const ttl = TTL + Math.floor(Math.random() * 300);
-      pipeline.expire(zKey, ttl);
-      pipeline.expire(dataKey, ttl);
-      pipeline.del(emptyKey);
-      await pipeline.exec();
+
+      const sorted = [...participants].sort();
+      const directKey = sorted.join(':');
+
+      // Tìm xem đã tồn tại conv direct chưa
+      const existed = await this.conversationModel
+        .findOne({ directKey })
+        .populate('lastMessage')
+        .exec();
+
+      if (existed) {
+        // Nếu từng bị hide với user này thì bỏ khỏi hiddenFor
+        if (existed.hiddenFor?.includes(userId)) {
+          existed.hiddenFor = existed.hiddenFor.filter((u) => u !== userId);
+          await existed.save();
+        }
+
+        await this.updateConversationCache(existed);
+        return populateAndMapConversation(existed);
+      }
+
+      // Tạo mới
+      const doc = new this.conversationModel({
+        isGroup: false,
+        participants,
+        admins: [],
+      });
+
+      await doc.save();
+      await this.updateConversationCache(doc);
+
+      return populateAndMapConversation(doc);
     }
+
+    // ----- GROUP -----
+    const doc = new this.conversationModel({
+      isGroup: true,
+      participants,
+      groupName: dto.groupName,
+      groupAvatar: dto.groupAvatar,
+      admins: [userId],
+    });
+
+    await doc.save();
+    await this.updateConversationCache(doc);
+
+    return populateAndMapConversation(doc);
   }
 
-  async updateConversationCache(doc: any) {
-    const users = doc.participants;
-    const pipeline = this.redis.pipeline();
-    for (const userId of users) {
-      const zKey = `user:${userId}:conversations:z`;
-      const dataKey = `user:${userId}:conversations:data`;
-      const emptyKey = `user:${userId}:conversations:empty`;
+  // ============ UPDATE GROUP ============
 
-      const member = doc._id.toString();
-      const score = new Date(doc.updatedAt ?? doc.createdAt).getTime();
+  async updateConversation(
+    userId: string,
+    conversationId: string,
+    dto: UpdateConversationDTO,
+  ): Promise<ConversationResponseDTO> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
 
-      pipeline.del(emptyKey);
-      pipeline.zadd(zKey, score, member);
-      pipeline.hset(
-        dataKey,
-        member,
-        JSON.stringify(doc.toObject ? doc.toObject() : doc),
-      );
-      pipeline.zremrangebyrank(zKey, 0, -101);
-      const ttl = TTL + Math.floor(Math.random() * 300);
-      pipeline.expire(zKey, ttl);
-      pipeline.expire(dataKey, ttl);
+    if (!conv) throw new RpcException('Conversation not found');
+    if (!conv.isGroup) {
+      throw new RpcException('Cannot update direct conversation');
     }
-    await pipeline.exec();
+    if (!conv.participants.includes(userId)) {
+      throw new RpcException('You are not in this conversation');
+    }
+    if (!conv.admins?.includes(userId)) {
+      throw new RpcException('You are not admin of this conversation');
+    }
+
+    if (dto.groupName !== undefined) conv.groupName = dto.groupName;
+    if (dto.groupAvatar !== undefined) conv.groupAvatar = dto.groupAvatar;
+
+    // Thêm member
+    if (dto.participantsToAdd?.length) {
+      const set = new Set(conv.participants);
+      dto.participantsToAdd.forEach((p) => set.add(p));
+      conv.participants = Array.from(set);
+    }
+
+    // Xóa member
+    if (dto.participantsToRemove?.length) {
+      const rm = new Set(dto.participantsToRemove);
+      conv.participants = conv.participants.filter((p) => !rm.has(p));
+      conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
+      conv.hiddenFor = (conv.hiddenFor || []).filter((u) => !rm.has(u));
+    }
+
+    // // Thêm admin
+    // if (dto.addAdmins?.length) {
+    //   const set = new Set(conv.admins || []);
+    //   dto.addAdmins.forEach((a) => {
+    //     if (conv.participants.includes(a)) set.add(a);
+    //   });
+    //   conv.admins = Array.from(set);
+    // }
+
+    // // Xóa admin
+    // if (dto.removeAdmins?.length) {
+    //   const rm = new Set(dto.removeAdmins);
+    //   conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
+    //   if (!conv.admins.length) {
+    //     throw new RpcException('Conversation must have at least 1 admin');
+    //   }
+    // }
+
+    await conv.save();
+    await this.updateConversationCache(conv);
+
+    return populateAndMapConversation(conv);
   }
 
+  async markConversationAsRead(
+    userId: string,
+    conversationId: string,
+    lastMessageId?: string,
+  ): Promise<string | null> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
+    if (!conv) throw new RpcException('Conversation not found');
+    if (!conv.participants.includes(userId)) {
+      throw new RpcException('You are not in this conversation');
+    }
 
+    // 1. Xác định message target
+    let targetMsg: MessageDocument | null = null;
+
+    if (lastMessageId) {
+      targetMsg = await this.messageModel.findById(lastMessageId).exec();
+      if (!targetMsg) throw new RpcException('Message not found');
+      if (targetMsg.conversationId.toString() !== conversationId) {
+        throw new RpcException('Message does not belong to this conversation');
+      }
+    } else {
+      if (!conv.lastMessage) return null;
+      targetMsg = await this.messageModel.findById(conv.lastMessage).exec();
+      if (!targetMsg) return null;
+    }
+
+    const targetId = targetMsg._id.toString();
+
+    // 2. Không đi lùi: nếu đã lưu lastSeenMessageId mới hơn thì bỏ qua
+    const lastSeenRaw: Map<string, string> =
+      (conv.lastSeenMessageId as any) || {};
+    const prevId = lastSeenRaw[userId];
+
+    if (prevId) {
+      const [prev, now] = await Promise.all([
+        this.messageModel.findById(prevId).exec(),
+        this.messageModel.findById(targetId).exec(),
+      ]);
+
+      if (prev && now && (prev as any).createdAt >= (now as any).createdAt) {
+        return prevId; // không update lùi
+      }
+    }
+
+    // 3. Update meta
+    lastSeenRaw[userId] = targetId;
+    (conv as any).lastSeenMessageId = lastSeenRaw;
+    await conv.save();
+
+    await this.updateConversationCache(conv);
+
+    return targetId;
+  }
+
+  // ============ LEAVE GROUP ============
+
+  async leaveConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
+
+    if (!conv) throw new RpcException('Conversation not found');
+
+    if (!conv.isGroup) {
+      throw new RpcException('Cannot leave direct conversation');
+    }
+
+    if (!conv.participants.includes(userId)) {
+      return; // đã không ở trong group -> coi như ok
+    }
+
+    conv.participants = conv.participants.filter((p) => p !== userId);
+    conv.admins = (conv.admins || []).filter((a) => a !== userId);
+    conv.hiddenFor = (conv.hiddenFor || []).filter((u) => u !== userId);
+
+    // Không còn ai -> xoá hẳn conv
+    if (!conv.participants.length) {
+      await this.hardDeleteConversation(conv);
+      return;
+    }
+
+    // Nếu không còn admin -> promote 1 người còn lại
+    if (!conv.admins.length) {
+      conv.admins = [conv.participants[0]];
+    }
+
+    await conv.save();
+    await this.updateConversationCache(conv);
+  }
+
+  // ============ DELETE CONVERSATION ============
+
+  async deleteConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
+
+    if (!conv) throw new RpcException('Conversation not found');
+
+    if (!conv.participants.includes(userId)) {
+      throw new RpcException('You are not in this conversation');
+    }
+
+    // DIRECT: "delete" = hide cho riêng user
+    if (!conv.isGroup) {
+      await this.hideConversationForUser(userId, conversationId);
+      return;
+    }
+
+    // GROUP: admin mới được xóa hẳn
+    if (!conv.admins?.includes(userId)) {
+      throw new RpcException('You are not admin of this conversation');
+    }
+
+    await this.hardDeleteConversation(conv);
+  }
+
+  // ============ HIDE / UNHIDE (APPLY CHO CẢ GROUP & DIRECT) ============
+
+  async hideConversationForUser(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
+
+    if (!conv) throw new RpcException('Conversation not found');
+    if (!conv.participants.includes(userId)) {
+      throw new RpcException('You are not in this conversation');
+    }
+
+    if (!conv.hiddenFor?.includes(userId)) {
+      conv.hiddenFor = [...(conv.hiddenFor || []), userId];
+      await conv.save();
+    }
+
+    // xoá conv này khỏi cache list của riêng user
+    await this.cache.removeConversationFromUser(userId, conv._id.toString());
+  }
+
+  async unhideConversationForUser(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const conv = await this.conversationModel.findById(conversationId).exec();
+
+    if (!conv) throw new RpcException('Conversation not found');
+    if (!conv.participants.includes(userId)) {
+      throw new RpcException('You are not in this conversation');
+    }
+
+    if (!conv.hiddenFor?.includes(userId)) {
+      // vốn không hide -> thôi
+      return;
+    }
+
+    conv.hiddenFor = conv.hiddenFor.filter((u) => u !== userId);
+    await conv.save();
+
+    await this.updateConversationCache(conv);
+  }
+
+  // ============ HARD DELETE (group) ============
+
+  private async hardDeleteConversation(conv: ConversationDocument) {
+    const convId = conv._id.toString();
+    const participants = conv.participants || [];
+
+    await this.conversationModel.deleteOne({ _id: conv._id });
+    await this.messageModel.deleteMany({ conversationId: conv._id });
+
+    await this.cache.removeConversationGlobally(convId, participants);
+  }
+
+  // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
+
+  async updateConversationCache(conv: Conversation) {
+    const dto = populateAndMapConversation(conv);
+
+    const hidden = (conv.hiddenFor || []) as string[];
+    const visibleUsers = dto.participants.filter((u) => !hidden.includes(u));
+
+    if (visibleUsers.length) {
+      await this.cache.cacheConversationsForUsers(visibleUsers, [dto]);
+    }
+
+    await this.cache.setConversationDetail(dto);
+    await this.cache.setParticipants(dto._id.toString(), dto.participants);
+  }
 }

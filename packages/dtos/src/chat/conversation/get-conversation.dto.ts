@@ -16,7 +16,6 @@ export class ConversationResponseDTO {
 
   @Expose()
   groupAvatar?: string;
-  
 
   @Expose()
   @Type(() => MessageResponseDTO)
@@ -27,4 +26,10 @@ export class ConversationResponseDTO {
 
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
+
+  @Expose()
+  lastSeenMessageId?: Map<string, string>;
 }

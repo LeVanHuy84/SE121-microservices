@@ -6,15 +6,18 @@ import {
   Conversation,
   ConversationSchema,
 } from 'src/mongo/schema/conversation.schema';
+import { ConversationCacheService } from './conversation-cache.service';
+import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
+      { name: Message.name, schema: MessageSchema },
     ]),
   ],
   controllers: [ConversationController],
-  providers: [ConversationService],
+  providers: [ConversationService, ConversationCacheService],
   exports: [ConversationService],
 })
 export class ConversationModule {}
