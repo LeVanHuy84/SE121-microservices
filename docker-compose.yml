@@ -77,6 +77,23 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # Neo4j Browser (web)
+      - "7687:7687"   # Bolt (app connect)
+    environment:
+      NEO4J_AUTH: neo4j/secretpassword   # user/pass đăng nhập
+      NEO4J_dbms_default__listen__address: 0.0.0.0
+      NEO4J_dbms_default__advertised__address: localhost
+    networks:
+      - app-network
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+
 networks:
   app-network:
     driver: bridge
@@ -87,3 +104,5 @@ volumes:
   kafka_data:
   redis_data:
   rabbitmq_data:
+  neo4j_data:
+  neo4j_logs:

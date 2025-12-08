@@ -216,8 +216,8 @@ export class ChatGateway
       .emit('conversation.hidden', { id: convId });
   }
 
-  emitConversationUnhidden(conv: ConversationResponseDTO, userId: string) {
-    this.server.to(`user:${userId}`).emit('conversation.unhidden', conv);
+  emitConversationUnhidden(convId: string , userId: string) {
+    this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
   }
 
   emitMemberLeft(

@@ -6,7 +6,8 @@ import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
 import { MessageCacheService } from './message-cache.service';
 import { Conversation, ConversationSchema } from 'src/mongo/schema/conversation.schema';
 import { ConversationModule } from 'src/conversation/conversation.module';
-import { MessageStreamProducer } from './message-stream.producer';
+import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
+
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { MessageStreamProducer } from './message-stream.producer';
     ConversationModule,
   ],
   controllers: [MessageController],
-  providers: [MessageService, MessageCacheService, MessageStreamProducer],
+  providers: [MessageService, MessageCacheService, ChatStreamProducerService],
   exports: [MessageService],
 })
 export class MessageModule {}

@@ -17,8 +17,7 @@ import {
 import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
-
-const TTL = 60 * 5;
+import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 
 type CachedConversation = ConversationResponseDTO & {
   participants: string[];
@@ -37,6 +36,7 @@ export class ConversationService {
     private readonly messageModel: Model<Message>,
 
     private readonly cache: ConversationCacheService,
+    private readonly chatStreamProducer: ChatStreamProducerService,
   ) {}
 
   // ==================== GET BY ID ====================
@@ -230,8 +230,12 @@ export class ConversationService {
     });
 
     await doc.save();
-    await this.updateConversationCache(doc);
-
+    Promise.all([
+      this.updateConversationCache(doc),
+      this.chatStreamProducer.publishConversationCreated(
+        populateAndMapConversation(doc),
+      ),
+    ]);
     return populateAndMapConversation(doc);
   }
 
@@ -294,7 +298,34 @@ export class ConversationService {
     await conv.save();
     await this.updateConversationCache(conv);
 
-    return populateAndMapConversation(conv);
+    const convDto = populateAndMapConversation(conv);
+
+    // 🔥 event: conversation updated
+    await this.chatStreamProducer.publishConversationUpdated(convDto);
+
+    // 🔥 event: memberJoined
+    if (dto.participantsToAdd?.length) {
+      for (const joinedUserId of dto.participantsToAdd) {
+        await this.chatStreamProducer.publishConversationMemberJoined({
+          conversationId,
+          joinedUserId,
+          participants: conv.participants,
+        });
+      }
+    }
+
+    // 🔥 event: memberLeft
+    if (dto.participantsToRemove?.length) {
+      for (const leftUserId of dto.participantsToRemove) {
+        await this.chatStreamProducer.publishConversationMemberLeft({
+          conversationId,
+          leftUserId,
+          participants: conv.participants,
+        });
+      }
+    }
+
+    return convDto;
   }
 
   async markConversationAsRead(
@@ -346,7 +377,14 @@ export class ConversationService {
     (conv as any).lastSeenMessageId = lastSeenRaw;
     await conv.save();
 
-    await this.updateConversationCache(conv);
+    Promise.all([
+      this.updateConversationCache(conv),
+      this.chatStreamProducer.publishConversationRead({
+        conversationId,
+        userId,
+        lastSeenMessageId: targetId,
+      }),
+    ]);
 
     return targetId;
   }
@@ -375,8 +413,8 @@ export class ConversationService {
 
     // Không còn ai -> xoá hẳn conv
     if (!conv.participants.length) {
-      await this.hardDeleteConversation(conv);
-      return;
+    
+      throw new RpcException('Conversation has no participants left');
     }
 
     // Nếu không còn admin -> promote 1 người còn lại
@@ -385,7 +423,14 @@ export class ConversationService {
     }
 
     await conv.save();
-    await this.updateConversationCache(conv);
+    Promise.all([
+      this.updateConversationCache(conv),
+      this.chatStreamProducer.publishConversationMemberLeft({
+        conversationId,
+        leftUserId: userId,
+        participants: conv.participants,
+      }),
+    ]);
   }
 
   // ============ DELETE CONVERSATION ============
@@ -413,7 +458,13 @@ export class ConversationService {
       throw new RpcException('You are not admin of this conversation');
     }
 
-    await this.hardDeleteConversation(conv);
+    Promise.all([
+      this.hardDeleteConversation(conv),
+      this.chatStreamProducer.publishConversationDeleted({
+        conversationId,
+        participants: conv.participants,
+      }),
+    ]);
   }
 
   // ============ HIDE / UNHIDE (APPLY CHO CẢ GROUP & DIRECT) ============

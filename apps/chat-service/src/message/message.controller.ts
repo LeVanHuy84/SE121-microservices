@@ -6,20 +6,21 @@ import { MessageStreamProducer } from './message-stream.producer';
 
 @Controller()
 export class MessageController {
-  constructor(private readonly messageService: MessageService,
-    private readonly messageStreamProducer: MessageStreamProducer
+  constructor(
+    private readonly messageService: MessageService,
   ) {}
 
   @MessagePattern('getMessages')
   async getMessages(
     @Payload()
     data: {
+      userId: string;
       conversationId: string;
       query: CursorPaginationDTO;
     },
   ) {
     return this.messageService.getMessagesInConversation(
-      data.conversationId,
+      data.userId,
       data.conversationId,
       data.query,
     );
@@ -33,10 +34,7 @@ export class MessageController {
       dto: SendMessageDTO;
     },
   ) {
-    const msg = await this.messageService.sendMessage(data.userId, data.dto);
-    await this.messageStreamProducer.publishMessageCreated(msg);
-    return msg;
-
+    return this.messageService.sendMessage(data.userId, data.dto);
   }
 
   @MessagePattern('deleteMessage')
@@ -47,12 +45,8 @@ export class MessageController {
       messageId: string;
     },
   ) {
-    const msg = await this.messageService.deleteMessage(
-      data.userId,
-      data.messageId,
-    );
-    await this.messageStreamProducer.publishMessageDeleted(msg);
-    return msg;
+   return this.messageService.deleteMessage(data.userId, data.messageId);
+   
   }
 
   @MessagePattern('getMessageById')
@@ -65,6 +59,4 @@ export class MessageController {
   ) {
     return this.messageService.getMessageById(data.userId, data.messageId);
   }
-
-
 }

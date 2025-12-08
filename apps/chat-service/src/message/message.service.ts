@@ -19,6 +19,10 @@ import { populateAndMapMessage } from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
+import { randomUUID } from 'crypto';
+import { snowflakeId } from 'src/utils/snowflake';
+import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
+
 @Injectable()
 export class MessageService {
   constructor(
@@ -31,6 +35,8 @@ export class MessageService {
     private readonly conversationService: ConversationService,
 
     private readonly msgCache: MessageCacheService,
+
+    private readonly messageStreamProducer: ChatStreamProducerService,
   ) {}
 
   // ============= HISTORY =============
@@ -50,12 +56,13 @@ export class MessageService {
     if (!conv.participants.includes(userId)) {
       throw new RpcException('You are not in this conversation');
     }
-
+    console.log(
+      'Fetching messages for conversation:',
+      conversationId,
+      'user:',
+      userId,
+    );
     const limit = query.limit;
-
-    if (await this.msgCache.hasEmptyFlag(conversationId)) {
-      return new CursorPageResponse([], null, false);
-    }
 
     const cachedPage = await this.msgCache.getMessagesPage(
       conversationId,
@@ -76,10 +83,9 @@ export class MessageService {
     }
 
     const dbFilter: any = {
-      conversationId: new Types.ObjectId(conversationId),
+      conversationId: conversationId,
       isDeleted: { $ne: true },
     };
-
     if (query.cursor) {
       dbFilter.createdAt = { $lt: new Date(Number(query.cursor)) };
     }
@@ -90,6 +96,7 @@ export class MessageService {
       .limit(limit + 1)
       .exec();
 
+    console.log('Fetched messages from DB:', items.length);
     if (!items.length) {
       await this.msgCache.markEmpty(conversationId);
       return new CursorPageResponse([], null, false);
@@ -167,6 +174,15 @@ export class MessageService {
       throw new RpcException('You are not in this conversation');
     }
 
+    const messageId = snowflakeId();
+
+    // 1️⃣ Check idempotent
+    const existing = await this.messageModel.findOne({ messageId }).exec();
+    if (existing) {
+      return populateAndMapMessage(existing)!;
+    }
+
+
     const msg = new this.messageModel({
       conversationId: conv._id,
       senderId: userId,
@@ -185,9 +201,12 @@ export class MessageService {
 
     const dtoMsg = populateAndMapMessage(msg)!;
 
-    // cache message detail + list
-    await this.msgCache.setMessageDetail(dtoMsg);
-    await this.msgCache.cacheMessages(dto.conversationId, [dtoMsg]);
+    // cache message detail + list + publish event
+    Promise.all([
+      this.msgCache.setMessageDetail(dtoMsg),
+      this.msgCache.cacheMessages(dto.conversationId, [dtoMsg]),
+      this.messageStreamProducer.publishMessageCreated(dtoMsg),
+    ]);
 
     return dtoMsg;
   }

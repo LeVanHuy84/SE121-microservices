@@ -6,9 +6,9 @@ import { MongoModule } from './mongo/mongo.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { MessageModule } from './message/message.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
-
-import { KafkaModule } from './kafka/kafka.module';
 import { PresenceModule } from './presence/presence.module';
+import { ChatStreamProducerService } from './chat-stream-producer/chat-stream-producer.service';
+import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-producer.module';
 
 
 
@@ -30,10 +30,10 @@ import { PresenceModule } from './presence/presence.module';
     MongoModule,
     ConversationModule,
     MessageModule,
-    KafkaModule,
     PresenceModule,
+    ChatStreamProducerModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ChatStreamProducerService],
 })
 export class AppModule {}
