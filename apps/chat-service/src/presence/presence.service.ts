@@ -5,18 +5,9 @@ import {
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { Cron, CronExpression, Interval } from '@nestjs/schedule';
-import { PresenceHeartbeatEvent, PresenceUpdateEvent } from '@repo/dtos';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { PresenceHeartbeatEvent, PresenceInfo, PresenceStatus, PresenceUpdateEvent } from '@repo/dtos';
 import Redis from 'ioredis';
-
-export type PresenceStatus = 'online' | 'offline';
-
-
-export interface PresenceInfo {
-  status: PresenceStatus;
-  lastSeen: number | null; // timestamp (ms)
-}
-
 
 @Injectable()
 export class PresenceService implements OnModuleInit, OnModuleDestroy {
@@ -25,17 +16,22 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private sub: Redis; // subscriber cho presence:heartbeat
 
   // config
-  private readonly OFFLINE_THRESHOLD_MS = 45_000; // phải > heartbeat interval FE
-  private readonly ZOMBIE_SWEEP_INTERVAL_MS = 10_000;
+  private readonly OFFLINE_THRESHOLD_MS = 45_000; // > heartbeat interval FE
+
 
   private readonly lastSeenZSetKey = 'presence:lastSeen';
   private readonly onlineSetKey = 'presence:online';
 
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  // key dạng: user-location:{userId} -> serverId
+  private userLocationKey(userId: string) {
+    return `user-location:${userId}`;
+  }
 
   private userKey(userId: string) {
     return `presence:user:${userId}`;
   }
+
+  constructor(@InjectRedis() private readonly redis: Redis) {}
 
   // ========== Life cycle ==========
 
@@ -50,11 +46,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    this.logger.log(
-      `PresenceService started: listening on presence:heartbeat, sweep every ${
-        this.ZOMBIE_SWEEP_INTERVAL_MS / 1000
-      }s`,
-    );
+  
   }
 
   async onModuleDestroy() {
@@ -77,21 +69,33 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
     if (evt.type !== 'HEARTBEAT') return;
 
-    const { userId, ts } = evt;
+    const { userId, ts, serverId } = evt;
     const now = ts || Date.now();
 
     const userKey = this.userKey(userId);
     const currentStatus = await this.redis.hget(userKey, 'status');
     const wasOnline = currentStatus === 'online';
 
-    // cập nhật lastSeen + status online
+    // TTL cho user-location (phải > offline threshold chút)
+    const locationTtlSeconds = Math.ceil(this.OFFLINE_THRESHOLD_MS / 1000 + 10);
+
+    // cập nhật lastSeen + status online + serverId + user-location
     const pipeline = this.redis.pipeline();
     pipeline.hmset(userKey, {
       status: 'online',
       lastSeen: String(now),
+      lastServerId: serverId || '',
     });
     pipeline.zadd(this.lastSeenZSetKey, now, userId);
     pipeline.sadd(this.onlineSetKey, userId);
+    if (serverId) {
+      pipeline.set(
+        this.userLocationKey(userId),
+        serverId,
+        'EX',
+        locationTtlSeconds,
+      );
+    }
     await pipeline.exec();
 
     if (!wasOnline) {
@@ -107,7 +111,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
   // ========== Zombie sweep dùng Schedule ==========
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_MINUTE)
   async sweepZombies() {
     const now = Date.now();
     const cutoff = now - this.OFFLINE_THRESHOLD_MS;
@@ -141,6 +145,8 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
         });
         pipeline.srem(this.onlineSetKey, userId);
         pipeline.zrem(this.lastSeenZSetKey, userId);
+        // xoá luôn user-location -> coi như user không còn gắn với server nào
+        pipeline.del(this.userLocationKey(userId));
         await pipeline.exec();
 
         await this.publishPresenceUpdate({
@@ -166,7 +172,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     await this.redis.publish('presence:updates', JSON.stringify(evt));
   }
 
-  // ========== API nội bộ: lấy presence cho list user (nếu service khác cần) ==========
+  // ========== API nội bộ: lấy presence cho list user ==========
 
   async getPresenceForUsers(
     userIds: string[],
@@ -187,8 +193,9 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
       const status =
         data && data.status ? (data.status as PresenceStatus) : 'offline';
       const lastSeen = data && data.lastSeen ? Number(data.lastSeen) : null;
+      const serverId = data && data.lastServerId ? data.lastServerId : null;
 
-      map[id] = { status, lastSeen };
+      map[id] = { status, lastSeen, serverId };
     });
 
     return map;

@@ -32,4 +32,7 @@ export class ConversationResponseDTO {
 
   @Expose()
   lastSeenMessageId?: Map<string, string>;
+
+  @Expose()
+  hideFor?: string[];
 }

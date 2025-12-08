@@ -66,5 +66,6 @@ export function populateAndMapConversation(
     lastMessage: convDoc.lastMessage
       ? mapMessage(convDoc.lastMessage)
       : undefined,
+    hideFor: (base.hideFor || []).map((h: any) => String(h)),
   });
 }

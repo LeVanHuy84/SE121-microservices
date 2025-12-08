@@ -10,7 +10,12 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { PresenceUpdateEvent } from '@repo/dtos';
+import type {
+  PresenceHeartbeatEvent,
+  PresenceInfo,
+  PresenceStatus,
+  PresenceUpdateEvent,
+} from '@repo/dtos';
 import { ConversationResponseDTO, MessageResponseDTO } from '@repo/dtos';
 import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
@@ -34,7 +39,10 @@ export class ChatGateway
   private sub: Redis;
   @WebSocketServer() server: Server;
 
-  private serverId = `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
+  private serverId =
+    process.env.GATEWAY_INSTANCE_ID ||
+    process.env.HOSTNAME ||
+    `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
   async onModuleInit() {
@@ -77,10 +85,24 @@ export class ChatGateway
     this.logger.log(`❌ Client disconnected: ${client.user?.id}`);
   }
 
+  @SubscribeMessage('heartbeat')
+  handleHeartbeat(@ConnectedSocket() client: Socket) {
+    const userId = client.user?.id as string;
+    if (!userId) return;
+    const evt: PresenceHeartbeatEvent = {
+      type: 'HEARTBEAT',
+      userId,
+      serverId: this.serverId,
+      ts: Date.now(),
+    };
+
+    this.redis.publish('presence:heartbeat', JSON.stringify(evt));
+  }
+
   // ========== Client subscribe / unsubscribe presence của người khác ==========
 
   @SubscribeMessage('presence.subscribe')
-  handleSubscribe(
+  async handleSubscribe(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: string[] }
   ) {
@@ -91,6 +113,10 @@ export class ChatGateway
     this.logger.debug(
       `Client ${client.id} subscribed presence of [${userIds.join(', ')}]`
     );
+    const snapshot = await this.getPresenceSnapshot(userIds);
+
+    // trả về map: { [userId]: { status, lastSeen } }
+    client.emit('presence.snapshot', snapshot);
   }
 
   @SubscribeMessage('presence.unsubscribe')
@@ -208,15 +234,20 @@ export class ChatGateway
 
   emitConversationDeleted(convId: string, participants: string[]) {
     this.emitToUsers(participants, 'conversation.deleted', { id: convId });
+    this.server
+      .to(participants.map((id) => `user:${id}`))
+      .socketsLeave(`conversation:${convId}`);
   }
 
   emitConversationHidden(convId: string, userId: string) {
     this.server
       .to(`user:${userId}`)
       .emit('conversation.hidden', { id: convId });
+
+    this.server.to(`user:${userId}`).socketsLeave(`conversation:${convId}`);
   }
 
-  emitConversationUnhidden(convId: string , userId: string) {
+  emitConversationUnhidden(convId: string, userId: string) {
     this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
   }
 
@@ -260,5 +291,48 @@ export class ChatGateway
       status: evt.status,
       lastSeen: evt.lastSeen,
     });
+  }
+
+  private async getPresenceSnapshot(
+    userIds: string[]
+  ): Promise<Record<string, PresenceInfo>> {
+    if (!userIds.length) return {};
+
+    const pipeline = this.redis.pipeline();
+    userIds.forEach((id) => pipeline.hgetall(`presence:user:${id}`));
+
+    const results = await pipeline.exec(); // [[err, value], [err, value], ...]
+
+    const snapshot: Record<string, PresenceInfo> = {};
+
+    if (!results) return snapshot;
+
+    results.forEach(([err, raw], idx) => {
+      const userId = userIds[idx];
+
+      // Nếu có lỗi hoặc không có dữ liệu → coi như offline
+      if (err || !raw || Object.keys(raw as any).length === 0) {
+        snapshot[userId] = {
+          status: 'offline',
+          lastSeen: null,
+        };
+        return;
+      }
+
+      const hash = raw as Record<string, string>;
+
+      const status = (hash.status ?? 'offline') as PresenceStatus;
+      const lastSeen =
+        hash.lastSeen !== undefined && hash.lastSeen !== null
+          ? Number(hash.lastSeen)
+          : null;
+
+      snapshot[userId] = {
+        status,
+        lastSeen,
+      };
+    });
+
+    return snapshot;
   }
 }

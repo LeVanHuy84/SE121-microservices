@@ -7,7 +7,8 @@ import { ChatGateway } from './chat.gateway';
 
 import { Kafka, logLevel, Producer } from 'kafkajs';
 import { RedisModule } from '@nestjs-modules/ioredis';
-import { ChatMessageStreamConsumer } from './chat.consumer';
+import { ChatStreamConsumer } from './chat.consumer';
+
 
 
 
@@ -37,6 +38,6 @@ import { ChatMessageStreamConsumer } from './chat.consumer';
     }),
   ],
   controllers: [ChatController],
-  providers: [ChatGateway, ChatMessageStreamConsumer],
+  providers: [ChatGateway, ChatStreamConsumer],
 })
 export class ChatModule {}

@@ -56,12 +56,7 @@ export class MessageService {
     if (!conv.participants.includes(userId)) {
       throw new RpcException('You are not in this conversation');
     }
-    console.log(
-      'Fetching messages for conversation:',
-      conversationId,
-      'user:',
-      userId,
-    );
+
     const limit = query.limit;
 
     const cachedPage = await this.msgCache.getMessagesPage(
@@ -96,7 +91,6 @@ export class MessageService {
       .limit(limit + 1)
       .exec();
 
-    console.log('Fetched messages from DB:', items.length);
     if (!items.length) {
       await this.msgCache.markEmpty(conversationId);
       return new CursorPageResponse([], null, false);
@@ -181,7 +175,6 @@ export class MessageService {
     if (existing) {
       return populateAndMapMessage(existing)!;
     }
-
 
     const msg = new this.messageModel({
       conversationId: conv._id,

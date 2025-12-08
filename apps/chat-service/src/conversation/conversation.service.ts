@@ -371,6 +371,16 @@ export class ConversationService {
         return prevId; // không update lùi
       }
     }
+    const baseFilter: any = {
+      conversationId: conv._id,
+      _id: { $lte: targetMsg._id },
+      senderId: { $ne: userId },
+      seenBy: { $ne: userId },
+    };
+
+    await this.messageModel.updateMany(baseFilter, {
+      $addToSet: { seenBy: userId },
+    });
 
     // 3. Update meta
     lastSeenRaw[userId] = targetId;
@@ -413,7 +423,6 @@ export class ConversationService {
 
     // Không còn ai -> xoá hẳn conv
     if (!conv.participants.length) {
-    
       throw new RpcException('Conversation has no participants left');
     }
 

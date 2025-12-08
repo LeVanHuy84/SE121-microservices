@@ -2,13 +2,10 @@ import { Controller } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CursorPaginationDTO, SendMessageDTO } from '@repo/dtos';
-import { MessageStreamProducer } from './message-stream.producer';
 
 @Controller()
 export class MessageController {
-  constructor(
-    private readonly messageService: MessageService,
-  ) {}
+  constructor(private readonly messageService: MessageService) {}
 
   @MessagePattern('getMessages')
   async getMessages(
@@ -45,8 +42,7 @@ export class MessageController {
       messageId: string;
     },
   ) {
-   return this.messageService.deleteMessage(data.userId, data.messageId);
-   
+    return this.messageService.deleteMessage(data.userId, data.messageId);
   }
 
   @MessagePattern('getMessageById')

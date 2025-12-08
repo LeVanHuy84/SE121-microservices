@@ -53,11 +53,16 @@ export class ChatController {
   }
 
   @Post('conversations')
-  createConversation(
+  async createConversation(
     @CurrentUserId() userId: string,
     @Body() dto: CreateConversationDTO
-  ) {
-    return this.chatClient.emit('createConversation', { userId, dto });
+  ): Promise<ConversationResponseDTO> {
+    return await lastValueFrom(
+      this.chatClient.send<ConversationResponseDTO>('createConversation', {
+        userId,
+        dto,
+      })
+    );
   }
 
   @Patch('conversations/:conversationId')
@@ -160,11 +165,10 @@ export class ChatController {
   }
 
   @Post('messages')
-  sendMessage(@CurrentUserId() userId: string, @Body() dto: SendMessageDTO) {
-    return this.chatClient.send<MessageResponseDTO>('sendMessage', {
-      userId,
-      dto,
-    });
+  async sendMessage(@CurrentUserId() userId: string, @Body() dto: SendMessageDTO) {
+    return await lastValueFrom(
+      this.chatClient.send<MessageResponseDTO>('sendMessage', { userId, dto })
+    );
   }
 
   @Delete('messages/:messageId')

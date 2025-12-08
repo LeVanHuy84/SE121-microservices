@@ -46,8 +46,6 @@ export class MessageResponseDTO {
   @Expose()
   seenBy: string[];
 
-  @Expose()
-  deliveredBy: string[];
 
   @Expose()
   @Type(() => ReactionStatsDTO)
