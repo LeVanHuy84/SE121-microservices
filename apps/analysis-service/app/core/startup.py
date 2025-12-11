@@ -12,6 +12,7 @@ from app.database.mongo_client import engine
 from app.messaging.event_dispatcher import EventDispatcher
 from app.services.handle_event_service import HandleEventService
 from app.database.analysis_repository import AnalysisRepository
+from app.processors.retry_worker import RetryWorker
 
 app = FastAPI()
 
@@ -26,6 +27,8 @@ analysis_repo = AnalysisRepository(engine)
 event_service = HandleEventService(analysis_repo)
 
 dispatcher = EventDispatcher(event_service, outbox_repo)
+
+retry_worker = RetryWorker(analysis_repo, outbox_repo)
 
 # -------------------------------------------------------
 # Kafka Consumer Handler
@@ -69,6 +72,11 @@ async def startup_tasks():
     background_tasks.append(t2)
     print("[OutboxBatchProcessor] Started")
 
+    # Retry Worker
+    t3 = asyncio.create_task(retry_worker.start())
+    background_tasks.append(t3)
+    print("[RetryWorker] Started")
+
 
 # -------------------------------------------------------
 # SHUTDOWN
@@ -77,13 +85,16 @@ async def startup_tasks():
 async def shutdown_tasks():
     print("Shutting down cleanly...")
 
-    # Stop Kafka producer
+    # stop loop flags
+    processor.stop()
+    retry_worker.stop()
+
     await kafka_producer.stop()
 
-    # Cancel all background tasks
     for task in background_tasks:
         task.cancel()
 
     await asyncio.gather(*background_tasks, return_exceptions=True)
 
     print("All background tasks stopped.")
+

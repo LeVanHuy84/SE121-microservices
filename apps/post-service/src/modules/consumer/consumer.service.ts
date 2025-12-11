@@ -23,7 +23,7 @@ export class ConsumerService {
         });
         if (post) {
           post.mainEmotion = payload.finalEmotion as Emotion;
-          post.mainEmotionScore = payload.finalScores;
+          post.mainEmotionScore = payload.score;
           await this.postRepository.save(post);
         }
         break;
@@ -33,7 +33,7 @@ export class ConsumerService {
         });
         if (comment) {
           comment.mainEmotion = payload.finalEmotion as Emotion;
-          comment.mainEmotionScore = payload.finalScores;
+          comment.mainEmotionScore = payload.score;
           await this.commentRepository.save(comment);
         }
         break;
@@ -50,7 +50,7 @@ export class ConsumerService {
         });
         if (post) {
           post.mainEmotion = payload.finalEmotion as Emotion;
-          post.mainEmotionScore = payload.finalScores;
+          post.mainEmotionScore = payload.score;
           await this.postRepository.save(post);
         }
         break;
@@ -60,7 +60,7 @@ export class ConsumerService {
         });
         if (comment) {
           comment.mainEmotion = payload.finalEmotion as Emotion;
-          comment.mainEmotionScore = payload.finalScores;
+          comment.mainEmotionScore = payload.score;
           await this.commentRepository.save(comment);
         }
         break;

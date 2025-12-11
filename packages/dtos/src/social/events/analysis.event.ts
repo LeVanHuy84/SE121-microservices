@@ -23,7 +23,7 @@ export class AnalysisResultEventPayload {
   targetId: string;
   targetType: TargetType;
   finalEmotion: string;
-  finalScores: number;
+  score: number;
 }
 
 export class AnalysisResultEvent {

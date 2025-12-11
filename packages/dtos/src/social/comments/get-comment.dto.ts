@@ -39,13 +39,6 @@ export class CommentResponseDTO {
   media?: MediaItemDTO;
 
   @Expose()
-  @IsEnum(Emotion)
-  mainEmotion: Emotion;
-
-  @Expose()
-  mainEmotionScore: number;
-
-  @Expose()
   @Type(() => CommentStatDTO)
   commentStat: CommentStatDTO;
 

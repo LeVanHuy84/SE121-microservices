@@ -12,6 +12,7 @@ import {
   PostGroupEventType,
   PostGroupStatus,
   PostSnapshotDTO,
+  TargetType,
 } from '@repo/dtos';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
@@ -21,12 +22,14 @@ import { PostGroupInfo } from 'src/entities/post-group-info.entity';
 import { RpcException } from '@nestjs/microservices';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { PostCacheService } from './post-cache.service';
+import { OutboxService } from 'src/modules/event/outbox.service';
 
 @Injectable()
 export class PostGroupService {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly postCache: PostCacheService
+    private readonly postCache: PostCacheService,
+    private readonly outboxService: OutboxService
   ) {}
 
   // ----------------------------------------
@@ -81,6 +84,11 @@ export class PostGroupService {
 
       if (entity.postGroupInfo?.status === PostGroupStatus.PUBLISHED) {
         await this.createOutboxEvent(manager, entity);
+        await this.outboxService.createAnalysisEvent(
+          manager,
+          TargetType.POST,
+          entity
+        );
       } else {
         await this.createOutboxGroupEvent(
           manager,
@@ -136,6 +144,11 @@ export class PostGroupService {
             post,
             PostGroupEventType.POST_APPROVED,
             userId
+          ),
+          this.outboxService.createAnalysisEvent(
+            manager,
+            TargetType.POST,
+            post
           ),
         ]);
       }

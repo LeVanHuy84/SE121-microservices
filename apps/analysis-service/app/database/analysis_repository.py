@@ -1,6 +1,7 @@
 from odmantic import AIOEngine
 from bson import ObjectId
 from app.database.models.analysis_schema import EmotionAnalysis
+from app.enums.analysis_status_enum import AnalysisStatusEnum
 
 
 class AnalysisRepository:
@@ -24,9 +25,27 @@ class AnalysisRepository:
             (EmotionAnalysis.targetId == target_id) &
             (EmotionAnalysis.targetType == target_type)
         )
+    
+    async def find_failed(self, max_retry: int):
+        return await self.engine.find(
+            EmotionAnalysis,
+            (EmotionAnalysis.status == AnalysisStatusEnum.FAILED) &
+            (EmotionAnalysis.retry_count < max_retry)
+        )
 
-    async def update_analysis(self, analysis_id: str, update_data: dict):
-        analysis = await self.get_analysis_by_id(analysis_id)
+    async def update_analysis(self, analysis_id, update_data: dict):
+        if isinstance(analysis_id, str):
+            try:
+                obj_id = ObjectId(analysis_id)
+            except Exception:
+                return None
+        else:
+            obj_id = analysis_id
+
+        analysis = await self.engine.find_one(
+            EmotionAnalysis,
+            EmotionAnalysis.id == obj_id
+        )
         if not analysis:
             return None
 
@@ -34,3 +53,4 @@ class AnalysisRepository:
             setattr(analysis, key, value)
 
         return await self.engine.save(analysis)
+

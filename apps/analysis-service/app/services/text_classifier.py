@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch
 from app.utils.emotion_normalizer import normalize_text_label
 from app.enums.emotion_enum import EmotionEnum
+from app.utils.exceptions import RetryableException
 
 class TextClassifier:
     @staticmethod
@@ -12,10 +13,15 @@ class TextClassifier:
 
         inputs = tokenizer(text, return_tensors="pt")
 
-        with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits
-            probs = F.softmax(logits, dim=1)[0].tolist()
+        try:
+            with torch.no_grad():
+                outputs = model(**inputs)
+        except RuntimeError as e:
+            # Lỗi torch tạm thời → retry được
+            raise RetryableException(f"PhoBERT runtime error: {str(e)}")
+
+        logits = outputs.logits
+        probs = F.softmax(logits, dim=1)[0].tolist()
 
         labels = model.config.id2label
 

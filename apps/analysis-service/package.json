@@ -8,6 +8,6 @@
   "scripts": {
     "venv": "powershell.exe -NoExit -Command .\\venv\\Scripts\\Activate.ps1",
     "install": "pip install -r requirements.txt",
-    "start:dev": "venv\\Scripts\\python.exe -m app.main"
+    "dev": "venv\\Scripts\\python.exe -m app.main"
   }
 }
