@@ -1,6 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { IsEnum } from 'class-validator';
-import { ReactionType, RootType } from '../enums/social.enum';
+import { Emotion, ReactionType, RootType } from '../enums/social.enum';
 import { MediaItemDTO } from '../../common';
 
 export class CommentStatDTO {

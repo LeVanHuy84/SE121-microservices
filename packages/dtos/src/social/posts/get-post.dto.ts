@@ -32,7 +32,11 @@ export class PostResponseDTO {
   postStat: PostStatDTO;
 
   @Expose()
-  mainEmotion?: string;
+  @IsEnum(Emotion)
+  mainEmotion?: Emotion;
+
+  @Expose()
+  mainEmotionScore?: number;
 
   @Expose()
   createdAt: Date;

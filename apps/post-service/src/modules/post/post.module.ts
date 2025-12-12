@@ -17,6 +17,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PostGroupController } from './controller/post-group.controller';
 import { PostGroupService } from './service/post-group.service';
 import { PostGroupInfo } from 'src/entities/post-group-info.entity';
+import { OutboxService } from '../event/outbox.service';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { PostGroupInfo } from 'src/entities/post-group-info.entity';
     PostCommandService,
     PostCacheService,
     PostGroupService,
+    OutboxService,
   ],
 })
 export class PostModule {}
