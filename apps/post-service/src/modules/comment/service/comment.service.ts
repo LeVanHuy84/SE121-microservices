@@ -21,6 +21,7 @@ import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { UserClientService } from 'src/modules/client/user/user-client.service';
+import { OutboxService } from 'src/modules/event/outbox.service';
 
 @Injectable()
 export class CommentService {
@@ -29,7 +30,8 @@ export class CommentService {
     private readonly commentCache: CommentCacheService,
     private readonly statsBuffer: StatsBufferService,
     private readonly recentActivityBuffer: RecentActivityBufferService,
-    private readonly userClient: UserClientService
+    private readonly userClient: UserClientService,
+    private readonly outboxService: OutboxService
   ) {}
 
   async create(
@@ -66,8 +68,16 @@ export class CommentService {
         );
       }
 
+      const analysisOutbox = this.outboxService.createAnalysisEvent(
+        manager,
+        TargetType.COMMENT,
+        entity
+      );
+
       // ✅ 4. Chạy song song các tác vụ không phụ thuộc
-      await Promise.all([updateStatsPromise, outboxPromise].filter(Boolean));
+      await Promise.all(
+        [updateStatsPromise, outboxPromise, analysisOutbox].filter(Boolean)
+      );
 
       return entity;
     });
@@ -120,6 +130,13 @@ export class CommentService {
       // 3️⃣ Cập nhật nội dung
       comment.content = dto.content;
       await commentRepo.save(comment);
+
+      await this.outboxService.updatedAnalysisEvent(
+        manager,
+        TargetType.COMMENT,
+        commentId,
+        dto.content
+      );
 
       // 4️⃣ Xoá cache (sau transaction)
       await this.commentCache.invalidateComment(

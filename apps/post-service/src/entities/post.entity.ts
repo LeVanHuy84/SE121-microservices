@@ -41,6 +41,9 @@ export class Post {
   @Column({ type: 'enum', enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
+  @Column({ type: 'float', nullable: true })
+  mainEmotionScore: number;
+
   @Column({ type: 'boolean', name: 'is_deleted', default: false })
   isDeleted: boolean;
 

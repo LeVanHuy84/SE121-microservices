@@ -3,6 +3,7 @@ import { MongoModule } from './mongo/mongo.module';
 import { ConfigModule } from '@nestjs/config';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { ConsumerModule } from './modules/consumer/consumer.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     }),
     MongoModule,
     IngestionModule,
+    ConsumerModule,
   ],
   controllers: [],
   providers: [],

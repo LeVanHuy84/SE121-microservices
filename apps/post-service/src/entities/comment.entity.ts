@@ -10,7 +10,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { MediaItemDTO, RootType } from '@repo/dtos';
+import { Emotion, MediaItemDTO, RootType } from '@repo/dtos';
 import { CommentStat } from './comment-stat.entity';
 
 @Entity('comments')
@@ -48,6 +48,12 @@ export class Comment {
 
   @Column('jsonb', { nullable: true })
   media: MediaItemDTO;
+
+  @Column({ type: 'enum', enum: Emotion, nullable: true })
+  mainEmotion: Emotion;
+
+  @Column({ type: 'float', nullable: true })
+  mainEmotionScore: number;
 
   @Column({ type: 'boolean', name: 'is_deleted', default: false })
   isDeleted: boolean;
