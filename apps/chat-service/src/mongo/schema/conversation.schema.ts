@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
 
+
 @Schema({ timestamps: true })
 export class Conversation {
   @Prop({ type: Boolean, default: false })
@@ -23,8 +24,12 @@ export class Conversation {
   @Prop({ type: String })
   groupName?: string;
 
-  @Prop({ type: String })
-  groupAvatar?: string;
+  @Prop({ type: Object, default: null })
+  groupAvatar?: {
+    url: string;
+    publicId?: string;
+  };
+  
 
   @Prop({ type: [String] })
   admins?: string[];
@@ -52,8 +57,7 @@ ConversationSchema.index({ participants: 1, updatedAt: -1 });
 // Index cho query 1-1 cực nhanh
 ConversationSchema.index({ isGroup: 1, participants: 1 });
 
-// Index cho sort theo updated time (phục vụ Redis cache fallback)
-ConversationSchema.index({ participants: 1, updatedAt: -1 }); 
+
 
 /**
  * Normalizer: bỏ trùng & sort participants/admins

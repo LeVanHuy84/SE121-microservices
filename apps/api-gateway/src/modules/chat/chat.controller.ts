@@ -134,12 +134,12 @@ export class ChatController {
   markConversationAsRead(
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string,
-    @Body() body?: { lastMessageId?: string }
+    @Body() body: { lastMessageId?: string }
   ) {
-    return this.chatClient.emit('markConversationAsRead', {
+    return this.chatClient.send('markConversationAsRead', {
       userId,
       conversationId,
-      lastMessageId: body?.lastMessageId,
+      lastMessageId: body.lastMessageId,
     });
   }
 
@@ -165,10 +165,11 @@ export class ChatController {
   }
 
   @Post('messages')
-  async sendMessage(@CurrentUserId() userId: string, @Body() dto: SendMessageDTO) {
-    return await lastValueFrom(
-      this.chatClient.send<MessageResponseDTO>('sendMessage', { userId, dto })
-    );
+  sendMessage(@CurrentUserId() userId: string, @Body() dto: SendMessageDTO) {
+    return this.chatClient.send<MessageResponseDTO>('sendMessage', {
+      userId,
+      dto,
+    });
   }
 
   @Delete('messages/:messageId')
@@ -176,6 +177,6 @@ export class ChatController {
     @CurrentUserId() userId: string,
     @Param('messageId') messageId: string
   ) {
-    return this.chatClient.emit('deleteMessage', { userId, messageId });
+    return this.chatClient.send('deleteMessage', { userId, messageId });
   }
 }

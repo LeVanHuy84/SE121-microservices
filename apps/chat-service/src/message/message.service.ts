@@ -15,11 +15,11 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 
 import { ConversationService } from 'src/conversation/conversation.service';
-import { populateAndMapMessage } from 'src/utils/mapping';
+import { populateAndMapConversation, populateAndMapMessage } from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
-import { randomUUID } from 'crypto';
+import { randomUUID, setEngine } from 'crypto';
 import { snowflakeId } from 'src/utils/snowflake';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 
@@ -78,8 +78,7 @@ export class MessageService {
     }
 
     const dbFilter: any = {
-      conversationId: conversationId,
-      isDeleted: { $ne: true },
+      conversationId: new Types.ObjectId(conversationId),
     };
     if (query.cursor) {
       dbFilter.createdAt = { $lt: new Date(Number(query.cursor)) };
@@ -90,6 +89,7 @@ export class MessageService {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .exec();
+    console.log('Fetched from DB:', items.length);
 
     if (!items.length) {
       await this.msgCache.markEmpty(conversationId);
@@ -175,21 +175,29 @@ export class MessageService {
     if (existing) {
       return populateAndMapMessage(existing)!;
     }
+    console.log('Dto attachments:', dto.attachments);
 
     const msg = new this.messageModel({
       conversationId: conv._id,
+      messageId: messageId,
       senderId: userId,
       content: dto.content,
       attachments: dto.attachments,
       replyTo: dto.replyTo ? new Types.ObjectId(dto.replyTo) : undefined,
+      seenBy: [userId],
       status: 'sent',
     });
 
     await msg.save();
 
+    if (msg.replyTo) {
+        await msg.populate('replyTo');
+    }
+
     // cập nhật lastMessage + updatedAt conversation
     conv.lastMessage = msg._id as any;
     await conv.save();
+    
     await this.conversationService.updateConversationCache(conv);
 
     const dtoMsg = populateAndMapMessage(msg)!;
@@ -248,15 +256,14 @@ export class MessageService {
 
     const dtoMsg = populateAndMapMessage(msg)!;
 
-    // Detail: vẫn cache để GET /messages/:id thấy trạng thái isDeleted
-    await this.msgCache.setMessageDetail(dtoMsg);
+    await Promise.all([
+      // để GET /messages/:id luôn thấy trạng thái mới (isDeleted, deletedAt, ...)
+      this.msgCache.setMessageDetail(dtoMsg),
 
-    // List: remove khỏi history
-    await this.msgCache.removeMessageFromConversation(
-      msg.conversationId.toString(),
-      msg._id.toString(),
-    );
-
+      // update item trong cached list (hash + giữ nguyên zset)
+      this.msgCache.cacheMessages(msg.conversationId.toString(), [dtoMsg]),
+      this.messageStreamProducer.publishMessageDeleted(dtoMsg),
+    ]);
     return dtoMsg;
   }
 

@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import { IsArray, IsOptional, IsString, IsEnum, IsBoolean } from 'class-validator';
+import { AttachmentDTO } from '../message';
 
 export class CreateConversationDTO {
 
@@ -14,7 +16,7 @@ export class CreateConversationDTO {
   groupName?: string;
 
   @IsOptional()
-  @IsString()
-  groupAvatar?: string;
+  @Type(() => AttachmentDTO)
+  groupAvatar?: AttachmentDTO;
 
 }

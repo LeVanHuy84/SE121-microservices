@@ -6,7 +6,7 @@ import Redis from 'ioredis';
 @Injectable()
 export class ChatStreamProducerService {
   private readonly logger = new Logger(ChatStreamProducerService.name);
-  private readonly streamKey = 'chat:messages';
+  private readonly streamKey = 'chat:events';
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 

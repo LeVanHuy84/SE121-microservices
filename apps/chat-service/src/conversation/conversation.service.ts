@@ -19,12 +19,6 @@ import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 
-type CachedConversation = ConversationResponseDTO & {
-  participants: string[];
-  createdAt: string | Date;
-  updatedAt: string | Date;
-};
-
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
@@ -104,26 +98,26 @@ export class ConversationService {
   ): Promise<CursorPageResponse<ConversationResponseDTO>> {
     const limit = query.limit;
     // 1) Nếu đã có flag "empty" thì trả về luôn
-    if (await this.cache.hasEmptyFlag(userId)) {
-      return new CursorPageResponse([], null, false);
-    }
+    // if (await this.cache.hasEmptyFlag(userId)) {
+    //   return new CursorPageResponse([], null, false);
+    // }
 
-    // 2) Thử lấy từ Redis ZSET + HASH
-    const page = await this.cache.getUserConversationsPage(
-      userId,
-      query.cursor ?? null,
-      limit,
-    );
+    // // 2) Thử lấy từ Redis ZSET + HASH
+    // const page = await this.cache.getUserConversationsPage(
+    //   userId,
+    //   query.cursor ?? null,
+    //   limit,
+    // );
 
-    if (page && page.items.length) {
-      return new CursorPageResponse(
-        plainToInstance(ConversationResponseDTO, page.items, {
-          excludeExtraneousValues: true,
-        }),
-        page.nextCursor,
-        page.hasNext,
-      );
-    }
+    // if (page && page.items.length) {
+    //   return new CursorPageResponse(
+    //     plainToInstance(ConversationResponseDTO, page.items, {
+    //       excludeExtraneousValues: true,
+    //     }),
+    //     page.nextCursor,
+    //     page.hasNext,
+    //   );
+    // }
 
     // Cache miss → DB fallback
     const dbFilter = query.cursor
@@ -356,10 +350,9 @@ export class ConversationService {
 
     const targetId = targetMsg._id.toString();
 
-    // 2. Không đi lùi: nếu đã lưu lastSeenMessageId mới hơn thì bỏ qua
-    const lastSeenRaw: Map<string, string> =
-      (conv.lastSeenMessageId as any) || {};
-    const prevId = lastSeenRaw[userId];
+    // 2. Không đi lùi
+    const lastSeenMap = conv.lastSeenMessageId as Map<string, string>;
+    const prevId = lastSeenMap?.get(userId);
 
     if (prevId) {
       const [prev, now] = await Promise.all([
@@ -371,6 +364,8 @@ export class ConversationService {
         return prevId; // không update lùi
       }
     }
+
+    // 3. Đánh dấu seen các message <= targetMsg
     const baseFilter: any = {
       conversationId: conv._id,
       _id: { $lte: targetMsg._id },
@@ -382,12 +377,22 @@ export class ConversationService {
       $addToSet: { seenBy: userId },
     });
 
-    // 3. Update meta
-    lastSeenRaw[userId] = targetId;
-    (conv as any).lastSeenMessageId = lastSeenRaw;
+    // 4. Update meta lastSeenMessageId đúng cách
+    if (!conv.lastSeenMessageId) {
+      // phòng khi undefined
+      conv.lastSeenMessageId = new Map<string, string>() as any;
+    }
+    conv.lastSeenMessageId.set(userId, targetId);
+
+    // đôi khi với Map cần markModified để chắc chắn
+    conv.markModified('lastSeenMessageId');
+
+    this.logger.debug(`Last seen map after marking read: ${JSON.stringify(Array.from((conv.lastSeenMessageId as Map<string, string>).entries()))}`);
+
     await conv.save();
 
-    Promise.all([
+    // 5. Cập nhật cache + broadcast
+    void Promise.all([
       this.updateConversationCache(conv),
       this.chatStreamProducer.publishConversationRead({
         conversationId,
@@ -534,17 +539,26 @@ export class ConversationService {
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
 
-  async updateConversationCache(conv: Conversation) {
-    const dto = populateAndMapConversation(conv);
+  async updateConversationCache(conv: ConversationDocument) {
+    const fullConv = await this.conversationModel
+      .findById(conv._id)
+      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+      .exec();
 
-    const hidden = (conv.hiddenFor || []) as string[];
+    if (!fullConv) return;
+
+    const dto = populateAndMapConversation(fullConv);
+
+    const hidden = (fullConv.hiddenFor || []) as string[];
     const visibleUsers = dto.participants.filter((u) => !hidden.includes(u));
 
     if (visibleUsers.length) {
       await this.cache.cacheConversationsForUsers(visibleUsers, [dto]);
     }
 
-    await this.cache.setConversationDetail(dto);
-    await this.cache.setParticipants(dto._id.toString(), dto.participants);
+    Promise.all([
+      this.cache.setConversationDetail(dto),
+      this.cache.setParticipants(dto._id, dto.participants),
+    ]);
   }
 }

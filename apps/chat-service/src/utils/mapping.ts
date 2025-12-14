@@ -21,9 +21,19 @@ function mapMessage(obj: any): MessageResponseDTO | undefined {
   const hasPopulatedReply =
     rawReply &&
     typeof rawReply === 'object' &&
-    !Types.ObjectId.isValid(rawReply as any);
+    !(rawReply instanceof Types.ObjectId);
 
   const replyTo = hasPopulatedReply ? mapMessage(rawReply) : undefined;
+  const attachments = Array.isArray(base.attachments)
+    ? base.attachments.map((a: any) => ({
+        url: a.url,
+        fileName: a.fileName,
+        publicId: a.publicId,
+        mimeType: a.mimeType,
+        size: a.size,
+        thumbnailUrl: a.thumbnailUrl,
+      }))
+    : [];
 
   return plainToInstance(
     MessageResponseDTO,
@@ -32,6 +42,7 @@ function mapMessage(obj: any): MessageResponseDTO | undefined {
       _id: base._id?.toString(),
       conversationId: base.conversationId?.toString(),
       replyTo,
+      attachments,
     },
     { excludeExtraneousValues: true },
   );
@@ -50,8 +61,18 @@ export function populateAndMapConversation(
   const base =
     typeof convDoc.toObject === 'function' ? convDoc.toObject() : convDoc;
 
+  const groupAvatar = base.groupAvatar
+    ? {
+        url: String(base.groupAvatar.url),
+        publicId: base.groupAvatar.publicId
+          ? String(base.groupAvatar.publicId)
+          : undefined,
+      }
+    : undefined;
+
   return plainToInstance(ConversationResponseDTO, {
     ...base,
+    groupAvatar,
     _id: base._id?.toString(),
     participants: (base.participants || []).map((p: any) => String(p)),
     admins: (base.admins || []).map((a: any) => String(a)),
@@ -66,6 +87,6 @@ export function populateAndMapConversation(
     lastMessage: convDoc.lastMessage
       ? mapMessage(convDoc.lastMessage)
       : undefined,
-    hideFor: (base.hideFor || []).map((h: any) => String(h)),
+    hideFor: (base.hiddenFor || []).map((h: any) => String(h)),
   });
 }

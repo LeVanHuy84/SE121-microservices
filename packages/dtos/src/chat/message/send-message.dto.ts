@@ -1,15 +1,18 @@
-import {
-  IsString,
-  IsOptional,
-  IsArray,
-  ValidateNested,
-  IsEnum,
-} from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsOptional,
+  IsString,
+  ValidateNested
+} from 'class-validator';
 
 export class AttachmentDTO {
   @IsString()
   url: string;
+
+  @IsOptional()
+  @IsString()
+  publicId?: string;
 
   @IsOptional()
   @IsString()
@@ -26,26 +29,26 @@ export class AttachmentDTO {
   thumbnailUrl?: string;
 }
 
-export class SendMessageDTO {
-  @IsOptional()
-  @IsString()
-  messageId?: string;
+  export class SendMessageDTO {
+    @IsOptional()
+    @IsString()
+    messageId?: string;
 
-  @IsString()
-  conversationId: string;
+    @IsString()
+    conversationId: string;
 
-  @IsOptional()
-  @IsString()
-  content?: string;
+    @IsOptional()
+    @IsString()
+    content?: string;
 
 
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AttachmentDTO)
-  attachments?: AttachmentDTO[];
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => AttachmentDTO)
+    attachments?: AttachmentDTO[];
 
-  @IsOptional()
-  @IsString()
-  replyTo?: string;
-}
+    @IsOptional()
+    @IsString()
+    replyTo?: string;
+  }

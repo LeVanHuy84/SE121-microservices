@@ -97,6 +97,7 @@ export class ChatGateway
     };
 
     this.redis.publish('presence:heartbeat', JSON.stringify(evt));
+    this.logger.debug(`Received heartbeat from user ${userId}`);
   }
 
   // ========== Client subscribe / unsubscribe presence của người khác ==========
@@ -188,6 +189,7 @@ export class ChatGateway
   }
   broadcastNewMessage(msg: MessageResponseDTO) {
     this.broadcastToConversation(msg.conversationId, 'message.new', msg);
+    this.logger.debug(`Broadcasted new message ${msg._id} to conversation ${msg.conversationId}`);
   }
 
   broadcastMessageUpdated(msg: MessageResponseDTO) {

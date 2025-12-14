@@ -1,5 +1,5 @@
 import { Expose, Type } from "class-transformer";
-import { MessageResponseDTO } from "../message/get-message.dto";
+import { AttachmentResponseDTO, MessageResponseDTO } from "../message/get-message.dto";
 
 export class ConversationResponseDTO {
   @Expose()
@@ -12,10 +12,11 @@ export class ConversationResponseDTO {
   participants: string[];
 
   @Expose()
-  groupName?: string;
+  @Type(() => AttachmentResponseDTO)
+  groupAvatar?: AttachmentResponseDTO;
 
   @Expose()
-  groupAvatar?: string;
+  groupName: string;
 
   @Expose()
   @Type(() => MessageResponseDTO)

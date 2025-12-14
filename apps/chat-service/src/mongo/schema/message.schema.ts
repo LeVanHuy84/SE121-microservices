@@ -1,8 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, HydratedDocument, Types } from 'mongoose';
-import { Conversation } from './conversation.schema';
 import { Emotion } from '@repo/dtos';
-import { Attachment, AttachmentSchema } from './attachment.schema';
+import { HydratedDocument, Types } from 'mongoose';
 
 
 @Schema({ timestamps: true })
@@ -45,8 +43,15 @@ export class Message {
   })
   reactionStats: Record<Emotion, number>;
 
-  @Prop({ type: [AttachmentSchema], default: [] })
-  attachments?: Attachment[];
+  @Prop({ type: [Object], default: [] })
+  attachments?: {
+    url: string; // link file
+    fileName?: string;
+    publicId?: string;
+    mimeType?: string;
+    size?: number; // bytes
+    thumbnailUrl?: string; // cho video hoặc ảnh
+  }[];
 
   @Prop({ type: Types.ObjectId, ref: Message.name, default: null, index: true })
   replyTo?: Types.ObjectId; // ID của message mà message này reply
