@@ -1,5 +1,5 @@
 import { Expose } from 'class-transformer';
-import { GroupPrivacy, GroupStatus } from '../../enums';
+import { GroupPrivacy, GroupRole, GroupStatus } from '../../enums';
 
 export class GroupResponseDTO {
   @Expose()
@@ -22,4 +22,6 @@ export class GroupResponseDTO {
   status: GroupStatus;
   @Expose()
   createdAt: Date;
+
+  userRole?: GroupRole;
 }

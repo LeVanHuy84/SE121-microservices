@@ -32,8 +32,8 @@ export class GroupController {
   }
 
   @Get('group/:id')
-  findById(@Param('id') groupId: string) {
-    return this.client.send('find_group_by_id', { groupId });
+  findById(@Param('id') groupId: string, @CurrentUserId() userId: string) {
+    return this.client.send('find_group_by_id', { userId, groupId });
   }
 
   @Get('my-groups')

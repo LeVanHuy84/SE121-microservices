@@ -51,29 +51,37 @@ export class GroupService {
 
   // ---------- Public API (refactored & optimized) ----------
 
-  async findById(groupId: string): Promise<GroupResponseDTO> {
+  async findById(groupId: string, userId?: string): Promise<GroupResponseDTO> {
     if (!isUUID(groupId)) throw new RpcException('Invalid group ID format');
 
-    // 1) Try cache
-    const cached = await this.groupCacheService.get(groupId);
-    if (cached) {
-      return plainToInstance(GroupResponseDTO, cached, {
-        excludeExtraneousValues: true,
-      });
-    }
-
-    // 2) Load from DB and cache result (or negative cache)
-    const entity = await this.groupRepo.findOne({ where: { id: groupId } });
+    // 1) Try cache entity
+    let entity = await this.groupCacheService.get(groupId);
     if (!entity) {
-      await this.groupCacheService.setNotFound(groupId).catch(() => void 0);
-      throw new RpcException('Group not found');
+      // Load from DB
+      entity = await this.groupRepo.findOne({ where: { id: groupId } });
+      if (!entity) {
+        await this.groupCacheService.setNotFound(groupId).catch(() => void 0);
+        throw new RpcException('Group not found');
+      }
+      // Cache entity
+      await this.groupCacheService.set(groupId, entity).catch(() => void 0);
     }
 
-    await this.groupCacheService.set(groupId, entity).catch(() => void 0);
-
-    return plainToInstance(GroupResponseDTO, entity, {
+    // Chuyển entity sang DTO
+    const dto = plainToInstance(GroupResponseDTO, entity, {
       excludeExtraneousValues: true,
     });
+
+    // Chỉ query member nếu userId được cung cấp
+    if (userId) {
+      const member = await this.groupMemberRepo.findOne({
+        where: { userId, groupId },
+        select: ['role'],
+      });
+      dto.userRole = member?.role;
+    }
+
+    return dto;
   }
 
   async getMyGroups(
