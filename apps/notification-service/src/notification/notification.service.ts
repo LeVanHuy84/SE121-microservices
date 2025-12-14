@@ -6,13 +6,13 @@ import {
   CreateNotificationDto,
   CursorPageResponse,
   CursorPaginationDTO,
-  NotificationResponseDto
+  NotificationResponseDto,
 } from '@repo/dtos';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
-import { Model, ObjectId, Types } from 'mongoose';
+import { Cursor, Model, ObjectId, Types } from 'mongoose';
 import {
   Notification,
   NotificationDocument,
@@ -175,203 +175,228 @@ export class NotificationService {
     return plainToInstance(NotificationResponseDto, doc, {});
   }
 
- // ==================== Find ====================
-async findByUser(
-  userId: string,
-  query: CursorPaginationDTO
-): Promise<CursorPageResponse<NotificationResponseDto>> {
-  const key = `user:${userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-  const limit = query.limit;
+  // ==================== Find ====================
+  async findByUser(
+    userId: string,
+    query: CursorPaginationDTO
+  ): Promise<CursorPageResponse<NotificationResponseDto>> {
+    const key = `user:${userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
+    const limit = query.limit;
 
-  // Check sentinel key
-  const isEmpty = await this.redis.exists(emptyKey);
-  if (isEmpty) {
-    return new CursorPageResponse<NotificationResponseDto>([], null, false);
-  }
+    // Check sentinel key
+    const isEmpty = await this.redis.exists(emptyKey);
+    if (isEmpty) {
+      return new CursorPageResponse<NotificationResponseDto>([], null, false);
+    }
 
-  // Xác định max score cho cursor
-  let maxScore = '+inf';
-  if (query.cursor) maxScore = `(${query.cursor}`;
+    // Xác định max score cho cursor
+    let maxScore = '+inf';
+    if (query.cursor) maxScore = `(${query.cursor}`;
 
-  // Lấy member từ ZSET
-  const ids = await this.redis.zrevrangebyscore(
-    key,
-    maxScore,
-    '-inf',
-    'LIMIT',
-    0,
-    limit + 1
-  );
-
-  if (ids.length > 0) {
-    const hasNext = ids.length > limit;
-    const selectedIds = ids.slice(0, limit);
-
-    // Lấy dữ liệu JSON từ hash
-    const cached = await this.redis.hmget(dataKey, ...selectedIds);
-    const items = cached
-      .filter((c): c is string => c !== null)
-      .map((c) => JSON.parse(c));
-
-    const lastItem = items.length > 0 ? items[items.length - 1] : null;
-    const nextCursor =
-      hasNext && lastItem?.createdAt
-        ? new Date(lastItem.createdAt).getTime().toString()
-        : null;
-
-    return new CursorPageResponse(
-      plainToInstance(NotificationResponseDto, items),
-      nextCursor,
-      hasNext
+    // Lấy member từ ZSET
+    const ids = await this.redis.zrevrangebyscore(
+      key,
+      maxScore,
+      '-inf',
+      'LIMIT',
+      0,
+      limit + 1
     );
+
+    if (ids.length > 0) {
+      const hasNext = ids.length > limit;
+      const selectedIds = ids.slice(0, limit);
+
+      // Lấy dữ liệu JSON từ hash
+      const cached = await this.redis.hmget(dataKey, ...selectedIds);
+      const items = cached
+        .filter((c): c is string => c !== null)
+        .map((c) => JSON.parse(c));
+
+      const lastItem = items.length > 0 ? items[items.length - 1] : null;
+      const nextCursor =
+        hasNext && lastItem?.createdAt
+          ? new Date(lastItem.createdAt).getTime().toString()
+          : null;
+
+      return new CursorPageResponse(
+        plainToInstance(NotificationResponseDto, items),
+        nextCursor,
+        hasNext
+      );
+    }
+
+    // Nếu cache rỗng, lấy DB
+    const scoreFilter = query.cursor
+      ? { $lt: new Date(parseInt(query.cursor)) }
+      : {};
+
+    const dbItems = await this.notificationModel
+      .find({ userId, ...(query.cursor ? { createdAt: scoreFilter } : {}) })
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    if (dbItems.length > 0) {
+      await this.cacheNotifications(userId, dbItems);
+
+      const hasNext = dbItems.length > limit;
+      const items = dbItems.slice(0, limit);
+      const lastItem = items.length > 0 ? items[items.length - 1] : null;
+      const nextCursor =
+        hasNext && (lastItem as any)?.createdAt
+          ? new Date((lastItem as any).createdAt).getTime().toString()
+          : null;
+
+      return new CursorPageResponse(
+        plainToInstance(NotificationResponseDto, items),
+        nextCursor,
+        hasNext
+      );
+    }
+
+    // DB rỗng → set sentinel key
+    await this.redis.set(emptyKey, '1', 'EX', 60);
+    return new CursorPageResponse([], null, false);
   }
 
-  // Nếu cache rỗng, lấy DB
-  const scoreFilter = query.cursor
-    ? { $lt: new Date(parseInt(query.cursor)) }
-    : {};
-
-  const dbItems = await this.notificationModel
-    .find({ userId, ...(query.cursor ? { createdAt: scoreFilter } : {}) })
-    .sort({ createdAt: -1 })
-    .limit(limit + 1)
-    .lean();
-
-  if (dbItems.length > 0) {
-    await this.cacheNotifications(userId, dbItems);
-
-    const hasNext = dbItems.length > limit;
-    const items = dbItems.slice(0, limit);
-    const lastItem = items.length > 0 ? items[items.length - 1] : null;
-    const nextCursor =
-      hasNext && (lastItem as any)?.createdAt
-        ? new Date((lastItem as any).createdAt).getTime().toString()
-        : null;
-
-    return new CursorPageResponse(
-      plainToInstance(NotificationResponseDto, items),
-      nextCursor,
-      hasNext
+  // ==================== Mark Read ====================
+  async markRead(id: string) {
+    const doc = await this.notificationModel.findByIdAndUpdate(
+      id,
+      { status: 'read' },
+      { new: true }
     );
+    if (doc) await this.updateNotificationCache(doc);
+    return plainToInstance(NotificationResponseDto, doc, {});
   }
 
-  // DB rỗng → set sentinel key
-  await this.redis.set(emptyKey, '1', 'EX', 60);
-  return new CursorPageResponse([], null, false);
-}
-
-// ==================== Mark Read ====================
-async markRead(id: string) {
-  const doc = await this.notificationModel.findByIdAndUpdate(
-    id,
-    { status: 'read' },
-    { new: true }
-  );
-  if (doc) await this.updateNotificationCache(doc);
-  return plainToInstance(NotificationResponseDto, doc, {});
-}
-
-async markAllRead(userId: string) {
-  const result = await this.notificationModel.updateMany(
-    { userId, status: { $ne: 'read' } },
-    { status: 'read', updatedAt: new Date() }
-  );
-  await this.refreshUserCache(userId);
-  return { modifiedCount: result.modifiedCount };
-}
-
-// ==================== Delete ====================
-async removeById(id: string) {
-  const doc = await this.notificationModel.findByIdAndDelete(id);
-  if (!doc) return;
-  const key = `user:${doc.userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-
-  await this.redis.pipeline()
-    .zrem(key, id)
-    .hdel(dataKey, id)
-    .del(emptyKey)
-    .exec();
-}
-
-async removeAll(userId: string) {
-  await this.notificationModel.deleteMany({ userId });
-  const key = `user:${userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-  await this.redis.del(key, dataKey, emptyKey);
-}
-
-// ==================== Cache helpers ====================
-private async cacheNotifications(userId: string, items: any[]) {
-  const key = `user:${userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-  const pipeline = this.redis.pipeline();
-
-  for (const item of items) {
-    const member = item._id.toString();
-    const score = item.createdAt ? new Date(item.createdAt).getTime() : Date.now();
-    pipeline.zadd(key, score, member);
-    pipeline.hset(dataKey, member, JSON.stringify(item));
+  async markAllRead(userId: string) {
+    const result = await this.notificationModel.updateMany(
+      { userId, status: { $ne: 'read' } },
+      { status: 'read', updatedAt: new Date() }
+    );
+    await this.refreshUserCache(userId);
+    return { modifiedCount: result.modifiedCount };
   }
 
-  pipeline.zremrangebyrank(key, 0, -101);
-  pipeline.expire(key, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-  pipeline.expire(dataKey, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-  pipeline.del(emptyKey);
+  // ==================== Delete ====================
+  async removeById(id: string) {
+    const doc = await this.notificationModel.findByIdAndDelete(id);
+    if (!doc) return;
+    const key = `user:${doc.userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
 
-  await pipeline.exec();
-}
+    await this.redis
+      .pipeline()
+      .zrem(key, id)
+      .hdel(dataKey, id)
+      .del(emptyKey)
+      .exec();
+  }
 
-private async updateNotificationCache(doc: NotificationDocument) {
-  const key = `user:${doc.userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-  const member = (doc._id as Types.ObjectId).toString();
-  const score = (doc as any).createdAt ? new Date((doc as any).createdAt).getTime() : Date.now();
+  async removeAll(userId: string) {
+    await this.notificationModel.deleteMany({ userId });
+    const key = `user:${userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
+    await this.redis.del(key, dataKey, emptyKey);
+  }
 
-  const pipeline = this.redis.pipeline();
-  pipeline.del(emptyKey);
-  pipeline.zadd(key, score, member);
-  pipeline.hset(dataKey, member, JSON.stringify(doc.toObject()));
-  pipeline.zremrangebyrank(key, 0, -101);
-  pipeline.expire(key, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-  pipeline.expire(dataKey, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-  await pipeline.exec();
-}
+  // ==================== Cache helpers ====================
+  private async cacheNotifications(userId: string, items: any[]) {
+    const key = `user:${userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
+    const pipeline = this.redis.pipeline();
 
-private async refreshUserCache(userId: string) {
-  const key = `user:${userId}:notifications`;
-  const dataKey = `${key}:data`;
-  const emptyKey = `${key}:empty`;
-
-  const items = await this.notificationModel
-    .find({ userId })
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean();
-
-  const pipeline = this.redis.pipeline();
-  pipeline.del(key, dataKey, emptyKey);
-
-  if (items.length > 0) {
     for (const item of items) {
       const member = item._id.toString();
-      const score = (item as any).createdAt ? new Date((item as any).createdAt).getTime() : Date.now();
+      const score = item.createdAt
+        ? new Date(item.createdAt).getTime()
+        : Date.now();
       pipeline.zadd(key, score, member);
       pipeline.hset(dataKey, member, JSON.stringify(item));
     }
+
     pipeline.zremrangebyrank(key, 0, -101);
-    pipeline.expire(key, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-    pipeline.expire(dataKey, this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300));
-  } else {
-    pipeline.set(emptyKey, '1', 'EX', 60);
+    pipeline.expire(
+      key,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
+    pipeline.expire(
+      dataKey,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
+    pipeline.del(emptyKey);
+
+    await pipeline.exec();
   }
 
-  await pipeline.exec();
-}
+  private async updateNotificationCache(doc: NotificationDocument) {
+    const key = `user:${doc.userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
+    const member = (doc._id as unknown as ObjectId).toString();
+    const score = (doc as any).createdAt
+      ? new Date((doc as any).createdAt).getTime()
+      : Date.now();
+
+    const pipeline = this.redis.pipeline();
+    pipeline.del(emptyKey);
+    pipeline.zadd(key, score, member);
+    pipeline.hset(dataKey, member, JSON.stringify(doc.toObject()));
+    pipeline.zremrangebyrank(key, 0, -101);
+    pipeline.expire(
+      key,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
+    pipeline.expire(
+      dataKey,
+      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+    );
+    await pipeline.exec();
+  }
+
+  private async refreshUserCache(userId: string) {
+    const key = `user:${userId}:notifications`;
+    const dataKey = `${key}:data`;
+    const emptyKey = `${key}:empty`;
+
+    const items = await this.notificationModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const pipeline = this.redis.pipeline();
+    pipeline.del(key, dataKey, emptyKey);
+
+    if (items.length > 0) {
+      for (const item of items) {
+        const member = item._id.toString();
+        const score = (item as any).createdAt
+          ? new Date((item as any).createdAt).getTime()
+          : Date.now();
+        pipeline.zadd(key, score, member);
+        pipeline.hset(dataKey, member, JSON.stringify(item));
+      }
+      pipeline.zremrangebyrank(key, 0, -101);
+      pipeline.expire(
+        key,
+        this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+      );
+      pipeline.expire(
+        dataKey,
+        this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
+      );
+    } else {
+      pipeline.set(emptyKey, '1', 'EX', 60);
+    }
+
+    await pipeline.exec();
+  }
 }

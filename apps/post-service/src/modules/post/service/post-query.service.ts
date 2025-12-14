@@ -5,14 +5,19 @@ import { plainToInstance } from 'class-transformer';
 import {
   Audience,
   CursorPageResponse,
+  EditHistoryReponseDTO,
+  GetGroupPostQueryDTO,
   GetPostQueryDTO,
+  GroupPermission,
+  GroupPrivacy,
+  PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
   ReactionType,
   TargetType,
 } from '@repo/dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { lastValueFrom } from 'rxjs';
 import { Reaction } from 'src/entities/reaction.entity';
 import { Post } from 'src/entities/post.entity';
 import { PostCacheService } from './post-cache.service';
@@ -36,7 +41,7 @@ export class PostQueryService {
     postId: string
   ): Promise<PostResponseDTO> {
     const post = await this.postCache.getPost(postId);
-    if (!post) throw new RpcException('Post not found');
+    if (!post || post.isDeleted) throw new RpcException('Post not found');
 
     const [_, userReaction] = await Promise.all([
       this.ensureCanView(userRequestId, post),
@@ -64,11 +69,15 @@ export class PostQueryService {
     currentUserId: string,
     query: GetPostQueryDTO
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
-    const qb = this.buildPostQuery(query).where('p.userId = :userId', {
-      userId: currentUserId,
-    });
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId: currentUserId })
+      .andWhere('p.groupId IS NULL');
 
-    const ids = await qb.select('p.id').getMany();
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
     const postIds = ids.map((p) => p.id);
@@ -91,7 +100,7 @@ export class PostQueryService {
       currentUserId,
       userId,
       async () => {
-        return await firstValueFrom(
+        return await lastValueFrom(
           this.socialClient.send('get_relationship_status', {
             userId: currentUserId,
             targetId: userId,
@@ -100,9 +109,9 @@ export class PostQueryService {
       }
     );
 
-    const qb = this.buildPostQuery(query).where('p.userId = :userId', {
-      userId,
-    });
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId })
+      .andWhere('p.groupId IS NULL');
 
     if (userId === currentUserId) {
       // chính mình → xem hết
@@ -116,7 +125,58 @@ export class PostQueryService {
       qb.andWhere('p.audience = :audience', { audience: Audience.PUBLIC });
     }
 
-    const ids = await qb.select('p.id').getMany();
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop();
+    const postIds = ids.map((p) => p.id);
+
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return new CursorPageResponse([], null, false);
+    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // Get group posts
+  // ----------------------------------------
+  async getGroupPost(
+    groupId: string,
+    userId: string,
+    query: GetGroupPostQueryDTO
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const memberInfo = await this.postCache.getGroupUserPermission(
+      userId,
+      groupId
+    );
+    const status = query.status || PostGroupStatus.PUBLISHED;
+
+    // Nếu là bài đã duyệt
+    if (status === PostGroupStatus.PUBLISHED) {
+      if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
+        throw new RpcException('User is not a member of the group');
+      }
+    } else {
+      const canReview = memberInfo.permissions.includes(
+        GroupPermission.APPROVE_POST
+      );
+      if (!canReview) {
+        throw new RpcException('No permission to view pending/rejected posts');
+      }
+    }
+
+    const qb = this.buildPostQuery(query)
+      .innerJoin('p.postGroupInfo', 'pgi')
+      .where('p.groupId = :groupId', { groupId })
+      .andWhere('pgi.status = :status', { status });
+
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop();
     const postIds = ids.map((p) => p.id);
@@ -124,16 +184,66 @@ export class PostQueryService {
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+    return this.buildPagedPostResponse(userId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // 🗂 Lấy nhiều post theo listId
+  // ----------------------------------------
+  async getPostBatch(
+    currentUserId: string,
+    postIds: string[]
+  ): Promise<PostSnapshotDTO[]> {
+    if (!postIds.length) return [];
+
+    // Lấy post từ cache hoặc DB
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return [];
+
+    // Lấy reaction của user cho batch post
+    const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
+
+    // Chuyển sang DTO
+    const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
+    // Optional: sort theo thứ tự truyền vào (để giữ order của postIds)
+    const postOrderMap = new Map(postIds.map((id, idx) => [id, idx]));
+    postDTOs.sort(
+      (a, b) => postOrderMap.get(a.postId)! - postOrderMap.get(b.postId)!
+    );
+
+    return postDTOs;
+  }
+
+  async getPostEditHistories(
+    userId: string,
+    postId: string
+  ): Promise<EditHistoryReponseDTO[]> {
+    const postEdit = await this.postRepo.findOne({
+      where: { id: postId },
+      relations: { editHistories: true },
+    });
+    if (!postEdit) throw new RpcException('Post not found');
+    if (userId !== postEdit.userId)
+      throw new RpcException('Forbidden: You are not the owner of the post');
+
+    return plainToInstance(
+      EditHistoryReponseDTO,
+      postEdit.editHistories || [],
+      {
+        excludeExtraneousValues: true,
+      }
+    );
   }
 
   // ----------------------------------------
   // ⚙️ Helpers chung
   // ----------------------------------------
   private buildPostQuery(query: GetPostQueryDTO) {
-    const { cursor, limit, feeling } = query;
+    const { cursor, limit, feeling, mainEmotion } = query;
     const qb = this.postRepo
       .createQueryBuilder('p')
+      .where('p.isDeleted = false')
       .orderBy('p.createdAt', 'DESC')
       .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
 
@@ -142,6 +252,8 @@ export class PostQueryService {
     }
 
     if (feeling) qb.andWhere('p.feeling = :feeling', { feeling });
+    if (mainEmotion)
+      qb.andWhere('p.mainEmotion = :mainEmotion', { mainEmotion });
     return qb;
   }
 
@@ -186,7 +298,7 @@ export class PostQueryService {
       userId,
       post.userId,
       async () => {
-        return await firstValueFrom(
+        return await lastValueFrom(
           this.socialClient.send('get_relationship_status', {
             userId,
             targetId: post.userId,

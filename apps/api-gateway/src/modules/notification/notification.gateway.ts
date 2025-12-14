@@ -1,4 +1,5 @@
 import { Inject, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   ConnectedSocket,
   MessageBody,
@@ -11,12 +12,10 @@ import {
 } from '@nestjs/websockets';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import * as amqp from 'amqplib';
-import { Server, Socket } from 'socket.io';
-import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { Client } from '@clerk/backend';
-import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { Server, Socket } from 'socket.io';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
 @WebSocketGateway({
   namespace: '/notifications',
   cors: {

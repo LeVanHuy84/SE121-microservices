@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { KafkaProducerService } from './kafka/kafka.producer.service';
-import { NotificationService } from './rabbitmq/notification.service';
-import { EventDestination } from '@repo/dtos';
+import { CreateNotificationDto, EventDestination } from '@repo/dtos';
+import { KafkaProducerService, NotificationService } from '@repo/common';
 
 @Injectable()
 export class OutboxProcessor {
@@ -93,11 +92,10 @@ export class OutboxProcessor {
           break;
 
         case EventDestination.RABBITMQ:
-          await this.notificationService.sendNotification({
-            id,
-            eventType,
-            payload,
-          });
+          await this.notificationService.sendNotification(
+            this.toNotificationDto(event)
+            // 'post-service'
+          );
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
           break;
 
@@ -111,5 +109,17 @@ export class OutboxProcessor {
       await this.outboxRepo.update({ id }, { processed: false });
       this.logger.error(`❌ Error sending event ${id}: ${err.message}`);
     }
+  }
+
+  // HELPERS
+  private toNotificationDto(outbox: OutboxEvent): CreateNotificationDto {
+    return {
+      requestId: outbox.id,
+      userId: outbox.payload.userId,
+      type: outbox.eventType,
+      payload: outbox.payload,
+      sendAt: new Date(),
+      meta: { priority: 1, maxRetries: 3 },
+    };
   }
 }

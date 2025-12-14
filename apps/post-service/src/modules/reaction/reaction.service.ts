@@ -82,7 +82,7 @@ export class ReactionService {
   // --------------------------------------------------
   // ❤️ React
   // --------------------------------------------------
-  async react(userId: string, dto: ReactDTO) {
+  async react(userId: string, dto: ReactDTO): Promise<boolean> {
     const result = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Reaction);
 
@@ -112,7 +112,7 @@ export class ReactionService {
       };
     });
 
-    if (dto.targetType !== TargetType.POST) return;
+    if (dto.targetType !== TargetType.POST) return true;
 
     const updates = result.buffer?.map((b) => ({
       type: StatsEventType.REACTION,
@@ -130,6 +130,7 @@ export class ReactionService {
         : Promise.resolve(),
       result.isNew
         ? this.recentActivityBuffer.addRecentActivity({
+            idempotentKey: `${userId}:${dto.targetType}:${dto.targetId}`,
             actorId: userId,
             type: 'reaction',
             targetType: dto.targetType,
@@ -137,12 +138,14 @@ export class ReactionService {
           })
         : Promise.resolve(),
     ]);
+
+    return true;
   }
 
   // --------------------------------------------------
   // 💔 DisReact
   // --------------------------------------------------
-  async disReact(userId: string, dto: DisReactDTO) {
+  async disReact(userId: string, dto: DisReactDTO): Promise<boolean> {
     const result = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Reaction);
 
@@ -179,6 +182,25 @@ export class ReactionService {
         ReactionType[result.buffer.type]
       );
     }
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // Get reactedType batch by userId + targetIds
+  // --------------------------------------------------
+  async getReactedTypesBatch(
+    userId: string,
+    targetType: TargetType,
+    targetIds: string[]
+  ): Promise<Record<string, ReactionType>> {
+    if (!targetIds.length) return {};
+    const reactions = await this.reactionRepo.find({
+      where: { userId, targetId: In(targetIds), targetType },
+    });
+    return Object.fromEntries(
+      reactions.map((r) => [r.targetId, r.reactionType])
+    );
   }
 
   // --------------------------------------------------

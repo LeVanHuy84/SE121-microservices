@@ -11,6 +11,7 @@ import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu chưa có
 
 import {
+  AnalysisEventType,
   Audience,
   CreatePostDTO,
   EventDestination,
@@ -23,13 +24,15 @@ import {
 } from '@repo/dtos';
 import { PostCacheService } from './post-cache.service';
 import { PostShortenMapper } from '../post-shorten.mapper';
+import { OutboxService } from 'src/modules/event/outbox.service';
 
 @Injectable()
 export class PostCommandService {
   constructor(
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
     private readonly dataSource: DataSource,
-    private readonly postCache: PostCacheService
+    private readonly postCache: PostCacheService,
+    private readonly outboxService: OutboxService
   ) {}
 
   // ----------------------------------------
@@ -56,13 +59,19 @@ export class PostCommandService {
             groupId: entity.groupId ?? undefined,
             audience: entity.audience,
             content: entity.content,
-            mediaPreviews: post.media?.slice(0, 5),
-            mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 5),
+            mediaPreviews: post.media?.slice(0, 4),
+            mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 4),
             createdAt: entity.createdAt,
           },
         });
         await manager.save(outbox);
       }
+
+      await this.outboxService.createAnalysisEvent(
+        manager,
+        TargetType.POST,
+        entity
+      );
 
       return PostShortenMapper.toPostSnapshotDTO(entity);
     });
@@ -113,6 +122,15 @@ export class PostCommandService {
             });
 
       await manager.save(outbox);
+      if (dto.content) {
+        await this.outboxService.updatedAnalysisEvent(
+          manager,
+          TargetType.POST,
+          postId,
+          dto.content
+        );
+      }
+
       return PostShortenMapper.toPostSnapshotDTO(updated);
     });
   }

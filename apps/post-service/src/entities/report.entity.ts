@@ -3,13 +3,17 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { TargetType } from '@repo/dtos';
+import { ReportStatus, TargetType } from '@repo/dtos';
 
 @Entity('reports')
 export class Report {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column('uuid', { name: 'group_id', nullable: true })
+  groupId: string;
 
   @Column('varchar', { name: 'reporter_id' })
   reporterId: string;
@@ -23,8 +27,11 @@ export class Report {
   @Column('text', { nullable: true })
   reason: string;
 
-  @Column({ type: 'varchar', length: 50, default: 'PENDING' })
-  status: string;
+  @Column({ type: 'enum', enum: ReportStatus, default: ReportStatus.PENDING })
+  status: ReportStatus;
+
+  @Column('varchar', { name: 'resolved_by', nullable: true })
+  resolvedBy: string;
 
   @CreateDateColumn({
     name: 'created_at',
@@ -32,4 +39,11 @@ export class Report {
     default: () => 'CURRENT_TIMESTAMP',
   })
   createdAt: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  updatedAt: Date;
 }

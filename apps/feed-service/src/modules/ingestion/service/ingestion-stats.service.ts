@@ -57,7 +57,7 @@ export class StatsIngestionService {
     const pipeline = this.redis.pipeline();
 
     for (const record of stats) {
-      const { targetType, targetId, deltas } = record;
+      const { targetType, targetId, deltas, isTrendingCandidate } = record;
       let totalScoreDelta = 0;
 
       // --- Tính điểm thay đổi cho Redis ranking ---
@@ -69,10 +69,10 @@ export class StatsIngestionService {
       }
 
       // --- Cập nhật điểm xếp hạng Redis ---
-      if (totalScoreDelta !== 0) {
-        const metaKey = `${targetType.toLowerCase()}:meta:${targetId}`;
-        const scoreKey =
-          targetType === TargetType.POST ? 'post:score' : 'share:score';
+      // --- Cập nhật điểm xếp hạng Redis (chỉ cho POST) ---
+      if (totalScoreDelta !== 0 && isTrendingCandidate) {
+        const metaKey = `post:meta:${targetId}`;
+        const scoreKey = 'post:score';
 
         pipeline.zincrby(scoreKey, totalScoreDelta, targetId);
         pipeline.hset(metaKey, 'lastStatAt', timestamp);

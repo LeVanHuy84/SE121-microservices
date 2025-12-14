@@ -6,6 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ReactionController } from './reaction.controller';
 import { CommentController } from './comment.controller';
 import { ShareController } from './share.controller';
+import { GroupPostController } from './group-post.controller';
+import { ReportController } from './report.controller';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { ShareController } from './share.controller';
     ReactionController,
     CommentController,
     ShareController,
+    GroupPostController,
+    ReportController,
   ],
 })
 export class PostModule {}

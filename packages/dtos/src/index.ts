@@ -11,19 +11,22 @@ export * from './feed';
 export * from './social';
 
 //User DTOs
-export * from './user/create-user.dto';
-export * from './user/get-user.dto';
-export * from './user/update-user.dto';
+export * from './user';
 
 // Notification
 export * from './notification/create-noti.dto';
 export * from './notification/get-noti.dto';
+
+// Group DTOs
+export * from './group';
+
+// Search DTOs
+export * from './search';
 export * from './notification/enums/channel-notication.enum'
 
 // Chat
 export * from './chat';
 
-// Cursor Pagination
-export * from './pagination';
+
 
 
