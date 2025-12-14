@@ -1,8 +1,10 @@
 from odmantic import Model, Field
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import List, Optional, Dict, Any
 from app.enums.analysis_status_enum import AnalysisStatusEnum, RetryScopeEnum
 
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 class EmotionAnalysis(Model):
     userId: str
@@ -13,15 +15,19 @@ class EmotionAnalysis(Model):
     imageUrls: List[str] = Field(default_factory=list)
 
     # 🔁 CHANGE HERE
-    text_emotion: Optional[Dict[str, Any]] = None
-    image_emotions: List[Dict[str, Any]] = Field(default_factory=list)
-    final_emotion: Optional[str] = None
-    final_scores: Optional[Dict[str, float]] = None
+    textEmotion: Optional[Dict[str, Any]] = None
+    imageEmotions: List[Dict[str, Any]] = Field(default_factory=list)
+    finalEmotion: Optional[str] = None
+    finalScores: Optional[Dict[str, float]] = None
 
     status: AnalysisStatusEnum
-    retry_scope: Optional[RetryScopeEnum] = None
-    retry_count: int = 0
-    error_reason: Optional[str] = None
+    retryScope: Optional[RetryScopeEnum] = None
+    retryCount: int = 0
+    errorReason: Optional[str] = None
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    createdAtVN: datetime = Field(
+        default_factory=lambda: datetime.now(VN_TZ).replace(tzinfo=None)
+    )
+
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

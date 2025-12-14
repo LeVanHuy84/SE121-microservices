@@ -1,12 +1,9 @@
 from odmantic import Model
-from datetime import datetime
-from typing import List
-from pydantic import HttpUrl
-
+from datetime import datetime, timezone
 
 class Outbox(Model):
     topic: str
-    event_type: str
+    eventType: str
     payload: dict
     processed: bool = False
-    created_at: datetime = datetime.utcnow()
+    createdAt: datetime = datetime.now(timezone.utc)
