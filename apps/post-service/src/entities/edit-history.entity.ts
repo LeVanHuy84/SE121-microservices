@@ -23,7 +23,9 @@ export class EditHistory {
   })
   editAt: Date;
 
-  @ManyToOne(() => Post, (post) => post.editHistories)
+  @ManyToOne(() => Post, (post) => post.editHistories, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'post_id' })
   post: Post;
 }

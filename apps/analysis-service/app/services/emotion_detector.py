@@ -47,9 +47,9 @@ def analyze_image_cv2(img_bgr: np.ndarray) -> Dict[str, Any]:
             pass
 
     return {
-        "face_count": face_count,
-        "dominant_emotion": dominant.value if dominant else None,
-        "emotion_scores": {k.value: v for k, v in clean_scores.items()}
+        "faceCount": face_count,
+        "dominantEmotion": dominant.value if dominant else None,
+        "emotionScores": {k.value: v for k, v in clean_scores.items()}
     }
 
 
@@ -87,9 +87,9 @@ async def analyze_multiple_image_urls(
 
             results.append({
                 "url": url,
-                "face_count": analysis["face_count"],
-                "dominant_emotion": analysis["dominant_emotion"],
-                "emotion_scores": analysis["emotion_scores"]
+                "faceCount": analysis["faceCount"],
+                "dominantEmotion": analysis["dominantEmotion"],
+                "emotionScores": analysis["emotionScores"]
             })
 
         except Exception as e:

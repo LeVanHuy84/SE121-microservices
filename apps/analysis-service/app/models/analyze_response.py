@@ -1,5 +1,6 @@
-from typing import List, Dict, Any
-from pydantic import BaseModel, HttpUrl, Field
+from typing import List
+from pydantic import BaseModel, HttpUrl, ConfigDict
+from datetime import datetime
 
 class EmotionScores(BaseModel):
     anger: float
@@ -28,3 +29,11 @@ class AnalysisResponse(BaseModel):
     image_emotions: List[ImageEmotion]
     final_emotion: str
     final_scores: EmotionScores
+
+class HistoryItem(BaseModel):
+    id: str
+    content: str
+    finalEmotion: str
+    targetType: str
+    createdAt: datetime
+    status: str

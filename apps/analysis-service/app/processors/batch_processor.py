@@ -81,7 +81,7 @@ class OutboxBatchProcessor:
         for outbox in outboxes:
             try:
                 kafka_message = {
-                    "type": outbox.event_type,
+                    "type": outbox.eventType,
                     "payload": outbox.payload
                 }
 

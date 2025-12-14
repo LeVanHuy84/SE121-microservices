@@ -22,3 +22,5 @@ export * from './group';
 
 // Search DTOs
 export * from './search';
+
+export * from './emotion';

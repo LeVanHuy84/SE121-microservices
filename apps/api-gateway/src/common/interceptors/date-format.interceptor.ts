@@ -8,7 +8,6 @@ import { map } from 'rxjs/operators';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
-import { console } from 'inspector';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);

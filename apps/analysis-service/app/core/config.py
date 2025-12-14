@@ -19,4 +19,9 @@ class Settings:
     KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092")
     KAFKA_CLIENT_ID: str = os.getenv("KAFKA_CLIENT_ID", "analysis_service")
 
+    INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY")
+    if not INTERNAL_SERVICE_KEY:
+        raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
+
+
 settings = Settings()

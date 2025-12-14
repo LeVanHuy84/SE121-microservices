@@ -44,11 +44,11 @@ class EventDispatcher:
                 return None
 
             # 2) Chuẩn hoá dữ liệu gửi qua Outbox (AN TOÀN 100%)
-            final_emotion = getattr(result, "final_emotion", None)
-            final_scores = getattr(result, "final_scores", None) or {}
+            final_emotion = getattr(result, "finalEmotion", None)
+            final_scores = getattr(result, "finalScores", None) or {}
 
             if not isinstance(final_scores, dict):
-                print(f"[DISPATCHER] final_scores is not dict: {type(final_scores)}")
+                print(f"[DISPATCHER] finalScores is not dict: {type(final_scores)}")
                 final_scores = {}
 
             final_score_value = None
@@ -65,7 +65,7 @@ class EventDispatcher:
             # 3) Lưu Outbox
             outbox = Outbox(
                 topic="analysis-result-events",
-                event_type=event_type.value,
+                eventType=event_type.value,
                 payload=outbox_data,
             )
 

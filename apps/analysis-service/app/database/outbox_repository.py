@@ -17,7 +17,7 @@ class OutboxRepository:
         return await self.engine.find(
             Outbox,
             Outbox.processed == False,
-            sort=Outbox.created_at,
+            sort=Outbox.createdAt,
             limit=limit
         )
 

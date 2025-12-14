@@ -35,7 +35,7 @@ class RetryWorker:
         docs = await self.repo.find_failed(max_retry=self.MAX_RETRY)
 
         for doc in docs:
-            scope = doc.retry_scope or RetryScopeEnum.FULL
+            scope = doc.retryScope or RetryScopeEnum.FULL
 
             try:
                 print(f"[RetryWorker] Retrying: {doc.id} | scope={scope}")
@@ -60,15 +60,15 @@ class RetryWorker:
                 # 2. UPDATE DB (SUCCESS)
                 # ===============================
                 await self.repo.update_analysis(doc.id, {
-                    "text_emotion": result["text_emotion"],
-                    "image_emotions": result["image_emotions"],
-                    "final_emotion": result["final_emotion"],
-                    "final_scores": result["final_scores"],
+                    "textEmotion": result["textEmotion"],
+                    "imageEmotions": result["imageEmotions"],
+                    "finalEmotion": result["finalEmotion"],
+                    "finalScores": result["finalScores"],
                     "status": AnalysisStatusEnum.SUCCESS,
-                    "retry_count": doc.retry_count + 1,
-                    "retry_scope": None,
-                    "error_reason": None,
-                    "updated_at": datetime.now(timezone.utc),
+                    "retryCount": doc.retryCount + 1,
+                    "retryScope": None,
+                    "errorReason": None,
+                    "updatedAt": datetime.now(timezone.utc),
                 })
 
                 # ===============================
@@ -81,13 +81,13 @@ class RetryWorker:
                         payload={
                             "targetId": str(doc.targetId),
                             "targetType": doc.targetType,
-                            "finalEmotion": result["final_emotion"],
+                            "finalEmotion": result["finalEmotion"],
                         }
                     )
                 )
 
             except Exception as e:
-                new_count = doc.retry_count + 1
+                new_count = doc.retryCount + 1
 
                 status = (
                     AnalysisStatusEnum.FAILED
@@ -99,9 +99,9 @@ class RetryWorker:
                 # 4. UPDATE DB (FAILED)
                 # ===============================
                 await self.repo.update_analysis(doc.id, {
-                    "retry_count": new_count,
+                    "retryCount": new_count,
                     "status": status,
-                    "error_reason": str(e),
+                    "errorReason": str(e),
                     # giữ nguyên retry_scope để lần sau retry đúng loại
-                    "updated_at": datetime.now(timezone.utc),
+                    "updatedAt": datetime.now(timezone.utc),
                 })
