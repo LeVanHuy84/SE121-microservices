@@ -23,10 +23,10 @@ class HandleEventService:
                 content=text,
                 imageUrls=image_urls,
 
-                text_emotion=result.get("text_emotion"),
-                image_emotions=result.get("image_emotions", []),
-                final_emotion=result.get("final_emotion"),
-                final_scores=result.get("final_scores"),
+                textEmotion=result.get("textEmotion"),
+                imageEmotions=result.get("imageEmotions", []),
+                finalEmotion=result.get("finalEmotion"),
+                finalScores=result.get("finalScores"),
 
                 status=AnalysisStatusEnum.SUCCESS
             )
@@ -73,30 +73,30 @@ class HandleEventService:
             update_payload = {
                 "content": event["content"],
 
-                "text_emotion": result.get("text_emotion"),
-                "final_emotion": result.get("final_emotion"),
-                "final_scores": result.get("final_scores"),
+                "textEmotion": result.get("textEmotion"),
+                "finalEmotion": result.get("finalEmotion"),
+                "finalScores": result.get("finalScores"),
 
                 "status": AnalysisStatusEnum.SUCCESS,
-                "error_reason": None,
-                "updated_at": datetime.now(timezone.utc)
+                "errorReason": None,
+                "updatedAt": datetime.now(timezone.utc)
             }
 
         except RetryableException as e:
             update_payload = {
                 "content": event["content"],
                 "status": AnalysisStatusEnum.FAILED,
-                "retry_scope": RetryScopeEnum.TEXT_ONLY,
-                "retry_count": 0,
-                "error_reason": str(e),
-                "updated_at": datetime.now(timezone.utc)
+                "retryScope": RetryScopeEnum.TEXT_ONLY,
+                "retryCount": 0,
+                "errorReason": str(e),
+                "updatedAt": datetime.now(timezone.utc)
             }
 
         except Exception as e:
             update_payload = {
                 "status": AnalysisStatusEnum.PERMANENT_FAILED,
-                "error_reason": str(e),
-                "updated_at": datetime.now(timezone.utc)
+                "errorReason": str(e),
+                "updatedAt": datetime.now(timezone.utc)
             }
 
         return await self.repo.update_analysis(str(doc.id), update_payload)

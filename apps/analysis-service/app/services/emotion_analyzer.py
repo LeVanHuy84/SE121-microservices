@@ -16,7 +16,7 @@ class EmotionAnalyzer:
 
         # Text classifier vẫn sync → giữ nguyên
         text_result = text_classifier.classify_emotion(text)
-        text_scores = text_result["emotion_scores"]
+        text_scores = text_result["emotionScores"]
 
         # Image FER là async → phải await
         image_results = await analyze_multiple_image_urls(image_urls)
@@ -35,7 +35,7 @@ class EmotionAnalyzer:
 
         image_scores_avg = self._average_image_scores(image_results)
 
-        total_face_count = sum(item.get("face_count", 0) for item in image_results)
+        total_face_count = sum(item.get("faceCount", 0) for item in image_results)
 
         final_scores = self._fusion(
             text_scores=text_scores,
@@ -46,10 +46,10 @@ class EmotionAnalyzer:
         final_emotion = max(final_scores, key=final_scores.get)
 
         return {
-            "text_emotion": text_result,
-            "image_emotions": image_results,
-            "final_emotion": final_emotion,
-            "final_scores": final_scores
+            "textEmotion": text_result,
+            "imageEmotions": image_results,
+            "finalEmotion": final_emotion,
+            "finalScores": final_scores
         }
 
     # =========================================
@@ -58,12 +58,12 @@ class EmotionAnalyzer:
     def update_emotion_analysis(self, emotion_analysis: EmotionAnalysis, new_text: str):
 
         text_result = text_classifier.classify_emotion(new_text)
-        text_scores = text_result["emotion_scores"]
+        text_scores = text_result["emotionScores"]
 
         image_emotions = emotion_analysis.image_emotions or []
 
         image_scores_avg = self._average_image_scores(image_emotions)
-        total_face_count = sum(item.get("face_count", 0) for item in image_emotions)
+        total_face_count = sum(item.get("faceCount", 0) for item in image_emotions)
 
         final_scores = self._fusion(
             text_scores=text_scores,
@@ -74,10 +74,10 @@ class EmotionAnalyzer:
         final_emotion = max(final_scores, key=final_scores.get)
 
         return {
-            "text_emotion": text_result,
-            "image_emotions": image_emotions,
-            "final_emotion": final_emotion,
-            "final_scores": final_scores
+            "textEmotion": text_result,
+            "imageEmotions": image_emotions,
+            "finalEmotion": final_emotion,
+            "finalScores": final_scores
         }
 
     # =========================================
@@ -89,7 +89,7 @@ class EmotionAnalyzer:
             count = 0
 
             for item in image_results or []:
-                scores = item.get("emotion_scores")
+                scores = item.get("emotionScores")
                 if not scores:
                     continue
 
