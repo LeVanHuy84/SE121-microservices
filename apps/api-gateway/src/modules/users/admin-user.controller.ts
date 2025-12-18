@@ -25,7 +25,7 @@ export class AdminUserController {
   ) {}
 
   @Get('system-users')
-  @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   getSystemUsers(@Query() filter: SystemUserQueryDTO) {
     return this.client.send('get-system-users', filter);
   }

@@ -1,4 +1,5 @@
 export enum SystemRole {
-  ADMIN = 'ADMIN',
-  MODERATOR = 'MODERATOR',
+  ADMIN = 'admin',
+  MODERATOR = 'moderator',
+  USER = 'user',
 }

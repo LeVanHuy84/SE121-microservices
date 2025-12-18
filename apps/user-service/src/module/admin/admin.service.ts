@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import {
   CreateSystemUserDTO,
-  InferUserPayload,
   LogType,
   PageResponse,
   SystemRole,
@@ -11,7 +10,7 @@ import {
   UserEventType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { and, count, eq, ilike, inArray, SQL } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, or, sql, SQL } from 'drizzle-orm';
 import { USER_STATUS } from 'src/constants';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
@@ -20,7 +19,6 @@ import { users } from 'src/drizzle/schema/users.schema';
 import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import { OutboxService } from '../event/outbox.service';
 import { CLERK_CLIENT } from '../clerk/clerk.module';
-import { log } from 'console';
 
 @Injectable()
 export class AdminService {
@@ -187,7 +185,7 @@ export class AdminService {
   async getSystemUsers(
     filter: SystemUserQueryDTO
   ): Promise<PageResponse<SystemUserDTO>> {
-    const { email, limit = 10, page = 1, role } = filter;
+    const { query, limit = 10, page = 1, role } = filter;
     const offset = (page - 1) * limit;
 
     const conditions: SQL[] = [];
@@ -202,10 +200,16 @@ export class AdminService {
     }
 
     // ===== SEARCH QUERY =====
-    if (email) {
-      const keyword = `%${email}%`;
+    const searchCondition = query
+      ? or(
+          ilike(sql`coalesce(${profiles.firstName}, '')`, `%${query}%`),
+          ilike(sql`coalesce(${profiles.lastName}, '')`, `%${query}%`),
+          ilike(users.email, `%${query}%`)
+        )
+      : undefined;
 
-      conditions.push(ilike(users.email, keyword));
+    if (searchCondition) {
+      conditions.push(searchCondition);
     }
 
     const [{ total }] = await this.db
@@ -222,6 +226,7 @@ export class AdminService {
         email: users.email,
         isActive: users.isActive,
         role: roles.name,
+        status: users.status,
         firstName: profiles.firstName,
         lastName: profiles.lastName,
       })

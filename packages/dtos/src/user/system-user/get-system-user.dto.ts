@@ -1,5 +1,5 @@
 import { Expose } from 'class-transformer';
-import { SystemRole } from '../enums';
+import { SystemRole, UserStatus } from '../enums';
 
 export class SystemUserDTO {
   @Expose()
@@ -12,4 +12,8 @@ export class SystemUserDTO {
   lastName: string;
   @Expose()
   role: SystemRole;
+  @Expose()
+  status: UserStatus;
+  @Expose()
+  createdAt: Date;
 }
