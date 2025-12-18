@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ChatController } from './chat.controller';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 
-import { Kafka, logLevel, Producer } from 'kafkajs';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ChatStreamConsumer } from './chat.consumer';
 

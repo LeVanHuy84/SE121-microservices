@@ -174,29 +174,26 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         }
         case 'conversation.memberJoined': {
           const data: {
-            conversationId: string;
-            joinedUserId: string;
-            participants: string[];
+            conversation: ConversationResponseDTO;
+            joinUserIds: string[];
           } = JSON.parse(payload);
 
           this.chatGateway.emitMemberJoined(
-            data.conversationId,
-            data.joinedUserId,
-            data.participants
+            data.conversation,
+            data.joinUserIds
           );
           break;
         }
         case 'conversation.memberLeft': {
           const data: {
             conversationId: string;
-            leftUserId: string;
-            participants: string[];
+            leftUserIds: string[];
+          
           } = JSON.parse(payload);
 
           this.chatGateway.emitMemberLeft(
             data.conversationId,
-            data.leftUserId,
-            data.participants
+            data.leftUserIds
           );
           break;
         }

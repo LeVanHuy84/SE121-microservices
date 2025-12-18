@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
@@ -65,13 +66,13 @@ export class ChatController {
     );
   }
 
-  @Patch('conversations/:conversationId')
+  @Put('conversations/:conversationId')
   updateConversation(
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string,
     @Body() dto: UpdateConversationDTO
   ) {
-    return this.chatClient.emit('updateConversation', {
+    return this.chatClient.send('updateConversation', {
       userId,
       conversationId,
       dto,
@@ -89,7 +90,7 @@ export class ChatController {
         conversationId,
       })
     );
-    this.chatWebsocket.emitConversationHidden(conversationId, userId);
+    
     return { success: true };
   }
 
@@ -104,7 +105,7 @@ export class ChatController {
         conversationId,
       })
     );
-    this.chatWebsocket.emitConversationUnhidden(conversationId, userId);
+  
     return { success: true };
   }
 
@@ -113,7 +114,7 @@ export class ChatController {
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string
   ) {
-    return this.chatClient.emit('leaveConversation', {
+    return this.chatClient.send('leaveConversation', {
       userId,
       conversationId,
     });
@@ -124,7 +125,7 @@ export class ChatController {
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string
   ) {
-    return this.chatClient.emit('deleteConversation', {
+    return this.chatClient.send('deleteConversation', {
       userId,
       conversationId,
     });

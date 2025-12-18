@@ -16,7 +16,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private sub: Redis; // subscriber cho presence:heartbeat
 
   // config
-  private readonly OFFLINE_THRESHOLD_MS = 45_000; // > heartbeat interval FE
+  private readonly OFFLINE_THRESHOLD_MS = 30_000; // > heartbeat interval FE
 
 
   private readonly lastSeenZSetKey = 'presence:lastSeen';

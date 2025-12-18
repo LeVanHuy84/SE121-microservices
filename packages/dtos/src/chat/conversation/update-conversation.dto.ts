@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsOptional, IsString } from "class-validator";
+import { ArrayUnique, IsArray, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { AttachmentDTO } from "../message";
 
 export class UpdateConversationDTO {
@@ -13,10 +13,15 @@ export class UpdateConversationDTO {
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
   participantsToAdd?: string[];
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
   participantsToRemove?: string[];
-
 }

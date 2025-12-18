@@ -11,12 +11,12 @@ export class CreateConversationDTO {
   @IsArray()
   participants: string[];
 
-  @IsOptional()
   @IsString()
   groupName?: string;
 
   @IsOptional()
   @Type(() => AttachmentDTO)
+  
   groupAvatar?: AttachmentDTO;
 
 }

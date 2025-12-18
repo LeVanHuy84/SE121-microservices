@@ -26,7 +26,6 @@ export class MessageCacheService {
   private getConvMsgKeys(conversationId: string) {
     return {
       zKey: `conv:${conversationId}:messages:z`,
-      dataKey: `conv:${conversationId}:messages:data`,
       emptyKey: `conv:${conversationId}:messages:empty`,
     };
   }
@@ -43,6 +42,10 @@ export class MessageCacheService {
   async setMessageDetail(dto: MessageResponseDTO): Promise<void> {
     const { detailKey } = this.getMessageKeys(dto._id);
     await this.redis.set(detailKey, JSON.stringify(dto), 'EX', TTL);
+  }
+  async removeMessageDetail(messageId: string): Promise<void> {
+    const { detailKey } = this.getMessageKeys(messageId);
+    await this.redis.del(detailKey);
   }
 
   // ===== MESSAGE LIST CACHE (per conversation) =====
@@ -62,11 +65,39 @@ export class MessageCacheService {
     await this.redis.del(emptyKey);
   }
 
-  /**
-   * Lấy 1 page messages từ cache theo cursor (createdAt)
-   * - sort: mới → cũ (desc)
-   * - cursor: timestamp (ms) của message cuối cùng page trước
-   */
+  // ===== LIST (ZSET) =====
+
+  async upsertMessageToConversationList(
+    conversationId: string,
+    dto: MessageResponseDTO,
+  ): Promise<void> {
+    const { zKey, emptyKey } = this.getConvMsgKeys(conversationId);
+    const msgId = dto._id.toString();
+    const score = new Date(dto.createdAt).getTime();
+
+    const pipeline = this.redis.pipeline();
+    pipeline.zadd(zKey, score, msgId);
+
+    // giữ ~200 messages mới nhất
+    pipeline.zremrangebyrank(zKey, 0, -201);
+
+    const ttl = TTL + Math.floor(Math.random() * 300);
+    pipeline.expire(zKey, ttl);
+    pipeline.del(emptyKey);
+
+    await pipeline.exec();
+  }
+
+  async removeMessageFromConversation(
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const { zKey } = this.getConvMsgKeys(conversationId);
+    await this.redis.zrem(zKey, messageId);
+  }
+
+  // ===== PAGE FETCH (ZSET -> ids -> MGET details) =====
+
   async getMessagesPage(
     conversationId: string,
     cursor: string | null,
@@ -76,7 +107,7 @@ export class MessageCacheService {
     hasNext: boolean;
     nextCursor: string | null;
   } | null> {
-    const { zKey, dataKey } = this.getConvMsgKeys(conversationId);
+    const { zKey } = this.getConvMsgKeys(conversationId);
 
     let maxScore: string | number = '+inf';
     if (cursor) maxScore = `(${cursor}`;
@@ -95,10 +126,12 @@ export class MessageCacheService {
     const hasNext = ids.length > limit;
     const selected = ids.slice(0, limit);
 
-    const raw = await this.redis.hmget(dataKey, ...selected);
+    const detailKeys = selected.map((id) => this.getMessageKeys(id).detailKey);
+    const raw = await this.redis.mget(...detailKeys);
+
     const items: CachedMessage[] = raw
-      .filter((c): c is string => !!c)
-      .map((c) => JSON.parse(c));
+      .filter((v): v is string => !!v)
+      .map((v) => JSON.parse(v));
 
     if (!items.length) return null;
 
@@ -112,8 +145,9 @@ export class MessageCacheService {
   }
 
   /**
-   * Cache 1 list messages vào ZSET + HASH của conversation
-   * - giả định tất cả messages cùng conversationId
+   * Cache một list messages vào:
+   * - msg:{id}:detail
+   * - conv:{id}:messages:z
    */
   async cacheMessages(
     conversationId: string,
@@ -121,51 +155,40 @@ export class MessageCacheService {
   ): Promise<void> {
     if (!items.length) return;
 
-    const { zKey, dataKey, emptyKey } = this.getConvMsgKeys(conversationId);
-    const pipeline = this.redis.pipeline();
+    // pipeline 1: set details
+    const p1 = this.redis.pipeline();
+    for (const item of items) {
+      const { detailKey } = this.getMessageKeys(item._id.toString());
+      p1.set(detailKey, JSON.stringify(item), 'EX', TTL);
+    }
+    await p1.exec();
+
+    // pipeline 2: upsert zset
+    const { zKey, emptyKey } = this.getConvMsgKeys(conversationId);
+    const p2 = this.redis.pipeline();
 
     for (const item of items) {
       const id = item._id.toString();
       const score = new Date(item.createdAt).getTime();
-
-      pipeline.zadd(zKey, score, id);
-      pipeline.hset(dataKey, id, JSON.stringify(item));
+      p2.zadd(zKey, score, id);
     }
 
-    // giữ lại khoảng 200 messages mới nhất (tuỳ bà chỉnh)
-    pipeline.zremrangebyrank(zKey, 0, -201);
+    p2.zremrangebyrank(zKey, 0, -201);
 
     const ttl = TTL + Math.floor(Math.random() * 300);
-    pipeline.expire(zKey, ttl);
-    pipeline.expire(dataKey, ttl);
-    pipeline.del(emptyKey);
+    p2.expire(zKey, ttl);
+    p2.del(emptyKey);
 
-    await pipeline.exec();
+    await p2.exec();
   }
 
-  /**
-   * Xoá 1 message khỏi cache list conversation
-   * (không đụng tới detail cache)
-   */
-  async removeMessageFromConversation(
-    conversationId: string,
-    messageId: string,
-  ): Promise<void> {
-    const { zKey, dataKey } = this.getConvMsgKeys(conversationId);
-    const pipeline = this.redis.pipeline();
-    pipeline.zrem(zKey, messageId);
-    pipeline.hdel(dataKey, messageId);
-    await pipeline.exec();
-  }
-
-  /**
-   * Xoá toàn bộ cache messages của 1 conversation (nếu cần)
-   */
   async clearConversationMessages(conversationId: string): Promise<void> {
-    const { zKey, dataKey, emptyKey } = this.getConvMsgKeys(conversationId);
+    const { zKey, emptyKey } = this.getConvMsgKeys(conversationId);
+
+    // NOTE: detail msg keys không thể biết hết để del sạch,
+    // thường chỉ cần clear zset + empty flag là đủ.
     const pipeline = this.redis.pipeline();
     pipeline.del(zKey);
-    pipeline.del(dataKey);
     pipeline.del(emptyKey);
     await pipeline.exec();
   }

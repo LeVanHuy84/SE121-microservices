@@ -186,22 +186,6 @@ export class ReactionService {
     return true;
   }
 
-  // --------------------------------------------------
-  // Get reactedType batch by userId + targetIds
-  // --------------------------------------------------
-  async getReactedTypesBatch(
-    userId: string,
-    targetType: TargetType,
-    targetIds: string[]
-  ): Promise<Record<string, ReactionType>> {
-    if (!targetIds.length) return {};
-    const reactions = await this.reactionRepo.find({
-      where: { userId, targetId: In(targetIds), targetType },
-    });
-    return Object.fromEntries(
-      reactions.map((r) => [r.targetId, r.reactionType])
-    );
-  }
 
   // --------------------------------------------------
   // Get reactedType batch by userId + targetIds

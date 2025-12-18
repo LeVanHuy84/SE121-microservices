@@ -35,5 +35,5 @@ export class ConversationResponseDTO {
   lastSeenMessageId?: Map<string, string>;
 
   @Expose()
-  hideFor?: string[];
+  hiddenFor?: string[];
 }

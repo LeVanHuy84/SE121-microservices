@@ -189,7 +189,9 @@ export class ChatGateway
   }
   broadcastNewMessage(msg: MessageResponseDTO) {
     this.broadcastToConversation(msg.conversationId, 'message.new', msg);
-    this.logger.debug(`Broadcasted new message ${msg._id} to conversation ${msg.conversationId}`);
+    this.logger.debug(
+      `Broadcasted new message ${msg._id} to conversation ${msg.conversationId}`
+    );
   }
 
   broadcastMessageUpdated(msg: MessageResponseDTO) {
@@ -231,7 +233,8 @@ export class ChatGateway
   }
 
   emitConversationUpdated(conv: ConversationResponseDTO) {
-    this.emitToUsers(conv.participants, 'conversation.updated', conv);
+    const visibleUsers = this.getVisibleUsers(conv);
+    this.emitToUsers(visibleUsers, 'conversation.updated', conv);
   }
 
   emitConversationDeleted(convId: string, participants: string[]) {
@@ -241,38 +244,33 @@ export class ChatGateway
       .socketsLeave(`conversation:${convId}`);
   }
 
-  emitConversationHidden(convId: string, userId: string) {
-    this.server
-      .to(`user:${userId}`)
-      .emit('conversation.hidden', { id: convId });
+  // emitConversationHidden(convId: string, userId: string) {
+  //   this.server
+  //     .to(`user:${userId}`)
+  //     .emit('conversation.hidden', { id: convId });
 
-    this.server.to(`user:${userId}`).socketsLeave(`conversation:${convId}`);
-  }
+  //   this.server.to(`user:${userId}`).socketsLeave(`conversation:${convId}`);
+  // }
 
-  emitConversationUnhidden(convId: string, userId: string) {
-    this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
-  }
+  // emitConversationUnhidden(convId: string, userId: string) {
+  //   this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
+  // }
 
   emitMemberLeft(
     conversationId: string,
-    userId: string,
     participants: string[]
   ) {
     this.emitToUsers(participants, 'conversation.memberLeft', {
       conversationId,
-      userId,
     });
+    this.logger.debug(`Emitted memberLeft for conversation ${conversationId} to [${participants.join(', ')}]`);
   }
 
   emitMemberJoined(
-    conversationId: string,
-    userId: string,
+    conversation: ConversationResponseDTO,
     participants: string[]
   ) {
-    this.emitToUsers(participants, 'conversation.memberJoined', {
-      conversationId,
-      userId,
-    });
+    this.emitToUsers(participants, 'conversation.memberJoined', conversation);
   }
 
   // ========== Handle presence update từ presence-service ==========
@@ -336,5 +334,13 @@ export class ChatGateway
     });
 
     return snapshot;
+  }
+
+  private getVisibleUsers(conv: ConversationResponseDTO): string[] {
+    const participants = conv.participants ?? [];
+    const hiddenFor = ((conv as any).hiddenFor ?? []) as string[];
+    if (!hiddenFor.length) return participants;
+    const hiddenSet = new Set(hiddenFor);
+    return participants.filter((u) => !hiddenSet.has(u));
   }
 }

@@ -35,7 +35,7 @@ import { SearchModule } from './modules/search/search.module';
       throttlers: [
         {
           ttl: 60000,
-          limit: 50,
+          limit: 200,
         },
       ],
     }),
@@ -58,6 +58,7 @@ import { SearchModule } from './modules/search/search.module';
     }),
     GroupModule,
     SearchModule,
+    ChatModule
   ],
 
   providers: [

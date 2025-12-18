@@ -148,7 +148,11 @@ export class MessageService {
 
     const dto = populateAndMapMessage(msg)!;
 
-    await this.msgCache.setMessageDetail(dto);
+     await Promise.all([
+       this.msgCache.setMessageDetail(dto),
+      
+       this.msgCache.upsertMessageToConversationList(dto.conversationId, dto),
+     ]);
 
     return dto;
   }
@@ -170,12 +174,12 @@ export class MessageService {
 
     const messageId = snowflakeId();
 
-    // 1️⃣ Check idempotent
+   
     const existing = await this.messageModel.findOne({ messageId }).exec();
     if (existing) {
       return populateAndMapMessage(existing)!;
     }
-    console.log('Dto attachments:', dto.attachments);
+    
 
     const msg = new this.messageModel({
       conversationId: conv._id,
@@ -205,7 +209,7 @@ export class MessageService {
     // cache message detail + list + publish event
     Promise.all([
       this.msgCache.setMessageDetail(dtoMsg),
-      this.msgCache.cacheMessages(dto.conversationId, [dtoMsg]),
+      this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
       this.messageStreamProducer.publishMessageCreated(dtoMsg),
     ]);
 
@@ -260,8 +264,11 @@ export class MessageService {
       // để GET /messages/:id luôn thấy trạng thái mới (isDeleted, deletedAt, ...)
       this.msgCache.setMessageDetail(dtoMsg),
 
-      // update item trong cached list (hash + giữ nguyên zset)
-      this.msgCache.cacheMessages(msg.conversationId.toString(), [dtoMsg]),
+
+      this.msgCache.upsertMessageToConversationList(
+        dtoMsg.conversationId,
+        dtoMsg,
+      ),
       this.messageStreamProducer.publishMessageDeleted(dtoMsg),
     ]);
     return dtoMsg;
@@ -316,34 +323,7 @@ export class MessageService {
   //   return dtoMsg;
   // }
 
-  // ============= MARK READ =============
 
-  async markConversationAsRead(
-    userId: string,
-    conversationId: string,
-  ): Promise<void> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
 
-    // đánh dấu seen tất cả message chưa seen của user này
-    await this.messageModel.updateMany(
-      {
-        conversationId: conv._id,
-        seenBy: { $ne: userId },
-      },
-      {
-        $addToSet: { seenBy: userId },
-        $set: { status: 'seen' },
-      },
-    );
-
-    // tuỳ bà muốn lưu meta gì trong conversation
-    // ví dụ: lastReadAt map theo user
-    // conv.lastReadAt = conv.lastReadAt || new Map();
-    // conv.lastReadAt.set(userId, new Date());
-    // await conv.save();
-  }
+  
 }

@@ -13,7 +13,6 @@ async function bootstrap() {
 
   app.useGlobalFilters(new GatewayExceptionsFilter());
   app.useGlobalInterceptors(new DateFormatInterceptor());
-  app.useGlobalInterceptors(new DateFormatInterceptor());
   // set global prefix
   app.setGlobalPrefix('api/v1');
 

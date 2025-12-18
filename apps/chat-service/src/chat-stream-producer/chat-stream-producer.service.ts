@@ -64,9 +64,8 @@ export class ChatStreamProducerService {
 
   // Member joined: 1 user mới vào group
   async publishConversationMemberJoined(data: {
-    conversationId: string;
-    joinedUserId: string;
-    participants: string[]; // list userId còn lại
+    conversation: ConversationResponseDTO;
+    joinedUserIds: string[];
   }) {
     await this.redis.xadd(
       this.streamKey,
@@ -76,14 +75,14 @@ export class ChatStreamProducerService {
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.memberJoined for conversationId=${data.conversationId}, joinedUserId=${data.joinedUserId}`);
+    this.logger.debug(`Published conversation.memberJoined for conversationId=${data.conversation._id}, joinedUserIds=${data.joinedUserIds.join(',')}`);
   }
 
   // Member left: 1 user rời group / bị kick
   async publishConversationMemberLeft(data: {
     conversationId: string;
-    leftUserId: string;
-    participants: string[];
+    leftUserIds: string[];
+
   }) {
     await this.redis.xadd(
       this.streamKey,
@@ -93,7 +92,7 @@ export class ChatStreamProducerService {
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.memberLeft for conversationId=${data.conversationId}, leftUserId=${data.leftUserId}`);
+    this.logger.debug(`Published conversation.memberLeft for conversationId=${data.conversationId}, leftUserIds=${data.leftUserIds.join(',')}`);
   }
 
   // Xoá hẳn 1 conversation (thường là group)

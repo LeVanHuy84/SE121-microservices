@@ -5,7 +5,7 @@ import { ConversationResponseDTO } from '@repo/dtos';
 
 const TTL = 60 * 5; // 5 phút
 
-// Dữ liệu conv cache trong Redis
+// Dữ liệu conv cache trong Redis (detail)
 type CachedConversation = ConversationResponseDTO & {
   participants: string[];
   createdAt: string | Date;
@@ -23,7 +23,6 @@ export class ConversationCacheService {
   private getUserConvKeys(userId: string) {
     return {
       zKey: `user:${userId}:conversations:z`,
-      dataKey: `user:${userId}:conversations:data`,
       emptyKey: `user:${userId}:conversations:empty`,
     };
   }
@@ -31,7 +30,6 @@ export class ConversationCacheService {
   private getConvKeys(convId: string) {
     return {
       detailKey: `conv:${convId}:detail`,
-      participantsKey: `conv:${convId}:participants`,
     };
   }
 
@@ -47,37 +45,18 @@ export class ConversationCacheService {
   }
 
   async setConversationDetail(dto: ConversationResponseDTO): Promise<void> {
-    const { detailKey } = this.getConvKeys(dto._id.toString());
+    const convId = dto._id.toString();
+    const { detailKey } = this.getConvKeys(convId);
     await this.redis.set(detailKey, JSON.stringify(dto), 'EX', TTL);
   }
 
-  // ===== PARTICIPANTS CACHE =====
-
-  async getParticipants(conversationId: string): Promise<string[] | null> {
-    const { participantsKey } = this.getConvKeys(conversationId);
-    const members = await this.redis.smembers(participantsKey);
-    if (!members.length) return null;
-    return members;
+  async removeConversationDetail(convId: string): Promise<void> {
+    const { detailKey } = this.getConvKeys(convId);
+    await this.redis.del(detailKey);
   }
 
-  async setParticipants(
-    conversationId: string,
-    participants: string[],
-  ): Promise<void> {
-    const { participantsKey } = this.getConvKeys(conversationId);
-    if (!participants.length) {
-      await this.redis.del(participantsKey);
-      return;
-    }
 
-    const pipeline = this.redis.pipeline();
-    pipeline.del(participantsKey);
-    pipeline.sadd(participantsKey, ...participants);
-    pipeline.expire(participantsKey, TTL);
-    await pipeline.exec();
-  }
-
-  // ===== EMPTY FLAG (user không có conv) =====
+  // ===== EMPTY FLAG =====
 
   async hasEmptyFlag(userId: string): Promise<boolean> {
     const { emptyKey } = this.getUserConvKeys(userId);
@@ -94,8 +73,49 @@ export class ConversationCacheService {
     await this.redis.del(emptyKey);
   }
 
-  // ===== USER CONVERSATIONS PAGE (ZSET + HASH) =====
+  // ===== USER LIST (ZSET) =====
 
+  /**
+   * Upsert 1 conversation vào list của user (ZSET).
+   * - score = updatedAt (hoặc createdAt)
+   * - member = convId
+   */
+  async upsertConversationToUserList(
+    userId: string,
+    dto: ConversationResponseDTO,
+  ): Promise<void> {
+    const { zKey, emptyKey } = this.getUserConvKeys(userId);
+    const convId = dto._id.toString();
+
+    const score = new Date(
+      (dto as any).updatedAt ?? (dto as any).createdAt,
+    ).getTime();
+
+    const pipeline = this.redis.pipeline();
+    pipeline.zadd(zKey, score, convId);
+
+    // giữ tối đa 100 conv gần nhất
+    pipeline.zremrangebyrank(zKey, 0, -101);
+
+    const ttl = TTL + Math.floor(Math.random() * 300);
+    pipeline.expire(zKey, ttl);
+    pipeline.del(emptyKey);
+
+    await pipeline.exec();
+  }
+
+  async removeConversationFromUser(userId: string, convId: string) {
+    const { zKey, emptyKey } = this.getUserConvKeys(userId);
+    const pipeline = this.redis.pipeline();
+    pipeline.zrem(zKey, convId);
+    pipeline.del(emptyKey);
+    await pipeline.exec();
+  }
+
+  /**
+   * Lấy page conversations từ list cache:
+   * ZSET -> ids -> MGET detail
+   */
   async getUserConversationsPage(
     userId: string,
     cursor: string | null,
@@ -105,7 +125,7 @@ export class ConversationCacheService {
     hasNext: boolean;
     nextCursor: string | null;
   } | null> {
-    const { zKey, dataKey } = this.getUserConvKeys(userId);
+    const { zKey } = this.getUserConvKeys(userId);
 
     let maxScore: string | number = '+inf';
     if (cursor) maxScore = `(${cursor}`;
@@ -124,10 +144,12 @@ export class ConversationCacheService {
     const hasNext = ids.length > limit;
     const selected = ids.slice(0, limit);
 
-    const raw = await this.redis.hmget(dataKey, ...selected);
+    const detailKeys = selected.map((id) => this.getConvKeys(id).detailKey);
+    const raw = await this.redis.mget(...detailKeys);
+
     const items: CachedConversation[] = raw
-      .filter((c): c is string => !!c)
-      .map((c) => JSON.parse(c));
+      .filter((v): v is string => !!v)
+      .map((v) => JSON.parse(v));
 
     if (!items.length) return null;
 
@@ -140,16 +162,18 @@ export class ConversationCacheService {
     return { items, hasNext, nextCursor };
   }
 
-  // ===== CACHE CONVERSATIONS VÀO LIST USER =====
-
+  /**
+   * Cache list ZSET cho nhiều users (chỉ upsert list, không store data hash nữa).
+   */
   async cacheConversationsForUsers(
     users: string[] | string,
     items: ConversationResponseDTO[],
   ): Promise<void> {
     const userList = Array.isArray(users) ? users : [users];
 
+    // ưu tiên pipeline: mỗi user 1 pipeline để giảm round-trip
     for (const userId of userList) {
-      const { zKey, dataKey, emptyKey } = this.getUserConvKeys(userId);
+      const { zKey, emptyKey } = this.getUserConvKeys(userId);
       const pipeline = this.redis.pipeline();
 
       for (const item of items) {
@@ -157,53 +181,35 @@ export class ConversationCacheService {
         const score = new Date(
           (item as any).updatedAt ?? (item as any).createdAt,
         ).getTime();
-
         pipeline.zadd(zKey, score, id);
-        pipeline.hset(dataKey, id, JSON.stringify(item));
       }
 
       pipeline.zremrangebyrank(zKey, 0, -101);
       const ttl = TTL + Math.floor(Math.random() * 300);
       pipeline.expire(zKey, ttl);
-      pipeline.expire(dataKey, ttl);
       pipeline.del(emptyKey);
 
       await pipeline.exec();
     }
   }
 
-  // ===== REMOVE 1 CONV KHỎI CACHE CỦA 1 USER (hide / delete local) =====
-
-  async removeConversationFromUser(
-    userId: string,
-    convId: string,
-  ): Promise<void> {
-    const { zKey, dataKey, emptyKey } = this.getUserConvKeys(userId);
-    const pipeline = this.redis.pipeline();
-    pipeline.zrem(zKey, convId);
-    pipeline.hdel(dataKey, convId);
-    pipeline.del(emptyKey);
-    await pipeline.exec();
-  }
-
-  // ===== XÓA CACHE GLOBALLY KHI XÓA CONV =====
-
-  async removeConversationGlobally(
-    convId: string,
-    participants: string[],
-  ): Promise<void> {
-    const { detailKey, participantsKey } = this.getConvKeys(convId);
+  /**
+   * Xóa cache globally khi xóa conv:
+   * - remove khỏi ZSET của từng participant
+   * - delete detail + participants set
+   */
+  async removeConversationGlobally(convId: string, participants: string[]) {
+    const { detailKey } = this.getConvKeys(convId);
     const pipeline = this.redis.pipeline();
 
     for (const userId of participants) {
-      const { zKey, dataKey, emptyKey } = this.getUserConvKeys(userId);
+      const { zKey, emptyKey } = this.getUserConvKeys(userId);
       pipeline.zrem(zKey, convId);
-      pipeline.hdel(dataKey, convId);
       pipeline.del(emptyKey);
     }
 
     pipeline.del(detailKey);
-    pipeline.del(participantsKey);
+
 
     await pipeline.exec();
   }
