@@ -1,6 +1,8 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ChannelNotification } from '@repo/dtos';
+import { Channel } from 'diagnostics_channel';
 import Redis from 'ioredis';
 import { Model } from 'mongoose';
 import { UserPreference } from 'src/mongo/schema/user-preference.schema';
@@ -27,7 +29,7 @@ export class UserPreferenceService {
     // default preference
     const def = {
       userId,
-      allowedChannels: ['web'],
+      allowedChannels: [ChannelNotification.WEBSOCKET],
       limits: { dailyLimit: 100 },
     };
     await this.redis.set(key, JSON.stringify(def), 'EX', 60 * 5);

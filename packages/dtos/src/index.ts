@@ -23,4 +23,15 @@ export * from './group';
 // Search DTOs
 export * from './search';
 
+export * from './notification/enums/channel-notication.enum'
+
+// Chat
+export * from './chat';
+
+
+
+
+
+
 export * from './emotion';
+
