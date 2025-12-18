@@ -37,8 +37,8 @@ class TextClassifier:
         dominant = max(emotion_scores, key=emotion_scores.get)
 
         return {
-            "dominant_emotion": dominant.value,
-            "emotion_scores": {k.value: v for k, v in emotion_scores.items()}
+            "dominantEmotion": dominant.value,
+            "emotionScores": {k.value: v for k, v in emotion_scores.items()}
         }
 
 text_classifier = TextClassifier()

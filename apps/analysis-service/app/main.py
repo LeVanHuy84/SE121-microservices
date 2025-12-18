@@ -12,8 +12,7 @@ app = FastAPI()
 # Register routes
 app.include_router(text_router, prefix="/text")
 app.include_router(image_router, prefix="/image")
-app.include_router(analyze_router, prefix="/analyze")
-
+app.include_router(analyze_router)
 
 @app.on_event("startup")
 async def startup_event():

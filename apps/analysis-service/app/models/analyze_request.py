@@ -12,3 +12,10 @@ class UpdateAnalyzeRequest(BaseModel):
     targetId: str
     targetType: str
     content: Optional[str] = None
+
+class EmotionQuery(BaseModel):
+    userId: str
+    targetId: str
+    targetType: str
+    from_date: Optional[str] = None
+    to_date: Optional[str] = None
