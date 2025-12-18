@@ -12,13 +12,14 @@ import {
   UserResponseDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { eq } from 'drizzle-orm';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
 import { profiles } from 'src/drizzle/schema/profiles.schema';
 import { users } from 'src/drizzle/schema/users.schema';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { OutboxService } from './event/outbox.service';
+import { and, eq, inArray } from 'drizzle-orm';
+import { USER_STATUS } from 'src/constants';
 
 const CACHE_TTL = {
   USER: 300,
@@ -267,11 +268,12 @@ export class UserService {
   async getUsersBatch(ids: string[]): Promise<UserResponseDTO[]> {
     if (!ids.length) return [];
 
-    const users = await this.db.query.users.findMany({
-      where: (fields, { inArray }) => inArray(fields.id, ids),
+    const result = await this.db.query.users.findMany({
+      where: and(inArray(users.id, ids), eq(users.status, USER_STATUS.ACTIVE)),
       with: { profile: true },
     });
-    return plainToInstance(UserResponseDTO, users, {
+
+    return plainToInstance(UserResponseDTO, result, {
       excludeExtraneousValues: true,
     });
   }
@@ -282,20 +284,23 @@ export class UserService {
     const cacheKey = `baseUsers:${ids.sort().join(',')}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) return JSON.parse(cached);
-    const profiles = await this.db.query.profiles.findMany({
-      where: (fields, { inArray }) => inArray(fields.userId, ids),
-    });
 
-    const dtos = plainToInstance(
-      BaseUserDTO,
-      profiles.map((p) => ({
-        id: p.userId,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        avatarUrl: p.avatarUrl,
-      })),
-      { excludeExtraneousValues: true }
-    );
+    const rows = await this.db
+      .select({
+        id: profiles.userId,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        avatarUrl: profiles.avatarUrl,
+      })
+      .from(profiles)
+      .innerJoin(users, eq(users.id, profiles.userId))
+      .where(
+        and(inArray(profiles.userId, ids), eq(users.status, USER_STATUS.ACTIVE))
+      );
+
+    const dtos = plainToInstance(BaseUserDTO, rows, {
+      excludeExtraneousValues: true,
+    });
 
     const result = dtos.reduce<Record<string, BaseUserDTO>>((acc, u) => {
       acc[u.id] = u;

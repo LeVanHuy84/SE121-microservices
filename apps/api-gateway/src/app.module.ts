@@ -16,6 +16,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { GroupModule } from './modules/group/group.module';
 import { SearchModule } from './modules/search/search.module';
 import { EmotionModule } from './modules/emotion/emotion.module';
+import { LogModule } from './modules/log/log.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { EmotionModule } from './modules/emotion/emotion.module';
     GroupModule,
     SearchModule,
     EmotionModule,
+    LogModule,
   ],
 
   providers: [

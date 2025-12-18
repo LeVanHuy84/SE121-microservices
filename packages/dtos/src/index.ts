@@ -24,3 +24,5 @@ export * from './group';
 export * from './search';
 
 export * from './emotion';
+
+export * from './log';

@@ -1,25 +1,12 @@
-import { Module, OnModuleInit } from '@nestjs/common';
-import { UserService } from '../user.service';
-import { UserModule } from '../user.module';
+import { DrizzleModule } from 'src/drizzle/drizzle.module';
+
+import { ClerkModule } from '../clerk/clerk.module';
+import { CommandService } from './command.service';
+import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [UserModule],
+  imports: [ClerkModule, DrizzleModule],
+  providers: [CommandService],
+  exports: [CommandService],
 })
-export class CommandModule implements OnModuleInit {
-  constructor(private readonly userService: UserService) {}
-
-  async onModuleInit() {
-    console.log('🏁 Running startup command...');
-
-    await this.userService.create({
-      id: 'test-123',
-      email: 'test@example.com',
-      firstName: 'Test',
-      lastName: 'User',
-    });
-
-    console.log('✅ Done');
-
-    process.exit(0); // thoát app sau khi chạy xong
-  }
-}
+export class CommandModule {}

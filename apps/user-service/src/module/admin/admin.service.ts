@@ -1,0 +1,399 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
+import {
+  CreateSystemUserDTO,
+  InferUserPayload,
+  LogType,
+  PageResponse,
+  SystemRole,
+  SystemUserDTO,
+  SystemUserQueryDTO,
+  UserEventType,
+} from '@repo/dtos';
+import { plainToInstance } from 'class-transformer';
+import { and, count, eq, ilike, inArray, SQL } from 'drizzle-orm';
+import { USER_STATUS } from 'src/constants';
+import { DRIZZLE } from 'src/drizzle/drizzle.module';
+import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
+import { profiles } from 'src/drizzle/schema/profiles.schema';
+import { users } from 'src/drizzle/schema/users.schema';
+import type { DrizzleDB } from 'src/drizzle/types/drizzle';
+import { OutboxService } from '../event/outbox.service';
+import { CLERK_CLIENT } from '../clerk/clerk.module';
+import { log } from 'console';
+
+@Injectable()
+export class AdminService {
+  constructor(
+    @Inject(DRIZZLE) private db: DrizzleDB,
+    private readonly outboxService: OutboxService,
+    @Inject(CLERK_CLIENT) private clerkClient
+  ) {}
+
+  async createSystemUser(
+    dto: CreateSystemUserDTO,
+    actorId: string
+  ): Promise<SystemUserDTO> {
+    const sysUser = await this.clerkClient.users.createUser({
+      emailAddress: [dto.email],
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      password: dto.password,
+      publicMetadata: {
+        role: dto.role,
+      },
+    });
+
+    try {
+      const actor = await this.db
+        .select({
+          id: users.id,
+          email: users.email,
+          role: roles.name,
+          firstName: profiles.firstName,
+          lastName: profiles.lastName,
+        })
+        .from(users)
+        .innerJoin(userRoles, eq(users.id, userRoles.userId))
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .leftJoin(profiles, eq(users.id, profiles.userId))
+        .where(eq(users.id, actorId))
+        .limit(1)
+        .then((rows) => rows[0]);
+
+      const user = await this.db.transaction(async (tx) => {
+        const [user] = await tx
+          .insert(users)
+          .values({
+            id: sysUser.id,
+            email: dto.email,
+          })
+          .returning();
+
+        await tx.insert(profiles).values({
+          userId: user.id,
+          firstName: dto.firstName ?? '',
+          lastName: dto.lastName ?? '',
+          stats: { followers: 0, following: 0, posts: 0 },
+        });
+
+        const stringRole = dto.role as string;
+
+        const [defaultRole] = await tx
+          .select()
+          .from(roles)
+          .where(eq(roles.name, stringRole));
+
+        let roleId = defaultRole?.id;
+        if (!roleId) {
+          const [newRole] = await tx
+            .insert(roles)
+            .values({
+              name: stringRole,
+              description: `${stringRole} role`,
+            })
+            .returning();
+          roleId = newRole.id;
+        }
+
+        await tx.insert(userRoles).values({
+          userId: user.id,
+          roleId,
+        });
+
+        const loggingPayload = {
+          actorId: actorId,
+          targetId: user.id,
+          action: 'Create system user',
+          log: `System user ${dto.firstName} ${dto.lastName} created by ${actor.firstName} ${actor.lastName} with role ${actor.role}`,
+          timestamp: new Date(),
+        };
+        await this.outboxService.createLoggingOutboxEvent(
+          tx,
+          LogType.USER_LOG,
+          loggingPayload
+        );
+
+        return user;
+      });
+
+      return plainToInstance(SystemUserDTO, user, {
+        excludeExtraneousValues: true,
+      });
+    } catch (err) {
+      await this.clerkClient.users.deleteUser(sysUser.id);
+      throw err;
+    }
+  }
+
+  async updateSystemUserRole(
+    userId: string,
+    newRole: SystemRole,
+    actorId: string
+  ) {
+    const clerkUser = await this.clerkClient.users.getUser(userId);
+    if (clerkUser.publicMetadata.isSystemAdmin) {
+      throw new RpcException('Cannot change role of a system admin user');
+    }
+
+    await this.clerkClient.users.updateUserMetadata(userId, {
+      publicMetadata: { role: newRole },
+    });
+
+    const actor = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: roles.name,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(eq(users.id, actorId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    await this.db.transaction(async (tx) => {
+      await tx.delete(userRoles).where(eq(userRoles.userId, userId));
+      const [role] = await tx
+        .select()
+        .from(roles)
+        .where(eq(roles.name, newRole));
+
+      await tx.insert(userRoles).values({
+        userId: userId,
+        roleId: role.id,
+      });
+
+      const loggingPayload = {
+        actorId: actorId,
+        targetId: userId,
+        action: 'Update user role',
+        log: `User role updated to ${newRole} by ${actor.firstName} ${actor.lastName} with role ${actor.role}`,
+        timestamp: new Date(),
+      };
+      await this.outboxService.createLoggingOutboxEvent(
+        tx,
+        LogType.USER_LOG,
+        loggingPayload
+      );
+    });
+    return true;
+  }
+
+  async getSystemUsers(
+    filter: SystemUserQueryDTO
+  ): Promise<PageResponse<SystemUserDTO>> {
+    const { email, limit = 10, page = 1, role } = filter;
+    const offset = (page - 1) * limit;
+
+    const conditions: SQL[] = [];
+
+    // ===== ROLE FILTER =====
+    if (role) {
+      conditions.push(eq(roles.name, role));
+    } else {
+      conditions.push(
+        inArray(roles.name, [SystemRole.ADMIN, SystemRole.MODERATOR])
+      );
+    }
+
+    // ===== SEARCH QUERY =====
+    if (email) {
+      const keyword = `%${email}%`;
+
+      conditions.push(ilike(users.email, keyword));
+    }
+
+    const [{ total }] = await this.db
+      .select({ total: count() })
+      .from(users)
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(and(...conditions));
+
+    const usersList = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        isActive: users.isActive,
+        role: roles.name,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(and(...conditions))
+      .orderBy(users.createdAt)
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      data: plainToInstance(SystemUserDTO, usersList, {
+        excludeExtraneousValues: true,
+      }),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async banUser(userId: string, actorId: string) {
+    const rows = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        status: users.status,
+        isActive: users.isActive,
+        role: roles.name,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(inArray(users.id, [userId, actorId]));
+
+    const map = new Map(rows.map((r) => [r.id, r]));
+    const target = map.get(userId);
+    const actor = map.get(actorId);
+
+    if (!target) throw new RpcException('User not found');
+    if (!actor) throw new RpcException('Actor not found');
+
+    if (target.role !== 'user') {
+      throw new RpcException('Cannot ban non-user role');
+    }
+
+    if (target.status === USER_STATUS.BANNED) {
+      throw new RpcException('User already banned');
+    }
+
+    // ===== SAGA STEP 1: External =====
+    await this.clerkClient.users.banUser(userId);
+
+    try {
+      // ===== SAGA STEP 2: Local Transaction =====
+      await this.db.transaction(async (tx) => {
+        await tx
+          .update(users)
+          .set({
+            isActive: false,
+            status: USER_STATUS.BANNED,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId));
+
+        await this.outboxService.createUserOutboxEvent(
+          tx,
+          UserEventType.REMOVED,
+          { userId }
+        );
+
+        await this.outboxService.createLoggingOutboxEvent(
+          tx,
+          LogType.USER_LOG,
+          {
+            actorId,
+            targetId: userId,
+            action: 'Ban user',
+            log: `User ${target.firstName} ${target.lastName} banned by ${actor.firstName} ${actor.lastName} (${actor.role})`,
+            timestamp: new Date(),
+          }
+        );
+      });
+      return true;
+    } catch (err) {
+      // ===== SAGA COMPENSATION =====
+      await this.clerkClient.users.unbanUser(userId);
+      throw err;
+    }
+  }
+
+  async unbanUser(userId: string, actorId: string) {
+    const rows = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        status: users.status,
+        role: roles.name,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        avatarUrl: profiles.avatarUrl,
+        bio: profiles.bio,
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(inArray(users.id, [userId, actorId]));
+
+    const map = new Map(rows.map((r) => [r.id, r]));
+    const target = map.get(userId);
+    const actor = map.get(actorId);
+
+    if (!target) throw new RpcException('User not found');
+    if (!actor) throw new RpcException('Actor not found');
+
+    if (target.status !== USER_STATUS.BANNED) {
+      throw new RpcException('User is not banned');
+    }
+
+    // ===== STEP 1: Clerk =====
+    await this.clerkClient.users.unbanUser(userId);
+
+    try {
+      // ===== STEP 2: DB =====
+      await this.db.transaction(async (tx) => {
+        await tx
+          .update(users)
+          .set({
+            isActive: true,
+            status: USER_STATUS.ACTIVE,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId));
+
+        await this.outboxService.createUserOutboxEvent(
+          tx,
+          UserEventType.CREATED,
+          {
+            userId,
+            email: target.email,
+            firstName: target.firstName ?? '',
+            lastName: target.lastName ?? '',
+            avatarUrl: target.avatarUrl ?? '',
+            bio: target.bio ?? '',
+            isActive: true,
+            createdAt: new Date(),
+          }
+        );
+
+        await this.outboxService.createLoggingOutboxEvent(
+          tx,
+          LogType.USER_LOG,
+          {
+            actorId,
+            targetId: userId,
+            action: 'Unban user',
+            log: `User ${target.firstName} ${target.lastName} unbanned by ${actor.firstName} ${actor.lastName} (${actor.role})`,
+            timestamp: new Date(),
+          }
+        );
+      });
+      return true;
+    } catch (err) {
+      // ===== COMPENSATION =====
+      await this.clerkClient.users.banUser(userId);
+      throw err;
+    }
+  }
+}
