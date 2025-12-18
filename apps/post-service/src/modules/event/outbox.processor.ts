@@ -120,6 +120,7 @@ export class OutboxProcessor {
       payload: outbox.payload,
       sendAt: new Date(),
       meta: { priority: 1, maxRetries: 3 },
+      channels: [],
     };
   }
 }

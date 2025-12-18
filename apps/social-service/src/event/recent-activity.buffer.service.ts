@@ -34,7 +34,12 @@ export class RecentActivityBufferService {
 
   /** Snapshot tất cả activity và chuyển sang vùng processing */
   async snapshotAndGetAll(): Promise<Record<string, RecentSocialActivity>> {
-    const keys = await this.redis.keys('recent:activity:*');
+    const allKeys = await this.redis.keys('recent:activity:*');
+
+    // LOẠI BỎ mấy key processing
+    const keys = allKeys.filter(
+      (k) => !k.startsWith('recent:activity:processing:'),
+    );
     const snapshot: Record<string, RecentSocialActivity> = {};
     if (keys.length === 0) return snapshot;
 
@@ -61,7 +66,10 @@ export class RecentActivityBufferService {
       snapshot[`${type}:${targetId}:${actorId}`] = JSON.parse(getResult);
     }
 
-    this.logger.debug(`📸 Snapshot ${Object.keys(snapshot).length} activities`);
+    this.logger.debug(
+      `📸 Snapshot ${Object.keys(snapshot).length} activities`,
+      snapshot,
+    );
     return snapshot;
   }
 

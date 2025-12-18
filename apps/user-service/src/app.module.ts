@@ -8,6 +8,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     DrizzleModule,
+    RedisModule,
     UserModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),

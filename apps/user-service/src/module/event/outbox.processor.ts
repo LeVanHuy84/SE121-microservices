@@ -111,6 +111,7 @@ export class OutboxProcessor {
       userId: event.userId,
       type: event.eventType,
       payload: {},
+      channels: [],
       sendAt: new Date(),
       meta: { priority: 1, maxRetries: 3 },
     };

@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsEnum,
   IsISO8601,
   IsNumber,
   IsObject,
@@ -8,6 +9,7 @@ import {
   IsString,
   ValidateNested
 } from 'class-validator';
+import { ChannelNotification } from './enums/channel-notication.enum';
 
 class MetaDto {
   @IsOptional()
@@ -36,10 +38,9 @@ export class CreateNotificationDto {
   @IsOptional()
   payload?: any;
 
-  @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  channels?: string[]; // override preference
+  @IsEnum(ChannelNotification, {each: true})
+  channels: ChannelNotification[]; // override preference
 
   @IsOptional()
   @IsISO8601()

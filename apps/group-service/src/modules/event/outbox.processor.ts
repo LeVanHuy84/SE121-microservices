@@ -94,10 +94,10 @@ export class OutboxProcessor {
           break;
 
         case EventDestination.RABBITMQ:
-          const notificationDto = await this.toNotificationDto(event);
+          { const notificationDto = await this.toNotificationDto(event);
           await this.notificationService.sendNotification(notificationDto);
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
-          break;
+          break; }
 
         default:
           this.logger.warn(
@@ -129,6 +129,7 @@ export class OutboxProcessor {
       payload,
       sendAt: new Date(),
       meta: { priority: 1, maxRetries: 3 },
+      channels: [],
     };
   }
 }

@@ -74,6 +74,7 @@ export class RecentActivityBatch {
               priority: 1,
               maxRetries: 3,
             },
+            channels: [],
           };
 
           await this.notificationService.sendNotification(

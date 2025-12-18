@@ -18,7 +18,6 @@ export class NotificationController {
     return this.client.send('get_notifications', { userId, query });
   }
 
-
   @Delete('delete/:id')
   deleteNotification(@Param('id') id: string) {
     return this.client.send('delete_notification', id);

@@ -11,14 +11,11 @@ import { RabbitmqModule } from '@repo/common';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
 
-
 @Module({
   imports: [
     RabbitmqModule.register({
       urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
-      exchanges: [
-        { name: 'notification', type: 'topic' },
-      ],
+      exchanges: [{ name: 'notification', type: 'topic' }],
     }),
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
@@ -33,7 +30,6 @@ import { BullModule } from '@nestjs/bull';
     BullModule.registerQueue({
       name: 'notifications',
     }),
-    
   ],
   controllers: [NotificationController],
   providers: [NotificationService, TemplateService],
