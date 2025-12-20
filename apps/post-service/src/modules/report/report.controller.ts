@@ -1,11 +1,20 @@
 import { Controller } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateReportDTO, ReportFilterDTO, TargetType } from '@repo/dtos';
+import {
+  ContentEntryQuery,
+  CreateReportDTO,
+  ReportFilterDTO,
+  TargetType,
+} from '@repo/dtos';
+import { ReadReportService } from './read-report.service';
 
 @Controller('report')
 export class ReportController {
-  constructor(private readonly reportService: ReportService) {}
+  constructor(
+    private readonly reportService: ReportService,
+    private readonly readReportService: ReadReportService
+  ) {}
 
   @MessagePattern('create_report')
   async createReport(
@@ -41,13 +50,12 @@ export class ReportController {
   }
 
   @MessagePattern('get_reports')
-  async getReports(
-    @Payload()
-    payload: {
-      filterDto: ReportFilterDTO;
-    }
-  ) {
-    const { filterDto } = payload;
-    return await this.reportService.getReports(filterDto);
+  async getReports(@Payload() filter: ReportFilterDTO) {
+    return await this.readReportService.getReports(filter);
+  }
+
+  @MessagePattern('get_content_entry')
+  async getContentEntry(@Payload() filter: ContentEntryQuery) {
+    return this.readReportService.getContentEntry(filter);
   }
 }

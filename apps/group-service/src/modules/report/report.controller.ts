@@ -1,7 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateGroupReportDTO, GroupReportQuery } from '@repo/dtos';
+import {
+  AdminGroupQuery,
+  CreateGroupReportDTO,
+  GroupReportQuery,
+} from '@repo/dtos';
 
 @Controller('report')
 export class ReportController {
@@ -32,5 +36,20 @@ export class ReportController {
   async getTopReportedGroups(@Payload() data: { topN: number }) {
     const { topN } = data;
     return this.reportService.getTopReportedGroups(topN);
+  }
+
+  @MessagePattern('ban_group')
+  async banGroup(@Payload() data: { groupId: string; actorId: string }) {
+    return this.reportService.banGroup(data.groupId, data.actorId);
+  }
+
+  @MessagePattern('unban_group')
+  async unbanGroup(@Payload() data: { groupId: string; actorId: string }) {
+    return this.reportService.unbanGroup(data.groupId, data.actorId);
+  }
+
+  @MessagePattern('get_group_by_admin')
+  async getGroupByAdmin(@Payload() data: AdminGroupQuery) {
+    return this.reportService.getGroupByAdmin(data);
   }
 }

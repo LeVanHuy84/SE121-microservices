@@ -4,7 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "start:dev": "turbo run start:dev",
+    "start:dev": "turbo run start:dev --parallel --concurrency=11",
     "dev:test": "turbo run start:dev --filter=user-service --filter=api-gateway --filter=search-service --filter=logging-service",
     "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
