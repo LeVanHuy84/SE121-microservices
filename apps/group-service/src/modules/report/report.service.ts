@@ -6,6 +6,7 @@ import {
   AdminGroupQuery,
   CreateGroupReportDTO,
   CursorPageResponse,
+  DashboardQueryDTO,
   EventDestination,
   EventTopic,
   GroupEventType,
@@ -16,13 +17,14 @@ import {
   InferGroupPayload,
   LogType,
   PageResponse,
+  ReportStatus,
   SystemRole,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { GroupReport } from 'src/entities/group-report.entity';
 import { Group } from 'src/entities/group.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { DataSource, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, Repository } from 'typeorm';
 
 @Injectable()
 export class ReportService {
@@ -35,6 +37,34 @@ export class ReportService {
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
   ) {}
+
+  async getDashboard(
+    filter: DashboardQueryDTO,
+  ): Promise<{ totalGroups: number; pendingReports: number }> {
+    const { range } = filter;
+
+    const fromDate = this.resolveRange(range);
+    const toDate = new Date();
+
+    // ===== TOTAL POSTS (FILTER BY TIME) =====
+    const totalGroups = await this.groupRepo.count({
+      where: {
+        status: GroupStatus.ACTIVE,
+        createdAt: Between(fromDate, toDate),
+      },
+    });
+
+    const pendingReports = await this.groupReportRepository.count({
+      where: {
+        status: ReportStatus.PENDING,
+      },
+    });
+
+    return {
+      totalGroups,
+      pendingReports,
+    };
+  }
 
   async createReport(
     groupId: string,
@@ -115,44 +145,121 @@ export class ReportService {
     return result;
   }
 
-  async banGroup(groupId: string, actorId: string) {
-    const group = await this.groupRepo.findOne({
-      where: { id: groupId },
+  async ignoreGroupReports(groupId: string, actorId: string): Promise<boolean> {
+    return await this.groupRepo.manager.transaction(async (manager) => {
+      // 1. Get group
+      const group = await manager.findOne(Group, {
+        where: { id: groupId },
+      });
+
+      if (!group) {
+        throw new RpcException('Group not found!');
+      }
+
+      // 2. Reject all pending reports of group
+      const reportResult = await manager
+        .createQueryBuilder()
+        .update(GroupReport)
+        .set({
+          status: ReportStatus.REJECTED,
+        })
+        .where('groupId = :groupId AND status = :status', {
+          groupId,
+          status: ReportStatus.PENDING,
+        })
+        .execute();
+
+      if (!reportResult.affected) {
+        throw new RpcException('No pending reports to ignore');
+      }
+
+      // 3. Reset report counter
+      group.reports = 0;
+      await manager.save(group);
+
+      // 4. Logging outbox
+      const loggingOutbox = this.outboxRepo.create({
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.GROUP_LOG,
+        payload: {
+          actorId,
+          targetId: groupId,
+          action: 'IGNORE_GROUP_REPORTS',
+          message: `Moderator ${actorId} ignored all reports for group ${group.name}`,
+          timestamp: new Date(),
+        },
+      });
+
+      await manager.save(loggingOutbox);
+
+      return true;
     });
+  }
 
-    if (!group) {
-      throw new RpcException('Group not found!');
-    }
+  async banGroup(groupId: string, actorId: string): Promise<boolean> {
+    return await this.groupRepo.manager.transaction(async (manager) => {
+      // 1. Lock & get group
+      const group = await manager.findOne(Group, {
+        where: { id: groupId },
+      });
 
-    if (group.status === GroupStatus.BANNED) {
-      throw new RpcException('Group has been banned!');
-    }
+      if (!group) {
+        throw new RpcException('Group not found!');
+      }
 
-    group.status = GroupStatus.BANNED;
+      if (group.status === GroupStatus.BANNED) {
+        throw new RpcException('Group has been banned!');
+      }
 
-    const loggingPayload = {
-      actorId,
-      targetId: groupId,
-      action: 'Ban group',
-      log: `Group ${group.name} has been banned`,
-      timestamp: new Date(),
-    };
+      // 2. Resolve all pending group reports
+      await manager
+        .createQueryBuilder()
+        .update(GroupReport)
+        .set({
+          status: ReportStatus.RESOLVED,
+        })
+        .where('groupId = :groupId AND status = :status', {
+          groupId,
+          status: ReportStatus.PENDING,
+        })
+        .execute();
 
-    const loggingOutbox = this.outboxRepo.create({
-      topic: EventTopic.LOGGING,
-      destination: EventDestination.KAFKA,
-      eventType: LogType.GROUP_LOG,
-      payload: loggingPayload,
+      // 3. Update group status + reset reports
+      group.status = GroupStatus.BANNED;
+      group.reports = 0;
+
+      await manager.save(group);
+
+      // 4. Emit group domain event
+      const payload: InferGroupPayload<GroupEventType.REMOVED> = {
+        groupId: group.id,
+      };
+
+      await this.createGroupOutboxEvent(
+        GroupEventType.REMOVED,
+        payload,
+        manager, // 👈 nếu method hỗ trợ truyền manager
+      );
+
+      // 5. Logging outbox
+      const loggingOutbox = this.outboxRepo.create({
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.GROUP_LOG,
+        payload: {
+          actorId,
+          targetId: groupId,
+          action: 'BAN_GROUP',
+          message: `Group ${group.name} has been banned`,
+          timestamp: new Date(),
+        },
+      });
+
+      await manager.save(loggingOutbox);
+
+      return true;
     });
-
-    const payload: InferGroupPayload<GroupEventType.REMOVED> = {
-      groupId: group.id,
-    };
-    await this.createGroupOutboxEvent(GroupEventType.REMOVED, payload);
-    await this.groupRepo.save(group);
-    await this.outboxRepo.save(loggingOutbox);
-
-    return true;
   }
 
   async unbanGroup(groupId: string, actorId: string) {
@@ -253,16 +360,41 @@ export class ReportService {
   }
 
   // ===== HELPER =====
+  // ===== HELPER =====
   private async createGroupOutboxEvent(
     eventType: GroupEventType,
     payload: any,
+    manager?: EntityManager,
   ) {
-    const event = this.outboxRepo.create({
+    const repo = manager ? manager.getRepository(OutboxEvent) : this.outboxRepo;
+
+    const event = repo.create({
       destination: EventDestination.KAFKA,
       topic: EventTopic.GROUP_CRUD,
       eventType,
-      payload: payload,
+      payload,
     });
-    await this.outboxRepo.save(event);
+
+    await repo.save(event);
+  }
+
+  private resolveRange(range?: '7d' | '30d' | '90d'): Date {
+    const now = new Date();
+    const fromDate = new Date(now);
+
+    switch (range) {
+      case '7d':
+        fromDate.setDate(now.getDate() - 7);
+        break;
+      case '90d':
+        fromDate.setDate(now.getDate() - 90);
+        break;
+      case '30d':
+      default:
+        fromDate.setDate(now.getDate() - 30);
+        break;
+    }
+
+    return fromDate;
   }
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import {
   CreateSystemUserDTO,
+  DashboardQueryDTO,
   LogType,
   PageResponse,
   SystemRole,
@@ -10,7 +11,19 @@ import {
   UserEventType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { and, count, eq, ilike, inArray, or, sql, SQL } from 'drizzle-orm';
+import {
+  and,
+  count,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+  SQL,
+} from 'drizzle-orm';
 import { USER_STATUS } from 'src/constants';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
@@ -19,6 +32,7 @@ import { users } from 'src/drizzle/schema/users.schema';
 import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import { OutboxService } from '../event/outbox.service';
 import { CLERK_CLIENT } from '../clerk/clerk.module';
+import { countDistinct } from 'drizzle-orm';
 
 @Injectable()
 export class AdminService {
@@ -400,5 +414,65 @@ export class AdminService {
       await this.clerkClient.users.banUser(userId);
       throw err;
     }
+  }
+
+  async getDashboard(
+    filter: DashboardQueryDTO
+  ): Promise<{ totalUsers: number; activeUsers: number }> {
+    const { range } = filter;
+
+    // ===== RANGE (DEFAULT = 30D) =====
+    const now = new Date();
+    const fromDate = new Date(now);
+    const toDate = now;
+
+    switch (range) {
+      case '7d':
+        fromDate.setDate(now.getDate() - 7);
+        break;
+      case '90d':
+        fromDate.setDate(now.getDate() - 90);
+        break;
+      case '30d':
+      default:
+        fromDate.setDate(now.getDate() - 30);
+        break;
+    }
+
+    // ===== TOTAL END USERS =====
+    const [totalResult] = await this.db
+      .select({
+        count: countDistinct(users.id),
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(userRoles.userId, users.id))
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(
+        and(isNull(users.deletedAt), eq(roles.name, SystemRole.USER as string))
+      );
+
+    // ===== ACTIVE END USERS (THEO RANGE) =====
+    const [activeResult] = await this.db
+      .select({
+        count: countDistinct(users.id),
+      })
+      .from(users)
+      .innerJoin(userRoles, eq(userRoles.userId, users.id))
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(
+        and(
+          isNull(users.deletedAt),
+          eq(users.isActive, true),
+          eq(users.status, USER_STATUS.ACTIVE),
+          eq(roles.name, SystemRole.USER as string),
+          gte(users.updatedAt, fromDate),
+          lte(users.updatedAt, toDate)
+        )
+      );
+
+    return {
+      totalUsers: Number(totalResult.count),
+      activeUsers: Number(activeResult.count),
+    };
   }
 }

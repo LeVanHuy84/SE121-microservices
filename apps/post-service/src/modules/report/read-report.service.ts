@@ -12,6 +12,8 @@ import {
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { TARGET_CONFIG } from 'src/constant';
+import { Comment as CommentEntity } from 'src/entities/comment.entity';
+import { Post } from 'src/entities/post.entity';
 import { Report } from 'src/entities/report.entity';
 import { DataSource, Repository } from 'typeorm';
 
@@ -133,10 +135,90 @@ export class ReadReportService {
       type: targetType,
       content: row.content,
       medias: [...row.media],
-      reportCount: Number(row.reportCount),
+      reportPendingCount: Number(row.reportCount),
       createdAt: row.createdAt,
     }));
 
     return new PageResponse(data, total, page, limit);
+  }
+
+  async getPostDashboard() {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 6);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    // helper chuẩn hóa date
+    const toKey = (d: any) => new Date(d).toISOString().slice(0, 10);
+
+    const posts = await this.dataSource
+      .getRepository(Post)
+      .createQueryBuilder('p')
+      .select(`DATE(p.created_at)`, 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('p.created_at BETWEEN :start AND :end', { start, end })
+      .andWhere('p.is_deleted = false')
+      .groupBy('DATE(p.created_at)')
+      .getRawMany();
+
+    const comments = await this.dataSource
+      .getRepository(CommentEntity)
+      .createQueryBuilder('c')
+      .select(`DATE(c.created_at)`, 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('c.created_at BETWEEN :start AND :end', { start, end })
+      .andWhere('c.is_deleted = false')
+      .groupBy('DATE(c.created_at)')
+      .getRawMany();
+
+    const reports = await this.dataSource
+      .getRepository(Report)
+      .createQueryBuilder('r')
+      .select(`DATE(r.created_at)`, 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.created_at BETWEEN :start AND :end', { start, end })
+      .groupBy('DATE(r.created_at)')
+      .getRawMany();
+
+    // init map 7 ngày
+    const map = new Map<string, any>();
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const key = toKey(d);
+
+      map.set(key, {
+        date: key,
+        postCount: 0,
+        commentCount: 0,
+        reportCount: 0,
+      });
+    }
+
+    posts.forEach((p) => {
+      const key = toKey(p.date);
+      if (map.has(key)) {
+        map.get(key).postCount = Number(p.count);
+      }
+    });
+
+    comments.forEach((c) => {
+      const key = toKey(c.date);
+      if (map.has(key)) {
+        map.get(key).commentCount = Number(c.count);
+      }
+    });
+
+    reports.forEach((r) => {
+      const key = toKey(r.date);
+      if (map.has(key)) {
+        map.get(key).reportCount = Number(r.count);
+      }
+    });
+
+    return Array.from(map.values());
   }
 }

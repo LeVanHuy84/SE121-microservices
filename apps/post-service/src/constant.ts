@@ -1,4 +1,4 @@
-import { ReactionType } from '@repo/dtos';
+import { ReactionType, TargetType } from '@repo/dtos';
 
 export const ReactionFieldMap: Record<ReactionType, string> = {
   [ReactionType.LIKE]: 'likes',
@@ -16,21 +16,21 @@ export const MICROSERVICES_CLIENT = {
 };
 
 export const TARGET_CONFIG = {
-  POST: {
+  [TargetType.POST]: {
     table: 'posts',
     statsTable: 'post_stats',
     alias: 'p',
     statsAlias: 'ps',
     statId: 'postId',
   },
-  COMMENT: {
+  [TargetType.COMMENT]: {
     table: 'comments',
     statsTable: 'comment_stats',
     alias: 'c',
     statsAlias: 'cs',
     statId: 'commentId',
   },
-  SHARE: {
+  [TargetType.SHARE]: {
     table: 'shares',
     statsTable: 'share_stats',
     alias: 's',

@@ -51,6 +51,15 @@ export class GroupReportController {
     return this.client.send('get_top_reported_groups', { topN });
   }
 
+  @Post('/group/:id/ignore')
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
+  ignoreGroupReport(
+    @Param('id') groupId: string,
+    @CurrentUserId() actorId: string
+  ) {
+    return this.client.send('ignore_group_report', { groupId, actorId });
+  }
+
   @Post('/group/:id/ban')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   banGroup(@Param('id') groupId: string, @CurrentUserId() actorId: string) {

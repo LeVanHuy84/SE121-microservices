@@ -38,6 +38,21 @@ export class EmotionService {
     };
   }
 
+  async getEmotionDashboard() {
+    try {
+      const res = await axios.get(`${this.baseUrl}/emotion/dashboard`, {
+        headers: this.headers(),
+      });
+      const data = res.data;
+      return data;
+    } catch (e) {
+      throw new HttpException(
+        e.response?.data || 'Emotion service error',
+        e.response?.status || 500
+      );
+    }
+  }
+
   async getDetail(id: string): Promise<EmotionAnalysisDto> {
     try {
       const res = await axios.get(`${this.baseUrl}/emotion/detail/${id}`, {

@@ -1,6 +1,7 @@
 import { Column, Entity, ManyToOne, Unique } from 'typeorm';
 import { Group } from './group.entity';
 import { BaseEntity } from './base.entity';
+import { ReportStatus } from '@repo/dtos';
 
 @Entity()
 @Unique(['reporterId', 'groupId'])
@@ -17,6 +18,9 @@ export class GroupReport extends BaseEntity {
 
   @Column({ type: 'text', name: 'reason', nullable: true })
   reason: string;
+
+  @Column({ type: 'enum', enum: ReportStatus, default: ReportStatus.PENDING })
+  status: ReportStatus;
 
   @ManyToOne(() => Group, (group) => group.groupReports, {
     onDelete: 'CASCADE',

@@ -6,6 +6,6 @@ export class ContentEntryDTO {
   type: TargetType;
   content: string;
   medias?: MediaItemDTO[];
-  reportCount: number;
+  reportPendingCount: number;
   createdAt: Date;
 }

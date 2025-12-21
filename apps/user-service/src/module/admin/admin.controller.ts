@@ -1,8 +1,9 @@
 import { Controller } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreateSystemUserDTO,
+  DashboardQueryDTO,
   SystemRole,
   SystemUserQueryDTO,
 } from '@repo/dtos';
@@ -42,5 +43,10 @@ export class AdminController {
   @MessagePattern('unban-user')
   async unbanUser(data: { userId: string; actorId: string }) {
     return this.adminService.unbanUser(data.userId, data.actorId);
+  }
+
+  @MessagePattern('user-dashboard')
+  async getDashboard(@Payload() filter: DashboardQueryDTO) {
+    return this.adminService.getDashboard(filter);
   }
 }

@@ -41,12 +41,13 @@ export class ReportController {
   async rejectReport(
     @Payload()
     payload: {
-      reportId: string;
+      targetId: string;
+      targetType: TargetType;
       userId: string;
     }
   ) {
-    const { reportId, userId } = payload;
-    return await this.reportService.rejectReport(reportId, userId);
+    const { targetId, targetType, userId } = payload;
+    return await this.reportService.rejectReport(targetId, targetType, userId);
   }
 
   @MessagePattern('get_reports')
@@ -57,5 +58,10 @@ export class ReportController {
   @MessagePattern('get_content_entry')
   async getContentEntry(@Payload() filter: ContentEntryQuery) {
     return this.readReportService.getContentEntry(filter);
+  }
+
+  @MessagePattern('get_7d_post_dashboard')
+  async get7dPostDashboard() {
+    return this.readReportService.getPostDashboard();
   }
 }

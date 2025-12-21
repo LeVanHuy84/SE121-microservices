@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   CreateReportDTO,
@@ -12,6 +13,7 @@ import {
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { TARGET_CONFIG } from 'src/constant';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -69,40 +71,51 @@ export class ReportService {
     moderatorId: string
   ): Promise<boolean> {
     return await this.reportRepo.manager.transaction(async (manager) => {
-      await manager
+      const config = TARGET_CONFIG[targetType];
+      if (!config) {
+        throw new RpcException('Invalid targetType');
+      }
+
+      // 1. Resolve only PENDING reports
+      const reportResult = await manager
         .createQueryBuilder()
         .update(Report)
         .set({
           status: ReportStatus.RESOLVED,
           resolvedBy: moderatorId,
         })
-        .where('targetId = :targetId AND targetType = :targetType', {
-          targetId,
-          targetType,
-        })
+        .where(
+          'targetId = :targetId AND targetType = :targetType AND status = :status',
+          {
+            targetId,
+            targetType,
+            status: ReportStatus.PENDING,
+          }
+        )
         .execute();
 
-      const tableMap = {
-        [TargetType.POST]: 'posts',
-        [TargetType.SHARE]: 'shares',
-        [TargetType.COMMENT]: 'comments',
-      };
+      // 2. Soft delete target content
+      await manager
+        .createQueryBuilder()
+        .update(config.table)
+        .set({ isDeleted: true })
+        .where('id = :id', { id: targetId })
+        .execute();
 
-      const tableName = tableMap[targetType];
-      if (tableName) {
-        await manager
-          .createQueryBuilder()
-          .update(tableName)
-          .set({ isDeleted: true })
-          .where('id = :id', { id: targetId })
-          .execute();
-      }
+      // 3. Reset pending report stats
+      await manager
+        .createQueryBuilder()
+        .update(config.statsTable)
+        .set({ reports: 0 })
+        .where(`${config.statId} = :id`, { id: targetId })
+        .execute();
 
-      let outbox: OutboxEvent | null = null;
+      // 4. Domain outbox event
+      let domainOutbox: OutboxEvent | null = null;
 
       switch (targetType) {
         case TargetType.POST:
-          outbox = this.outboxRepo.create({
+          domainOutbox = this.outboxRepo.create({
             topic: EventTopic.POST,
             destination: EventDestination.KAFKA,
             eventType: PostEventType.REMOVED,
@@ -111,7 +124,7 @@ export class ReportService {
           break;
 
         case TargetType.SHARE:
-          outbox = this.outboxRepo.create({
+          domainOutbox = this.outboxRepo.create({
             topic: EventTopic.SHARE,
             destination: EventDestination.KAFKA,
             eventType: ShareEventType.REMOVED,
@@ -120,57 +133,95 @@ export class ReportService {
           break;
 
         case TargetType.COMMENT:
-        default:
+          // Comments do not emit removed events
           break;
       }
 
-      const loggingPayload = {
-        actorId: moderatorId,
-        targetId,
-        action: `Resolve report and remove ${targetType.toLowerCase()}`,
-        log: `Moderator ${moderatorId} resolved reports and removed ${targetType.toLowerCase()} ${targetId}`,
-        timestamp: new Date(),
-      };
-
+      // 5. Logging outbox
       const loggingOutbox = this.outboxRepo.create({
         topic: EventTopic.LOGGING,
         destination: EventDestination.KAFKA,
         eventType: LogType.POST_LOG,
-        payload: loggingPayload,
+        payload: {
+          actorId: moderatorId,
+          targetId,
+          targetType,
+          action: 'RESOLVE_AND_REMOVE',
+          message: `Moderator ${moderatorId} resolved reports and removed ${targetType.toLowerCase()} ${targetId}`,
+          timestamp: new Date(),
+        },
       });
 
-      if (outbox) {
-        await manager.save(outbox);
+      if (domainOutbox) {
+        await manager.save(domainOutbox);
       }
+
       await manager.save(loggingOutbox);
+
       return true;
     });
   }
 
-  async rejectReport(reportId: string, moderatorId: string) {
-    const result = await this.reportRepo.update(reportId, {
-      status: ReportStatus.REJECTED,
-      resolvedBy: moderatorId,
+  async rejectReport(
+    targetId: string,
+    targetType: TargetType,
+    moderatorId: string
+  ): Promise<boolean> {
+    return await this.reportRepo.manager.transaction(async (manager) => {
+      const config = TARGET_CONFIG[targetType];
+      if (!config) {
+        throw new RpcException('Invalid targetType');
+      }
+
+      // 1. Reject all PENDING reports of target
+      const reportResult = await manager
+        .createQueryBuilder()
+        .update(Report)
+        .set({
+          status: ReportStatus.REJECTED,
+          resolvedBy: moderatorId,
+        })
+        .where(
+          'targetId = :targetId AND targetType = :targetType AND status = :status',
+          {
+            targetId,
+            targetType,
+            status: ReportStatus.PENDING,
+          }
+        )
+        .execute();
+
+      if (!reportResult.affected) {
+        throw new RpcException('No pending reports to reject');
+      }
+
+      // 2. Reset pending report stats
+      await manager
+        .createQueryBuilder()
+        .update(config.statsTable)
+        .set({ reports: 0 })
+        .where(`${config.statId} = :id`, { id: targetId })
+        .execute();
+
+      // 3. Logging outbox
+      const loggingOutbox = this.outboxRepo.create({
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.POST_LOG,
+        payload: {
+          actorId: moderatorId,
+          targetId,
+          targetType,
+          action: 'REJECT_REPORT',
+          message: `Moderator ${moderatorId} rejected all reports for ${targetType.toLowerCase()} ${targetId}`,
+          timestamp: new Date(),
+        },
+      });
+
+      await manager.save(loggingOutbox);
+
+      return true;
     });
-
-    const loggingPayload = {
-      actorId: moderatorId,
-      reportId,
-      action: `Reject report`,
-      log: `Moderator ${moderatorId} rejected report ${reportId}`,
-      timestamp: new Date(),
-    };
-
-    const loggingOutbox = this.outboxRepo.create({
-      topic: EventTopic.LOGGING,
-      destination: EventDestination.KAFKA,
-      eventType: LogType.POST_LOG,
-      payload: loggingPayload,
-    });
-
-    await this.outboxRepo.save(loggingOutbox);
-
-    return plainToInstance(ReportResponseDTO, result);
   }
 
   // ==== Helper methods ====
