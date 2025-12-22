@@ -1,10 +1,12 @@
 from collections import defaultdict
-from datetime import datetime
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, date
+from fastapi import APIRouter, Depends, Query
 from app.database.analysis_repository import AnalysisRepository
 from app.database.mongo_client import engine
 from app.utils.preset_mapper import resolve_preset_range, validate_range
 from app.enums.emotion_enum import EmotionEnum
+from app.database.models.analysis_schema import EmotionAnalysis
+from app.enums.analysis_status_enum import AnalysisStatusEnum
 from app.core.security import verify_internal_key
 
 
@@ -14,6 +16,73 @@ analyze_router = APIRouter(
 )
 
 repo = AnalysisRepository(engine)
+
+@analyze_router.get("/dashboard")
+async def get_community_emotion_dashboard(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+):
+    """
+    Biểu đồ cảm xúc cộng đồng theo NGÀY
+    - default: 7 ngày gần nhất
+    - max: 30 ngày
+    """
+
+    now = datetime.now()
+
+    # ===== DEFAULT RANGE =====
+    if not to_date:
+        to_date = now.date()
+
+    if not from_date:
+        from_date = to_date - timedelta(days=6)
+
+    # ===== CLAMP RANGE =====
+    MAX_DAYS = 30
+    diff_days = (to_date - from_date).days + 1
+
+    if diff_days > MAX_DAYS:
+        from_date = to_date - timedelta(days=MAX_DAYS - 1)
+
+    # convert to datetime (VN time assumed)
+    start_dt = datetime.combine(from_date, datetime.min.time())
+    end_dt = datetime.combine(to_date, datetime.max.time())
+
+    # ===== QUERY DB =====
+    entries = await engine.find(
+        EmotionAnalysis,
+        (EmotionAnalysis.createdAtVN >= start_dt) &
+        (EmotionAnalysis.createdAtVN <= end_dt) &
+        (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
+    )
+
+    # ===== GROUP BY DAY + EMOTION =====
+    grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
+
+    for item in entries:
+        if not item.finalEmotion:
+            continue
+
+        day = item.createdAtVN.strftime("%Y-%m-%d")
+        emo = item.finalEmotion
+
+        if emo in grouped[day]:
+            grouped[day][emo] += 1
+
+    # ===== FILL MISSING DAYS =====
+    result = []
+    current = from_date
+
+    while current <= to_date:
+        day_str = current.strftime("%Y-%m-%d")
+        result.append({
+            "date": day_str,
+            **grouped.get(day_str, {emo.value: 0 for emo in EmotionEnum})
+        })
+        current += timedelta(days=1)
+
+    return result
+
 
 @analyze_router.get("/history")
 async def get_history(

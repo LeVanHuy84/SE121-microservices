@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersController } from './users.controller';
 import { MediaModule } from '../media/media.module';
 import { ClerkClientProvider } from 'src/providers/clerk-client.provider';
+import { AdminUserController } from './admin-user.controller';
 
 @Module({
   imports: [
@@ -21,10 +22,10 @@ import { ClerkClientProvider } from 'src/providers/clerk-client.provider';
         }),
       },
     ]),
-    MediaModule
+    MediaModule,
   ],
   providers: [ClerkClientProvider],
-  controllers: [UsersController],
+  controllers: [UsersController, AdminUserController],
   exports: [ClientsModule],
 })
 export class UserModule {}

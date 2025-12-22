@@ -1,11 +1,9 @@
 import { pgTable, serial, uuid, varchar } from 'drizzle-orm/pg-core';
 import { users } from './users.schema';
 import { primaryKey } from 'drizzle-orm/pg-core';
-import { PgTable } from 'drizzle-orm/pg-core';
 import { integer } from 'drizzle-orm/pg-core';
 import { index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-
 
 export const roles = pgTable('roles', {
   id: serial('id').primaryKey(),
@@ -26,20 +24,20 @@ export const userRoles = pgTable(
 
   (table) => [
     primaryKey({ columns: [table.userId, table.roleId] }),
-    index('user_idx').on(table.userId)
+    index('user_idx').on(table.userId),
   ]
 );
 export const roleRelations = relations(roles, ({ many }) => ({
-  userRoles: many(userRoles)
-}))
+  userRoles: many(userRoles),
+}));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({
   roles: one(roles, {
     fields: [userRoles.roleId],
-    references: [roles.id]
+    references: [roles.id],
   }),
   user: one(users, {
     fields: [userRoles.userId],
-    references: [users.id]
-  })
-}))
+    references: [users.id],
+  }),
+}));

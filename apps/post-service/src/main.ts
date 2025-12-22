@@ -29,7 +29,7 @@ async function bootstrap() {
 
   // Start HTTP + all microservices (TCP, Redis)
   await app.startAllMicroservices();
-  await app.listen(process.env.HTTP_PORT || 4002);
+  await app.init();
 
   // ========== 2) KAFKA APP RIÊNG ==========
   const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(

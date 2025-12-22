@@ -30,6 +30,8 @@ import { GroupCacheService } from './group-cache.service';
 import { GroupLogService } from 'src/modules/group-log/group-log.service';
 import { SocialClientService } from 'src/modules/client/social/social-client.service';
 import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
+import { UserClientService } from 'src/modules/client/user/user-client.service';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class GroupService {
@@ -47,6 +49,7 @@ export class GroupService {
     private readonly groupLogService: GroupLogService,
     private readonly groupCacheService: GroupCacheService,
     private readonly socialClientService: SocialClientService,
+    private readonly userClient: UserClientService,
   ) {}
 
   // ---------- Public API (refactored & optimized) ----------
@@ -147,9 +150,20 @@ export class GroupService {
       const groupRepo = manager.getRepository(Group);
       const memberRepo = manager.getRepository(GroupMember);
 
+      const owner = await this.userClient.getUserInfo(userId);
+
+      if (!owner) {
+        throw new RpcException('Owner not found');
+      }
+
       const group = groupRepo.create({
         ...dto,
         createdBy: userId,
+        owner: {
+          id: owner.id,
+          fullName: `${owner.firstName} ${owner.lastName}`,
+          avatarUrl: owner.avatarUrl,
+        },
         groupSetting: new GroupSetting(),
       });
       group.groupSetting.createdBy = userId;

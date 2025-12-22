@@ -11,12 +11,14 @@ import { GroupCacheService } from './group/group-cache.service';
 import { GroupLog } from 'src/entities/group-log.entity';
 import { GroupLogModule } from '../group-log/group-log.module';
 import { SocialClientModule } from '../client/social/social-client.module';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Group, GroupSetting, GroupMember, GroupLog]),
     GroupLogModule,
     SocialClientModule,
+    UserClientModule,
   ],
   controllers: [GroupController, GroupSettingController],
   providers: [GroupService, GroupSettingService, GroupCacheService],

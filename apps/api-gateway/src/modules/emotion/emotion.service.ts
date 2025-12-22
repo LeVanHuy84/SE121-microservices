@@ -2,6 +2,7 @@ import { Injectable, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AnalysisHistoryDTO,
+  DashboardQueryDTO,
   EmotionAnalysisDto,
   EmotionByHourDTO,
   EmotionDailyTrendDTO,
@@ -36,6 +37,32 @@ export class EmotionService {
     return {
       'x-internal-key': this.internalKey,
     };
+  }
+
+  async getEmotionDashboard(filter: DashboardQueryDTO) {
+    try {
+      const from =
+        filter.from instanceof Date
+          ? filter.from.toISOString().slice(0, 10)
+          : filter.from;
+
+      const to =
+        filter.to instanceof Date
+          ? filter.to.toISOString().slice(0, 10)
+          : filter.to;
+
+      const res = await axios.get(`${this.baseUrl}/emotion/dashboard`, {
+        headers: this.headers(),
+        params: { from, to },
+      });
+
+      return res.data;
+    } catch (e) {
+      throw new HttpException(
+        e.response?.data || 'Emotion service error',
+        e.response?.status || 500
+      );
+    }
   }
 
   async getDetail(id: string): Promise<EmotionAnalysisDto> {

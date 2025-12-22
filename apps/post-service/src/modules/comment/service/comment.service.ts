@@ -22,6 +22,8 @@ import { RecentActivityBufferService } from 'src/modules/event/recent-activity.b
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { UserClientService } from 'src/modules/client/user/user-client.service';
 import { OutboxService } from 'src/modules/event/outbox.service';
+import { Post } from 'src/entities/post.entity';
+import { Share } from 'src/entities/share.entity';
 
 @Injectable()
 export class CommentService {
@@ -157,10 +159,43 @@ export class CommentService {
       const comment = await manager.findOne(Comment, {
         where: { id: commentId },
       });
+
       if (!comment) {
         throw new RpcException(`Comment with id ${commentId} not found`);
-      } else if (comment.userId !== userId) {
-        throw new RpcException('You are not allowed to delete this comment');
+      }
+
+      // Nếu không phải chủ comment thì check quyền theo root
+      if (comment.userId !== userId) {
+        let ownerId: string | undefined;
+
+        switch (comment.rootType) {
+          case RootType.POST: {
+            const post = await manager.findOne(Post, {
+              where: { id: comment.rootId },
+              select: ['userId'],
+            });
+            ownerId = post?.userId;
+            break;
+          }
+
+          case RootType.SHARE: {
+            const share = await manager.findOne(Share, {
+              where: { id: comment.rootId },
+              select: ['userId'],
+            });
+            ownerId = share?.userId;
+            break;
+          }
+
+          default:
+            throw new RpcException(
+              'You are not allowed to delete this comment'
+            );
+        }
+
+        if (ownerId !== userId) {
+          throw new RpcException('You are not allowed to delete this comment');
+        }
       }
 
       await manager.delete(Reaction, {
@@ -185,7 +220,6 @@ export class CommentService {
         -1
       );
 
-      // 🧹 Xoá cache liên quan
       await this.commentCache.invalidateComment(
         comment.id,
         comment.rootId,

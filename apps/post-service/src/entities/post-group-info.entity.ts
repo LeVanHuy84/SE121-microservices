@@ -2,7 +2,7 @@ import { PostGroupStatus } from '@repo/dtos';
 import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
 import { Post } from './post.entity';
 
-@Entity('post-group-infos')
+@Entity('post_group_infos')
 export class PostGroupInfo {
   @PrimaryColumn('uuid', { name: 'post_id' })
   postId: string;
