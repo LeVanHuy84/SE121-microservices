@@ -24,6 +24,7 @@ export class RecentActivityBatch {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async flushRecentActivities() {
+    this.logger.log('⏳ Starting flushRecentActivities job...');
     const activities = await this.buffer.snapshotAndGetAll();
     const count = Object.keys(activities).length;
     if (count === 0) return;

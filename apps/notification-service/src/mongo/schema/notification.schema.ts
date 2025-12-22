@@ -1,5 +1,6 @@
 // src/notification/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ChannelNotification } from '@repo/dtos';
 import { Document } from 'mongoose';
 
 export type NotificationDocument = Notification & Document;

@@ -2,8 +2,11 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+
 import { AuthModule } from './modules/auth/auth.module';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
+import { ChatModule } from './modules/chat/chat.module';
+
 import { MediaModule } from './modules/media/media.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { PostModule } from './modules/posts/post.module';
@@ -35,7 +38,7 @@ import { AdminModule } from './modules/admin/admin.module';
       throttlers: [
         {
           ttl: 60000,
-          limit: 50,
+          limit: 200,
         },
       ],
     }),
@@ -58,6 +61,9 @@ import { AdminModule } from './modules/admin/admin.module';
     }),
     GroupModule,
     SearchModule,
+
+    ChatModule,
+
     EmotionModule,
     LogModule,
     AdminModule,
