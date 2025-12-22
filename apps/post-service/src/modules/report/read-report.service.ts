@@ -86,7 +86,7 @@ export class ReadReportService {
   async getContentEntry(
     filter: ContentEntryQuery
   ): Promise<PageResponse<ContentEntryDTO>> {
-    const { targetType, createdAt, limit = 10, page = 1 } = filter;
+    const { query, targetType, createdAt, limit = 10, page = 1 } = filter;
 
     if (!targetType) {
       throw new RpcException('targetType is required');
@@ -99,46 +99,59 @@ export class ReadReportService {
 
     const offset = (page - 1) * limit;
 
-    const selects = [
-      `${config.alias}.id AS id`,
-      `${config.alias}.content AS content`,
-      `${config.alias}.created_at AS createdAt`,
-      `COALESCE(${config.statsAlias}.reports, 0) AS reportCount`,
-    ];
-
-    if (targetType !== TargetType.SHARE) {
-      selects.push(`${config.alias}.media AS media`);
-    }
-
-    const qb = this.dataSource
+    // ===== BASE QUERY =====
+    const baseQb = this.dataSource
       .createQueryBuilder()
       .from(config.table, config.alias)
       .leftJoin(
         config.statsTable,
         config.statsAlias,
         `${config.statsAlias}.${config.statId} = ${config.alias}.id`
-      )
-      .select(selects)
-      .addSelect(`'${targetType}'`, 'type');
+      );
 
     if (createdAt) {
-      qb.andWhere(`${config.alias}.created_at >= :createdAt`, { createdAt });
+      baseQb.andWhere(`${config.alias}.created_at >= :createdAt`, {
+        createdAt,
+      });
     }
 
-    const [rawData, total] = await Promise.all([
-      qb
-        .orderBy('reportCount', 'DESC')
-        .offset(offset)
-        .limit(limit)
-        .getRawMany(),
-      qb.getCount(),
-    ]);
+    if (query?.trim()) {
+      baseQb.andWhere(`${config.alias}.content ILIKE :keyword`, {
+        keyword: `%${query.trim()}%`,
+      });
+    }
 
+    // ===== SELECT =====
+    const selects = [
+      `${config.alias}.id AS id`,
+      `${config.alias}.content AS content`,
+      `${config.alias}.created_at AS "createdAt"`,
+      `COALESCE(${config.statsAlias}.reports, 0) AS "reportCount"`,
+    ];
+
+    if (targetType !== TargetType.SHARE) {
+      selects.push(`${config.alias}.media AS media`);
+    }
+
+    // ===== DATA QUERY =====
+    const rawData = await baseQb
+      .clone()
+      .select(selects)
+      .addSelect(`'${targetType}'`, 'type')
+      .orderBy('"reportCount"', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany();
+
+    // ===== COUNT QUERY =====
+    const total = await baseQb.clone().getCount();
+
+    // ===== MAP =====
     const data: ContentEntryDTO[] = rawData.map((row) => ({
       id: row.id,
       type: targetType,
       content: row.content,
-      medias: [...row.media],
+      medias: this.normalizeMedias(row.media, targetType),
       reportPendingCount: Number(row.reportCount),
       createdAt: row.createdAt,
     }));
@@ -147,7 +160,8 @@ export class ReadReportService {
   }
 
   async getContentChart(filter: DashboardQueryDTO) {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     // ===== NORMALIZE DATE (VN → UTC) =====
     let fromDate = this.vnDateToUtcStart(filter.from);
@@ -155,13 +169,12 @@ export class ReadReportService {
 
     // default = 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(nowVN)!;
+      toDate = this.vnDateToUtcEnd(today)!;
     }
 
     if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(d)!;
+      today.setDate(today.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(today)!;
     }
 
     // ===== LIMIT RANGE =====
@@ -187,7 +200,7 @@ export class ReadReportService {
     const posts = await this.dataSource
       .getRepository(Post)
       .createQueryBuilder('p')
-      .select(`DATE(r.created_at)`, 'date')
+      .select(`DATE(p.created_at)`, 'date')
       .addSelect('COUNT(*)', 'count')
       .where('p.created_at BETWEEN :from AND :to', {
         from: fromDate,
@@ -201,7 +214,7 @@ export class ReadReportService {
     const comments = await this.dataSource
       .getRepository(CommentEntity)
       .createQueryBuilder('c')
-      .select(`DATE(r.created_at)`, 'date')
+      .select(`DATE(c.created_at)`, 'date')
       .addSelect('COUNT(*)', 'count')
       .where('c.created_at BETWEEN :from AND :to', {
         from: fromDate,
@@ -215,7 +228,7 @@ export class ReadReportService {
     const shares = await this.dataSource
       .getRepository(Share)
       .createQueryBuilder('s')
-      .select(`DATE(r.created_at)`, 'date')
+      .select(`DATE(s.created_at)`, 'date')
       .addSelect('COUNT(*)', 'count')
       .where('s.created_at BETWEEN :from AND :to', {
         from: fromDate,
@@ -270,21 +283,21 @@ export class ReadReportService {
   }
 
   async getReportChart(filter: DashboardQueryDTO) {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     // ===== NORMALIZE DATE (VN → UTC) =====
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 7 ngày gần nhất
+    // default = 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(nowVN)!;
+      toDate = this.vnDateToUtcEnd(today)!;
     }
 
     if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(d)!;
+      today.setDate(today.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(today)!;
     }
 
     // ===== LIMIT RANGE =====
@@ -418,5 +431,12 @@ export class ReadReportService {
     return new Date(
       Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999)
     );
+  }
+
+  private normalizeMedias(media: any, type: TargetType) {
+    if (!media) return [];
+
+    if (type === TargetType.POST) return media;
+    if (type === TargetType.COMMENT) return [media];
   }
 }

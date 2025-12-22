@@ -1,5 +1,5 @@
 import { Column, Entity, OneToMany, OneToOne } from 'typeorm';
-import { GroupPrivacy, GroupStatus } from '@repo/dtos';
+import { GroupOwnerSnapshot, GroupPrivacy, GroupStatus } from '@repo/dtos';
 import { AuditableEntity } from './auditable.entity';
 import { GroupSetting } from './group-setting.entity';
 import { GroupMember } from './group-member.entity';
@@ -33,6 +33,9 @@ export class Group extends AuditableEntity {
 
   @Column({ type: 'int', default: 0 })
   reports: number;
+
+  @Column({ type: 'jsonb', nullable: true })
+  owner: GroupOwnerSnapshot;
 
   @Column({ type: 'enum', enum: GroupStatus, default: GroupStatus.ACTIVE })
   status: GroupStatus;

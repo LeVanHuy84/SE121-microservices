@@ -57,4 +57,8 @@ export class UserController {
     return this.userService.getUsersBatch(ids);
   }
 
+  @MessagePattern('getBaseUsersBatch')
+  async getBaseUserBatch(@Payload() ids: string[]) {
+    return this.userService.getBaseUsersBatch(ids);
+  }
 }

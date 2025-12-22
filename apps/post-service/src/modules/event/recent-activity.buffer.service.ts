@@ -64,7 +64,6 @@ export class RecentActivityBufferService {
       snapshot[`${type}:${targetType}:${targetId}`] = JSON.parse(getResult);
     }
 
-    this.logger.debug(`📸 Snapshot ${Object.keys(snapshot).length} activities`);
     return snapshot;
   }
 

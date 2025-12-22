@@ -47,14 +47,14 @@ export class ReportService {
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 30 ngày gần nhất (VN)
+    // default = 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(nowVN)!;
+      toDate = nowVN;
     }
 
     if (!fromDate) {
       const d = new Date(nowVN);
-      d.setDate(d.getDate() - 29);
+      d.setDate(d.getDate() - 7);
       fromDate = this.vnDateToUtcStart(d)!;
     }
 
@@ -378,21 +378,21 @@ export class ReportService {
   }
 
   async getReportChart(filter: DashboardQueryDTO) {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     // ===== NORMALIZE DATE (VN → UTC) =====
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 7 ngày gần nhất
+    // default = 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(nowVN)!;
+      toDate = this.vnDateToUtcEnd(today)!;
     }
 
     if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(d)!;
+      today.setDate(today.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(today)!;
     }
 
     // ===== LIMIT RANGE =====
