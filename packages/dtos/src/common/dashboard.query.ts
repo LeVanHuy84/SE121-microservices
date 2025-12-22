@@ -1,6 +1,9 @@
-import { IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class DashboardQueryDTO {
-  @IsOptional()
-  range?: '7d' | '30d' | '90d';
+  @Type(() => Date)
+  from: Date;
+
+  @Type(() => Date)
+  to: Date;
 }

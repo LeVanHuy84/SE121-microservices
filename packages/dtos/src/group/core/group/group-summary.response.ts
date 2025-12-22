@@ -3,7 +3,7 @@ import { GroupPrivacy } from '../../enums';
 
 export class GroupSummaryResponse {
   @Expose()
-  groupId: string;
+  id: string;
   @Expose()
   name: string;
   @Expose()

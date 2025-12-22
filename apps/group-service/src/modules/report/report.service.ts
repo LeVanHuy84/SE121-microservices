@@ -18,7 +18,6 @@ import {
   LogType,
   PageResponse,
   ReportStatus,
-  SystemRole,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { GroupReport } from 'src/entities/group-report.entity';
@@ -37,23 +36,40 @@ export class ReportService {
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
   ) {}
+  private readonly VN_OFFSET_HOURS = 7;
 
   async getDashboard(
     filter: DashboardQueryDTO,
   ): Promise<{ totalGroups: number; pendingReports: number }> {
-    const { range } = filter;
+    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
 
-    const fromDate = this.resolveRange(range);
-    const toDate = new Date();
+    // ===== NORMALIZE DATE (VN → UTC) =====
+    let fromDate = this.vnDateToUtcStart(filter.from);
+    let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // ===== TOTAL POSTS (FILTER BY TIME) =====
+    // default = 30 ngày gần nhất (VN)
+    if (!toDate) {
+      toDate = this.vnDateToUtcEnd(nowVN)!;
+    }
+
+    if (!fromDate) {
+      const d = new Date(nowVN);
+      d.setDate(d.getDate() - 29);
+      fromDate = this.vnDateToUtcStart(d)!;
+    }
+
+    // ===== BUILD WHERE CONDITION =====
+    const groupWhere: any = {
+      status: GroupStatus.ACTIVE,
+      createdAt: Between(fromDate, toDate),
+    };
+
+    // ===== TOTAL GROUPS =====
     const totalGroups = await this.groupRepo.count({
-      where: {
-        status: GroupStatus.ACTIVE,
-        createdAt: Between(fromDate, toDate),
-      },
+      where: groupWhere,
     });
 
+    // ===== PENDING REPORTS (KHÔNG FILTER TIME) =====
     const pendingReports = await this.groupReportRepository.count({
       where: {
         status: ReportStatus.PENDING,
@@ -352,14 +368,120 @@ export class ReportService {
       .getManyAndCount();
 
     return new PageResponse(
-      plainToInstance(AdminGroupDTO, data),
+      plainToInstance(AdminGroupDTO, data, {
+        excludeExtraneousValues: true,
+      }),
       total,
       page,
       limit,
     );
   }
 
-  // ===== HELPER =====
+  async getReportChart(filter: DashboardQueryDTO) {
+    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+
+    // ===== NORMALIZE DATE (VN → UTC) =====
+    let fromDate = this.vnDateToUtcStart(filter.from);
+    let toDate = this.vnDateToUtcEnd(filter.to);
+
+    // default = 7 ngày gần nhất
+    if (!toDate) {
+      toDate = this.vnDateToUtcEnd(nowVN)!;
+    }
+
+    if (!fromDate) {
+      const d = new Date(nowVN);
+      d.setDate(d.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(d)!;
+    }
+
+    // ===== LIMIT RANGE =====
+    const MAX_DAYS = 30;
+    const diffDays =
+      Math.floor(
+        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
+
+    if (diffDays > MAX_DAYS) {
+      const d = new Date(toDate);
+      d.setDate(d.getDate() - (MAX_DAYS - 1));
+      fromDate = this.vnDateToUtcStart(d)!;
+    }
+
+    // helper key theo ngày VN
+    const toKey = (d: Date) =>
+      new Date(d.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+
+    // ===== REPORTS =====
+    const reports = await this.dataSource
+      .getRepository(GroupReport)
+      .createQueryBuilder('r')
+      .select(`DATE(r.created_at)`, 'date')
+      .addSelect('r.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .groupBy('date')
+      .addGroupBy('r.status')
+      .getRawMany();
+
+    // ===== INIT MAP =====
+    const map = new Map<
+      string,
+      {
+        date: string;
+        pendingCount: number;
+        resolvedCount: number;
+        rejectedCount: number;
+      }
+    >();
+
+    const days =
+      Math.floor(
+        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
+
+    for (let i = 0; i < days; i++) {
+      const d = new Date(fromDate);
+      d.setDate(d.getDate() + i);
+
+      const key = toKey(d);
+      map.set(key, {
+        date: key,
+        pendingCount: 0,
+        resolvedCount: 0,
+        rejectedCount: 0,
+      });
+    }
+
+    // ===== MERGE DATA =====
+    reports.forEach((r) => {
+      const key = toKey(new Date(r.date));
+      const item = map.get(key);
+      if (!item) return;
+
+      const count = Number(r.count);
+
+      switch (r.status) {
+        case ReportStatus.PENDING:
+          item.pendingCount = count;
+          break;
+        case ReportStatus.RESOLVED:
+          item.resolvedCount = count;
+          break;
+        case ReportStatus.REJECTED:
+          item.rejectedCount = count;
+          break;
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
   // ===== HELPER =====
   private async createGroupOutboxEvent(
     eventType: GroupEventType,
@@ -378,23 +500,49 @@ export class ReportService {
     await repo.save(event);
   }
 
-  private resolveRange(range?: '7d' | '30d' | '90d'): Date {
-    const now = new Date();
-    const fromDate = new Date(now);
+  private normalizeToVNDate(value: string | Date): {
+    y: number;
+    m: number;
+    d: number;
+  } {
+    let vnDate: Date;
 
-    switch (range) {
-      case '7d':
-        fromDate.setDate(now.getDate() - 7);
-        break;
-      case '90d':
-        fromDate.setDate(now.getDate() - 90);
-        break;
-      case '30d':
-      default:
-        fromDate.setDate(now.getDate() - 30);
-        break;
+    if (value instanceof Date) {
+      vnDate = new Date(value);
+    } else if (value.includes('T')) {
+      // ISO string → Date
+      vnDate = new Date(value);
+    } else {
+      // YYYY-MM-DD → coi là VN
+      const [y, m, d] = value.split('-').map(Number);
+      return { y, m, d };
     }
 
-    return fromDate;
+    // Convert UTC → VN
+    vnDate = new Date(vnDate.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+
+    return {
+      y: vnDate.getFullYear(),
+      m: vnDate.getMonth() + 1,
+      d: vnDate.getDate(),
+    };
+  }
+
+  private vnDateToUtcStart(value?: Date | string): Date | undefined {
+    if (!value) return undefined;
+
+    const { y, m, d } = this.normalizeToVNDate(value);
+
+    return new Date(Date.UTC(y, m - 1, d, -this.VN_OFFSET_HOURS, 0, 0, 0));
+  }
+
+  private vnDateToUtcEnd(value?: Date | string): Date | undefined {
+    if (!value) return undefined;
+
+    const { y, m, d } = this.normalizeToVNDate(value);
+
+    return new Date(
+      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999),
+    );
   }
 }

@@ -42,12 +42,17 @@ export class PostQueryService {
   async getDashboard(
     filter: DashboardQueryDTO
   ): Promise<{ totalPosts: number; pendingReports: number }> {
-    const { range } = filter;
+    const now = new Date();
 
-    const fromDate = this.resolveRange(range);
-    const toDate = new Date();
+    const fromDate = filter.from ?? new Date(now);
+    const toDate = filter.to ?? now;
 
-    // ===== TOTAL POSTS (FILTER BY TIME) =====
+    // default = 30 ngày nếu không truyền from
+    if (!filter.from) {
+      fromDate.setDate(now.getDate() - 7);
+    }
+
+    // ===== TOTAL POSTS (THEO TIME RANGE) =====
     const totalPosts = await this.postRepo.count({
       where: {
         isDeleted: false,
@@ -55,9 +60,11 @@ export class PostQueryService {
       },
     });
 
+    // ===== PENDING REPORTS (THEO TIME RANGE) =====
     const pendingReports = await this.reportRepo.count({
       where: {
         status: ReportStatus.PENDING,
+        createdAt: Between(fromDate, toDate),
       },
     });
 
@@ -349,25 +356,5 @@ export class PostQueryService {
 
     if (post.audience === Audience.FRIENDS && relation !== 'FRIENDS')
       throw new RpcException('Forbidden: Friends only');
-  }
-
-  private resolveRange(range?: '7d' | '30d' | '90d'): Date {
-    const now = new Date();
-    const fromDate = new Date(now);
-
-    switch (range) {
-      case '7d':
-        fromDate.setDate(now.getDate() - 7);
-        break;
-      case '90d':
-        fromDate.setDate(now.getDate() - 90);
-        break;
-      case '30d':
-      default:
-        fromDate.setDate(now.getDate() - 30);
-        break;
-    }
-
-    return fromDate;
   }
 }

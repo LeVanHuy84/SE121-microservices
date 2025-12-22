@@ -12,5 +12,4 @@ export const EVENT_DESTINATION = {
 export const USER_STATUS = {
   ACTIVE: 'ACTIVE',
   BANNED: 'BANNED',
-  DELETED: 'DELETED',
 } as const;

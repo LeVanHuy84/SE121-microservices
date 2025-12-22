@@ -33,6 +33,7 @@ import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import { OutboxService } from '../event/outbox.service';
 import { CLERK_CLIENT } from '../clerk/clerk.module';
 import { countDistinct } from 'drizzle-orm';
+import { toUtcEndOfDayVN, toUtcStartOfDayVN } from 'src/utils/time-convert';
 
 @Injectable()
 export class AdminService {
@@ -41,6 +42,8 @@ export class AdminService {
     private readonly outboxService: OutboxService,
     @Inject(CLERK_CLIENT) private clerkClient
   ) {}
+
+  private readonly VN_OFFSET_HOURS = 7;
 
   async createSystemUser(
     dto: CreateSystemUserDTO,
@@ -418,40 +421,23 @@ export class AdminService {
 
   async getDashboard(
     filter: DashboardQueryDTO
-  ): Promise<{ totalUsers: number; activeUsers: number }> {
-    const { range } = filter;
+  ): Promise<{ activeUsers: number }> {
+    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
 
-    // ===== RANGE (DEFAULT = 30D) =====
-    const now = new Date();
-    const fromDate = new Date(now);
-    const toDate = now;
+    let fromDate = this.vnDateToUtcStart(filter.from);
+    let toDateValue = this.vnDateToUtcEnd(filter.to);
 
-    switch (range) {
-      case '7d':
-        fromDate.setDate(now.getDate() - 7);
-        break;
-      case '90d':
-        fromDate.setDate(now.getDate() - 90);
-        break;
-      case '30d':
-      default:
-        fromDate.setDate(now.getDate() - 30);
-        break;
+    // default = 30 ngày gần nhất theo VN
+    if (!fromDate) {
+      const d = new Date(nowVN);
+      d.setDate(d.getDate() - 29);
+      fromDate = this.vnDateToUtcStart(d);
     }
 
-    // ===== TOTAL END USERS =====
-    const [totalResult] = await this.db
-      .select({
-        count: countDistinct(users.id),
-      })
-      .from(users)
-      .innerJoin(userRoles, eq(userRoles.userId, users.id))
-      .innerJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(
-        and(isNull(users.deletedAt), eq(roles.name, SystemRole.USER as string))
-      );
+    if (!toDateValue) {
+      toDateValue = this.vnDateToUtcEnd(nowVN);
+    }
 
-    // ===== ACTIVE END USERS (THEO RANGE) =====
     const [activeResult] = await this.db
       .select({
         count: countDistinct(users.id),
@@ -465,14 +451,59 @@ export class AdminService {
           eq(users.isActive, true),
           eq(users.status, USER_STATUS.ACTIVE),
           eq(roles.name, SystemRole.USER as string),
-          gte(users.updatedAt, fromDate),
-          lte(users.updatedAt, toDate)
+          gte(users.updatedAt, fromDate!),
+          lte(users.updatedAt, toDateValue!)
         )
       );
 
     return {
-      totalUsers: Number(totalResult.count),
-      activeUsers: Number(activeResult.count),
+      activeUsers: Number(activeResult.count ?? 0),
     };
+  }
+
+  private normalizeToVNDate(value: string | Date): {
+    y: number;
+    m: number;
+    d: number;
+  } {
+    let vnDate: Date;
+
+    if (value instanceof Date) {
+      vnDate = new Date(value);
+    } else if (value.includes('T')) {
+      // ISO string → Date
+      vnDate = new Date(value);
+    } else {
+      // YYYY-MM-DD → coi là VN
+      const [y, m, d] = value.split('-').map(Number);
+      return { y, m, d };
+    }
+
+    // Convert UTC → VN
+    vnDate = new Date(vnDate.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+
+    return {
+      y: vnDate.getFullYear(),
+      m: vnDate.getMonth() + 1,
+      d: vnDate.getDate(),
+    };
+  }
+
+  private vnDateToUtcStart(value?: Date | string): Date | undefined {
+    if (!value) return undefined;
+
+    const { y, m, d } = this.normalizeToVNDate(value);
+
+    return new Date(Date.UTC(y, m - 1, d, -this.VN_OFFSET_HOURS, 0, 0, 0));
+  }
+
+  private vnDateToUtcEnd(value?: Date | string): Date | undefined {
+    if (!value) return undefined;
+
+    const { y, m, d } = this.normalizeToVNDate(value);
+
+    return new Date(
+      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999)
+    );
   }
 }

@@ -4,6 +4,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   ContentEntryQuery,
   CreateReportDTO,
+  DashboardQueryDTO,
   ReportFilterDTO,
   TargetType,
 } from '@repo/dtos';
@@ -60,8 +61,13 @@ export class ReportController {
     return this.readReportService.getContentEntry(filter);
   }
 
-  @MessagePattern('get_7d_post_dashboard')
-  async get7dPostDashboard() {
-    return this.readReportService.getPostDashboard();
+  @MessagePattern('get_content_chart')
+  async getContentChart(@Payload() filter: DashboardQueryDTO) {
+    return this.readReportService.getContentChart(filter);
+  }
+
+  @MessagePattern('get_content_report_chart')
+  async getReportChar(@Payload() filter: DashboardQueryDTO) {
+    return this.readReportService.getReportChart(filter);
   }
 }

@@ -38,9 +38,9 @@ export class ReportController {
     });
   }
 
-  @Post('/reject')
+  @Post('/ignore')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
-  rejectReport(
+  ignoreReport(
     @CurrentUserId() userId: string,
     @Body() payload: { targetId: string; targetType: TargetType }
   ) {

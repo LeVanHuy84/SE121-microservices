@@ -1,6 +1,6 @@
 from collections import defaultdict
-from datetime import datetime
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, date
+from fastapi import APIRouter, Depends, Query
 from app.database.analysis_repository import AnalysisRepository
 from app.database.mongo_client import engine
 from app.utils.preset_mapper import resolve_preset_range, validate_range
@@ -18,26 +18,45 @@ analyze_router = APIRouter(
 repo = AnalysisRepository(engine)
 
 @analyze_router.get("/dashboard")
-async def get_community_emotion_dashboard():
+async def get_community_emotion_dashboard(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+):
     """
-    Biểu đồ cảm xúc cộng đồng theo NGÀY trong 7 ngày gần nhất
+    Biểu đồ cảm xúc cộng đồng theo NGÀY
+    - default: 7 ngày gần nhất
+    - max: 30 ngày
     """
-    from datetime import timedelta
-    from collections import defaultdict
 
-    # 1. Time range: last 7 days
-    end = datetime.now()
-    start = end - timedelta(days=7)
+    now = datetime.now()
 
-    # 2. Query DB (community, SUCCESS only)
+    # ===== DEFAULT RANGE =====
+    if not to_date:
+        to_date = now.date()
+
+    if not from_date:
+        from_date = to_date - timedelta(days=6)
+
+    # ===== CLAMP RANGE =====
+    MAX_DAYS = 30
+    diff_days = (to_date - from_date).days + 1
+
+    if diff_days > MAX_DAYS:
+        from_date = to_date - timedelta(days=MAX_DAYS - 1)
+
+    # convert to datetime (VN time assumed)
+    start_dt = datetime.combine(from_date, datetime.min.time())
+    end_dt = datetime.combine(to_date, datetime.max.time())
+
+    # ===== QUERY DB =====
     entries = await engine.find(
         EmotionAnalysis,
-        (EmotionAnalysis.createdAtVN >= start) &
-        (EmotionAnalysis.createdAtVN <= end) &
+        (EmotionAnalysis.createdAtVN >= start_dt) &
+        (EmotionAnalysis.createdAtVN <= end_dt) &
         (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
     )
 
-    # 3. Group theo ngày + full emotion set
+    # ===== GROUP BY DAY + EMOTION =====
     grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
 
     for item in entries:
@@ -50,17 +69,17 @@ async def get_community_emotion_dashboard():
         if emo in grouped[day]:
             grouped[day][emo] += 1
 
-    # 4. Fill missing days (để chart không gãy)
+    # ===== FILL MISSING DAYS =====
     result = []
-    current = start.date()
+    current = from_date
 
-    while current <= end.date():
+    while current <= to_date:
         day_str = current.strftime("%Y-%m-%d")
         result.append({
             "date": day_str,
             **grouped.get(day_str, {emo.value: 0 for emo in EmotionEnum})
         })
-        current = current + timedelta(days=1)
+        current += timedelta(days=1)
 
     return result
 

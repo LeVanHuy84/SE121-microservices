@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { SearchGroupDto, SearchPostDto } from '@repo/dtos';
+import { SearchGroupDto, SearchPostDto, SearchUserDto } from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
@@ -50,7 +50,7 @@ export class SearchController {
   }
 
   @Get('users')
-  async searchUsers(@Query() filter: SearchPostDto) {
+  async searchUsers(@Query() filter: SearchUserDto) {
     const result = await lastValueFrom(
       this.searchClient.send('search_users', filter)
     );

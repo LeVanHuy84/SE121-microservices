@@ -3,7 +3,7 @@ import { Group } from './group.entity';
 import { BaseEntity } from './base.entity';
 import { ReportStatus } from '@repo/dtos';
 
-@Entity()
+@Entity('group_reports')
 @Unique(['reporterId', 'groupId'])
 export class GroupReport extends BaseEntity {
   @Column({

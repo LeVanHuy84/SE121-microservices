@@ -65,4 +65,9 @@ export class ReportController {
   async getGroupByAdmin(@Payload() data: AdminGroupQuery) {
     return this.reportService.getGroupByAdmin(data);
   }
+
+  @MessagePattern('get_group_report_chart')
+  async getGroupReportChart(@Payload() filter: DashboardQueryDTO) {
+    return this.reportService.getReportChart(filter);
+  }
 }
