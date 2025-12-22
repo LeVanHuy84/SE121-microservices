@@ -7,4 +7,5 @@ export enum EventTopic {
   USER = 'user-events',
   ANALYSIS = 'analysis-events',
   ANALYSIS_RESULT = 'analysis-result-events',
+  LOGGING = 'logging-events',
 }

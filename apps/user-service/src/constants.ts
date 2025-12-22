@@ -8,3 +8,8 @@ export const EVENT_DESTINATION = {
   KAFKA: 'KAFKA',
   RABBITMQ: 'RABBITMQ',
 } as const;
+
+export const USER_STATUS = {
+  ACTIVE: 'ACTIVE',
+  BANNED: 'BANNED',
+} as const;

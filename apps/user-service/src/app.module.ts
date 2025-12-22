@@ -5,12 +5,15 @@ import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { EventModule } from './module/event/event.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AdminModule } from './module/admin/admin.module';
+import { CommandModule } from './module/command/command.module';
+import { ClerkModule } from './module/clerk/clerk.module';
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     DrizzleModule,
     RedisModule,
     UserModule,
-    ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     RedisModule.forRoot({
       type: 'single',
@@ -22,6 +25,9 @@ import { ScheduleModule } from '@nestjs/schedule';
       },
     }),
     EventModule,
+    AdminModule,
+    ClerkModule,
+    CommandModule,
   ],
 })
 export class AppModule {}

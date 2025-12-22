@@ -56,4 +56,18 @@ export class OutboxService {
       payload
     );
   }
+
+  createLoggingOutboxEvent(
+    tx: any,
+    eventType: string,
+    payload: Record<string, any>
+  ) {
+    return this.createOutboxEventWithTransaction(
+      tx,
+      EventDestination.KAFKA,
+      EventTopic.LOGGING,
+      eventType,
+      payload
+    );
+  }
 }

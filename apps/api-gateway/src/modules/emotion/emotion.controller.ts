@@ -1,10 +1,18 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { EmotionService } from './emotion.service';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { RequireRole } from 'src/common/decorators/require-role.decorator';
+import { DashboardQueryDTO, SystemRole } from '@repo/dtos';
 
 @Controller('emotion')
 export class EmotionController {
   constructor(private readonly emotionService: EmotionService) {}
+
+  @Get('dashboard')
+  @RequireRole(SystemRole.ADMIN)
+  async getEmotionDashboard(@Query() filter: DashboardQueryDTO) {
+    return this.emotionService.getEmotionDashboard(filter);
+  }
 
   @Get('detail/:id')
   getDetail(@Param('id') id: string) {

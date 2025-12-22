@@ -1,22 +1,26 @@
 import { Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   CreateReportDTO,
-  CursorPageResponse,
   EventDestination,
   EventTopic,
+  LogType,
   PostEventType,
-  ReportFilterDTO,
   ReportResponseDTO,
   ReportStatus,
   ShareEventType,
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { TARGET_CONFIG } from 'src/constant';
+import { CommentStat } from 'src/entities/comment-stat.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
+import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
 import { Report } from 'src/entities/report.entity';
-import { DataSource, Repository } from 'typeorm';
+import { ShareStat } from 'src/entities/share-stat.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class ReportService {
@@ -26,15 +30,21 @@ export class ReportService {
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     @InjectRepository(Post)
-    private readonly postRepo: Repository<Post>
+    private readonly postRepo: Repository<Post>,
+    @InjectRepository(PostStat)
+    private readonly postStatRepo: Repository<PostStat>,
+    @InjectRepository(CommentStat)
+    private readonly commentStatRepo: Repository<CommentStat>,
+    @InjectRepository(ShareStat)
+    private readonly shareStatRepo: Repository<ShareStat>
   ) {}
 
-  async createReport(userId: string, createReportDto: CreateReportDTO) {
+  async createReport(userId: string, dto: CreateReportDTO) {
     let groupId: string | undefined;
 
-    if (createReportDto.targetType === TargetType.POST) {
+    if (dto.targetType === TargetType.POST) {
       const post = await this.postRepo.findOne({
-        where: { id: createReportDto.targetId },
+        where: { id: dto.targetId },
         select: ['id', 'groupId'],
       });
       if (!post) throw new Error('Post not found');
@@ -42,12 +52,16 @@ export class ReportService {
     }
 
     const report = this.reportRepo.create({
-      ...createReportDto,
+      ...dto,
       reporterId: userId,
       groupId,
     });
 
     const saved = await this.reportRepo.save(report);
+
+    // 🔥 UPDATE STAT
+    await this.increaseReportCount(dto.targetType, dto.targetId);
+
     return plainToInstance(ReportResponseDTO, saved);
   }
 
@@ -57,40 +71,51 @@ export class ReportService {
     moderatorId: string
   ): Promise<boolean> {
     return await this.reportRepo.manager.transaction(async (manager) => {
-      await manager
+      const config = TARGET_CONFIG[targetType];
+      if (!config) {
+        throw new RpcException('Invalid targetType');
+      }
+
+      // 1. Resolve only PENDING reports
+      const reportResult = await manager
         .createQueryBuilder()
         .update(Report)
         .set({
           status: ReportStatus.RESOLVED,
           resolvedBy: moderatorId,
         })
-        .where('targetId = :targetId AND targetType = :targetType', {
-          targetId,
-          targetType,
-        })
+        .where(
+          'targetId = :targetId AND targetType = :targetType AND status = :status',
+          {
+            targetId,
+            targetType,
+            status: ReportStatus.PENDING,
+          }
+        )
         .execute();
 
-      const tableMap = {
-        [TargetType.POST]: 'posts',
-        [TargetType.SHARE]: 'shares',
-        [TargetType.COMMENT]: 'comments',
-      };
+      // 2. Soft delete target content
+      await manager
+        .createQueryBuilder()
+        .update(config.table)
+        .set({ isDeleted: true })
+        .where('id = :id', { id: targetId })
+        .execute();
 
-      const tableName = tableMap[targetType];
-      if (tableName) {
-        await manager
-          .createQueryBuilder()
-          .update(tableName)
-          .set({ isDeleted: true })
-          .where('id = :id', { id: targetId })
-          .execute();
-      }
+      // 3. Reset pending report stats
+      await manager
+        .createQueryBuilder()
+        .update(config.statsTable)
+        .set({ reports: 0 })
+        .where(`${config.statId} = :id`, { id: targetId })
+        .execute();
 
-      let outbox: OutboxEvent | null = null;
+      // 4. Domain outbox event
+      let domainOutbox: OutboxEvent | null = null;
 
       switch (targetType) {
         case TargetType.POST:
-          outbox = this.outboxRepo.create({
+          domainOutbox = this.outboxRepo.create({
             topic: EventTopic.POST,
             destination: EventDestination.KAFKA,
             eventType: PostEventType.REMOVED,
@@ -99,7 +124,7 @@ export class ReportService {
           break;
 
         case TargetType.SHARE:
-          outbox = this.outboxRepo.create({
+          domainOutbox = this.outboxRepo.create({
             topic: EventTopic.SHARE,
             destination: EventDestination.KAFKA,
             eventType: ShareEventType.REMOVED,
@@ -108,77 +133,115 @@ export class ReportService {
           break;
 
         case TargetType.COMMENT:
-        default:
+          // Comments do not emit removed events
           break;
       }
 
-      if (outbox) {
-        await manager.save(outbox);
+      // 5. Logging outbox
+      const loggingOutbox = this.outboxRepo.create({
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.POST_LOG,
+        payload: {
+          actorId: moderatorId,
+          targetId,
+          targetType,
+          action: 'RESOLVE_AND_REMOVE',
+          message: `Moderator ${moderatorId} resolved reports and removed ${targetType.toLowerCase()} ${targetId}`,
+          timestamp: new Date(),
+        },
+      });
+
+      if (domainOutbox) {
+        await manager.save(domainOutbox);
       }
+
+      await manager.save(loggingOutbox);
+
       return true;
     });
   }
 
-  async rejectReport(reportId: string, moderatorId: string) {
-    const result = await this.reportRepo.update(reportId, {
-      status: ReportStatus.REJECTED,
-      resolvedBy: moderatorId,
-    });
+  async rejectReport(
+    targetId: string,
+    targetType: TargetType,
+    moderatorId: string
+  ): Promise<boolean> {
+    return await this.reportRepo.manager.transaction(async (manager) => {
+      const config = TARGET_CONFIG[targetType];
+      if (!config) {
+        throw new RpcException('Invalid targetType');
+      }
 
-    return plainToInstance(ReportResponseDTO, result);
+      // 1. Reject all PENDING reports of target
+      const reportResult = await manager
+        .createQueryBuilder()
+        .update(Report)
+        .set({
+          status: ReportStatus.REJECTED,
+          resolvedBy: moderatorId,
+        })
+        .where(
+          'targetId = :targetId AND targetType = :targetType AND status = :status',
+          {
+            targetId,
+            targetType,
+            status: ReportStatus.PENDING,
+          }
+        )
+        .execute();
+
+      if (!reportResult.affected) {
+        throw new RpcException('No pending reports to reject');
+      }
+
+      // 2. Reset pending report stats
+      await manager
+        .createQueryBuilder()
+        .update(config.statsTable)
+        .set({ reports: 0 })
+        .where(`${config.statId} = :id`, { id: targetId })
+        .execute();
+
+      // 3. Logging outbox
+      const loggingOutbox = this.outboxRepo.create({
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.POST_LOG,
+        payload: {
+          actorId: moderatorId,
+          targetId,
+          targetType,
+          action: 'REJECT_REPORT',
+          message: `Moderator ${moderatorId} rejected all reports for ${targetType.toLowerCase()} ${targetId}`,
+          timestamp: new Date(),
+        },
+      });
+
+      await manager.save(loggingOutbox);
+
+      return true;
+    });
   }
 
-  async getReports(
-    filter: ReportFilterDTO
-  ): Promise<CursorPageResponse<ReportResponseDTO>> {
-    const {
-      groupId,
-      reporterId,
-      targetType,
-      targetId,
-      status,
-      limit = 10,
-      cursor,
-      order = 'DESC',
-      sortBy = 'createdAt',
-    } = filter;
+  // ==== Helper methods ====
+  private async increaseReportCount(targetType: TargetType, targetId: string) {
+    switch (targetType) {
+      case TargetType.POST:
+        await this.postStatRepo.increment({ postId: targetId }, 'reports', 1);
+        break;
 
-    const query = this.reportRepo.createQueryBuilder('report');
+      case TargetType.COMMENT:
+        await this.commentStatRepo.increment(
+          { commentId: targetId },
+          'reports',
+          1
+        );
+        break;
 
-    if (groupId) query.andWhere('report.groupId = :groupId', { groupId });
-    if (reporterId)
-      query.andWhere('report.reporterId = :reporterId', { reporterId });
-    if (targetType)
-      query.andWhere('report.targetType = :targetType', { targetType });
-    if (targetId) query.andWhere('report.targetId = :targetId', { targetId });
-    if (status) query.andWhere('report.status = :status', { status });
-
-    if (cursor) {
-      const operator = order === 'ASC' ? '>' : '<';
-      query.andWhere(`report.${sortBy} ${operator} :cursor`, { cursor });
+      case TargetType.SHARE:
+        await this.shareStatRepo.increment({ shareId: targetId }, 'reports', 1);
+        break;
     }
-
-    query.orderBy(`report.${sortBy}`, order).take(limit + 1);
-
-    const reports = await query.getMany();
-
-    const hasNextPage = reports.length > limit;
-    const data = hasNextPage ? reports.slice(0, limit) : reports;
-
-    let nextCursor: string | null = null;
-    if (hasNextPage) {
-      const lastValue = data[data.length - 1][sortBy];
-      nextCursor = lastValue
-        ? lastValue instanceof Date
-          ? lastValue.toISOString()
-          : String(lastValue)
-        : null;
-    }
-
-    return {
-      data: plainToInstance(ReportResponseDTO, data),
-      nextCursor,
-      hasNextPage,
-    };
   }
 }

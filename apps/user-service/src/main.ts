@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ValidationPipe } from '@nestjs/common';
 import { ExceptionsFilter } from '@repo/common';
+import { CommandService } from './module/command/command.service';
 
 async function bootstrap() {
   const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -28,6 +28,11 @@ async function bootstrap() {
   );
 
   await Promise.all([tcpApp.listen(), redisApp.listen()]);
+
+  const commandApp = await NestFactory.createApplicationContext(AppModule);
+  const commandService = commandApp.get(CommandService);
+  await commandService.run();
+  await commandApp.close();
 
   console.log('User service is running on port 6379');
 }

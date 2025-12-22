@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
   Audience,
   CursorPageResponse,
+  DashboardQueryDTO,
   EditHistoryReponseDTO,
   GetGroupPostQueryDTO,
   GetPostQueryDTO,
@@ -14,6 +15,7 @@ import {
   PostResponseDTO,
   PostSnapshotDTO,
   ReactionType,
+  ReportStatus,
   TargetType,
 } from '@repo/dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
@@ -22,16 +24,55 @@ import { Reaction } from 'src/entities/reaction.entity';
 import { Post } from 'src/entities/post.entity';
 import { PostCacheService } from './post-cache.service';
 import { PostShortenMapper } from '../post-shorten.mapper';
+import { Report } from 'src/entities/report.entity';
 
 @Injectable()
 export class PostQueryService {
   constructor(
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
+    @InjectRepository(Report) private readonly reportRepo: Repository<Report>,
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
     private readonly postCache: PostCacheService
   ) {}
+
+  // Dashboard
+  // Dashboard
+  async getDashboard(
+    filter: DashboardQueryDTO
+  ): Promise<{ totalPosts: number; pendingReports: number }> {
+    const now = new Date();
+
+    const fromDate = filter.from ?? new Date(now);
+    const toDate = filter.to ?? now;
+
+    // default = 30 ngày nếu không truyền from
+    if (!filter.from) {
+      fromDate.setDate(now.getDate() - 7);
+    }
+
+    // ===== TOTAL POSTS (THEO TIME RANGE) =====
+    const totalPosts = await this.postRepo.count({
+      where: {
+        isDeleted: false,
+        createdAt: Between(fromDate, toDate),
+      },
+    });
+
+    // ===== PENDING REPORTS (THEO TIME RANGE) =====
+    const pendingReports = await this.reportRepo.count({
+      where: {
+        status: ReportStatus.PENDING,
+        createdAt: Between(fromDate, toDate),
+      },
+    });
+
+    return {
+      totalPosts,
+      pendingReports,
+    };
+  }
 
   // ----------------------------------------
   // 🔍 Lấy post theo ID

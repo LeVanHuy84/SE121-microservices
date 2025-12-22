@@ -1,11 +1,21 @@
 import { Controller } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateReportDTO, ReportFilterDTO, TargetType } from '@repo/dtos';
+import {
+  ContentEntryQuery,
+  CreateReportDTO,
+  DashboardQueryDTO,
+  ReportFilterDTO,
+  TargetType,
+} from '@repo/dtos';
+import { ReadReportService } from './read-report.service';
 
 @Controller('report')
 export class ReportController {
-  constructor(private readonly reportService: ReportService) {}
+  constructor(
+    private readonly reportService: ReportService,
+    private readonly readReportService: ReadReportService
+  ) {}
 
   @MessagePattern('create_report')
   async createReport(
@@ -32,22 +42,32 @@ export class ReportController {
   async rejectReport(
     @Payload()
     payload: {
-      reportId: string;
+      targetId: string;
+      targetType: TargetType;
       userId: string;
     }
   ) {
-    const { reportId, userId } = payload;
-    return await this.reportService.rejectReport(reportId, userId);
+    const { targetId, targetType, userId } = payload;
+    return await this.reportService.rejectReport(targetId, targetType, userId);
   }
 
   @MessagePattern('get_reports')
-  async getReports(
-    @Payload()
-    payload: {
-      filterDto: ReportFilterDTO;
-    }
-  ) {
-    const { filterDto } = payload;
-    return await this.reportService.getReports(filterDto);
+  async getReports(@Payload() filter: ReportFilterDTO) {
+    return await this.readReportService.getReports(filter);
+  }
+
+  @MessagePattern('get_content_entry')
+  async getContentEntry(@Payload() filter: ContentEntryQuery) {
+    return this.readReportService.getContentEntry(filter);
+  }
+
+  @MessagePattern('get_content_chart')
+  async getContentChart(@Payload() filter: DashboardQueryDTO) {
+    return this.readReportService.getContentChart(filter);
+  }
+
+  @MessagePattern('get_content_report_chart')
+  async getReportChar(@Payload() filter: DashboardQueryDTO) {
+    return this.readReportService.getReportChart(filter);
   }
 }
