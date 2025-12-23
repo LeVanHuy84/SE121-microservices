@@ -37,43 +37,6 @@ export class PostQueryService {
     private readonly postCache: PostCacheService
   ) {}
 
-  // Dashboard
-  // Dashboard
-  async getDashboard(
-    filter: DashboardQueryDTO
-  ): Promise<{ totalPosts: number; pendingReports: number }> {
-    const now = new Date();
-
-    const fromDate = filter.from ?? new Date(now);
-    const toDate = filter.to ?? now;
-
-    // default = 30 ngày nếu không truyền from
-    if (!filter.from) {
-      fromDate.setDate(now.getDate() - 7);
-    }
-
-    // ===== TOTAL POSTS (THEO TIME RANGE) =====
-    const totalPosts = await this.postRepo.count({
-      where: {
-        isDeleted: false,
-        createdAt: Between(fromDate, toDate),
-      },
-    });
-
-    // ===== PENDING REPORTS (THEO TIME RANGE) =====
-    const pendingReports = await this.reportRepo.count({
-      where: {
-        status: ReportStatus.PENDING,
-        createdAt: Between(fromDate, toDate),
-      },
-    });
-
-    return {
-      totalPosts,
-      pendingReports,
-    };
-  }
-
   // ----------------------------------------
   // 🔍 Lấy post theo ID
   // ----------------------------------------

@@ -18,16 +18,62 @@ import { Comment as CommentEntity } from 'src/entities/comment.entity';
 import { Post } from 'src/entities/post.entity';
 import { Report } from 'src/entities/report.entity';
 import { Share } from 'src/entities/share.entity';
-import { DataSource, Repository } from 'typeorm';
+import { Between, DataSource, Repository } from 'typeorm';
 
 @Injectable()
 export class ReadReportService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Report)
-    private readonly reportRepo: Repository<Report>
+    private readonly reportRepo: Repository<Report>,
+    @InjectRepository(Post) private readonly postRepo: Repository<Post>
   ) {}
   private readonly VN_OFFSET_HOURS = 7;
+
+  // Dashboard
+  async getDashboard(
+    filter: DashboardQueryDTO
+  ): Promise<{ totalPosts: number; pendingReports: number }> {
+    // ===== TODAY (VN)
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
+
+    // ===== NORMALIZE DATE (VN → UTC)
+    let fromDate = this.vnDateToUtcStart(filter.from);
+    let toDate = this.vnDateToUtcEnd(filter.to);
+
+    // default = 7 ngày gần nhất (VN)
+    if (!toDate) {
+      toDate = this.vnDateToUtcEnd(todayVN)!;
+    }
+
+    if (!fromDate) {
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(d)!;
+    }
+
+    // ===== TOTAL POSTS
+    const totalPosts = await this.postRepo.count({
+      where: {
+        isDeleted: false,
+        createdAt: Between(fromDate, toDate),
+      },
+    });
+
+    // ===== PENDING REPORTS
+    const pendingReports = await this.reportRepo.count({
+      where: {
+        status: ReportStatus.PENDING,
+        createdAt: Between(fromDate, toDate),
+      },
+    });
+
+    return {
+      totalPosts,
+      pendingReports,
+    };
+  }
 
   async getReports(
     filter: ReportFilterDTO
@@ -160,24 +206,31 @@ export class ReadReportService {
   }
 
   async getContentChart(filter: DashboardQueryDTO) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // ===============================
+    // 1. NORMALIZE FILTER (VN → UTC)
+    // ===============================
 
-    // ===== NORMALIZE DATE (VN → UTC) =====
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
+
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 7 ngày gần nhất (VN)
+    // default: 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(today)!;
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
     if (!fromDate) {
-      today.setDate(today.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(today)!;
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // ===== LIMIT RANGE =====
+    // ===============================
+    // 2. LIMIT RANGE (MAX 30 DAYS)
+    // ===============================
+
     const MAX_DAYS = 30;
     const diffDays =
       Math.floor(
@@ -190,54 +243,34 @@ export class ReadReportService {
       fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // helper key theo NGÀY VN
-    const toKey = (d: Date) =>
-      new Date(d.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+    // ===============================
+    // 3. PREPARE DATE KEYS (VN)
+    // ===============================
 
-    // ===== POSTS =====
-    const posts = await this.dataSource
-      .getRepository(Post)
-      .createQueryBuilder('p')
-      .select(`DATE(p.created_at)`, 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('p.created_at BETWEEN :from AND :to', {
-        from: fromDate,
-        to: toDate,
-      })
-      .andWhere('p.is_deleted = false')
-      .groupBy('date')
-      .getRawMany();
+    const buildDateKeys = (from: Date, to: Date) => {
+      const keys: string[] = [];
+      const startVN = new Date(
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000
+      );
+      const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
 
-    // ===== COMMENTS =====
-    const comments = await this.dataSource
-      .getRepository(CommentEntity)
-      .createQueryBuilder('c')
-      .select(`DATE(c.created_at)`, 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('c.created_at BETWEEN :from AND :to', {
-        from: fromDate,
-        to: toDate,
-      })
-      .andWhere('c.is_deleted = false')
-      .groupBy('date')
-      .getRawMany();
+      const cursor = new Date(startVN);
+      cursor.setHours(0, 0, 0, 0);
 
-    // ===== SHARES =====
-    const shares = await this.dataSource
-      .getRepository(Share)
-      .createQueryBuilder('s')
-      .select(`DATE(s.created_at)`, 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('s.created_at BETWEEN :from AND :to', {
-        from: fromDate,
-        to: toDate,
-      })
-      .groupBy('date')
-      .getRawMany();
+      while (cursor <= endVN) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 1);
+      }
 
-    // ===== INIT MAP =====
+      return keys;
+    };
+
+    const dateKeys = buildDateKeys(fromDate, toDate);
+
+    // ===============================
+    // 4. INIT MAP
+    // ===============================
+
     const map = new Map<
       string,
       {
@@ -248,25 +281,76 @@ export class ReadReportService {
       }
     >();
 
-    const days =
-      Math.floor(
-        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-
-    for (let i = 0; i < days; i++) {
-      const d = new Date(fromDate);
-      d.setDate(d.getDate() + i);
-
-      const key = toKey(d);
-      map.set(key, {
-        date: key,
+    dateKeys.forEach((k) =>
+      map.set(k, {
+        date: k,
         postCount: 0,
         commentCount: 0,
         shareCount: 0,
-      });
-    }
+      })
+    );
 
-    // ===== MERGE DATA =====
+    // ===============================
+    // 5. QUERY HELPERS
+    // ===============================
+
+    const groupByVNDate = (alias: string, col = 'created_at') =>
+      `to_char(timezone('Asia/Ho_Chi_Minh', ${alias}.${col}), 'YYYY-MM-DD')`;
+
+    // ===============================
+    // 6. POSTS
+    // ===============================
+
+    const posts = await this.dataSource
+      .getRepository(Post)
+      .createQueryBuilder('p')
+      .select(groupByVNDate('p'), 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('p.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .andWhere('p.is_deleted = false')
+      .groupBy('date')
+      .getRawMany();
+
+    // ===============================
+    // 7. COMMENTS
+    // ===============================
+
+    const comments = await this.dataSource
+      .getRepository(CommentEntity)
+      .createQueryBuilder('c')
+      .select(groupByVNDate('c'), 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('c.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .andWhere('c.is_deleted = false')
+      .groupBy('date')
+      .getRawMany();
+
+    // ===============================
+    // 8. SHARES
+    // ===============================
+
+    const shares = await this.dataSource
+      .getRepository(Share)
+      .createQueryBuilder('s')
+      .select(groupByVNDate('s'), 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('s.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .groupBy('date')
+      .getRawMany();
+
+    // ===============================
+    // 9. MERGE DATA
+    // ===============================
+
     posts.forEach((p) => {
       if (map.has(p.date)) map.get(p.date)!.postCount = Number(p.count);
     });
@@ -283,24 +367,31 @@ export class ReadReportService {
   }
 
   async getReportChart(filter: DashboardQueryDTO) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // ===============================
+    // 1. NORMALIZE FILTER (VN → UTC)
+    // ===============================
 
-    // ===== NORMALIZE DATE (VN → UTC) =====
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
+
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 7 ngày gần nhất (VN)
+    // default: 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(today)!;
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
     if (!fromDate) {
-      today.setDate(today.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(today)!;
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // ===== LIMIT RANGE =====
+    // ===============================
+    // 2. LIMIT RANGE (MAX 30 DAYS)
+    // ===============================
+
     const MAX_DAYS = 30;
     const diffDays =
       Math.floor(
@@ -313,28 +404,35 @@ export class ReadReportService {
       fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // helper key theo ngày VN
-    const toKey = (d: Date) =>
-      new Date(d.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+    // ===============================
+    // 3. BUILD DATE KEYS (VN)
+    // ===============================
 
-    // ===== REPORTS =====
-    const reports = await this.dataSource
-      .getRepository(Report)
-      .createQueryBuilder('r')
-      .select(`DATE(r.created_at)`, 'date')
-      .addSelect('r.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('r.created_at BETWEEN :from AND :to', {
-        from: fromDate,
-        to: toDate,
-      })
-      .groupBy('date')
-      .addGroupBy('r.status')
-      .getRawMany();
+    const buildDateKeys = (from: Date, to: Date) => {
+      const keys: string[] = [];
 
-    // ===== INIT MAP =====
+      const startVN = new Date(
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000
+      );
+      const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
+
+      const cursor = new Date(startVN);
+      cursor.setHours(0, 0, 0, 0);
+
+      while (cursor <= endVN) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return keys;
+    };
+
+    const dateKeys = buildDateKeys(fromDate, toDate);
+
+    // ===============================
+    // 4. INIT MAP
+    // ===============================
+
     const map = new Map<
       string,
       {
@@ -345,28 +443,42 @@ export class ReadReportService {
       }
     >();
 
-    const days =
-      Math.floor(
-        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-
-    for (let i = 0; i < days; i++) {
-      const d = new Date(fromDate);
-      d.setDate(d.getDate() + i);
-
-      const key = toKey(d);
-      map.set(key, {
-        date: key,
+    dateKeys.forEach((k) =>
+      map.set(k, {
+        date: k,
         pendingCount: 0,
         resolvedCount: 0,
         rejectedCount: 0,
-      });
-    }
+      })
+    );
 
-    // ===== MERGE DATA =====
+    // ===============================
+    // 5. QUERY REPORTS (GROUP BY NGÀY VN)
+    // ===============================
+
+    const reports = await this.dataSource
+      .getRepository(Report)
+      .createQueryBuilder('r')
+      .select(
+        `to_char(timezone('Asia/Ho_Chi_Minh', r.created_at), 'YYYY-MM-DD')`,
+        'date'
+      )
+      .addSelect('r.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .groupBy('date')
+      .addGroupBy('r.status')
+      .getRawMany();
+
+    // ===============================
+    // 6. MERGE DATA
+    // ===============================
+
     reports.forEach((r) => {
-      const key = toKey(new Date(r.date));
-      const item = map.get(key);
+      const item = map.get(r.date);
       if (!item) return;
 
       const count = Number(r.count);

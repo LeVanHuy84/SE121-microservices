@@ -148,7 +148,10 @@ export class AdminService {
   ) {
     const clerkUser = await this.clerkClient.users.getUser(userId);
     if (clerkUser.publicMetadata.isSystemAdmin) {
-      throw new RpcException('Cannot change role of a system admin user');
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Cannot change role of a system admin user',
+      });
     }
 
     await this.clerkClient.users.updateUserMetadata(userId, {
@@ -246,6 +249,7 @@ export class AdminService {
         status: users.status,
         firstName: profiles.firstName,
         lastName: profiles.lastName,
+        createdAt: users.createdAt,
       })
       .from(users)
       .innerJoin(userRoles, eq(users.id, userRoles.userId))
@@ -422,20 +426,22 @@ export class AdminService {
   async getDashboard(
     filter: DashboardQueryDTO
   ): Promise<{ activeUsers: number }> {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    // ===== TODAY (VN)
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
 
     let fromDate = this.vnDateToUtcStart(filter.from);
-    let toDateValue = this.vnDateToUtcEnd(filter.to);
+    let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 30 ngày gần nhất theo VN
-    if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 29);
-      fromDate = this.vnDateToUtcStart(d);
+    // default = 30 ngày gần nhất (VN)
+    if (!toDate) {
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
-    if (!toDateValue) {
-      toDateValue = this.vnDateToUtcEnd(nowVN);
+    if (!fromDate) {
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 29);
+      fromDate = this.vnDateToUtcStart(d)!;
     }
 
     const [activeResult] = await this.db
@@ -451,8 +457,8 @@ export class AdminService {
           eq(users.isActive, true),
           eq(users.status, USER_STATUS.ACTIVE),
           eq(roles.name, SystemRole.USER as string),
-          gte(users.updatedAt, fromDate!),
-          lte(users.updatedAt, toDateValue!)
+          gte(users.updatedAt, fromDate),
+          lte(users.updatedAt, toDate)
         )
       );
 
