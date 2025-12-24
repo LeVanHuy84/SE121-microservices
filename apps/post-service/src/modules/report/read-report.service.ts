@@ -135,12 +135,18 @@ export class ReadReportService {
     const { query, targetType, createdAt, limit = 10, page = 1 } = filter;
 
     if (!targetType) {
-      throw new RpcException('targetType is required');
+      throw new RpcException({
+        statusCode: 400,
+        message: 'targetType is required',
+      });
     }
 
     const config = TARGET_CONFIG[targetType];
     if (!config) {
-      throw new RpcException('Invalid targetType');
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Invalid targetType',
+      });
     }
 
     const offset = (page - 1) * limit;

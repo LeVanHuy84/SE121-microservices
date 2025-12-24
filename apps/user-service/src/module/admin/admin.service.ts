@@ -292,15 +292,29 @@ export class AdminService {
     const target = map.get(userId);
     const actor = map.get(actorId);
 
-    if (!target) throw new RpcException('User not found');
-    if (!actor) throw new RpcException('Actor not found');
+    if (!target)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'User not found',
+      });
+    if (!actor)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Actor not found',
+      });
 
     if (target.role !== 'user') {
-      throw new RpcException('Cannot ban non-user role');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'Cannot ban non-user role',
+      });
     }
 
     if (target.status === USER_STATUS.BANNED) {
-      throw new RpcException('User already banned');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User already banned',
+      });
     }
 
     // ===== SAGA STEP 1: External =====
@@ -366,11 +380,22 @@ export class AdminService {
     const target = map.get(userId);
     const actor = map.get(actorId);
 
-    if (!target) throw new RpcException('User not found');
-    if (!actor) throw new RpcException('Actor not found');
+    if (!target)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'User not found',
+      });
+    if (!actor)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Actor not found',
+      });
 
     if (target.status !== USER_STATUS.BANNED) {
-      throw new RpcException('User is not banned');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User is not banned',
+      });
     }
 
     // ===== STEP 1: Clerk =====

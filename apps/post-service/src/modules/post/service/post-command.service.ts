@@ -86,8 +86,16 @@ export class PostCommandService {
     dto: Partial<UpdatePostDTO>
   ): Promise<PostSnapshotDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) throw new RpcException('Post not found');
-    if (post.userId !== userId) throw new RpcException('Unauthorized');
+    if (!post)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+    if (post.userId !== userId)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Unauthorized',
+      });
 
     return this.dataSource.transaction(async (manager) => {
       // Lưu lịch sử chỉnh sửa
@@ -140,8 +148,16 @@ export class PostCommandService {
   // ----------------------------------------
   async remove(userId: string, postId: string): Promise<boolean> {
     const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) throw new RpcException('Post not found');
-    if (post.userId !== userId) throw new RpcException('Unauthorized');
+    if (!post)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+    if (post.userId !== userId)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Unauthorized',
+      });
 
     await this.dataSource.transaction(async (manager) => {
       await manager

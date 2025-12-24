@@ -44,7 +44,10 @@ export class GroupSettingService {
 
       const setting = await repo.findOne({ where: { groupId } });
       if (!setting) {
-        throw new RpcException('Group setting not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group setting not found',
+        });
       }
 
       // Update settings

@@ -45,7 +45,11 @@ export class PostQueryService {
     postId: string
   ): Promise<PostResponseDTO> {
     const post = await this.postCache.getPost(postId);
-    if (!post || post.isDeleted) throw new RpcException('Post not found');
+    if (!post || post.isDeleted)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
 
     const [_, userReaction] = await Promise.all([
       this.ensureCanView(userRequestId, post),
@@ -160,14 +164,20 @@ export class PostQueryService {
     // Nếu là bài đã duyệt
     if (status === PostGroupStatus.PUBLISHED) {
       if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
-        throw new RpcException('User is not a member of the group');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'User is not a member of the group',
+        });
       }
     } else {
       const canReview = memberInfo.permissions.includes(
         GroupPermission.APPROVE_POST
       );
       if (!canReview) {
-        throw new RpcException('No permission to view pending/rejected posts');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'No permission to view pending/rejected posts',
+        });
       }
     }
 
@@ -227,9 +237,16 @@ export class PostQueryService {
       where: { id: postId },
       relations: { editHistories: true },
     });
-    if (!postEdit) throw new RpcException('Post not found');
+    if (!postEdit)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
     if (userId !== postEdit.userId)
-      throw new RpcException('Forbidden: You are not the owner of the post');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: You are not the owner of the post',
+      });
 
     return plainToInstance(
       EditHistoryReponseDTO,
@@ -312,12 +329,21 @@ export class PostQueryService {
     );
 
     if (['BLOCKED', 'BLOCKED_BY'].includes(relation))
-      throw new RpcException('Forbidden: You are blocked');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: You are blocked',
+      });
 
     if (post.audience === Audience.ONLY_ME)
-      throw new RpcException('Forbidden: Private post');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Private post',
+      });
 
     if (post.audience === Audience.FRIENDS && relation !== 'FRIENDS')
-      throw new RpcException('Forbidden: Friends only');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Friends only',
+      });
   }
 }

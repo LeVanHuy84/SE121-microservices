@@ -44,7 +44,6 @@ export class UserConsumerService {
       updateDoc.bio = payload.bio;
     }
 
-    // 👇 Chỉ tạo fullName khi có thay đổi ở firstName hoặc lastName
     if (payload.firstName !== undefined || payload.lastName !== undefined) {
       const first = payload.firstName ?? '';
       const last = payload.lastName ?? '';

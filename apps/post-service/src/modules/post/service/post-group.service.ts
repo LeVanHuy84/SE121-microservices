@@ -52,7 +52,10 @@ export class PostGroupService {
       });
 
       if (!dto.groupId) {
-        throw new RpcException('Group ID is required for group posts');
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Group ID is required for group posts',
+        });
       }
 
       const info = await this.postCache.getGroupUserPermission(
@@ -61,7 +64,10 @@ export class PostGroupService {
       );
 
       if (!info.isMember) {
-        throw new RpcException('User is not a member of the group');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'User is not a member of the group',
+        });
       }
 
       // set status based on permissions/approval
@@ -115,10 +121,16 @@ export class PostGroupService {
         relations: ['postGroupInfo'],
       });
       if (!post || !post.postGroupInfo)
-        throw new RpcException('Post not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Post not found',
+        });
 
       if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
-        throw new RpcException('Post is not pending approval');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Post is not pending approval',
+        });
       }
 
       const info = await this.postCache.getGroupUserPermission(
@@ -130,7 +142,10 @@ export class PostGroupService {
         !info.permissions.includes(GroupPermission.APPROVE_POST) &&
         info.role !== GroupRole.OWNER
       ) {
-        throw new RpcException('No permission to approve post');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'No permission to approve post',
+        });
       }
 
       post.postGroupInfo.status = PostGroupStatus.PUBLISHED;
@@ -163,9 +178,15 @@ export class PostGroupService {
         relations: ['postGroupInfo'],
       });
       if (!post || !post.postGroupInfo)
-        throw new RpcException('Post not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Post not found',
+        });
       if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
-        throw new RpcException('Post is not pending approval');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Post is not pending approval',
+        });
       }
       const info = await this.postCache.getGroupUserPermission(
         userId,
@@ -176,7 +197,10 @@ export class PostGroupService {
         !info.permissions.includes(GroupPermission.APPROVE_POST) &&
         info.role !== GroupRole.OWNER
       ) {
-        throw new RpcException('No permission to approve post');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'No permission to approve post',
+        });
       }
 
       post.postGroupInfo.status = PostGroupStatus.REJECTED;

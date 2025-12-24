@@ -93,7 +93,10 @@ export class ReportService {
       });
 
       if (existing) {
-        throw new RpcException('You have already reported this group.');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'You have already reported this group.',
+        });
       }
       const report = manager.create(GroupReport, {
         groupId,
@@ -168,7 +171,10 @@ export class ReportService {
       });
 
       if (!group) {
-        throw new RpcException('Group not found!');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found!',
+        });
       }
 
       // 2. Reject all pending reports of group
@@ -185,7 +191,10 @@ export class ReportService {
         .execute();
 
       if (!reportResult.affected) {
-        throw new RpcException('No pending reports to ignore');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'No pending reports to ignore',
+        });
       }
 
       // 3. Reset report counter
@@ -220,11 +229,17 @@ export class ReportService {
       });
 
       if (!group) {
-        throw new RpcException('Group not found!');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found!',
+        });
       }
 
       if (group.status === GroupStatus.BANNED) {
-        throw new RpcException('Group has been banned!');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Group has been banned!',
+        });
       }
 
       // 2. Resolve all pending group reports
@@ -283,11 +298,17 @@ export class ReportService {
     });
 
     if (!group) {
-      throw new RpcException('Group not found!');
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found!',
+      });
     }
 
     if (group.status !== GroupStatus.BANNED) {
-      throw new RpcException('The group has not been banned.');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'The group has not been banned.',
+      });
     }
 
     group.status = GroupStatus.ACTIVE;
