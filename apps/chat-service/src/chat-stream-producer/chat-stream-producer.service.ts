@@ -7,6 +7,7 @@ import Redis from 'ioredis';
 export class ChatStreamProducerService {
   private readonly logger = new Logger(ChatStreamProducerService.name);
   private readonly streamKey = 'chat:events';
+  private readonly streamMaxLen = 10000;
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
@@ -15,6 +16,9 @@ export class ChatStreamProducerService {
   async publishMessageCreated(msg: MessageResponseDTO) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'message.created',
@@ -27,6 +31,9 @@ export class ChatStreamProducerService {
   async publishMessageDeleted(msg: MessageResponseDTO) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'message.deleted',
@@ -41,25 +48,35 @@ export class ChatStreamProducerService {
   async publishConversationCreated(conv: ConversationResponseDTO) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.created',
       'payload',
       JSON.stringify(conv),
     );
-    this.logger.debug(`Published conversation.created for conversationId=${conv._id}`);
+    this.logger.debug(
+      `Published conversation.created for conversationId=${conv._id}`,
+    );
   }
 
   async publishConversationUpdated(conv: ConversationResponseDTO) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.updated',
       'payload',
       JSON.stringify(conv),
     );
-    this.logger.debug(`Published conversation.updated for conversationId=${conv._id}`);
+    this.logger.debug(
+      `Published conversation.updated for conversationId=${conv._id}`,
+    );
   }
 
   // Member joined: 1 user mới vào group
@@ -69,30 +86,39 @@ export class ChatStreamProducerService {
   }) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.memberJoined',
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.memberJoined for conversationId=${data.conversation._id}, joinedUserIds=${data.joinedUserIds.join(',')}`);
+    this.logger.debug(
+      `Published conversation.memberJoined for conversationId=${data.conversation._id}, joinedUserIds=${data.joinedUserIds.join(',')}`,
+    );
   }
 
   // Member left: 1 user rời group / bị kick
   async publishConversationMemberLeft(data: {
     conversationId: string;
     leftUserIds: string[];
-
   }) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.memberLeft',
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.memberLeft for conversationId=${data.conversationId}, leftUserIds=${data.leftUserIds.join(',')}`);
+    this.logger.debug(
+      `Published conversation.memberLeft for conversationId=${data.conversationId}, leftUserIds=${data.leftUserIds.join(',')}`,
+    );
   }
 
   // Xoá hẳn 1 conversation (thường là group)
@@ -102,13 +128,18 @@ export class ChatStreamProducerService {
   }) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.deleted',
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.deleted for conversationId=${data.conversationId}`);
+    this.logger.debug(
+      `Published conversation.deleted for conversationId=${data.conversationId}`,
+    );
   }
 
   async publishConversationRead(data: {
@@ -118,12 +149,17 @@ export class ChatStreamProducerService {
   }) {
     await this.redis.xadd(
       this.streamKey,
+      'MAXLEN',
+      '~',
+      this.streamMaxLen,
       '*',
       'event',
       'conversation.read',
       'payload',
       JSON.stringify(data),
     );
-    this.logger.debug(`Published conversation.read for conversationId=${data.conversationId}, userId=${data.userId}`);
+    this.logger.debug(
+      `Published conversation.read for conversationId=${data.conversationId}, userId=${data.userId}`,
+    );
   }
 }

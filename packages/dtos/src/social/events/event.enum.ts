@@ -8,4 +8,5 @@ export enum EventTopic {
   ANALYSIS = 'analysis-events',
   ANALYSIS_RESULT = 'analysis-result-events',
   LOGGING = 'logging-events',
+  MEDIA = 'media-events',
 }

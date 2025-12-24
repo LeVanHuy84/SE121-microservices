@@ -10,7 +10,7 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 
-@Controller('posts/reports')
+@Controller('reports')
 export class ReportController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private client: ClientProxy

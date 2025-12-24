@@ -5,7 +5,6 @@ import {
   Get,
   Inject,
   Param,
-  Patch,
   Post,
   Put,
   Query,
@@ -22,16 +21,13 @@ import {
 } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { ChatGateway } from './chat.gateway';
 import { lastValueFrom } from 'rxjs';
 
 @Controller('chats')
 export class ChatController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
-    private readonly chatClient: ClientProxy,
-
-    private readonly chatWebsocket: ChatGateway
+    private readonly chatClient: ClientProxy
   ) {}
 
   @Get('conversations')
@@ -84,14 +80,12 @@ export class ChatController {
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string
   ) {
-    await lastValueFrom(
+    return await lastValueFrom(
       this.chatClient.send('hideConversation', {
         userId,
         conversationId,
       })
     );
-    
-    return { success: true };
   }
 
   @Post('conversations/:conversationId/unhide')
@@ -99,14 +93,12 @@ export class ChatController {
     @CurrentUserId() userId: string,
     @Param('conversationId') conversationId: string
   ) {
-    await lastValueFrom(
+    return await lastValueFrom(
       this.chatClient.send('unhideConversation', {
         userId,
         conversationId,
       })
     );
-  
-    return { success: true };
   }
 
   @Post('conversations/:conversationId/leave')

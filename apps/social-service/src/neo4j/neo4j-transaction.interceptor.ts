@@ -9,8 +9,7 @@ import {
 } from '@nestjs/common';
 import { Neo4jService } from './neo4j.service';
 import { from, Observable } from 'rxjs';
-import { Transaction } from 'neo4j-driver';
-import { catchError, mergeMap } from 'rxjs/operators';
+import { catchError, finalize, mergeMap } from 'rxjs/operators';
 
 @Injectable()
 export class Neo4jTransactionInterceptor implements NestInterceptor {
@@ -19,20 +18,23 @@ export class Neo4jTransactionInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const rpcContext = context.switchToRpc();
     const payload = rpcContext.getData(); // chính là payload
-    const transaction = this.neo4jService.beginTransaction();
+    const { session, tx } = this.neo4jService.beginTransactionWithSession();
 
     // gắn transaction vào payload
-    payload.transaction = transaction;
+    payload.transaction = tx;
 
     return next.handle().pipe(
-      mergeMap((result) => from(transaction.commit().then(() => result))),
+      mergeMap((result) => from(tx.commit().then(() => result))),
       catchError((err) =>
         from(
-          transaction.rollback().then(() => {
+          tx.rollback().then(() => {
             throw err;
           }),
         ),
       ),
+      finalize(() => {
+        session.close().catch(() => null);
+      }),
     );
   }
 }

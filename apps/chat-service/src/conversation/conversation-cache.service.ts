@@ -55,7 +55,6 @@ export class ConversationCacheService {
     await this.redis.del(detailKey);
   }
 
-
   // ===== EMPTY FLAG =====
 
   async hasEmptyFlag(userId: string): Promise<boolean> {
@@ -147,9 +146,21 @@ export class ConversationCacheService {
     const detailKeys = selected.map((id) => this.getConvKeys(id).detailKey);
     const raw = await this.redis.mget(...detailKeys);
 
-    const items: CachedConversation[] = raw
-      .filter((v): v is string => !!v)
-      .map((v) => JSON.parse(v));
+    const missingIds: string[] = [];
+    const items: CachedConversation[] = [];
+    raw.forEach((value, idx) => {
+      if (!value) {
+        missingIds.push(selected[idx]);
+        return;
+      }
+      items.push(JSON.parse(value));
+    });
+
+    if (missingIds.length) {
+      const cleanup = this.redis.pipeline();
+      missingIds.forEach((id) => cleanup.zrem(zKey, id));
+      await cleanup.exec();
+    }
 
     if (!items.length) return null;
 
@@ -209,7 +220,6 @@ export class ConversationCacheService {
     }
 
     pipeline.del(detailKey);
-
 
     await pipeline.exec();
   }

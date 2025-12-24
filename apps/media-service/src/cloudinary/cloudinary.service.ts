@@ -63,4 +63,14 @@ export class CloudinaryService {
       ],
     });
   }
+
+  async deleteFile(
+    publicId: string,
+    resourceType: 'image' | 'video' = 'image'
+  ) {
+    return cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      invalidate: true,
+    });
+  }
 }

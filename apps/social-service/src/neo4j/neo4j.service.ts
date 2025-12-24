@@ -1,5 +1,11 @@
 import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
-import neo4j, { Driver, int, QueryResult, Transaction } from 'neo4j-driver';
+import neo4j, {
+  Driver,
+  int,
+  QueryResult,
+  Session,
+  Transaction,
+} from 'neo4j-driver';
 import type { Neo4jConfig } from './neo4j-config.interface';
 import { NEO4J_CONFIG, NEO4J_DRIVER } from './neo4j.constants';
 
@@ -28,6 +34,15 @@ export class Neo4jService implements OnApplicationShutdown {
     return session.beginTransaction();
   }
 
+  beginTransactionWithSession(database?: string): {
+    session: Session;
+    tx: Transaction;
+  } {
+    const session = this.getWriteSession(database);
+    const tx = session.beginTransaction();
+    return { session, tx };
+  }
+
   getReadSession(database?: string) {
     return this.driver.session({
       database: database || this.config.database,
@@ -52,7 +67,11 @@ export class Neo4jService implements OnApplicationShutdown {
     }
 
     const session = this.getReadSession(<string>databaseOrTransaction);
-    return session.run(cypher, params);
+    try {
+      return await session.run(cypher, params);
+    } finally {
+      await session.close();
+    }
   }
 
   async write(
@@ -65,7 +84,11 @@ export class Neo4jService implements OnApplicationShutdown {
     }
 
     const session = this.getWriteSession(<string>databaseOrTransaction);
-    return session.run(cypher, params);
+    try {
+      return await session.run(cypher, params);
+    } finally {
+      await session.close();
+    }
   }
 
   onApplicationShutdown() {
