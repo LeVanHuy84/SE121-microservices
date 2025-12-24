@@ -15,12 +15,10 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 
 import { ConversationService } from 'src/conversation/conversation.service';
-import { populateAndMapConversation, populateAndMapMessage } from 'src/utils/mapping';
+import { populateAndMapMessage } from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
-import { randomUUID, setEngine } from 'crypto';
-import { snowflakeId } from 'src/utils/snowflake';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 
 @Injectable()
@@ -59,6 +57,10 @@ export class MessageService {
 
     const limit = query.limit;
 
+    if (await this.msgCache.hasEmptyFlag(conversationId)) {
+      return new CursorPageResponse([], null, false);
+    }
+
     const cachedPage = await this.msgCache.getMessagesPage(
       conversationId,
       query.cursor ?? null,
@@ -89,7 +91,6 @@ export class MessageService {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .exec();
-    console.log('Fetched from DB:', items.length);
 
     if (!items.length) {
       await this.msgCache.markEmpty(conversationId);
@@ -148,11 +149,10 @@ export class MessageService {
 
     const dto = populateAndMapMessage(msg)!;
 
-     await Promise.all([
-       this.msgCache.setMessageDetail(dto),
-      
-       this.msgCache.upsertMessageToConversationList(dto.conversationId, dto),
-     ]);
+    await Promise.all([
+      this.msgCache.setMessageDetail(dto),
+      this.msgCache.upsertMessageToConversationList(dto.conversationId, dto),
+    ]);
 
     return dto;
   }
@@ -172,18 +172,8 @@ export class MessageService {
       throw new RpcException('You are not in this conversation');
     }
 
-    const messageId = snowflakeId();
-
-   
-    const existing = await this.messageModel.findOne({ messageId }).exec();
-    if (existing) {
-      return populateAndMapMessage(existing)!;
-    }
-    
-
     const msg = new this.messageModel({
       conversationId: conv._id,
-      messageId: messageId,
       senderId: userId,
       content: dto.content,
       attachments: dto.attachments,
@@ -195,19 +185,19 @@ export class MessageService {
     await msg.save();
 
     if (msg.replyTo) {
-        await msg.populate('replyTo');
+      await msg.populate('replyTo');
     }
 
     // cập nhật lastMessage + updatedAt conversation
     conv.lastMessage = msg._id as any;
     await conv.save();
-    
+
     await this.conversationService.updateConversationCache(conv);
 
     const dtoMsg = populateAndMapMessage(msg)!;
 
     // cache message detail + list + publish event
-    Promise.all([
+    await Promise.all([
       this.msgCache.setMessageDetail(dtoMsg),
       this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
       this.messageStreamProducer.publishMessageCreated(dtoMsg),
@@ -263,7 +253,6 @@ export class MessageService {
     await Promise.all([
       // để GET /messages/:id luôn thấy trạng thái mới (isDeleted, deletedAt, ...)
       this.msgCache.setMessageDetail(dtoMsg),
-
 
       this.msgCache.upsertMessageToConversationList(
         dtoMsg.conversationId,
@@ -322,8 +311,4 @@ export class MessageService {
 
   //   return dtoMsg;
   // }
-
-
-
-  
 }

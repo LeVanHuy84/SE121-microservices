@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import {
@@ -196,13 +196,18 @@ export class ConversationService {
       });
 
       await doc.save();
-      await this.updateConversationCache(doc);
 
-      return populateAndMapConversation(doc);
+      const convDto = populateAndMapConversation(doc);
+
+      await Promise.all([
+        this.updateConversationCache(doc),
+        this.chatStreamProducer.publishConversationCreated(convDto),
+      ]);
+      return convDto;
     }
 
     if (!dto.groupName || dto.groupName.trim().length === 0) {
-      throw new RpcException('Group name cannot be empty string');
+      throw new BadRequestException('Group conversation must have a name');
     }
 
     // ----- GROUP -----
@@ -254,6 +259,16 @@ export class ConversationService {
       ? dto.participantsToRemove
       : [];
 
+    if (toAdd.length) {
+      const existing = new Set(conv.participants);
+      const dup = toAdd.find((p) => existing.has(p));
+      if (dup) {
+        throw new RpcException(
+          'Some participants are already in the conversation',
+        );
+      }
+    }
+
     // Thêm member
     if (toAdd.length) {
       const set = new Set(conv.participants);
@@ -297,25 +312,23 @@ export class ConversationService {
 
     // 🔥 event: memberJoined
     if (toAdd.length) {
-      for (const joinedUserId of toAdd) {
-        await this.chatStreamProducer.publishConversationMemberJoined({
-          conversation: convDto,
-          joinedUserIds: toAdd,
-        });
-      }
+      await this.chatStreamProducer.publishConversationMemberJoined({
+        conversation: convDto,
+        joinedUserIds: toAdd,
+      });
     }
 
     // 🔥 event: memberLeft
     if (toRemove.length) {
-      for (const leftUserId of toRemove) {
-        await Promise.all([
-       this.chatStreamProducer.publishConversationMemberLeft({
+      await Promise.all([
+        this.chatStreamProducer.publishConversationMemberLeft({
           conversationId,
           leftUserIds: toRemove,
         }),
-        this.cache.removeConversationFromUser(leftUserId, conversationId),
-        ]);
-      }
+        ...toRemove.map((leftUserId) =>
+          this.cache.removeConversationFromUser(leftUserId, conversationId),
+        ),
+      ]);
     }
 
     return convDto;
@@ -389,15 +402,18 @@ export class ConversationService {
     );
 
     // 6) Update cache + broadcast (chỉ khi có thay đổi)
-    void Promise.all([
+    await Promise.all([
       this.updateConversationCache({
         ...conv.toObject(),
-        lastSeenMessageId: new Map([
+        lastSeenMessageId: new Map<string, string>([
           ...(conv.lastSeenMessageId?.entries?.()
-            ? Array.from(conv.lastSeenMessageId.entries())
+            ? (Array.from(conv.lastSeenMessageId.entries()) as [
+                string,
+                string,
+              ][])
             : []),
           [userId, targetId],
-        ]) as any,
+        ]),
       } as any),
       this.chatStreamProducer.publishConversationRead({
         conversationId,
@@ -414,7 +430,7 @@ export class ConversationService {
   async leaveConversation(
     userId: string,
     conversationId: string,
-  ): Promise<{message: string}> {
+  ): Promise<{ message: string }> {
     const conv = await this.conversationModel.findById(conversationId).exec();
 
     if (!conv) throw new RpcException('Conversation not found');
@@ -444,7 +460,7 @@ export class ConversationService {
     }
 
     await conv.save();
-    Promise.all([
+    await Promise.all([
       this.updateConversationCache(conv),
       this.cache.removeConversationFromUser(userId, conversationId),
       this.chatStreamProducer.publishConversationMemberLeft({
@@ -486,7 +502,7 @@ export class ConversationService {
       throw new RpcException('You are not admin of this conversation');
     }
 
-    Promise.all([
+    await Promise.all([
       this.hardDeleteConversation(conv),
       this.chatStreamProducer.publishConversationDeleted({
         conversationId,
@@ -517,7 +533,7 @@ export class ConversationService {
     }
 
     // xoá conv này khỏi cache list của riêng user
-    await this.cache.removeConversationFromUser(userId, conv._id.toString());
+    await this.updateConversationCache(conv);
     return {
       message: 'Conversation hidden',
     };
@@ -576,6 +592,11 @@ export class ConversationService {
 
     const dto = populateAndMapConversation(fullConv);
 
-    Promise.all([this.cache.setConversationDetail(dto)]);
+    await Promise.all([
+      this.cache.setConversationDetail(dto),
+      ...(fullConv.participants ?? []).map((userId) =>
+        this.cache.upsertConversationToUserList(userId, dto),
+      ),
+    ]);
   }
 }

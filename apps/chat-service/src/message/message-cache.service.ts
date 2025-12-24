@@ -129,9 +129,21 @@ export class MessageCacheService {
     const detailKeys = selected.map((id) => this.getMessageKeys(id).detailKey);
     const raw = await this.redis.mget(...detailKeys);
 
-    const items: CachedMessage[] = raw
-      .filter((v): v is string => !!v)
-      .map((v) => JSON.parse(v));
+    const missingIds: string[] = [];
+    const items: CachedMessage[] = [];
+    raw.forEach((value, idx) => {
+      if (!value) {
+        missingIds.push(selected[idx]);
+        return;
+      }
+      items.push(JSON.parse(value));
+    });
+
+    if (missingIds.length) {
+      const cleanup = this.redis.pipeline();
+      missingIds.forEach((id) => cleanup.zrem(zKey, id));
+      await cleanup.exec();
+    }
 
     if (!items.length) return null;
 
