@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import {
@@ -6,6 +6,8 @@ import {
   CreateConversationDTO,
   CursorPageResponse,
   CursorPaginationDTO,
+  EventTopic,
+  MediaEventType,
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
@@ -18,6 +20,7 @@ import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
+import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
 export class ConversationService {
@@ -31,6 +34,7 @@ export class ConversationService {
 
     private readonly cache: ConversationCacheService,
     private readonly chatStreamProducer: ChatStreamProducerService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   // ==================== GET BY ID ====================
@@ -196,18 +200,15 @@ export class ConversationService {
       });
 
       await doc.save();
+      await this.updateConversationCache(doc);
 
       const convDto = populateAndMapConversation(doc);
-
-      await Promise.all([
-        this.updateConversationCache(doc),
-        this.chatStreamProducer.publishConversationCreated(convDto),
-      ]);
+      await this.chatStreamProducer.publishConversationCreated(convDto);
       return convDto;
     }
 
     if (!dto.groupName || dto.groupName.trim().length === 0) {
-      throw new BadRequestException('Group conversation must have a name');
+      throw new RpcException('Group name cannot be empty string');
     }
 
     // ----- GROUP -----
@@ -574,10 +575,63 @@ export class ConversationService {
     const convId = conv._id.toString();
     const participants = conv.participants || [];
 
+    await this.enqueueConversationMediaDelete(convId, conv._id);
+
     await this.conversationModel.deleteOne({ _id: conv._id });
     await this.messageModel.deleteMany({ conversationId: conv._id });
 
     await this.cache.removeConversationGlobally(convId, participants);
+  }
+
+  private async enqueueConversationMediaDelete(
+    conversationId: string,
+    conversationObjectId: any,
+  ) {
+    const messages = await this.messageModel
+      .find({ conversationId: conversationObjectId }, { attachments: 1 })
+      .lean()
+      .exec();
+
+    const items =
+      messages
+        .flatMap((msg) => msg.attachments || [])
+        .map((att) => {
+          if (!att?.publicId) return null;
+          const resourceType =
+            att.mimeType && att.mimeType.startsWith('video/')
+              ? 'video'
+              : 'image';
+          return { publicId: att.publicId, resourceType };
+        })
+        .filter(Boolean) || [];
+
+    if (items.length === 0) return;
+
+    const chunkSize = 100;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize) as {
+        publicId: string;
+        resourceType?: 'image' | 'video';
+      }[];
+
+      try {
+        await this.outboxService.enqueue(
+          EventTopic.MEDIA,
+          MediaEventType.DELETE_REQUESTED,
+          {
+            items: chunk,
+            source: 'chat-service',
+            reason: 'conversation.deleted',
+            conversationId,
+          },
+          conversationId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to enqueue media delete for conversationId=${conversationId}: ${error.message}`,
+        );
+      }
+    }
   }
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============

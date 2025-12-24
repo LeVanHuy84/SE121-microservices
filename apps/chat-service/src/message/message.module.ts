@@ -4,10 +4,13 @@ import { MessageController } from './message.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
 import { MessageCacheService } from './message-cache.service';
-import { Conversation, ConversationSchema } from 'src/mongo/schema/conversation.schema';
+import {
+  Conversation,
+  ConversationSchema,
+} from 'src/mongo/schema/conversation.schema';
 import { ConversationModule } from 'src/conversation/conversation.module';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
-
+import { OutboxModule } from 'src/outbox/outbox.module';
 
 @Module({
   imports: [
@@ -16,6 +19,7 @@ import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-
       { name: Conversation.name, schema: ConversationSchema },
     ]),
     ConversationModule,
+    OutboxModule,
   ],
   controllers: [MessageController],
   providers: [MessageService, MessageCacheService, ChatStreamProducerService],

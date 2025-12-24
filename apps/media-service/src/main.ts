@@ -1,10 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { ExceptionsFilter } from '@repo/common';
-import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { AppModule } from './app.module';
+import { KafkaAppModule } from './kafka-app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
     {
       transport: Transport.TCP,
@@ -13,7 +14,26 @@ async function bootstrap() {
       },
     }
   );
-  app.useGlobalFilters(new ExceptionsFilter());
-  await app.listen();
+
+  const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+    KafkaAppModule,
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: process.env.KAFKA_BROKERS!.split(','),
+          clientId: process.env.KAFKA_CLIENT_ID!,
+        },
+        consumer: {
+          groupId: process.env.KAFKA_MEDIA_ID!,
+        },
+      },
+    }
+  );
+
+  tcpApp.useGlobalFilters(new ExceptionsFilter());
+  kafkaApp.useGlobalFilters(new ExceptionsFilter());
+
+  await Promise.all([tcpApp.listen(), kafkaApp.listen()]);
 }
 bootstrap();

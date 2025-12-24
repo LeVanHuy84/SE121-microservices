@@ -4,6 +4,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   CursorPageResponse,
   CursorPaginationDTO,
+  EventTopic,
+  MediaEventType,
   MessageResponseDTO,
   SendMessageDTO,
 } from '@repo/dtos';
@@ -20,6 +22,7 @@ import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
+import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
 export class MessageService {
@@ -35,6 +38,7 @@ export class MessageService {
     private readonly msgCache: MessageCacheService,
 
     private readonly messageStreamProducer: ChatStreamProducerService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   // ============= HISTORY =============
@@ -260,7 +264,42 @@ export class MessageService {
       ),
       this.messageStreamProducer.publishMessageDeleted(dtoMsg),
     ]);
+
+    await this.enqueueMediaDeleteEvent(msg, messageId);
     return dtoMsg;
+  }
+
+  private async enqueueMediaDeleteEvent(
+    msg: MessageDocument,
+    messageId: string,
+  ) {
+    const items =
+      msg.attachments
+        ?.map((att) => {
+          if (!att?.publicId) return null;
+          const resourceType =
+            att.mimeType && att.mimeType.startsWith('video/')
+              ? 'video'
+              : 'image';
+          return { publicId: att.publicId, resourceType };
+        })
+        .filter(Boolean) || [];
+
+    if (items.length === 0) return;
+
+    await this.outboxService.enqueue(
+      EventTopic.MEDIA,
+      MediaEventType.DELETE_REQUESTED,
+      {
+        items: items as {
+          publicId: string;
+          resourceType?: 'image' | 'video';
+        }[],
+        source: 'chat-service',
+        reason: 'message.deleted',
+      },
+      messageId,
+    );
   }
 
   // ============= REACTION =============

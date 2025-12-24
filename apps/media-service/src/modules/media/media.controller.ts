@@ -1,6 +1,7 @@
 import { Controller } from '@nestjs/common';
-import { MediaService } from './media.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MediaService } from './media.service';
+
 
 @Controller()
 export class MediaController {
@@ -16,19 +17,14 @@ export class MediaController {
       type: 'image' | 'video';
     }
   ) {
-    const media = await this.mediaService.upload(
+    const buffer = Buffer.isBuffer(data.file)
+      ? data.file
+      : Buffer.from(data.file);
+    return this.mediaService.upload(
+      buffer,
       data.userId,
       data.folder,
       data.type
     );
-
-    const url = await this.mediaService.performUpload(
-      media.id,
-      Buffer.from(data.file),
-      data.type,
-      `${process.env.WEBHOOK_BASE_URL}/webhook/cloudinary`
-    );
-
-    return url;
   }
 }
