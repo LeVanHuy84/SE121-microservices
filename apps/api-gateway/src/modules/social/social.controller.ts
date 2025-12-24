@@ -31,7 +31,10 @@ export class SocialController {
     @CurrentUserId() userId: string,
     @Param('targetId') targetId: string
   ) {
-    return this.socialClient.send('cancel_friend_request', { userId, targetId });
+    return this.socialClient.send('cancel_friend_request', {
+      userId,
+      targetId,
+    });
   }
 
   @Post('accept/:requesterId')
@@ -86,6 +89,14 @@ export class SocialController {
     @Query() query: CursorPaginationDTO
   ) {
     return this.socialClient.send('get_friends', { userId, query });
+  }
+
+  @Get('blocked')
+  async getBlockedUsers(
+    @CurrentUserId() userId: string,
+    @Query() query: CursorPaginationDTO
+  ) {
+    return this.socialClient.send('get_blocked_users', { userId, query });
   }
 
   @Get('friends/recommend')
