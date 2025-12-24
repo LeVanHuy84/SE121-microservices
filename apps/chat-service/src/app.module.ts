@@ -9,8 +9,9 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { PresenceModule } from './presence/presence.module';
 import { ChatStreamProducerService } from './chat-stream-producer/chat-stream-producer.service';
 import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-producer.module';
-
-
+import { KafkaProducerModule } from '@repo/common';
+import { ScheduleModule } from '@nestjs/schedule';
+import { OutboxModule } from './outbox/outbox.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-pro
       isGlobal: true,
       expandVariables: true,
     }),
+    ScheduleModule.forRoot(),
+    KafkaProducerModule.registerAsync(),
     RedisModule.forRoot({
       type: 'single',
       options: {
@@ -32,6 +35,7 @@ import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-pro
     MessageModule,
     PresenceModule,
     ChatStreamProducerModule,
+    OutboxModule,
   ],
   controllers: [AppController],
   providers: [AppService, ChatStreamProducerService],

@@ -23,6 +23,23 @@ export class RecentActivityBufferService {
     return `recent:activity:${activity.type}:${activity.targetId}:${activity.actorId}`;
   }
 
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        '100',
+      );
+      cursor = nextCursor;
+      if (batch?.length) keys.push(...batch);
+    } while (cursor !== '0');
+    return keys;
+  }
+
   /** Lưu hoặc ghi đè activity gần nhất */
   async addRecentActivity(activity: RecentSocialActivity) {
     const key = this.getRedisKey(activity);
@@ -34,7 +51,7 @@ export class RecentActivityBufferService {
 
   /** Snapshot tất cả activity và chuyển sang vùng processing */
   async snapshotAndGetAll(): Promise<Record<string, RecentSocialActivity>> {
-    const allKeys = await this.redis.keys('recent:activity:*');
+    const allKeys = await this.scanKeys('recent:activity:*');
 
     // LOẠI BỎ mấy key processing
     const keys = allKeys.filter(
@@ -75,7 +92,7 @@ export class RecentActivityBufferService {
 
   /** Xoá toàn bộ snapshot key sau khi flush xong */
   async clearProcessingSnapshot() {
-    const keys = await this.redis.keys('recent:activity:processing:*');
+    const keys = await this.scanKeys('recent:activity:processing:*');
     if (keys.length > 0) {
       await this.redis.del(...keys);
       this.logger.debug(`🧹 Cleared ${keys.length} processing activities`);

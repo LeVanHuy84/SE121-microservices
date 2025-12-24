@@ -6,7 +6,12 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PresenceHeartbeatEvent, PresenceInfo, PresenceStatus, PresenceUpdateEvent } from '@repo/dtos';
+import {
+  PresenceHeartbeatEvent,
+  PresenceInfo,
+  PresenceStatus,
+  PresenceUpdateEvent,
+} from '@repo/dtos';
 import Redis from 'ioredis';
 
 @Injectable()
@@ -16,8 +21,12 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private sub: Redis; // subscriber cho presence:heartbeat
 
   // config
-  private readonly OFFLINE_THRESHOLD_MS = 30_000; // > heartbeat interval FE
-
+  private readonly OFFLINE_THRESHOLD_MS = Number(
+    process.env.PRESENCE_OFFLINE_THRESHOLD_MS ?? 45_000,
+  );
+  private readonly PRESENCE_HASH_TTL_SECONDS = Math.ceil(
+    this.OFFLINE_THRESHOLD_MS / 1000 + 45,
+  );
 
   private readonly lastSeenZSetKey = 'presence:lastSeen';
   private readonly onlineSetKey = 'presence:online';
@@ -45,8 +54,6 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('Error handling heartbeat', err),
       );
     });
-
-  
   }
 
   async onModuleDestroy() {
@@ -77,7 +84,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     const wasOnline = currentStatus === 'online';
 
     // TTL cho user-location (phải > offline threshold chút)
-    const locationTtlSeconds = Math.ceil(this.OFFLINE_THRESHOLD_MS / 1000 + 10);
+    const locationTtlSeconds = Math.ceil(this.OFFLINE_THRESHOLD_MS / 1000 + 15);
 
     // cập nhật lastSeen + status online + serverId + user-location
     const pipeline = this.redis.pipeline();
@@ -86,6 +93,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
       lastSeen: String(now),
       lastServerId: serverId || '',
     });
+    pipeline.expire(userKey, this.PRESENCE_HASH_TTL_SECONDS);
     pipeline.zadd(this.lastSeenZSetKey, now, userId);
     pipeline.sadd(this.onlineSetKey, userId);
     if (serverId) {
@@ -111,7 +119,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
   // ========== Zombie sweep dùng Schedule ==========
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async sweepZombies() {
     const now = Date.now();
     const cutoff = now - this.OFFLINE_THRESHOLD_MS;

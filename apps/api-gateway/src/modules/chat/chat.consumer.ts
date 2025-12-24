@@ -14,8 +14,25 @@ import { ChatGateway } from './chat.gateway';
 export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatStreamConsumer.name);
   private readonly streamKey = 'chat:events';
+  private readonly batchSize = Number(
+    process.env.CHAT_STREAM_BATCH_SIZE ?? 100
+  );
+  private readonly blockMs = Number(process.env.CHAT_STREAM_BLOCK_MS ?? 5000);
+  private readonly claimIdleMs = Number(
+    process.env.CHAT_STREAM_CLAIM_IDLE_MS ?? 60_000
+  );
+  private readonly claimIntervalMs = Number(
+    process.env.CHAT_STREAM_CLAIM_INTERVAL_MS ?? 30_000
+  );
+  private readonly maxRetries = Number(
+    process.env.CHAT_STREAM_MAX_RETRIES ?? 3
+  );
+  private readonly dlqMaxLen = Number(
+    process.env.CHAT_STREAM_DLQ_MAXLEN ?? 5000
+  );
 
   private running = false;
+  private claimTimer?: NodeJS.Timeout;
   private readonly groupName = 'chat-gateway';
   private readonly consumerName: string;
 
@@ -39,6 +56,14 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Error in replayPending', e)
     );
 
+    this.claimStale().catch((e) => this.logger.error('Error in claimStale', e));
+
+    this.claimTimer = setInterval(() => {
+      this.claimStale().catch((e) =>
+        this.logger.error('Error in claimStale', e)
+      );
+    }, this.claimIntervalMs);
+
     // 2) Bắt đầu loop đọc message mới
     this.consumeLoop();
     this.logger.log(
@@ -48,6 +73,10 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     this.running = false;
+    if (this.claimTimer) {
+      clearInterval(this.claimTimer);
+      this.claimTimer = undefined;
+    }
   }
 
   private async ensureGroup() {
@@ -81,7 +110,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         this.groupName,
         this.consumerName,
         'COUNT',
-        50,
+        this.batchSize,
         'STREAMS',
         this.streamKey,
         '0' // đọc từ pending list
@@ -103,6 +132,28 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Replay pending done.');
   }
 
+  private async claimStale() {
+    if (!this.running) return;
+    try {
+      const res = await (this.redis as any).xautoclaim(
+        this.streamKey,
+        this.groupName,
+        this.consumerName,
+        this.claimIdleMs,
+        '0-0',
+        'COUNT',
+        this.batchSize
+      );
+
+      const entries = (res?.[1] as any[]) || [];
+      for (const [id, fields] of entries) {
+        await this.processEntry(id, fields);
+      }
+    } catch (e) {
+      this.logger.error('Error in claimStale', e);
+    }
+  }
+
   private async consumeLoop() {
     while (this.running) {
       try {
@@ -111,9 +162,9 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.groupName,
           this.consumerName,
           'COUNT',
-          50,
+          this.batchSize,
           'BLOCK',
-          5000,
+          this.blockMs,
           'STREAMS',
           this.streamKey,
           '>' // chỉ message mới
@@ -141,13 +192,14 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
     const event = obj.event;
     const payload = obj.payload;
+    const retries = Number(obj.retries ?? 0);
 
     if (!event || !payload) {
       await this.redis.xack(this.streamKey, this.groupName, id);
       return;
     }
 
-    try { 
+    try {
       switch (event) {
         // ===================== MESSAGE =====================
         case 'message.created': {
@@ -175,12 +227,12 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         case 'conversation.memberJoined': {
           const data: {
             conversation: ConversationResponseDTO;
-            joinUserIds: string[];
+            joinedUserIds: string[];
           } = JSON.parse(payload);
 
           this.chatGateway.emitMemberJoined(
             data.conversation,
-            data.joinUserIds
+            data.joinedUserIds
           );
           break;
         }
@@ -188,7 +240,6 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           const data: {
             conversationId: string;
             leftUserIds: string[];
-          
           } = JSON.parse(payload);
 
           this.chatGateway.emitMemberLeft(
@@ -232,7 +283,42 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       await this.redis.xack(this.streamKey, this.groupName, id);
     } catch (e) {
       this.logger.error('Failed to process payload from stream', e);
-      // ACK luôn để không bị stuck, hoặc giữ pending lại để retry sau.
+      if (retries < this.maxRetries) {
+        try {
+          await this.redis.xadd(
+            this.streamKey,
+            '*',
+            'event',
+            event,
+            'payload',
+            payload,
+            'retries',
+            String(retries + 1)
+          );
+        } catch (requeueErr) {
+          this.logger.error('Failed to requeue chat event', requeueErr);
+        }
+      } else {
+        try {
+          await this.redis.xadd(
+            `${this.streamKey}:dlq`,
+            '*',
+            'MAXLEN',
+            '~',
+            this.dlqMaxLen,
+            'event',
+            event,
+            'payload',
+            payload,
+            'retries',
+            String(retries),
+            'error',
+            (e as Error)?.message ?? 'unknown_error'
+          );
+        } catch (dlqErr) {
+          this.logger.error('Failed to push chat event to DLQ', dlqErr);
+        }
+      }
       await this.redis.xack(this.streamKey, this.groupName, id);
     }
   }

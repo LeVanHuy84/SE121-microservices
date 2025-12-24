@@ -2,12 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Emotion } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
-
 @Schema({ timestamps: true })
 export class Message {
-  @Prop({ required: true, unique: true })
-  messageId: string;
-
   @Prop({
     type: Types.ObjectId,
     ref: 'Conversation',
@@ -24,7 +20,6 @@ export class Message {
 
   @Prop({ default: 'sent', enum: ['sent', 'delivered', 'seen'] })
   status: 'sent' | 'delivered' | 'seen';
-
 
   @Prop({ type: [String], default: [] })
   seenBy: string[];
@@ -67,8 +62,6 @@ export type MessageDocument = HydratedDocument<Message>;
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
 
-// Index phục vụ tra cứu & paginate
-MessageSchema.index({ messageId: 1 }, { unique: true });
 
 // Paginate trong 1 conversation: sort theo _id mới nhất
 MessageSchema.index({ conversationId: 1, _id: -1 });

@@ -6,6 +6,8 @@ import {
   CreateConversationDTO,
   CursorPageResponse,
   CursorPaginationDTO,
+  EventTopic,
+  MediaEventType,
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
@@ -18,6 +20,7 @@ import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
 import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
+import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
 export class ConversationService {
@@ -31,6 +34,7 @@ export class ConversationService {
 
     private readonly cache: ConversationCacheService,
     private readonly chatStreamProducer: ChatStreamProducerService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   // ==================== GET BY ID ====================
@@ -198,7 +202,9 @@ export class ConversationService {
       await doc.save();
       await this.updateConversationCache(doc);
 
-      return populateAndMapConversation(doc);
+      const convDto = populateAndMapConversation(doc);
+      await this.chatStreamProducer.publishConversationCreated(convDto);
+      return convDto;
     }
 
     if (!dto.groupName || dto.groupName.trim().length === 0) {
@@ -254,6 +260,16 @@ export class ConversationService {
       ? dto.participantsToRemove
       : [];
 
+    if (toAdd.length) {
+      const existing = new Set(conv.participants);
+      const dup = toAdd.find((p) => existing.has(p));
+      if (dup) {
+        throw new RpcException(
+          'Some participants are already in the conversation',
+        );
+      }
+    }
+
     // Thêm member
     if (toAdd.length) {
       const set = new Set(conv.participants);
@@ -297,25 +313,23 @@ export class ConversationService {
 
     // 🔥 event: memberJoined
     if (toAdd.length) {
-      for (const joinedUserId of toAdd) {
-        await this.chatStreamProducer.publishConversationMemberJoined({
-          conversation: convDto,
-          joinedUserIds: toAdd,
-        });
-      }
+      await this.chatStreamProducer.publishConversationMemberJoined({
+        conversation: convDto,
+        joinedUserIds: toAdd,
+      });
     }
 
     // 🔥 event: memberLeft
     if (toRemove.length) {
-      for (const leftUserId of toRemove) {
-        await Promise.all([
-       this.chatStreamProducer.publishConversationMemberLeft({
+      await Promise.all([
+        this.chatStreamProducer.publishConversationMemberLeft({
           conversationId,
           leftUserIds: toRemove,
         }),
-        this.cache.removeConversationFromUser(leftUserId, conversationId),
-        ]);
-      }
+        ...toRemove.map((leftUserId) =>
+          this.cache.removeConversationFromUser(leftUserId, conversationId),
+        ),
+      ]);
     }
 
     return convDto;
@@ -389,15 +403,18 @@ export class ConversationService {
     );
 
     // 6) Update cache + broadcast (chỉ khi có thay đổi)
-    void Promise.all([
+    await Promise.all([
       this.updateConversationCache({
         ...conv.toObject(),
-        lastSeenMessageId: new Map([
+        lastSeenMessageId: new Map<string, string>([
           ...(conv.lastSeenMessageId?.entries?.()
-            ? Array.from(conv.lastSeenMessageId.entries())
+            ? (Array.from(conv.lastSeenMessageId.entries()) as [
+                string,
+                string,
+              ][])
             : []),
           [userId, targetId],
-        ]) as any,
+        ]),
       } as any),
       this.chatStreamProducer.publishConversationRead({
         conversationId,
@@ -414,7 +431,7 @@ export class ConversationService {
   async leaveConversation(
     userId: string,
     conversationId: string,
-  ): Promise<{message: string}> {
+  ): Promise<{ message: string }> {
     const conv = await this.conversationModel.findById(conversationId).exec();
 
     if (!conv) throw new RpcException('Conversation not found');
@@ -444,7 +461,7 @@ export class ConversationService {
     }
 
     await conv.save();
-    Promise.all([
+    await Promise.all([
       this.updateConversationCache(conv),
       this.cache.removeConversationFromUser(userId, conversationId),
       this.chatStreamProducer.publishConversationMemberLeft({
@@ -486,7 +503,7 @@ export class ConversationService {
       throw new RpcException('You are not admin of this conversation');
     }
 
-    Promise.all([
+    await Promise.all([
       this.hardDeleteConversation(conv),
       this.chatStreamProducer.publishConversationDeleted({
         conversationId,
@@ -517,7 +534,7 @@ export class ConversationService {
     }
 
     // xoá conv này khỏi cache list của riêng user
-    await this.cache.removeConversationFromUser(userId, conv._id.toString());
+    await this.updateConversationCache(conv);
     return {
       message: 'Conversation hidden',
     };
@@ -558,10 +575,63 @@ export class ConversationService {
     const convId = conv._id.toString();
     const participants = conv.participants || [];
 
+    await this.enqueueConversationMediaDelete(convId, conv._id);
+
     await this.conversationModel.deleteOne({ _id: conv._id });
     await this.messageModel.deleteMany({ conversationId: conv._id });
 
     await this.cache.removeConversationGlobally(convId, participants);
+  }
+
+  private async enqueueConversationMediaDelete(
+    conversationId: string,
+    conversationObjectId: any,
+  ) {
+    const messages = await this.messageModel
+      .find({ conversationId: conversationObjectId }, { attachments: 1 })
+      .lean()
+      .exec();
+
+    const items =
+      messages
+        .flatMap((msg) => msg.attachments || [])
+        .map((att) => {
+          if (!att?.publicId) return null;
+          const resourceType =
+            att.mimeType && att.mimeType.startsWith('video/')
+              ? 'video'
+              : 'image';
+          return { publicId: att.publicId, resourceType };
+        })
+        .filter(Boolean) || [];
+
+    if (items.length === 0) return;
+
+    const chunkSize = 100;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize) as {
+        publicId: string;
+        resourceType?: 'image' | 'video';
+      }[];
+
+      try {
+        await this.outboxService.enqueue(
+          EventTopic.MEDIA,
+          MediaEventType.DELETE_REQUESTED,
+          {
+            items: chunk,
+            source: 'chat-service',
+            reason: 'conversation.deleted',
+            conversationId,
+          },
+          conversationId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to enqueue media delete for conversationId=${conversationId}: ${error.message}`,
+        );
+      }
+    }
   }
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
@@ -576,6 +646,11 @@ export class ConversationService {
 
     const dto = populateAndMapConversation(fullConv);
 
-    Promise.all([this.cache.setConversationDetail(dto)]);
+    await Promise.all([
+      this.cache.setConversationDetail(dto),
+      ...(fullConv.participants ?? []).map((userId) =>
+        this.cache.upsertConversationToUserList(userId, dto),
+      ),
+    ]);
   }
 }
