@@ -1,4 +1,4 @@
-import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { int, Transaction } from 'neo4j-driver';
 import { Neo4jService } from 'src/neo4j/neo4j.service';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
@@ -17,21 +17,25 @@ export class FriendshipService {
       `
       MATCH (u:User {id:$userId}), (t:User {id:$targetId})
       OPTIONAL MATCH (u)-[f:FRIEND_WITH]-(t)
-      OPTIONAL MATCH (u)-[b:BLOCKED]->(t)
+      OPTIONAL MATCH (u)-[bOut:BLOCKED]->(t)
+      OPTIONAL MATCH (t)-[bIn:BLOCKED]->(u)
       OPTIONAL MATCH (u)-[reqOut:REQUESTED]->(t)
       OPTIONAL MATCH (t)-[reqIn:REQUESTED]->(u)
       RETURN 
         count(f) > 0 as isFriend,
-        count(b) > 0 as isBlocked,
+        count(bOut) > 0 as isBlocked,
+        count(bIn) > 0 as isBlockedByTarget,
         count(reqOut) > 0 as hasRequestedOut,
         count(reqIn) > 0 as hasRequestedIn
       `,
       { userId, targetId },
     );
 
+    if (!res.records.length) return { status: 'NONE' };
     const r = res.records[0];
+    if (r.get('isBlocked') || r.get('isBlockedByTarget'))
+      return { status: 'BLOCKED' };
     if (r.get('isFriend')) return { status: 'FRIEND' };
-    if (r.get('isBlocked')) return { status: 'BLOCKED' };
     if (r.get('hasRequestedOut')) return { status: 'REQUESTED_OUT' };
     if (r.get('hasRequestedIn')) return { status: 'REQUESTED_IN' };
     return { status: 'NONE' };
@@ -39,6 +43,9 @@ export class FriendshipService {
 
   // ----- Send friend request -----
   async sendFriendRequest(tx: Transaction, userId: string, targetId: string) {
+    if (userId === targetId) {
+      throw new BadRequestException('Cannot send request to yourself');
+    }
     const status = await this.getRelationshipStatus(userId, targetId);
 
     if (status.status === 'FRIEND') {
@@ -59,7 +66,7 @@ export class FriendshipService {
       tx,
     );
 
-    this.buffer.addRecentActivity({
+    await this.buffer.addRecentActivity({
       actorId: userId,
       targetId: targetId,
       type: 'friendship_request',
@@ -84,7 +91,7 @@ export class FriendshipService {
       tx,
     );
 
-    this.buffer.clearActivity('friendship_request', targetId, userId);
+    await this.buffer.clearActivity('friendship_request', targetId, userId);
 
     return { message: 'Friend request canceled successfully' };
   }
@@ -95,6 +102,9 @@ export class FriendshipService {
     userId: string,
     requesterId: string,
   ) {
+    if (userId === requesterId) {
+      throw new BadRequestException('Cannot accept your own request');
+    }
     const status = await this.getRelationshipStatus(userId, requesterId);
     if (status.status !== 'REQUESTED_IN') {
       throw new BadRequestException('No pending friend request to accept');
@@ -108,7 +118,7 @@ export class FriendshipService {
       { userId, requesterId },
       tx,
     );
-    this.buffer.addRecentActivity({
+    await this.buffer.addRecentActivity({
       actorId: userId,
       targetId: requesterId,
       type: 'friendship_accept',
@@ -122,6 +132,9 @@ export class FriendshipService {
     userId: string,
     requesterId: string,
   ) {
+    if (userId === requesterId) {
+      throw new BadRequestException('Cannot decline your own request');
+    }
     const status = await this.getRelationshipStatus(userId, requesterId);
     if (status.status !== 'REQUESTED_IN') {
       throw new BadRequestException('No pending friend request to decline');
@@ -139,6 +152,9 @@ export class FriendshipService {
 
   // ----- Remove friend -----
   async removeFriend(tx: Transaction, userId: string, friendId: string) {
+    if (userId === friendId) {
+      throw new BadRequestException('Cannot remove yourself');
+    }
     const status = await this.getRelationshipStatus(userId, friendId);
     if (status.status !== 'FRIEND') {
       throw new BadRequestException('Not friends');
@@ -156,6 +172,9 @@ export class FriendshipService {
 
   // ----- Block / Unblock -----
   async blockUser(tx: Transaction, userId: string, targetId: string) {
+    if (userId === targetId) {
+      throw new BadRequestException('Cannot block yourself');
+    }
     const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status === 'BLOCKED') {
       throw new BadRequestException('User already blocked');
@@ -169,9 +188,13 @@ export class FriendshipService {
       { userId, targetId },
       tx,
     );
+    return { message: 'User blocked successfully' };
   }
 
   async unblockUser(tx: Transaction, userId: string, targetId: string) {
+    if (userId === targetId) {
+      throw new BadRequestException('Cannot unblock yourself');
+    }
     const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status !== 'BLOCKED') {
       throw new BadRequestException('User is not blocked');
@@ -311,5 +334,33 @@ export class FriendshipService {
     const result = await this.neo4j.read(query, params);
     const records = result.records || result;
     return records.map((r) => r.get('id'));
+  }
+
+  async getBlockedUsers(
+    userId: string,
+    query: CursorPaginationDTO,
+  ): Promise<CursorPageResponse<string>> {
+    const queryDB = `
+      MATCH (u:User {id:$userId})-[:BLOCKED]->(b:User)
+      ${query.cursor ? 'WHERE b.id > $cursor' : ''}
+      RETURN b.id as id
+      ORDER BY b.id
+      LIMIT $limitPlusOne
+    `;
+    const params: any = { userId, limitPlusOne: int(query.limit + 1) };
+    if (query.cursor) params.cursor = query.cursor;
+
+    const res = await this.neo4j.read(queryDB, params);
+    const ids = res.records.map((r) => String(r.get('id')));
+
+    const hasNextPage = ids.length > query.limit;
+    const pageData = hasNextPage ? ids.slice(0, query.limit) : ids;
+    const nextCursor = hasNextPage ? pageData[pageData.length - 1] : null;
+
+    return {
+      data: Array.isArray(pageData) ? [...pageData] : [],
+      nextCursor,
+      hasNextPage,
+    };
   }
 }

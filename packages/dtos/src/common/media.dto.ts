@@ -1,5 +1,5 @@
 import { Expose } from 'class-transformer';
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { MediaType } from './enum';
 
 export class MediaItemDTO {
@@ -10,4 +10,9 @@ export class MediaItemDTO {
   @Expose()
   @IsString()
   url: string;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  publicId?: string;
 }

@@ -7,9 +7,7 @@ import { FriendshipService } from './friendship.service';
 
 @Controller()
 export class FriendshipController {
-  constructor(
-    private readonly friendshipService: FriendshipService,
-  ) {}
+  constructor(private readonly friendshipService: FriendshipService) {}
 
   @MessagePattern('get_relationship_status')
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
@@ -115,6 +113,13 @@ export class FriendshipController {
   ) {
     return this.friendshipService.getFriends(data.userId, data.query);
   }
+
+  @MessagePattern('get_blocked_users')
+  async getBlockedUsers(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.friendshipService.getBlockedUsers(data.userId, data.query);
+  }
   @MessagePattern('recommend_friends')
   async recommendFriends(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
@@ -141,6 +146,7 @@ export class FriendshipController {
   }
 
   @MessagePattern('unblock_user')
+  @UseInterceptors(Neo4jTransactionInterceptor)
   async unblockUser(
     @Payload()
     data: {

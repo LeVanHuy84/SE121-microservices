@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MediaModule } from './modules/media/media.module';
-
+import { KafkaConsumerModule } from './modules/consumer/kafka-consumer.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    MediaModule,
+    KafkaConsumerModule,
   ],
 })
-export class AppModule {}
+export class KafkaAppModule {}

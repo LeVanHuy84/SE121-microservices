@@ -26,7 +26,7 @@ import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
   cors: {
     origin: '*',
   },
-  transport: ['websocket'],
+  transports: ['websocket'],
 })
 export class ChatGateway
   implements
@@ -43,6 +43,9 @@ export class ChatGateway
     process.env.GATEWAY_INSTANCE_ID ||
     process.env.HOSTNAME ||
     `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
+  private readonly HEARTBEAT_MIN_INTERVAL_MS = Number(
+    process.env.PRESENCE_HEARTBEAT_MIN_INTERVAL_MS ?? 5000
+  );
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
   async onModuleInit() {
@@ -89,11 +92,20 @@ export class ChatGateway
   handleHeartbeat(@ConnectedSocket() client: Socket) {
     const userId = client.user?.id as string;
     if (!userId) return;
+    const now = Date.now();
+    const lastHeartbeatAt = client.data.lastHeartbeatAt as number | undefined;
+    if (
+      lastHeartbeatAt &&
+      now - lastHeartbeatAt < this.HEARTBEAT_MIN_INTERVAL_MS
+    ) {
+      return;
+    }
+    client.data.lastHeartbeatAt = now;
     const evt: PresenceHeartbeatEvent = {
       type: 'HEARTBEAT',
       userId,
       serverId: this.serverId,
-      ts: Date.now(),
+      ts: now,
     };
 
     this.redis.publish('presence:heartbeat', JSON.stringify(evt));
@@ -110,11 +122,13 @@ export class ChatGateway
     const { userIds } = data || {};
     if (!Array.isArray(userIds) || !userIds.length) return;
 
-    userIds.forEach((id) => client.join(`presence:${id}`));
+    const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
+    if (!uniqueIds.length) return;
+    uniqueIds.forEach((id) => client.join(`presence:${id}`));
     this.logger.debug(
-      `Client ${client.id} subscribed presence of [${userIds.join(', ')}]`
+      `Client ${client.id} subscribed presence of [${uniqueIds.join(', ')}]`
     );
-    const snapshot = await this.getPresenceSnapshot(userIds);
+    const snapshot = await this.getPresenceSnapshot(uniqueIds);
 
     // trả về map: { [userId]: { status, lastSeen } }
     client.emit('presence.snapshot', snapshot);
@@ -128,9 +142,11 @@ export class ChatGateway
     const { userIds } = data || {};
     if (!Array.isArray(userIds) || !userIds.length) return;
 
-    userIds.forEach((id) => client.leave(`presence:${id}`));
+    const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
+    if (!uniqueIds.length) return;
+    uniqueIds.forEach((id) => client.leave(`presence:${id}`));
     this.logger.debug(
-      `Client ${client.id} unsubscribed presence of [${userIds.join(', ')}]`
+      `Client ${client.id} unsubscribed presence of [${uniqueIds.join(', ')}]`
     );
   }
 
@@ -139,6 +155,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string }
   ) {
+    if (!data?.conversationId) return;
     client.join(`conversation:${data.conversationId}`);
   }
 
@@ -147,6 +164,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string }
   ) {
+    if (!data?.conversationId) return;
     client.leave(`conversation:${data.conversationId}`);
   }
 
@@ -158,7 +176,7 @@ export class ChatGateway
     @MessageBody() data: { conversationId: string }
   ) {
     const userId = client.user?.id as string;
-    if (!userId) return;
+    if (!userId || !data?.conversationId) return;
     this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
@@ -172,7 +190,7 @@ export class ChatGateway
     @MessageBody() data: { conversationId: string }
   ) {
     const userId = client.user?.id as string;
-    if (!userId) return;
+    if (!userId || !data?.conversationId) return;
     this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
@@ -223,9 +241,10 @@ export class ChatGateway
   }
 
   private emitToUsers(userIds: string[], event: string, payload: any) {
-    userIds.forEach((userId) => {
-      this.server.to(`user:${userId}`).emit(event, payload);
-    });
+    if (!userIds.length) return;
+    this.server
+      .to(userIds.map((userId) => `user:${userId}`))
+      .emit(event, payload);
   }
 
   emitConversationCreated(conv: ConversationResponseDTO) {
@@ -256,14 +275,13 @@ export class ChatGateway
   //   this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
   // }
 
-  emitMemberLeft(
-    conversationId: string,
-    participants: string[]
-  ) {
+  emitMemberLeft(conversationId: string, participants: string[]) {
     this.emitToUsers(participants, 'conversation.memberLeft', {
       conversationId,
     });
-    this.logger.debug(`Emitted memberLeft for conversation ${conversationId} to [${participants.join(', ')}]`);
+    this.logger.debug(
+      `Emitted memberLeft for conversation ${conversationId} to [${participants.join(', ')}]`
+    );
   }
 
   emitMemberJoined(
@@ -330,6 +348,7 @@ export class ChatGateway
       snapshot[userId] = {
         status,
         lastSeen,
+        serverId: hash.lastServerId ?? null,
       };
     });
 

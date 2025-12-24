@@ -30,10 +30,7 @@ export class AttachmentDTO {
 }
 
   export class SendMessageDTO {
-    @IsOptional()
-    @IsString()
-    messageId?: string;
-
+  
     @IsString()
     conversationId: string;
 
