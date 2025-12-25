@@ -23,7 +23,7 @@ export class OutboxProcessor {
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleOutboxBatch() {
     if (this.running) {
-      this.logger.debug('Outbox job still running, skipping...');
+      this.logger.log('Outbox job still running, skipping...');
       return;
     }
 

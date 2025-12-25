@@ -6,7 +6,10 @@ import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import {
   BaseUserDTO,
   CreateUserDTO,
+  EventDestination,
+  EventTopic,
   InferUserPayload,
+  MediaEventType,
   UpdateUserDTO,
   UserEventType,
   UserResponseDTO,
@@ -52,6 +55,7 @@ export class UserService {
         firstName: dto.firstName ?? '',
         lastName: dto.lastName ?? '',
         avatarUrl: dto.avatarUrl ?? null,
+        coverImage: null,
         stats: { followers: 0, following: 0, posts: 0 },
       });
 
@@ -118,7 +122,7 @@ export class UserService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
-            coverImageUrl: true,
+            coverImage: true,
             bio: true,
           },
         },
@@ -161,7 +165,7 @@ export class UserService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
-            coverImageUrl: true,
+            coverImage: true,
             bio: true,
           },
         },
@@ -221,7 +225,7 @@ export class UserService {
         firstName: dto.firstName ?? profile.firstName,
         lastName: dto.lastName ?? profile.lastName,
         avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
-        coverImageUrl: dto.coverImageUrl ?? profile.coverImageUrl,
+        coverImage: dto.coverImage ?? profile.coverImage,
         bio: dto.bio ?? profile.bio,
         updatedAt: new Date(),
       };
@@ -230,6 +234,51 @@ export class UserService {
         .update(profiles)
         .set(updatedProfile)
         .where(eq(profiles.userId, id));
+
+      if (dto.coverImage?.publicId) {
+        await this.outboxService.createOutboxEventWithTransaction(
+          tx,
+          EventDestination.KAFKA,
+          EventTopic.MEDIA,
+          MediaEventType.CONTENT_ID_ASSIGNED,
+          {
+            contentId: id,
+            items: [
+              {
+                publicId: dto.coverImage.publicId,
+                url: dto.coverImage.url,
+                type: 'image',
+              },
+            ],
+            source: 'user-service',
+          }
+        );
+      }
+
+      if (
+        dto.coverImage?.publicId !== undefined &&
+        profile.coverImage &&
+        typeof profile.coverImage === 'object' &&
+        'publicId' in profile.coverImage &&
+        (profile.coverImage as any).publicId !== dto.coverImage?.publicId
+      ) {
+        await this.outboxService.createOutboxEventWithTransaction(
+          tx,
+          EventDestination.KAFKA,
+          EventTopic.MEDIA,
+          MediaEventType.DELETE_REQUESTED,
+          {
+            items: [
+              {
+                publicId: (profile.coverImage as any).publicId,
+                resourceType: 'image',
+              },
+            ],
+            source: 'user-service',
+            reason: 'user.cover.updated',
+          }
+        );
+      }
 
       // Save final state for event payload
       finalUser = {

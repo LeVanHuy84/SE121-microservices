@@ -207,6 +207,7 @@ export class MessageService {
       this.messageStreamProducer.publishMessageCreated(dtoMsg),
     ]);
 
+    await this.enqueueMediaAssignEvent(msg, msg._id.toString());
     return dtoMsg;
   }
 
@@ -297,6 +298,44 @@ export class MessageService {
         }[],
         source: 'chat-service',
         reason: 'message.deleted',
+      },
+      messageId,
+    );
+  }
+
+  private async enqueueMediaAssignEvent(
+    msg: MessageDocument,
+    messageId: string,
+  ) {
+    const items =
+      msg.attachments
+        ?.map((att) => {
+          if (!att?.publicId) return null;
+          const resourceType =
+            att.mimeType && att.mimeType.startsWith('video/')
+              ? 'video'
+              : 'image';
+          return {
+            publicId: att.publicId,
+            url: att.url,
+            type: resourceType,
+          };
+        })
+        .filter(Boolean) || [];
+
+    if (items.length === 0) return;
+
+    await this.outboxService.enqueue(
+      EventTopic.MEDIA,
+      MediaEventType.CONTENT_ID_ASSIGNED,
+      {
+        contentId: messageId,
+        items: items as {
+          publicId: string;
+          url?: string;
+          type?: 'image' | 'video';
+        }[],
+        source: 'chat-service',
       },
       messageId,
     );
