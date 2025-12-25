@@ -4,6 +4,11 @@ import {
   CommentResponseDTO,
   CreateCommentDTO,
   EventDestination,
+  EventTopic,
+  MediaDeleteItem,
+  MediaEventPayloads,
+  MediaEventType,
+  MediaType,
   RootType,
   StatsEventType,
   TargetType,
@@ -211,6 +216,20 @@ export class CommentService {
         }
       }
 
+      let mediaPayload:
+        | MediaEventPayloads[MediaEventType.DELETE_REQUESTED]
+        | null = null;
+
+      if (comment.media && comment.media.publicId) {
+        const item: MediaDeleteItem = {
+          publicId: comment.media.publicId,
+          resourceType:
+            comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+        };
+
+        mediaPayload = { items: [item] };
+      }
+
       await manager.delete(Reaction, {
         targetType: TargetType.COMMENT,
         targetId: commentId,
@@ -232,6 +251,17 @@ export class CommentService {
         StatsEventType.COMMENT,
         -1
       );
+
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.DELETE_REQUESTED,
+          payload: mediaPayload,
+        });
+
+        await manager.save(mediaOutbox);
+      }
 
       await this.commentCache.invalidateComment(
         comment.id,

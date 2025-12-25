@@ -205,7 +205,7 @@ export class AdminService {
   async getSystemUsers(
     filter: SystemUserQueryDTO
   ): Promise<PageResponse<SystemUserDTO>> {
-    const { query, limit = 10, page = 1, role } = filter;
+    const { query, limit = 10, page = 1, status, role } = filter;
     const offset = (page - 1) * limit;
 
     const conditions: SQL[] = [];
@@ -230,6 +230,10 @@ export class AdminService {
 
     if (searchCondition) {
       conditions.push(searchCondition);
+    }
+
+    if (status) {
+      conditions.push(eq(users.status, status));
     }
 
     const [{ total }] = await this.db
