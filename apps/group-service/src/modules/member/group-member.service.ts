@@ -33,9 +33,16 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { userId, groupId },
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
       if (member.role === GroupRole.OWNER) {
-        throw new RpcException('Owner cannot leave the group');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Owner cannot leave the group',
+        });
       }
       member.status = GroupMemberStatus.LEFT;
       await manager.save(member);
@@ -56,10 +63,17 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
 
       if (member.role === GroupRole.OWNER) {
-        throw new RpcException('Cannot remove the group owner');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Cannot remove the group owner',
+        });
       }
 
       const executor = await this.getMemberWithRole(manager, groupId, userId);
@@ -69,17 +83,26 @@ export class GroupMemberService {
         member.role === GroupRole.ADMIN &&
         executor.role !== GroupRole.OWNER
       ) {
-        throw new RpcException('Only owner can remove an admin');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Only owner can remove an admin',
+        });
       }
 
       // Không remove chính mình
       if (userId === member.userId) {
-        throw new RpcException('You cannot remove yourself');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'You cannot remove yourself',
+        });
       }
 
       // Chỉ remove member đang active
       if (member.status !== GroupMemberStatus.ACTIVE) {
-        throw new RpcException('Member is not active');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Member is not active',
+        });
       }
 
       member.status = GroupMemberStatus.REMOVED;
@@ -103,10 +126,17 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
 
       if (member.role === GroupRole.OWNER) {
-        throw new RpcException('Cannot remove the group owner');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Cannot ban the group owner',
+        });
       }
 
       const executor = await this.getMemberWithRole(manager, groupId, userId);
@@ -116,17 +146,26 @@ export class GroupMemberService {
         member.role === GroupRole.ADMIN &&
         executor.role !== GroupRole.OWNER
       ) {
-        throw new RpcException('Only owner can remove an admin');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Only owner can ban an admin',
+        });
       }
 
       // Không remove chính mình
       if (userId === member.userId) {
-        throw new RpcException('You cannot remove yourself');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'You cannot ban yourself',
+        });
       }
 
       // Chỉ remove member đang active
       if (member.status !== GroupMemberStatus.ACTIVE) {
-        throw new RpcException('Member is not active');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Member is not active',
+        });
       }
 
       member.status = GroupMemberStatus.BANNED;
@@ -149,9 +188,16 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
       if (member.status !== GroupMemberStatus.BANNED) {
-        throw new RpcException('Member is not banned');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Member is not banned',
+        });
       }
       member.status = GroupMemberStatus.REMOVED;
       await manager.save(member);
@@ -173,17 +219,27 @@ export class GroupMemberService {
   ) {
     return this.dataSource.transaction(async (manager) => {
       if (newRole === GroupRole.OWNER) {
-        throw new RpcException('Cannot assign OWNER role');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Cannot assign OWNER role',
+        });
       }
 
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
         relations: ['group'],
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
 
       if (member.role === GroupRole.OWNER) {
-        throw new RpcException('Cannot change role of the group owner');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Cannot change role of the group owner',
+        });
       }
 
       const executor = await this.getMemberWithRole(manager, groupId, userId);
@@ -192,7 +248,10 @@ export class GroupMemberService {
         member.role === GroupRole.ADMIN &&
         executor.role !== GroupRole.OWNER
       ) {
-        throw new RpcException('Only owner can change role of admin');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Only owner can change role of admin',
+        });
       }
 
       member.role = newRole;
@@ -222,10 +281,17 @@ export class GroupMemberService {
       const member = await manager.findOne(GroupMember, {
         where: { id: memberId, groupId },
       });
-      if (!member) throw new RpcException('Member not found');
+      if (!member)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Member not found',
+        });
 
       if (member.role === GroupRole.OWNER) {
-        throw new RpcException('Cannot change permissions of the group owner');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Cannot change permissions of the group owner',
+        });
       }
 
       member.customPermissions = permissions;
@@ -328,9 +394,13 @@ export class GroupMemberService {
   private async updateMemberCount(manager, groupId: string, delta: number) {
     const groupRepo = manager.getRepository(Group);
     const group = await groupRepo.findOne({ where: { id: groupId } });
-    if (!group) throw new RpcException('Group not found');
+    if (!group)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found',
+      });
     group.members += delta;
-    const savedGroup = await groupRepo.save(group);
+    await groupRepo.save(group);
   }
 
   private async getMemberWithRole(manager, groupId: string, userId: string) {

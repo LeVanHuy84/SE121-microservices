@@ -38,7 +38,7 @@ export class CommandService {
         password: rootPassword,
         firstName: 'System',
         lastName: 'Admin',
-        publicMetadata: { role: 'ADMIN', isSystemAdmin: true },
+        publicMetadata: { role: 'admin', isSystemAdmin: true },
       });
 
       const user = await this.db.transaction(async (tx) => {

@@ -41,35 +41,34 @@ export class ReportService {
   async getDashboard(
     filter: DashboardQueryDTO,
   ): Promise<{ totalGroups: number; pendingReports: number }> {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    // ===== TODAY (VN)
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
 
-    // ===== NORMALIZE DATE (VN → UTC) =====
+    // ===== NORMALIZE DATE (VN → UTC)
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
     // default = 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = nowVN;
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
     if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 7);
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 6);
       fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // ===== BUILD WHERE CONDITION =====
-    const groupWhere: any = {
-      status: GroupStatus.ACTIVE,
-      createdAt: Between(fromDate, toDate),
-    };
-
-    // ===== TOTAL GROUPS =====
+    // ===== TOTAL GROUPS
     const totalGroups = await this.groupRepo.count({
-      where: groupWhere,
+      where: {
+        status: GroupStatus.ACTIVE,
+        createdAt: Between(fromDate, toDate),
+      },
     });
 
-    // ===== PENDING REPORTS (KHÔNG FILTER TIME) =====
+    // ===== PENDING REPORTS (ALL TIME)
     const pendingReports = await this.groupReportRepository.count({
       where: {
         status: ReportStatus.PENDING,
@@ -94,7 +93,10 @@ export class ReportService {
       });
 
       if (existing) {
-        throw new RpcException('You have already reported this group.');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'You have already reported this group.',
+        });
       }
       const report = manager.create(GroupReport, {
         groupId,
@@ -169,7 +171,10 @@ export class ReportService {
       });
 
       if (!group) {
-        throw new RpcException('Group not found!');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found!',
+        });
       }
 
       // 2. Reject all pending reports of group
@@ -186,7 +191,10 @@ export class ReportService {
         .execute();
 
       if (!reportResult.affected) {
-        throw new RpcException('No pending reports to ignore');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'No pending reports to ignore',
+        });
       }
 
       // 3. Reset report counter
@@ -221,11 +229,17 @@ export class ReportService {
       });
 
       if (!group) {
-        throw new RpcException('Group not found!');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found!',
+        });
       }
 
       if (group.status === GroupStatus.BANNED) {
-        throw new RpcException('Group has been banned!');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Group has been banned!',
+        });
       }
 
       // 2. Resolve all pending group reports
@@ -284,11 +298,17 @@ export class ReportService {
     });
 
     if (!group) {
-      throw new RpcException('Group not found!');
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found!',
+      });
     }
 
     if (group.status !== GroupStatus.BANNED) {
-      throw new RpcException('The group has not been banned.');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'The group has not been banned.',
+      });
     }
 
     group.status = GroupStatus.ACTIVE;
@@ -378,24 +398,31 @@ export class ReportService {
   }
 
   async getReportChart(filter: DashboardQueryDTO) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // ===============================
+    // 1. NORMALIZE FILTER (VN → UTC)
+    // ===============================
 
-    // ===== NORMALIZE DATE (VN → UTC) =====
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
+
     let fromDate = this.vnDateToUtcStart(filter.from);
     let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 7 ngày gần nhất (VN)
+    // default: 7 ngày gần nhất (VN)
     if (!toDate) {
-      toDate = this.vnDateToUtcEnd(today)!;
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
     if (!fromDate) {
-      today.setDate(today.getDate() - 6);
-      fromDate = this.vnDateToUtcStart(today)!;
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 6);
+      fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // ===== LIMIT RANGE =====
+    // ===============================
+    // 2. LIMIT RANGE (MAX 30 DAYS)
+    // ===============================
+
     const MAX_DAYS = 30;
     const diffDays =
       Math.floor(
@@ -408,28 +435,35 @@ export class ReportService {
       fromDate = this.vnDateToUtcStart(d)!;
     }
 
-    // helper key theo ngày VN
-    const toKey = (d: Date) =>
-      new Date(d.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+    // ===============================
+    // 3. BUILD DATE KEYS (VN)
+    // ===============================
 
-    // ===== REPORTS =====
-    const reports = await this.dataSource
-      .getRepository(GroupReport)
-      .createQueryBuilder('r')
-      .select(`DATE(r.created_at)`, 'date')
-      .addSelect('r.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('r.created_at BETWEEN :from AND :to', {
-        from: fromDate,
-        to: toDate,
-      })
-      .groupBy('date')
-      .addGroupBy('r.status')
-      .getRawMany();
+    const buildDateKeys = (from: Date, to: Date) => {
+      const keys: string[] = [];
 
-    // ===== INIT MAP =====
+      const startVN = new Date(
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000,
+      );
+      const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
+
+      const cursor = new Date(startVN);
+      cursor.setHours(0, 0, 0, 0);
+
+      while (cursor <= endVN) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return keys;
+    };
+
+    const dateKeys = buildDateKeys(fromDate, toDate);
+
+    // ===============================
+    // 4. INIT MAP
+    // ===============================
+
     const map = new Map<
       string,
       {
@@ -440,28 +474,42 @@ export class ReportService {
       }
     >();
 
-    const days =
-      Math.floor(
-        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
-      ) + 1;
-
-    for (let i = 0; i < days; i++) {
-      const d = new Date(fromDate);
-      d.setDate(d.getDate() + i);
-
-      const key = toKey(d);
-      map.set(key, {
-        date: key,
+    dateKeys.forEach((k) =>
+      map.set(k, {
+        date: k,
         pendingCount: 0,
         resolvedCount: 0,
         rejectedCount: 0,
-      });
-    }
+      }),
+    );
 
-    // ===== MERGE DATA =====
+    // ===============================
+    // 5. QUERY REPORTS (GROUP BY NGÀY VN)
+    // ===============================
+
+    const reports = await this.dataSource
+      .getRepository(GroupReport)
+      .createQueryBuilder('r')
+      .select(
+        `to_char(timezone('Asia/Ho_Chi_Minh', r.created_at), 'YYYY-MM-DD')`,
+        'date',
+      )
+      .addSelect('r.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.created_at BETWEEN :from AND :to', {
+        from: fromDate,
+        to: toDate,
+      })
+      .groupBy('date')
+      .addGroupBy('r.status')
+      .getRawMany();
+
+    // ===============================
+    // 6. MERGE DATA
+    // ===============================
+
     reports.forEach((r) => {
-      const key = toKey(new Date(r.date));
-      const item = map.get(key);
+      const item = map.get(r.date);
       if (!item) return;
 
       const count = Number(r.count);

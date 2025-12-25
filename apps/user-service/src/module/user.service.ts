@@ -180,6 +180,9 @@ export class UserService {
   }
 
   async update(id: string, dto: UpdateUserDTO) {
+    let finalUser: any;
+    let finalProfile: any;
+
     await this.db.transaction(async (tx) => {
       const user = await tx
         .select()
@@ -197,6 +200,7 @@ export class UserService {
         if (existingUser) throw new Error('Email already in use');
       }
 
+      // Update users table
       await tx
         .update(users)
         .set({
@@ -212,30 +216,42 @@ export class UserService {
         .then((p) => p[0]);
       if (!profile) throw new NotFoundException('Profile not found');
 
+      // Resolve final profile state
+      const updatedProfile = {
+        firstName: dto.firstName ?? profile.firstName,
+        lastName: dto.lastName ?? profile.lastName,
+        avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
+        coverImageUrl: dto.coverImageUrl ?? profile.coverImageUrl,
+        bio: dto.bio ?? profile.bio,
+        updatedAt: new Date(),
+      };
+
       await tx
         .update(profiles)
-        .set({
-          firstName: dto.firstName ?? profile.firstName,
-          lastName: dto.lastName ?? profile.lastName,
-          avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
-          coverImageUrl: dto.coverImageUrl ?? profile.coverImageUrl,
-          bio: dto.bio ?? profile.bio,
-          updatedAt: new Date(),
-        })
+        .set(updatedProfile)
         .where(eq(profiles.userId, id));
+
+      // Save final state for event payload
+      finalUser = {
+        id,
+        email: dto.email ?? user.email,
+      };
+
+      finalProfile = updatedProfile;
     });
 
     // 🧹 Invalidate cache
     await this.redis.del(`user:${id}`);
     await this.redis.del('users:all');
 
+    // ✅ FULL SNAPSHOT payload
     const payload: InferUserPayload<UserEventType.UPDATED> = {
       userId: id,
-      email: dto.email,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      avatarUrl: dto.avatarUrl,
-      bio: dto.bio,
+      email: finalUser.email,
+      firstName: finalProfile.firstName,
+      lastName: finalProfile.lastName,
+      avatarUrl: finalProfile.avatarUrl,
+      bio: finalProfile.bio,
     };
 
     await this.outboxService.createUserOutboxEvent(

@@ -21,6 +21,8 @@ export class UserSearchService extends BaseSearchService {
         multi_match: {
           query: dto.query,
           fields: ['fullName^3', 'bio'],
+          type: 'best_fields',
+          operator: 'and',
         },
       });
     }
@@ -32,17 +34,13 @@ export class UserSearchService extends BaseSearchService {
     }
     if (dto.firstName) {
       filter.push({
-        term: { firstName: dto.firstName },
+        term: { 'firstName.keyword': dto.firstName },
       });
     }
+
     if (dto.lastName) {
       filter.push({
-        term: { lastName: dto.lastName },
-      });
-    }
-    if (dto.isActive !== undefined) {
-      filter.push({
-        term: { isActive: dto.isActive },
+        term: { 'lastName.keyword': dto.lastName },
       });
     }
 

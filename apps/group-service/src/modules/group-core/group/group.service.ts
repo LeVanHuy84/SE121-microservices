@@ -13,6 +13,7 @@ import {
   GroupEventLog,
   GroupEventType,
   GroupMemberStatus,
+  GroupPrivacy,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
@@ -31,7 +32,6 @@ import { GroupLogService } from 'src/modules/group-log/group-log.service';
 import { SocialClientService } from 'src/modules/client/social/social-client.service';
 import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
 import { UserClientService } from 'src/modules/client/user/user-client.service';
-import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class GroupService {
@@ -55,7 +55,11 @@ export class GroupService {
   // ---------- Public API (refactored & optimized) ----------
 
   async findById(groupId: string, userId?: string): Promise<GroupResponseDTO> {
-    if (!isUUID(groupId)) throw new RpcException('Invalid group ID format');
+    if (!isUUID(groupId))
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Invalid group ID format',
+      });
 
     // 1) Try cache entity
     let entity = await this.groupCacheService.get(groupId);
@@ -64,7 +68,10 @@ export class GroupService {
       entity = await this.groupRepo.findOne({ where: { id: groupId } });
       if (!entity) {
         await this.groupCacheService.setNotFound(groupId).catch(() => void 0);
-        throw new RpcException('Group not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
       }
       // Cache entity
       await this.groupCacheService.set(groupId, entity).catch(() => void 0);
@@ -99,46 +106,91 @@ export class GroupService {
     userId: string,
     query?: CursorPaginationDTO,
   ): Promise<CursorPageResponse<GroupResponseDTO>> {
-    // 1) Get friend ids (from social service, cached inside that service)
+    const MIN_RECOMMEND = 5;
+    const PAGE_LIMIT = query?.limit || 10;
+
+    // =========================
+    // 1) Get friend ids
+    // =========================
     const friends = await this.socialClientService.getFriendsIds(userId);
-    if (!friends || friends.length === 0) {
-      return new CursorPageResponse<GroupResponseDTO>([], null, false);
+    const friendIds = (friends || []).slice(0, this.DEFAULT_FRIENDS_LIMIT);
+
+    // =========================
+    // 2) Groups that friends joined
+    // (có thể rỗng – KHÔNG return sớm)
+    // =========================
+    let friendGroupIds: string[] = [];
+
+    if (friendIds.length > 0) {
+      const friendGroupRows = await this.groupMemberRepo
+        .createQueryBuilder('m')
+        .select('m.groupId', 'groupId')
+        .addSelect('COUNT(m.userId)', 'friendCount') // chỉ để debug / mở rộng
+        .where('m.userId IN (:...friendIds)', { friendIds })
+        .andWhere('m.status = :status', {
+          status: GroupMemberStatus.ACTIVE,
+        })
+        .groupBy('m.groupId')
+        .orderBy('COUNT(m.userId)', 'DESC') // ✅ QUAN TRỌNG
+        .limit(500)
+        .getRawMany();
+
+      friendGroupIds = friendGroupRows.map((r) => r.groupId).filter(Boolean);
     }
 
-    // If list is large, slice it (social client should already limit but be defensive)
-    const friendIds = friends.slice(0, this.DEFAULT_FRIENDS_LIMIT);
-
-    // 2) Query distinct groupIds that friends participate in
-    const friendGroupRows = await this.groupMemberRepo
-      .createQueryBuilder('m')
-      .select('m.groupId', 'groupId')
-      .where('m.userId IN (:...friendIds)', { friendIds })
-      .andWhere('m.status = :status', { status: GroupMemberStatus.ACTIVE })
-      .groupBy('m.groupId')
-      .orderBy('COUNT(m.userId)', 'DESC') // groups with more friend members first
-      .limit(500) // safety cap
-      .getRawMany();
-
-    const friendGroupIds = friendGroupRows
-      .map((r) => r.groupId)
-      .filter(Boolean);
-    if (friendGroupIds.length === 0)
-      return new CursorPageResponse<GroupResponseDTO>([], null, false);
-
-    // 3) Get groups user already in to exclude
+    // =========================
+    // 3) Groups user already joined
+    // =========================
     const myGroupRows = await this.groupMemberRepo.find({
       where: { userId },
       select: ['groupId'],
     });
+
     const myGroupIds = new Set(myGroupRows.map((r) => r.groupId));
 
-    const candidateIds = friendGroupIds.filter((id) => !myGroupIds.has(id));
-    if (candidateIds.length === 0)
-      return new CursorPageResponse<GroupResponseDTO>([], null, false);
+    // =========================
+    // 4) Initial candidates
+    // =========================
+    let candidateIds = friendGroupIds.filter((id) => !myGroupIds.has(id));
 
-    // 4) Use buildGroupQuery with candidateIds and paginate
+    // =========================
+    // 5) Fallback: PUBLIC groups
+    // =========================
+    if (candidateIds.length < MIN_RECOMMEND) {
+      const needMore = MIN_RECOMMEND - candidateIds.length;
+
+      const publicGroupRows = await this.groupRepo
+        .createQueryBuilder('g')
+        .select('g.id', 'id')
+        .leftJoin('g.groupMembers', 'm', 'm.userId = :userId', { userId })
+        .where('g.privacy = :privacy', {
+          privacy: GroupPrivacy.PUBLIC,
+        })
+        .andWhere('m.id IS NULL')
+        .andWhere(
+          candidateIds.length > 0 ? 'g.id NOT IN (:...excludeIds)' : '1=1',
+          { excludeIds: candidateIds },
+        )
+        .orderBy('g.createdAt', 'DESC')
+        .limit(needMore)
+        .getRawMany();
+
+      candidateIds.push(...publicGroupRows.map((r) => r.id));
+    }
+
+    // =========================
+    // 6) Final guard
+    // =========================
+    if (candidateIds.length === 0) {
+      return new CursorPageResponse<GroupResponseDTO>([], null, false);
+    }
+
+    // =========================
+    // 7) Build query + paginate
+    // =========================
     const qb = this.buildGroupQuery({ groupIds: candidateIds }, query);
-    return this.paginateGroups(qb, query?.limit || 10);
+
+    return this.paginateGroups(qb, PAGE_LIMIT);
   }
 
   async createGroup(
@@ -153,7 +205,10 @@ export class GroupService {
       const owner = await this.userClient.getUserInfo(userId);
 
       if (!owner) {
-        throw new RpcException('Owner not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Owner not found',
+        });
       }
 
       const group = groupRepo.create({
@@ -211,7 +266,11 @@ export class GroupService {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Group);
       const group = await repo.findOne({ where: { id: groupId } });
-      if (!group) throw new RpcException('Group not found');
+      if (!group)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
 
       Object.assign(group, dto);
       group.updatedBy = userId;
@@ -250,7 +309,11 @@ export class GroupService {
   async deleteGroup(userId: string, groupId: string): Promise<boolean> {
     const repo = this.groupRepo;
     const group = await repo.findOne({ where: { id: groupId } });
-    if (!group) throw new RpcException('Group not found');
+    if (!group)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found',
+      });
 
     group.updatedBy = userId;
     group.status = GroupStatus.DELETED;
@@ -279,7 +342,11 @@ export class GroupService {
       where: { id: groupId },
       relations: ['groupSetting'],
     });
-    if (!group) throw new RpcException('Group not found');
+    if (!group)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found',
+      });
 
     const member = await this.groupMemberRepo.findOneBy({ userId, groupId });
 

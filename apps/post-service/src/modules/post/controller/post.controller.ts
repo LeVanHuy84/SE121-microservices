@@ -3,8 +3,6 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   CreatePostDTO,
   CursorPageResponse,
-  DashboardQueryDTO,
-  EditHistoryReponseDTO,
   GetGroupPostQueryDTO,
   GetPostQueryDTO,
   PostResponseDTO,
@@ -19,11 +17,6 @@ export class PostController {
     private postQuery: PostQueryService,
     private postCommand: PostCommandService
   ) {}
-
-  @MessagePattern('get_post_dashboard')
-  async getDashboard(@Payload() filter: DashboardQueryDTO) {
-    return this.postQuery.getDashboard(filter);
-  }
 
   @MessagePattern('create_post')
   async create(
