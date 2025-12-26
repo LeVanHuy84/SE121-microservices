@@ -7,5 +7,6 @@ export class ContentEntryDTO {
   content: string;
   medias?: MediaItemDTO[];
   reportPendingCount: number;
+  // isDeleted: boolean;
   createdAt: Date;
 }

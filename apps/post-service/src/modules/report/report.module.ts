@@ -9,6 +9,7 @@ import { ReadReportService } from './read-report.service';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ShareStat } from 'src/entities/share-stat.entity';
       CommentStat,
       ShareStat,
     ]),
+    UserClientModule,
   ],
   controllers: [ReportController],
   providers: [ReportService, ReadReportService],
