@@ -98,6 +98,17 @@ export class ConversationService {
     );
 
     if (page && page.items.length) {
+      if (page.partial) {
+        this.refreshConversationCache(
+          userId,
+          query.cursor ?? null,
+          limit,
+        ).catch((err) =>
+          this.logger.warn(
+            `Failed to refresh conversations cache for userId=${userId}: ${err.message}`,
+          ),
+        );
+      }
       return new CursorPageResponse(
         plainToInstance(ConversationResponseDTO, page.items, {
           excludeExtraneousValues: true,
@@ -398,7 +409,12 @@ export class ConversationService {
     // Map<string,string> trong Mongoose sẽ lưu dạng object: lastSeenMessageId: { [userId]: targetId }
     await this.conversationModel.updateOne(
       { _id: conv._id },
-      { $set: { [`lastSeenMessageId.${userId}`]: targetId } },
+      {
+        $set: {
+          [`lastSeenMessageId.${userId}`]: targetId,
+          syncVersion: Date.now(),
+        },
+      },
       { timestamps: false } as any,
     );
 
@@ -533,7 +549,6 @@ export class ConversationService {
       await conv.save();
     }
 
-    // xoá conv này khỏi cache list của riêng user
     await this.updateConversationCache(conv);
     return {
       message: 'Conversation hidden',
@@ -636,13 +651,15 @@ export class ConversationService {
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
 
-  async updateConversationCache(conv: ConversationDocument) {
+  async updateConversationCache(
+    conv: ConversationDocument
+  ): Promise<ConversationResponseDTO | null> {
     const fullConv = await this.conversationModel
       .findById(conv._id)
       .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
       .exec();
 
-    if (!fullConv) return;
+    if (!fullConv) return null;
 
     const dto = populateAndMapConversation(fullConv);
 
@@ -651,6 +668,35 @@ export class ConversationService {
       ...(fullConv.participants ?? []).map((userId) =>
         this.cache.upsertConversationToUserList(userId, dto),
       ),
+    ]);
+
+    return dto;
+  }
+
+  private async refreshConversationCache(
+    userId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<void> {
+    const dbFilter = cursor
+      ? { updatedAt: { $lt: new Date(Number(cursor)) } }
+      : {};
+    const dbItems = await this.conversationModel
+      .find({ participants: userId, ...dbFilter })
+      .sort({ updatedAt: -1 })
+      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+      .limit(limit + 1)
+      .exec();
+
+    if (!dbItems.length) return;
+
+    const mapped = await Promise.all(
+      dbItems.map((doc) => populateAndMapConversation(doc)),
+    );
+
+    await Promise.all([
+      ...mapped.map((dto) => this.cache.setConversationDetail(dto)),
+      this.cache.cacheConversationsForUsers(userId, mapped),
     ]);
   }
 }

@@ -30,6 +30,12 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly dlqMaxLen = Number(
     process.env.CHAT_STREAM_DLQ_MAXLEN ?? 5000
   );
+  private readonly convVersionTtlSec = Number(
+    process.env.CHAT_CONV_VERSION_TTL_SEC ?? 86_400
+  );
+  private readonly msgVersionTtlSec = Number(
+    process.env.CHAT_MSG_VERSION_TTL_SEC ?? 86_400
+  );
 
   private running = false;
   private claimTimer?: NodeJS.Timeout;
@@ -204,24 +210,32 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         // ===================== MESSAGE =====================
         case 'message.created': {
           const msg: MessageResponseDTO = JSON.parse(payload);
-          this.chatGateway.broadcastNewMessage(msg);
+          if (await this.shouldProcessMessageEvent(msg)) {
+            this.chatGateway.broadcastNewMessage(msg);
+          }
           break;
         }
         case 'message.deleted': {
           const msg: MessageResponseDTO = JSON.parse(payload);
-          this.chatGateway.broadcastMessageDeleted(msg);
+          if (await this.shouldProcessMessageEvent(msg)) {
+            this.chatGateway.broadcastMessageDeleted(msg);
+          }
           break;
         }
 
         // ===================== CONVERSATION =====================
         case 'conversation.created': {
           const conv: ConversationResponseDTO = JSON.parse(payload);
-          this.chatGateway.emitConversationCreated(conv);
+          if (await this.shouldProcessConversationEvent(conv)) {
+            this.chatGateway.emitConversationCreated(conv);
+          }
           break;
         }
         case 'conversation.updated': {
           const conv: ConversationResponseDTO = JSON.parse(payload);
-          this.chatGateway.emitConversationUpdated(conv);
+          if (await this.shouldProcessConversationEvent(conv)) {
+            this.chatGateway.emitConversationUpdated(conv);
+          }
           break;
         }
         case 'conversation.memberJoined': {
@@ -230,10 +244,12 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
             joinedUserIds: string[];
           } = JSON.parse(payload);
 
-          this.chatGateway.emitMemberJoined(
-            data.conversation,
-            data.joinedUserIds
-          );
+          if (await this.shouldProcessConversationEvent(data.conversation)) {
+            this.chatGateway.emitMemberJoined(
+              data.conversation,
+              data.joinedUserIds
+            );
+          }
           break;
         }
         case 'conversation.memberLeft': {
@@ -321,5 +337,79 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       }
       await this.redis.xack(this.streamKey, this.groupName, id);
     }
+  }
+
+  private async shouldProcessConversationEvent(
+    conv: ConversationResponseDTO
+  ): Promise<boolean> {
+    const convId = conv?._id?.toString?.() ?? conv?._id;
+    if (!convId) return true;
+    const syncVersion = Number((conv as any).syncVersion ?? 0);
+    if (!syncVersion) return true;
+
+    const key = `conv:${convId}:syncVersion`;
+    const script = `
+      local k = KEYS[1]
+      local newVersion = tonumber(ARGV[1])
+      local ttl = tonumber(ARGV[2])
+      local current = redis.call('GET', k)
+      if not current then
+        redis.call('SET', k, newVersion, 'EX', ttl)
+        return 1
+      end
+      local cur = tonumber(current) or 0
+      if cur <= newVersion then
+        redis.call('SET', k, newVersion, 'EX', ttl)
+        return 1
+      end
+      return 0
+    `;
+
+    const res = await this.redis.eval(
+      script,
+      1,
+      key,
+      String(syncVersion),
+      String(this.convVersionTtlSec)
+    );
+
+    return Number(res) === 1;
+  }
+
+  private async shouldProcessMessageEvent(
+    msg: MessageResponseDTO
+  ): Promise<boolean> {
+    const msgId = msg?._id?.toString?.() ?? msg?._id;
+    if (!msgId) return true;
+    const syncVersion = Number((msg as any).syncVersion ?? 0);
+    if (!syncVersion) return true;
+
+    const key = `msg:${msgId}:syncVersion`;
+    const script = `
+      local k = KEYS[1]
+      local newVersion = tonumber(ARGV[1])
+      local ttl = tonumber(ARGV[2])
+      local current = redis.call('GET', k)
+      if not current then
+        redis.call('SET', k, newVersion, 'EX', ttl)
+        return 1
+      end
+      local cur = tonumber(current) or 0
+      if cur <= newVersion then
+        redis.call('SET', k, newVersion, 'EX', ttl)
+        return 1
+      end
+      return 0
+    `;
+
+    const res = await this.redis.eval(
+      script,
+      1,
+      key,
+      String(syncVersion),
+      String(this.msgVersionTtlSec)
+    );
+
+    return Number(res) === 1;
   }
 }

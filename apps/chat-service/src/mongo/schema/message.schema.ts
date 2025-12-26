@@ -56,11 +56,29 @@ export class Message {
 
   @Prop({ type: Date, default: null })
   deletedAt?: Date;
+
+  @Prop({ type: Number, default: 0 })
+  syncVersion: number;
 }
 
 export type MessageDocument = HydratedDocument<Message>;
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+
+MessageSchema.pre<MessageDocument>('save', function (next) {
+  if (this.isModified()) {
+    this.syncVersion = Date.now();
+  }
+  next();
+});
+
+MessageSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() as any;
+  if (!update) return next();
+  update.$set = update.$set ?? {};
+  update.$set.syncVersion = Date.now();
+  next();
+});
 
 
 // Paginate trong 1 conversation: sort theo _id mới nhất
