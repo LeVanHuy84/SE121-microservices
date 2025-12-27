@@ -21,6 +21,15 @@ export class KafkaConsumerController {
           );
           await this.mediaConsumer.deleteMedia(payload.items);
           break;
+        case dtos.MediaEventType.CONTENT_ID_ASSIGNED:
+          this.logger.log(
+            `Media contentId assigned: ${payload.items.length} items`
+          );
+          await this.mediaConsumer.assignContentId(
+            payload.contentId,
+            payload.items
+          );
+          break;
         default:
           this.logger.warn(`Unknown MEDIA event type: ${type}`);
           break;

@@ -36,7 +36,11 @@ export class ShareQueryService {
   ): Promise<ShareResponseDTO> {
     // Try cache first
     const share = await this.shareCache.getShare(shareId);
-    if (!share || share.isDeleted) throw new RpcException(`Share not found`);
+    if (!share || share.isDeleted)
+      throw new RpcException({
+        statusCode: 404,
+        message: `Share not found`,
+      });
 
     // Get user reaction (not cached, low-cost)
     const [_, userReaction] = await Promise.all([
@@ -238,12 +242,21 @@ export class ShareQueryService {
     );
 
     if (['BLOCKED', 'BLOCKED_BY'].includes(relation))
-      throw new RpcException('Forbidden: You are blocked');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: You are blocked',
+      });
 
     if (audience === Audience.ONLY_ME)
-      throw new RpcException('Forbidden: Private post');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Private post',
+      });
 
     if (audience === Audience.FRIENDS && relation !== 'FRIENDS')
-      throw new RpcException('Forbidden: Friends only');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Friends only',
+      });
   }
 }

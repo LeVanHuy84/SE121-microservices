@@ -12,7 +12,10 @@ export class UserResponseDTO {
   @Expose()
   lastName: string;
   @Expose()
-  coverImageUrl: string;
+  coverImage?: {
+    url?: string;
+    publicId?: string;
+  };
   @Expose()
   avatarUrl: string;
   @Expose()

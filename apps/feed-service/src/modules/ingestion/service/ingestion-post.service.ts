@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -9,13 +9,20 @@ import {
   ShareSnapshot,
   ShareSnapshotDocument,
 } from 'src/mongo/schema/share-snapshot.schema';
-import { FeedEventType, InferPostPayload, PostEventType } from '@repo/dtos';
+import {
+  Emotion,
+  FeedEventType,
+  InferPostPayload,
+  PostEventType,
+} from '@repo/dtos';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { DistributionService } from './distribution.service';
 
 @Injectable()
 export class IngestionPostService {
+  private readonly logger = new Logger(IngestionPostService.name);
+
   private readonly META_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 ngày
 
   constructor(
@@ -48,7 +55,9 @@ export class IngestionPostService {
     // ------------------------------
     // 🧠 Ghi meta key
     // ------------------------------
+    this.logger.log('groupId nhe: ', payload.groupId);
     if (!payload.groupId) {
+      this.logger.log('Co tao post cho post co groupId');
       const metaKey = `post:meta:${payload.postId}`;
       await this.redis.hset(metaKey, {
         createdAt: createdAt.getTime(),
@@ -85,6 +94,9 @@ export class IngestionPostService {
   // ------------------------------------------------
   // 🧩 HANDLE REMOVED
   // ------------------------------------------------
+  // ------------------------------------------------
+  // 🧩 HANDLE REMOVED (FIX REDIS CLEANUP - ENUM SAFE)
+  // ------------------------------------------------
   async handleRemoved(payload: InferPostPayload<PostEventType.REMOVED>) {
     if (!('postId' in payload)) return;
 
@@ -94,6 +106,30 @@ export class IngestionPostService {
 
     await this.shareModel.deleteMany({ postId: payload.postId });
 
+    const postId = payload.postId;
+
+    // ------------------------------
+    // 🧹 Dọn Redis
+    // ------------------------------
+
+    // 1. Xóa trending score chính
+    await this.redis.zrem('post:score', postId);
+
+    // 2. Xóa meta
+    await this.redis.del(`post:meta:${postId}`);
+
+    // 3. Xóa khỏi toàn bộ emotion score
+    const emotionKeys = Object.values(Emotion).map(
+      (emotion) => `post:score:emotion:${emotion.toLowerCase()}`,
+    );
+
+    for (const key of emotionKeys) {
+      await this.redis.zrem(key, postId);
+    }
+
+    // ------------------------------
+    // 📢 Phân phối remove
+    // ------------------------------
     if (snapshot) {
       await this.distributionService.distributeRemoved(snapshot.postId);
     }

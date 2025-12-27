@@ -27,16 +27,26 @@ export class GroupRoleGuard implements CanActivate {
     const { userId, groupId } = data || {};
 
     if (!userId || !groupId)
-      throw new RpcException('Missing user or group context');
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Missing user or group context',
+      });
 
     const member = await this.memberRepo.findOne({
       where: { userId, groupId },
     });
 
-    if (!member) throw new RpcException('You are not a group member');
+    if (!member)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'You are not a group member',
+      });
 
     if (member.role !== requiredRole)
-      throw new RpcException(`Required role: ${requiredRole}`);
+      throw new RpcException({
+        statusCode: 403,
+        message: `Required role: ${requiredRole}`,
+      });
 
     return true;
   }

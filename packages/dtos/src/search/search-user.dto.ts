@@ -10,6 +10,4 @@ export class SearchUserDto extends CursorPaginationDTO {
   firstName?: string;
   @IsOptional()
   lastName?: string;
-  @IsOptional()
-  isActive?: boolean = true;
 }

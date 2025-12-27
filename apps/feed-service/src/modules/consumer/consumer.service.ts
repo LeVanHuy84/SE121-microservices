@@ -26,11 +26,13 @@ export class ConsumerService {
         if (post) {
           post.mainEmotion = payload.finalEmotion as Emotion;
           await post.save();
-          await this.updateTrendingEmotion(
-            payload.targetId,
-            undefined,
-            payload.finalEmotion as Emotion,
-          );
+          if (!post.groupId) {
+            await this.updateTrendingEmotion(
+              payload.targetId,
+              undefined,
+              payload.finalEmotion as Emotion,
+            );
+          }
         }
 
         break;

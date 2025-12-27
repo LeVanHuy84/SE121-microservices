@@ -33,8 +33,6 @@ export const UserIndexMapping = {
 
       bio: { type: 'text' },
 
-      isActive: { type: 'boolean' },
-
       createdAt: { type: 'date' },
 
       fullName: {

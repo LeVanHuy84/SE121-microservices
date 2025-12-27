@@ -17,6 +17,57 @@ import Redis from 'ioredis';
 @Injectable()
 export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PresenceService.name);
+  private readonly markOfflineIfStaleScript = `
+    local userKey = KEYS[1]
+    local zKey = KEYS[2]
+    local onlineKey = KEYS[3]
+    local locationKey = KEYS[4]
+    local connSetKey = KEYS[5]
+    local cutoff = tonumber(ARGV[1])
+    local userId = ARGV[2]
+    local connKeyPrefix = ARGV[3]
+
+    local lastSeenStr = redis.call('HGET', userKey, 'lastSeen')
+    local status = redis.call('HGET', userKey, 'status')
+    local lastSeen = tonumber(lastSeenStr) or cutoff
+
+    if lastSeenStr and lastSeen > cutoff then
+      return {0, lastSeen}
+    end
+
+    local active = 0
+    if connSetKey then
+      local conns = redis.call('SMEMBERS', connSetKey)
+      for i = 1, #conns do
+        local connId = conns[i]
+        local connKey = connKeyPrefix .. connId
+        if redis.call('EXISTS', connKey) == 1 then
+          active = active + 1
+        else
+          redis.call('SREM', connSetKey, connId)
+        end
+      end
+    end
+
+    if active > 0 then
+      if status ~= 'online' then
+        redis.call('HSET', userKey, 'status', 'online', 'lastSeen', tostring(lastSeen))
+        redis.call('SADD', onlineKey, userId)
+      end
+      return {0, lastSeen}
+    end
+
+    if status == 'online' then
+      redis.call('HSET', userKey, 'status', 'offline', 'lastSeen', tostring(lastSeen))
+      redis.call('SREM', onlineKey, userId)
+      redis.call('ZREM', zKey, userId)
+      redis.call('DEL', locationKey)
+      return {1, lastSeen}
+    end
+
+    redis.call('ZREM', zKey, userId)
+    return {0, lastSeen}
+  `;
 
   private sub: Redis; // subscriber cho presence:heartbeat
 
@@ -38,6 +89,14 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
   private userKey(userId: string) {
     return `presence:user:${userId}`;
+  }
+
+  private userConnSetKey(userId: string) {
+    return `presence:user:${userId}:conns`;
+  }
+
+  private connKey(userId: string, connectionId: string) {
+    return `presence:conn:${userId}:${connectionId}`;
   }
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
@@ -76,7 +135,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
     if (evt.type !== 'HEARTBEAT') return;
 
-    const { userId, ts, serverId } = evt;
+    const { userId, ts, serverId, connectionId } = evt;
     const now = ts || Date.now();
 
     const userKey = this.userKey(userId);
@@ -96,6 +155,17 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     pipeline.expire(userKey, this.PRESENCE_HASH_TTL_SECONDS);
     pipeline.zadd(this.lastSeenZSetKey, now, userId);
     pipeline.sadd(this.onlineSetKey, userId);
+    if (connectionId) {
+      const connTtlSeconds = Math.ceil(this.OFFLINE_THRESHOLD_MS / 1000 + 15);
+      pipeline.set(
+        this.connKey(userId, connectionId),
+        String(now),
+        'EX',
+        connTtlSeconds,
+      );
+      pipeline.sadd(this.userConnSetKey(userId), connectionId);
+      pipeline.expire(this.userConnSetKey(userId), connTtlSeconds);
+    }
     if (serverId) {
       pipeline.set(
         this.userLocationKey(userId),
@@ -138,25 +208,23 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     );
 
     for (const userId of staleUsers) {
-      const userKey = this.userKey(userId);
-      const data = await this.redis.hgetall(userKey);
+      const res = (await this.redis.eval(
+        this.markOfflineIfStaleScript,
+        5,
+        this.userKey(userId),
+        this.lastSeenZSetKey,
+        this.onlineSetKey,
+        this.userLocationKey(userId),
+        this.userConnSetKey(userId),
+        String(cutoff),
+        userId,
+        `presence:conn:${userId}:`,
+      )) as [number, number] | number;
 
-      const status = (data?.status as PresenceStatus) || 'offline';
-      const lastSeen = data?.lastSeen ? Number(data.lastSeen) : cutoff;
+      const flag = Array.isArray(res) ? Number(res[0]) : Number(res);
+      const lastSeen = Array.isArray(res) ? Number(res[1]) : cutoff;
 
-      if (status === 'online') {
-        // mark offline
-        const pipeline = this.redis.pipeline();
-        pipeline.hmset(userKey, {
-          status: 'offline',
-          lastSeen: String(lastSeen),
-        });
-        pipeline.srem(this.onlineSetKey, userId);
-        pipeline.zrem(this.lastSeenZSetKey, userId);
-        // xoá luôn user-location -> coi như user không còn gắn với server nào
-        pipeline.del(this.userLocationKey(userId));
-        await pipeline.exec();
-
+      if (flag === 1) {
         await this.publishPresenceUpdate({
           type: 'PRESENCE_UPDATE',
           userId,
@@ -167,13 +235,9 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
         this.logger.debug(
           `User ${userId} marked offline by zombie sweep (lastSeen=${lastSeen})`,
         );
-      } else {
-        // đã offline rồi thì chỉ cần dọn zset để không quét lại
-        await this.redis.zrem(this.lastSeenZSetKey, userId);
       }
     }
   }
-
   // ========== Helper publish update ra Redis cho gateway ==========
 
   private async publishPresenceUpdate(evt: PresenceUpdateEvent) {
@@ -215,3 +279,4 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     return members.slice(0, limit);
   }
 }
+

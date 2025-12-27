@@ -93,7 +93,7 @@ export class UsersController {
       updateUserDto.avatarUrl = avatarUrl;
     }
     if (files?.coverImageUrl?.[0]) {
-      updateUserDto.coverImageUrl = await lastValueFrom(
+      const uploaded = await lastValueFrom(
         this.mediaClient.send('upload', {
           file: files.coverImageUrl[0].buffer,
           userId: id,
@@ -101,6 +101,11 @@ export class UsersController {
           type: 'image',
         })
       );
+      console.log('Uploaded cover image:', uploaded);
+      updateUserDto.coverImage = {
+        url: uploaded.url,
+        publicId: uploaded.publicId,
+      };
     }
     const user = this.client.send('updateUser', {
       id,

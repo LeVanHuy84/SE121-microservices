@@ -51,6 +51,11 @@ export class ReportController {
     return await this.reportService.rejectReport(targetId, targetType, userId);
   }
 
+  @MessagePattern('get_post_dashboard')
+  async getDashboard(@Payload() filter: DashboardQueryDTO) {
+    return this.readReportService.getDashboard(filter);
+  }
+
   @MessagePattern('get_reports')
   async getReports(@Payload() filter: ReportFilterDTO) {
     return await this.readReportService.getReports(filter);

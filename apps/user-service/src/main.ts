@@ -14,7 +14,6 @@ async function bootstrap() {
       },
     }
   );
-  tcpApp.useGlobalFilters(new ExceptionsFilter());
 
   const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
@@ -27,6 +26,8 @@ async function bootstrap() {
     }
   );
 
+  tcpApp.useGlobalFilters(new ExceptionsFilter());
+  redisApp.useGlobalFilters(new ExceptionsFilter());
   await Promise.all([tcpApp.listen(), redisApp.listen()]);
 
   const commandApp = await NestFactory.createApplicationContext(AppModule);

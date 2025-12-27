@@ -73,7 +73,10 @@ export class ReportService {
     return await this.reportRepo.manager.transaction(async (manager) => {
       const config = TARGET_CONFIG[targetType];
       if (!config) {
-        throw new RpcException('Invalid targetType');
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Invalid targetType',
+        });
       }
 
       // 1. Resolve only PENDING reports
@@ -170,7 +173,10 @@ export class ReportService {
     return await this.reportRepo.manager.transaction(async (manager) => {
       const config = TARGET_CONFIG[targetType];
       if (!config) {
-        throw new RpcException('Invalid targetType');
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Invalid targetType',
+        });
       }
 
       // 1. Reject all PENDING reports of target
@@ -192,7 +198,10 @@ export class ReportService {
         .execute();
 
       if (!reportResult.affected) {
-        throw new RpcException('No pending reports to reject');
+        throw new RpcException({
+          statusCode: 409,
+          message: 'No pending reports to reject',
+        });
       }
 
       // 2. Reset pending report stats

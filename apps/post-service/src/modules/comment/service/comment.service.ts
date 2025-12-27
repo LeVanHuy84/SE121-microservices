@@ -4,6 +4,11 @@ import {
   CommentResponseDTO,
   CreateCommentDTO,
   EventDestination,
+  EventTopic,
+  MediaDeleteItem,
+  MediaEventPayloads,
+  MediaEventType,
+  MediaType,
   RootType,
   StatsEventType,
   TargetType,
@@ -121,12 +126,18 @@ export class CommentService {
       // 1️⃣ Tìm comment
       const comment = await commentRepo.findOne({ where: { id: commentId } });
       if (!comment) {
-        throw new RpcException(`Comment with id ${commentId} not found`);
+        throw new RpcException({
+          statusCode: 404,
+          message: `Comment with id ${commentId} not found`,
+        });
       }
 
       // 2️⃣ Kiểm tra quyền
       if (comment.userId !== userId) {
-        throw new RpcException('You are not allowed to update this comment');
+        throw new RpcException({
+          statusCode: 403,
+          message: 'You are not allowed to update this comment',
+        });
       }
 
       // 3️⃣ Cập nhật nội dung
@@ -161,7 +172,10 @@ export class CommentService {
       });
 
       if (!comment) {
-        throw new RpcException(`Comment with id ${commentId} not found`);
+        throw new RpcException({
+          statusCode: 404,
+          message: `Comment with id ${commentId} not found`,
+        });
       }
 
       // Nếu không phải chủ comment thì check quyền theo root
@@ -188,14 +202,32 @@ export class CommentService {
           }
 
           default:
-            throw new RpcException(
-              'You are not allowed to delete this comment'
-            );
+            throw new RpcException({
+              statusCode: 403,
+              message: 'You are not allowed to delete this comment',
+            });
         }
 
         if (ownerId !== userId) {
-          throw new RpcException('You are not allowed to delete this comment');
+          throw new RpcException({
+            statusCode: 403,
+            message: 'You are not allowed to delete this comment',
+          });
         }
+      }
+
+      let mediaPayload:
+        | MediaEventPayloads[MediaEventType.DELETE_REQUESTED]
+        | null = null;
+
+      if (comment.media && comment.media.publicId) {
+        const item: MediaDeleteItem = {
+          publicId: comment.media.publicId,
+          resourceType:
+            comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+        };
+
+        mediaPayload = { items: [item] };
       }
 
       await manager.delete(Reaction, {
@@ -219,6 +251,17 @@ export class CommentService {
         StatsEventType.COMMENT,
         -1
       );
+
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.DELETE_REQUESTED,
+          payload: mediaPayload,
+        });
+
+        await manager.save(mediaOutbox);
+      }
 
       await this.commentCache.invalidateComment(
         comment.id,

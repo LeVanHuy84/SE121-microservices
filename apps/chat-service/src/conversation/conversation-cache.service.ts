@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ConversationResponseDTO } from '@repo/dtos';
 
-const TTL = 60 * 5; // 5 phút
+const TTL = 60 * 15; // 15 min
 
 // Dữ liệu conv cache trong Redis (detail)
 type CachedConversation = ConversationResponseDTO & {
@@ -15,6 +15,28 @@ type CachedConversation = ConversationResponseDTO & {
 @Injectable()
 export class ConversationCacheService {
   private readonly logger = new Logger(ConversationCacheService.name);
+  private readonly setIfNewerScript = `
+    local key = KEYS[1]
+    local newVersion = tonumber(ARGV[1])
+    local payload = ARGV[2]
+    local ttl = tonumber(ARGV[3])
+    local current = redis.call('GET', key)
+    if not current then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    local ok, obj = pcall(cjson.decode, current)
+    if not ok then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    local curVersion = tonumber(obj.syncVersion or 0)
+    if curVersion <= newVersion then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    return 0
+  `;
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
@@ -47,7 +69,16 @@ export class ConversationCacheService {
   async setConversationDetail(dto: ConversationResponseDTO): Promise<void> {
     const convId = dto._id.toString();
     const { detailKey } = this.getConvKeys(convId);
-    await this.redis.set(detailKey, JSON.stringify(dto), 'EX', TTL);
+    const payload = JSON.stringify(dto);
+    const syncVersion = Number((dto as any).syncVersion ?? 0);
+    await this.redis.eval(
+      this.setIfNewerScript,
+      1,
+      detailKey,
+      String(syncVersion),
+      payload,
+      String(TTL),
+    );
   }
 
   async removeConversationDetail(convId: string): Promise<void> {
@@ -91,7 +122,7 @@ export class ConversationCacheService {
     ).getTime();
 
     const pipeline = this.redis.pipeline();
-    pipeline.zadd(zKey, score, convId);
+    pipeline.zadd(zKey, 'GT', score, convId);
 
     // giữ tối đa 100 conv gần nhất
     pipeline.zremrangebyrank(zKey, 0, -101);
@@ -123,6 +154,7 @@ export class ConversationCacheService {
     items: CachedConversation[];
     hasNext: boolean;
     nextCursor: string | null;
+    partial?: boolean;
   } | null> {
     const { zKey } = this.getUserConvKeys(userId);
 
@@ -157,9 +189,13 @@ export class ConversationCacheService {
     });
 
     if (missingIds.length) {
-      const cleanup = this.redis.pipeline();
-      missingIds.forEach((id) => cleanup.zrem(zKey, id));
-      await cleanup.exec();
+      if (!items.length) return null;
+      const lastItem = items[items.length - 1];
+      const nextCursor =
+        hasNext && lastItem?.updatedAt
+          ? new Date(lastItem.updatedAt).getTime().toString()
+          : null;
+      return { items, hasNext, nextCursor, partial: true };
     }
 
     if (!items.length) return null;
@@ -192,7 +228,7 @@ export class ConversationCacheService {
         const score = new Date(
           (item as any).updatedAt ?? (item as any).createdAt,
         ).getTime();
-        pipeline.zadd(zKey, score, id);
+        pipeline.zadd(zKey, 'GT', score, id);
       }
 
       pipeline.zremrangebyrank(zKey, 0, -101);

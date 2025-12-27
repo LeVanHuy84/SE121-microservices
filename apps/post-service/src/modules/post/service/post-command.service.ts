@@ -11,11 +11,14 @@ import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu chưa có
 
 import {
-  AnalysisEventType,
   Audience,
   CreatePostDTO,
   EventDestination,
   EventTopic,
+  MediaDeleteItem,
+  MediaEventPayloads,
+  MediaEventType,
+  MediaType,
   PostEventType,
   PostSnapshotDTO,
   RootType,
@@ -86,8 +89,16 @@ export class PostCommandService {
     dto: Partial<UpdatePostDTO>
   ): Promise<PostSnapshotDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) throw new RpcException('Post not found');
-    if (post.userId !== userId) throw new RpcException('Unauthorized');
+    if (!post)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+    if (post.userId !== userId)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Unauthorized',
+      });
 
     return this.dataSource.transaction(async (manager) => {
       // Lưu lịch sử chỉnh sửa
@@ -140,10 +151,48 @@ export class PostCommandService {
   // ----------------------------------------
   async remove(userId: string, postId: string): Promise<boolean> {
     const post = await this.postRepo.findOneBy({ id: postId });
-    if (!post) throw new RpcException('Post not found');
-    if (post.userId !== userId) throw new RpcException('Unauthorized');
+    if (!post) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+    }
 
+    if (post.userId !== userId) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Unauthorized',
+      });
+    }
+
+    // -------------------------------
+    // Build media delete payload
+    // -------------------------------
+    let mediaPayload:
+      | MediaEventPayloads[MediaEventType.DELETE_REQUESTED]
+      | null = null;
+
+    if (post.media && post.media.length > 0) {
+      const items: MediaDeleteItem[] = post.media
+        .filter((m): m is typeof m & { publicId: string } => !!m.publicId)
+        .map((m) => ({
+          publicId: m.publicId,
+          resourceType:
+            m.type === MediaType.IMAGE
+              ? ('image' as const)
+              : ('video' as const),
+        }));
+
+      if (items.length > 0) {
+        mediaPayload = { items };
+      }
+    }
+
+    // -------------------------------
+    // Transaction
+    // -------------------------------
     await this.dataSource.transaction(async (manager) => {
+      // Xóa reaction của post
       await manager
         .createQueryBuilder()
         .delete()
@@ -154,6 +203,7 @@ export class PostCommandService {
         })
         .execute();
 
+      // Xóa comment gốc của post
       await manager
         .createQueryBuilder()
         .delete()
@@ -164,20 +214,35 @@ export class PostCommandService {
         })
         .execute();
 
+      // Xóa post
       await manager.remove(post);
 
-      // 🧹 Xóa cache Redis
+      // 🧹 Xóa cache (best-effort, không phải source of truth)
       await this.postCache.removeCache(postId);
 
-      const outbox = manager.create(OutboxEvent, {
+      // Outbox: Post removed
+      const postOutbox = manager.create(OutboxEvent, {
         topic: EventTopic.POST,
         destination: EventDestination.KAFKA,
         eventType: PostEventType.REMOVED,
         payload: { postId },
       });
 
-      await manager.save(outbox);
+      await manager.save(postOutbox);
+
+      // Outbox: Media delete requested
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.DELETE_REQUESTED,
+          payload: mediaPayload,
+        });
+
+        await manager.save(mediaOutbox);
+      }
     });
+
     return true;
   }
 }

@@ -68,17 +68,31 @@ export class GroupJoinRequestService {
       const joinRequest = await joinRequestRepo.findOne({
         where: { id: requestId },
       });
-      if (!joinRequest) throw new RpcException('Join request not found');
+      if (!joinRequest)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Join request not found',
+        });
       if (joinRequest.status !== JoinRequestStatus.PENDING)
-        throw new RpcException('Request already processed');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Request already processed',
+        });
 
       const group = await groupRepo.findOne({
         where: { id: joinRequest.groupId },
         relations: ['groupSetting'],
       });
-      if (!group) throw new RpcException('Group not found');
+      if (!group)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
       if (group.members >= group.groupSetting.maxMembers)
-        throw new RpcException('Group has reached maximum member limit');
+        throw new RpcException({
+          statusCode: 422,
+          message: 'Group has reached maximum member limit',
+        });
 
       const member = await memberRepo.findOne({
         where: {
@@ -129,9 +143,16 @@ export class GroupJoinRequestService {
       const joinRequest = await joinRequestRepo.findOne({
         where: { id: requestId },
       });
-      if (!joinRequest) throw new RpcException('Join request not found');
+      if (!joinRequest)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Join request not found',
+        });
       if (joinRequest.status !== JoinRequestStatus.PENDING)
-        throw new RpcException('Request already processed');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Request already processed',
+        });
 
       joinRequest.status = JoinRequestStatus.REJECTED;
       joinRequest.updatedBy = approverId;
@@ -155,9 +176,16 @@ export class GroupJoinRequestService {
       const joinRequest = await joinRequestRepo.findOne({
         where: { id: requestId, userId },
       });
-      if (!joinRequest) throw new RpcException('Join request not found');
+      if (!joinRequest)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Join request not found',
+        });
       if (joinRequest.status !== JoinRequestStatus.PENDING)
-        throw new RpcException('Only pending requests can be canceled');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Only pending requests can be canceled',
+        });
       await joinRequestRepo.remove(joinRequest);
       return true;
     });
@@ -172,10 +200,17 @@ export class GroupJoinRequestService {
       relations: ['groupSetting'],
     });
 
-    if (!group) throw new RpcException('Group not found');
+    if (!group)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Group not found',
+      });
 
     if (group.members >= group.groupSetting.maxMembers)
-      throw new RpcException('Group has reached maximum member limit');
+      throw new RpcException({
+        statusCode: 422,
+        message: 'Group has reached maximum member limit',
+      });
 
     return group;
   }
@@ -193,10 +228,16 @@ export class GroupJoinRequestService {
     if (!member) return;
 
     if (member.status === GroupMemberStatus.ACTIVE)
-      throw new RpcException('User is already a member of the group');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User is already a member of the group',
+      });
 
     if (member.status === GroupMemberStatus.BANNED)
-      throw new RpcException('User is banned from the group');
+      throw new RpcException({
+        statusCode: 403,
+        message: 'User is banned from the group',
+      });
   }
 
   private async autoJoinPublicGroup(manager, group: Group, userId: string) {
@@ -237,7 +278,10 @@ export class GroupJoinRequestService {
     });
 
     if (existing)
-      throw new RpcException('User already has a pending join request');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User already has a pending join request',
+      });
 
     const req = joinRequestRepo.create({
       groupId,

@@ -68,6 +68,8 @@ export class TrendingService {
       return new CursorPageResponse([], null, false);
     }
 
+    console.log('Ids: ', ids);
+
     // ------------------------------
     // 3️⃣ Lấy snapshot trực tiếp từ DB (bỏ cache)
     // ------------------------------

@@ -56,7 +56,10 @@ export class ShareCommandService {
           post.audience !== Audience.PUBLIC ||
           post.postGroupInfo?.isPrivateGroup
         ) {
-          throw new RpcException(`Can't share this post`);
+          throw new RpcException({
+            statusCode: 400,
+            message: `Can't share this post`,
+          });
         }
 
         // ✅ Tạo entity Share và ShareStat
@@ -137,8 +140,16 @@ export class ShareCommandService {
       where: { id: shareId },
       relations: ['post', 'shareStat'],
     });
-    if (!share) throw new RpcException('Share not found');
-    if (share.userId !== userId) throw new RpcException('Unauthorized');
+    if (!share)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Share not found',
+      });
+    if (share.userId !== userId)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Unauthorized',
+      });
 
     const oldAudience = share.audience;
     Object.assign(share, dto);
@@ -195,8 +206,16 @@ export class ShareCommandService {
         relations: ['post'],
       });
 
-      if (!share) throw new RpcException('Share not found');
-      if (share.userId !== userId) throw new RpcException('Unauthorized');
+      if (!share)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Share not found',
+        });
+      if (share.userId !== userId)
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Unauthorized',
+        });
 
       // Xóa reactions, comments thuộc share
       await manager

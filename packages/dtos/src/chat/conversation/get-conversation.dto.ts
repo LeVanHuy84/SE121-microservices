@@ -36,4 +36,7 @@ export class ConversationResponseDTO {
 
   @Expose()
   hiddenFor?: string[];
+
+  @Expose()
+  syncVersion?: number;
 }

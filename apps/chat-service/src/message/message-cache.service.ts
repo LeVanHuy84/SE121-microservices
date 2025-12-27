@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import { MessageResponseDTO } from '@repo/dtos';
 
-const TTL = 60 * 5; // 5 phút
+const TTL = 60 * 10; // 10 min
 
 type CachedMessage = MessageResponseDTO & {
   createdAt: string | Date;
@@ -12,6 +12,28 @@ type CachedMessage = MessageResponseDTO & {
 @Injectable()
 export class MessageCacheService {
   private readonly logger = new Logger(MessageCacheService.name);
+  private readonly setIfNewerScript = `
+    local key = KEYS[1]
+    local newVersion = tonumber(ARGV[1])
+    local payload = ARGV[2]
+    local ttl = tonumber(ARGV[3])
+    local current = redis.call('GET', key)
+    if not current then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    local ok, obj = pcall(cjson.decode, current)
+    if not ok then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    local curVersion = tonumber(obj.syncVersion or 0)
+    if curVersion <= newVersion then
+      redis.call('SET', key, payload, 'EX', ttl)
+      return 1
+    end
+    return 0
+  `;
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
@@ -41,7 +63,16 @@ export class MessageCacheService {
 
   async setMessageDetail(dto: MessageResponseDTO): Promise<void> {
     const { detailKey } = this.getMessageKeys(dto._id);
-    await this.redis.set(detailKey, JSON.stringify(dto), 'EX', TTL);
+    const payload = JSON.stringify(dto);
+    const syncVersion = Number((dto as any).syncVersion ?? 0);
+    await this.redis.eval(
+      this.setIfNewerScript,
+      1,
+      detailKey,
+      String(syncVersion),
+      payload,
+      String(TTL),
+    );
   }
   async removeMessageDetail(messageId: string): Promise<void> {
     const { detailKey } = this.getMessageKeys(messageId);
@@ -76,7 +107,7 @@ export class MessageCacheService {
     const score = new Date(dto.createdAt).getTime();
 
     const pipeline = this.redis.pipeline();
-    pipeline.zadd(zKey, score, msgId);
+    pipeline.zadd(zKey, 'GT', score, msgId);
 
     // giữ ~200 messages mới nhất
     pipeline.zremrangebyrank(zKey, 0, -201);
@@ -106,6 +137,7 @@ export class MessageCacheService {
     items: CachedMessage[];
     hasNext: boolean;
     nextCursor: string | null;
+    partial?: boolean;
   } | null> {
     const { zKey } = this.getConvMsgKeys(conversationId);
 
@@ -140,9 +172,13 @@ export class MessageCacheService {
     });
 
     if (missingIds.length) {
-      const cleanup = this.redis.pipeline();
-      missingIds.forEach((id) => cleanup.zrem(zKey, id));
-      await cleanup.exec();
+      if (!items.length) return null;
+      const last = items[items.length - 1];
+      const nextCursor =
+        hasNext && last?.createdAt
+          ? new Date(last.createdAt).getTime().toString()
+          : null;
+      return { items, hasNext, nextCursor, partial: true };
     }
 
     if (!items.length) return null;
@@ -182,7 +218,7 @@ export class MessageCacheService {
     for (const item of items) {
       const id = item._id.toString();
       const score = new Date(item.createdAt).getTime();
-      p2.zadd(zKey, score, id);
+      p2.zadd(zKey, 'GT', score, id);
     }
 
     p2.zremrangebyrank(zKey, 0, -201);

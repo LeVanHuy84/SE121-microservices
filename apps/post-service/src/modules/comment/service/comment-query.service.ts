@@ -37,7 +37,10 @@ export class CommentQueryService {
         relations: ['commentStat'],
       });
       if (!comment || comment.isDeleted)
-        throw new RpcException('Comment not found');
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Comment not found',
+        });
       await this.commentCache.setCachedComment(comment);
     }
 

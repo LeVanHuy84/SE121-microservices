@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import {
@@ -26,6 +26,8 @@ import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
 export class MessageService {
+  private readonly logger = new Logger(MessageService.name);
+
   constructor(
     @InjectModel(Message.name)
     private readonly messageModel: Model<MessageDocument>,
@@ -72,6 +74,17 @@ export class MessageService {
     );
 
     if (cachedPage && cachedPage.items.length) {
+      if (cachedPage.partial) {
+        this.refreshMessagesCache(
+          conversationId,
+          query.cursor ?? null,
+          limit,
+        ).catch((err) =>
+          this.logger.warn(
+            `Failed to refresh messages cache for conversationId=${conversationId}: ${err.message}`,
+          ),
+        );
+      }
       return new CursorPageResponse(
         cachedPage.items.map((m) =>
           plainToInstance(MessageResponseDTO, m, {
@@ -196,18 +209,48 @@ export class MessageService {
     conv.lastMessage = msg._id as any;
     await conv.save();
 
-    await this.conversationService.updateConversationCache(conv);
-
+    const convDto =
+      await this.conversationService.updateConversationCache(conv);
     const dtoMsg = populateAndMapMessage(msg)!;
 
-    // cache message detail + list + publish event
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       this.msgCache.setMessageDetail(dtoMsg),
       this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
       this.messageStreamProducer.publishMessageCreated(dtoMsg),
-    ]);
+    ];
 
+    if (convDto) {
+      tasks.push(this.messageStreamProducer.publishConversationUpdated(convDto));
+    }
+
+    await Promise.all(tasks);
+
+    await this.enqueueMediaAssignEvent(msg, msg._id.toString());
     return dtoMsg;
+  }
+
+  private async refreshMessagesCache(
+    conversationId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<void> {
+    const dbFilter: any = {
+      conversationId: new Types.ObjectId(conversationId),
+    };
+    if (cursor) {
+      dbFilter.createdAt = { $lt: new Date(Number(cursor)) };
+    }
+
+    const items = await this.messageModel
+      .find(dbFilter)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .exec();
+
+    if (!items.length) return;
+
+    const mapped = items.map((m) => populateAndMapMessage(m)!);
+    await this.msgCache.cacheMessages(conversationId, mapped);
   }
 
   // ============= EDIT MESSAGE =============
@@ -253,9 +296,17 @@ export class MessageService {
     await msg.save();
 
     const dtoMsg = populateAndMapMessage(msg)!;
+    const conv = await this.conversationModel
+      .findById(dtoMsg.conversationId)
+      .exec();
+    const shouldUpdateConversation =
+      !!conv?.lastMessage && conv.lastMessage.toString() === dtoMsg._id;
+    const convDto = shouldUpdateConversation
+      ? await this.conversationService.updateConversationCache(conv)
+      : null;
 
-    await Promise.all([
-      // để GET /messages/:id luôn thấy trạng thái mới (isDeleted, deletedAt, ...)
+    const tasks: Promise<unknown>[] = [
+      // Keep detail cache and list in sync after delete.
       this.msgCache.setMessageDetail(dtoMsg),
 
       this.msgCache.upsertMessageToConversationList(
@@ -263,7 +314,15 @@ export class MessageService {
         dtoMsg,
       ),
       this.messageStreamProducer.publishMessageDeleted(dtoMsg),
-    ]);
+    ];
+
+    if (convDto) {
+      tasks.push(
+        this.messageStreamProducer.publishConversationUpdated(convDto),
+      );
+    }
+
+    await Promise.all(tasks);
 
     await this.enqueueMediaDeleteEvent(msg, messageId);
     return dtoMsg;
@@ -297,6 +356,44 @@ export class MessageService {
         }[],
         source: 'chat-service',
         reason: 'message.deleted',
+      },
+      messageId,
+    );
+  }
+
+  private async enqueueMediaAssignEvent(
+    msg: MessageDocument,
+    messageId: string,
+  ) {
+    const items =
+      msg.attachments
+        ?.map((att) => {
+          if (!att?.publicId) return null;
+          const resourceType =
+            att.mimeType && att.mimeType.startsWith('video/')
+              ? 'video'
+              : 'image';
+          return {
+            publicId: att.publicId,
+            url: att.url,
+            type: resourceType,
+          };
+        })
+        .filter(Boolean) || [];
+
+    if (items.length === 0) return;
+
+    await this.outboxService.enqueue(
+      EventTopic.MEDIA,
+      MediaEventType.CONTENT_ID_ASSIGNED,
+      {
+        contentId: messageId,
+        items: items as {
+          publicId: string;
+          url?: string;
+          type?: 'image' | 'video';
+        }[],
+        source: 'chat-service',
       },
       messageId,
     );

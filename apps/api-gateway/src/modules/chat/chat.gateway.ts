@@ -105,6 +105,7 @@ export class ChatGateway
       type: 'HEARTBEAT',
       userId,
       serverId: this.serverId,
+      connectionId: client.id,
       ts: now,
     };
 
