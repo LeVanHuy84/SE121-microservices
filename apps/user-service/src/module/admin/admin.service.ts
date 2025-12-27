@@ -120,7 +120,7 @@ export class AdminService {
           actorId: actorId,
           targetId: user.id,
           action: 'Create system user',
-          log: `System user ${dto.firstName} ${dto.lastName} created by ${actor.firstName} ${actor.lastName} with role ${actor.role}`,
+          detail: `Tài khoản quản trị ${dto.firstName} ${dto.lastName} được tạo bởi ${actor.firstName} ${actor.lastName} với quyền ${actor.role}`,
           timestamp: new Date(),
         };
         await this.outboxService.createLoggingOutboxEvent(
@@ -158,7 +158,7 @@ export class AdminService {
       publicMetadata: { role: newRole },
     });
 
-    const actor = await this.db
+    const usersList = await this.db
       .select({
         id: users.id,
         email: users.email,
@@ -170,9 +170,17 @@ export class AdminService {
       .innerJoin(userRoles, eq(users.id, userRoles.userId))
       .innerJoin(roles, eq(userRoles.roleId, roles.id))
       .leftJoin(profiles, eq(users.id, profiles.userId))
-      .where(eq(users.id, actorId))
-      .limit(1)
-      .then((rows) => rows[0]);
+      .where(inArray(users.id, [actorId, userId]));
+
+    const actor = usersList.find((u) => u.id === actorId);
+    const user = usersList.find((u) => u.id === userId);
+
+    if (!actor || !user) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Actor or User not found.',
+      });
+    }
 
     await this.db.transaction(async (tx) => {
       await tx.delete(userRoles).where(eq(userRoles.userId, userId));
@@ -190,7 +198,7 @@ export class AdminService {
         actorId: actorId,
         targetId: userId,
         action: 'Update user role',
-        log: `User role updated to ${newRole} by ${actor.firstName} ${actor.lastName} with role ${actor.role}`,
+        detail: `Tài khoản ${user.firstName} ${user.lastName} được cấp quyền ${newRole} bởi ${actor.firstName} ${actor.lastName}`,
         timestamp: new Date(),
       };
       await this.outboxService.createLoggingOutboxEvent(
@@ -349,7 +357,7 @@ export class AdminService {
             actorId,
             targetId: userId,
             action: 'Ban user',
-            log: `User ${target.firstName} ${target.lastName} banned by ${actor.firstName} ${actor.lastName} (${actor.role})`,
+            detail: `Tài khoản ${target.firstName} ${target.lastName} bị cấm bởi ${actor.firstName} ${actor.lastName} (${actor.role})`,
             timestamp: new Date(),
           }
         );
@@ -439,7 +447,7 @@ export class AdminService {
             actorId,
             targetId: userId,
             action: 'Unban user',
-            log: `User ${target.firstName} ${target.lastName} unbanned by ${actor.firstName} ${actor.lastName} (${actor.role})`,
+            detail: `Tài khoản ${target.firstName} ${target.lastName} được khôi phục bởi ${actor.firstName} ${actor.lastName} (${actor.role})`,
             timestamp: new Date(),
           }
         );

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   ContentEntryDTO,
   ContentEntryQuery,
+  ContentStatus,
   CursorPageResponse,
   DashboardQueryDTO,
   PageResponse,
@@ -132,7 +133,14 @@ export class ReadReportService {
   async getContentEntry(
     filter: ContentEntryQuery
   ): Promise<PageResponse<ContentEntryDTO>> {
-    const { query, targetType, createdAt, limit = 10, page = 1 } = filter;
+    const {
+      query,
+      targetType,
+      status,
+      createdAt,
+      limit = 10,
+      page = 1,
+    } = filter;
 
     if (!targetType) {
       throw new RpcException({
@@ -161,6 +169,14 @@ export class ReadReportService {
         `${config.statsAlias}.${config.statId} = ${config.alias}.id`
       );
 
+    if (status !== undefined) {
+      if (status === ContentStatus.ACTIVE) {
+        baseQb.andWhere(`${config.alias}.is_deleted = false`);
+      } else if (status === ContentStatus.VIOLATED) {
+        baseQb.andWhere(`${config.alias}.is_deleted = true`);
+      }
+    }
+
     if (createdAt) {
       baseQb.andWhere(`${config.alias}.created_at >= :createdAt`, {
         createdAt,
@@ -178,6 +194,7 @@ export class ReadReportService {
       `${config.alias}.id AS id`,
       `${config.alias}.content AS content`,
       `${config.alias}.created_at AS "createdAt"`,
+      `${config.alias}.is_deleted AS "isDeleted"`,
       `COALESCE(${config.statsAlias}.reports, 0) AS "reportCount"`,
     ];
 
@@ -205,6 +222,7 @@ export class ReadReportService {
       content: row.content,
       medias: this.normalizeMedias(row.media, targetType),
       reportPendingCount: Number(row.reportCount),
+      status: row.isDeleted ? ContentStatus.VIOLATED : ContentStatus.ACTIVE,
       createdAt: row.createdAt,
     }));
 

@@ -202,36 +202,36 @@ async def get_daily_trend(
     return response
 
 @analyze_router.get("/summary/by-hour")
-async def get_by_hour(
-    userId: str
-):
-    # 1. Resolve thời gian tương tự các API khác
-    start, end = resolve_preset_range(preset = "today")
+async def get_by_hour(userId: str):
+    start, end = resolve_preset_range(preset="today")
 
-    # 2. Query DB
     entries = await repo.get_analysis_by_date_range(
         user_id=userId,
         from_date=start,
         to_date=end
     )
 
-    # 3. Group theo giờ (0–23), mỗi giờ có 7 cảm xúc
     grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
 
     for item in entries:
-        hour = item.createdAtVN.hour   # 0–23
+        hour = item.createdAtVN.hour
         emo = item.finalEmotion
 
         if emo in grouped[hour]:
             grouped[hour][emo] += 1
 
-    # 4. Convert sang dạng JSON key là string
-    response = {
-        str(hour): grouped[hour] 
-        for hour in sorted(grouped.keys())
-    }
+    response = [
+        {
+            "hour": hour,
+            **grouped.get(hour, {emo.value: 0 for emo in EmotionEnum})
+        }
+        for hour in range(24)
+    ]
+
+    print("🔥 BY-HOUR RESPONSE:", response)
 
     return response
+
 
 @analyze_router.get("/detail/{analysisId}")
 async def get_analysis_detail(analysisId: str):

@@ -16,6 +16,8 @@ import {
   GroupStatus,
   InferGroupPayload,
   LogType,
+  NotiOutboxPayload,
+  NotiTargetType,
   PageResponse,
   ReportStatus,
 } from '@repo/dtos';
@@ -24,6 +26,7 @@ import { GroupReport } from 'src/entities/group-report.entity';
 import { Group } from 'src/entities/group.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Between, DataSource, EntityManager, Repository } from 'typeorm';
+import { UserClientService } from '../client/user/user-client.service';
 
 @Injectable()
 export class ReportService {
@@ -35,6 +38,7 @@ export class ReportService {
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
+    private readonly userClient: UserClientService,
   ) {}
   private readonly VN_OFFSET_HOURS = 7;
 
@@ -201,6 +205,9 @@ export class ReportService {
       group.reports = 0;
       await manager.save(group);
 
+      const actor = await this.userClient.getUserInfo(actorId);
+      const actorName = actor?.firstName + ' ' + actor?.lastName;
+
       // 4. Logging outbox
       const loggingOutbox = this.outboxRepo.create({
         topic: EventTopic.LOGGING,
@@ -210,7 +217,7 @@ export class ReportService {
           actorId,
           targetId: groupId,
           action: 'IGNORE_GROUP_REPORTS',
-          message: `Moderator ${actorId} ignored all reports for group ${group.name}`,
+          detail: `Kiểm duyệt viên "${actorName}" đã bỏ qua báo cáo của nhóm ${group.name}`,
           timestamp: new Date(),
         },
       });
@@ -272,6 +279,9 @@ export class ReportService {
         manager, // 👈 nếu method hỗ trợ truyền manager
       );
 
+      const actor = await this.userClient.getUserInfo(actorId);
+      const actorName = actor?.firstName + ' ' + actor?.lastName;
+
       // 5. Logging outbox
       const loggingOutbox = this.outboxRepo.create({
         topic: EventTopic.LOGGING,
@@ -281,67 +291,104 @@ export class ReportService {
           actorId,
           targetId: groupId,
           action: 'BAN_GROUP',
-          message: `Group ${group.name} has been banned`,
+          detail: `Nhóm "${group.name}" đã bị cấm bởi "${actorName}"`,
           timestamp: new Date(),
         },
       });
 
+      const notiPayload: NotiOutboxPayload = {
+        targetId: groupId,
+        targetType: NotiTargetType.GROUP,
+        content: 'đã bị ban bởi quản trị hệ thống',
+        receivers: [group.owner.id],
+      };
+
+      const notiOutbox = manager.create(OutboxEvent, {
+        destination: EventDestination.RABBITMQ,
+        topic: 'notification',
+        eventType: 'group_noti',
+        payload: notiPayload,
+      });
+
       await manager.save(loggingOutbox);
+      await manager.save(notiOutbox);
 
       return true;
     });
   }
 
   async unbanGroup(groupId: string, actorId: string) {
-    const group = await this.groupRepo.findOne({
-      where: { id: groupId },
-    });
-
-    if (!group) {
-      throw new RpcException({
-        statusCode: 404,
-        message: 'Group not found!',
+    return this.dataSource.transaction(async (manager) => {
+      const group = await manager.findOne(Group, {
+        where: { id: groupId },
       });
-    }
 
-    if (group.status !== GroupStatus.BANNED) {
-      throw new RpcException({
-        statusCode: 409,
-        message: 'The group has not been banned.',
+      if (!group) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
+      }
+
+      if (group.status !== GroupStatus.BANNED) {
+        throw new RpcException({
+          statusCode: 409,
+          message: 'The group has not been banned.',
+        });
+      }
+
+      // 1. Update state
+      group.status = GroupStatus.ACTIVE;
+      await manager.save(group);
+
+      const actor = await this.userClient.getUserInfo(actorId);
+      const actorName = actor?.firstName + ' ' + actor?.lastName;
+
+      // 2. Logging outbox
+      const loggingOutbox = manager.create(OutboxEvent, {
+        topic: EventTopic.LOGGING,
+        destination: EventDestination.KAFKA,
+        eventType: LogType.GROUP_LOG,
+        payload: {
+          actorId,
+          targetId: groupId,
+          action: 'UNBAN_GROUP',
+          detail: `Nhóm "${group.name}" đã được khôi phục bởi "${actorName}"`,
+          timestamp: new Date(),
+        },
       });
-    }
 
-    group.status = GroupStatus.ACTIVE;
+      // 3. Group domain event (UNBANNED)
+      const payload: InferGroupPayload<GroupEventType.CREATED> = {
+        groupId: group.id,
+        name: group.name,
+        description: group.description,
+        privacy: group.privacy,
+        avatarUrl: group.avatarUrl,
+        members: group.members,
+        createdAt: group.createdAt,
+      };
+      await this.createGroupOutboxEvent(GroupEventType.CREATED, payload);
 
-    const loggingPayload = {
-      actorId,
-      targetId: groupId,
-      action: 'Unban group',
-      log: `Group ${group.name} has been unbanned`,
-      timestamp: new Date(),
-    };
+      const notiPayload: NotiOutboxPayload = {
+        targetId: groupId,
+        targetType: NotiTargetType.GROUP,
+        content: 'đã được khôi phục bởi quản trị hệ thống',
+        receivers: [group.owner.id],
+      };
 
-    const loggingOutbox = this.outboxRepo.create({
-      topic: EventTopic.LOGGING,
-      destination: EventDestination.KAFKA,
-      eventType: LogType.GROUP_LOG,
-      payload: loggingPayload,
+      // 4. Notification outbox
+      const notiOutbox = manager.create(OutboxEvent, {
+        destination: EventDestination.RABBITMQ,
+        topic: 'notification',
+        eventType: 'group_noti',
+        payload: notiPayload,
+      });
+
+      await manager.save([loggingOutbox, notiOutbox]);
+
+      return true;
     });
-
-    const payload: InferGroupPayload<GroupEventType.CREATED> = {
-      groupId: group.id,
-      name: group.name,
-      description: group.description,
-      privacy: group.privacy,
-      avatarUrl: group.avatarUrl,
-      members: group.members,
-      createdAt: group.createdAt,
-    };
-    await this.createGroupOutboxEvent(GroupEventType.CREATED, payload);
-    await this.groupRepo.save(group);
-    await this.outboxRepo.save(loggingOutbox);
-
-    return true;
   }
 
   async getGroupByAdmin(

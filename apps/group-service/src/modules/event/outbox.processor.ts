@@ -3,7 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { CreateNotificationDto, EventDestination } from '@repo/dtos';
+import {
+  CreateNotificationDto,
+  EventDestination,
+  NotificationPayload,
+  NotiOutboxPayload,
+} from '@repo/dtos';
 import { KafkaProducerService, NotificationService } from '@repo/common';
 import { GroupService } from '../group-core/group/group.service';
 
@@ -93,11 +98,17 @@ export class OutboxProcessor {
           this.logger.debug(`✅ [Kafka] Sent event ${id} -> ${topic}`);
           break;
 
-        case EventDestination.RABBITMQ:
-          { const notificationDto = await this.toNotificationDto(event);
-          await this.notificationService.sendNotification(notificationDto);
+        case EventDestination.RABBITMQ: {
+          const notis = await this.toNotificationDtos(event);
+
+          await Promise.all(
+            notis.map((noti) =>
+              this.notificationService.sendNotification(noti),
+            ),
+          );
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
-          break; }
+          break;
+        }
 
         default:
           this.logger.warn(
@@ -112,24 +123,31 @@ export class OutboxProcessor {
   }
 
   // HELPERS
-  private async toNotificationDto(
+  private async toNotificationDtos(
     outbox: OutboxEvent,
-  ): Promise<CreateNotificationDto> {
+  ): Promise<CreateNotificationDto[]> {
     const group = await this.groupService.findById(outbox.payload.groupId);
-    const { receivers, ...cleanPayload } = outbox.payload;
-    const payload = {
-      ...cleanPayload,
-      groupName: group.name,
-      groupAvatarUrl: group.avatarUrl,
+    const outboxPayload = outbox.payload as NotiOutboxPayload;
+
+    const receivers = outboxPayload.receivers;
+    const payload: NotificationPayload = {
+      targetId: outboxPayload.targetId,
+      targetType: outboxPayload.targetType,
+      actorName: group.name,
+      actorAvatar: group.avatarUrl,
+      content: outboxPayload.content,
     };
-    return {
-      requestId: outbox.id,
-      userId: receivers[0], // CẦN CHỈNH LẠI SAU KHI HỖ TRỢ GỬI NHIỀU NGƯỜI
-      type: outbox.eventType,
-      payload,
-      sendAt: new Date(),
-      meta: { priority: 1, maxRetries: 3 },
-      channels: [],
-    };
+
+    return receivers.map((receiver) => {
+      return {
+        requestId: outboxPayload.requestId ?? outbox.id,
+        userId: receiver, // hoặc map từng user nếu cần
+        type: outbox.eventType,
+        payload, // phần còn lại tự động gộp
+        sendAt: new Date(),
+        meta: { priority: 1, maxRetries: 3 },
+        channels: [],
+      };
+    });
   }
 }
