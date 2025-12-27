@@ -160,6 +160,8 @@ export class EmotionService {
       params: { userId },
       headers: this.headers(),
     });
+
+    console.log(res.data);
     return res.data;
   }
 }

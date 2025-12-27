@@ -10,6 +10,13 @@ export class GroupSetting extends AuditableEntity {
   @Column({ type: 'boolean', name: 'required_post_approval', default: false })
   requiredPostApproval: boolean;
 
+  @Column({
+    type: 'boolean',
+    name: 'allow_member_invite',
+    default: true,
+  })
+  allowMemberInvite: boolean;
+
   @Column({ type: 'int', name: 'max_members', default: 1000 })
   maxMembers: number;
 

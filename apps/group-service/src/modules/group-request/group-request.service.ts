@@ -9,6 +9,8 @@ import {
   GroupEventLog,
   GroupRole,
   EventDestination,
+  NotiOutboxPayload,
+  NotiTargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { GroupJoinRequest } from 'src/entities/group-join-request.entity';
@@ -304,17 +306,19 @@ export class GroupJoinRequestService {
       select: ['userId'],
     });
 
+    const payload: NotiOutboxPayload = {
+      requestId: joinRequest.id,
+      targetId: groupId,
+      targetType: NotiTargetType.GROUP,
+      content: 'Có yêu cầu vào nhóm mới',
+      receivers: reviewers.map((r) => r.userId),
+    };
+
     const event = outboxRepo.create({
       destination: EventDestination.RABBITMQ,
       topic: 'notification',
-      eventType: 'group_event',
-      payload: {
-        requestId: joinRequest.id,
-        groupId,
-        actorId: userId,
-        content: 'New join request',
-        receivers: reviewers.map((r) => r.userId),
-      },
+      eventType: 'group_noti',
+      payload,
     });
 
     await outboxRepo.save(event);

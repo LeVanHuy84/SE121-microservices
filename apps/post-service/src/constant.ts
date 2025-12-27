@@ -38,3 +38,9 @@ export const TARGET_CONFIG = {
     statId: 'shareId',
   },
 } as const;
+
+export const CONTENT_TYPE_VN: Record<TargetType, string> = {
+  [TargetType.POST]: 'bài viết',
+  [TargetType.COMMENT]: 'bình luận',
+  [TargetType.SHARE]: 'chia sẻ',
+};

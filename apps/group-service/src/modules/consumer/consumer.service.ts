@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   EventDestination,
   GroupEventLog,
+  NotiOutboxPayload,
+  NotiTargetType,
   PostGroupEventPayload,
   PostGroupEventType,
 } from '@repo/dtos';
@@ -58,17 +60,14 @@ export class ConsumerService {
         select: ['userId'],
       });
 
-      const notificationPayload = {
-        groupId: payload.groupId,
-        actorId: payload.userId,
-        content: payload.content,
+      const notificationPayload: NotiOutboxPayload = {
+        targetId: payload.groupId,
+        targetType: NotiTargetType.GROUP,
+        content: `Có bài viết cần duyệt "${payload.content.slice(0, 50)}..." `,
         receivers: admins.map((admin) => admin.userId),
       };
 
-      await this.saveOutboxEvent(
-        PostGroupEventType.POST_PENDING,
-        notificationPayload,
-      );
+      await this.saveOutboxEvent(notificationPayload);
     } catch (err) {
       this.logger.error('handlePending failed', err as any);
       throw err;
@@ -83,22 +82,18 @@ export class ConsumerService {
           userId: payload.actorId ?? '',
           groupId: payload.groupId,
           eventType: GroupEventLog.POST_APPROVED,
-          content: `Post ${payload.postId} approved by ${payload.actorId ?? 'unknown'}`,
+          content: `Bài viết ${payload.content.slice(0, 50)}... được duyệt bởi ${payload.actorId}`,
         });
 
-        const notificationPayload = {
-          groupId: payload.groupId,
-          actorId: payload.actorId,
-          content: payload.content,
+        const notificationPayload: NotiOutboxPayload = {
+          targetId: payload.groupId,
+          targetType: NotiTargetType.GROUP,
+          content: `Bài viết ${payload.content.slice(0, 50)}... đã được duyệt`,
           receivers: [payload.userId],
         };
 
         // Sử dụng manager để lưu outbox trong cùng transaction
-        await this.saveOutboxEvent(
-          PostGroupEventType.POST_APPROVED,
-          notificationPayload,
-          manager,
-        );
+        await this.saveOutboxEvent(notificationPayload, manager);
       } catch (err) {
         this.logger.error('handleApproved transaction failed', err as any);
         throw err;
@@ -114,20 +109,16 @@ export class ConsumerService {
           userId: payload.actorId ?? '',
           groupId: payload.groupId,
           eventType: GroupEventLog.POST_REJECTED,
-          content: `Post ${payload.postId} rejected by ${payload.actorId ?? 'unknown'}`,
+          content: `Bài viết ${payload.content.slice(0, 50)}... bị từ chối bởi ${payload.actorId}`,
         });
 
-        const notificationPayload = {
-          groupId: payload.groupId,
-          actorId: payload.actorId,
-          content: payload.content,
+        const notificationPayload: NotiOutboxPayload = {
+          targetId: payload.groupId,
+          targetType: NotiTargetType.GROUP,
+          content: `Bài viết ${payload.content.slice(0, 50)}... bị từ chối`,
           receivers: [payload.userId],
         };
-        await this.saveOutboxEvent(
-          PostGroupEventType.POST_REJECTED,
-          notificationPayload,
-          manager,
-        );
+        await this.saveOutboxEvent(notificationPayload, manager);
       } catch (err) {
         this.logger.error('handleRejected transaction failed', err as any);
         throw err;
@@ -139,15 +130,11 @@ export class ConsumerService {
    * Lưu Outbox. Nếu manager được truyền vào thì dùng EntityManager để tham gia transaction.
    * Nếu không có manager thì dùng repository bình thường.
    */
-  private async saveOutboxEvent(
-    eventType: PostGroupEventType,
-    payload: any,
-    manager?: EntityManager,
-  ) {
+  private async saveOutboxEvent(payload: any, manager?: EntityManager) {
     const eventData = {
       topic: 'notifications',
       destination: EventDestination.RABBITMQ,
-      eventType,
+      eventType: 'group_noti',
       payload,
     };
 

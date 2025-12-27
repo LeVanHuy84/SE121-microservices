@@ -6,21 +6,25 @@ import {
   EventDestination,
   EventTopic,
   LogType,
+  NotiOutboxPayload,
+  NotiTargetType,
   PostEventType,
   ReportResponseDTO,
   ReportStatus,
+  RootType,
   ShareEventType,
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { TARGET_CONFIG } from 'src/constant';
+import { CONTENT_TYPE_VN, TARGET_CONFIG } from 'src/constant';
 import { CommentStat } from 'src/entities/comment-stat.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { Post } from 'src/entities/post.entity';
 import { Report } from 'src/entities/report.entity';
 import { ShareStat } from 'src/entities/share-stat.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
+import { UserClientService } from '../client/user/user-client.service';
 
 @Injectable()
 export class ReportService {
@@ -36,7 +40,8 @@ export class ReportService {
     @InjectRepository(CommentStat)
     private readonly commentStatRepo: Repository<CommentStat>,
     @InjectRepository(ShareStat)
-    private readonly shareStatRepo: Repository<ShareStat>
+    private readonly shareStatRepo: Repository<ShareStat>,
+    private readonly userClient: UserClientService
   ) {}
 
   async createReport(userId: string, dto: CreateReportDTO) {
@@ -70,17 +75,11 @@ export class ReportService {
     targetType: TargetType,
     moderatorId: string
   ): Promise<boolean> {
-    return await this.reportRepo.manager.transaction(async (manager) => {
-      const config = TARGET_CONFIG[targetType];
-      if (!config) {
-        throw new RpcException({
-          statusCode: 400,
-          message: 'Invalid targetType',
-        });
-      }
+    return this.reportRepo.manager.transaction(async (manager) => {
+      const config = this.getTargetConfig(targetType);
 
       // 1. Resolve only PENDING reports
-      const reportResult = await manager
+      await manager
         .createQueryBuilder()
         .update(Report)
         .set({
@@ -97,15 +96,29 @@ export class ReportService {
         )
         .execute();
 
-      // 2. Soft delete target content
-      await manager
+      // 2. Get target owner
+      const ownerId = await this.getTargetOwner(
+        manager,
+        config.table,
+        targetId
+      );
+
+      // 3. Soft delete target (only once)
+      const deleteResult = await manager
         .createQueryBuilder()
         .update(config.table)
         .set({ isDeleted: true })
-        .where('id = :id', { id: targetId })
+        .where('id = :id AND isDeleted = false', { id: targetId })
         .execute();
 
-      // 3. Reset pending report stats
+      if (!deleteResult.affected) {
+        throw new RpcException({
+          statusCode: 409,
+          message: 'Target already removed',
+        });
+      }
+
+      // 4. Reset pending report stats
       await manager
         .createQueryBuilder()
         .update(config.statsTable)
@@ -113,7 +126,7 @@ export class ReportService {
         .where(`${config.statId} = :id`, { id: targetId })
         .execute();
 
-      // 4. Domain outbox event
+      // 5. Domain outbox
       let domainOutbox: OutboxEvent | null = null;
 
       switch (targetType) {
@@ -136,11 +149,15 @@ export class ReportService {
           break;
 
         case TargetType.COMMENT:
-          // Comments do not emit removed events
           break;
       }
 
-      // 5. Logging outbox
+      // 6. Logging
+      const actor = await this.userClient.getUserInfo(moderatorId);
+      const actorName =
+        `${actor?.firstName ?? ''} ${actor?.lastName ?? ''}`.trim();
+      const contentTypeVN = CONTENT_TYPE_VN[targetType];
+
       const loggingOutbox = this.outboxRepo.create({
         topic: EventTopic.LOGGING,
         destination: EventDestination.KAFKA,
@@ -150,16 +167,36 @@ export class ReportService {
           targetId,
           targetType,
           action: 'RESOLVE_AND_REMOVE',
-          message: `Moderator ${moderatorId} resolved reports and removed ${targetType.toLowerCase()} ${targetId}`,
+          detail: `Kiểm duyệt viên "${actorName}" đã xử lý và ẩn một ${contentTypeVN}`,
           timestamp: new Date(),
         },
+      });
+
+      // 7. Notification
+      const notiTarget = await this.createNotiTarget(
+        targetId,
+        targetType,
+        manager
+      );
+      const notiPayload: NotiOutboxPayload = {
+        targetId: notiTarget.targetId,
+        targetType: notiTarget.targetType,
+        content: 'vi phạm tiêu chuẩn cộng đồng',
+        receivers: [ownerId],
+      };
+
+      const notiOutbox = manager.create(OutboxEvent, {
+        destination: EventDestination.RABBITMQ,
+        topic: 'notification',
+        eventType: 'resolve_content',
+        payload: notiPayload,
       });
 
       if (domainOutbox) {
         await manager.save(domainOutbox);
       }
 
-      await manager.save(loggingOutbox);
+      await manager.save([loggingOutbox, notiOutbox]);
 
       return true;
     });
@@ -170,16 +207,10 @@ export class ReportService {
     targetType: TargetType,
     moderatorId: string
   ): Promise<boolean> {
-    return await this.reportRepo.manager.transaction(async (manager) => {
-      const config = TARGET_CONFIG[targetType];
-      if (!config) {
-        throw new RpcException({
-          statusCode: 400,
-          message: 'Invalid targetType',
-        });
-      }
+    return this.reportRepo.manager.transaction(async (manager) => {
+      const config = this.getTargetConfig(targetType);
 
-      // 1. Reject all PENDING reports of target
+      // 1. Reject all PENDING reports
       const reportResult = await manager
         .createQueryBuilder()
         .update(Report)
@@ -212,7 +243,12 @@ export class ReportService {
         .where(`${config.statId} = :id`, { id: targetId })
         .execute();
 
-      // 3. Logging outbox
+      const actor = await this.userClient.getUserInfo(moderatorId);
+      const actorName =
+        `${actor?.firstName ?? ''} ${actor?.lastName ?? ''}`.trim();
+      const contentTypeVN = CONTENT_TYPE_VN[targetType];
+
+      // 3. Logging
       const loggingOutbox = this.outboxRepo.create({
         topic: EventTopic.LOGGING,
         destination: EventDestination.KAFKA,
@@ -222,7 +258,7 @@ export class ReportService {
           targetId,
           targetType,
           action: 'REJECT_REPORT',
-          message: `Moderator ${moderatorId} rejected all reports for ${targetType.toLowerCase()} ${targetId}`,
+          detail: `Kiểm duyệt viên "${actorName}" đã bỏ qua báo cáo 1 ${contentTypeVN}`,
           timestamp: new Date(),
         },
       });
@@ -251,6 +287,74 @@ export class ReportService {
       case TargetType.SHARE:
         await this.shareStatRepo.increment({ shareId: targetId }, 'reports', 1);
         break;
+    }
+  }
+
+  private getTargetConfig(targetType: TargetType) {
+    const config = TARGET_CONFIG[targetType];
+    if (!config) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Invalid targetType',
+      });
+    }
+    return config;
+  }
+
+  private async getTargetOwner(
+    manager: EntityManager,
+    table: string,
+    targetId: string
+  ): Promise<string> {
+    const target = await manager
+      .createQueryBuilder()
+      .select(['t.id', 't.userId'])
+      .from(table, 't')
+      .where('t.id = :id', { id: targetId })
+      .getRawOne();
+
+    if (!target) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Target content not found',
+      });
+    }
+
+    return target.userId;
+  }
+
+  private async createNotiTarget(
+    targetId: string,
+    targetType: TargetType,
+    manager
+  ) {
+    switch (targetType) {
+      case TargetType.POST:
+        return {
+          targetId,
+          targetType: NotiTargetType.POST,
+        };
+      case TargetType.SHARE:
+        return {
+          targetId,
+          targetType: NotiTargetType.SHARE,
+        };
+      case TargetType.COMMENT:
+        const comment = await manager
+          .createQueryBuilder()
+          .select(['c.id', 'c.rootType', 'c.rootId'])
+          .from('comments', 'c')
+          .where('c.id = :id', { id: targetId })
+          .getRawOne();
+
+        const type =
+          comment.rootType === RootType.POST
+            ? NotiTargetType.POST
+            : NotiTargetType.SHARE;
+        return {
+          targetId: comment.rootId,
+          targetType: type,
+        };
     }
   }
 }

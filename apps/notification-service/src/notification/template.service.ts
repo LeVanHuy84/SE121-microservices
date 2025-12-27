@@ -1,6 +1,5 @@
 // src/notification/template.service.ts
 import { Injectable } from '@nestjs/common';
-import { share } from 'rxjs';
 
 type TemplatePayload = Record<string, any>;
 
@@ -23,16 +22,9 @@ export class TemplateService {
     friendship_accept: (payload) =>
       `${payload.actorName} đã chấp nhận lời mời kết bạn của bạn`,
 
-    group_event: (payload) =>
-      `${payload.groupName} has new activity: ${payload.content || ''}`,
-    post_pending: (payload) =>
-      `There is a new post pending approval in ${payload.groupName}: ${payload.content || ''}`,
-    post_approved: (payload) =>
-      `Your post has been approved in ${payload.groupName}: ${payload.content || ''}`,
-    post_rejected: (payload) =>
-      `Your post has been rejected in ${payload.groupName}: ${payload.content || ''}`,
+    group_noti: (payload) =>
+      `${payload.groupName} có thông báo mới: ${payload.content || ''}`,
     // 👉 sau này thêm type mới chỉ cần thêm key ở đây
-
   };
 
   render(type: string, payload: TemplatePayload): string {

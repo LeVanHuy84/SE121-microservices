@@ -17,6 +17,7 @@ export class ConsumerService {
       targetId: data.targetId,
       logType: type,
       action: data.action,
+      detail: data.detail,
       log: data.log,
     });
     return createdLog.save();

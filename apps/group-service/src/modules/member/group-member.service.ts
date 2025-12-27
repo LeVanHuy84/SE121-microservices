@@ -10,6 +10,8 @@ import {
   GroupNotificationType,
   GroupPermission,
   GroupRole,
+  NotiOutboxPayload,
+  NotiTargetType,
 } from '@repo/dtos';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { DataSource, Repository } from 'typeorm';
@@ -264,9 +266,9 @@ export class GroupMemberService {
       });
       await this.createOutboxEvent(
         manager,
-        member.group,
+        member.group.id,
         member.userId,
-        `Your role in group ${member.group.name} has been changed to ${newRole}`,
+        `Vai trò của bạn trong nhóm ${member.group.name} đã được cập nhật thành ${newRole}`,
       );
       return member;
     });
@@ -306,9 +308,9 @@ export class GroupMemberService {
 
       await this.createOutboxEvent(
         manager,
-        member.group,
+        member.group.id,
         member.userId,
-        `Your permissions in group ${member.group.name} have been updated`,
+        `Quyền hạn của bạn trong nhóm ${member.group.name} đã được cập nhật`,
       );
 
       return member;
@@ -369,23 +371,24 @@ export class GroupMemberService {
 
   private async createOutboxEvent(
     manager,
-    group: Group,
+    groupId: string,
     receiverId: string,
     content: string,
   ) {
     const outboxRepo = manager.getRepository(OutboxEvent);
 
+    const payload: NotiOutboxPayload = {
+      targetId: groupId,
+      targetType: NotiTargetType.GROUP,
+      content,
+      receivers: [receiverId],
+    };
+
     const event = outboxRepo.create({
       destination: EventDestination.RABBITMQ,
-      topic: 'group_event',
-      eventType: GroupNotificationType.GROUP_ROLE_CHANGED,
-      payload: {
-        groupId: group.id,
-        groupName: group.name,
-        groupAvatarUrl: group.avatarUrl,
-        content,
-        reviewerIds: [receiverId],
-      },
+      topic: 'notification',
+      eventType: 'group_noti',
+      payload,
     });
 
     await outboxRepo.save(event);

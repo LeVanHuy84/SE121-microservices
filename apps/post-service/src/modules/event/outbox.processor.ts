@@ -3,7 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { CreateNotificationDto, EventDestination } from '@repo/dtos';
+import {
+  CreateNotificationDto,
+  EventDestination,
+  NotificationPayload,
+  NotiOutboxPayload,
+} from '@repo/dtos';
 import { KafkaProducerService, NotificationService } from '@repo/common';
 
 @Injectable()
@@ -92,9 +97,10 @@ export class OutboxProcessor {
           break;
 
         case EventDestination.RABBITMQ:
-          await this.notificationService.sendNotification(
-            this.toNotificationDto(event)
-            // 'post-service'
+          const notis = this.toNotificationDtos(event);
+
+          await Promise.all(
+            notis.map((noti) => this.notificationService.sendNotification(noti))
           );
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
           break;
@@ -112,15 +118,28 @@ export class OutboxProcessor {
   }
 
   // HELPERS
-  private toNotificationDto(outbox: OutboxEvent): CreateNotificationDto {
-    return {
-      requestId: outbox.id,
-      userId: outbox.payload.userId,
-      type: outbox.eventType,
-      payload: outbox.payload,
-      sendAt: new Date(),
-      meta: { priority: 1, maxRetries: 3 },
-      channels: [],
+  private toNotificationDtos(outbox: OutboxEvent): CreateNotificationDto[] {
+    const outboxPayload = outbox.payload as NotiOutboxPayload;
+
+    const receivers = outboxPayload.receivers;
+    const payload: NotificationPayload = {
+      targetId: outboxPayload.targetId,
+      targetType: outboxPayload.targetType,
+      actorName: outboxPayload.actorName,
+      actorAvatar: outboxPayload.actorAvatar,
+      content: outboxPayload.content,
     };
+
+    return receivers.map((receiver) => {
+      return {
+        requestId: outboxPayload.requestId ?? outbox.id,
+        userId: receiver, // hoặc map từng user nếu cần
+        type: outbox.eventType,
+        payload, // phần còn lại tự động gộp
+        sendAt: new Date(),
+        meta: { priority: 1, maxRetries: 3 },
+        channels: [],
+      };
+    });
   }
 }

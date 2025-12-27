@@ -7,9 +7,10 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  ValidateNested
+  ValidateNested,
 } from 'class-validator';
 import { ChannelNotification } from './enums/channel-notication.enum';
+import { NotiTargetType } from './enums/noti-target-type.enum';
 
 class MetaDto {
   @IsOptional()
@@ -24,6 +25,14 @@ class MetaDto {
   [k: string]: any;
 }
 
+export class NotificationPayload {
+  targetType: NotiTargetType;
+  targetId: string; // để điều hướng
+  actorName?: string;
+  actorAvatar?: string; // hiển thị thông tin user hoặc group
+  content: string;
+}
+
 export class CreateNotificationDto {
   @IsOptional()
   @IsString()
@@ -35,11 +44,11 @@ export class CreateNotificationDto {
   @IsString()
   type: string;
 
-  @IsOptional()
-  payload?: any;
+  @Type(() => NotificationPayload)
+  payload: NotificationPayload;
 
   @IsArray()
-  @IsEnum(ChannelNotification, {each: true})
+  @IsEnum(ChannelNotification, { each: true })
   channels: ChannelNotification[]; // override preference
 
   @IsOptional()
