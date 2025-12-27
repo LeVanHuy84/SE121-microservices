@@ -333,7 +333,7 @@ export class ReportService {
       if (group.status !== GroupStatus.BANNED) {
         throw new RpcException({
           statusCode: 409,
-          message: 'Group is not banned',
+          message: 'The group has not been banned.',
         });
       }
 

@@ -72,4 +72,7 @@ export class MessageResponseDTO {
 
   @Expose()
   deletedAt?: Date;
+
+  @Expose()
+  syncVersion?: number;
 }

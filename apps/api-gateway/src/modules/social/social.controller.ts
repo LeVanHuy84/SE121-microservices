@@ -99,12 +99,13 @@ export class SocialController {
     return this.socialClient.send('get_blocked_users', { userId, query });
   }
 
-  @Get('friends/recommend')
-  recommendFriends(
+  @Get('friends/suggest')
+  async recommendFriends(
     @CurrentUserId() userId: string,
     @Body() query: CursorPaginationDTO
   ) {
-    return this.socialClient.send('recommend_friends', { userId, query });
+    console.log('recommendFriends called with', userId, query);
+    return this.socialClient.send('suggest_friends', { userId, query });
   }
 
   @Post('block/:targetId')

@@ -2,6 +2,7 @@ import { EventTopic } from './event.enum';
 
 export enum MediaEventType {
   DELETE_REQUESTED = 'media.delete.requested',
+  CONTENT_ID_ASSIGNED = 'media.content_id.assigned',
 }
 
 export type MediaDeleteItem = {
@@ -15,6 +16,11 @@ export interface MediaEventPayloads {
     source?: string;
     reason?: string;
   };
+  [MediaEventType.CONTENT_ID_ASSIGNED]: {
+    contentId: string;
+    items: { publicId: string; url?: string; type?: 'image' | 'video' }[];
+    source?: string;
+  };
 }
 
 export type MediaEvent<K extends MediaEventType> = {
@@ -23,4 +29,6 @@ export type MediaEvent<K extends MediaEventType> = {
   payload: MediaEventPayloads[K];
 };
 
-export type MediaEventMessage = MediaEvent<MediaEventType.DELETE_REQUESTED>;
+export type MediaEventMessage =
+  | MediaEvent<MediaEventType.DELETE_REQUESTED>
+  | MediaEvent<MediaEventType.CONTENT_ID_ASSIGNED>;

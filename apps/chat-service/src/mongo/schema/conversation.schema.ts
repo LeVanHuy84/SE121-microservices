@@ -45,6 +45,9 @@ export class Conversation {
 
   @Prop({ type: Map, of: String, default: {} })
   lastSeenMessageId: Map<string, string>;
+
+  @Prop({ type: Number, default: 0 })
+  syncVersion: number;
 }
 
 export type ConversationDocument = HydratedDocument<Conversation>;
@@ -64,6 +67,10 @@ ConversationSchema.index({ isGroup: 1, participants: 1 });
  * + build directKey cho 1–1 chat
  */
 ConversationSchema.pre<ConversationDocument>('save', function (next) {
+  if (this.isModified()) {
+    this.syncVersion = Date.now();
+  }
+
   if (this.participants?.length) {
     const normalized = [...new Set(this.participants)].sort();
     this.participants = normalized;
@@ -86,6 +93,9 @@ ConversationSchema.pre<ConversationDocument>('save', function (next) {
 ConversationSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate() as any;
   if (!update) return next();
+
+  update.$set = update.$set ?? {};
+  update.$set.syncVersion = Date.now();
 
   // Nếu dùng $set: { participants: [...] }
   const rawParticipants = update.participants ?? update.$set?.participants;

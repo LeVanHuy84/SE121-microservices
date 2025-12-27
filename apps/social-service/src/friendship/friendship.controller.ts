@@ -120,7 +120,7 @@ export class FriendshipController {
   ) {
     return this.friendshipService.getBlockedUsers(data.userId, data.query);
   }
-  @MessagePattern('recommend_friends')
+  @MessagePattern('suggest_friends')
   async recommendFriends(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
