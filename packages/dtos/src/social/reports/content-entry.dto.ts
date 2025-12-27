@@ -1,5 +1,5 @@
 import { MediaItemDTO } from '../../common';
-import { TargetType } from '../enums';
+import { ContentStatus, TargetType } from '../enums';
 
 export class ContentEntryDTO {
   id: string;
@@ -7,6 +7,6 @@ export class ContentEntryDTO {
   content: string;
   medias?: MediaItemDTO[];
   reportPendingCount: number;
-  // isDeleted: boolean;
+  status: ContentStatus;
   createdAt: Date;
 }

@@ -3,8 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { KafkaProducerService } from '@repo/common';
-import { OutboxEvent, OutboxEventDocument } from 'src/mongo/schema/outbox.schema';
-
+import {
+  OutboxEvent,
+  OutboxEventDocument,
+} from 'src/mongo/schema/outbox.schema';
 
 @Injectable()
 export class OutboxProcessor {
@@ -23,7 +25,7 @@ export class OutboxProcessor {
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleOutboxBatch() {
     if (this.running) {
-      this.logger.debug('Outbox job still running, skipping...');
+      // this.logger.debug('Outbox job still running, skipping...');
       return;
     }
 
