@@ -6,7 +6,10 @@ import type { DrizzleDB } from 'src/drizzle/types/drizzle';
 import {
   BaseUserDTO,
   CreateUserDTO,
+  EventDestination,
+  EventTopic,
   InferUserPayload,
+  MediaEventType,
   UpdateUserDTO,
   UserEventType,
   UserResponseDTO,
@@ -52,6 +55,7 @@ export class UserService {
         firstName: dto.firstName ?? '',
         lastName: dto.lastName ?? '',
         avatarUrl: dto.avatarUrl ?? null,
+        coverImage: null,
         stats: { followers: 0, following: 0, posts: 0 },
       });
 
@@ -118,7 +122,7 @@ export class UserService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
-            coverImageUrl: true,
+            coverImage: true,
             bio: true,
           },
         },
@@ -161,7 +165,7 @@ export class UserService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
-            coverImageUrl: true,
+            coverImage: true,
             bio: true,
           },
         },
@@ -180,6 +184,9 @@ export class UserService {
   }
 
   async update(id: string, dto: UpdateUserDTO) {
+    let finalUser: any;
+    let finalProfile: any;
+
     await this.db.transaction(async (tx) => {
       const user = await tx
         .select()
@@ -197,6 +204,7 @@ export class UserService {
         if (existingUser) throw new Error('Email already in use');
       }
 
+      // Update users table
       await tx
         .update(users)
         .set({
@@ -212,30 +220,87 @@ export class UserService {
         .then((p) => p[0]);
       if (!profile) throw new NotFoundException('Profile not found');
 
+      // Resolve final profile state
+      const updatedProfile = {
+        firstName: dto.firstName ?? profile.firstName,
+        lastName: dto.lastName ?? profile.lastName,
+        avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
+        coverImage: dto.coverImage ?? profile.coverImage,
+        bio: dto.bio ?? profile.bio,
+        updatedAt: new Date(),
+      };
+
       await tx
         .update(profiles)
-        .set({
-          firstName: dto.firstName ?? profile.firstName,
-          lastName: dto.lastName ?? profile.lastName,
-          avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
-          coverImageUrl: dto.coverImageUrl ?? profile.coverImageUrl,
-          bio: dto.bio ?? profile.bio,
-          updatedAt: new Date(),
-        })
+        .set(updatedProfile)
         .where(eq(profiles.userId, id));
+
+      if (dto.coverImage?.publicId) {
+        await this.outboxService.createOutboxEventWithTransaction(
+          tx,
+          EventDestination.KAFKA,
+          EventTopic.MEDIA,
+          MediaEventType.CONTENT_ID_ASSIGNED,
+          {
+            contentId: id,
+            items: [
+              {
+                publicId: dto.coverImage.publicId,
+                url: dto.coverImage.url,
+                type: 'image',
+              },
+            ],
+            source: 'user-service',
+          }
+        );
+      }
+
+      if (
+        dto.coverImage?.publicId !== undefined &&
+        profile.coverImage &&
+        typeof profile.coverImage === 'object' &&
+        'publicId' in profile.coverImage &&
+        (profile.coverImage as any).publicId !== dto.coverImage?.publicId
+      ) {
+        await this.outboxService.createOutboxEventWithTransaction(
+          tx,
+          EventDestination.KAFKA,
+          EventTopic.MEDIA,
+          MediaEventType.DELETE_REQUESTED,
+          {
+            items: [
+              {
+                publicId: (profile.coverImage as any).publicId,
+                resourceType: 'image',
+              },
+            ],
+            source: 'user-service',
+            reason: 'user.cover.updated',
+          }
+        );
+      }
+
+      // Save final state for event payload
+      finalUser = {
+        id,
+        email: dto.email ?? user.email,
+      };
+
+      finalProfile = updatedProfile;
     });
 
     // 🧹 Invalidate cache
     await this.redis.del(`user:${id}`);
     await this.redis.del('users:all');
 
+    // ✅ FULL SNAPSHOT payload
     const payload: InferUserPayload<UserEventType.UPDATED> = {
       userId: id,
-      email: dto.email,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      avatarUrl: dto.avatarUrl,
-      bio: dto.bio,
+      email: finalUser.email,
+      firstName: finalProfile.firstName,
+      lastName: finalProfile.lastName,
+      avatarUrl: finalProfile.avatarUrl,
+      bio: finalProfile.bio,
     };
 
     await this.outboxService.createUserOutboxEvent(

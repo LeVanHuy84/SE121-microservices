@@ -43,6 +43,8 @@ function mapMessage(obj: any): MessageResponseDTO | undefined {
       conversationId: base.conversationId?.toString(),
       replyTo,
       attachments,
+      syncVersion:
+        base.syncVersion !== undefined ? Number(base.syncVersion) : undefined,
     },
     { excludeExtraneousValues: true },
   );
@@ -88,5 +90,7 @@ export function populateAndMapConversation(
       ? mapMessage(convDoc.lastMessage)
       : undefined,
     hiddenFor: (base.hiddenFor || []).map((h: any) => String(h)),
+    syncVersion:
+      base.syncVersion !== undefined ? Number(base.syncVersion) : undefined,
   });
 }

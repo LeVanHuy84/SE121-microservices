@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { int, Transaction } from 'neo4j-driver';
 import { Neo4jService } from 'src/neo4j/neo4j.service';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
@@ -6,6 +6,7 @@ import { RecentActivityBufferService } from 'src/event/recent-activity.buffer.se
 
 @Injectable()
 export class FriendshipService {
+  private readonly logger = new Logger(FriendshipService.name);
   constructor(
     private readonly neo4j: Neo4jService,
     private readonly buffer: RecentActivityBufferService,
@@ -244,6 +245,7 @@ export class FriendshipService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
+    this.logger.debug(`Getting friend requests for userId: ${userId} with query: ${JSON.stringify(query)}`);
     const queryDB = `
       MATCH (sender:User)-[:REQUESTED]->(receiver:User {id:$userId})
       ${query.cursor ? 'WHERE sender.id > $cursor' : ''}
@@ -279,8 +281,9 @@ export class FriendshipService {
       mutualFriendIds: string[];
     }>
   > {
+    this.logger.debug(`Recommending friends for userId: ${userId} with query: ${JSON.stringify(query)}`);
     const queryDB = `
-   MATCH (u:User {id:$userId})-[:FRIEND_WITH]-(f:User)-[:FRIEND_WITH]-(rec:User)
+    MATCH (u:User {id:$userId})-[:FRIEND_WITH]->(f:User)<-[:FRIEND_WITH]-(rec:User)
     WHERE 
       u <> rec
       AND NOT (u)-[:FRIEND_WITH]-(rec)
@@ -290,7 +293,7 @@ export class FriendshipService {
       AND NOT (rec)-[:BLOCKED]->(u)
       ${query.cursor ? 'AND rec.id > $cursor' : ''}
     WITH rec, COLLECT(DISTINCT f.id) AS mutualFriendIds
-    RETURN DISTINCT rec.id AS id, SIZE(mutualFriendIds) AS mutualFriends, mutualFriendIds
+    RETURN rec.id AS id, SIZE(mutualFriendIds) AS mutualFriends, mutualFriendIds
     ORDER BY mutualFriends DESC, rec.id ASC
     LIMIT $limitPlusOne
   `;
@@ -298,16 +301,24 @@ export class FriendshipService {
     const params: any = { userId, limitPlusOne: int(query.limit + 1) };
     if (query.cursor) params.cursor = query.cursor;
 
-    const res = await this.neo4j.read(queryDB, params);
+    const result = await this.neo4j.read(queryDB, params);
 
-    const records = res.records.map((r) => ({
-      id: r.get('id'),
-      mutualFriends: r.get('mutualFriends').toNumber(),
-      mutualFriendIds: r.get('mutualFriendIds'), // array of strings
+    this.logger.debug(`Recommend friends query result: ${JSON.stringify(result)}`);
+    const records = (result as any).records ?? result;
+    this.logger.debug(`Records: ${JSON.stringify(records)}`);
+
+    const rows = (records ?? []).map((r: any) => ({
+      id: String(r.get('id')),
+      mutualFriends: Number(
+        r.get('mutualFriends')?.toNumber?.() ?? r.get('mutualFriends'),
+      ),
+      mutualFriendIds: (r.get('mutualFriendIds') ?? []).map((x: any) =>
+        String(x),
+      ),
     }));
 
-    const hasNextPage = records.length > query.limit;
-    const pageData = hasNextPage ? records.slice(0, query.limit) : records;
+    const hasNextPage = rows.length > query.limit;
+    const pageData = hasNextPage ? rows.slice(0, query.limit) : rows;
     const nextCursor = hasNextPage ? pageData[pageData.length - 1].id : null;
 
     return {

@@ -33,11 +33,18 @@ export class GroupPermissionGuard implements CanActivate {
     const { userId, groupId } = data || {};
 
     if (!userId || !groupId)
-      throw new RpcException('Missing user or group context');
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Missing user or group context',
+      });
     const member = await this.memberRepo.findOne({
       where: { userId, groupId },
     });
-    if (!member) throw new RpcException('You are not a group member');
+    if (!member)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'You are not a group member',
+      });
 
     if (member.role === GroupRole.OWNER) return true; // Chủ nhóm có tất cả quyền
 
@@ -49,7 +56,10 @@ export class GroupPermissionGuard implements CanActivate {
       ROLE_PERMISSIONS[member.role as GroupRole]?.includes(requiredAction);
 
     if (!allowed)
-      throw new RpcException(`You don't have permission: ${requiredAction}`);
+      throw new RpcException({
+        statusCode: 404,
+        message: `You don't have permission: ${requiredAction}`,
+      });
 
     return true;
   }

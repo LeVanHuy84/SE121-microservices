@@ -16,7 +16,7 @@ export const profiles = pgTable("profiles", {
   firstName: varchar("first_name", { length: 100 }),
   lastName: varchar("last_name", { length: 100 }),
   avatarUrl: text("avatar_url"),
-  coverImageUrl: text("cover_image_url"),
+  coverImage: jsonb("cover_image"),
   bio: varchar("bio", { length: 255 }),
 
   stats: jsonb("stats").default({ friends: 0, posts: 0 }).notNull(),

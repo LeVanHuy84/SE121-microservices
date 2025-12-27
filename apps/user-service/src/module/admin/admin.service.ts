@@ -148,7 +148,10 @@ export class AdminService {
   ) {
     const clerkUser = await this.clerkClient.users.getUser(userId);
     if (clerkUser.publicMetadata.isSystemAdmin) {
-      throw new RpcException('Cannot change role of a system admin user');
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Cannot change role of a system admin user',
+      });
     }
 
     await this.clerkClient.users.updateUserMetadata(userId, {
@@ -202,7 +205,7 @@ export class AdminService {
   async getSystemUsers(
     filter: SystemUserQueryDTO
   ): Promise<PageResponse<SystemUserDTO>> {
-    const { query, limit = 10, page = 1, role } = filter;
+    const { query, limit = 10, page = 1, status, role } = filter;
     const offset = (page - 1) * limit;
 
     const conditions: SQL[] = [];
@@ -229,6 +232,10 @@ export class AdminService {
       conditions.push(searchCondition);
     }
 
+    if (status) {
+      conditions.push(eq(users.status, status));
+    }
+
     const [{ total }] = await this.db
       .select({ total: count() })
       .from(users)
@@ -246,6 +253,7 @@ export class AdminService {
         status: users.status,
         firstName: profiles.firstName,
         lastName: profiles.lastName,
+        createdAt: users.createdAt,
       })
       .from(users)
       .innerJoin(userRoles, eq(users.id, userRoles.userId))
@@ -288,15 +296,29 @@ export class AdminService {
     const target = map.get(userId);
     const actor = map.get(actorId);
 
-    if (!target) throw new RpcException('User not found');
-    if (!actor) throw new RpcException('Actor not found');
+    if (!target)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'User not found',
+      });
+    if (!actor)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Actor not found',
+      });
 
     if (target.role !== 'user') {
-      throw new RpcException('Cannot ban non-user role');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'Cannot ban non-user role',
+      });
     }
 
     if (target.status === USER_STATUS.BANNED) {
-      throw new RpcException('User already banned');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User already banned',
+      });
     }
 
     // ===== SAGA STEP 1: External =====
@@ -362,11 +384,22 @@ export class AdminService {
     const target = map.get(userId);
     const actor = map.get(actorId);
 
-    if (!target) throw new RpcException('User not found');
-    if (!actor) throw new RpcException('Actor not found');
+    if (!target)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'User not found',
+      });
+    if (!actor)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Actor not found',
+      });
 
     if (target.status !== USER_STATUS.BANNED) {
-      throw new RpcException('User is not banned');
+      throw new RpcException({
+        statusCode: 409,
+        message: 'User is not banned',
+      });
     }
 
     // ===== STEP 1: Clerk =====
@@ -422,20 +455,22 @@ export class AdminService {
   async getDashboard(
     filter: DashboardQueryDTO
   ): Promise<{ activeUsers: number }> {
-    const nowVN = new Date(Date.now() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
+    // ===== TODAY (VN)
+    const todayVN = new Date();
+    todayVN.setHours(0, 0, 0, 0);
 
     let fromDate = this.vnDateToUtcStart(filter.from);
-    let toDateValue = this.vnDateToUtcEnd(filter.to);
+    let toDate = this.vnDateToUtcEnd(filter.to);
 
-    // default = 30 ngày gần nhất theo VN
-    if (!fromDate) {
-      const d = new Date(nowVN);
-      d.setDate(d.getDate() - 29);
-      fromDate = this.vnDateToUtcStart(d);
+    // default = 30 ngày gần nhất (VN)
+    if (!toDate) {
+      toDate = this.vnDateToUtcEnd(todayVN)!;
     }
 
-    if (!toDateValue) {
-      toDateValue = this.vnDateToUtcEnd(nowVN);
+    if (!fromDate) {
+      const d = new Date(todayVN);
+      d.setDate(d.getDate() - 29);
+      fromDate = this.vnDateToUtcStart(d)!;
     }
 
     const [activeResult] = await this.db
@@ -451,8 +486,8 @@ export class AdminService {
           eq(users.isActive, true),
           eq(users.status, USER_STATUS.ACTIVE),
           eq(roles.name, SystemRole.USER as string),
-          gte(users.updatedAt, fromDate!),
-          lte(users.updatedAt, toDateValue!)
+          gte(users.updatedAt, fromDate),
+          lte(users.updatedAt, toDate)
         )
       );
 
