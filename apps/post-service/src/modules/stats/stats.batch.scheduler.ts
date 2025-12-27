@@ -14,8 +14,8 @@ import {
 } from '@repo/dtos';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
-import { Repository } from 'typeorm';
-import { PostGroupInfo } from 'src/entities/post-group-info.entity';
+import { In, Repository } from 'typeorm';
+import { Post } from 'src/entities/post.entity';
 
 @Injectable()
 export class StatsBatchScheduler {
@@ -25,8 +25,8 @@ export class StatsBatchScheduler {
     private readonly buffer: StatsBufferService,
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
-    @InjectRepository(PostGroupInfo)
-    private readonly postGroupInfoRepo: Repository<PostGroupInfo>
+    @InjectRepository(Post)
+    private readonly postRepo: Repository<Post>
   ) {
     console.log('🔥 StatsBatchScheduler initialized');
   }
@@ -41,6 +41,29 @@ export class StatsBatchScheduler {
 
     const clearedBuffers: { targetType: TargetType; targetId: string }[] = [];
 
+    // 🔹 Thu toàn bộ postId cần check trending
+    const postIdsToCheck = new Set<string>();
+
+    if (allStats[TargetType.POST]) {
+      for (const targetId of Object.keys(allStats[TargetType.POST])) {
+        postIdsToCheck.add(targetId);
+      }
+    }
+
+    // 🔹 Query 1 phát các post (chỉ field cần thiết)
+    const posts = postIdsToCheck.size
+      ? await this.postRepo.find({
+          where: {
+            id: In(Array.from(postIdsToCheck)),
+            isDeleted: false,
+          },
+          select: ['id', 'groupId'],
+        })
+      : [];
+
+    const postMap = new Map(posts.map((p) => [p.id, p]));
+
+    // 🔹 Xử lý stats
     for (const targetType of Object.values(TargetType)) {
       const entries = allStats[targetType];
       if (!entries) continue;
@@ -70,13 +93,11 @@ export class StatsBatchScheduler {
         });
 
         let isTrendingCandidate = false;
+
         if (targetType === TargetType.POST) {
-          const postGroupInfo = await this.postGroupInfoRepo.findOne({
-            where: { postId: targetId },
-          });
-          if (postGroupInfo && !postGroupInfo.isPrivateGroup) {
-            isTrendingCandidate = true;
-          }
+          const post = postMap.get(targetId);
+          // ✅ CHỈ post thường (không group, không deleted)
+          isTrendingCandidate = !!post && !post.groupId;
         }
 
         payload.stats.push({
@@ -98,8 +119,8 @@ export class StatsBatchScheduler {
       eventType: 'stats.batch',
       payload,
     });
-    await this.outboxRepo.save(outboxEvent);
 
+    await this.outboxRepo.save(outboxEvent);
     await this.buffer.clearMultipleBuffers(clearedBuffers);
 
     this.logger.log(

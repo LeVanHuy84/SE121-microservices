@@ -5,7 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev",
-    "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
+    "dev:test": "turbo run start:dev --parallel --concurrency=12",
     "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

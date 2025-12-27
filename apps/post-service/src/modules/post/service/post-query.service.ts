@@ -79,7 +79,8 @@ export class PostQueryService {
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const qb = this.buildPostQuery(query)
       .where('p.userId = :userId', { userId: currentUserId })
-      .andWhere('p.groupId IS NULL');
+      .andWhere('p.groupId IS NULL')
+      .andWhere('p.isDeleted = false');
 
     const ids = await qb
       .select(['p.id', 'p.createdAt', 'p.isDeleted'])

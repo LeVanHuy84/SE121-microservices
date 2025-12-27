@@ -54,5 +54,6 @@ import { OutboxService } from '../event/outbox.service';
     PostGroupService,
     OutboxService,
   ],
+  exports: [PostCacheService],
 })
 export class PostModule {}
