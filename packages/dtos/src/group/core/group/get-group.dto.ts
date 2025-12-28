@@ -6,7 +6,7 @@ import {
   MembershipStatus,
 } from '../../enums';
 
-class GroupSettingEmbbedDTO {
+export class GroupSettingEmbbedDTO {
   @Expose()
   requiredPostApproval: boolean;
 

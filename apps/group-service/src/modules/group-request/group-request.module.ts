@@ -8,12 +8,14 @@ import { Group } from 'src/entities/group.entity';
 import { GroupJoinRequestQueryService } from './group-request-query.service';
 import { GroupLogModule } from '../group-log/group-log.module';
 import { BatchModule } from '../batch/batch.module';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([GroupJoinRequest, GroupMember, Group]),
     GroupLogModule,
     BatchModule,
+    UserClientModule,
   ],
   controllers: [GroupJoinRequestController],
   providers: [GroupJoinRequestService, GroupJoinRequestQueryService],

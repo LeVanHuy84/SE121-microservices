@@ -112,6 +112,11 @@ export class GroupInviteService {
         },
       });
 
+      const invitee = await this.userClient.getUserInfo(inviteeId);
+      const inviteeName =
+        `${invitee?.firstName ?? ''} ${invitee?.lastName ?? ''}`.trim() ||
+        'Người dùng';
+
       if (joinRequest) {
         await this.ensureGroupNotFull(group);
 
@@ -127,7 +132,7 @@ export class GroupInviteService {
           groupId,
           userId: inviterId,
           eventType: GroupEventLog.JOIN_REQUEST_APPROVED,
-          content: `Join request ${joinRequest.id} approved by invite`,
+          content: `Yêu cầu vào nhóm của ${inviteeName} được chấp thuận bởi lời mời`,
         });
 
         await this.notify(manager, group, inviteeId, inviterId, 'request');
@@ -162,7 +167,7 @@ export class GroupInviteService {
         groupId,
         userId: inviterId,
         eventType: GroupEventLog.INVITE_SENT,
-        content: `Invited ${inviteeId} to group`,
+        content: `Đã mời ${inviteeName} vào nhóm`,
       });
 
       await this.notify(manager, group, inviteeId, inviterId, 'invite');

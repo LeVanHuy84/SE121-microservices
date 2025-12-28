@@ -1,5 +1,10 @@
 import { Column, Entity, OneToMany, OneToOne } from 'typeorm';
-import { GroupOwnerSnapshot, GroupPrivacy, GroupStatus } from '@repo/dtos';
+import {
+  GroupOwnerSnapshot,
+  GroupPrivacy,
+  GroupStatus,
+  MediaItemDTO,
+} from '@repo/dtos';
 import { AuditableEntity } from './auditable.entity';
 import { GroupSetting } from './group-setting.entity';
 import { GroupMember } from './group-member.entity';
@@ -17,11 +22,11 @@ export class Group extends AuditableEntity {
   @Column({ type: 'varchar', length: 1000, nullable: true })
   description: string;
 
-  @Column({ type: 'varchar', name: 'avatar_url' })
-  avatarUrl: string;
+  @Column({ type: 'jsonb', name: 'avatar_url', nullable: true })
+  avatar: MediaItemDTO;
 
-  @Column({ type: 'varchar', name: 'cover_image_url', nullable: true })
-  coverImageUrl: string;
+  @Column({ type: 'jsonb', name: 'cover_image_url', nullable: true })
+  coverImage: MediaItemDTO;
 
   @Column({ type: 'enum', enum: GroupPrivacy, default: GroupPrivacy.PUBLIC })
   privacy: GroupPrivacy;

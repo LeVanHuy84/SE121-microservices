@@ -49,6 +49,14 @@ export class GroupController {
     return this.client.send('recommend_groups', { userId, query });
   }
 
+  @Get('invited-groups')
+  getInvitedGroups(
+    @Query() query: CursorPaginationDTO,
+    @CurrentUserId() userId: string
+  ) {
+    return this.client.send('get_invited_groups', { userId, query });
+  }
+
   @Post()
   create(
     @CurrentUserId() userId: string,

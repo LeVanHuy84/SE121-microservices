@@ -52,28 +52,33 @@ export class GroupSettingService {
       }
 
       // Update settings
+      const oldSetting = { ...setting };
+
+      // Update
       Object.assign(setting, settings);
       setting.updatedBy = userId;
 
       const updatedSetting = await repo.save(setting);
 
-      // Log event
+      // Log changes
       const changes = Object.entries(settings)
-        .filter(([key, val]) => setting[key] !== val)
+        .filter(([key, val]) => oldSetting[key] !== val)
         .map(([key, val]) => ({
           field: SETTING_LABELS[key] ?? key,
-          from: formatValue(setting[key]),
+          from: formatValue(oldSetting[key]),
           to: formatValue(val),
         }));
 
-      await this.groupLogService.log(manager, {
-        groupId,
-        userId,
-        eventType: GroupEventLog.GROUP_SETTING_CHANGED,
-        content: `Cập nhật cài đặt nhóm:\n${changes
-          .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
-          .join('\n')}`,
-      });
+      if (changes.length) {
+        await this.groupLogService.log(manager, {
+          groupId,
+          userId,
+          eventType: GroupEventLog.GROUP_SETTING_CHANGED,
+          content: `Cập nhật cài đặt nhóm:\n${changes
+            .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
+            .join('\n')}`,
+        });
+      }
 
       return plainToInstance(GroupSettingResponseDTO, updatedSetting, {
         excludeExtraneousValues: true,

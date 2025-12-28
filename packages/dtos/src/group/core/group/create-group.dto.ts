@@ -1,5 +1,7 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { GroupPrivacy } from '../../enums';
+import { MediaItemDTO } from '../../../common';
+import { Type } from 'class-transformer';
 
 export class CreateGroupDTO {
   @IsString()
@@ -9,12 +11,12 @@ export class CreateGroupDTO {
   @IsString()
   description?: string;
 
-  @IsString()
-  avatarUrl: string;
+  @Type(() => MediaItemDTO)
+  avatar: MediaItemDTO;
 
-  @IsString()
+  @Type(() => MediaItemDTO)
   @IsOptional()
-  coverImageUrl?: string;
+  coverImage?: MediaItemDTO;
 
   @IsEnum(GroupPrivacy)
   privacy: GroupPrivacy;

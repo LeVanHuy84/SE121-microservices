@@ -137,7 +137,7 @@ export class OutboxProcessor {
       targetId: outboxPayload.targetId,
       targetType: outboxPayload.targetType,
       actorName: group?.name,
-      actorAvatar: group?.avatarUrl,
+      actorAvatar: group?.avatar.url,
       content: outboxPayload.content,
     };
 
