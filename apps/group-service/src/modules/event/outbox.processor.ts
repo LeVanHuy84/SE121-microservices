@@ -10,7 +10,7 @@ import {
   NotiOutboxPayload,
 } from '@repo/dtos';
 import { KafkaProducerService, NotificationService } from '@repo/common';
-import { GroupService } from '../group-core/group/group.service';
+import { Group } from 'src/entities/group.entity';
 
 @Injectable()
 export class OutboxProcessor {
@@ -20,9 +20,10 @@ export class OutboxProcessor {
   constructor(
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
+    @InjectRepository(Group)
+    private readonly groupRepo: Repository<Group>,
     private readonly kafkaProducer: KafkaProducerService,
     private readonly notificationService: NotificationService,
-    private readonly groupService: GroupService,
   ) {
     this.logger.log('🧩 OutboxProcessor initialized');
   }
@@ -126,15 +127,17 @@ export class OutboxProcessor {
   private async toNotificationDtos(
     outbox: OutboxEvent,
   ): Promise<CreateNotificationDto[]> {
-    const group = await this.groupService.findById(outbox.payload.targetId);
+    const group = await this.groupRepo.findOneBy({
+      id: outbox.payload.targetId,
+    });
     const outboxPayload = outbox.payload as NotiOutboxPayload;
 
     const receivers = outboxPayload.receivers;
     const payload: NotificationPayload = {
       targetId: outboxPayload.targetId,
       targetType: outboxPayload.targetType,
-      actorName: group.name,
-      actorAvatar: group.avatarUrl,
+      actorName: group?.name,
+      actorAvatar: group?.avatarUrl,
       content: outboxPayload.content,
     };
 

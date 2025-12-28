@@ -1,5 +1,6 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable } from '@nestjs/common';
+import { GroupInfoDTO } from '@repo/dtos';
 import Redis from 'ioredis';
 import { Group } from 'src/entities/group.entity';
 
@@ -12,6 +13,10 @@ export class GroupCacheService {
 
   private getKey(id: string) {
     return `group:${id}`;
+  }
+
+  private getSummaryKey(id: string) {
+    return `group:summary:${id}`;
   }
 
   async get(groupId: string): Promise<Group | null | 'NOT_FOUND'> {
@@ -45,5 +50,64 @@ export class GroupCacheService {
 
   async del(groupId: string) {
     await this.redis.del(this.getKey(groupId));
+  }
+
+  // ===============================
+  // Batch
+  // ===============================
+  async getBatch(
+    groupIds: string[],
+  ): Promise<Map<string, GroupInfoDTO | 'NOT_FOUND'>> {
+    const keys = groupIds.map((id) => this.getSummaryKey(id));
+    const raws = await this.redis.mget(...keys);
+
+    const map = new Map<string, GroupInfoDTO | 'NOT_FOUND'>();
+
+    raws.forEach((raw, index) => {
+      if (!raw) return;
+
+      const groupId = groupIds[index];
+      if (raw === 'NOT_FOUND') {
+        map.set(groupId, 'NOT_FOUND');
+      } else {
+        map.set(groupId, JSON.parse(raw));
+      }
+    });
+
+    return map;
+  }
+
+  async setBatch(dtos: GroupInfoDTO[]) {
+    if (!dtos.length) return;
+
+    const pipeline = this.redis.pipeline();
+
+    for (const dto of dtos) {
+      pipeline.set(
+        this.getSummaryKey(dto.id),
+        JSON.stringify(dto),
+        'EX',
+        this.TTL,
+      );
+    }
+
+    await pipeline.exec();
+  }
+
+  async setNotFoundBatch(groupIds: string[]) {
+    if (!groupIds.length) return;
+
+    const pipeline = this.redis.pipeline();
+
+    for (const id of groupIds) {
+      pipeline.set(
+        this.getSummaryKey(id),
+        'NOT_FOUND',
+        'EX',
+        this.NEGATIVE_TTL,
+      );
+    }
+
+    await pipeline.exec();
   }
 }

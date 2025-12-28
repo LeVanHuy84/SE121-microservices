@@ -7,6 +7,15 @@ import {
 import { MediaItemDTO } from '../../common/media.dto';
 import { PostStatDTO } from '../../common';
 
+export class GroupInfoDTO {
+  @Expose()
+  id: string;
+  @Expose()
+  name: string;
+  @Expose()
+  avatarUrl?: string;
+}
+
 export class PostSnapshotDTO {
   @Expose()
   postId: string;
@@ -14,8 +23,10 @@ export class PostSnapshotDTO {
   @Expose()
   userId: string;
 
-  @Expose()
   groupId?: string;
+
+  @Expose()
+  group?: GroupInfoDTO;
 
   @Expose()
   audience?: Audience;
