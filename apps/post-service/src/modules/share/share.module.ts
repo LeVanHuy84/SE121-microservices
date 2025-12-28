@@ -9,11 +9,13 @@ import { Reaction } from 'src/entities/reaction.entity';
 import { ShareQueryService } from './service/share-query.service';
 import { ShareCacheService } from './service/share-cache.service';
 import { SocialClientModule } from '../client/social/social-client.module';
+import { GroupClientModule } from '../client/group/group-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Share, ShareStat, Reaction, OutboxEvent]),
     SocialClientModule,
+    GroupClientModule,
   ],
   controllers: [ShareController],
   providers: [ShareCommandService, ShareQueryService, ShareCacheService],

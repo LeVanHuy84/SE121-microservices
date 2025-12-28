@@ -77,15 +77,7 @@ export class ShareCommandService {
 
         if (saved.audience === Audience.PUBLIC) {
           // Cập nhật thống kê DB và buffer song song
-          promises.push(
-            this.updateStatsForPost(manager, dto.postId, +1),
-            this.statsBuffer.updateStat(
-              TargetType.POST,
-              dto.postId,
-              StatsEventType.SHARE,
-              +1
-            )
-          );
+          promises.push(this.updateStatsForPost(manager, dto.postId, +1));
         }
 
         if (saved.audience !== Audience.ONLY_ME) {

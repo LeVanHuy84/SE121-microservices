@@ -6,16 +6,12 @@ import {
   ReactionType,
   ShareSnapshotDTO,
 } from '@repo/dtos';
-import {
-  MediaPreview,
-  PostSnapshot,
-} from 'src/mongo/schema/post-snapshot.schema';
-import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
+import { MediaPreview } from 'src/mongo/schema/post-snapshot.schema';
 
 @Injectable()
 export class SnapshotMapper {
   static toPostSnapshotDTOs(
-    posts: PostSnapshot[],
+    posts: any[],
     record?: Record<string, ReactionType>,
   ): PostSnapshotDTO[] {
     return posts.map((post) =>
@@ -24,13 +20,13 @@ export class SnapshotMapper {
   }
 
   static toPostSnapshotDTO(
-    post: PostSnapshot,
+    post: any,
     reactedType?: ReactionType,
   ): PostSnapshotDTO {
     return {
       postId: post.postId,
       userId: post.userId,
-      groupId: post.groupId,
+      group: post.group || undefined,
       audience: post.audience,
       content: post.content,
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
@@ -43,7 +39,7 @@ export class SnapshotMapper {
   }
 
   static toShareSnapshotDTOs(
-    shares: ShareSnapshot[],
+    shares: any[],
     reactedMap?: Record<string, ReactionType>,
   ): ShareSnapshotDTO[] {
     return shares.map((share) =>
@@ -52,7 +48,7 @@ export class SnapshotMapper {
   }
 
   static toShareSnapshotDTO(
-    share: ShareSnapshot,
+    share: any,
     reactedType?: ReactionType,
   ): ShareSnapshotDTO {
     return {
@@ -63,7 +59,7 @@ export class SnapshotMapper {
       post: {
         postId: share.post.postId,
         userId: share.post.userId,
-        groupId: share.post.groupId,
+        group: share.post.group || undefined,
         audience: Audience.PUBLIC,
         content: share.post.content,
         mediaPreviews: this.toMediaItemDTOs(share.post.mediaPreviews),

@@ -9,4 +9,7 @@ export class UpdateGroupSettingDTO {
 
   @IsOptional()
   requireAdminApprovalToJoin?: boolean;
+
+  @IsOptional()
+  allowMemberInvite?: boolean;
 }

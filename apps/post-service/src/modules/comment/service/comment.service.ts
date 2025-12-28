@@ -58,6 +58,33 @@ export class CommentService {
 
       const entity = await manager.save(comment);
 
+      const mediaPayload:
+        | MediaEventPayloads[MediaEventType.CONTENT_ID_ASSIGNED]
+        | null =
+        comment.media && comment.media.publicId
+          ? {
+              contentId: entity.id,
+              items: [
+                {
+                  publicId: comment.media.publicId,
+                  type:
+                    comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+                  url: comment.media.url,
+                },
+              ],
+            }
+          : null;
+
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.CONTENT_ID_ASSIGNED,
+          payload: mediaPayload,
+        });
+        await manager.save(mediaOutbox);
+      }
+
       // ✅ 2. Cập nhật thống kê comment gốc (Post/Share + parent)
       const updateStatsPromise = this.updateStatsForComment(
         manager,

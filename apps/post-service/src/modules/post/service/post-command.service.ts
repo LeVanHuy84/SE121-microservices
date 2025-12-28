@@ -50,6 +50,34 @@ export class PostCommandService {
       });
       const entity = await manager.save(post);
 
+      const mediaPayload:
+        | MediaEventPayloads[MediaEventType.CONTENT_ID_ASSIGNED]
+        | null =
+        post.media && post.media.length > 0
+          ? {
+              contentId: entity.id,
+              items: post.media
+                .filter(
+                  (m): m is typeof m & { publicId: string } => !!m.publicId
+                )
+                .map((m) => ({
+                  publicId: m.publicId,
+                  url: m.url,
+                  type: m.type === MediaType.IMAGE ? 'image' : 'video',
+                })),
+            }
+          : null;
+
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.CONTENT_ID_ASSIGNED,
+          payload: mediaPayload,
+        });
+        await manager.save(mediaOutbox);
+      }
+
       // Nếu không phải bài private thì emit event
       if (dto.audience !== Audience.ONLY_ME) {
         const outbox = manager.create(OutboxEvent, {

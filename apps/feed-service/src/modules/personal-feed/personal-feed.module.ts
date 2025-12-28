@@ -34,6 +34,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           },
         }),
       },
+      {
+        name: 'GROUP_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: config.get<string>('GROUP_SERVICE_HOST') || 'localhost',
+            port: config.get<number>('GROUP_SERVICE_PORT'),
+          },
+        }),
+      },
     ]),
   ],
   controllers: [PersonalFeedController],

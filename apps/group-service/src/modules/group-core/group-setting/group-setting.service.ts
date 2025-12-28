@@ -7,6 +7,7 @@ import {
   UpdateGroupSettingDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { formatValue, SETTING_LABELS } from 'src/common/constant/constant';
 import { GroupSetting } from 'src/entities/group-setting.entity';
 import { GroupLogService } from 'src/modules/group-log/group-log.service';
 import { DataSource, Repository } from 'typeorm';
@@ -57,13 +58,21 @@ export class GroupSettingService {
       const updatedSetting = await repo.save(setting);
 
       // Log event
+      const changes = Object.entries(settings)
+        .filter(([key, val]) => setting[key] !== val)
+        .map(([key, val]) => ({
+          field: SETTING_LABELS[key] ?? key,
+          from: formatValue(setting[key]),
+          to: formatValue(val),
+        }));
+
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.GROUP_SETTING_CHANGED,
-        content: `Group settings updated: ${Object.entries(settings)
-          .map(([key, val]) => `${key}=${val}`)
-          .join(', ')}`,
+        content: `Cập nhật cài đặt nhóm:\n${changes
+          .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
+          .join('\n')}`,
       });
 
       return plainToInstance(GroupSettingResponseDTO, updatedSetting, {

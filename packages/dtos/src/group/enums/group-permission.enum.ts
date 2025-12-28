@@ -19,6 +19,9 @@ export enum GroupPermission {
   // Manage Join Requests
   MANAGE_JOIN_REQUESTS = 'MANAGE_JOIN_REQUESTS',
 
+  // Invitations
+  INVITE_MEMBERS = 'INVITE_MEMBERS',
+
   // Events
   MANAGE_EVENTS = 'MANAGE_EVENTS',
 }

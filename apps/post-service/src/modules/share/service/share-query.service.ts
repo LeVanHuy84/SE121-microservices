@@ -5,6 +5,7 @@ import {
   Audience,
   CursorPageResponse,
   CursorPaginationDTO,
+  GroupInfoDTO,
   ReactionType,
   ShareResponseDTO,
   ShareSnapshotDTO,
@@ -22,6 +23,7 @@ import { firstValueFrom } from 'rxjs';
 export class ShareQueryService {
   constructor(
     @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
     @InjectRepository(Share)
     private readonly shareRepo: Repository<Share>,
     @InjectRepository(Reaction)
@@ -55,18 +57,35 @@ export class ShareQueryService {
       }),
     ]);
 
+    let group: GroupInfoDTO | undefined;
+    if (share.post.groupId) {
+      const groups = await firstValueFrom(
+        this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', [
+          share.post.groupId,
+        ])
+      );
+      if (groups.length === 0) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
+      }
+      group = groups[0];
+    }
+
     const response = plainToInstance(ShareResponseDTO, share, {
       excludeExtraneousValues: true,
     });
 
     response.reactedType = userReaction?.reactionType;
+    response.post.group = group;
     return response;
   }
 
   // ----------------------------------------
   // 🧍‍♂️ 1️⃣ Bài viết của chính mình
   // ----------------------------------------
-  async getMyPosts(
+  async getMyShares(
     currentUserId: string,
     query: CursorPaginationDTO
   ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
@@ -185,15 +204,33 @@ export class ShareQueryService {
     hasNextPage: boolean
   ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
     const shareIds = shares.map((s) => s.id);
-    const reactionMap = await this.getReactedTypesBatch(
-      currentUserId,
-      shareIds
+
+    const groupIds = Array.from(
+      new Set(
+        shares.map((s) => s.post?.groupId).filter((id): id is string => !!id)
+      )
     );
+
+    const [reactionMap, groups] = await Promise.all([
+      this.getReactedTypesBatch(currentUserId, shareIds),
+      groupIds.length > 0
+        ? firstValueFrom(
+            this.groupClient.send<GroupInfoDTO[]>(
+              'get_group_info_batch',
+              groupIds
+            )
+          )
+        : Promise.resolve([] as GroupInfoDTO[]),
+    ]);
+
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
 
     const shareDTOs = ShareShortenMapper.toShareSnapshotDTOs(
       shares,
-      reactionMap
+      reactionMap,
+      groupMap
     );
+
     let nextCursor: string | null = null;
     if (hasNextPage && shares.length > 0) {
       const lastShare = shares[shares.length - 1];

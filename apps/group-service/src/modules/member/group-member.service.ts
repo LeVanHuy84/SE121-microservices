@@ -7,7 +7,6 @@ import {
   GroupMemberDTO,
   GroupMemberFilter,
   GroupMemberStatus,
-  GroupNotificationType,
   GroupPermission,
   GroupRole,
   NotiOutboxPayload,
@@ -46,13 +45,12 @@ export class GroupMemberService {
           message: 'Owner cannot leave the group',
         });
       }
-      member.status = GroupMemberStatus.LEFT;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_LEFT,
-        content: `Member ${userId} left the group`,
+        content: `Thành viên ${userId} rời khỏi nhóm`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -107,14 +105,13 @@ export class GroupMemberService {
         });
       }
 
-      member.status = GroupMemberStatus.REMOVED;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
 
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_REMOVED,
-        content: `Member ${memberId} removed from group by ${userId}`,
+        content: `Thành viên ${memberId} bị xóa khỏi nhóm bởi ${userId}`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -177,7 +174,7 @@ export class GroupMemberService {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_BANNED,
-        content: `Member ${memberId} banned from group by ${userId}`,
+        content: `Thành viên ${memberId} bị cấm khỏi nhóm bởi ${userId}`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -201,13 +198,12 @@ export class GroupMemberService {
           message: 'Member is not banned',
         });
       }
-      member.status = GroupMemberStatus.REMOVED;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_UNBANNED,
-        content: `Member ${memberId} unbanned in group by ${userId}`,
+        content: `Thành viên ${memberId} được bỏ cấm khỏi nhóm bởi ${userId}`,
       });
       return true;
     });
@@ -262,7 +258,7 @@ export class GroupMemberService {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_ROLE_CHANGED,
-        content: `Member ${memberId} role changed to ${newRole}`,
+        content: `Vai trò của thành viên ${memberId} đã được thay đổi thành ${newRole}`,
       });
       await this.createOutboxEvent(
         manager,
@@ -303,7 +299,7 @@ export class GroupMemberService {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_PERMISSION_CHANGED,
-        content: `Member ${memberId} permissions changed to ${permissions.join(', ')}`,
+        content: `Quyền hạn của thành viên ${memberId} đã được thay đổi thành ${permissions.join(', ')}`,
       });
 
       await this.createOutboxEvent(

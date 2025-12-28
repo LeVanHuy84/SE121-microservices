@@ -121,13 +121,17 @@ export class ReportService {
   async getReports(
     filter: GroupReportQuery,
   ): Promise<CursorPageResponse<GroupReportResposeDTO>> {
-    const { groupId, cursor, limit, sortBy, order } = filter;
+    const { groupId, cursor, status, limit, sortBy, order } = filter;
 
     const queryBuilder =
       this.groupReportRepository.createQueryBuilder('report');
 
     if (groupId) {
       queryBuilder.where('report.groupId = :groupId', { groupId });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('report.status = :status', { status });
     }
 
     if (cursor) {

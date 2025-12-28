@@ -1,5 +1,5 @@
 import { JoinRequestStatus } from '@repo/dtos';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { AuditableEntity } from './auditable.entity';
 import { Group } from './group.entity';
 
@@ -21,5 +21,6 @@ export class GroupJoinRequest extends AuditableEntity {
   @ManyToOne(() => Group, (group) => group.groupJoinRequests, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'group_id' })
   group: Group;
 }

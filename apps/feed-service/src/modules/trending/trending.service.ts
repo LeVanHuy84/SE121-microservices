@@ -22,10 +22,28 @@ export class TrendingService {
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy, // 👈 thêm dòng này
   ) {}
 
-  private getKey(mainEmotion?: Emotion): string {
-    return mainEmotion
-      ? `post:score:emotion:${mainEmotion.toLowerCase()}`
-      : 'post:score';
+  private async getEffectiveKey(emotion?: Emotion): Promise<string | null> {
+    if (!emotion) return 'post:score';
+
+    const emotionKey = `post:emotion:${emotion.toLowerCase()}`;
+    const exists = await this.redis.exists(emotionKey);
+
+    if (!exists) return null;
+
+    const tempKey = `post:score:tmp:${emotion.toLowerCase()}`;
+
+    await this.redis.zinterstore(
+      tempKey,
+      2,
+      'post:score',
+      emotionKey,
+      'WEIGHTS',
+      1,
+      0,
+    );
+
+    await this.redis.expire(tempKey, 5);
+    return tempKey;
   }
 
   /**
@@ -34,22 +52,25 @@ export class TrendingService {
    */
   async getTrendingPosts(query: TrendingQuery, userId?: string) {
     const { cursor, limit = 10, mainEmotion } = query;
-    const key = this.getKey(mainEmotion);
 
-    // Nếu key emotion chưa tồn tại thì fallback về key tổng
-    const exists = await this.redis.exists(key);
-    const effectiveKey = exists ? key : 'post:score';
+    // ✅ LẤY KEY ĐÚNG Ở ĐÂY
+    const effectiveKey = await this.getEffectiveKey(mainEmotion);
+
+    // 👉 emotion không có dữ liệu → trả rỗng
+    if (!effectiveKey) {
+      return new CursorPageResponse([], null, false);
+    }
 
     // ------------------------------
     // 1️⃣ Parse cursor
     // ------------------------------
-    let maxScore = '+inf'; // bắt đầu từ bài có score cao nhất
+    let maxScore = '+inf';
     let minScore = '-inf';
 
     if (cursor) {
       const [scoreStr] = cursor.split('_');
       const score = parseFloat(scoreStr);
-      maxScore = `(${score}`; // exclude bài cuối cùng của trang trước
+      maxScore = `(${score}`;
     }
 
     // ------------------------------
@@ -67,8 +88,6 @@ export class TrendingService {
     if (!ids.length) {
       return new CursorPageResponse([], null, false);
     }
-
-    console.log('Ids: ', ids);
 
     // ------------------------------
     // 3️⃣ Lấy snapshot trực tiếp từ DB (bỏ cache)

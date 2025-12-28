@@ -1,39 +1,37 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
   Audience,
   CursorPageResponse,
-  DashboardQueryDTO,
   EditHistoryReponseDTO,
   GetGroupPostQueryDTO,
   GetPostQueryDTO,
+  GroupInfoDTO,
   GroupPermission,
   GroupPrivacy,
   PostGroupStatus,
   PostResponseDTO,
   PostSnapshotDTO,
   ReactionType,
-  ReportStatus,
   TargetType,
 } from '@repo/dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { Reaction } from 'src/entities/reaction.entity';
 import { Post } from 'src/entities/post.entity';
 import { PostCacheService } from './post-cache.service';
 import { PostShortenMapper } from '../post-shorten.mapper';
-import { Report } from 'src/entities/report.entity';
 
 @Injectable()
 export class PostQueryService {
   constructor(
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
-    @InjectRepository(Report) private readonly reportRepo: Repository<Report>,
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
     private readonly postCache: PostCacheService
   ) {}
 
@@ -52,7 +50,7 @@ export class PostQueryService {
       });
 
     const [_, userReaction] = await Promise.all([
-      this.ensureCanView(userRequestId, post),
+      this.ensureCanViewPost(userRequestId, post),
       this.reactionRepo.findOne({
         where: {
           userId: userRequestId,
@@ -63,9 +61,26 @@ export class PostQueryService {
       }),
     ]);
 
+    let group: GroupInfoDTO | undefined;
+    if (post.groupId) {
+      const groups = await firstValueFrom(
+        this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', [
+          post.groupId,
+        ])
+      );
+      if (groups.length === 0) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
+      }
+      group = groups[0];
+    }
+
     const dto = plainToInstance(PostResponseDTO, post, {
       excludeExtraneousValues: true,
     });
+    dto.group = group;
     dto.reactedType = userReaction?.reactionType;
     return dto;
   }
@@ -79,7 +94,8 @@ export class PostQueryService {
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     const qb = this.buildPostQuery(query)
       .where('p.userId = :userId', { userId: currentUserId })
-      .andWhere('p.groupId IS NULL');
+      .andWhere('p.groupId IS NULL')
+      .andWhere('p.isDeleted = false');
 
     const ids = await qb
       .select(['p.id', 'p.createdAt', 'p.isDeleted'])
@@ -312,7 +328,53 @@ export class PostQueryService {
     return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
   }
 
-  private async ensureCanView(userId: string, post: Post): Promise<void> {
+  async ensureCanViewPost(userId: string, post: Post): Promise<void> {
+    if (post.groupId) {
+      await this.ensureCanViewGroupPost(userId, post);
+    } else {
+      await this.ensureCanViewUserPost(userId, post);
+    }
+  }
+
+  private async ensureCanViewGroupPost(
+    userId: string,
+    post: Post
+  ): Promise<void> {
+    const groupId = post.groupId;
+
+    const memberInfo = await this.postCache.getGroupUserPermission(
+      userId,
+      groupId
+    );
+
+    // Nếu post đã publish
+    if (post.postGroupInfo?.status === PostGroupStatus.PUBLISHED) {
+      if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
+        throw new RpcException({
+          statusCode: 403,
+          message: 'User is not a member of the group',
+        });
+      }
+      return;
+    }
+
+    // Post chưa duyệt / bị reject
+    const canReview = memberInfo.permissions.includes(
+      GroupPermission.APPROVE_POST
+    );
+
+    if (!canReview) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'No permission to view this group post',
+      });
+    }
+  }
+
+  private async ensureCanViewUserPost(
+    userId: string,
+    post: Post
+  ): Promise<void> {
     if (post.userId === userId) return;
 
     const relation = await this.postCache.getRelationship(
