@@ -1,5 +1,5 @@
 import { GroupMemberStatus, GroupPermission, GroupRole } from '@repo/dtos';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Group } from './group.entity';
 
@@ -27,5 +27,6 @@ export class GroupMember extends BaseEntity {
   @ManyToOne(() => Group, (group) => group.groupMembers, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'group_id' })
   group: Group;
 }

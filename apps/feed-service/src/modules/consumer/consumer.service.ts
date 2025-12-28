@@ -68,23 +68,19 @@ export class ConsumerService {
     oldEmotion?: Emotion,
     newEmotion?: Emotion,
   ) {
-    const score = await this.redis.zscore('post:score', postId);
+    const exists = await this.redis.zscore('post:score', postId);
 
-    // Nếu bài chưa có trong trending -> bỏ qua
-    if (!score) return;
+    // Bài chưa có điểm → chưa trending → bỏ
+    if (!exists) return;
 
-    const numericScore = parseFloat(score);
-
-    // 1. Xóa khỏi old emotion key
+    // 1️⃣ Xóa emotion cũ
     if (oldEmotion) {
-      const oldKey = `post:score:emotion:${oldEmotion.toLowerCase()}`;
-      await this.redis.zrem(oldKey, postId);
+      await this.redis.srem(`post:emotion:${oldEmotion.toLowerCase()}`, postId);
     }
 
-    // 2. Thêm vào new emotion key
+    // 2️⃣ Thêm emotion mới
     if (newEmotion) {
-      const newKey = `post:score:emotion:${newEmotion.toLowerCase()}`;
-      await this.redis.zadd(newKey, numericScore, postId);
+      await this.redis.sadd(`post:emotion:${newEmotion.toLowerCase()}`, postId);
     }
   }
 }

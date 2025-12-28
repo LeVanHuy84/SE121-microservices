@@ -4,12 +4,12 @@ import { OutboxEvent } from 'src/entities/outbox.entity';
 import { OutboxProcessor } from './outbox.processor';
 import { KafkaProducerModule, NotificationModule } from '@repo/common';
 import { ConfigService } from '@nestjs/config';
-import { GroupCoreModule } from '../group-core/group-core.module';
+import { Group } from 'src/entities/group.entity';
 
 @Global()
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OutboxEvent]),
+    TypeOrmModule.forFeature([OutboxEvent, Group]),
     KafkaProducerModule.registerAsync(),
     NotificationModule.registerAsync({
       useFactory: async (config: ConfigService) => ({
@@ -21,7 +21,6 @@ import { GroupCoreModule } from '../group-core/group-core.module';
       }),
       inject: [ConfigService],
     }),
-    GroupCoreModule,
   ],
   providers: [OutboxProcessor],
   exports: [OutboxProcessor],

@@ -3,6 +3,7 @@ import {
   CursorPageResponse,
   FeedEventType,
   FeedItemDTO,
+  GroupInfoDTO,
   PersonalFeedQuery,
   ReactionType,
   TargetType,
@@ -24,6 +25,7 @@ export class PersonalFeedService {
     private readonly feedItemModel: Model<FeedItemDocument>,
     private readonly snapshotRepo: SnapshotRepository,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
   ) {}
 
   async getUserFeed(
@@ -134,22 +136,60 @@ export class PersonalFeedService {
     const postIds = items
       .filter((f) => f.eventType === FeedEventType.POST)
       .map((f) => f.refId);
+
     const shareIds = items
       .filter((f) => f.eventType === FeedEventType.SHARE)
       .map((f) => f.refId);
 
-    // 🔹 Truy vấn trực tiếp DB (bỏ cache layer)
+    // 1️⃣ load snapshot từ DB
     const [postDB, shareDB] = await Promise.all([
       this.snapshotRepo.findPostsByIds(postIds, mainEmotion),
       this.snapshotRepo.findSharesByIds(shareIds, mainEmotion),
     ]);
 
-    // 🔹 Tạo Map trả về
+    // 2️⃣ gom tất cả groupId (post + share.post)
+    const groupIds = Array.from(
+      new Set(
+        [
+          ...postDB.map((p) => p.groupId),
+          ...shareDB.map((s) => s.post?.groupId),
+        ].filter(Boolean),
+      ),
+    ) as string[];
+
+    // 3️⃣ gọi group service batch (trả về array)
+    let groupMap = new Map<string, GroupInfoDTO>();
+
+    if (groupIds.length > 0) {
+      const groups = await firstValueFrom(
+        this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', groupIds),
+      );
+
+      groupMap = new Map(groups.map((g) => [g.id, g]));
+    }
+
+    // 4️⃣ attach group vào post snapshot
+    postDB.forEach((post) => {
+      if (post.groupId) {
+        (post as any).group = groupMap.get(post.groupId);
+      }
+    });
+
+    // 5️⃣ attach group vào share.post snapshot
+    shareDB.forEach((share) => {
+      const groupId = share.post?.groupId;
+      if (groupId) {
+        (share.post as any).group = groupMap.get(groupId);
+      }
+    });
+
+    // 6️⃣ build map trả về
     const postMap = new Map<string, PostSnapshot>(
-      postDB.map((p) => [p.postId, p] as [string, PostSnapshot]),
+      postDB.map((p) => [p.postId, p]),
     );
+
     const shareMap = new Map<string, ShareSnapshot>(
-      shareDB.map((s) => [s.shareId, s] as [string, ShareSnapshot]),
+      shareDB.map((s) => [s.shareId, s]),
     );
 
     return { postMap, shareMap };

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PostSnapshotDTO, ReactionType } from '@repo/dtos';
+import { GroupInfoDTO, PostSnapshotDTO, ReactionType } from '@repo/dtos';
 import { Post } from 'src/entities/post.entity';
 
 @Injectable()
@@ -16,12 +16,13 @@ export class PostShortenMapper {
 
   static toPostSnapshotDTO(
     post: Post,
-    reactedType?: ReactionType
+    reactedType?: ReactionType,
+    group?: GroupInfoDTO
   ): PostSnapshotDTO {
     return {
       postId: post.id,
       userId: post.userId,
-      groupId: post.groupId,
+      group: group || undefined,
       content: post.content,
       audience: post.audience,
       mediaPreviews: post.media?.slice(0, 5),

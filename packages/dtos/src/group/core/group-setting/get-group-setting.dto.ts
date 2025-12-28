@@ -11,13 +11,10 @@ export class GroupSettingResponseDTO {
   requiredPostApproval: boolean;
 
   @Expose()
-  allowInvites: boolean;
-
-  @Expose()
   maxMembers: number;
 
   @Expose()
-  requireAdminApprovalToJoin: boolean;
+  allowMemberInvite: boolean;
 
   @Expose()
   createdAt: Date;
