@@ -7,9 +7,10 @@ import {
   GroupMemberDTO,
   GroupMemberFilter,
   GroupMemberStatus,
-  GroupNotificationType,
   GroupPermission,
   GroupRole,
+  NotiOutboxPayload,
+  NotiTargetType,
 } from '@repo/dtos';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { DataSource, Repository } from 'typeorm';
@@ -44,13 +45,12 @@ export class GroupMemberService {
           message: 'Owner cannot leave the group',
         });
       }
-      member.status = GroupMemberStatus.LEFT;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_LEFT,
-        content: `Member ${userId} left the group`,
+        content: `Thành viên ${userId} rời khỏi nhóm`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -105,14 +105,13 @@ export class GroupMemberService {
         });
       }
 
-      member.status = GroupMemberStatus.REMOVED;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
 
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_REMOVED,
-        content: `Member ${memberId} removed from group by ${userId}`,
+        content: `Thành viên ${memberId} bị xóa khỏi nhóm bởi ${userId}`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -175,7 +174,7 @@ export class GroupMemberService {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_BANNED,
-        content: `Member ${memberId} banned from group by ${userId}`,
+        content: `Thành viên ${memberId} bị cấm khỏi nhóm bởi ${userId}`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -199,13 +198,12 @@ export class GroupMemberService {
           message: 'Member is not banned',
         });
       }
-      member.status = GroupMemberStatus.REMOVED;
-      await manager.save(member);
+      await manager.delete(GroupMember, member.id);
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_UNBANNED,
-        content: `Member ${memberId} unbanned in group by ${userId}`,
+        content: `Thành viên ${memberId} được bỏ cấm khỏi nhóm bởi ${userId}`,
       });
       return true;
     });
@@ -260,13 +258,13 @@ export class GroupMemberService {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_ROLE_CHANGED,
-        content: `Member ${memberId} role changed to ${newRole}`,
+        content: `Vai trò của thành viên ${memberId} đã được thay đổi thành ${newRole}`,
       });
       await this.createOutboxEvent(
         manager,
-        member.group,
+        member.group.id,
         member.userId,
-        `Your role in group ${member.group.name} has been changed to ${newRole}`,
+        `Vai trò của bạn trong nhóm ${member.group.name} đã được cập nhật thành ${newRole}`,
       );
       return member;
     });
@@ -301,14 +299,14 @@ export class GroupMemberService {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_PERMISSION_CHANGED,
-        content: `Member ${memberId} permissions changed to ${permissions.join(', ')}`,
+        content: `Quyền hạn của thành viên ${memberId} đã được thay đổi thành ${permissions.join(', ')}`,
       });
 
       await this.createOutboxEvent(
         manager,
-        member.group,
+        member.group.id,
         member.userId,
-        `Your permissions in group ${member.group.name} have been updated`,
+        `Quyền hạn của bạn trong nhóm ${member.group.name} đã được cập nhật`,
       );
 
       return member;
@@ -369,23 +367,24 @@ export class GroupMemberService {
 
   private async createOutboxEvent(
     manager,
-    group: Group,
+    groupId: string,
     receiverId: string,
     content: string,
   ) {
     const outboxRepo = manager.getRepository(OutboxEvent);
 
+    const payload: NotiOutboxPayload = {
+      targetId: groupId,
+      targetType: NotiTargetType.GROUP,
+      content,
+      receivers: [receiverId],
+    };
+
     const event = outboxRepo.create({
       destination: EventDestination.RABBITMQ,
-      topic: 'group_event',
-      eventType: GroupNotificationType.GROUP_ROLE_CHANGED,
-      payload: {
-        groupId: group.id,
-        groupName: group.name,
-        groupAvatarUrl: group.avatarUrl,
-        content,
-        reviewerIds: [receiverId],
-      },
+      topic: 'notification',
+      eventType: 'group_noti',
+      payload,
     });
 
     await outboxRepo.save(event);

@@ -1,4 +1,4 @@
-import { Column, Entity, ManyToOne, Unique } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { Group } from './group.entity';
 import { BaseEntity } from './base.entity';
 import { ReportStatus } from '@repo/dtos';
@@ -25,5 +25,6 @@ export class GroupReport extends BaseEntity {
   @ManyToOne(() => Group, (group) => group.groupReports, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'group_id' })
   group: Group;
 }

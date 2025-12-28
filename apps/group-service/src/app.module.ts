@@ -9,6 +9,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { PostgresModule } from './postgres/postgres.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { GroupLogModule } from './modules/group-log/group-log.module';
+import { GroupInviteModule } from './modules/group-invite/group-invite.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { GroupLogModule } from './modules/group-log/group-log.module';
     ReportModule,
     GroupLogModule,
     EventModule,
+    GroupInviteModule,
   ],
   controllers: [],
   providers: [],

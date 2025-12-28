@@ -7,6 +7,7 @@ import { GroupJoinRequest } from './group-join-request.entity';
 import { GroupReport } from './group-report.entity';
 import { GroupStatistic } from './group-statistic.entity';
 import { GroupLog } from './group-log.entity';
+import { GroupInvite } from './group-invite.entity';
 
 @Entity('groups')
 export class Group extends AuditableEntity {
@@ -53,6 +54,9 @@ export class Group extends AuditableEntity {
     (groupJoinRequest) => groupJoinRequest.group,
   )
   groupJoinRequests: GroupJoinRequest[];
+
+  @OneToMany(() => GroupInvite, (groupInvite) => groupInvite.group)
+  groupInvites: GroupInvite[];
 
   @OneToMany(() => GroupReport, (groupReport) => groupReport.group)
   groupReports: GroupReport[];

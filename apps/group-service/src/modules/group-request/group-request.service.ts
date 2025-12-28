@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   GroupMemberStatus,
   GroupPrivacy,
@@ -9,13 +8,19 @@ import {
   GroupEventLog,
   GroupRole,
   EventDestination,
+  NotiOutboxPayload,
+  NotiTargetType,
+  InviteStatus,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { DataSource, EntityManager, In } from 'typeorm';
+
 import { GroupJoinRequest } from 'src/entities/group-join-request.entity';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { Group } from 'src/entities/group.entity';
-import { DataSource, In } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
+import { GroupInvite } from 'src/entities/group-invite.entity';
+
 import { GroupLogService } from '../group-log/group-log.service';
 import { GroupBufferService } from '../batch/buffer.service';
 
@@ -23,22 +28,41 @@ import { GroupBufferService } from '../batch/buffer.service';
 export class GroupJoinRequestService {
   constructor(
     private readonly dataSource: DataSource,
-    @InjectRepository(GroupJoinRequest)
     private readonly groupLogService: GroupLogService,
     private readonly groupBufferService: GroupBufferService,
   ) {}
 
-  // 📨 User gửi yêu cầu tham gia nhóm
+  // ==================================================
+  // 📨 USER REQUEST TO JOIN GROUP
+  // ==================================================
   async requestToJoin(
     groupId: string,
     userId: string,
   ): Promise<{ success: boolean; response: JoinRequestResponseDTO | string }> {
     return this.dataSource.transaction(async (manager) => {
       const group = await this.validateGroup(manager, groupId);
-      await this.validateMemberStatus(manager, groupId, userId, group);
+      await this.validateMemberStatus(manager, groupId, userId);
 
+      // PUBLIC → auto join
       if (group.privacy === GroupPrivacy.PUBLIC) {
-        return this.autoJoinPublicGroup(manager, group, userId);
+        await this.joinGroupInternal(manager, group, userId);
+        return { success: true, response: 'Joined' };
+      }
+
+      // PRIVATE / CLOSED → check invite
+      const invite = await manager.findOne(GroupInvite, {
+        where: {
+          groupId,
+          inviteeId: userId,
+          status: InviteStatus.PENDING,
+        },
+      });
+
+      if (invite) {
+        await this.joinGroupInternal(manager, group, userId);
+        invite.status = InviteStatus.ACCEPTED;
+        await manager.save(invite);
+        return { success: true, response: 'Joined via invite' };
       }
 
       const joinRequest = await this.createJoinRequest(
@@ -46,7 +70,8 @@ export class GroupJoinRequestService {
         groupId,
         userId,
       );
-      await this.createOutboxEvent(manager, joinRequest, groupId, userId);
+
+      await this.createOutboxEvent(manager, joinRequest, groupId);
 
       return {
         success: true,
@@ -55,147 +80,125 @@ export class GroupJoinRequestService {
     });
   }
 
-  // ✅ Duyệt yêu cầu tham gia
+  // ==================================================
+  // ✅ APPROVE JOIN REQUEST
+  // ==================================================
   async approveRequest(
     requestId: string,
     approverId: string,
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
-      const groupRepo = manager.getRepository(Group);
-      const memberRepo = manager.getRepository(GroupMember);
-      const joinRequestRepo = manager.getRepository(GroupJoinRequest);
-
-      const joinRequest = await joinRequestRepo.findOne({
+      const joinRequest = await manager.findOne(GroupJoinRequest, {
         where: { id: requestId },
       });
+
       if (!joinRequest)
         throw new RpcException({
           statusCode: 404,
           message: 'Join request not found',
         });
+
       if (joinRequest.status !== JoinRequestStatus.PENDING)
         throw new RpcException({
-          statusCode: 404,
+          statusCode: 409,
           message: 'Request already processed',
         });
 
-      const group = await groupRepo.findOne({
+      const group = await manager.findOne(Group, {
         where: { id: joinRequest.groupId },
         relations: ['groupSetting'],
       });
+
       if (!group)
         throw new RpcException({
           statusCode: 404,
           message: 'Group not found',
         });
-      if (group.members >= group.groupSetting.maxMembers)
-        throw new RpcException({
-          statusCode: 422,
-          message: 'Group has reached maximum member limit',
-        });
-
-      const member = await memberRepo.findOne({
-        where: {
-          groupId: joinRequest.groupId,
-          userId: joinRequest.userId,
-        },
-      });
-
-      if (member) {
-        member.role = GroupRole.MEMBER;
-        member.customPermissions = [];
-        member.status = GroupMemberStatus.ACTIVE;
-        await memberRepo.save(member);
-      } else {
-        const newMember = memberRepo.create({
-          groupId: joinRequest.groupId,
-          userId: joinRequest.userId,
-          status: GroupMemberStatus.ACTIVE,
-        });
-        await memberRepo.save(newMember);
-      }
-
-      group.members += 1;
-      const savedGroup = await groupRepo.save(group);
+      await this.validateMemberStatus(manager, group.id, joinRequest.userId);
+      await this.joinGroupInternal(manager, group, joinRequest.userId);
 
       joinRequest.status = JoinRequestStatus.APPROVED;
       joinRequest.updatedBy = approverId;
-      await joinRequestRepo.save(joinRequest);
+      await manager.save(joinRequest);
 
       await this.groupLogService.log(manager, {
-        groupId: joinRequest.groupId,
+        groupId: group.id,
         userId: approverId,
         eventType: GroupEventLog.JOIN_REQUEST_APPROVED,
-        content: `Join request with id: ${joinRequest.id} approved by: ${approverId}`,
+        content: `Yêu cầu ${joinRequest.id} được duyệt bởi ${approverId}`,
       });
-
-      await this.groupBufferService.buffer(savedGroup.id, savedGroup.members);
 
       return true;
     });
   }
 
-  // ❌ Từ chối yêu cầu
+  // ==================================================
+  // ❌ REJECT JOIN REQUEST
+  // ==================================================
   async rejectRequest(requestId: string, approverId: string): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
-      const joinRequestRepo = manager.getRepository(GroupJoinRequest);
-
-      const joinRequest = await joinRequestRepo.findOne({
+      const joinRequest = await manager.findOne(GroupJoinRequest, {
         where: { id: requestId },
       });
+
       if (!joinRequest)
         throw new RpcException({
           statusCode: 404,
           message: 'Join request not found',
         });
+
       if (joinRequest.status !== JoinRequestStatus.PENDING)
         throw new RpcException({
-          statusCode: 404,
+          statusCode: 409,
           message: 'Request already processed',
         });
 
       joinRequest.status = JoinRequestStatus.REJECTED;
       joinRequest.updatedBy = approverId;
-      await joinRequestRepo.save(joinRequest);
+      await manager.save(joinRequest);
 
       await this.groupLogService.log(manager, {
         groupId: joinRequest.groupId,
         userId: approverId,
         eventType: GroupEventLog.JOIN_REQUEST_REJECTED,
-        content: `Join request with id: ${joinRequest.id} rejected by: ${approverId}`,
+        content: `Yêu cầu ${joinRequest.id} bị từ chối`,
       });
 
       return true;
     });
   }
 
-  // 🛑 Hủy yêu cầu tham gia nhóm
+  // ==================================================
+  // 🛑 CANCEL JOIN REQUEST
+  // ==================================================
   async cancelRequest(requestId: string, userId: string): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
-      const joinRequestRepo = manager.getRepository(GroupJoinRequest);
-      const joinRequest = await joinRequestRepo.findOne({
+      const req = await manager.findOne(GroupJoinRequest, {
         where: { id: requestId, userId },
       });
-      if (!joinRequest)
+
+      if (!req)
         throw new RpcException({
           statusCode: 404,
           message: 'Join request not found',
         });
-      if (joinRequest.status !== JoinRequestStatus.PENDING)
+
+      if (req.status !== JoinRequestStatus.PENDING)
         throw new RpcException({
-          statusCode: 404,
+          statusCode: 409,
           message: 'Only pending requests can be canceled',
         });
-      await joinRequestRepo.remove(joinRequest);
+
+      await manager.remove(req);
       return true;
     });
   }
 
-  // Helper methods
-  private async validateGroup(manager, groupId: string) {
-    const groupRepo = manager.getRepository(Group);
-
-    const group = await groupRepo.findOne({
+  // ==================================================
+  // 🔒 VALIDATIONS
+  // ==================================================
+  private async validateGroup(manager: EntityManager, groupId: string) {
+    const group = await manager.findOne(Group, {
       where: { id: groupId },
       relations: ['groupSetting'],
     });
@@ -216,21 +219,20 @@ export class GroupJoinRequestService {
   }
 
   private async validateMemberStatus(
-    manager,
+    manager: EntityManager,
     groupId: string,
     userId: string,
-    group: Group,
   ) {
-    const memberRepo = manager.getRepository(GroupMember);
-
-    const member = await memberRepo.findOne({ where: { groupId, userId } });
+    const member = await manager.findOne(GroupMember, {
+      where: { groupId, userId },
+    });
 
     if (!member) return;
 
     if (member.status === GroupMemberStatus.ACTIVE)
       throw new RpcException({
         statusCode: 409,
-        message: 'User is already a member of the group',
+        message: 'User is already a member',
       });
 
     if (member.status === GroupMemberStatus.BANNED)
@@ -240,59 +242,40 @@ export class GroupJoinRequestService {
       });
   }
 
-  private async autoJoinPublicGroup(manager, group: Group, userId: string) {
+  // ==================================================
+  // 🔥 CORE JOIN LOGIC (INSERT ONLY)
+  // ==================================================
+  private async joinGroupInternal(
+    manager: EntityManager,
+    group: Group,
+    userId: string,
+  ) {
     const memberRepo = manager.getRepository(GroupMember);
     const groupRepo = manager.getRepository(Group);
 
-    let member = await memberRepo.findOne({
-      where: { groupId: group.id, userId },
+    const member = memberRepo.create({
+      groupId: group.id,
+      userId,
+      status: GroupMemberStatus.ACTIVE,
+      role: GroupRole.MEMBER,
     });
-
-    if (member) {
-      member.role = GroupRole.MEMBER;
-      member.customPermissions = [];
-      member.status = GroupMemberStatus.ACTIVE;
-    } else {
-      member = memberRepo.create({
-        groupId: group.id,
-        userId,
-        status: GroupMemberStatus.ACTIVE,
-      });
-    }
 
     await memberRepo.save(member);
 
     group.members += 1;
-    const savedGroup = await groupRepo.save(group);
+    await groupRepo.save(group);
 
-    await this.groupBufferService.buffer(savedGroup.id, savedGroup.members);
-
-    return { success: true, response: 'Joined' };
+    await this.groupBufferService.buffer(group.id, group.members);
   }
 
-  private async createJoinRequest(manager, groupId: string, userId: string) {
-    const joinRequestRepo = manager.getRepository(GroupJoinRequest);
-
-    const existing = await joinRequestRepo.findOne({
-      where: { groupId, userId, status: JoinRequestStatus.PENDING },
-    });
-
-    if (existing)
-      throw new RpcException({
-        statusCode: 409,
-        message: 'User already has a pending join request',
-      });
-
-    const req = joinRequestRepo.create({
-      groupId,
-      userId,
-      status: JoinRequestStatus.PENDING,
-    });
-
-    return joinRequestRepo.save(req);
-  }
-
-  private async createOutboxEvent(manager, joinRequest, groupId, userId) {
+  // ==================================================
+  // 🔔 OUTBOX NOTIFICATION
+  // ==================================================
+  private async createOutboxEvent(
+    manager: EntityManager,
+    joinRequest: GroupJoinRequest,
+    groupId: string,
+  ) {
     const memberRepo = manager.getRepository(GroupMember);
     const outboxRepo = manager.getRepository(OutboxEvent);
 
@@ -304,19 +287,52 @@ export class GroupJoinRequestService {
       select: ['userId'],
     });
 
+    if (!reviewers.length) return;
+
+    const payload: NotiOutboxPayload = {
+      requestId: joinRequest.id,
+      targetId: groupId,
+      targetType: NotiTargetType.GROUP,
+      content: 'Có yêu cầu tham gia nhóm mới',
+      receivers: reviewers.map((r) => r.userId),
+    };
+
     const event = outboxRepo.create({
       destination: EventDestination.RABBITMQ,
       topic: 'notification',
-      eventType: 'group_event',
-      payload: {
-        requestId: joinRequest.id,
-        groupId,
-        actorId: userId,
-        content: 'New join request',
-        receivers: reviewers.map((r) => r.userId),
-      },
+      eventType: 'group_noti',
+      payload,
     });
 
     await outboxRepo.save(event);
+  }
+
+  // ==================================================
+  // 🧹 CREATE JOIN REQUEST
+  // ==================================================
+  private async createJoinRequest(
+    manager: EntityManager,
+    groupId: string,
+    userId: string,
+  ) {
+    const repo = manager.getRepository(GroupJoinRequest);
+
+    const existing = await repo.findOne({
+      where: { groupId, userId, status: JoinRequestStatus.PENDING },
+    });
+
+    if (existing)
+      throw new RpcException({
+        statusCode: 409,
+        message: 'Join request already exists',
+      });
+
+    return repo.save(
+      repo.create({
+        groupId,
+        userId,
+        status: JoinRequestStatus.PENDING,
+      }),
+    );
   }
 }

@@ -1,6 +1,5 @@
 // src/notification/template.service.ts
 import { Injectable } from '@nestjs/common';
-import { share } from 'rxjs';
 
 type TemplatePayload = Record<string, any>;
 
@@ -10,29 +9,23 @@ type TemplateRenderer = (payload: TemplatePayload) => string;
 export class TemplateService {
   private templates: Record<string, TemplateRenderer> = {
     reaction: (payload) =>
-      `${payload.actorName} đã thả cảm xúc cho bài đăng: ${payload.content || ''}`, // chỗ này vì có thể là post/share
+      `${payload.actorName} đã thả cảm xúc cho bài đăng: ${payload.content || ''}...`, // chỗ này vì có thể là post/share
     comment: (payload) =>
-      `${payload.actorName} đã bình luận tại bài đăng: ${payload.content || ''}`,
+      `${payload.actorName} đã bình luận tại bài đăng: ${payload.content || ''}...`,
     reply_comment: (payload) =>
-      `${payload.actorName} đã phản hồi bình luận: ${payload.commentText || ''}`,
+      `${payload.actorName} đã phản hồi bình luận: ${payload.content || ''}...`,
     share: (payload) =>
       `${payload.actorName} đã chia sẻ bài đăng: ${payload.content || ''}`,
-    follow: (payload) => `${payload.actorName} started following you`,
+    follow: (payload) => `${payload.actorName} đã bắt đầu theo dõi bạn`,
     friendship_request: (payload) =>
       `${payload.actorName} đã gửi lời mời kết bạn tới bạn`,
     friendship_accept: (payload) =>
       `${payload.actorName} đã chấp nhận lời mời kết bạn của bạn`,
 
-    group_event: (payload) =>
-      `${payload.groupName} has new activity: ${payload.content || ''}`,
-    post_pending: (payload) =>
-      `There is a new post pending approval in ${payload.groupName}: ${payload.content || ''}`,
-    post_approved: (payload) =>
-      `Your post has been approved in ${payload.groupName}: ${payload.content || ''}`,
-    post_rejected: (payload) =>
-      `Your post has been rejected in ${payload.groupName}: ${payload.content || ''}`,
+    group_noti: (payload) =>
+      `Nhóm ${payload.groupName} có thông báo mới: ${payload.content || ''}`,
+    group_invite: (payload) => payload.content,
     // 👉 sau này thêm type mới chỉ cần thêm key ở đây
-
   };
 
   render(type: string, payload: TemplatePayload): string {

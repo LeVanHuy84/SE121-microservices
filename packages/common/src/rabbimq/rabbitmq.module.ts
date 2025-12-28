@@ -16,6 +16,9 @@ export interface RabbitmqModuleOptions {
   exchanges: ExchangeConfig[];
 }
 
+const DLX_EXCHANGE = 'dlx';
+const DLX_QUEUE = 'dlx_queue';
+
 @Global()
 @Module({})
 export class RabbitmqModule {
@@ -35,6 +38,10 @@ export class RabbitmqModule {
         const channel = conn.createChannel({
           json: true,
           setup: async (ch: amqp.Channel) => {
+            await ch.assertExchange(DLX_EXCHANGE, 'direct', { durable: true });
+            await ch.assertQueue(DLX_QUEUE, { durable: true });
+            await ch.bindQueue(DLX_QUEUE, DLX_EXCHANGE, '#');
+
             for (const ex of options.exchanges) {
               await ch.assertExchange(ex.name, ex.type, { durable: true, arguments: {
                 'x-dead-letter-exchange': 'dlx',

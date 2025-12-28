@@ -2,6 +2,7 @@ import { Expose, Type } from 'class-transformer';
 import { Audience, Emotion, ReactionType } from '../enums/social.enum';
 import { IsEnum } from 'class-validator';
 import { MediaItemDTO, PostStatDTO } from '../../common';
+import { GroupInfoDTO } from '../../feed';
 
 export class PostResponseDTO {
   @Expose()
@@ -11,7 +12,7 @@ export class PostResponseDTO {
   userId: string;
 
   @Expose()
-  groupId?: string;
+  group?: GroupInfoDTO;
 
   @Expose()
   @IsEnum(Emotion)

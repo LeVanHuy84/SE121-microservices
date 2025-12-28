@@ -1,22 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { ReactionType, ShareSnapshotDTO } from '@repo/dtos';
+import { GroupInfoDTO, ReactionType, ShareSnapshotDTO } from '@repo/dtos';
 import { Share } from 'src/entities/share.entity';
 
 @Injectable()
 export class ShareShortenMapper {
   static toShareSnapshotDTOs(
     shares: Share[],
-    reactionMap?: Map<string, ReactionType | undefined>
+    reactionMap?: Map<string, ReactionType | undefined>,
+    groupMap?: Map<string, GroupInfoDTO>
   ): ShareSnapshotDTO[] {
     return shares.map((share) => {
       const reactedType = reactionMap?.get(share.id);
-      return this.toShareSnapshotDTO(share, reactedType);
+      const group = groupMap?.get(share.post.groupId);
+      return this.toShareSnapshotDTO(share, reactedType, group);
     });
   }
 
   static toShareSnapshotDTO(
     share: Share,
-    reactedType?: ReactionType
+    reactedType?: ReactionType,
+    group?: GroupInfoDTO
   ): ShareSnapshotDTO {
     return {
       shareId: share.id,
@@ -27,7 +30,7 @@ export class ShareShortenMapper {
         postId: share.post.id,
         userId: share.post.userId,
         audience: share.post.audience,
-        groupId: share.post.groupId,
+        group: group,
         content: share.post.content,
         mediaPreviews: share.post.media?.slice(0, 5),
         mediaRemaining: Math.max(0, (share.post.media?.length ?? 0) - 5),

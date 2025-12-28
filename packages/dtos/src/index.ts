@@ -14,16 +14,13 @@ export * from './social';
 export * from './user';
 
 // Notification
-export * from './notification/create-noti.dto';
-export * from './notification/get-noti.dto';
+export * from './notification';
 
 // Group DTOs
 export * from './group';
 
 // Search DTOs
 export * from './search';
-
-export * from './notification/enums/channel-notication.enum';
 
 // Chat
 export * from './chat';

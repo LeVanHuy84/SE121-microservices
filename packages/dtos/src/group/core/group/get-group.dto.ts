@@ -1,5 +1,21 @@
-import { Expose } from 'class-transformer';
-import { GroupPrivacy, GroupRole, GroupStatus } from '../../enums';
+import { Expose, Type } from 'class-transformer';
+import {
+  GroupPrivacy,
+  GroupRole,
+  GroupStatus,
+  MembershipStatus,
+} from '../../enums';
+
+class GroupSettingEmbbedDTO {
+  @Expose()
+  requiredPostApproval: boolean;
+
+  @Expose()
+  maxMembers: number;
+
+  @Expose()
+  allowMemberInvite: boolean;
+}
 
 export class GroupResponseDTO {
   @Expose()
@@ -22,6 +38,10 @@ export class GroupResponseDTO {
   status: GroupStatus;
   @Expose()
   createdAt: Date;
+  @Expose()
+  @Type(() => GroupSettingEmbbedDTO)
+  groupSetting?: GroupSettingEmbbedDTO;
 
   userRole?: GroupRole;
+  membershipStatus?: MembershipStatus;
 }

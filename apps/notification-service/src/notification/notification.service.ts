@@ -24,6 +24,7 @@ export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
   private readonly defaultMaxRetries = 3;
   private readonly NOTIF_CACHE_TTL = 2 * 60 * 60;
+  private readonly EMPTY_CACHE_TTL = 60;
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<Notification>,
@@ -138,6 +139,10 @@ export class NotificationService {
   }
 
   async publishToChannels(doc: NotificationDocument) {
+    if (!doc.channels?.length) {
+      this.logger.warn(`Notification ${doc._id} has no channels to publish`);
+      return;
+    }
     const basePayload = plainToInstance(
       NotificationResponseDto,
       doc.toObject(),
@@ -147,29 +152,30 @@ export class NotificationService {
     // ensure maxRetries in meta
     const maxRetries = doc.meta?.maxRetries ?? this.defaultMaxRetries;
 
-    for (const ch of doc.channels) {
-      const routingKey = `channel.${ch}`; // e.g. channel.inapp, channel.email
-      const headers = {
-        'x-request-id': doc.requestId || (doc._id as Types.ObjectId).toString(),
-        'x-retries': 0,
-        'x-max-retries':
-          doc.meta?.maxRetries === 0
-            ? maxRetries
-            : doc.meta?.maxRetries || maxRetries,
-      };
-      await this.rabbitChannel.publish(
-        'notification', // đổi từ notification_exchange thành 'notification'
-        routingKey,
-        basePayload,
-        {
-          persistent: true,
-          contentType: 'application/json',
-          headers,
-        }
-      );
-      this.logger.log(`Published notification ${doc._id} -> ${routingKey}`);
-    }
+    await Promise.all(
+      doc.channels.map((ch) => {
+        const routingKey = `channel.${ch}`; // e.g. channel.inapp, channel.email
+        const headers = {
+          'x-request-id':
+            doc.requestId || (doc._id as Types.ObjectId).toString(),
+          'x-retries': 0,
+          'x-max-retries': maxRetries,
+        };
+        return this.rabbitChannel.publish(
+          'notification', // change from notification_exchange to 'notification'
+          routingKey,
+          basePayload,
+          {
+            persistent: true,
+            contentType: 'application/json',
+            headers,
+          }
+        );
+      })
+    );
+    this.logger.log(`Published notification ${doc._id} -> ${doc.channels}`);
   }
+
   async findById(id: string) {
     const doc = await this.notificationModel.findById(id).lean();
     return plainToInstance(NotificationResponseDto, doc, {});
@@ -180,9 +186,7 @@ export class NotificationService {
     userId: string,
     query: CursorPaginationDTO
   ): Promise<CursorPageResponse<NotificationResponseDto>> {
-    const key = `user:${userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
+    const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
     const limit = query.limit;
 
     // Check sentinel key
@@ -196,35 +200,68 @@ export class NotificationService {
     if (query.cursor) maxScore = `(${query.cursor}`;
 
     // Lấy member từ ZSET
-    const ids = await this.redis.zrevrangebyscore(
-      key,
-      maxScore,
-      '-inf',
-      'LIMIT',
-      0,
-      limit + 1
-    );
+    try {
+      const ids = await this.redis.zrevrangebyscore(
+        key,
+        maxScore,
+        '-inf',
+        'LIMIT',
+        0,
+        limit + 1
+      );
 
-    if (ids.length > 0) {
-      const hasNext = ids.length > limit;
-      const selectedIds = ids.slice(0, limit);
+      if (ids.length > 0) {
+        const hasNext = ids.length > limit;
+        const selectedIds = ids.slice(0, limit);
 
-      // Lấy dữ liệu JSON từ hash
-      const cached = await this.redis.hmget(dataKey, ...selectedIds);
-      const items = cached
-        .filter((c): c is string => c !== null)
-        .map((c) => JSON.parse(c));
+        // L?y d? li?u JSON t? hash
+        const cached = await this.redis.hmget(dataKey, ...selectedIds);
+        const cachedItems = cached
+          .filter((c): c is string => c !== null)
+          .map((c) => JSON.parse(c));
 
-      const lastItem = items.length > 0 ? items[items.length - 1] : null;
-      const nextCursor =
-        hasNext && lastItem?.createdAt
-          ? new Date(lastItem.createdAt).getTime().toString()
-          : null;
+        const itemMap = new Map<string, any>();
+        for (const item of cachedItems) {
+          const id = item?._id?.toString() ?? item?.id;
+          if (id) itemMap.set(id, item);
+        }
 
-      return new CursorPageResponse(
-        plainToInstance(NotificationResponseDto, items),
-        nextCursor,
-        hasNext
+        const missingIds = selectedIds.filter((id) => !itemMap.has(id));
+        const items = selectedIds
+          .map((id) => itemMap.get(id))
+          .filter(Boolean);
+
+        const lastItem = items.length > 0 ? items[items.length - 1] : null;
+        const nextCursor =
+          hasNext && lastItem?.createdAt
+            ? new Date(lastItem.createdAt).getTime().toString()
+            : null;
+
+        if (missingIds.length > 0) {
+          if (items.length > 0) {
+            this.refreshNotificationsCache(userId, query.cursor ?? null, limit)
+              .catch((err) =>
+                this.logger.warn(
+                  `Failed to refresh notifications cache for userId=${userId}: ${err.message}`
+                )
+              );
+            return new CursorPageResponse(
+              plainToInstance(NotificationResponseDto, items),
+              nextCursor,
+              hasNext
+            );
+          }
+        } else {
+          return new CursorPageResponse(
+            plainToInstance(NotificationResponseDto, items),
+            nextCursor,
+            hasNext
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Notification cache read failed for userId=${userId}: ${err.message}`
       );
     }
 
@@ -258,7 +295,7 @@ export class NotificationService {
     }
 
     // DB rỗng → set sentinel key
-    await this.redis.set(emptyKey, '1', 'EX', 60);
+    await this.redis.set(emptyKey, '1', 'EX', this.EMPTY_CACHE_TTL);
     return new CursorPageResponse([], null, false);
   }
 
@@ -286,85 +323,68 @@ export class NotificationService {
   async removeById(id: string) {
     const doc = await this.notificationModel.findByIdAndDelete(id);
     if (!doc) return;
-    const key = `user:${doc.userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
-
-    await this.redis
-      .pipeline()
-      .zrem(key, id)
-      .hdel(dataKey, id)
-      .del(emptyKey)
-      .exec();
+    const { key, dataKey, emptyKey } = this.getCacheKeys(doc.userId);
+    const multi = this.redis.multi();
+    multi.zrem(key, id);
+    multi.hdel(dataKey, id);
+    multi.del(emptyKey);
+    await multi.exec();
   }
 
   async removeAll(userId: string) {
     await this.notificationModel.deleteMany({ userId });
-    const key = `user:${userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
-    await this.redis.del(key, dataKey, emptyKey);
+    const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
+    const multi = this.redis.multi();
+    multi.del(key, dataKey, emptyKey);
+    await multi.exec();
   }
 
   // ==================== Cache helpers ====================
   private async cacheNotifications(userId: string, items: any[]) {
-    const key = `user:${userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
-    const pipeline = this.redis.pipeline();
+    const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
+    const multi = this.redis.multi();
+    const ttlSeconds = this.cacheTtlSeconds();
 
     for (const item of items) {
       const member = item._id.toString();
       const score = item.createdAt
         ? new Date(item.createdAt).getTime()
         : Date.now();
-      pipeline.zadd(key, score, member);
-      pipeline.hset(dataKey, member, JSON.stringify(item));
+      multi.zadd(key, score, member);
+      multi.hset(dataKey, member, JSON.stringify(item));
     }
 
-    pipeline.zremrangebyrank(key, 0, -101);
-    pipeline.expire(
-      key,
-      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-    );
-    pipeline.expire(
-      dataKey,
-      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-    );
-    pipeline.del(emptyKey);
-
-    await pipeline.exec();
+    multi.zremrangebyrank(key, 0, -101);
+    multi.expire(key, ttlSeconds);
+    multi.expire(dataKey, ttlSeconds);
+    multi.del(emptyKey);
+    await multi.exec();
   }
 
   private async updateNotificationCache(doc: NotificationDocument) {
-    const key = `user:${doc.userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
+    const { key, dataKey, emptyKey } = this.getCacheKeys(doc.userId);
     const member = (doc._id as unknown as ObjectId).toString();
     const score = (doc as any).createdAt
       ? new Date((doc as any).createdAt).getTime()
       : Date.now();
+    const ttlSeconds = this.cacheTtlSeconds();
 
-    const pipeline = this.redis.pipeline();
-    pipeline.del(emptyKey);
-    pipeline.zadd(key, score, member);
-    pipeline.hset(dataKey, member, JSON.stringify(doc.toObject()));
-    pipeline.zremrangebyrank(key, 0, -101);
-    pipeline.expire(
-      key,
-      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-    );
-    pipeline.expire(
-      dataKey,
-      this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-    );
-    await pipeline.exec();
+    const multi = this.redis.multi();
+    multi.del(emptyKey);
+    multi.zadd(key, score, member);
+    multi.hset(dataKey, member, JSON.stringify(doc.toObject()));
+    multi.zremrangebyrank(key, 0, -101);
+    multi.expire(key, ttlSeconds);
+    multi.expire(dataKey, ttlSeconds);
+    await multi.exec();
   }
 
   private async refreshUserCache(userId: string) {
-    const key = `user:${userId}:notifications`;
-    const dataKey = `${key}:data`;
-    const emptyKey = `${key}:empty`;
+    const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
+    const ttlSeconds = this.cacheTtlSeconds();
+    const suffix = Date.now().toString();
+    const tempKey = `${key}:tmp:${suffix}`;
+    const tempDataKey = `${dataKey}:tmp:${suffix}`;
 
     const items = await this.notificationModel
       .find({ userId })
@@ -372,31 +392,69 @@ export class NotificationService {
       .limit(100)
       .lean();
 
-    const pipeline = this.redis.pipeline();
-    pipeline.del(key, dataKey, emptyKey);
-
+    const multi = this.redis.multi();
     if (items.length > 0) {
       for (const item of items) {
         const member = item._id.toString();
         const score = (item as any).createdAt
           ? new Date((item as any).createdAt).getTime()
           : Date.now();
-        pipeline.zadd(key, score, member);
-        pipeline.hset(dataKey, member, JSON.stringify(item));
+        multi.zadd(tempKey, score, member);
+        multi.hset(tempDataKey, member, JSON.stringify(item));
       }
-      pipeline.zremrangebyrank(key, 0, -101);
-      pipeline.expire(
-        key,
-        this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-      );
-      pipeline.expire(
-        dataKey,
-        this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300)
-      );
+      multi.zremrangebyrank(tempKey, 0, -101);
+      multi.expire(tempKey, ttlSeconds);
+      multi.expire(tempDataKey, ttlSeconds);
+      multi.rename(tempKey, key);
+      multi.rename(tempDataKey, dataKey);
+      multi.del(emptyKey);
     } else {
-      pipeline.set(emptyKey, '1', 'EX', 60);
+      multi.del(key, dataKey);
+      multi.set(emptyKey, '1', 'EX', this.EMPTY_CACHE_TTL);
     }
 
-    await pipeline.exec();
+    await multi.exec();
+  }
+
+  private async refreshNotificationsCache(
+    userId: string,
+    cursor: string | null,
+    limit: number
+  ): Promise<void> {
+    const scoreFilter = cursor ? { $lt: new Date(parseInt(cursor)) } : {};
+
+    const dbItems = await this.notificationModel
+      .find({ userId, ...(cursor ? { createdAt: scoreFilter } : {}) })
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    if (!dbItems.length) return;
+    await this.cacheNotifications(userId, dbItems);
+  }
+
+  private getCacheKeys(userId: string) {
+    const key = `user:${userId}:notifications`;
+    return {
+      key,
+      dataKey: `${key}:data`,
+      emptyKey: `${key}:empty`,
+    };
+  }
+
+  private cacheTtlSeconds() {
+    return this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300);
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+

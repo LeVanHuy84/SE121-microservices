@@ -7,3 +7,4 @@ export * from './group-privacy.enum';
 export * from './group-status.enum';
 export * from './group-permission.enum';
 export * from './group-notification-type.enum';
+export * from './membership-status.enum';

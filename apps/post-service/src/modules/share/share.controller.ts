@@ -40,7 +40,7 @@ export class ShareController {
   async getMyPosts(
     @Payload() payload: { currentUserId: string; query: CursorPaginationDTO }
   ) {
-    return this.queryService.getMyPosts(payload.currentUserId, payload.query);
+    return this.queryService.getMyShares(payload.currentUserId, payload.query);
   }
 
   @MessagePattern('find_shares_by_user_id')

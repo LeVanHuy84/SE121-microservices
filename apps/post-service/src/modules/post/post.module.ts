@@ -18,6 +18,7 @@ import { PostGroupController } from './controller/post-group.controller';
 import { PostGroupService } from './service/post-group.service';
 import { PostGroupInfo } from 'src/entities/post-group-info.entity';
 import { OutboxService } from '../event/outbox.service';
+import { GroupClientModule } from '../client/group/group-client.module';
 
 @Module({
   imports: [
@@ -31,20 +32,8 @@ import { OutboxService } from '../event/outbox.service';
       OutboxEvent,
       PostGroupInfo,
     ]),
-    ClientsModule.registerAsync([
-      {
-        name: 'GROUP_SERVICE',
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('GROUP_SERVICE_PORT'),
-          },
-        }),
-      },
-    ]),
     SocialClientModule,
+    GroupClientModule,
   ],
   controllers: [PostController, PostGroupController],
   providers: [
@@ -54,5 +43,6 @@ import { OutboxService } from '../event/outbox.service';
     PostGroupService,
     OutboxService,
   ],
+  exports: [PostCacheService],
 })
 export class PostModule {}

@@ -9,6 +9,8 @@ import {
   MediaEventPayloads,
   MediaEventType,
   MediaType,
+  NotiOutboxPayload,
+  NotiTargetType,
   RootType,
   StatsEventType,
   TargetType,
@@ -55,6 +57,33 @@ export class CommentService {
       });
 
       const entity = await manager.save(comment);
+
+      const mediaPayload:
+        | MediaEventPayloads[MediaEventType.CONTENT_ID_ASSIGNED]
+        | null =
+        comment.media && comment.media.publicId
+          ? {
+              contentId: entity.id,
+              items: [
+                {
+                  publicId: comment.media.publicId,
+                  type:
+                    comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+                  url: comment.media.url,
+                },
+              ],
+            }
+          : null;
+
+      if (mediaPayload) {
+        const mediaOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.MEDIA,
+          destination: EventDestination.KAFKA,
+          eventType: MediaEventType.CONTENT_ID_ASSIGNED,
+          payload: mediaPayload,
+        });
+        await manager.save(mediaOutbox);
+      }
 
       // ✅ 2. Cập nhật thống kê comment gốc (Post/Share + parent)
       const updateStatsPromise = this.updateStatsForComment(
@@ -336,24 +365,23 @@ export class CommentService {
 
     if (!parentComment?.userId) throw new Error('Parent comment not found');
 
+    const notiPayload: NotiOutboxPayload = {
+      targetId: entity.rootId,
+      targetType:
+        entity.rootType === RootType.POST
+          ? NotiTargetType.POST
+          : NotiTargetType.SHARE,
+      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorAvatar: actor?.avatarUrl,
+      content: entity.content.slice(0, 100),
+      receivers: [parentComment.userId],
+    };
+
     const outbox = manager.create(OutboxEvent, {
       topic: 'notification',
       eventType: 'reply_comment',
       destination: EventDestination.RABBITMQ,
-      payload: {
-        userId: parentComment.userId,
-        actorId: actor?.id,
-        actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
-        actorAvatar: actor?.avatarUrl,
-        targetType:
-          entity.rootType === RootType.POST
-            ? TargetType.POST
-            : TargetType.SHARE,
-        targetId: entity.rootId,
-        commentText: entity.content.slice(0, 100),
-        commentId: entity.id,
-        parentId,
-      },
+      payload: notiPayload,
     });
 
     return manager.save(outbox);

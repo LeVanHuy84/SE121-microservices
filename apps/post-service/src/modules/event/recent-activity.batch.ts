@@ -3,7 +3,12 @@ import { Cron } from '@nestjs/schedule';
 import { RecentActivityBufferService } from './recent-activity.buffer.service';
 import { UserClientService } from '../client/user/user-client.service';
 import { DataSource } from 'typeorm';
-import { CreateNotificationDto, TargetType } from '@repo/dtos';
+import {
+  CreateNotificationDto,
+  NotificationPayload,
+  NotiTargetType,
+  TargetType,
+} from '@repo/dtos';
 import { Post } from 'src/entities/post.entity';
 import { Share } from 'src/entities/share.entity';
 import pLimit from 'p-limit';
@@ -55,20 +60,23 @@ export class RecentActivityBatch {
           }
           if (!target) return;
 
+          const notiPayload: NotificationPayload = {
+            targetId,
+            targetType:
+              targetType === TargetType.POST
+                ? NotiTargetType.POST
+                : NotiTargetType.SHARE,
+            actorName:
+              `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
+            actorAvatar: actor.avatarUrl,
+            content: target.content?.slice(0, 50) ?? '',
+          };
+
           const createNotificationDto: CreateNotificationDto = {
             requestId: idempotentKey,
             userId: target.userId,
             type,
-            payload: {
-              userId: target.userId,
-              actorId: actor.id,
-              actorName:
-                `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
-              actorAvatar: actor.avatarUrl,
-              targetType,
-              targetId,
-              content: target.content?.slice(0, 100) ?? '',
-            },
+            payload: notiPayload,
             sendAt: new Date(),
             meta: {
               priority: 1,
