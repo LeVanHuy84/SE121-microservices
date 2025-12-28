@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CreateNotificationDto } from '@repo/dtos';
+import { CreateNotificationDto, NotificationPayload } from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
 
 export type NotificationSample = {
   id: string;
   eventType: string;
-  payload: any;
+  payload: NotificationPayload;
 };
 
 @Injectable()
