@@ -21,6 +21,7 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     GroupPermission.VIEW_SETTINGS,
     GroupPermission.VIEW_REPORTS,
     GroupPermission.MANAGE_EVENTS,
+    GroupPermission.INVITE_MEMBERS,
   ],
   [GroupRole.ADMIN]: [
     GroupPermission.MANAGE_GROUP,
@@ -34,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     GroupPermission.UPDATE_GROUP_SETTINGS,
     GroupPermission.MANAGE_JOIN_REQUESTS,
     GroupPermission.MANAGE_EVENTS,
+    GroupPermission.INVITE_MEMBERS,
   ],
   [GroupRole.MODERATOR]: [
     GroupPermission.MANAGE_MEMBERS,
@@ -44,6 +46,16 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     GroupPermission.VIEW_SETTINGS,
     GroupPermission.VIEW_REPORTS,
     GroupPermission.MANAGE_EVENTS,
+    GroupPermission.INVITE_MEMBERS,
   ],
   [GroupRole.MEMBER]: [],
 };
+
+export function hasPermission(
+  role: GroupRole,
+  customPermissions: GroupPermission[] | null | undefined,
+  permission: GroupPermission,
+): boolean {
+  if (ROLE_PERMISSIONS[role]?.includes(permission)) return true;
+  return customPermissions?.includes(permission) ?? false;
+}

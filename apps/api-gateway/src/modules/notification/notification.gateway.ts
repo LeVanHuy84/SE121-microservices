@@ -42,7 +42,7 @@ export class NotificationGateway
         if (!msg) return;
         try {
           const payload = JSON.parse(msg.content.toString());
-          this.logger.log('Log payload', payload);
+          // this.logger.log('Log payload', payload);
           this.server
             .to(`user-notif:${payload.userId}`)
             .emit('notification', payload);

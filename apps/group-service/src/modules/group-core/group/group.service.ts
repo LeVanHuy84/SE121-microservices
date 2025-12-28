@@ -18,11 +18,12 @@ import {
   GroupRole,
   GroupStatus,
   InferGroupPayload,
+  MembershipStatus,
   PostPermissionDTO,
   UpdateGroupDTO,
 } from '@repo/dtos';
 
-import { plainToInstance } from 'class-transformer';
+import { instanceToPlain, plainToInstance } from 'class-transformer';
 import { Group } from 'src/entities/group.entity';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { GroupSetting } from 'src/entities/group-setting.entity';
@@ -32,6 +33,7 @@ import { GroupLogService } from 'src/modules/group-log/group-log.service';
 import { SocialClientService } from 'src/modules/client/social/social-client.service';
 import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
 import { UserClientService } from 'src/modules/client/user/user-client.service';
+import { formatValue, GROUP_FIELD_LABELS } from 'src/common/constant/constant';
 
 @Injectable()
 export class GroupService {
@@ -65,7 +67,10 @@ export class GroupService {
     let entity = await this.groupCacheService.get(groupId);
     if (!entity) {
       // Load from DB
-      entity = await this.groupRepo.findOne({ where: { id: groupId } });
+      entity = await this.groupRepo.findOne({
+        where: { id: groupId },
+        relations: ['groupSetting'],
+      });
       if (!entity) {
         await this.groupCacheService.setNotFound(groupId).catch(() => void 0);
         throw new RpcException({
@@ -78,17 +83,19 @@ export class GroupService {
     }
 
     // Chuyển entity sang DTO
-    const dto = plainToInstance(GroupResponseDTO, entity, {
+    const plain = instanceToPlain(entity);
+    const dto = plainToInstance(GroupResponseDTO, plain, {
       excludeExtraneousValues: true,
     });
 
     // Chỉ query member nếu userId được cung cấp
     if (userId) {
-      const member = await this.groupMemberRepo.findOne({
-        where: { userId, groupId },
-        select: ['role'],
-      });
-      dto.userRole = member?.role;
+      const { membershipStatus, role } = await this.checkMembershipStatus(
+        userId,
+        groupId,
+      );
+      dto.membershipStatus = membershipStatus;
+      dto.userRole = role || undefined;
     }
 
     return dto;
@@ -266,27 +273,42 @@ export class GroupService {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Group);
       const group = await repo.findOne({ where: { id: groupId } });
-      if (!group)
+
+      if (!group) {
         throw new RpcException({
           statusCode: 404,
           message: 'Group not found',
         });
+      }
 
+      // 🔹 Build diff BEFORE update
+      const changes = Object.entries(dto)
+        .filter(([key, value]) => group[key] !== value)
+        .map(([key, value]) => ({
+          field: GROUP_FIELD_LABELS[key] ?? key,
+          from: formatValue(group[key]),
+          to: formatValue(value),
+        }));
+
+      // Update
       Object.assign(group, dto);
       group.updatedBy = userId;
 
       const updated = await repo.save(group);
 
-      // Log with manager
-      await this.groupLogService.log(manager, {
-        groupId: updated.id,
-        userId,
-        eventType: GroupEventLog.GROUP_UPDATED,
-        content: `Group updated: ${Object.entries(dto)
-          .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-          .join(', ')}`,
-      });
+      // 🔹 Log only when something actually changed
+      if (changes.length > 0) {
+        await this.groupLogService.log(manager, {
+          groupId: updated.id,
+          userId,
+          eventType: GroupEventLog.GROUP_UPDATED,
+          content: `Cập nhật thông tin nhóm:\n${changes
+            .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
+            .join('\n')}`,
+        });
+      }
 
+      // Outbox event
       const payload: InferGroupPayload<GroupEventType.UPDATED> = {
         groupId: updated.id,
         name: updated.name,
@@ -295,6 +317,7 @@ export class GroupService {
         privacy: updated.privacy,
         members: updated.members,
       };
+
       await this.createOutboxEvent(manager, GroupEventType.UPDATED, {
         data: payload,
       });
@@ -429,5 +452,45 @@ export class GroupService {
 
     const dtos = data.map((g) => plainToInstance(GroupResponseDTO, g));
     return new CursorPageResponse(dtos, nextCursor, hasNext);
+  }
+
+  private async checkMembershipStatus(
+    userId: string,
+    groupId: string,
+  ): Promise<{ membershipStatus: MembershipStatus; role: GroupRole | null }> {
+    const member = await this.groupMemberRepo.findOne({
+      where: { userId, groupId },
+      select: ['role'],
+    });
+
+    if (member) {
+      if (member.status === GroupMemberStatus.BANNED)
+        return { membershipStatus: MembershipStatus.BANNED, role: null };
+      if (member.status === GroupMemberStatus.ACTIVE)
+        return { membershipStatus: MembershipStatus.MEMBER, role: member.role };
+    }
+
+    const joinRequest = await this.dataSource
+      .getRepository('GroupJoinRequest')
+      .findOne({
+        where: { userId, groupId, status: 'PENDING' },
+      });
+
+    if (joinRequest)
+      return {
+        membershipStatus: MembershipStatus.PENDING_APPROVAL,
+        role: null,
+      };
+
+    const invite = await this.dataSource.getRepository('GroupInvite').findOne({
+      where: { inviteeId: userId, groupId, status: 'PENDING' },
+    });
+    if (invite)
+      return {
+        membershipStatus: MembershipStatus.INVITED,
+        role: null,
+      };
+
+    return { membershipStatus: MembershipStatus.NONE, role: null };
   }
 }

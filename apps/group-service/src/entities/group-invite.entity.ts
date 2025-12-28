@@ -1,17 +1,14 @@
 import { InviteStatus } from '@repo/dtos';
-import { Column, Entity, ManyToOne } from 'typeorm';
-import { AuditableEntity } from './auditable.entity';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { Group } from './group.entity';
+import { BaseEntity } from './base.entity';
 
 @Entity('group_invites')
-export class GroupInvite extends AuditableEntity {
-  @Column({ type: 'varchar', name: 'user_id', nullable: false })
-  userId: string;
+export class GroupInvite extends BaseEntity {
+  @Column({ type: 'varchar', name: 'last_inviter_id', nullable: false })
+  lastInviterId: string;
 
-  @Column({ type: 'varchar', name: 'inviter_id', nullable: false })
-  inviterId: string;
-
-  @Column({ type: 'varchar', name: 'invitee_id ', nullable: false })
+  @Column({ type: 'varchar', name: 'invitee_id', nullable: false })
   inviteeId: string;
 
   @Column({
@@ -29,8 +26,12 @@ export class GroupInvite extends AuditableEntity {
   })
   expiredAt: Date;
 
+  @Column({ type: 'uuid', name: 'group_id', nullable: false })
+  groupId: string;
+
   @ManyToOne(() => Group, (group) => group.groupInvites, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'group_id' })
   group: Group;
 }

@@ -126,7 +126,7 @@ export class OutboxProcessor {
   private async toNotificationDtos(
     outbox: OutboxEvent,
   ): Promise<CreateNotificationDto[]> {
-    const group = await this.groupService.findById(outbox.payload.groupId);
+    const group = await this.groupService.findById(outbox.payload.targetId);
     const outboxPayload = outbox.payload as NotiOutboxPayload;
 
     const receivers = outboxPayload.receivers;
