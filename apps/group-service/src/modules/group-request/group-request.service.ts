@@ -23,6 +23,7 @@ import { GroupInvite } from 'src/entities/group-invite.entity';
 
 import { GroupLogService } from '../group-log/group-log.service';
 import { GroupBufferService } from '../batch/buffer.service';
+import { UserClientService } from '../client/user/user-client.service';
 
 @Injectable()
 export class GroupJoinRequestService {
@@ -30,6 +31,7 @@ export class GroupJoinRequestService {
     private readonly dataSource: DataSource,
     private readonly groupLogService: GroupLogService,
     private readonly groupBufferService: GroupBufferService,
+    private readonly userClient: UserClientService,
   ) {}
 
   // ==================================================
@@ -121,11 +123,13 @@ export class GroupJoinRequestService {
       joinRequest.updatedBy = approverId;
       await manager.save(joinRequest);
 
-      await this.groupLogService.log(manager, {
+      const userName = await this.getUserName(joinRequest.userId);
+
+      await await this.groupLogService.log(manager, {
         groupId: group.id,
         userId: approverId,
         eventType: GroupEventLog.JOIN_REQUEST_APPROVED,
-        content: `Yêu cầu ${joinRequest.id} được duyệt bởi ${approverId}`,
+        content: `Yêu cầu vào nhóm của ${userName} được duyệt`,
       });
 
       return true;
@@ -157,11 +161,13 @@ export class GroupJoinRequestService {
       joinRequest.updatedBy = approverId;
       await manager.save(joinRequest);
 
+      const userName = await this.getUserName(joinRequest.userId);
+
       await this.groupLogService.log(manager, {
         groupId: joinRequest.groupId,
         userId: approverId,
         eventType: GroupEventLog.JOIN_REQUEST_REJECTED,
-        content: `Yêu cầu ${joinRequest.id} bị từ chối`,
+        content: `Yêu cầu vào nhóm của ${userName} bị từ chối`,
       });
 
       return true;
@@ -334,5 +340,13 @@ export class GroupJoinRequestService {
         status: JoinRequestStatus.PENDING,
       }),
     );
+  }
+
+  private async getUserName(userId: string): Promise<string> {
+    const userInfo = await this.userClient.getUserInfo(userId);
+    const userName =
+      `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
+      'Người dùng';
+    return userName;
   }
 }

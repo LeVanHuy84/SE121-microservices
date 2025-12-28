@@ -82,7 +82,7 @@ export class ConsumerService {
           userId: payload.actorId ?? '',
           groupId: payload.groupId,
           eventType: GroupEventLog.POST_APPROVED,
-          content: `Bài viết ${payload.content.slice(0, 50)}... được duyệt bởi ${payload.actorId}`,
+          content: `Đã duyệt bài viết ${payload.content.slice(0, 50)}...`,
         });
 
         const notificationPayload: NotiOutboxPayload = {
@@ -109,7 +109,7 @@ export class ConsumerService {
           userId: payload.actorId ?? '',
           groupId: payload.groupId,
           eventType: GroupEventLog.POST_REJECTED,
-          content: `Bài viết ${payload.content.slice(0, 50)}... bị từ chối bởi ${payload.actorId}`,
+          content: `Đã từ chối bài viết ${payload.content.slice(0, 50)}...`,
         });
 
         const notificationPayload: NotiOutboxPayload = {
