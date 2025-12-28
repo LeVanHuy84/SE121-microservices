@@ -1,5 +1,6 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { GroupPrivacy } from '../../enums';
+import { MediaItemDTO } from '../../../common';
 
 export class UpdateGroupDTO {
   @IsString()
@@ -12,7 +13,11 @@ export class UpdateGroupDTO {
 
   @IsString()
   @IsOptional()
-  coverImage?: string;
+  avatar?: MediaItemDTO;
+
+  @IsString()
+  @IsOptional()
+  coverImage?: MediaItemDTO;
 
   @IsOptional()
   @IsEnum(GroupPrivacy)

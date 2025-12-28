@@ -6,21 +6,19 @@ import { validate as isUUID } from 'uuid';
 import {
   CursorPageResponse,
   CursorPaginationDTO,
-  GroupInfoDTO,
   GroupMemberStatus,
   GroupPrivacy,
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
   MembershipStatus,
-  PostPermissionDTO,
 } from '@repo/dtos';
-import { instanceToPlain, plainToInstance } from 'class-transformer';
 import { Group } from 'src/entities/group.entity';
 import { GroupMember } from 'src/entities/group-member.entity';
 import { GroupCacheService } from './group-cache.service';
 import { SocialClientService } from 'src/modules/client/social/social-client.service';
-import { ROLE_PERMISSIONS } from 'src/common/constant/role-permission.constant';
+import { GroupMapper } from 'src/common/mapper/group.mapper';
+import { GroupInvite } from 'src/entities/group-invite.entity';
 
 @Injectable()
 export class GroupQueryService {
@@ -47,7 +45,7 @@ export class GroupQueryService {
 
     // 1) Try cache entity
     let entity = await this.groupCacheService.get(groupId);
-    if (!entity) {
+    if (!entity || entity === 'NOT_FOUND') {
       // Load from DB
       entity = await this.groupRepo.findOne({
         where: { id: groupId },
@@ -65,10 +63,7 @@ export class GroupQueryService {
     }
 
     // Chuyển entity sang DTO
-    const plain = instanceToPlain(entity);
-    const dto = plainToInstance(GroupResponseDTO, plain, {
-      excludeExtraneousValues: true,
-    });
+    const dto = GroupMapper.toGroupResponseDTO(entity);
 
     // Chỉ query member nếu userId được cung cấp
     if (userId) {
@@ -182,88 +177,49 @@ export class GroupQueryService {
     return this.paginateGroups(qb, PAGE_LIMIT);
   }
 
-  async getGroupUserPermissions(
+  async getInvitedGroups(
     userId: string,
-    groupId: string,
-  ): Promise<PostPermissionDTO> {
-    const group = await this.groupRepo.findOne({
-      where: { id: groupId },
-      relations: ['groupSetting'],
-    });
-    if (!group)
-      throw new RpcException({
-        statusCode: 404,
-        message: 'Group not found',
-      });
+    query?: CursorPaginationDTO,
+  ): Promise<CursorPageResponse<GroupResponseDTO>> {
+    const PAGE_LIMIT = query?.limit || 10;
 
-    const member = await this.groupMemberRepo.findOneBy({ userId, groupId });
+    // =========================
+    // 1) Lấy danh sách groupId được invite
+    // =========================
+    const inviteRows = await this.dataSource
+      .getRepository(GroupInvite)
+      .createQueryBuilder('i')
+      .select('i.groupId', 'groupId')
+      .where('i.inviteeId = :userId', { userId })
+      .andWhere('i.status = :status', { status: 'PENDING' })
+      .andWhere('(i.expiredAt IS NULL OR i.expiredAt > now())')
+      .orderBy('i.createdAt', 'DESC')
+      .limit(500) // guard
+      .getRawMany();
 
-    const finalPermissions: PostPermissionDTO = {
-      isMember: !!member,
-      privacy: group.privacy,
-      requireApproval: group?.groupSetting?.requiredPostApproval ?? false,
-      role: member?.role ?? null,
-      permissions: [
-        ...ROLE_PERMISSIONS[member?.role ?? GroupRole.MEMBER],
-        ...(member?.customPermissions ?? []),
-      ],
-    };
+    const invitedGroupIds = inviteRows.map((r) => r.groupId).filter(Boolean);
 
-    return finalPermissions;
-  }
+    // =========================
+    // 2) Không có invite
+    // =========================
+    if (invitedGroupIds.length === 0) {
+      return new CursorPageResponse<GroupResponseDTO>([], null, false);
+    }
 
-  // Get Group Batch Info
-  async getGroupsBatchInfo(groupIds: string[]): Promise<GroupInfoDTO[]> {
-    if (!groupIds.length) return [];
+    // =========================
+    // 3) Build query groups
+    // =========================
+    const qb = this.buildGroupQuery({ groupIds: invitedGroupIds }, query);
 
-    const cached = await this.groupCacheService.getBatch(groupIds);
-    const missIds = groupIds.filter((id) => !cached.has(id));
-
-    const dbGroups = await this.getSummaryGroupsFromDB(missIds);
-
-    await this.groupCacheService.setBatch(dbGroups);
-
-    const foundIds = new Set(dbGroups.map((g) => g.id));
-    const notFoundIds = missIds.filter((id) => !foundIds.has(id));
-    await this.groupCacheService.setNotFoundBatch(notFoundIds);
-
-    // merge
-    const result: GroupInfoDTO[] = [];
-
-    dbGroups.forEach((g) => result.push(g));
-    cached.forEach((v) => {
-      if (v !== 'NOT_FOUND') {
-        result.push(v);
-      }
-    });
-
-    return result;
+    // =========================
+    // 4) Paginate + map DTO
+    // =========================
+    return this.paginateGroups(qb, PAGE_LIMIT);
   }
 
   // ==============================================
   // ---------- Private helpers -------------------
   // ==============================================
-  private async getSummaryGroupsFromDB(
-    groupIds: string[],
-  ): Promise<GroupInfoDTO[]> {
-    if (!groupIds.length) return [];
-
-    const groups = await this.groupRepo
-      .createQueryBuilder('g')
-      .select(['g.id', 'g.name', 'g.avatarUrl'])
-      .where('g.id IN (:...groupIds)', { groupIds })
-      .getMany();
-
-    return groups.map(
-      (g) =>
-        ({
-          id: g.id,
-          name: g.name,
-          avatarUrl: g.avatarUrl,
-        }) as GroupInfoDTO,
-    );
-  }
-
   private buildGroupQuery(
     filter: { userId?: string; groupIds?: string[] },
     query?: CursorPaginationDTO,
@@ -310,7 +266,7 @@ export class GroupQueryService {
     const data = rows.slice(0, limit);
     const nextCursor = hasNext ? data[data.length - 1][sortBy] : null;
 
-    const dtos = data.map((g) => plainToInstance(GroupResponseDTO, g));
+    const dtos = data.map((g) => GroupMapper.toGroupResponseDTO(g));
     return new CursorPageResponse(dtos, nextCursor, hasNext);
   }
 
@@ -320,7 +276,7 @@ export class GroupQueryService {
   ): Promise<{ membershipStatus: MembershipStatus; role: GroupRole | null }> {
     const member = await this.groupMemberRepo.findOne({
       where: { userId, groupId },
-      select: ['role'],
+      select: ['status', 'role'],
     });
 
     if (member) {

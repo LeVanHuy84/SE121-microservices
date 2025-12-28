@@ -368,7 +368,7 @@ export class ReportService {
         name: group.name,
         description: group.description,
         privacy: group.privacy,
-        avatarUrl: group.avatarUrl,
+        avatarUrl: group.avatar.url,
         members: group.members,
         createdAt: group.createdAt,
       };
@@ -439,8 +439,10 @@ export class ReportService {
       .getManyAndCount();
 
     return new PageResponse(
-      plainToInstance(AdminGroupDTO, data, {
-        excludeExtraneousValues: true,
+      data.map((g) => {
+        const dto = new AdminGroupDTO();
+        dto.id = g.id;
+        return dto;
       }),
       total,
       page,
