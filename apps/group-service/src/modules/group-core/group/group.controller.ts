@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { GroupService } from './group.service';
+import { GroupService } from './service/group.service';
 import {
   CreateGroupDTO,
   CursorPaginationDTO,
@@ -10,13 +10,15 @@ import {
 } from '@repo/dtos';
 import { RequireGroupPermission } from 'src/modules/group-authorization/require-group-permission.decorator';
 import { RequireGroupRole } from 'src/modules/group-authorization/require-group-role.decatator';
-import { GroupQueryService } from './group-query.service';
+import { GroupQueryService } from './service/group-query.service';
+import { GroupHelperService } from './service/group-helper.service';
 
 @Controller('group')
 export class GroupController {
   constructor(
     private readonly groupService: GroupService,
     private readonly groupQueryService: GroupQueryService,
+    private readonly groupHelperService: GroupHelperService,
   ) {}
 
   @MessagePattern('health_check')
@@ -41,6 +43,13 @@ export class GroupController {
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.recommendGroups(data.userId, data.query);
+  }
+
+  @MessagePattern('get_invited_groups')
+  async getInvitedGroups(
+    @Payload() data: { userId: string; query: CursorPaginationDTO },
+  ) {
+    return this.groupQueryService.getInvitedGroups(data.userId, data.query);
   }
 
   @MessagePattern('create_group')
@@ -77,7 +86,7 @@ export class GroupController {
   async getGroupUserPermissions(
     @Payload() data: { userId: string; groupId: string },
   ) {
-    return this.groupQueryService.getGroupUserPermissions(
+    return this.groupHelperService.getGroupUserPermissions(
       data.userId,
       data.groupId,
     );
@@ -85,6 +94,6 @@ export class GroupController {
 
   @MessagePattern('get_group_info_batch')
   async getGroupInfoBatch(@Payload() groupIds: string[]) {
-    return this.groupQueryService.getGroupsBatchInfo(groupIds);
+    return this.groupHelperService.getGroupsBatchInfo(groupIds);
   }
 }

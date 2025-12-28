@@ -19,6 +19,7 @@ import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Group } from 'src/entities/group.entity';
 import { plainToInstance } from 'class-transformer';
 import { GroupLogService } from '../group-log/group-log.service';
+import { UserClientService } from '../client/user/user-client.service';
 
 @Injectable()
 export class GroupMemberService {
@@ -27,6 +28,7 @@ export class GroupMemberService {
     private readonly repo: Repository<GroupMember>,
     private readonly dataSource: DataSource,
     private readonly groupLogService: GroupLogService,
+    private readonly userClient: UserClientService,
   ) {}
 
   async leaveGroup(userId: string, groupId: string) {
@@ -50,7 +52,7 @@ export class GroupMemberService {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_LEFT,
-        content: `Thành viên ${userId} rời khỏi nhóm`,
+        content: `Người dùng đã rời khỏi nhóm`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -107,11 +109,13 @@ export class GroupMemberService {
 
       await manager.delete(GroupMember, member.id);
 
+      const memberName = await this.getUserName(member.userId);
+
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_REMOVED,
-        content: `Thành viên ${memberId} bị xóa khỏi nhóm bởi ${userId}`,
+        content: `Thành viên ${memberName} bị xóa khỏi nhóm`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -170,11 +174,13 @@ export class GroupMemberService {
       member.status = GroupMemberStatus.BANNED;
       await manager.save(member);
 
+      const memberName = await this.getUserName(member.userId);
+
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_BANNED,
-        content: `Thành viên ${memberId} bị cấm khỏi nhóm bởi ${userId}`,
+        content: `Thành viên ${memberName} bị cấm khỏi nhóm`,
       });
 
       await this.updateMemberCount(manager, groupId, -1);
@@ -199,11 +205,13 @@ export class GroupMemberService {
         });
       }
       await manager.delete(GroupMember, member.id);
+
+      const memberName = await this.getUserName(member.userId);
       await this.groupLogService.log(manager, {
         groupId,
         userId,
         eventType: GroupEventLog.MEMBER_UNBANNED,
-        content: `Thành viên ${memberId} được bỏ cấm khỏi nhóm bởi ${userId}`,
+        content: `Người dùng ${memberName} được bỏ cấm khỏi nhóm`,
       });
       return true;
     });
@@ -254,11 +262,14 @@ export class GroupMemberService {
 
       member.role = newRole;
       await manager.save(member);
+
+      const memberName = await this.getUserName(member.userId);
+
       await this.groupLogService.log(manager, {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_ROLE_CHANGED,
-        content: `Vai trò của thành viên ${memberId} đã được thay đổi thành ${newRole}`,
+        content: `Vai trò của thành viên ${memberName} đã được thay đổi thành ${newRole}`,
       });
       await this.createOutboxEvent(
         manager,
@@ -295,11 +306,13 @@ export class GroupMemberService {
       member.customPermissions = permissions;
       await manager.save(member);
 
+      const memberName = await this.getUserName(member.userId);
+
       await this.groupLogService.log(manager, {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_PERMISSION_CHANGED,
-        content: `Quyền hạn của thành viên ${memberId} đã được thay đổi thành ${permissions.join(', ')}`,
+        content: `Quyền hạn của thành viên ${memberName} đã được thay đổi thành ${permissions.join(', ')}`,
       });
 
       await this.createOutboxEvent(
@@ -407,5 +420,13 @@ export class GroupMemberService {
       where: { groupId, userId },
       relations: ['group'],
     });
+  }
+
+  private async getUserName(userId: string): Promise<string> {
+    const userInfo = await this.userClient.getUserInfo(userId);
+    const userName =
+      `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
+      'Người dùng';
+    return userName;
   }
 }
