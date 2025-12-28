@@ -1,6 +1,6 @@
 // src/notification/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { ChannelNotification } from '@repo/dtos';
+import { ChannelNotification, NotificationPayload } from '@repo/dtos';
 import { Document } from 'mongoose';
 
 export type NotificationDocument = Notification & Document;
@@ -10,7 +10,7 @@ export class Notification {
   @Prop({ index: true, unique: false }) requestId?: string; // optional dedupe key
   @Prop({ required: true, index: true }) userId: string;
   @Prop({ required: true }) type: string;
-  @Prop({ type: Object, default: {} }) payload: any;
+  @Prop({ type: Object, default: {} }) payload: NotificationPayload;
   @Prop() message?: string;
   @Prop({ type: [String], default: ['web'] }) channels: string[];
   @Prop({ default: 'unread' }) status: 'unread' | 'read';

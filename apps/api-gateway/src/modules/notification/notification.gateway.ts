@@ -14,6 +14,7 @@ import type { ChannelWrapper } from 'amqp-connection-manager';
 import * as amqp from 'amqplib';
 import { firstValueFrom } from 'rxjs';
 import { Server, Socket } from 'socket.io';
+import { NotificationResponseDto } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
 @WebSocketGateway({
@@ -22,7 +23,7 @@ import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
     origin: '*', // hoặc domain frontend
     methods: ['GET', 'POST'],
   },
-  transport: ['websocket'],
+  transports: ['websocket'],
 })
 export class NotificationGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
@@ -38,10 +39,28 @@ export class NotificationGateway
     server.use(clerkWsMiddleware);
     this.logger.log('NotificationGateway initialized');
     this.rabbitChannel.addSetup(async (channel: amqp.Channel) => {
-      await channel.consume('notification_queue', async (msg) => {
+      await channel.prefetch(100);
+      const { queue } = await channel.assertQueue('', {
+        exclusive: true,
+        autoDelete: true,
+        durable: false,
+        arguments: {
+          'x-dead-letter-exchange': 'dlx',
+          'x-dead-letter-routing-key': 'notification_gateway',
+        },
+      });
+      await channel.bindQueue(queue, 'notification', 'channel.*');
+      await channel.consume(queue, async (msg) => {
         if (!msg) return;
         try {
-          const payload = JSON.parse(msg.content.toString());
+          const payload = JSON.parse(
+            msg.content.toString()
+          ) as NotificationResponseDto;
+          if (!payload?.userId) {
+            this.logger.warn('Notification payload missing userId', payload);
+            channel.ack(msg);
+            return;
+          }
           this.logger.log('Log payload', payload);
           this.server
             .to(`user-notif:${payload.userId}`)
@@ -50,7 +69,7 @@ export class NotificationGateway
           this.logger.log(`Sent notification to user ${payload.userId}`);
         } catch (err) {
           this.logger.error('Failed to process notification', err);
-          channel.nack(msg, false, true);
+          channel.nack(msg, false, false);
         }
       });
     });
@@ -69,7 +88,6 @@ export class NotificationGateway
     }
   }
   handleDisconnect(client: Socket) {
-    client.disconnect();
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
