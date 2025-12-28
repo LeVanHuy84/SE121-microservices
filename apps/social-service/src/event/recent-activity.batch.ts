@@ -9,6 +9,7 @@ import { RecentActivityBufferService } from './recent-activity.buffer.service';
 
 import pLimit from 'p-limit';
 import { UserClientService } from 'src/client/user/user-client.service';
+import { NotiTargetType } from '@repo/dtos';
 
 @Injectable()
 export class RecentActivityBatch {
@@ -46,11 +47,12 @@ export class RecentActivityBatch {
             id: randomUUID(),
             eventType: type,
             payload: {
-              actorId: actor.id,
+              targetType: NotiTargetType.FRIEND,
               actorName:
                 `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
               actorAvatar: actor.avatarUrl,
               targetId,
+              content: '',
             },
           };
 
