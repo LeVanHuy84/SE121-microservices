@@ -23,7 +23,7 @@ export class TemplateService {
       `${payload.actorName} đã chấp nhận lời mời kết bạn của bạn`,
 
     group_noti: (payload) =>
-      `Nhóm ${payload.groupName} có thông báo mới: ${payload.content || ''}`,
+      `Nhóm ${payload.actorName} có thông báo mới: ${payload.content || ''}`,
     group_invite: (payload) => payload.content,
     // 👉 sau này thêm type mới chỉ cần thêm key ở đây
   };
