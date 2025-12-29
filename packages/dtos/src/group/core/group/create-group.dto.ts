@@ -1,4 +1,10 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsDefined,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { GroupPrivacy } from '../../enums';
 import { MediaItemDTO } from '../../../common';
 import { Type } from 'class-transformer';
@@ -11,6 +17,7 @@ export class CreateGroupDTO {
   @IsString()
   description?: string;
 
+  @IsDefined()
   @Type(() => MediaItemDTO)
   avatar: MediaItemDTO;
 
