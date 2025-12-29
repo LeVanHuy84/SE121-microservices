@@ -161,7 +161,6 @@ export class EmotionService {
       headers: this.headers(),
     });
 
-    console.log(res.data);
     return res.data;
   }
 }

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsOptional,
   IsString,
@@ -43,6 +44,7 @@ export class AttachmentDTO {
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => AttachmentDTO)
+    @ArrayMaxSize(5)
     attachments?: AttachmentDTO[];
 
     @IsOptional()

@@ -1,9 +1,14 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
 import Redis from 'ioredis';
 import { MessageResponseDTO } from '@repo/dtos';
+import { Model } from 'mongoose';
+import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
+import { populateAndMapMessage } from 'src/utils/mapping';
 
 const TTL = 60 * 10; // 10 min
+const DETAIL_TTL = TTL + 600; // keep detail cache alive longer than list ZSET
 
 type CachedMessage = MessageResponseDTO & {
   createdAt: string | Date;
@@ -35,7 +40,11 @@ export class MessageCacheService {
     return 0
   `;
 
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    @InjectModel(Message.name)
+    private readonly messageModel: Model<MessageDocument>,
+  ) {}
 
   // ===== KEY HELPERS =====
 
@@ -64,14 +73,16 @@ export class MessageCacheService {
   async setMessageDetail(dto: MessageResponseDTO): Promise<void> {
     const { detailKey } = this.getMessageKeys(dto._id);
     const payload = JSON.stringify(dto);
-    const syncVersion = Number((dto as any).syncVersion ?? 0);
+    const createdAt = (dto as any).createdAt;
+    const inferredVersion = createdAt ? new Date(createdAt).getTime() : 0;
+    const syncVersion = Number((dto as any).syncVersion ?? inferredVersion ?? 0);
     await this.redis.eval(
       this.setIfNewerScript,
       1,
       detailKey,
       String(syncVersion),
       payload,
-      String(TTL),
+      String(DETAIL_TTL),
     );
   }
   async removeMessageDetail(messageId: string): Promise<void> {
@@ -162,24 +173,38 @@ export class MessageCacheService {
     const raw = await this.redis.mget(...detailKeys);
 
     const missingIds: string[] = [];
-    const items: CachedMessage[] = [];
+    const itemsById = new Map<string, CachedMessage>();
     raw.forEach((value, idx) => {
       if (!value) {
         missingIds.push(selected[idx]);
         return;
       }
-      items.push(JSON.parse(value));
+      itemsById.set(selected[idx], JSON.parse(value));
     });
 
     if (missingIds.length) {
-      if (!items.length) return null;
-      const last = items[items.length - 1];
-      const nextCursor =
-        hasNext && last?.createdAt
-          ? new Date(last.createdAt).getTime().toString()
-          : null;
-      return { items, hasNext, nextCursor, partial: true };
+      const docs = await this.messageModel
+        .find({ _id: { $in: missingIds }, conversationId })
+        .exec();
+
+      if (docs.length) {
+        const mapped = docs
+          .map((doc) => populateAndMapMessage(doc)!)
+          .filter(Boolean) as CachedMessage[];
+        await Promise.all(mapped.map((dto) => this.setMessageDetail(dto)));
+        mapped.forEach((dto) => itemsById.set(dto._id.toString(), dto));
+      }
+
+      const foundIds = new Set(Array.from(itemsById.keys()));
+      const notFound = missingIds.filter((id) => !foundIds.has(id));
+      if (notFound.length) {
+        await this.redis.zrem(zKey, ...notFound);
+      }
     }
+
+    const items = selected
+      .map((id) => itemsById.get(id))
+      .filter(Boolean) as CachedMessage[];
 
     if (!items.length) return null;
 
@@ -207,7 +232,7 @@ export class MessageCacheService {
     const p1 = this.redis.pipeline();
     for (const item of items) {
       const { detailKey } = this.getMessageKeys(item._id.toString());
-      p1.set(detailKey, JSON.stringify(item), 'EX', TTL);
+      p1.set(detailKey, JSON.stringify(item), 'EX', DETAIL_TTL);
     }
     await p1.exec();
 

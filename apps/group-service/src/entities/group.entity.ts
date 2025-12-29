@@ -22,10 +22,10 @@ export class Group extends AuditableEntity {
   @Column({ type: 'varchar', length: 1000, nullable: true })
   description: string;
 
-  @Column({ type: 'jsonb', name: 'avatar_url', nullable: true })
+  @Column({ type: 'jsonb', name: 'avatar', nullable: true })
   avatar: MediaItemDTO;
 
-  @Column({ type: 'jsonb', name: 'cover_image_url', nullable: true })
+  @Column({ type: 'jsonb', name: 'cover_image', nullable: true })
   coverImage: MediaItemDTO;
 
   @Column({ type: 'enum', enum: GroupPrivacy, default: GroupPrivacy.PUBLIC })

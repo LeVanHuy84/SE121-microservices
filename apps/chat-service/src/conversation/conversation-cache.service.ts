@@ -1,9 +1,18 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
 import Redis from 'ioredis';
 import { ConversationResponseDTO } from '@repo/dtos';
+import { Model } from 'mongoose';
+import {
+  Conversation,
+  ConversationDocument,
+} from 'src/mongo/schema/conversation.schema';
+import { MessageDocument } from 'src/mongo/schema/message.schema';
+import { populateAndMapConversation } from 'src/utils/mapping';
 
 const TTL = 60 * 15; // 15 min
+const DETAIL_TTL = TTL + 600; // keep detail cache alive longer than list ZSET
 
 // Dữ liệu conv cache trong Redis (detail)
 type CachedConversation = ConversationResponseDTO & {
@@ -38,7 +47,11 @@ export class ConversationCacheService {
     return 0
   `;
 
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    @InjectModel(Conversation.name)
+    private readonly conversationModel: Model<Conversation>,
+  ) {}
 
   // ===== KEY HELPERS =====
 
@@ -70,14 +83,16 @@ export class ConversationCacheService {
     const convId = dto._id.toString();
     const { detailKey } = this.getConvKeys(convId);
     const payload = JSON.stringify(dto);
-    const syncVersion = Number((dto as any).syncVersion ?? 0);
+    const updatedAt = (dto as any).updatedAt ?? (dto as any).createdAt;
+    const inferredVersion = updatedAt ? new Date(updatedAt).getTime() : 0;
+    const syncVersion = Number((dto as any).syncVersion ?? inferredVersion ?? 0);
     await this.redis.eval(
       this.setIfNewerScript,
       1,
       detailKey,
       String(syncVersion),
       payload,
-      String(TTL),
+      String(DETAIL_TTL),
     );
   }
 
@@ -179,24 +194,39 @@ export class ConversationCacheService {
     const raw = await this.redis.mget(...detailKeys);
 
     const missingIds: string[] = [];
-    const items: CachedConversation[] = [];
+    const itemsById = new Map<string, CachedConversation>();
     raw.forEach((value, idx) => {
       if (!value) {
         missingIds.push(selected[idx]);
         return;
       }
-      items.push(JSON.parse(value));
+      itemsById.set(selected[idx], JSON.parse(value));
     });
 
     if (missingIds.length) {
-      if (!items.length) return null;
-      const lastItem = items[items.length - 1];
-      const nextCursor =
-        hasNext && lastItem?.updatedAt
-          ? new Date(lastItem.updatedAt).getTime().toString()
-          : null;
-      return { items, hasNext, nextCursor, partial: true };
+      const docs = await this.conversationModel
+        .find({ _id: { $in: missingIds }, participants: userId })
+        .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+        .exec();
+
+      if (docs.length) {
+        const mapped = docs.map((doc) =>
+          populateAndMapConversation(doc),
+        ) as CachedConversation[];
+        await Promise.all(mapped.map((dto) => this.setConversationDetail(dto)));
+        mapped.forEach((dto) => itemsById.set(dto._id.toString(), dto));
+      }
+
+      const foundIds = new Set(Array.from(itemsById.keys()));
+      const notFound = missingIds.filter((id) => !foundIds.has(id));
+      if (notFound.length) {
+        await this.redis.zrem(zKey, ...notFound);
+      }
     }
+
+    const items = selected
+      .map((id) => itemsById.get(id))
+      .filter(Boolean) as CachedConversation[];
 
     if (!items.length) return null;
 

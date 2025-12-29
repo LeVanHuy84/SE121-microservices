@@ -47,7 +47,7 @@ export class RecentActivityBatch {
             id: randomUUID(),
             eventType: type,
             payload: {
-              targetType: NotiTargetType.FRIEND,
+              targetType: NotiTargetType.USER,
               actorName:
                 `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
               actorAvatar: actor.avatarUrl,
