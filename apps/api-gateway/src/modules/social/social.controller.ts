@@ -83,6 +83,14 @@ export class SocialController {
     return this.socialClient.send('get_friends', { userId, query });
   }
 
+  @Get('friends/suggest')
+  async recommendFriends(
+    @CurrentUserId() userId: string,
+    @Query() query: CursorPaginationDTO
+  ) {
+    return this.socialClient.send('suggest_friends', { userId, query });
+  }
+
   @Get('friends/:userId')
   async getUserFriends(
     @Param('userId') userId: string,
@@ -97,15 +105,6 @@ export class SocialController {
     @Query() query: CursorPaginationDTO
   ) {
     return this.socialClient.send('get_blocked_users', { userId, query });
-  }
-
-  @Get('friends/suggest')
-  async recommendFriends(
-    @CurrentUserId() userId: string,
-    @Body() query: CursorPaginationDTO
-  ) {
-    console.log('recommendFriends called with', userId, query);
-    return this.socialClient.send('suggest_friends', { userId, query });
   }
 
   @Post('block/:targetId')
