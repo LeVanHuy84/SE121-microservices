@@ -86,7 +86,7 @@ export class ConversationService {
   ): Promise<CursorPageResponse<ConversationResponseDTO>> {
     const limit = query.limit;
     // 1) Nếu đã có flag "empty" thì trả về luôn
-    if (await this.cache.hasEmptyFlag(userId)) {
+    if (!query.cursor && (await this.cache.hasEmptyFlag(userId))) {
       return new CursorPageResponse([], null, false);
     }
 
@@ -98,17 +98,6 @@ export class ConversationService {
     );
 
     if (page && page.items.length) {
-      if (page.partial) {
-        this.refreshConversationCache(
-          userId,
-          query.cursor ?? null,
-          limit,
-        ).catch((err) =>
-          this.logger.warn(
-            `Failed to refresh conversations cache for userId=${userId}: ${err.message}`,
-          ),
-        );
-      }
       return new CursorPageResponse(
         plainToInstance(ConversationResponseDTO, page.items, {
           excludeExtraneousValues: true,
@@ -234,10 +223,19 @@ export class ConversationService {
     await doc.save();
     const convDto = populateAndMapConversation(doc);
 
-    await Promise.all([
+    const createTasks: Promise<unknown>[] = [
       this.updateConversationCache(doc),
       this.chatStreamProducer.publishConversationCreated(convDto),
-    ]);
+    ];
+
+    if (dto.groupAvatar?.publicId) {
+      createTasks.push(
+        this.enqueueGroupAvatarAssign(convDto._id, dto.groupAvatar),
+      );
+    }
+
+    await Promise.all(createTasks);
+
     return convDto;
   }
 
@@ -260,6 +258,8 @@ export class ConversationService {
     if (!conv.admins?.includes(userId)) {
       throw new RpcException('You are not admin of this conversation');
     }
+
+    const previousGroupAvatar = conv.groupAvatar;
 
     if (dto.groupName !== undefined) conv.groupName = dto.groupName;
     if (dto.groupAvatar !== undefined) conv.groupAvatar = dto.groupAvatar;
@@ -320,6 +320,23 @@ export class ConversationService {
     const convDto = populateAndMapConversation(conv);
 
     // 🔥 event: conversation updated
+    const mediaTasks: Promise<unknown>[] = [];
+    if (dto.groupAvatar !== undefined) {
+      if (dto.groupAvatar?.publicId) {
+        mediaTasks.push(
+          this.enqueueGroupAvatarAssign(conversationId, dto.groupAvatar),
+        );
+      }
+
+      const prevPublicId = previousGroupAvatar?.publicId;
+      const nextPublicId = dto.groupAvatar?.publicId;
+      if (prevPublicId && prevPublicId !== nextPublicId) {
+        mediaTasks.push(
+          this.enqueueGroupAvatarDelete(conversationId, prevPublicId),
+        );
+      }
+    }
+
     await this.chatStreamProducer.publishConversationUpdated(convDto);
 
     // 🔥 event: memberJoined
@@ -341,6 +358,10 @@ export class ConversationService {
           this.cache.removeConversationFromUser(leftUserId, conversationId),
         ),
       ]);
+    }
+
+    if (mediaTasks.length) {
+      await Promise.all(mediaTasks);
     }
 
     return convDto;
@@ -649,6 +670,61 @@ export class ConversationService {
     }
   }
 
+  private async enqueueGroupAvatarAssign(
+    conversationId: string,
+    avatar: { publicId?: string; url?: string; mimeType?: string },
+  ) {
+    if (!avatar?.publicId) return;
+
+    const type =
+      avatar.mimeType && avatar.mimeType.startsWith('video/')
+        ? 'video'
+        : 'image';
+
+    await this.outboxService.enqueue(
+      EventTopic.MEDIA,
+      MediaEventType.CONTENT_ID_ASSIGNED,
+      {
+        contentId: conversationId,
+        items: [
+          {
+            publicId: avatar.publicId,
+            url: avatar.url,
+            type,
+          },
+        ],
+        source: 'chat-service',
+      },
+      conversationId,
+    );
+  }
+
+  private async enqueueGroupAvatarDelete(
+    conversationId: string,
+    publicId: string,
+    mimeType?: string,
+  ) {
+    const resourceType =
+      mimeType && mimeType.startsWith('video/') ? 'video' : 'image';
+
+    await this.outboxService.enqueue(
+      EventTopic.MEDIA,
+      MediaEventType.DELETE_REQUESTED,
+      {
+        items: [
+          {
+            publicId,
+            resourceType,
+          },
+        ],
+        source: 'chat-service',
+        reason: 'conversation.groupAvatar.updated',
+        conversationId,
+      },
+      conversationId,
+    );
+  }
+
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
 
   async updateConversationCache(
@@ -673,30 +749,5 @@ export class ConversationService {
     return dto;
   }
 
-  private async refreshConversationCache(
-    userId: string,
-    cursor: string | null,
-    limit: number,
-  ): Promise<void> {
-    const dbFilter = cursor
-      ? { updatedAt: { $lt: new Date(Number(cursor)) } }
-      : {};
-    const dbItems = await this.conversationModel
-      .find({ participants: userId, ...dbFilter })
-      .sort({ updatedAt: -1 })
-      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
-      .limit(limit + 1)
-      .exec();
-
-    if (!dbItems.length) return;
-
-    const mapped = await Promise.all(
-      dbItems.map((doc) => populateAndMapConversation(doc)),
-    );
-
-    await Promise.all([
-      ...mapped.map((dto) => this.cache.setConversationDetail(dto)),
-      this.cache.cacheConversationsForUsers(userId, mapped),
-    ]);
-  }
 }
+
