@@ -3,7 +3,6 @@ export enum NotiTargetType {
   SHARE = 'SHARE',
   GROUP = 'GROUP',
   USER = 'USER',
-  FRIEND = 'FRIEND',
   // bổ sung thêm
 }
 

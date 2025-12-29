@@ -86,7 +86,7 @@ export class ConversationService {
   ): Promise<CursorPageResponse<ConversationResponseDTO>> {
     const limit = query.limit;
     // 1) Nếu đã có flag "empty" thì trả về luôn
-    if (await this.cache.hasEmptyFlag(userId)) {
+    if (!query.cursor && (await this.cache.hasEmptyFlag(userId))) {
       return new CursorPageResponse([], null, false);
     }
 
@@ -98,17 +98,6 @@ export class ConversationService {
     );
 
     if (page && page.items.length) {
-      if (page.partial) {
-        this.refreshConversationCache(
-          userId,
-          query.cursor ?? null,
-          limit,
-        ).catch((err) =>
-          this.logger.warn(
-            `Failed to refresh conversations cache for userId=${userId}: ${err.message}`,
-          ),
-        );
-      }
       return new CursorPageResponse(
         plainToInstance(ConversationResponseDTO, page.items, {
           excludeExtraneousValues: true,
@@ -760,30 +749,5 @@ export class ConversationService {
     return dto;
   }
 
-  private async refreshConversationCache(
-    userId: string,
-    cursor: string | null,
-    limit: number,
-  ): Promise<void> {
-    const dbFilter = cursor
-      ? { updatedAt: { $lt: new Date(Number(cursor)) } }
-      : {};
-    const dbItems = await this.conversationModel
-      .find({ participants: userId, ...dbFilter })
-      .sort({ updatedAt: -1 })
-      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
-      .limit(limit + 1)
-      .exec();
-
-    if (!dbItems.length) return;
-
-    const mapped = await Promise.all(
-      dbItems.map((doc) => populateAndMapConversation(doc)),
-    );
-
-    await Promise.all([
-      ...mapped.map((dto) => this.cache.setConversationDetail(dto)),
-      this.cache.cacheConversationsForUsers(userId, mapped),
-    ]);
-  }
 }
+
