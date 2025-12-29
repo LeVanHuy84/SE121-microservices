@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { validate as isUUID } from 'uuid';
@@ -11,6 +11,8 @@ import {
   GroupResponseDTO,
   GroupRole,
   GroupStatus,
+  InvitedGroupDTO,
+  InviteStatus,
   MembershipStatus,
 } from '@repo/dtos';
 import { Group } from 'src/entities/group.entity';
@@ -19,6 +21,7 @@ import { GroupCacheService } from './group-cache.service';
 import { SocialClientService } from 'src/modules/client/social/social-client.service';
 import { GroupMapper } from 'src/common/mapper/group.mapper';
 import { GroupInvite } from 'src/entities/group-invite.entity';
+import { UserClientService } from 'src/modules/client/user/user-client.service';
 
 @Injectable()
 export class GroupQueryService {
@@ -30,8 +33,11 @@ export class GroupQueryService {
     private readonly groupRepo: Repository<Group>,
     @InjectRepository(GroupMember)
     private readonly groupMemberRepo: Repository<GroupMember>,
+    @InjectRepository(GroupInvite)
+    private readonly groupInviteRepo: Repository<GroupInvite>,
     private readonly groupCacheService: GroupCacheService,
     private readonly socialClientService: SocialClientService,
+    private readonly userClientService: UserClientService,
   ) {}
 
   // ---------- Public API (refactored & optimized) ----------
@@ -180,8 +186,8 @@ export class GroupQueryService {
   async getInvitedGroups(
     userId: string,
     query?: CursorPaginationDTO,
-  ): Promise<CursorPageResponse<GroupResponseDTO>> {
-    const PAGE_LIMIT = query?.limit || 10;
+  ): Promise<CursorPageResponse<InvitedGroupDTO>> {
+    const pageLimit = query?.limit || 10;
 
     // =========================
     // 1) Lấy danh sách groupId được invite
@@ -191,30 +197,79 @@ export class GroupQueryService {
       .createQueryBuilder('i')
       .select('i.groupId', 'groupId')
       .where('i.inviteeId = :userId', { userId })
-      .andWhere('i.status = :status', { status: 'PENDING' })
+      .andWhere('i.status = :status', { status: InviteStatus.PENDING })
       .andWhere('(i.expiredAt IS NULL OR i.expiredAt > now())')
       .orderBy('i.createdAt', 'DESC')
-      .limit(500) // guard
+      .limit(500)
       .getRawMany();
 
     const invitedGroupIds = inviteRows.map((r) => r.groupId).filter(Boolean);
 
-    // =========================
-    // 2) Không có invite
-    // =========================
-    if (invitedGroupIds.length === 0) {
-      return new CursorPageResponse<GroupResponseDTO>([], null, false);
+    if (!invitedGroupIds.length) {
+      return new CursorPageResponse<InvitedGroupDTO>([], null, false);
     }
 
     // =========================
-    // 3) Build query groups
+    // 2) Query group
     // =========================
     const qb = this.buildGroupQuery({ groupIds: invitedGroupIds }, query);
+    const rows = await qb.getMany();
 
     // =========================
-    // 4) Paginate + map DTO
+    // 3) Lấy invite tương ứng
     // =========================
-    return this.paginateGroups(qb, PAGE_LIMIT);
+    const invites = await this.groupInviteRepo.find({
+      where: {
+        inviteeId: userId,
+        groupId: In(rows.map((g) => g.id)),
+        status: InviteStatus.PENDING,
+      },
+    });
+
+    const inviteMap = new Map<string, GroupInvite>();
+    const inviterIds = new Set<string>();
+
+    for (const inv of invites) {
+      inviteMap.set(inv.groupId, inv);
+      inv.inviters.forEach((id) => inviterIds.add(id));
+    }
+
+    // =========================
+    // 4) Batch load inviter profiles
+    // =========================
+    const inviterProfiles =
+      inviterIds.size > 0
+        ? await this.userClientService.getUserInfos([...inviterIds])
+        : {};
+
+    // =========================
+    // 5) Paginate + map DTO
+    // =========================
+    const hasNext = rows.length > pageLimit;
+    const data = rows.slice(0, pageLimit);
+    const nextCursor = hasNext
+      ? data[data.length - 1].createdAt.toISOString()
+      : null;
+
+    const dtos: InvitedGroupDTO[] = data.map((g) => {
+      const base = GroupMapper.toGroupResponseDTO(g);
+      const invite = inviteMap.get(g.id);
+
+      const dto = Object.assign(new InvitedGroupDTO(), base);
+      dto.inviterNames = invite
+        ? invite.inviters
+            .map((id) =>
+              `${inviterProfiles[id]?.firstName || ''} ${
+                inviterProfiles[id]?.lastName || ''
+              }`.trim(),
+            )
+            .filter(Boolean)
+        : [];
+
+      return dto;
+    });
+
+    return new CursorPageResponse(dtos, nextCursor, hasNext);
   }
 
   // ==============================================

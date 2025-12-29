@@ -148,16 +148,20 @@ export class GroupInviteService {
       });
 
       if (existingInvite) {
-        existingInvite.lastInviterId = inviterId;
+        if (!existingInvite.inviters.includes(inviterId)) {
+          existingInvite.inviters.push(inviterId);
+        }
+
         existingInvite.expiredAt = new Date(Date.now() + 7 * 86400000);
         await inviteRepo.save(existingInvite);
+
         return true;
       }
 
       const invite = inviteRepo.create({
         groupId,
         inviteeId,
-        lastInviterId: inviterId,
+        inviters: [inviterId], // list bắt đầu từ đây
         status: InviteStatus.PENDING,
       });
 

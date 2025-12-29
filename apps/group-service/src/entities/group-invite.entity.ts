@@ -5,8 +5,13 @@ import { BaseEntity } from './base.entity';
 
 @Entity('group_invites')
 export class GroupInvite extends BaseEntity {
-  @Column({ type: 'varchar', name: 'last_inviter_id', nullable: false })
-  lastInviterId: string;
+  @Column({
+    type: 'text',
+    array: true,
+    name: 'inviters',
+    nullable: true,
+  })
+  inviters: string[];
 
   @Column({ type: 'varchar', name: 'invitee_id', nullable: false })
   inviteeId: string;

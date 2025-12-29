@@ -14,10 +14,17 @@ import { SocialClientModule } from '../client/social/social-client.module';
 import { UserClientModule } from '../client/user/user-client.module';
 import { GroupQueryService } from './group/service/group-query.service';
 import { GroupHelperService } from './group/service/group-helper.service';
+import { GroupInvite } from 'src/entities/group-invite.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupSetting, GroupMember, GroupLog]),
+    TypeOrmModule.forFeature([
+      Group,
+      GroupSetting,
+      GroupMember,
+      GroupLog,
+      GroupInvite,
+    ]),
     GroupLogModule,
     SocialClientModule,
     UserClientModule,

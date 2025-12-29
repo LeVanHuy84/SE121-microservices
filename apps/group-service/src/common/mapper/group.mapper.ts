@@ -29,7 +29,7 @@ export class GroupMapper {
     return dto;
   }
 
-  toAdminGroupDTO(entity: Group): AdminGroupDTO {
+  static toAdminGroupDTO(entity: Group): AdminGroupDTO {
     const dto = new AdminGroupDTO();
     dto.id = entity.id;
     dto.name = entity.name;

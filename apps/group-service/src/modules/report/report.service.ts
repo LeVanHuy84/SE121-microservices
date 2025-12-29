@@ -27,6 +27,7 @@ import { Group } from 'src/entities/group.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Between, DataSource, EntityManager, Repository } from 'typeorm';
 import { UserClientService } from '../client/user/user-client.service';
+import { GroupMapper } from 'src/common/mapper/group.mapper';
 
 @Injectable()
 export class ReportService {
@@ -440,9 +441,7 @@ export class ReportService {
 
     return new PageResponse(
       data.map((g) => {
-        const dto = new AdminGroupDTO();
-        dto.id = g.id;
-        return dto;
+        return GroupMapper.toAdminGroupDTO(g);
       }),
       total,
       page,
