@@ -61,7 +61,7 @@ export class NotificationGateway
             channel.ack(msg);
             return;
           }
-          this.logger.log('Log payload', payload);
+          // this.logger.log('Log payload', payload);
           this.server
             .to(`user-notif:${payload.userId}`)
             .emit('notification', payload);

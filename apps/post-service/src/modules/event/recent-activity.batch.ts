@@ -59,6 +59,7 @@ export class RecentActivityBatch {
             });
           }
           if (!target) return;
+          if (target.userId === actorId) return;
 
           const notiPayload: NotificationPayload = {
             targetId,

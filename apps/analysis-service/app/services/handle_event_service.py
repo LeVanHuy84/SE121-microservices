@@ -58,7 +58,6 @@ class HandleEventService:
         return await self.repo.save_analysis(doc)
 
     async def handle_updated(self, event: dict):
-
         doc = await self.repo.get_analysis_by_target(
             event["targetId"],
             event["targetType"]
@@ -98,5 +97,9 @@ class HandleEventService:
                 "errorReason": str(e),
                 "updatedAt": datetime.now(timezone.utc)
             }
+        
+        updated = await self.repo.update_analysis(str(doc.id), update_payload)
+        if not updated:
+            raise RetryableException("Failed to update EmotionAnalysis")
 
-        return await self.repo.update_analysis(str(doc.id), update_payload)
+        return updated

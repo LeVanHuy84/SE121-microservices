@@ -357,13 +357,14 @@ export class CommentService {
     manager: EntityManager,
     entity: Comment,
     parentId: string
-  ): Promise<OutboxEvent> {
+  ): Promise<OutboxEvent | null> {
     const [actor, parentComment] = await Promise.all([
       this.userClient.getUserInfo(entity.userId),
       manager.findOne(Comment, { select: ['userId'], where: { id: parentId } }),
     ]);
 
     if (!parentComment?.userId) throw new Error('Parent comment not found');
+    if (parentComment.userId === entity.userId) return null; // Không tự thông báo cho mình
 
     const notiPayload: NotiOutboxPayload = {
       targetId: entity.rootId,

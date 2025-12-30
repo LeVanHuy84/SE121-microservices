@@ -10,6 +10,7 @@ import {
   ShareSnapshotDocument,
 } from 'src/mongo/schema/share-snapshot.schema';
 import {
+  Audience,
   Emotion,
   FeedEventType,
   InferPostPayload,
@@ -55,9 +56,7 @@ export class IngestionPostService {
     // ------------------------------
     // 🧠 Ghi meta key
     // ------------------------------
-    this.logger.log('groupId nhe: ', payload.groupId);
-    if (!payload.groupId) {
-      this.logger.log('Co tao post cho post co groupId');
+    if (payload.audience === Audience.PUBLIC || !payload.groupId) {
       const metaKey = `post:meta:${payload.postId}`;
       await this.redis.hset(metaKey, {
         createdAt: createdAt.getTime(),
@@ -85,9 +84,21 @@ export class IngestionPostService {
   async handleUpdated(payload: InferPostPayload<PostEventType.UPDATED>) {
     if (!payload.postId) return;
 
+    const updateData: Record<string, any> = {};
+
+    if (payload.content !== undefined) {
+      updateData.content = payload.content;
+    }
+
+    if (payload.audience !== undefined) {
+      updateData.audience = payload.audience;
+    }
+
+    if (Object.keys(updateData).length === 0) return;
+
     await this.postModel.updateOne(
       { postId: payload.postId },
-      { $set: { content: payload.content } },
+      { $set: updateData },
     );
   }
 

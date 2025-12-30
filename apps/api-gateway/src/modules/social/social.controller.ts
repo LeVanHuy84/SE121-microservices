@@ -83,7 +83,7 @@ export class SocialController {
     return this.socialClient.send('get_friends', { userId, query });
   }
 
-  @Get('friends/suggest')
+  @Get('friends/recommend')
   async recommendFriends(
     @CurrentUserId() userId: string,
     @Query() query: CursorPaginationDTO
