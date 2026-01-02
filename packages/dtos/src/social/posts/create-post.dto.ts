@@ -1,0 +1,33 @@
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+  ValidateNested,
+} from 'class-validator';
+import { Audience, Emotion } from '../enums/social.enum';
+import { Type } from 'class-transformer';
+import { MediaItemDTO } from '../../common';
+
+export class CreatePostDTO {
+  @IsOptional()
+  @IsString()
+  groupId?: string; // NULL = cá nhân, NOT NULL = group
+
+  @IsOptional()
+  @IsEnum(Emotion)
+  feeling: Emotion;
+
+  @IsString()
+  @Length(1, 10000)
+  content: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MediaItemDTO)
+  media?: MediaItemDTO[];
+
+  @IsOptional()
+  @IsEnum(Audience)
+  audience?: Audience; // Nhóm thì không cần audience
+}

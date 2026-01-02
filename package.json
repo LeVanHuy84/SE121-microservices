@@ -4,7 +4,9 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "start:dev": "turbo run start:dev",
+    "start:dev": "turbo run start:dev --parallel --concurrency=12",
+    "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
+    "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
@@ -23,8 +25,16 @@
     "packages/*"
   ],
   "dependencies": {
+    "@nestjs-modules/ioredis": "^2.0.2",
     "@nestjs/config": "^4.0.2",
     "@nestjs/microservices": "^11.1.6",
-    "http-proxy-middleware": "^3.0.5"
+    "@nestjs/schedule": "^6.0.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dayjs": "^1.11.19",
+    "http-proxy-middleware": "^3.0.5",
+    "ioredis": "^5.8.1",
+    "kafkajs": "^2.2.4",
+    "neo4j-driver": "^5.28.2"
   }
 }

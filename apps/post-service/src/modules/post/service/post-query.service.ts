@@ -1,0 +1,411 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
+import {
+  Audience,
+  CursorPageResponse,
+  EditHistoryReponseDTO,
+  GetGroupPostQueryDTO,
+  GetPostQueryDTO,
+  GroupInfoDTO,
+  GroupPermission,
+  GroupPrivacy,
+  PostGroupStatus,
+  PostResponseDTO,
+  PostSnapshotDTO,
+  ReactionType,
+  TargetType,
+} from '@repo/dtos';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
+import { Reaction } from 'src/entities/reaction.entity';
+import { Post } from 'src/entities/post.entity';
+import { PostCacheService } from './post-cache.service';
+import { PostShortenMapper } from '../post-shorten.mapper';
+
+@Injectable()
+export class PostQueryService {
+  constructor(
+    @InjectRepository(Post) private readonly postRepo: Repository<Post>,
+    @InjectRepository(Reaction)
+    private readonly reactionRepo: Repository<Reaction>,
+    @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
+    private readonly postCache: PostCacheService
+  ) {}
+
+  // ----------------------------------------
+  // 🔍 Lấy post theo ID
+  // ----------------------------------------
+  async findById(
+    userRequestId: string,
+    postId: string
+  ): Promise<PostResponseDTO> {
+    const post = await this.postCache.getPost(postId);
+    if (!post || post.isDeleted)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+
+    const [_, userReaction] = await Promise.all([
+      this.ensureCanViewPost(userRequestId, post),
+      this.reactionRepo.findOne({
+        where: {
+          userId: userRequestId,
+          targetType: TargetType.POST,
+          targetId: postId,
+        },
+        select: ['reactionType'],
+      }),
+    ]);
+
+    let group: GroupInfoDTO | undefined;
+    if (post.groupId) {
+      const groups = await firstValueFrom(
+        this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', [
+          post.groupId,
+        ])
+      );
+      if (groups.length === 0) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
+      }
+      group = groups[0];
+    }
+
+    const dto = plainToInstance(PostResponseDTO, post, {
+      excludeExtraneousValues: true,
+    });
+    dto.group = group;
+    dto.reactedType = userReaction?.reactionType;
+    return dto;
+  }
+
+  // ----------------------------------------
+  // 🧍‍♂️ 1️⃣ Bài viết của chính mình
+  // ----------------------------------------
+  async getMyPosts(
+    currentUserId: string,
+    query: GetPostQueryDTO
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId: currentUserId })
+      .andWhere('p.groupId IS NULL')
+      .andWhere('p.isDeleted = false');
+
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
+    const postIds = ids.map((p) => p.id);
+
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // 🌍 2️⃣ Bài viết của người khác (tuỳ quan hệ)
+  // ----------------------------------------
+  async getUserPosts(
+    userId: string,
+    currentUserId: string,
+    query: GetPostQueryDTO
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const relation = await this.postCache.getRelationship(
+      currentUserId,
+      userId,
+      async () => {
+        return await lastValueFrom(
+          this.socialClient.send('get_relationship_status', {
+            userId: currentUserId,
+            targetId: userId,
+          })
+        );
+      }
+    );
+
+    const qb = this.buildPostQuery(query)
+      .where('p.userId = :userId', { userId })
+      .andWhere('p.groupId IS NULL');
+
+    if (userId === currentUserId) {
+      // chính mình → xem hết
+    } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
+      return new CursorPageResponse([], null, false);
+    } else if (relation === 'FRIENDS') {
+      qb.andWhere('p.audience IN (:...audiences)', {
+        audiences: [Audience.PUBLIC, Audience.FRIENDS],
+      });
+    } else {
+      qb.andWhere('p.audience = :audience', { audience: Audience.PUBLIC });
+    }
+
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop();
+    const postIds = ids.map((p) => p.id);
+
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return new CursorPageResponse([], null, false);
+    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // Get group posts
+  // ----------------------------------------
+  async getGroupPost(
+    groupId: string,
+    userId: string,
+    query: GetGroupPostQueryDTO
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const memberInfo = await this.postCache.getGroupUserPermission(
+      userId,
+      groupId
+    );
+    const status = query.status || PostGroupStatus.PUBLISHED;
+
+    // Nếu là bài đã duyệt
+    if (status === PostGroupStatus.PUBLISHED) {
+      if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
+        throw new RpcException({
+          statusCode: 403,
+          message: 'User is not a member of the group',
+        });
+      }
+    } else {
+      const canReview = memberInfo.permissions.includes(
+        GroupPermission.APPROVE_POST
+      );
+      if (!canReview) {
+        throw new RpcException({
+          statusCode: 403,
+          message: 'No permission to view pending/rejected posts',
+        });
+      }
+    }
+
+    const qb = this.buildPostQuery(query)
+      .innerJoin('p.postGroupInfo', 'pgi')
+      .where('p.groupId = :groupId', { groupId })
+      .andWhere('pgi.status = :status', { status });
+
+    const ids = await qb
+      .select(['p.id', 'p.createdAt', 'p.isDeleted'])
+      .getMany();
+    if (ids.length === 0) return new CursorPageResponse([], null, false);
+
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop();
+    const postIds = ids.map((p) => p.id);
+
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedPostResponse(userId, posts, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // 🗂 Lấy nhiều post theo listId
+  // ----------------------------------------
+  async getPostBatch(
+    currentUserId: string,
+    postIds: string[]
+  ): Promise<PostSnapshotDTO[]> {
+    if (!postIds.length) return [];
+
+    // Lấy post từ cache hoặc DB
+    const posts = await this.postCache.getPostsBatch(postIds);
+    if (!posts.length) return [];
+
+    // Lấy reaction của user cho batch post
+    const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
+
+    // Chuyển sang DTO
+    const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
+    // Optional: sort theo thứ tự truyền vào (để giữ order của postIds)
+    const postOrderMap = new Map(postIds.map((id, idx) => [id, idx]));
+    postDTOs.sort(
+      (a, b) => postOrderMap.get(a.postId)! - postOrderMap.get(b.postId)!
+    );
+
+    return postDTOs;
+  }
+
+  async getPostEditHistories(
+    userId: string,
+    postId: string
+  ): Promise<EditHistoryReponseDTO[]> {
+    const postEdit = await this.postRepo.findOne({
+      where: { id: postId },
+      relations: { editHistories: true },
+    });
+    if (!postEdit)
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Post not found',
+      });
+    // if (userId !== postEdit.userId)
+    //   throw new RpcException({
+    //     statusCode: 403,
+    //     message: 'Forbidden: You are not the owner of the post',
+    //   });
+
+    return plainToInstance(
+      EditHistoryReponseDTO,
+      postEdit.editHistories || [],
+      {
+        excludeExtraneousValues: true,
+      }
+    );
+  }
+
+  // ----------------------------------------
+  // ⚙️ Helpers chung
+  // ----------------------------------------
+  private buildPostQuery(query: GetPostQueryDTO) {
+    const { cursor, limit, feeling, mainEmotion } = query;
+    const qb = this.postRepo
+      .createQueryBuilder('p')
+      .where('p.isDeleted = false')
+      .orderBy('p.createdAt', 'DESC')
+      .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
+
+    if (cursor) {
+      qb.andWhere('p.createdAt < :cursor', { cursor });
+    }
+
+    if (feeling) qb.andWhere('p.feeling = :feeling', { feeling });
+    if (mainEmotion)
+      qb.andWhere('p.mainEmotion = :mainEmotion', { mainEmotion });
+    return qb;
+  }
+
+  private async buildPagedPostResponse(
+    currentUserId: string,
+    posts: Post[],
+    hasNextPage: boolean
+  ): Promise<CursorPageResponse<PostSnapshotDTO>> {
+    const postIds = posts.map((p) => p.id);
+    const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
+    const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
+    let nextCursor: string | null = null;
+    if (hasNextPage && posts.length > 0) {
+      const lastPost = posts[posts.length - 1];
+      const createdAt =
+        lastPost.createdAt instanceof Date
+          ? lastPost.createdAt
+          : new Date(lastPost.createdAt);
+
+      nextCursor = createdAt.toISOString();
+    }
+
+    return new CursorPageResponse(postDTOs, nextCursor, hasNextPage);
+  }
+
+  private async getReactedTypesBatch(
+    userId: string,
+    postIds: string[]
+  ): Promise<Map<string, ReactionType>> {
+    if (!postIds.length) return new Map();
+    const reactions = await this.reactionRepo.find({
+      where: { userId, targetId: In(postIds), targetType: TargetType.POST },
+    });
+    return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
+  }
+
+  async ensureCanViewPost(userId: string, post: Post): Promise<void> {
+    if (post.groupId) {
+      await this.ensureCanViewGroupPost(userId, post);
+    } else {
+      await this.ensureCanViewUserPost(userId, post);
+    }
+  }
+
+  private async ensureCanViewGroupPost(
+    userId: string,
+    post: Post
+  ): Promise<void> {
+    const groupId = post.groupId;
+
+    const memberInfo = await this.postCache.getGroupUserPermission(
+      userId,
+      groupId
+    );
+
+    // Nếu post đã publish
+    if (post.postGroupInfo?.status === PostGroupStatus.PUBLISHED) {
+      if (memberInfo.privacy === GroupPrivacy.PRIVATE && !memberInfo.isMember) {
+        throw new RpcException({
+          statusCode: 403,
+          message: 'User is not a member of the group',
+        });
+      }
+      return;
+    }
+
+    // Post chưa duyệt / bị reject
+    const canReview = memberInfo.permissions.includes(
+      GroupPermission.APPROVE_POST
+    );
+
+    if (!canReview) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'No permission to view this group post',
+      });
+    }
+  }
+
+  private async ensureCanViewUserPost(
+    userId: string,
+    post: Post
+  ): Promise<void> {
+    if (post.userId === userId) return;
+
+    const relation = await this.postCache.getRelationship(
+      userId,
+      post.userId,
+      async () => {
+        return await lastValueFrom(
+          this.socialClient.send('get_relationship_status', {
+            userId,
+            targetId: post.userId,
+          })
+        );
+      }
+    );
+
+    if (['BLOCKED', 'BLOCKED_BY'].includes(relation))
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: You are blocked',
+      });
+
+    if (post.audience === Audience.ONLY_ME)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Private post',
+      });
+
+    if (post.audience === Audience.FRIENDS && relation !== 'FRIENDS')
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Friends only',
+      });
+  }
+}

@@ -1,0 +1,299 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
+import { InjectRepository } from '@nestjs/typeorm';
+import {
+  Audience,
+  CursorPageResponse,
+  CursorPaginationDTO,
+  GroupInfoDTO,
+  ReactionType,
+  ShareResponseDTO,
+  ShareSnapshotDTO,
+  TargetType,
+} from '@repo/dtos';
+import { plainToInstance } from 'class-transformer';
+import { Reaction } from 'src/entities/reaction.entity';
+import { Share } from 'src/entities/share.entity';
+import { Repository, In } from 'typeorm';
+import { ShareCacheService } from './share-cache.service';
+import { ShareShortenMapper } from '../share-shorten.mapper';
+import { firstValueFrom } from 'rxjs';
+
+@Injectable()
+export class ShareQueryService {
+  constructor(
+    @Inject('SOCIAL_SERVICE') private readonly socialClient: ClientProxy,
+    @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
+    @InjectRepository(Share)
+    private readonly shareRepo: Repository<Share>,
+    @InjectRepository(Reaction)
+    private readonly reactionRepo: Repository<Reaction>,
+    private readonly shareCache: ShareCacheService
+  ) {}
+
+  /** 🔹 Get a single share by id (cached) */
+  async findById(
+    userRequestId: string,
+    shareId: string
+  ): Promise<ShareResponseDTO> {
+    // Try cache first
+    const share = await this.shareCache.getShare(shareId);
+    if (!share || share.isDeleted)
+      throw new RpcException({
+        statusCode: 404,
+        message: `Share not found`,
+      });
+
+    // Get user reaction (not cached, low-cost)
+    const [_, userReaction] = await Promise.all([
+      this.ensureCanView(userRequestId, share.userId, share.audience),
+      this.reactionRepo.findOne({
+        where: {
+          userId: userRequestId,
+          targetType: TargetType.SHARE,
+          targetId: shareId,
+        },
+        select: ['reactionType'],
+      }),
+    ]);
+
+    let group: GroupInfoDTO | undefined;
+    if (share.post.groupId) {
+      const groups = await firstValueFrom(
+        this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', [
+          share.post.groupId,
+        ])
+      );
+      if (groups.length === 0) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Group not found',
+        });
+      }
+      group = groups[0];
+    }
+
+    const response = plainToInstance(ShareResponseDTO, share, {
+      excludeExtraneousValues: true,
+    });
+
+    response.reactedType = userReaction?.reactionType;
+    response.post.group = group;
+    return response;
+  }
+
+  // ----------------------------------------
+  // 🧍‍♂️ 1️⃣ Bài viết của chính mình
+  // ----------------------------------------
+  async getMyShares(
+    currentUserId: string,
+    query: CursorPaginationDTO
+  ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
+    const qb = this.buildShareQuery(query).where('s.userId = :userId', {
+      userId: currentUserId,
+    });
+
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
+    const shareIds = ids.map((s) => s.id);
+
+    const shares = await this.shareCache.getSharesBatch(shareIds);
+    if (!shares.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // 🌍 2️⃣ Bài viết của người khác (tuỳ quan hệ)
+  // ----------------------------------------
+  async getUserShares(
+    userId: string,
+    currentUserId: string,
+    query: CursorPaginationDTO
+  ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
+    const relation = await this.shareCache.getRelationship(
+      currentUserId,
+      userId,
+      async () => {
+        return await firstValueFrom(
+          this.socialClient.send('get_relationship_status', {
+            userId: currentUserId,
+            targetId: userId,
+          })
+        );
+      }
+    );
+
+    const qb = this.buildShareQuery(query).where('s.userId = :userId', {
+      userId,
+    });
+
+    if (userId === currentUserId) {
+      // chính mình → xem hết
+    } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
+      return new CursorPageResponse([], null, false);
+    } else if (relation === 'FRIENDS') {
+      qb.andWhere('s.audience IN (:...audiences)', {
+        audiences: [Audience.PUBLIC, Audience.FRIENDS],
+      });
+    } else {
+      qb.andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
+    }
+
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
+    const shareIds = ids.map((s) => s.id);
+
+    const shares = await this.shareCache.getSharesBatch(shareIds);
+    if (!shares.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // 🌍 3️⃣ Get share theo postId
+  // ----------------------------------------
+  async findSharesByPostId(
+    currentUserId: string,
+    postId: string,
+    query: CursorPaginationDTO
+  ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
+    const qb = this.buildShareQuery(query)
+      .where('s.postId = :postId', { postId })
+      .andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
+
+    const ids = await qb
+      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .getMany();
+    const hasNextPage = ids.length > query.limit;
+    if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
+    const shareIds = ids.map((s) => s.id);
+
+    const shares = await this.shareCache.getSharesBatch(shareIds);
+    if (!shares.length) return new CursorPageResponse([], null, false);
+
+    return this.buildPagedShareResponse(currentUserId, shares, hasNextPage);
+  }
+
+  // ----------------------------------------
+  // ⚙️ Helpers chung
+  // ----------------------------------------
+  private buildShareQuery(query: CursorPaginationDTO) {
+    const { cursor, limit } = query;
+    const qb = this.shareRepo
+      .createQueryBuilder('s')
+      .where('s.isDeleted = false')
+      .orderBy('s.createdAt', 'DESC')
+      .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
+
+    if (cursor) {
+      qb.andWhere('s.createdAt < :cursor', { cursor });
+    }
+    return qb;
+  }
+
+  private async buildPagedShareResponse(
+    currentUserId: string,
+    shares: Share[],
+    hasNextPage: boolean
+  ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
+    const shareIds = shares.map((s) => s.id);
+
+    const groupIds = Array.from(
+      new Set(
+        shares.map((s) => s.post?.groupId).filter((id): id is string => !!id)
+      )
+    );
+
+    const [reactionMap, groups] = await Promise.all([
+      this.getReactedTypesBatch(currentUserId, shareIds),
+      groupIds.length > 0
+        ? firstValueFrom(
+            this.groupClient.send<GroupInfoDTO[]>(
+              'get_group_info_batch',
+              groupIds
+            )
+          )
+        : Promise.resolve([] as GroupInfoDTO[]),
+    ]);
+
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
+
+    const shareDTOs = ShareShortenMapper.toShareSnapshotDTOs(
+      shares,
+      reactionMap,
+      groupMap
+    );
+
+    let nextCursor: string | null = null;
+    if (hasNextPage && shares.length > 0) {
+      const lastShare = shares[shares.length - 1];
+      const createdAt =
+        lastShare.createdAt instanceof Date
+          ? lastShare.createdAt
+          : new Date(lastShare.createdAt);
+
+      nextCursor = createdAt.toISOString();
+    }
+
+    return new CursorPageResponse(shareDTOs, nextCursor, hasNextPage);
+  }
+
+  /** 🔹 Batch get user's reacted types for multiple shares */
+  async getReactedTypesBatch(
+    userId: string,
+    shareIds: string[]
+  ): Promise<Map<string, ReactionType | undefined>> {
+    if (!shareIds.length) return new Map();
+    const reactions = await this.reactionRepo.find({
+      where: { userId, targetType: TargetType.SHARE, targetId: In(shareIds) },
+      select: ['targetId', 'reactionType'],
+    });
+    return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
+  }
+
+  private async ensureCanView(
+    userId: string,
+    shareUserId: string,
+    audience: Audience
+  ): Promise<void> {
+    if (shareUserId === userId) return;
+
+    const relation = await this.shareCache.getRelationship(
+      userId,
+      shareUserId,
+      async () => {
+        return await firstValueFrom(
+          this.socialClient.send('get_relationship_status', {
+            userId,
+            targetId: shareUserId,
+          })
+        );
+      }
+    );
+
+    if (['BLOCKED', 'BLOCKED_BY'].includes(relation))
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: You are blocked',
+      });
+
+    if (audience === Audience.ONLY_ME)
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Private post',
+      });
+
+    if (audience === Audience.FRIENDS && relation !== 'FRIENDS')
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Forbidden: Friends only',
+      });
+  }
+}
