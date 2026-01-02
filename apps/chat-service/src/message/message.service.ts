@@ -74,14 +74,20 @@ export class MessageService {
     );
 
     if (cachedPage && cachedPage.items.length) {
-      return new CursorPageResponse(
-        cachedPage.items.map((m) =>
-          plainToInstance(MessageResponseDTO, m, {
-            excludeExtraneousValues: true,
-          }),
-        ),
-        cachedPage.nextCursor,
-        cachedPage.hasNext,
+      const cacheIsPartial = !query.cursor && cachedPage.items.length < limit;
+      if (!cacheIsPartial) {
+        return new CursorPageResponse(
+          cachedPage.items.map((m) =>
+            plainToInstance(MessageResponseDTO, m, {
+              excludeExtraneousValues: true,
+            }),
+          ),
+          cachedPage.nextCursor,
+          cachedPage.hasNext,
+        );
+      }
+      this.logger.debug(
+        `Message cache partial for conversationId=${conversationId}, falling back to DB`,
       );
     }
 
@@ -209,7 +215,9 @@ export class MessageService {
     ];
 
     if (convDto) {
-      tasks.push(this.messageStreamProducer.publishConversationUpdated(convDto));
+      tasks.push(
+        this.messageStreamProducer.publishConversationUpdated(convDto),
+      );
     }
 
     await Promise.all(tasks);

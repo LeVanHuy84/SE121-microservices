@@ -83,7 +83,7 @@ services:
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - xpack.security.enabled=false
       - xpack.security.http.ssl.enabled=false
     ports:
@@ -110,10 +110,10 @@ services:
     container_name: neo4j
     restart: unless-stopped
     ports:
-      - "7474:7474"   # Neo4j Browser (web)
-      - "7687:7687"   # Bolt (app connect)
+      - '7474:7474' # Neo4j Browser (web)
+      - '7687:7687' # Bolt (app connect)
     environment:
-      NEO4J_AUTH: neo4j/secretpassword   # user/pass đăng nhập
+      NEO4J_AUTH: neo4j/secretpassword # user/pass đăng nhập
       NEO4J_dbms_default__listen__address: 0.0.0.0
       NEO4J_dbms_default__advertised__address: localhost
     networks:
