@@ -1,0 +1,32 @@
+@startuml
+left to right direction
+
+rectangle "Text Input" as TextInput
+rectangle "Text Emotion Model" as TextModel
+rectangle "Text Scores" as TextScores
+
+rectangle "Image URLs" as ImageInput
+rectangle "Image Emotion Model" as ImageModel
+rectangle "Image Scores" as ImageScores
+
+rectangle "Fusion Module" as Fusion
+rectangle "Final Emotion" as FinalEmotion
+
+rectangle "Face Detection" as FaceDetection
+rectangle "Confidence Checking" as ConfidenceChecking
+
+TextInput --> TextModel
+TextModel --> TextScores
+
+ImageInput --> ImageModel
+ImageModel --> ImageScores
+
+ImageModel --> FaceDetection
+FaceDetection --> ConfidenceChecking
+
+TextScores --> Fusion
+ImageScores --> Fusion
+
+Fusion --> FinalEmotion
+
+@enduml

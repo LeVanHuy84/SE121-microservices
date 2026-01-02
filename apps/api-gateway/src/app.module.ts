@@ -1,44 +1,72 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from './common/constants';
-import { ClerkClientProvider } from './providers/clerk-client.provider';
-import { AuthModule } from './modules/auth/auth.module';
+import { Module, ValidationPipe } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+
+import { AuthModule } from './modules/auth/auth.module';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
-import { UsersController } from './modules/users/users.controller';
+import { ChatModule } from './modules/chat/chat.module';
+
+import { MediaModule } from './modules/media/media.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { PostModule } from './modules/posts/post.module';
+import { SocialModule } from './modules/social/social.module';
+import { UserModule } from './modules/users/users.module';
+import { ClerkClientProvider } from './providers/clerk-client.provider';
+import { RabbitmqModule } from '@repo/common';
+import { FeedModule } from './modules/feed/feed.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { GroupModule } from './modules/group/group.module';
+import { SearchModule } from './modules/search/search.module';
+import { EmotionModule } from './modules/emotion/emotion.module';
+import { LogModule } from './modules/log/log.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),
-    AuthModule,
 
-    ClientsModule.registerAsync([
-      {
-        name: MICROSERVICES_CLIENTS.USER_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('USER_SERVICE_PORT'),
-          },
-        }),
+    AuthModule,
+    PostModule,
+    UserModule,
+    SocialModule,
+    MediaModule,
+    FeedModule,
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 200,
+        },
+      ],
+    }),
+    NotificationModule,
+    RabbitmqModule.register({
+      urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
+      exchanges: [
+        { name: 'notification', type: 'topic' },
+        { name: 'broadcast', type: 'fanout' },
+      ],
+    }),
+    RedisModule.forRoot({
+      type: 'single',
+      options: {
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT
+          ? parseInt(process.env.REDIS_PORT, 10)
+          : 6379,
       },
-      {
-        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('SOCIAL_SERVICE_PORT'),
-          },
-        }),
-      },
-    ]),
+    }),
+    GroupModule,
+    SearchModule,
+
+    ChatModule,
+
+    EmotionModule,
+    LogModule,
+    AdminModule,
   ],
 
   providers: [
@@ -47,8 +75,23 @@ import { UsersController } from './modules/users/users.controller';
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: 'APP_PIPE',
+      useValue: new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+      }),
+    },
   ],
 
-  controllers: [UsersController],
+  controllers: [],
 })
-export class AppModule { }
+export class AppModule {}
