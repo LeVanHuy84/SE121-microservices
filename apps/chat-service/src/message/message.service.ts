@@ -63,7 +63,7 @@ export class MessageService {
 
     const limit = query.limit;
 
-    if (await this.msgCache.hasEmptyFlag(conversationId)) {
+    if (!query.cursor && (await this.msgCache.hasEmptyFlag(conversationId))) {
       return new CursorPageResponse([], null, false);
     }
 
@@ -224,30 +224,6 @@ export class MessageService {
 
     await this.enqueueMediaAssignEvent(msg, msg._id.toString());
     return dtoMsg;
-  }
-
-  private async refreshMessagesCache(
-    conversationId: string,
-    cursor: string | null,
-    limit: number,
-  ): Promise<void> {
-    const dbFilter: any = {
-      conversationId: new Types.ObjectId(conversationId),
-    };
-    if (cursor) {
-      dbFilter.createdAt = { $lt: new Date(Number(cursor)) };
-    }
-
-    const items = await this.messageModel
-      .find(dbFilter)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .exec();
-
-    if (!items.length) return;
-
-    const mapped = items.map((m) => populateAndMapMessage(m)!);
-    await this.msgCache.cacheMessages(conversationId, mapped);
   }
 
   // ============= EDIT MESSAGE =============
