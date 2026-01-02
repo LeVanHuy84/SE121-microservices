@@ -74,25 +74,20 @@ export class MessageService {
     );
 
     if (cachedPage && cachedPage.items.length) {
-      if (cachedPage.partial) {
-        this.refreshMessagesCache(
-          conversationId,
-          query.cursor ?? null,
-          limit,
-        ).catch((err) =>
-          this.logger.warn(
-            `Failed to refresh messages cache for conversationId=${conversationId}: ${err.message}`,
+      const cacheIsPartial = !query.cursor && cachedPage.items.length < limit;
+      if (!cacheIsPartial) {
+        return new CursorPageResponse(
+          cachedPage.items.map((m) =>
+            plainToInstance(MessageResponseDTO, m, {
+              excludeExtraneousValues: true,
+            }),
           ),
+          cachedPage.nextCursor,
+          cachedPage.hasNext,
         );
       }
-      return new CursorPageResponse(
-        cachedPage.items.map((m) =>
-          plainToInstance(MessageResponseDTO, m, {
-            excludeExtraneousValues: true,
-          }),
-        ),
-        cachedPage.nextCursor,
-        cachedPage.hasNext,
+      this.logger.debug(
+        `Message cache partial for conversationId=${conversationId}, falling back to DB`,
       );
     }
 
@@ -220,7 +215,9 @@ export class MessageService {
     ];
 
     if (convDto) {
-      tasks.push(this.messageStreamProducer.publishConversationUpdated(convDto));
+      tasks.push(
+        this.messageStreamProducer.publishConversationUpdated(convDto),
+      );
     }
 
     await Promise.all(tasks);

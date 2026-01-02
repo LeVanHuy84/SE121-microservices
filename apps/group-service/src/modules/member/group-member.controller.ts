@@ -51,7 +51,8 @@ export class GroupMemberController {
   }
 
   @MessagePattern('change-member-role')
-  @RequireGroupRole(GroupRole.ADMIN)
+  // @RequireGroupRole(GroupRole.ADMIN)
+  @RequireGroupPermission(GroupPermission.MANAGE_MEMBERS)
   async changeRole(
     @Payload()
     payload: {

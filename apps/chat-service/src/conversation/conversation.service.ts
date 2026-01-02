@@ -98,23 +98,18 @@ export class ConversationService {
     );
 
     if (page && page.items.length) {
-      if (page.partial) {
-        this.refreshConversationCache(
-          userId,
-          query.cursor ?? null,
-          limit,
-        ).catch((err) =>
-          this.logger.warn(
-            `Failed to refresh conversations cache for userId=${userId}: ${err.message}`,
-          ),
+      const cacheIsPartial = !query.cursor && page.items.length < limit;
+      if (!cacheIsPartial) {
+        return new CursorPageResponse(
+          plainToInstance(ConversationResponseDTO, page.items, {
+            excludeExtraneousValues: true,
+          }),
+          page.nextCursor,
+          page.hasNext,
         );
       }
-      return new CursorPageResponse(
-        plainToInstance(ConversationResponseDTO, page.items, {
-          excludeExtraneousValues: true,
-        }),
-        page.nextCursor,
-        page.hasNext,
+      this.logger.debug(
+        `Cache partial for userId=${userId}, falling back to DB`,
       );
     }
 
@@ -652,7 +647,7 @@ export class ConversationService {
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
 
   async updateConversationCache(
-    conv: ConversationDocument
+    conv: ConversationDocument,
   ): Promise<ConversationResponseDTO | null> {
     const fullConv = await this.conversationModel
       .findById(conv._id)
