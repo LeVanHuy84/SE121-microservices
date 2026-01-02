@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { StatsBufferService } from './stats.buffer.service';
 import {
+  Audience,
   EventDestination,
   EventTopic,
   ReactionType,
@@ -97,7 +98,11 @@ export class StatsBatchScheduler {
         if (targetType === TargetType.POST) {
           const post = postMap.get(targetId);
           // ✅ CHỈ post thường (không group, không deleted)
-          isTrendingCandidate = !!post && !post.groupId;
+          isTrendingCandidate =
+            !!post &&
+            post.groupId == null &&
+            post.isDeleted === false &&
+            post.audience === Audience.PUBLIC;
         }
 
         payload.stats.push({

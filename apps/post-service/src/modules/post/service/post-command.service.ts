@@ -157,7 +157,7 @@ export class PostCommandService {
               topic: EventTopic.POST,
               destination: EventDestination.KAFKA,
               eventType: PostEventType.UPDATED,
-              payload: { postId, content: dto.content },
+              payload: { postId, content: dto.content, audience: dto.audience },
             });
 
       await manager.save(outbox);

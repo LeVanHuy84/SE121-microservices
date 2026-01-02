@@ -21,7 +21,8 @@ export interface PostEventPayloads {
   };
   [PostEventType.UPDATED]: {
     postId: string;
-    content: string;
+    content?: string;
+    audience?: Audience;
   };
   [PostEventType.REMOVED]: {
     postId: string;

@@ -110,7 +110,7 @@ export class ChatGateway
     };
 
     this.redis.publish('presence:heartbeat', JSON.stringify(evt));
-    this.logger.debug(`Received heartbeat from user ${userId}`);
+    // this.logger.debug(`Received heartbeat from user ${userId}`);
   }
 
   // ========== Client subscribe / unsubscribe presence của người khác ==========

@@ -228,8 +228,6 @@ async def get_by_hour(userId: str):
         for hour in range(24)
     ]
 
-    print("🔥 BY-HOUR RESPONSE:", response)
-
     return response
 
 

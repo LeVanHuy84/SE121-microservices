@@ -35,22 +35,22 @@ class AnalysisRepository:
         )
 
     async def update_analysis(self, analysisId, update_data: dict):
-        if isinstance(analysisId, str):
-            try:
-                objId = ObjectId(analysisId)
-            except Exception:
-                return None
-        else:
-            obj_id = analysisId
+        try:
+            obj_id = ObjectId(analysisId) if isinstance(analysisId, str) else analysisId
+        except Exception:
+            return None
+
         analysis = await self.engine.find_one(
             EmotionAnalysis,
             EmotionAnalysis.id == obj_id
         )
+
         if not analysis:
             return None
 
         for key, value in update_data.items():
-            setattr(analysis, key, value)
+            if hasattr(analysis, key):
+                setattr(analysis, key, value)
 
         return await self.engine.save(analysis)
 

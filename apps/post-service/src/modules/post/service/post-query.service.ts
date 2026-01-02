@@ -258,11 +258,11 @@ export class PostQueryService {
         statusCode: 404,
         message: 'Post not found',
       });
-    if (userId !== postEdit.userId)
-      throw new RpcException({
-        statusCode: 403,
-        message: 'Forbidden: You are not the owner of the post',
-      });
+    // if (userId !== postEdit.userId)
+    //   throw new RpcException({
+    //     statusCode: 403,
+    //     message: 'Forbidden: You are not the owner of the post',
+    //   });
 
     return plainToInstance(
       EditHistoryReponseDTO,

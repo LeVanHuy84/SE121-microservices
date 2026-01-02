@@ -15,7 +15,6 @@ export class ConsumerService {
 
   async handleCreated(payload: AnalysisResultEventPayload): Promise<void> {
     // Xử lý sự kiện CREATED ở đây
-    console.log('Handling CREATED event:', payload);
     switch (payload.targetType) {
       case TargetType.POST:
         const post = await this.postRepository.findOneBy({
