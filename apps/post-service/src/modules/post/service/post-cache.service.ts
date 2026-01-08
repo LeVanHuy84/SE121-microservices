@@ -217,23 +217,14 @@ export class PostCacheService {
   // Cache group permission
   async getGroupUserPermission(
     userId: string,
-    groupId: string,
-    ttlSeconds = 60
+    groupId: string
   ): Promise<PostPermissionDTO> {
-    const key = `group_permission:${userId}:${groupId}`;
-    const cached = await this.redis.get(key);
-    if (cached !== null) {
-      return JSON.parse(cached) as PostPermissionDTO;
-    }
-
     const permission = await lastValueFrom(
       this.groupClient.send('get_group_user_permissions', {
         userId,
         groupId,
       })
     );
-
-    await this.redis.setex(key, ttlSeconds, JSON.stringify(permission));
     return permission;
   }
 }

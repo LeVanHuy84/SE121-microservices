@@ -109,7 +109,12 @@ export class PostQueryService {
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+    return this.buildPagedPostResponse(
+      currentUserId,
+      posts,
+      hasNextPage,
+      postIds
+    );
   }
 
   // ----------------------------------------
@@ -160,7 +165,12 @@ export class PostQueryService {
 
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return new CursorPageResponse([], null, false);
-    return this.buildPagedPostResponse(currentUserId, posts, hasNextPage);
+    return this.buildPagedPostResponse(
+      currentUserId,
+      posts,
+      hasNextPage,
+      postIds
+    );
   }
 
   // ----------------------------------------
@@ -214,7 +224,7 @@ export class PostQueryService {
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return new CursorPageResponse([], null, false);
 
-    return this.buildPagedPostResponse(userId, posts, hasNextPage);
+    return this.buildPagedPostResponse(userId, posts, hasNextPage, postIds);
   }
 
   // ----------------------------------------
@@ -226,23 +236,19 @@ export class PostQueryService {
   ): Promise<PostSnapshotDTO[]> {
     if (!postIds.length) return [];
 
-    // Lấy post từ cache hoặc DB
     const posts = await this.postCache.getPostsBatch(postIds);
     if (!posts.length) return [];
 
-    // Lấy reaction của user cho batch post
     const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
 
-    // Chuyển sang DTO
     const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
 
-    // Optional: sort theo thứ tự truyền vào (để giữ order của postIds)
-    const postOrderMap = new Map(postIds.map((id, idx) => [id, idx]));
-    postDTOs.sort(
-      (a, b) => postOrderMap.get(a.postId)! - postOrderMap.get(b.postId)!
-    );
+    // 🔥 SHARE PATTERN: rebuild theo postIds
+    const dtoMap = new Map(postDTOs.map((dto) => [dto.postId, dto]));
 
-    return postDTOs;
+    return postIds
+      .map((id) => dtoMap.get(id))
+      .filter((dto): dto is PostSnapshotDTO => !!dto);
   }
 
   async getPostEditHistories(
@@ -297,11 +303,22 @@ export class PostQueryService {
   private async buildPagedPostResponse(
     currentUserId: string,
     posts: Post[],
-    hasNextPage: boolean
+    hasNextPage: boolean,
+    postIds?: string[]
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
-    const postIds = posts.map((p) => p.id);
-    const reactionMap = await this.getReactedTypesBatch(currentUserId, postIds);
-    const postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+    const reactionMap = await this.getReactedTypesBatch(
+      currentUserId,
+      posts.map((p) => p.id)
+    );
+
+    let postDTOs = PostShortenMapper.toPostSnapshotDTOs(posts, reactionMap);
+
+    if (postIds?.length) {
+      const dtoMap = new Map(postDTOs.map((dto) => [dto.postId, dto]));
+      postDTOs = postIds
+        .map((id) => dtoMap.get(id))
+        .filter((dto): dto is PostSnapshotDTO => !!dto);
+    }
 
     let nextCursor: string | null = null;
     if (hasNextPage && posts.length > 0) {

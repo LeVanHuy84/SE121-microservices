@@ -10,8 +10,10 @@ class TextClassifier:
     def classify_emotion(text: str):
         tokenizer = model_loader.tokenizer
         model = model_loader.model
+        device = model_loader._device
 
-        inputs = tokenizer(text, return_tensors="pt")
+        # Move inputs to same device as model
+        inputs = tokenizer(text, return_tensors="pt").to(device)
 
         try:
             with torch.no_grad():
@@ -21,7 +23,7 @@ class TextClassifier:
             raise RetryableException(f"PhoBERT runtime error: {str(e)}")
 
         logits = outputs.logits
-        probs = F.softmax(logits, dim=1)[0].tolist()
+        probs = F.softmax(logits, dim=1)[0].cpu().tolist()  # Move to CPU for processing
 
         labels = model.config.id2label
 
