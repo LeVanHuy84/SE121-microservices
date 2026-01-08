@@ -76,27 +76,29 @@ class OutboxBatchProcessor:
 
         print(f"[Batch] Processing {len(outboxes)} outboxes...")
 
-        processed_ids = []
-
+        # Prepare all send tasks
+        send_tasks = []
         for outbox in outboxes:
-            try:
-                kafka_message = {
-                    "type": outbox.eventType,
-                    "payload": outbox.payload
-                }
+            kafka_message = {
+                "type": outbox.eventType,
+                "payload": outbox.payload
+            }
+            send_tasks.append(
+                self.kafka.send(topic=outbox.topic, message=kafka_message)
+            )
 
-                await self.kafka.send(
-                    topic=outbox.topic,
-                    message=kafka_message
-                )
+        # Execute all sends in parallel
+        results = await asyncio.gather(*send_tasks, return_exceptions=True)
 
+        # Collect successful sends
+        processed_ids = []
+        for idx, (outbox, result) in enumerate(zip(outboxes, results)):
+            if isinstance(result, Exception):
+                print(f"[Batch] Kafka send error for outbox {outbox.id}: {result}")
+            else:
                 processed_ids.append(outbox.id)
-
-            except Exception as e:
-                print("[Batch] Kafka send error:", e)
-                continue
 
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)
 
-        print(f"[Batch] Done. Processed {len(processed_ids)}")
+        print(f"[Batch] Done. Processed {len(processed_ids)}/{len(outboxes)}")

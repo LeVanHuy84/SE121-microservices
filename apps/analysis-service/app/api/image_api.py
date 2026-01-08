@@ -1,4 +1,3 @@
-from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter
 from app.models.analyze_response import ImageEmotion
 from app.services.emotion_detector import analyze_multiple_image_urls
@@ -16,11 +15,8 @@ async def analyze_images(req: ImagesRequest):
     if not req.images:
         raise HTTPException(status_code=400, detail="images list is empty")
 
-    # chạy hàm sync trong threadpool
-    results = await run_in_threadpool(
-        analyze_multiple_image_urls,
-        [str(u) for u in req.images]
-    )
+    # analyze_multiple_image_urls is already async - just await it
+    results = await analyze_multiple_image_urls([str(u) for u in req.images])
 
     images_out = []
     for r in results:
