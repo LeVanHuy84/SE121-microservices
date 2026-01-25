@@ -98,4 +98,14 @@ class AnalysisRepository:
             (EmotionAnalysis.createdAtVN >= start) &
             (EmotionAnalysis.createdAtVN <= end) &
             (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
+        )    
+    
+    async def get_user_recent_analyses(self, user_id: str, limit: int = 30):
+        return await self.engine.find(
+            EmotionAnalysis,
+            (EmotionAnalysis.userId == user_id) &
+            (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS),
+            sort=EmotionAnalysis.createdAt.desc(),
+            limit=limit
         )
+

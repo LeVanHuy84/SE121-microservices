@@ -14,11 +14,26 @@ class EmotionAnalysis(Model):
 
     imageUrls: List[str] = Field(default_factory=list)
 
-    # 🔁 CHANGE HERE
     textEmotion: Optional[Dict[str, Any]] = None
-    imageEmotions: List[Dict[str, Any]] = Field(default_factory=list)
+    complexAnalysis: Optional[Dict[str, Any]] = None
+    imageEmotions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+
     finalEmotion: Optional[str] = None
     finalScores: Optional[Dict[str, float]] = None
+
+    # === Derived metrics (lightweight) ===
+    emotionIntensity: Optional[float] = None  # 0.0 - 1.0
+    isNegative: Optional[bool] = None
+
+    contextData: Optional[Dict] = {
+        "timeOfDay": str,  # "morning|afternoon|evening|night"
+        "dayOfWeek": str,
+        "postType": str,   # "text_only|with_media|shared"
+        "wordCount": int,
+        "hasEmoji": bool,
+        "hasMention": bool,
+        "isReply": bool
+    }
 
     status: AnalysisStatusEnum
     retryScope: Optional[RetryScopeEnum] = None
@@ -28,6 +43,5 @@ class EmotionAnalysis(Model):
     createdAtVN: datetime = Field(
         default_factory=lambda: datetime.now(VN_TZ).replace(tzinfo=None)
     )
-
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

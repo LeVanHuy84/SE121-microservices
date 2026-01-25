@@ -28,6 +28,9 @@ class OutboxBatchProcessor:
             ex=self.LOCK_TTL,
             nx=True
         )
+    
+    def stop(self):
+        self._running = False
 
     async def refresh_lock(self):
         """

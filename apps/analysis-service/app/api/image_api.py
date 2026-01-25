@@ -1,7 +1,7 @@
 from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter
 from app.models.analyze_response import ImageEmotion
-from app.services.emotion_detector import analyze_multiple_image_urls
+from app.services.ai.image_emotion.image_emotion_analyzer import analyze_multiple_image_urls
 from fastapi import HTTPException
 from typing import List
 from pydantic import BaseModel, HttpUrl

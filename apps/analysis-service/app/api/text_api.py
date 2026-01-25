@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.text_classifier import text_classifier
+from app.services.ai.text_emotion.text_emotion_classifier import text_emotion_classifier
 from pydantic import BaseModel
 
 text_router = APIRouter()
@@ -9,7 +9,7 @@ class SentimentRequest(BaseModel):
 
 @text_router.post("/sentiment")
 async def analyze_sentiment(req: SentimentRequest):
-    result = text_classifier.classify_emotion(req.text)
+    result = text_emotion_classifier.classify(req.text)
     return {
         "success": True,
         "data": result

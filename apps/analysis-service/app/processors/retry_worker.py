@@ -2,7 +2,7 @@ from app.database.analysis_repository import AnalysisRepository
 from app.database.outbox_repository import OutboxRepository
 import asyncio
 from app.enums.analysis_status_enum import AnalysisStatusEnum
-from app.services.emotion_analyzer import EmotionAnalyzer
+from app.services.domain.emotion.emotion_analyzer import EmotionAnalyzer
 from app.database.models.outbox_schema import Outbox
 from app.enums.analysis_status_enum import RetryScopeEnum
 from datetime import datetime, timezone

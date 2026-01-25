@@ -10,14 +10,20 @@ from app.processors.batch_processor import OutboxBatchProcessor
 from app.database.outbox_repository import OutboxRepository
 from app.database.mongo_client import engine
 from app.messaging.event_dispatcher import EventDispatcher
-from app.services.handle_event_service import HandleEventService
+from app.services.orchestration.handle_event_service import HandleEventService
 from app.database.analysis_repository import AnalysisRepository
 from app.processors.retry_worker import RetryWorker
+from app.services.ai.model_loader import ensure_models_loaded
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+
 # -------------------------------------------------------
-# INIT SINGLETONS (GIỐNG BẢN CŨ)
+# INIT SINGLETONS
 # -------------------------------------------------------
 outbox_repo = OutboxRepository(engine)
 analysis_repo = AnalysisRepository(engine)
@@ -55,29 +61,44 @@ async def lifespan(app):
     background_tasks: list[asyncio.Task] = []
 
     try:
-        logger.info("🚀 Application startup")
+        logger.info("=" * 70)
+        logger.info("🚀 Analysis Service V2.0 - Starting up...")
+        logger.info("=" * 70)
 
-        # Kafka Producer
+        # 1. Load AI Models FIRST (chặn startup để load models)
+        logger.info("[Startup] Step 1/5: Loading AI models...")
+        await asyncio.to_thread(ensure_models_loaded)
+        logger.info("[Startup] ✅ AI models ready")
+
+        # 2. Kafka Producer
+        logger.info("[Startup] Step 2/5: Starting Kafka Producer...")
         await kafka_producer.start()
-        logger.info("[KafkaProducer] Started")
+        logger.info("[Startup] ✅ Kafka Producer started")
 
-        # Kafka Consumer loop
+        # 3. Kafka Consumer loop
+        logger.info("[Startup] Step 3/5: Starting Kafka Consumer...")
         background_tasks.append(
             asyncio.create_task(start_kafka(settings))
         )
-        logger.info("[KafkaConsumer] Started")
+        logger.info("[Startup] ✅ Kafka Consumer started")
 
-        # Outbox processor
+        # 4. Outbox processor
+        logger.info("[Startup] Step 4/5: Starting Outbox Processor...")
         background_tasks.append(
             asyncio.create_task(processor.start(interval_seconds=5))
         )
-        logger.info("[OutboxBatchProcessor] Started")
+        logger.info("[Startup] ✅ Outbox Processor started")
 
-        # Retry worker
+        # 5. Retry worker
+        logger.info("[Startup] Step 5/5: Starting Retry Worker...")
         background_tasks.append(
             asyncio.create_task(retry_worker.start())
         )
-        logger.info("[RetryWorker] Started")
+        logger.info("[Startup] ✅ Retry Worker started")
+
+        logger.info("=" * 70)
+        logger.info("✅ Analysis Service V2.0 - Fully operational!")
+        logger.info("=" * 70)
 
         yield  # ← FastAPI chạy tại đây
 
@@ -86,16 +107,20 @@ async def lifespan(app):
         raise
 
     finally:
-        logger.info("🛑 Application shutdown")
+        logger.info("=" * 70)
+        logger.info("🛑 Analysis Service - Shutting down...")
+        logger.info("=" * 70)
 
         processor.stop()
         retry_worker.stop()
 
         await kafka_producer.stop()
-        logger.info("[KafkaProducer] Stopped")
+        logger.info("[Shutdown] Kafka Producer stopped")
 
         for task in background_tasks:
             task.cancel()
 
         await asyncio.gather(*background_tasks, return_exceptions=True)
-        logger.info("✅ All background tasks stopped cleanly")
+        logger.info("=" * 70)
+        logger.info("✅ Analysis Service - Shutdown complete")
+        logger.info("=" * 70)

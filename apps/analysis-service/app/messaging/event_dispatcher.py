@@ -1,5 +1,5 @@
 from app.enums.event_enum import EventType
-from app.services.handle_event_service import HandleEventService
+from app.services.orchestration.handle_event_service import HandleEventService
 from app.database.models.outbox_schema import Outbox
 from app.database.outbox_repository import OutboxRepository
 
