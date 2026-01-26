@@ -18,10 +18,11 @@ class ModelLoader:
     Architecture: AI Layer - Bootstrap Coordinator
     - Does NOT own any models directly
     - Coordinates model loading from subdomains:
+      * image_understanding (CLIP)
       * text_emotion (PhoBERT emotion)
       * image_emotion (FER)
       * text_moderation (PhoBERT moderation)
-      * image_moderation (NSFW, Violence)
+      * image_moderation (NSFW, Violence via CLIP)
     - Fail-fast on critical model failures
     - Provides unified initialization interface
     
@@ -46,6 +47,16 @@ class ModelLoader:
 
         logger.info("[ModelLoader] Starting model initialization...")
         
+        # Load CLIP (Image Understanding) - FIRST for image tasks
+        try:
+            from app.services.ai.image_understanding import ensure_clip_loaded
+            ensure_clip_loaded()
+            logger.info("[ModelLoader] ✓ CLIP image understanding loaded")
+        except Exception as e:
+            logger.error(f"[ModelLoader] ✗ CLIP failed to load: {e}")
+            # CLIP is critical for violence detection - raise error
+            raise RuntimeError("Critical: CLIP model failed to load") from e
+        
         # Load Text Emotion models
         try:
             from app.services.ai.text_emotion import ensure_phobert_emotion_loaded
@@ -55,14 +66,14 @@ class ModelLoader:
             logger.error(f"[ModelLoader] ✗ Failed to load text emotion models: {e}")
             raise RuntimeError("Critical: Text emotion models failed to load") from e
         
-        # Load Image Emotion models
+        # Load Image Emotion models (FER)
         try:
             from app.services.ai.image_emotion import ensure_fer_loaded
             ensure_fer_loaded()
-            logger.info("[ModelLoader] ✓ Image emotion models loaded")
+            logger.info("[ModelLoader] ✓ FER image emotion loaded")
         except Exception as e:
-            logger.warning(f"[ModelLoader] ⚠ Image emotion models failed: {e}")
-            # Non-critical - can proceed with text-only analysis
+            logger.warning(f"[ModelLoader] ⚠ FER models failed: {e}")
+            # Non-critical - CLIP can handle scene emotion
         
         # Load Text Moderation models
         try:
@@ -73,18 +84,14 @@ class ModelLoader:
             logger.warning(f"[ModelLoader] ⚠ Text moderation models failed: {e}")
             # Non-critical - will use keyword fallback
         
-        # Load Image Moderation models
+        # Note: Violence detector uses CLIP, already loaded above
         try:
-            from app.services.ai.image_moderation import (
-                ensure_nsfw_detector_loaded,
-                ensure_violence_detector_loaded
-            )
-            ensure_nsfw_detector_loaded()
+            from app.services.ai.image_moderation import ensure_violence_detector_loaded
             ensure_violence_detector_loaded()
-            logger.info("[ModelLoader] ✓ Image moderation models loaded")
+            logger.info("[ModelLoader] ✓ Violence detector (CLIP) ready")
         except Exception as e:
-            logger.warning(f"[ModelLoader] ⚠ Image moderation models failed: {e}")
-            # Non-critical - will use heuristic fallback
+            logger.error(f"[ModelLoader] ✗ Violence detector initialization failed: {e}")
+            # This shouldn't fail if CLIP loaded successfully
         
         self._instance_initialized = True
         logger.info("[ModelLoader] ✓ All model initialization complete")
@@ -102,6 +109,7 @@ class ModelLoader:
         """
         status = {
             "initialized": self._instance_initialized,
+            "clip": False,
             "text_emotion": False,
             "image_emotion": False,
             "text_moderation": False,
@@ -110,6 +118,12 @@ class ModelLoader:
         
         if not self._instance_initialized:
             return status
+        
+        try:
+            from app.services.ai.image_understanding import clip_loader
+            status["clip"] = clip_loader.is_loaded()
+        except Exception:
+            pass
         
         try:
             from app.services.ai.text_emotion import phobert_emotion_model
@@ -130,10 +144,9 @@ class ModelLoader:
             pass
         
         try:
-            from app.services.ai.image_moderation import nsfw_detector, violence_detector
+            from app.services.ai.image_moderation import unsafe_scene_detector
             status["image_moderation"] = (
-                nsfw_detector._instance_initialized and 
-                violence_detector._instance_initialized
+                unsafe_scene_detector._instance_initialized
             )
         except Exception:
             pass

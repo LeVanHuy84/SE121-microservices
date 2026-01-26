@@ -1,81 +1,84 @@
-# apps/analysis-service/app/api/moderation_api.py
-
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal, Dict
+import logging
+
+from app.services.ai.text_moderation import moderation_aggregator
 from app.services.ai.image_moderation.image_moderator import (
     moderate_multiple_image_urls,
 )
 
-from app.services.ai.text_moderation import moderation_aggregator
-
-
-class ModerationRequest(BaseModel):
-    text: str = Field(..., min_length=1)
-
-
-class ModerationResponse(BaseModel):
-    is_violation: bool
-    confidence: float
-    source: str
-
-class ImageModerationRequest(BaseModel):
-    urls: List[str] = Field(..., min_items=1)
-
-
-class ImageModerationResult(BaseModel):
-    url: str
-    is_violation: Optional[bool] = None
-    severity: Optional[str] = None
-    violations: Optional[List[str]] = None
-    safe: Optional[bool] = None
-    error: Optional[str] = None
-    retryable: Optional[bool] = None
-
-
-class ImageModerationResponse(BaseModel):
-    results: List[ImageModerationResult]
-
+logger = logging.getLogger(__name__)
 
 moderation_router = APIRouter(
     prefix="/moderation",
     tags=["moderation"],
 )
 
+# ==================================================
+# TEXT API (UNCHANGED)
+# ==================================================
+
+class TextModerationRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+class TextModerationResponse(BaseModel):
+    is_violation: bool
+    confidence: float
+    source: str
+
 
 @moderation_router.post(
     "/check",
-    response_model=ModerationResponse,
+    response_model=TextModerationResponse,
 )
-async def check_content(request: ModerationRequest):
-    """
-    Moderation pipeline (binary decision only):
-    - Keyword: high-recall signal
-    - PhoBERT: binary violation
-    - Aggregator: final decision
-    """
+async def check_text(request: TextModerationRequest):
     result = moderation_aggregator.moderate(request.text)
-
     return {
         "is_violation": result["is_violation"],
         "confidence": result["confidence"],
         "source": result["source"],
     }
 
+
+# ==================================================
+# IMAGE API (FIXED)
+# ==================================================
+
+class ImageModerationRequest(BaseModel):
+    urls: List[str] = Field(..., min_items=1)
+
+
+class UnsafeSceneDetails(BaseModel):
+    is_unsafe: bool
+    category: str
+    confidence: float
+    signal_strength: str
+    model: str
+
+    # 🔥 FIX QUAN TRỌNG: nested scores
+    scores: Optional[Dict[str, Dict[str, float]]] = None
+
+
+class ImageModerationResult(BaseModel):
+    url: str
+
+    is_violation: bool
+    severity: Literal["none", "weak", "medium", "high"]
+    violations: List[str]
+    safe: bool
+
+    unsafe_details: Optional[UnsafeSceneDetails] = None
+
+    error: Optional[str] = None
+    retryable: Optional[bool] = None
+
+
 @moderation_router.post(
-    "/image",
-    response_model=ImageModerationResponse,
+    "/images/check",
+    response_model=List[ImageModerationResult],
 )
 async def check_images(request: ImageModerationRequest):
-    """
-    Image moderation pipeline:
-    - Download image
-    - NSFW detection
-    - Violence detection
-    - Aggregate result
-    """
     results = await moderate_multiple_image_urls(request.urls)
-
-    return {
-        "results": results
-    }
+    return results

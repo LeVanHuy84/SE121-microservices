@@ -8,6 +8,9 @@ No business logic - only model inference.
 
 from .model_loader import model_loader, ensure_models_loaded
 
+# Image Understanding (CLIP-based)
+from .image_understanding import clip_loader, clip_analyzer, ensure_clip_loaded
+
 # Text Emotion
 from .text_emotion import text_emotion_classifier
 
@@ -19,17 +22,20 @@ from .text_moderation import phobert_moderator, ensure_phobert_moderator_loaded
 
 # Image Moderation (NSFW + Violence)
 from .image_moderation import (
-    nsfw_detector,
-    violence_detector,
+    moderate_single_image_url,
     moderate_multiple_image_urls,
-    ensure_nsfw_detector_loaded,
-    ensure_violence_detector_loaded
+    ensure_unsafe_scene_detector_loaded
 )
 
 __all__ = [
     # Core model loader
     'model_loader',
     'ensure_models_loaded',
+    
+    # Image Understanding (CLIP)
+    'clip_loader',
+    'clip_analyzer',
+    'ensure_clip_loaded',
     
     # Text Emotion
     'text_emotion_classifier',
@@ -44,9 +50,7 @@ __all__ = [
     'ensure_phobert_moderator_loaded',
     
     # Image Moderation
-    'nsfw_detector',
-    'violence_detector',
+    'moderate_single_image_url',
     'moderate_multiple_image_urls',
-    'ensure_nsfw_detector_loaded',
-    'ensure_violence_detector_loaded'
+    'ensure_unsafe_scene_detector_loaded'
 ]
