@@ -1,164 +1,110 @@
 # app/services/ai/image_understanding/clip_prompts.py
 
 """
-CLIP Prompt Definitions
-- Scene Safety (violence, weapon, blood, disturbing)
-- Sexual Content
-- Scene-level Emotion
+CLIP Moderation & Emotion Prompts
+- ONE prompt space for moderation (sexual + violence + safe)
+- Emotion prompts separated (multiclass)
 """
 
 # ============================================================================
-# SCENE SAFETY PROMPTS (NON-SEXUAL)
+# MODERATION PROMPTS (ONE-SHOT MULTICLASS)
 # ============================================================================
 
-UNSAFE_PROMPTS = {
+CLIP_MODERATION_PROMPTS = {
+    "sexual_explicit": [
+        "a photo of people having sexual intercourse",
+        "explicit sexual activity with visible genitals",
+        "pornographic image showing explicit sex"
+    ],
+
+    "sexual_suggestive": [
+        "a sexually suggestive pose with revealing clothing",
+        "a sensual image focusing on body curves",
+        "provocative but non explicit sexual content"
+    ],
+
     "violence": [
-        "a photo of a violent physical conflict",
         "people physically attacking each other",
-        "a scene depicting assault or aggression",
+        "a violent fight causing harm",
+        "assault or physical aggression"
     ],
+
     "weapon": [
-        "a photo of a person holding a weapon",
-        "guns or knives being used as weapons",
-        "a dangerous weapon present in the scene",
+        "a person holding a gun or knife",
+        "visible weapon used to threaten others",
+        "dangerous weapon in a violent context"
     ],
+
     "blood": [
         "visible blood from an injury",
-        "a scene showing bleeding wounds",
-        "blood stains caused by violence",
+        "bleeding wound on a person",
+        "blood stains caused by violence"
     ],
+
     "disturbing": [
-        "a disturbing or alarming scene",
-        "a frightening and unsafe situation",
-        "a scene that feels dangerous or threatening",
+        "a frightening or disturbing violent scene",
+        "a dangerous threatening situation",
+        "an alarming unsafe scene"
     ],
+
     "safe": [
-        "a normal safe everyday scene",
-        "a peaceful ordinary photo",
-        "a harmless daily life image",
+        "a normal everyday photo with people fully clothed",
+        "a peaceful non violent daily life scene",
+        "a harmless ordinary image with no sexual or violent content"
     ],
 }
 
-
 # ============================================================================
-# SEXUAL CONTENT PROMPTS
+# SCENE-LEVEL EMOTION PROMPTS (SEPARATE TASK)
 # ============================================================================
-
-SEXUAL_CONTENT_PROMPTS = {
-    "sexual_explicit": [
-        "an explicit sexual act",
-        "graphic sexual activity",
-        "explicit nudity in a sexual context",
-    ],
-    "sexual_suggestive": [
-        "a sexually suggestive pose",
-        "provocative body positioning",
-        "a sensual but non explicit image",
-    ],
-    "safe": [
-        "a normal non sexual image",
-        "a fully clothed person in a normal scene",
-        "a non suggestive everyday photo",
-    ],
-}
-
-
-# ============================================================================
-# SCENE-LEVEL EMOTION PROMPTS
-# ============================================================================
-# Used for scene-level emotion analysis (context, atmosphere, setting)
-# NOT for face-level emotion (FER handles that)
 
 EMOTION_PROMPTS = {
     "joy": [
         "a joyful and happy scene",
         "a cheerful and uplifting image",
-        "a bright and positive atmosphere",
+        "a bright positive atmosphere"
     ],
     "sadness": [
-        "a sad and melancholic scene",
-        "a somber and gloomy atmosphere",
-        "a depressing or sorrowful image",
+        "a sad melancholic scene",
+        "a gloomy depressing atmosphere",
+        "an image expressing sorrow"
     ],
     "anger": [
-        "an angry or intense scene",
-        "a tense and aggressive atmosphere",
-        "a hostile or confrontational image",
+        "an angry aggressive scene",
+        "a tense hostile confrontation",
+        "an atmosphere filled with anger"
     ],
     "fear": [
-        "a fearful or scary scene",
-        "a threatening or ominous atmosphere",
-        "an anxious or dangerous image",
+        "a fearful scary scene",
+        "a threatening dangerous atmosphere",
+        "an image causing fear or anxiety"
     ],
     "surprise": [
-        "a surprising or unexpected scene",
-        "a dramatic or shocking image",
-        "an astonishing or amazing atmosphere",
+        "a surprising unexpected moment",
+        "a shocking dramatic scene",
+        "an astonishing image"
     ],
     "calm": [
-        "a calm and peaceful scene",
-        "a serene and tranquil atmosphere",
-        "a relaxing and quiet image",
+        "a calm peaceful scene",
+        "a tranquil relaxing atmosphere",
+        "a serene quiet image"
     ],
     "neutral": [
         "a neutral everyday scene",
         "a regular ordinary image",
-        "a normal unremarkable atmosphere",
+        "a normal unremarkable situation"
     ],
 }
 
 
 # ============================================================================
-# HELPER FUNCTIONS
+# HELPERS
 # ============================================================================
 
-def get_negative_semantic_prompts() -> dict:
-    """
-    Get all unsafe/violence prompts.
-    
-    Returns:
-        Dictionary mapping category -> list of prompts
-    """
-    return UNSAFE_PROMPTS.copy()
-
-def get_sexual_content_prompts() -> dict:
-    """
-    Get all sexual content prompts.
-    
-    Returns:
-        Dictionary mapping category -> list of prompts
-    """
-    return SEXUAL_CONTENT_PROMPTS.copy()
-
-
-def get_emotion_prompts() -> dict:
-    """
-    Get all scene-level emotion prompts.
-    
-    Returns:
-        Dictionary mapping emotion -> list of prompts
-    """
-    return EMOTION_PROMPTS.copy()
-
-
-def flatten_prompts(prompt_dict: dict) -> tuple:
-    """
-    Flatten prompt dictionary into (labels, texts) for CLIP.
-    
-    Args:
-        prompt_dict: Dictionary mapping category -> list of prompts
-        
-    Returns:
-        Tuple of (labels, prompt_texts)
-        labels: List of category names
-        prompt_texts: Flattened list of all prompt texts
-    """
-    labels = []
-    texts = []
-    
-    for category, prompts in prompt_dict.items():
-        for prompt in prompts:
-            labels.append(category)
-            texts.append(prompt)
-    
+def flatten_prompts(prompt_dict: dict) -> tuple[list[str], list[str]]:
+    labels, texts = [], []
+    for label, prompts in prompt_dict.items():
+        for p in prompts:
+            labels.append(label)
+            texts.append(p)
     return labels, texts

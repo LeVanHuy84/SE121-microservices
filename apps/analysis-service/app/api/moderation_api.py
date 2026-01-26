@@ -16,7 +16,7 @@ moderation_router = APIRouter(
 )
 
 # ==================================================
-# TEXT API (UNCHANGED)
+# TEXT API
 # ==================================================
 
 class TextModerationRequest(BaseModel):
@@ -43,7 +43,7 @@ async def check_text(request: TextModerationRequest):
 
 
 # ==================================================
-# IMAGE API (FIXED)
+# IMAGE API (FIXED SCORE SCHEMA)
 # ==================================================
 
 class ImageModerationRequest(BaseModel):
@@ -55,16 +55,21 @@ class UnsafeSceneDetails(BaseModel):
     category: str
     confidence: float
     signal_strength: str
-    model: str
 
-    # 🔥 FIX QUAN TRỌNG: nested scores
-    scores: Optional[Dict[str, Dict[str, float]]] = None
+    # clip-v2 / clip-v3 / None
+    model: Optional[str] = None
+
+    # ✅ FIX: flat softmax scores
+    scores: Optional[Dict[str, float]] = None
+
+    error: Optional[str] = None
 
 
 class ImageModerationResult(BaseModel):
     url: str
 
     is_violation: bool
+
     severity: Literal["none", "weak", "medium", "high"]
     violations: List[str]
     safe: bool
@@ -80,5 +85,8 @@ class ImageModerationResult(BaseModel):
     response_model=List[ImageModerationResult],
 )
 async def check_images(request: ImageModerationRequest):
+    """
+    Image moderation endpoint.
+    """
     results = await moderate_multiple_image_urls(request.urls)
     return results

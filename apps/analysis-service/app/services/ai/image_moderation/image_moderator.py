@@ -1,7 +1,7 @@
 """
 Image Moderation Orchestrator
 - Downloads images
-- Uses CLIP-based UnsafeSceneDetector
+- Uses CLIP-based UnsafeSceneDetector (v3)
 - Applies moderation policy & severity mapping
 """
 
@@ -60,30 +60,34 @@ async def moderate_single_image_url(url: str) -> dict:
             "violations": [],
             "safe": True,
             "unsafe_details": None,
+            "model": None,
             "error": "download_failed",
             "retryable": True,
         }
 
-    # CLIP-based unsafe semantic detection
     unsafe = unsafe_scene_detector.detect(image_data)
 
     severity = _determine_severity(unsafe)
 
+    is_unsafe = bool(unsafe and unsafe.get("is_unsafe"))
+
     violations: List[str] = []
-    if unsafe.get("is_unsafe"):
+    if is_unsafe:
         violations.append(
             f"unsafe:{unsafe['category']}:{unsafe.get('signal_strength', 'none')}"
         )
 
     return {
         "url": url,
-        "is_violation": severity != "none",
+        # 🔑 source of truth
+        "is_violation": is_unsafe,
         "severity": severity,
         "violations": violations,
-        "safe": severity == "none",
+        "safe": not is_unsafe,
         "unsafe_details": unsafe,
-        "error": None,
-        "retryable": False,
+        "model": unsafe.get("model") if unsafe else None,
+        "error": unsafe.get("error"),
+        "retryable": bool(unsafe and unsafe.get("error")),
     }
 
 

@@ -9,9 +9,8 @@ from typing import Dict
 
 from .clip_loader import clip_loader, ensure_clip_loaded
 from .clip_prompts import (
-    get_negative_semantic_prompts,
-    get_sexual_content_prompts,
-    get_emotion_prompts,
+    CLIP_MODERATION_PROMPTS,
+    EMOTION_PROMPTS,
     flatten_prompts,
 )
 
@@ -22,98 +21,41 @@ class CLIPAnalyzer:
     """
     CLIP-based Image Analyzer
 
-    Responsibilities:
-    - Scene safety (violence / weapon / blood / disturbing)
-    - Sexual content (explicit / suggestive)
-    - Scene-level emotion
-
-    NOTE:
-    - Moderation uses BINARY dominance comparison (no global softmax)
-    - Emotion uses MULTI-CLASS softmax
+    - Moderation: ONE-PASS multiclass softmax
+    - Emotion: ONE-PASS multiclass softmax
     """
 
     # =========================================================================
     # PUBLIC APIs
     # =========================================================================
 
-    def analyze_unsafe_scene(self, image_data: bytes) -> Dict[str, float]:
-        """
-        Analyze unsafe scene content (NON sexual).
-        """
+    def analyze_moderation(self, image_data: bytes) -> Dict[str, float]:
         ensure_clip_loaded()
         image = Image.open(BytesIO(image_data)).convert("RGB")
 
-        prompts = get_negative_semantic_prompts()
-        return self._analyze_binary_categories(image, prompts)
+        labels, texts = flatten_prompts(CLIP_MODERATION_PROMPTS)
+        probs = self._compute_clip_probs(image, texts)
 
-    def analyze_sexual_content(self, image_data: bytes) -> Dict[str, float]:
-        """
-        Analyze sexual content (explicit / suggestive).
-        """
-        ensure_clip_loaded()
-        image = Image.open(BytesIO(image_data)).convert("RGB")
-
-        prompts = get_sexual_content_prompts()
-        return self._analyze_binary_categories(image, prompts)
+        return self._aggregate_max(labels, probs)
 
     def analyze_emotion(self, image_data: bytes) -> Dict[str, float]:
-        """
-        Analyze scene-level emotion (multi-class).
-        """
         ensure_clip_loaded()
         image = Image.open(BytesIO(image_data)).convert("RGB")
 
-        emotion_prompts = get_emotion_prompts()
-        labels, texts = flatten_prompts(emotion_prompts)
+        labels, texts = flatten_prompts(EMOTION_PROMPTS)
+        probs = self._compute_clip_probs(image, texts)
 
-        scores = self._compute_multiclass_clip_scores(image, texts)
-        return self._aggregate_max(labels, scores)
+        return self._aggregate_max(labels, probs)
 
     # =========================================================================
-    # MODERATION CORE (BINARY DOMINANCE)
+    # CORE CLIP
     # =========================================================================
 
-    def _analyze_binary_categories(
+    def _compute_clip_probs(
         self,
         image: Image.Image,
-        prompt_dict: Dict[str, list],
-    ) -> Dict[str, float]:
-        """
-        Analyze categories by comparing each category AGAINST safe.
-        """
-        safe_prompts = prompt_dict.get("safe", [])
-        results = {}
-
-        for category, prompts in prompt_dict.items():
-            if category == "safe":
-                continue
-
-            texts = prompts + safe_prompts
-            scores = self._compute_binary_clip_scores(image, texts)
-
-            # split
-            unsafe_scores = scores[: len(prompts)]
-            safe_scores = scores[len(prompts):]
-
-            # dominance score
-            results[category] = float(max(unsafe_scores))
-            results["safe"] = max(results.get("safe", 0.0), float(max(safe_scores)))
-
-        return results
-
-    # =========================================================================
-    # CLIP SCORE COMPUTATION
-    # =========================================================================
-
-    def _compute_binary_clip_scores(
-        self,
-        image: Image.Image,
-        texts: list,
+        texts: list[str],
     ) -> np.ndarray:
-        """
-        Compute CLIP scores for SMALL prompt set (unsafe vs safe).
-        Uses softmax ONLY within this small group.
-        """
         model = clip_loader.get_model()
         processor = clip_loader.get_processor()
         device = clip_loader.get_device()
@@ -126,37 +68,10 @@ class CLIPAnalyzer:
         ).to(device)
 
         with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits_per_image[0]
+            logits = model(**inputs).logits_per_image[0]
             probs = torch.softmax(logits, dim=0)
 
         return probs.cpu().numpy()
-
-    def _compute_multiclass_clip_scores(
-        self,
-        image: Image.Image,
-        texts: list,
-    ) -> np.ndarray:
-        """
-        Compute CLIP scores for multi-class problems (emotion).
-        """
-        model = clip_loader.get_model()
-        processor = clip_loader.get_processor()
-        device = clip_loader.get_device()
-
-        inputs = processor(
-            text=texts,
-            images=image,
-            return_tensors="pt",
-            padding=True,
-        ).to(device)
-
-        with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits_per_image
-            probs = logits.softmax(dim=1).cpu().numpy()[0]
-
-        return probs
 
     # =========================================================================
     # AGGREGATION
@@ -164,13 +79,10 @@ class CLIPAnalyzer:
 
     def _aggregate_max(
         self,
-        labels: list,
+        labels: list[str],
         scores: np.ndarray,
     ) -> Dict[str, float]:
-        """
-        Use MAX score per category (best for moderation & emotion).
-        """
-        result = {}
+        result: Dict[str, float] = {}
         for label, score in zip(labels, scores):
             result[label] = max(result.get(label, 0.0), float(score))
         return result
