@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.services.ai.text_emotion.text_emotion_classifier import text_emotion_classifier
 from pydantic import BaseModel
 
-text_router = APIRouter()
+text_router = APIRouter(prefix="/text", tags=["Text Analysis"])
 
 class SentimentRequest(BaseModel):
     text: str

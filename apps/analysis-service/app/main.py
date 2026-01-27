@@ -14,7 +14,7 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
-app.include_router(text_router, prefix="/text")
-app.include_router(image_router, prefix="/image")
+app.include_router(text_router)
+app.include_router(image_router)
 app.include_router(analyze_router)
 app.include_router(moderation_router)

@@ -1,16 +1,17 @@
 # app/services/ai/text_emotion/text_preprocessor.py
-
 """
 Text Preprocessing for Social Media Content
 - Emoji normalization
-- Slang mapping
+- Slang mapping (word-based & symbol-based)
 - Repeated character reduction
 """
 
 import re
+from typing import Dict
+
 
 # Emoji to Vietnamese meaning
-EMOJI_MAP = {
+EMOJI_MAP: Dict[str, str] = {
     "😂": "vui",
     "🤣": "vui",
     "😭": "buồn",
@@ -19,31 +20,48 @@ EMOJI_MAP = {
     "😠": "tức giận",
     "😱": "sợ hãi",
     "😐": "bình thường",
-    "😒": "khó chịu",
+    "😒": "không hài lòng",
     "🙂": "bình thường",
-    "🙁": "buồn"
+    "🙁": "buồn",
 }
 
-# Slang to normalized form
-SLANG_MAP = {
+# Slang dạng từ (dùng word boundary)
+WORD_SLANG_MAP: Dict[str, str] = {
     "vcl": "rất",
     "vl": "rất",
     "kk": "haha",
     "haha": "vui",
     "huhu": "buồn",
+}
+
+# Slang dạng ký hiệu / symbol (KHÔNG dùng \b)
+SYMBOL_SLANG_MAP: Dict[str, str] = {
     ":))": "vui",
     ":(": "buồn",
-    ":((": "buồn"
+    ":((": "buồn",
 }
+
+# Pre-compile regex (performance + safety)
+WORD_SLANG_PATTERN = re.compile(
+    r"\b(" + "|".join(map(re.escape, WORD_SLANG_MAP.keys())) + r")\b",
+    flags=re.IGNORECASE,
+)
+
+SYMBOL_SLANG_PATTERN = re.compile(
+    "|".join(map(re.escape, SYMBOL_SLANG_MAP.keys()))
+)
+
+REPEAT_CHAR_PATTERN = re.compile(r"(.)\1{2,}")
+WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
 def normalize_text(text: str) -> dict:
     """
     Normalize social media text.
-    
+
     Args:
         text: Raw text content
-        
+
     Returns:
         {
             "text": normalized text,
@@ -54,24 +72,34 @@ def normalize_text(text: str) -> dict:
     original = text
     has_emoji = False
 
-    # Emoji → word
+    # 1. Emoji → word
     for emoji, meaning in EMOJI_MAP.items():
         if emoji in text:
             has_emoji = True
             text = text.replace(emoji, f" {meaning} ")
 
-    # Slang normalization
-    for slang, norm in SLANG_MAP.items():
-        text = re.sub(rf"\b{slang}\b", norm, text, flags=re.IGNORECASE)
+    # 2. Word slang normalization (vcl, vl, kk...)
+    def replace_word_slang(match: re.Match) -> str:
+        slang = match.group(1).lower()
+        return WORD_SLANG_MAP.get(slang, slang)
 
-    # Remove repeated chars (vuiiiii → vui)
-    text = re.sub(r"(.)\1{2,}", r"\1", text)
+    text = WORD_SLANG_PATTERN.sub(replace_word_slang, text)
 
-    # Cleanup whitespace
-    text = re.sub(r"\s+", " ", text).strip()
+    # 3. Symbol slang normalization (:)), :( ...)
+    def replace_symbol_slang(match: re.Match) -> str:
+        slang = match.group(0)
+        return f" {SYMBOL_SLANG_MAP.get(slang, slang)} "
+
+    text = SYMBOL_SLANG_PATTERN.sub(replace_symbol_slang, text)
+
+    # 4. Remove repeated characters (vuiiiii → vui)
+    text = REPEAT_CHAR_PATTERN.sub(r"\1", text)
+
+    # 5. Cleanup whitespace
+    text = WHITESPACE_PATTERN.sub(" ", text).strip()
 
     return {
         "text": text,
         "hasEmoji": has_emoji,
-        "original": original
+        "original": original,
     }

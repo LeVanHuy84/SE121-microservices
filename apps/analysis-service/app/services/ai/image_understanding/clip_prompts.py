@@ -59,40 +59,34 @@ CLIP_MODERATION_PROMPTS = {
 # ============================================================================
 
 EMOTION_PROMPTS = {
+    "anger": [
+        "an angry or aggressive scene",
+        "a tense hostile confrontation",
+    ],
+    "disgust": [
+        "a disgusting or repulsive scene",
+        "something causing strong disgust",
+    ],
+    "fear": [
+        "a fearful or threatening scene",
+        "a scary dangerous atmosphere",
+    ],
     "joy": [
-        "a joyful and happy scene",
-        "a cheerful and uplifting image",
-        "a bright positive atmosphere"
+        "a joyful happy scene",
+        "a cheerful uplifting moment",
     ],
     "sadness": [
         "a sad melancholic scene",
         "a gloomy depressing atmosphere",
-        "an image expressing sorrow"
-    ],
-    "anger": [
-        "an angry aggressive scene",
-        "a tense hostile confrontation",
-        "an atmosphere filled with anger"
-    ],
-    "fear": [
-        "a fearful scary scene",
-        "a threatening dangerous atmosphere",
-        "an image causing fear or anxiety"
     ],
     "surprise": [
         "a surprising unexpected moment",
         "a shocking dramatic scene",
-        "an astonishing image"
-    ],
-    "calm": [
-        "a calm peaceful scene",
-        "a tranquil relaxing atmosphere",
-        "a serene quiet image"
     ],
     "neutral": [
         "a neutral everyday scene",
-        "a regular ordinary image",
-        "a normal unremarkable situation"
+        "a calm peaceful ordinary situation",
+        "a normal unremarkable image",
     ],
 }
 

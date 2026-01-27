@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 from typing import Dict
+from app.enums.emotion_enum import EmotionEnum
 
 from .clip_loader import clip_loader, ensure_clip_loaded
 from .clip_prompts import (
@@ -45,7 +46,13 @@ class CLIPAnalyzer:
         labels, texts = flatten_prompts(EMOTION_PROMPTS)
         probs = self._compute_clip_probs(image, texts)
 
-        return self._aggregate_max(labels, probs)
+        raw = self._aggregate_max(labels, probs)
+
+        # DOMAIN ENFORCEMENT
+        return {
+            k: v for k, v in raw.items()
+            if k in EmotionEnum._value2member_map_
+        }
 
     # =========================================================================
     # CORE CLIP

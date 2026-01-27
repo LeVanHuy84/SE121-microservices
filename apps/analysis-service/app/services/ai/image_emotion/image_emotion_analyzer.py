@@ -2,127 +2,150 @@
 
 """
 Image Emotion Analysis - Dual-layer emotion detection
+
+ARCHITECTURE:
 - CLIP: Scene-level emotion (context, atmosphere, setting)
 - FER: Face-level emotion (authoritative when faces present)
 
-PIPELINE (MANDATORY):
+PIPELINE (STRICT):
 1. ALWAYS run CLIP emotion analysis FIRST (scene emotion)
-2. Detect faces
-3. If faces detected → ALWAYS run FER (face emotion becomes final)
-4. If no faces → CLIP emotion becomes final
+2. ALWAYS run FER once (FER handles face detection internally)
+3. If face_count > 0 → FER is authoritative
+4. If face_count == 0 → CLIP is final
 
-ROLE SEPARATION:
-- CLIP = scene/contextual emotion
-- FER = face-level emotion (authoritative when faces exist)
-- NO ensembling, NO averaging, NO overriding
+PRINCIPLES:
+- NO ensembling
+- NO averaging
+- NO voting
+- NO confidence blending
+- Single source of truth per layer
 """
 
 import logging
 from typing import List, Dict
 import aiohttp
-import cv2
-import numpy as np
-from PIL import Image
-from io import BytesIO
 
+from app.services.domain.emotion.emotion_normalizer import normalize_image_label
 from app.services.ai.image_emotion.fer_analyzer import fer_analyzer
 from app.services.ai.image_understanding import clip_analyzer
 
 logger = logging.getLogger(__name__)
 
 
-async def download_image(url: str) -> bytes:
+# =============================================================================
+# IO
+# =============================================================================
+
+async def download_image(url: str) -> bytes | None:
     """
     Download image from URL.
-    
+
     Args:
         url: Image URL
-        
+
     Returns:
-        Image bytes or None if failed
+        Image bytes or None
     """
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
                 if response.status == 200:
                     return await response.read()
                 else:
-                    logger.error(f"Failed to download image from {url}: {response.status}")
+                    logger.error(f"Failed to download image {url}: {response.status}")
                     return None
     except Exception as e:
-        logger.error(f"Error downloading image from {url}: {e}")
+        logger.error(f"Error downloading image {url}: {e}")
         return None
 
+
+# =============================================================================
+# CORE API
+# =============================================================================
 
 async def analyze_single_image_url(url: str) -> dict:
     """
     Analyze emotion from a single image URL using CLIP + FER dual pipeline.
-    
-    PIPELINE:
-    1. Download image
-    2. CLIP scene emotion (ALWAYS)
-    3. Detect faces
-    4. FER face emotion (if faces present)
-    5. Determine final emotion based on face presence
-    
-    Args:
-        url: Image URL
-        
+
     Returns:
-        Analysis result with scene emotion, face emotion, and final emotion
+        {
+            url,
+            sceneEmotion,
+            faceEmotion,
+            finalEmotion,
+            finalSource,
+            finalConfidence,
+            sceneType
+        }
     """
     try:
-        # Download image
+        # ---------------------------------------------------------------------
+        # Download
+        # ---------------------------------------------------------------------
         image_data = await download_image(url)
-        
+
         if not image_data:
             return {
                 "url": url,
                 "error": "download_failed",
                 "retryable": True
             }
-        
+
+        # ---------------------------------------------------------------------
         # STEP 1: CLIP Scene Emotion (ALWAYS FIRST)
+        # ---------------------------------------------------------------------
         scene_emotion = clip_analyzer.analyze_emotion(image_data)
         scene_dominant = _get_dominant_emotion(scene_emotion)
         scene_confidence = scene_emotion.get(scene_dominant, 0.0)
-        
-        # STEP 2: Detect faces
-        has_faces = _has_faces_in_image(image_data)
-        
-        # STEP 3: FER Face Emotion (if faces detected)
-        face_emotion = None
-        final_emotion = None
-        final_source = None
-        
-        if has_faces:
-            # Faces detected - ALWAYS run FER
-            fer_result = fer_analyzer.analyze_image(image_data)
-            face_emotion = {
-                "dominant": fer_result["dominant_emotion"],
-                "scores": fer_result["emotions"],
-                "confidence": fer_result["confidence"],
-                "faceCount": fer_result["face_count"]
-            }
-            
-            # FER becomes final emotion
-            final_emotion = fer_result["dominant_emotion"]
+
+        # ---------------------------------------------------------------------
+        # STEP 2: FER (ALWAYS RUN ONCE)
+        # FER internally handles face detection
+        # ---------------------------------------------------------------------
+        fer_result = fer_analyzer.analyze_image(image_data)
+        face_count = fer_result["face_count"]
+
+        # ---------------------------------------------------------------------
+        # STEP 3: Decision Policy (AUTHORITATIVE SOURCE)
+        # ---------------------------------------------------------------------
+        if face_count > 0:
+            fer_scores = _normalize_fer_emotions(fer_result["emotions"])
+
+            dominant = _get_dominant_emotion(fer_scores)
+            confidence = fer_scores.get(dominant, 0.0)
+
+            final_emotion = dominant
             final_source = "FER"
-            final_confidence = fer_result["confidence"]
-            
+            final_confidence = confidence
+
+            face_emotion = {
+                "dominant": dominant,
+                "scores": fer_scores,
+                "confidence": round(confidence, 4),
+                "faceCount": face_count
+            }
+
         else:
-            # No faces - CLIP becomes final emotion
+            # No faces → CLIP authoritative
             final_emotion = scene_dominant
             final_source = "CLIP"
             final_confidence = scene_confidence
-        
-        # Determine scene type
+            face_emotion = None
+
+        # ---------------------------------------------------------------------
+        # STEP 4: Scene Typing (semantic layer)
+        # ---------------------------------------------------------------------
         scene_type = _determine_scene_type(
-            final_emotion,
-            face_emotion["faceCount"] if face_emotion else 0,
-            has_faces
+            final_emotion=final_emotion,
+            face_count=face_count
         )
-        
+
+        # ---------------------------------------------------------------------
+        # Response
+        # ---------------------------------------------------------------------
         return {
             "url": url,
             "sceneEmotion": {
@@ -135,10 +158,9 @@ async def analyze_single_image_url(url: str) -> dict:
             "finalEmotion": final_emotion,
             "finalSource": final_source,
             "finalConfidence": round(final_confidence, 4),
-            "sceneType": scene_type,
-            "hasFaces": has_faces
+            "sceneType": scene_type
         }
-        
+
     except Exception as e:
         logger.exception(f"Error analyzing image {url}: {e}")
         return {
@@ -150,119 +172,105 @@ async def analyze_single_image_url(url: str) -> dict:
 
 async def analyze_multiple_image_urls(urls: List[str]) -> List[dict]:
     """
-    Analyze emotion from multiple image URLs.
-    
-    Args:
-        urls: List of image URLs
-        
-    Returns:
-        List of analysis results
+    Analyze emotion from multiple image URLs concurrently.
     """
     if not urls:
         return []
-    
+
     import asyncio
     tasks = [analyze_single_image_url(url) for url in urls]
     results = await asyncio.gather(*tasks)
-    
+
     return list(results)
 
 
-def _get_dominant_emotion(emotion_scores: Dict[str, float]) -> str:
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+def _get_dominant_emotion(
+    emotion_scores: Dict[str, float],
+    min_confidence: float = 0.35
+) -> str:
     """
-    Get dominant emotion from CLIP scores.
-    
+    Get dominant emotion with confidence threshold protection.
+    Prevents low-signal random emotion selection.
+
     Args:
-        emotion_scores: Dictionary of emotion -> score
-        
+        emotion_scores: emotion -> score
+        min_confidence: minimum confidence to accept emotion
+
     Returns:
-        Dominant emotion name
+        emotion label
     """
-    # Filter out error key if present
-    scores = {k: v for k, v in emotion_scores.items() if k != "error"}
-    
-    if not scores:
+    if not emotion_scores:
         return "neutral"
-    
-    return max(scores, key=scores.get)
+
+    emotion, score = max(emotion_scores.items(), key=lambda x: x[1])
+
+    if score < min_confidence:
+        return "neutral"
+
+    return emotion
 
 
-def _has_faces_in_image(image_data: bytes) -> bool:
+def _determine_scene_type(
+    final_emotion: str,
+    face_count: int
+) -> str:
     """
-    Quick face detection check.
-    
-    Args:
-        image_data: Image bytes
-        
-    Returns:
-        True if at least one face detected
+    Determine semantic scene type from emotion + face presence.
     """
-    try:
-        # Convert to OpenCV format
-        image = Image.open(BytesIO(image_data)).convert("RGB")
-        cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-        
-        # Use Haar Cascade for quick face detection
-        face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
-        )
-        
-        return len(faces) > 0
-        
-    except Exception as e:
-        logger.warning(f"Face detection failed: {e}")
-        return False
 
-
-def _determine_scene_type(emotion: str, face_count: int, has_faces: bool) -> str:
-    """
-    Determine scene type from emotion and face presence.
-    
-    Args:
-        emotion: Final emotion
-        face_count: Number of faces detected
-        has_faces: Whether faces were detected
-        
-    Returns:
-        Scene type string
-    """
-    # No faces - environmental/object photo
-    if not has_faces or face_count == 0:
+    # ---------------------------------------------------------------------
+    # No faces → environmental / object / landscape
+    # ---------------------------------------------------------------------
+    if face_count == 0:
         emotion_scene_map = {
             "joy": "cheerful_scene",
             "sadness": "melancholic_scene",
             "anger": "intense_scene",
             "fear": "ominous_scene",
             "surprise": "dramatic_scene",
-            "calm": "peaceful_scene",
-            "neutral": "neutral_scene"
+            "neutral": "neutral_scene",
+            "disgust": "disturbing_scene",
         }
-        return emotion_scene_map.get(emotion, "environmental_scene")
-    
-    # Multiple faces - social scene
+        return emotion_scene_map.get(final_emotion, "environmental_scene")
+
+    # ---------------------------------------------------------------------
+    # Multi-face → social context
+    # ---------------------------------------------------------------------
     if face_count > 2:
-        if emotion in ["joy", "surprise"]:
+        if final_emotion in ["joy", "surprise"]:
             return "social_gathering"
-        else:
-            return "group_scene"
-    
-    # Single/couple faces - portrait
-    scene_mapping = {
+        return "group_scene"
+
+    # ---------------------------------------------------------------------
+    # Single / couple face → portrait
+    # ---------------------------------------------------------------------
+    portrait_map = {
         "sadness": "emotional_portrait",
         "anger": "intense_portrait",
         "fear": "tense_portrait",
         "joy": "happy_portrait",
         "surprise": "dynamic_portrait",
         "neutral": "neutral_portrait",
-        "calm": "calm_portrait"
+        "disgust": "disturbing_portrait",
     }
-    
-    return scene_mapping.get(emotion, "normal_portrait")
+
+    return portrait_map.get(final_emotion, "normal_portrait")
+
+
+def _normalize_fer_emotions(raw_emotions: Dict[str, float]) -> Dict[str, float]:
+    """
+    Normalize FER raw emotion scores into domain emotion scores.
+    """
+    normalized = {}
+
+    for raw_label, score in raw_emotions.items():
+        enum = normalize_image_label(raw_label)
+        key = enum.value
+        normalized[key] = normalized.get(key, 0.0) + score
+
+    return {k: round(v, 4) for k, v in normalized.items()}
+
