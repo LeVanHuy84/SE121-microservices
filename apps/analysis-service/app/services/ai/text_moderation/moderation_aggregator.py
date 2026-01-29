@@ -4,74 +4,53 @@ class ModerationAggregator:
     """
     Final decision layer (BINARY moderation).
     - PhoBERT: primary signal
-    - Keyword: hard / soft safety net
+    - Keyword: hard / sensitive
     """
 
     def __init__(self, phobert, keyword):
         self.phobert = phobert
         self.keyword = keyword
-
-        # Threshold for model decision
         self.model_threshold = 0.6
 
-    # =====================================================
-    # Public API
-    # =====================================================
-
     def moderate(self, text: str) -> dict:
+        # ===== keyword analysis (LUÔN chạy) =====
+        kw = self.keyword.analyze(text)
+
+        # ============================
+        # HARD BLOCK (keyword)
+        # ============================
+        if kw.get("blocked"):
+            return {
+                "is_violation": True,
+                "confidence": 1.0,
+                "source": "keyword_hard",
+                "reason": kw.get("blockedCategory"),
+                "flags": {},
+            }
+
+        # ============================
+        # PhoBERT
+        # ============================
         ph = self.phobert.infer(text)
 
-        # ============================
-        # CASE 1: Model available
-        # ============================
         if ph.get("available"):
             score = ph["violation_score"]
 
-            # 🔴 HARD keyword: luôn check
-            kw_hard = self.keyword.check(
-                text=text,
-                model_confidence=1.0,  # ép cao để SOFT không chạy
-            )
-            if kw_hard and kw_hard["source"] == "keyword_hard":
-                return kw_hard
-
-            # 🟠 SOFT keyword: chỉ check khi model KHÔNG tự tin
-            if score < self.model_threshold:
-                kw_soft = self.keyword.check(
-                    text=text,
-                    model_confidence=score,
-                )
-                if kw_soft:
-                    return kw_soft
-
-            # 👉 Cuối cùng: model quyết
             return {
                 "is_violation": score >= self.model_threshold,
                 "confidence": round(score, 4),
                 "source": ph["model"],
+                "flags": kw.get("flags", {}),
+                "sensitive": bool(kw.get("flags")),
             }
 
         # ============================
-        # CASE 2: Model unavailable
+        # Model unavailable → keyword only
         # ============================
-        kw_fallback = self.keyword.check(
-            text=text,
-            model_confidence=0.0,
-        )
-
-        if kw_fallback:
-            return kw_fallback
-
-        return self._allow("keyword_clean")
-
-
-    # =====================================================
-    # Helpers
-    # =====================================================
-
-    def _allow(self, source: str) -> dict:
         return {
             "is_violation": False,
             "confidence": 0.0,
-            "source": source,
+            "source": "keyword_only",
+            "flags": kw.get("flags", {}),
+            "sensitive": bool(kw.get("flags")),
         }

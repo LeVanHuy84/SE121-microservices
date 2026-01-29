@@ -1,7 +1,7 @@
 from odmantic import AIOEngine
 from bson import ObjectId
 from typing import List
-from app.database.models.outbox_schema import Outbox
+from app.database.schemas.outbox import Outbox
 
 class OutboxRepository:
     def __init__(self, engine: AIOEngine):

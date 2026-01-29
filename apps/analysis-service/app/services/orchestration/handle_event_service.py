@@ -13,7 +13,7 @@ from typing import List, Dict
 
 from app.services.orchestration.analysis_flow_service import analysis_flow_service
 from app.database.analysis_repository import AnalysisRepository
-from app.database.models.analysis_schema import EmotionAnalysis
+from app.database.schemas.emotion_aggregate import EmotionAggregate
 from app.enums.analysis_status_enum import AnalysisStatusEnum, RetryScopeEnum
 from app.utils.exceptions import RetryableException
 
@@ -35,7 +35,7 @@ class HandleEventService:
         """
         self.repo = repo
 
-    async def handle_created(self, event: dict) -> EmotionAnalysis:
+    async def handle_created(self, event: dict) -> EmotionAggregate:
         """
         Handle content created event.
         
@@ -43,7 +43,7 @@ class HandleEventService:
             event: Kafka event payload
             
         Returns:
-            Saved EmotionAnalysis document
+            Saved EmotionAggregate document
         """
         text = event["content"]
         image_urls = event.get("imageUrls", [])
@@ -72,7 +72,7 @@ class HandleEventService:
             )
 
             # Create success document
-            doc = EmotionAnalysis(
+            doc = EmotionAggregate(
                 userId=user_id,
                 targetId=target_id,
                 targetType=target_type,
@@ -95,7 +95,7 @@ class HandleEventService:
             logger.warning(f"Retryable error during analysis: {e}")
             
             # Create failed document with retry scope
-            doc = EmotionAnalysis(
+            doc = EmotionAggregate(
                 userId=user_id,
                 targetId=target_id,
                 targetType=target_type,
@@ -111,7 +111,7 @@ class HandleEventService:
             logger.exception(f"Permanent error during analysis: {e}")
             
             # Create permanent failed document
-            doc = EmotionAnalysis(
+            doc = EmotionAggregate(
                 userId=user_id,
                 targetId=target_id,
                 targetType=target_type,
@@ -124,7 +124,7 @@ class HandleEventService:
         # Save to database
         return await self.repo.save_analysis(doc)
 
-    async def handle_updated(self, event: dict) -> EmotionAnalysis:
+    async def handle_updated(self, event: dict) -> EmotionAggregate:
         """
         Handle content updated event.
         
@@ -132,7 +132,7 @@ class HandleEventService:
             event: Kafka event payload
             
         Returns:
-            Updated EmotionAnalysis document
+            Updated EmotionAggregate document
         """
         target_id = event["targetId"]
         target_type = event["targetType"]
@@ -142,7 +142,7 @@ class HandleEventService:
         # Get existing analysis
         doc = await self.repo.get_analysis_by_target(target_id, target_type)
         if not doc:
-            raise RetryableException("EmotionAnalysis not found yet")
+            raise RetryableException("EmotionAggregate not found yet")
         
         # Fetch user history
         user_history = await self._fetch_user_history(user_id)
@@ -194,7 +194,7 @@ class HandleEventService:
         # Update in database
         updated = await self.repo.update_analysis(str(doc.id), update_payload)
         if not updated:
-            raise RetryableException("Failed to update EmotionAnalysis")
+            raise RetryableException("Failed to update EmotionAggregate")
 
         return updated
     

@@ -8,7 +8,7 @@ Domain Service: Emotion Analysis
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 from app.enums.emotion_enum import EmotionEnum
 
 logger = logging.getLogger(__name__)

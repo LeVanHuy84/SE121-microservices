@@ -71,7 +71,7 @@ class ImageModerationResult(BaseModel):
     is_violation: bool
 
     severity: Literal["none", "weak", "medium", "high"]
-    violations: List[str]
+    violation: Optional[str] = None
     safe: bool
 
     unsafe_details: Optional[UnsafeSceneDetails] = None

@@ -1,6 +1,7 @@
 from odmantic import AIOEngine
 from bson import ObjectId
-from app.database.models.analysis_schema import EmotionAnalysis
+from app.database.schemas.emotion_aggregate import EmotionAggregate
+from app.database.schemas.emotion_analysis_task import EmotionAnalysisTask
 from app.enums.analysis_status_enum import AnalysisStatusEnum
 from datetime import datetime
 
@@ -9,7 +10,7 @@ class AnalysisRepository:
     def __init__(self, engine: AIOEngine):
         self.engine = engine
 
-    async def save_analysis(self, data: EmotionAnalysis):
+    async def save_analysis(self, data: EmotionAggregate):
         return await self.engine.save(data)
 
     async def get_analysis_by_id(self, analysisId: str):
@@ -18,21 +19,15 @@ class AnalysisRepository:
             obj_id = ObjectId(analysisId)
         except:
             return None
-        return await self.engine.find_one(EmotionAnalysis, EmotionAnalysis.id == obj_id)
+        return await self.engine.find_one(EmotionAggregate, EmotionAggregate.id == obj_id)
 
     async def get_analysis_by_target(self, targetId: str, targetType: str):
         return await self.engine.find_one(
-            EmotionAnalysis,
-            (EmotionAnalysis.targetId == targetId) &
-            (EmotionAnalysis.targetType == targetType)
+            EmotionAggregate,
+            (EmotionAggregate.targetId == targetId) &
+            (EmotionAggregate.targetType == targetType)
         )
     
-    async def find_failed(self, max_retry: int):
-        return await self.engine.find(
-            EmotionAnalysis,
-            (EmotionAnalysis.status == AnalysisStatusEnum.FAILED) &
-            (EmotionAnalysis.retryCount < max_retry)
-        )
 
     async def update_analysis(self, analysisId, update_data: dict):
         try:
@@ -41,8 +36,8 @@ class AnalysisRepository:
             return None
 
         analysis = await self.engine.find_one(
-            EmotionAnalysis,
-            EmotionAnalysis.id == obj_id
+            EmotionAggregate,
+            EmotionAggregate.id == obj_id
         )
 
         if not analysis:
@@ -64,18 +59,18 @@ class AnalysisRepository:
         limit: int = 20
     ):
         query = (
-            (EmotionAnalysis.userId == user_id) &
-            (EmotionAnalysis.createdAtVN >= start) &
-            (EmotionAnalysis.createdAtVN <= end)
+            (EmotionAggregate.userId == user_id) &
+            (EmotionAggregate.createdAtVN >= start) &
+            (EmotionAggregate.createdAtVN <= end)
         )
 
         if cursor:
-            query = query & (EmotionAnalysis.createdAtVN < cursor)
+            query = query & (EmotionAggregate.createdAtVN < cursor)
 
         return await self.engine.find(
-            EmotionAnalysis,
+            EmotionAggregate,
             query,
-            sort=EmotionAnalysis.createdAtVN.desc(),
+            sort=EmotionAggregate.createdAtVN.desc(),
             limit=limit
         )
 
@@ -84,28 +79,33 @@ class AnalysisRepository:
     # NEW: filter by date range
     async def get_analysis_by_date_range(self, user_id: str, from_date: datetime, to_date: datetime):
         return await self.engine.find(
-            EmotionAnalysis,
-            (EmotionAnalysis.userId == user_id) &
-            (EmotionAnalysis.createdAtVN >= from_date) &
-            (EmotionAnalysis.createdAtVN <= to_date),
+            EmotionAggregate,
+            (EmotionAggregate.userId == user_id) &
+            (EmotionAggregate.createdAtVN >= from_date) &
+            (EmotionAggregate.createdAtVN <= to_date),
         )
 
     # NEW: get successful entries for summary
     async def get_all_for_summary(self, user_id: str, start: datetime, end: datetime):
         return await self.engine.find(
-            EmotionAnalysis,
-            (EmotionAnalysis.userId == user_id) &
-            (EmotionAnalysis.createdAtVN >= start) &
-            (EmotionAnalysis.createdAtVN <= end) &
-            (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
+            EmotionAggregate,
+            (EmotionAggregate.userId == user_id) &
+            (EmotionAggregate.createdAtVN >= start) &
+            (EmotionAggregate.createdAtVN <= end)
         )    
     
     async def get_user_recent_analyses(self, user_id: str, limit: int = 30):
         return await self.engine.find(
-            EmotionAnalysis,
-            (EmotionAnalysis.userId == user_id) &
-            (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS),
-            sort=EmotionAnalysis.createdAt.desc(),
+            EmotionAggregate,
+            (EmotionAggregate.userId == user_id),
+            sort=EmotionAggregate.createdAt.desc(),
             limit=limit
+        )
+    
+    async def find_failed(self, max_retry: int):
+        return await self.engine.find(
+            EmotionAnalysisTask,
+            (EmotionAnalysisTask.status == AnalysisStatusEnum.FAILED) &
+            (EmotionAnalysisTask.retryCount < max_retry)
         )
 

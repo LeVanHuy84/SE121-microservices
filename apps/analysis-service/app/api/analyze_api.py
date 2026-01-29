@@ -5,7 +5,7 @@ from app.database.analysis_repository import AnalysisRepository
 from app.database.mongo_client import engine
 from app.utils.preset_mapper import resolve_preset_range, validate_range
 from app.enums.emotion_enum import EmotionEnum
-from app.database.models.analysis_schema import EmotionAnalysis
+from app.database.schemas.emotion_aggregate import EmotionAggregate
 from app.enums.analysis_status_enum import AnalysisStatusEnum
 from app.core.security import verify_internal_key
 
@@ -50,10 +50,9 @@ async def get_community_emotion_dashboard(
 
     # ===== QUERY DB =====
     entries = await engine.find(
-        EmotionAnalysis,
-        (EmotionAnalysis.createdAtVN >= start_dt) &
-        (EmotionAnalysis.createdAtVN <= end_dt) &
-        (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
+        EmotionAggregate,
+        (EmotionAggregate.createdAtVN >= start_dt) &
+        (EmotionAggregate.createdAtVN <= end_dt)
     )
 
     # ===== GROUP BY DAY + EMOTION =====

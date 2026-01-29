@@ -3,7 +3,7 @@ from app.database.outbox_repository import OutboxRepository
 import asyncio
 from app.enums.analysis_status_enum import AnalysisStatusEnum
 from app.services.domain.emotion.emotion_analyzer import EmotionAnalyzer
-from app.database.models.outbox_schema import Outbox
+from app.database.schemas.outbox import Outbox
 from app.enums.analysis_status_enum import RetryScopeEnum
 from datetime import datetime, timezone
 
@@ -77,7 +77,7 @@ class RetryWorker:
                 await self.outbox_repo.save_outbox(
                     Outbox(
                         topic="analysis-result-events",
-                        event_type=outbox_event_type,
+                        eventType=outbox_event_type,
                         payload={
                             "targetId": str(doc.targetId),
                             "targetType": doc.targetType,

@@ -57,7 +57,7 @@ async def moderate_single_image_url(url: str) -> dict:
             "url": url,
             "is_violation": False,
             "severity": "none",
-            "violations": [],
+            "violation": None,
             "safe": True,
             "unsafe_details": None,
             "model": None,
@@ -71,18 +71,16 @@ async def moderate_single_image_url(url: str) -> dict:
 
     is_unsafe = bool(unsafe and unsafe.get("is_unsafe"))
 
-    violations: List[str] = []
+    violation: None | str = None
     if is_unsafe:
-        violations.append(
-            f"unsafe:{unsafe['category']}:{unsafe.get('signal_strength', 'none')}"
-        )
+        violation = unsafe['category']
 
     return {
         "url": url,
         # 🔑 source of truth
         "is_violation": is_unsafe,
         "severity": severity,
-        "violations": violations,
+        "violation": violation,
         "safe": not is_unsafe,
         "unsafe_details": unsafe,
         "model": unsafe.get("model") if unsafe else None,

@@ -84,15 +84,6 @@ class ModelLoader:
             logger.warning(f"[ModelLoader] ⚠ Text moderation models failed: {e}")
             # Non-critical - will use keyword fallback
         
-        # Note: Violence detector uses CLIP, already loaded above
-        try:
-            from app.services.ai.image_moderation import ensure_violence_detector_loaded
-            ensure_violence_detector_loaded()
-            logger.info("[ModelLoader] ✓ Violence detector (CLIP) ready")
-        except Exception as e:
-            logger.error(f"[ModelLoader] ✗ Violence detector initialization failed: {e}")
-            # This shouldn't fail if CLIP loaded successfully
-        
         self._instance_initialized = True
         logger.info("[ModelLoader] ✓ All model initialization complete")
     
