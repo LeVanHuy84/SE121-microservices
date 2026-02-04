@@ -4,7 +4,7 @@ class ViolationCategoryEnum(str, Enum):
     TOXIC = "toxic"
     SELF_HARM = "self_harm"
     VIOLENCE = "violence"
-    SEXUAL_EXPLICIT = "sexual_explicit"
+    SEXUAL = "sexual"
     BLOOD = "blood"
     SAFE = "safe"
 

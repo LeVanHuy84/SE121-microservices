@@ -1,14 +1,15 @@
+# app/services/ai/image_moderation/image_moderator.py
 """
 Image Moderation Orchestrator
 - Downloads images
-- Uses CLIP-based UnsafeSceneDetector (v3)
-- Applies moderation policy & severity mapping
+- Calls UnsafeSceneDetector
+- Applies severity & moderation policy
 """
 
 import logging
-import aiohttp
-from typing import List, Optional
-
+import asyncio
+from typing import List
+from app.core.dto.image_input import ImageInput
 from app.services.ai.image_moderation.unsafe_scene_detector import (
     unsafe_scene_detector,
 )
@@ -16,119 +17,86 @@ from app.services.ai.image_moderation.unsafe_scene_detector import (
 logger = logging.getLogger(__name__)
 
 # ==================================================
-# HTTP SESSION (reuse – production safe)
-# ==================================================
-
-_http_session: Optional[aiohttp.ClientSession] = None
-
-
-async def _get_http_session() -> aiohttp.ClientSession:
-    global _http_session
-    if _http_session is None or _http_session.closed:
-        _http_session = aiohttp.ClientSession()
-    return _http_session
-
-
-# ==================================================
-# IMAGE DOWNLOAD
-# ==================================================
-
-async def download_image(url: str) -> Optional[bytes]:
-    try:
-        session = await _get_http_session()
-        async with session.get(url, timeout=10) as res:
-            if res.status == 200:
-                return await res.read()
-            logger.warning("[ImageDownload] status=%s url=%s", res.status, url)
-    except Exception as e:
-        logger.error("[ImageDownload] failed url=%s error=%s", url, e)
-    return None
-
-
-# ==================================================
 # MODERATION CORE
 # ==================================================
 
-async def moderate_single_image_url(url: str) -> dict:
-    image_data = await download_image(url)
+async def moderate_single_image(image: ImageInput) -> dict:
 
-    if not image_data:
+    if not image.bytes:
         return {
-            "url": url,
+            "url": image.url,
             "is_violation": False,
-            "severity": "none",
             "violation": None,
-            "safe": True,
+            "severity": "none",
+            "violation_score": 0.0,
+            "signal_strength": "none",
             "unsafe_details": None,
-            "model": None,
             "error": "download_failed",
-            "retryable": True,
         }
 
-    unsafe = unsafe_scene_detector.detect(image_data)
+    ai_result = unsafe_scene_detector.detect(image.bytes)
 
-    severity = _determine_severity(unsafe)
+    violation_score = float(ai_result.get("violation_score", 0.0))
+    is_violation = bool(ai_result.get("is_unsafe"))
 
-    is_unsafe = bool(unsafe and unsafe.get("is_unsafe"))
-
-    violation: None | str = None
-    if is_unsafe:
-        violation = unsafe['category']
+    severity = _determine_severity(is_violation, violation_score)
 
     return {
-        "url": url,
-        # 🔑 source of truth
-        "is_violation": is_unsafe,
+        "url": image.url,
+
+        # 🔑 FINAL DECISION (image-level)
+        "is_violation": is_violation,
+        "violation": ai_result.get("category") if is_violation else None,
         "severity": severity,
-        "violation": violation,
-        "safe": not is_unsafe,
-        "unsafe_details": unsafe,
-        "model": unsafe.get("model") if unsafe else None,
-        "error": unsafe.get("error"),
-        "retryable": bool(unsafe and unsafe.get("error")),
+
+        # 🔑 FLATTENED SIGNALS
+        "violation_score": round(violation_score, 4),
+        "signal_strength": _signal_strength(violation_score),
+
+        # 🔍 AI DETAILS (for explain / debug)
+        "unsafe_details": {
+            "category": ai_result.get("category"),
+            "scores": ai_result.get("scores"),
+        } if ai_result else None,
+
+        "error": ai_result.get("error"),
     }
 
 
-async def moderate_multiple_image_urls(urls: List[str]) -> List[dict]:
-    import asyncio
-    return await asyncio.gather(
-        *[moderate_single_image_url(url) for url in urls]
+async def moderate_multiple_images(images: List[ImageInput]) -> List[dict]:
+    if not images:
+        return []
+
+    results = await asyncio.gather(
+        *[moderate_single_image(image) for image in images],
+        return_exceptions=True
     )
 
+    return [r for r in results if isinstance(r, dict)]
+
 
 # ==================================================
-# SEVERITY POLICY (CENTRALIZED)
+# SEVERITY POLICY (BUSINESS)
 # ==================================================
 
-def _determine_severity(unsafe: dict) -> str:
-    """
-    Severity levels:
-    - high
-    - medium
-    - weak
-    - none
-    """
-
-    if not unsafe or not unsafe.get("is_unsafe"):
+def _determine_severity(is_violation: bool, violation_score: float) -> str:
+    if not is_violation:
         return "none"
 
-    category = unsafe.get("category", "safe")
-    strength = unsafe.get("signal_strength", "none")
+    if violation_score >= 0.75:
+        return "high"
+    if violation_score >= 0.50:
+        return "medium"
+    if violation_score >= 0.30:
+        return "weak"
+    return "none"
 
-    # Category override (policy)
-    CATEGORY_SEVERITY_OVERRIDE = {
-        "sexual_explicit": "high",
-        "sexual_suggestive": "medium",
-    }
 
-    if category in CATEGORY_SEVERITY_OVERRIDE:
-        return CATEGORY_SEVERITY_OVERRIDE[category]
-
-    # Strength-based fallback
-    STRENGTH_TO_SEVERITY = {
-        "strong": "high",
-        "medium": "medium",
-        "weak": "weak",
-    }
-
-    return STRENGTH_TO_SEVERITY.get(strength, "none")
+def _signal_strength(violation_score: float) -> str:
+    if violation_score >= 0.75:
+        return "strong"
+    if violation_score >= 0.50:
+        return "medium"
+    if violation_score >= 0.30:
+        return "weak"
+    return "none"

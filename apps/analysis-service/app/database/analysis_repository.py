@@ -1,8 +1,6 @@
 from odmantic import AIOEngine
 from bson import ObjectId
 from app.database.schemas.emotion_aggregate import EmotionAggregate
-from app.database.schemas.emotion_analysis_task import EmotionAnalysisTask
-from app.enums.analysis_status_enum import AnalysisStatusEnum
 from datetime import datetime
 
 
@@ -100,12 +98,5 @@ class AnalysisRepository:
             (EmotionAggregate.userId == user_id),
             sort=EmotionAggregate.createdAt.desc(),
             limit=limit
-        )
-    
-    async def find_failed(self, max_retry: int):
-        return await self.engine.find(
-            EmotionAnalysisTask,
-            (EmotionAnalysisTask.status == AnalysisStatusEnum.FAILED) &
-            (EmotionAnalysisTask.retryCount < max_retry)
         )
 

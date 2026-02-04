@@ -12,6 +12,8 @@ from app.database.mongo_client import engine
 from app.messaging.event_dispatcher import EventDispatcher
 from app.services.orchestration.handle_event_service import HandleEventService
 from app.database.analysis_repository import AnalysisRepository
+from app.database.moderation_repository import ModerationRepository
+from app.database.task_repository import TaskRepository
 from app.processors.retry_worker import RetryWorker
 from app.services.ai.model_loader import ensure_models_loaded
 
@@ -27,13 +29,16 @@ logging.basicConfig(
 # -------------------------------------------------------
 outbox_repo = OutboxRepository(engine)
 analysis_repo = AnalysisRepository(engine)
+moderation_repo = ModerationRepository(engine)
+task_repo = TaskRepository(engine)
+
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
 processor = OutboxBatchProcessor(outbox_repo, kafka_producer)
-retry_worker = RetryWorker(analysis_repo, outbox_repo)
+retry_worker = RetryWorker(analysis_repo, moderation_repo, task_repo, outbox_repo)
 
-event_service = HandleEventService(analysis_repo)
-dispatcher = EventDispatcher(event_service, outbox_repo)
+event_service = HandleEventService(analysis_repo, moderation_repo, task_repo, outbox_repo)
+dispatcher = EventDispatcher(event_service)
 
 # -------------------------------------------------------
 # Kafka Consumer Handler

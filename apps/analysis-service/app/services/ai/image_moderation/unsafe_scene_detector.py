@@ -3,7 +3,8 @@
 """
 Unsafe Scene Detector
 - Single-pass CLIP moderation
-- Threshold + priority based
+- ONLY AI inference result
+- NO business / policy decision
 """
 
 import logging
@@ -18,15 +19,13 @@ class UnsafeSceneDetector:
     _initialized = False
 
     # =========================
-    # Thresholds (tunable)
+    # Thresholds (AI-level)
     # =========================
-    SEXUAL_EXPLICIT_TH = 0.45
-    SEXUAL_SUGGESTIVE_TH = 0.40
+    SEXUAL_TH = 0.45
     SCENE_UNSAFE_TH = 0.45
 
     PRIORITY = [
-        "sexual_explicit",
-        "sexual_suggestive",
+        "sexual",
         "violence",
         "weapon",
         "blood",
@@ -37,7 +36,7 @@ class UnsafeSceneDetector:
         if self._initialized:
             return
         ensure_clip_loaded()
-        logger.info("[UnsafeSceneDetector] CLIP single-pass moderation enabled")
+        logger.info("[UnsafeSceneDetector] CLIP moderation initialized")
         self._initialized = True
 
     def detect(self, image_data: bytes) -> Dict:
@@ -46,64 +45,62 @@ class UnsafeSceneDetector:
 
         try:
             scores = clip_analyzer.analyze_moderation(image_data)
+            scores = {k: round(float(v), 4) for k, v in scores.items()}
 
+            violation_score = self._max_non_safe_score(scores)
+
+            # find first violating category by priority
             for cat in self.PRIORITY:
                 if scores.get(cat, 0.0) >= self._threshold(cat):
-                    return self._unsafe(cat, scores[cat], scores)
+                    return self._unsafe(cat, violation_score, scores)
 
-            return self._safe(scores)
+            return self._safe(violation_score, scores)
 
         except Exception as e:
             logger.exception("[UnsafeSceneDetector] Error")
             return {
                 "is_unsafe": False,
                 "category": "safe",
-                "confidence": 0.0,
-                "signal_strength": "none",
-                "model": "clip",
+                "violation_score": 0.0,
+                "scores": None,
                 "error": str(e),
             }
 
-    # =========================================================================
-    # HELPERS
-    # =========================================================================
+    # ==================================================
+    # INTERNAL
+    # ==================================================
 
     def _threshold(self, cat: str) -> float:
-        if cat == "sexual_explicit":
-            return self.SEXUAL_EXPLICIT_TH
-        if cat == "sexual_suggestive":
-            return self.SEXUAL_SUGGESTIVE_TH
-        return self.SCENE_UNSAFE_TH
+        return self.SEXUAL_TH if cat == "sexual" else self.SCENE_UNSAFE_TH
 
-    def _unsafe(self, category: str, confidence: float, scores: Dict) -> Dict:
+    def _max_non_safe_score(self, scores: Dict) -> float:
+        if not scores:
+            return 0.0
+
+        non_safe = [
+            v for k, v in scores.items()
+            if k != "safe"
+        ]
+
+        return max(non_safe) if non_safe else 0.0
+
+    def _unsafe(self, category: str, violation_score: float, scores: Dict) -> Dict:
         return {
             "is_unsafe": True,
             "category": category,
-            "confidence": round(confidence, 4),
-            "signal_strength": self._signal_strength(confidence),
-            "model": "clip",
-            "scores": {k: round(v, 4) for k, v in scores.items()},
+            "violation_score": round(violation_score, 4),
+            "scores": scores,
+            "error": None,
         }
 
-    def _safe(self, scores: Dict) -> Dict:
-        safe_score = scores.get("safe", 0.0)
+    def _safe(self, violation_score: float, scores: Dict) -> Dict:
         return {
             "is_unsafe": False,
             "category": "safe",
-            "confidence": round(safe_score, 4),
-            "signal_strength": self._signal_strength(safe_score),
-            "model": "clip",
-            "scores": {k: round(v, 4) for k, v in scores.items()},
+            "violation_score": round(violation_score, 4),
+            "scores": scores,
+            "error": None,
         }
-
-    def _signal_strength(self, confidence: float) -> str:
-        if confidence >= 0.75:
-            return "strong"
-        if confidence >= 0.50:
-            return "medium"
-        if confidence >= 0.30:
-            return "weak"
-        return "none"
 
 
 # Singleton

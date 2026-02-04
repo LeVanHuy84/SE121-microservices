@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, HttpUrl
 from typing import List, Dict, Union
-
+from app.core.services.image_downloader import image_downloader
 from app.services.ai.image_emotion.image_emotion_analyzer import (
-    analyze_multiple_image_urls
+    analyze_multiple_images
 )
 
 image_router = APIRouter(prefix="/image", tags=["Image Analysis"])
@@ -54,15 +54,11 @@ class AnalyzeImagesResponse(BaseModel):
     response_model=AnalyzeImagesResponse
 )
 async def analyze_images(req: ImagesRequest):
-    if not req.images:
-        raise HTTPException(
-            status_code=400,
-            detail="images list is empty"
-        )
+    
 
-    results = await analyze_multiple_image_urls(
-        [str(url) for url in req.images]
-    )
+    image_inputs = await image_downloader.download([str(url) for url in req.images])
+
+    results = await analyze_multiple_images(image_inputs)
 
     images_out: List[ImageEmotionResponse] = []
 

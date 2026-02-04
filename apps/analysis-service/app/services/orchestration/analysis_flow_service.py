@@ -1,280 +1,284 @@
-# app/services/orchestration/analysis_flow_service.py
-
 """
 Application Service: Analysis Flow Orchestration
 - Orchestrates emotion analysis flow
 - Orchestrates moderation flow (SEPARATE from emotion)
 - Integrates Domain Services and AI Layer
-- Handles side-effects (DB, Kafka, Redis)
+- Handles SHARE targetType (moderation only, no emotion)
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from typing import List, Dict, Any
+
+# Core DTOs / Services
+from app.core.dto.image_input import ImageInput
+from app.core.services.image_downloader import image_downloader
 
 # Domain Services
 from app.services.domain.emotion import emotion_analyzer
 from app.services.domain.risk import risk_scorer
 from app.services.domain.moderation import content_moderator
 
-# AI Layer - Emotion
+# AI Layer
 from app.services.ai.text_emotion import text_emotion_classifier
-from app.services.ai.image_emotion import analyze_multiple_image_urls
-
-# AI Layer - Moderation
-from app.services.ai.text_moderation import phobert_moderator
-from app.services.ai.image_moderation import moderate_multiple_image_urls
-from app.services.ai.model_loader import model_loader
+from app.services.ai.image_emotion import analyze_multiple_images
+from app.services.ai.text_moderation import moderation_aggregator
+from app.services.ai.image_moderation import moderate_multiple_images
 
 # Utils
 from app.utils.exceptions import RetryableException
+from app.enums.event_enum import TargetTypeEnum
 
 logger = logging.getLogger(__name__)
 
 
 class AnalysisFlowService:
     """
-    Application service for orchestrating analysis flows.
-    
-    Architecture: Orchestration Layer
-    - Coordinates Domain Services (business logic)
-    - Calls AI Layer (model inference)
-    - Manages flow sequencing
-    - Handles errors and retries
-    
-    Key principle: Emotion analysis and moderation are SEPARATE concerns
+    Orchestration Layer
+    - Coordinates AI + Domain logic
+    - Enforces moderation-first rule
+    - Returns CONTRACT-CORRECT DTOs
     """
 
+    # ======================================================
+    # PUBLIC API
+    # ======================================================
     async def analyze_content(
         self,
         text: str,
         image_urls: List[str],
-        user_id: str = None,
-        user_history: Optional[List[Dict]] = None,
-        post_time: Optional[datetime] = None
+        target_type: TargetTypeEnum
     ) -> Dict[str, Any]:
-        """
-        Complete content analysis: emotion + moderation.
-        
-        Orchestrates:
-        1. Text emotion analysis
-        2. Image emotion analysis
-        3. Emotion fusion and intensity
-        4. Risk scoring
-        5. Text moderation (keyword + PhoBERT)
-        6. Image moderation (NSFW + Violence)
-        7. Final moderation decision
-        
-        Args:
-            text: Text content
-            image_urls: List of image URLs
-            user_id: User ID for context
-            user_history: User's emotion history
-            post_time: Post timestamp
-            
-        Returns:
-            Complete analysis result with emotion and moderation
-        """
-        # Set default post time
-        if not post_time:
-            post_time = datetime.now(timezone.utc)
-        elif isinstance(post_time, str):
-            post_time = datetime.fromisoformat(post_time.replace('Z', '+00:00'))
 
         # ========================================
-        # EMOTION ANALYSIS FLOW
+        # STEP 1: DOWNLOAD IMAGES
         # ========================================
-        
-        # 1. TEXT EMOTION ANALYSIS
-        text_emotion_result = text_emotion_classifier.classify(text)
-        text_scores = text_emotion_result["emotionScores"]
-        text_confidence = text_emotion_result.get("confidence", 0.8)
-
-        # 2. IMAGE EMOTION ANALYSIS (if images present)
-        image_emotion_results = []
+        image_inputs: List[ImageInput] = []
         if image_urls:
-            image_emotion_results = await analyze_multiple_image_urls(image_urls)
-            
-            # Check for retryable errors
+            image_inputs = await image_downloader.download(
+                urls=image_urls,
+                timeout=10
+            )
+
+        # ========================================
+        # STEP 2: MODERATION (ALWAYS)
+        # ========================================
+        moderation_result = await self._run_moderation(text, image_inputs)
+        should_block = moderation_result["is_violation"]
+
+        # ========================================
+        # STEP 3: SKIP RULES
+        # ========================================
+        if target_type == TargetTypeEnum.SHARE:
+            return {
+                "moderation": moderation_result,
+                "emotion": None,
+                "should_block": should_block,
+                "skip_reason": "share_type",
+            }
+
+        if should_block:
+            logger.info("Content blocked → skip emotion analysis")
+            return {
+                "moderation": moderation_result,
+                "emotion": None,
+                "should_block": should_block,
+                "skip_reason": "blocked_content",
+            }
+
+        # ========================================
+        # STEP 4: EMOTION
+        # ========================================
+        emotion_result = await self._run_emotion_analysis(text, image_inputs)
+
+        return {
+            "moderation": moderation_result,
+            "emotion": emotion_result,
+            "should_block": should_block,
+        }
+
+    # ======================================================
+    # MODERATION FLOW
+    # ======================================================
+    async def _run_moderation(
+        self,
+        text: str,
+        image_inputs: List[ImageInput],
+    ) -> Dict[str, Any]:
+
+        text_moderation = moderation_aggregator.moderate(text)
+
+        image_moderation_results = []
+        if image_inputs:
+            image_moderation_results = await moderate_multiple_images(image_inputs)
+
+        final_moderation = content_moderator.decide(
+            text_moderation,
+            image_moderation_results,
+        )
+
+        return {
+            "is_violation": final_moderation["is_violation"],
+            "violation_score": final_moderation["violation_score"],
+            "max_severity": final_moderation["max_severity"],
+            "text_result": text_moderation,
+            "image_results": image_moderation_results,
+        }
+
+    # ======================================================
+    # EMOTION FLOW (✅ CONTRACT-CORRECT)
+    # ======================================================
+    async def _run_emotion_analysis(
+        self,
+        text: str,
+        image_inputs: List[ImageInput],
+    ) -> Dict[str, Any]:
+
+        # ===============================
+        # TEXT EMOTION
+        # ===============================
+        text_emotion = text_emotion_classifier.classify(text)
+
+        text_scores = text_emotion["emotionScores"]
+        text_confidence = text_emotion.get("confidence", 0.8)
+
+        text_result = {
+            "content": text,
+            "dominantEmotion": text_emotion["dominantEmotion"],
+            "scores": text_scores,
+            "confidence": text_confidence,
+            "model": text_emotion.get("model", "phobert"),
+            "meta": text_emotion.get("meta"),
+        }
+
+        # ===============================
+        # IMAGE EMOTION
+        # ===============================
+        image_results: List[Dict[str, Any]] = []
+        image_scores_avg = {}
+        image_confidence = 0.0
+        dominant_modality = "text"
+
+        if image_inputs:
+            image_emotions = await analyze_multiple_images(image_inputs)
+
             retryable_errors = [
-                x for x in image_emotion_results 
+                x for x in image_emotions
                 if x.get("error") and x.get("retryable")
             ]
-            total = len(image_emotion_results)
-            retry_ratio = len(retryable_errors) / total if total > 0 else 0
-            
+            retry_ratio = (
+                len(retryable_errors) / len(image_emotions)
+                if image_emotions else 0
+            )
+
             if retry_ratio >= 0.4:
                 raise RetryableException(
-                    f"Retryable image emotion analysis ratio too high: {retry_ratio}"
+                    f"Retryable image emotion ratio too high: {retry_ratio}"
                 )
 
-        # 3. EMOTION FUSION (Domain Logic)
-        image_scores_avg = emotion_analyzer.average_image_scores(image_emotion_results)
-        image_confidence = emotion_analyzer.get_average_image_confidence(image_emotion_results)
-        
+            for img in image_emotions:
+                if img.get("error"):
+                    continue
+
+                face = img.get("faceEmotion") or {}
+                scene = img.get("sceneEmotion") or {}
+
+                image_results.append({
+                    "url": img.get("url", ""),
+                    "dominantEmotion": img.get("finalEmotion", "neutral"),
+                    "scores": face.get("scores") or scene.get("scores", {}),
+                    "confidence": img.get("finalConfidence", 0.0),
+                    "model": img.get("finalSource", "clip"),
+                })
+
+            image_scores_avg = emotion_analyzer.average_image_scores(image_emotions)
+            image_confidence = emotion_analyzer.get_average_image_confidence(image_emotions)
+
+            if image_confidence > text_confidence and image_confidence > 0.3:
+                dominant_modality = "image"
+
+        # ===============================
+        # FUSION & DOMAIN LOGIC
+        # ===============================
         final_scores = emotion_analyzer.fuse_emotions(
             text_scores=text_scores,
             image_scores=image_scores_avg,
             text_confidence=text_confidence,
-            image_confidence=image_confidence
+            image_confidence=image_confidence,
         )
 
         final_emotion = emotion_analyzer.get_dominant_emotion(final_scores)
-        
-        # 4. INTENSITY CALCULATION (Domain Logic)
+
         intensity = emotion_analyzer.calculate_intensity(final_scores)
-        
-        # 5. RISK SCORING (Domain Logic)
-        dominant_scene = emotion_analyzer.get_dominant_scene_type(image_emotion_results)
-        
-        risk_assessment = risk_scorer.calculate_risk(
+
+        risk_hint_level = risk_scorer.detect_risk_hint(
+            text=text,
             emotion=final_emotion,
             intensity=intensity["level"],
-            text=text,
-            image_scene_type=dominant_scene,
-            user_history=user_history,
-            post_time=post_time
         )
 
-        # ========================================
-        # MODERATION FLOW (SEPARATE FROM EMOTION)
-        # ========================================
-        
-        # 6. TEXT MODERATION
-        # 6a. Keyword-based (legacy, fast)
-        keyword_moderation = model_loader.check_content_violation(text)
-        
-        # 6b. PhoBERT-based (ML, semantic)
-        phobert_moderation = phobert_moderator.moderate_text(text)
-        
-        # 6c. Aggregate text moderation (Domain Logic)
-        text_moderation = content_moderator.aggregate_text_moderation(
-            keyword_result=keyword_moderation,
-            phobert_result=phobert_moderation
-        )
-        
-        # 7. IMAGE MODERATION (if images present)
-        image_moderation_results = []
-        if image_urls:
-            image_moderation_results = await moderate_multiple_image_urls(image_urls)
-        
-        # 7a. Aggregate image moderation (Domain Logic)
-        image_moderation = content_moderator.aggregate_image_moderation(
-            image_moderation_results
-        )
-        
-        # 8. FINAL MODERATION DECISION (Domain Logic)
-        final_moderation = content_moderator.make_final_moderation_decision(
-            text_moderation=text_moderation,
-            image_moderation=image_moderation
+        final_confidence = (
+            image_confidence if dominant_modality == "image"
+            else text_confidence
         )
 
-        # ========================================
-        # RETURN COMPLETE RESULT
-        # ========================================
-        
+        # ===============================
+        # ✅ FINAL DTO (MATCH EmotionAggregate)
+        # ===============================
         return {
-            # Emotion Analysis
-            "textEmotion": text_emotion_result,
-            "imageEmotions": image_emotion_results,
             "finalEmotion": final_emotion,
             "finalScores": final_scores,
-            "intensity": intensity,
-            "psychologicalRisk": risk_assessment,
-            "recommendations": risk_assessment["recommendations"],
-            
-            # Moderation (separate concern)
-            "moderation": final_moderation
+            "finalConfidence": final_confidence,
+            "dominantModality": dominant_modality,
+            "textResult": text_result,
+            "imageResults": image_results,
+            "riskHintLevel": risk_hint_level,
         }
 
+    # ======================================================
+    # TEXT ONLY (UPDATED EVENT)
+    # ======================================================
     async def analyze_text_only(
         self,
         text: str,
-        user_id: str = None,
-        user_history: Optional[List[Dict]] = None,
-        post_time: Optional[datetime] = None
+        target_type: TargetTypeEnum,
     ) -> Dict[str, Any]:
-        """
-        Analyze text only (for updates or text-only posts).
-        
-        Orchestrates:
-        1. Text emotion analysis
-        2. Intensity calculation
-        3. Risk scoring
-        4. Text moderation
-        
-        Args:
-            text: Text content
-            user_id: User ID for context
-            user_history: User's emotion history
-            post_time: Post timestamp
-            
-        Returns:
-            Text-only analysis result
-        """
-        # Set default post time
-        if not post_time:
-            post_time = datetime.now(timezone.utc)
 
-        # ========================================
-        # EMOTION ANALYSIS
-        # ========================================
-        
-        # TEXT EMOTION
-        text_emotion_result = text_emotion_classifier.classify(text)
-        text_scores = text_emotion_result["emotionScores"]
-        
-        final_emotion = emotion_analyzer.get_dominant_emotion(text_scores)
-        
-        # INTENSITY
-        intensity = emotion_analyzer.calculate_intensity(text_scores)
-        
-        # RISK SCORING
-        risk_assessment = risk_scorer.calculate_risk(
-            emotion=final_emotion,
-            intensity=intensity["level"],
-            text=text,
-            user_history=user_history,
-            post_time=post_time
-        )
+        text_moderation = moderation_aggregator.moderate(text)
 
-        # ========================================
-        # MODERATION
-        # ========================================
-        
-        # Keyword + PhoBERT text moderation
-        keyword_moderation = model_loader.check_content_violation(text)
-        phobert_moderation = phobert_moderator.moderate_text(text)
-        
-        text_moderation = content_moderator.aggregate_text_moderation(
-            keyword_result=keyword_moderation,
-            phobert_result=phobert_moderation
-        )
-        
-        # No images - text moderation is final moderation
-        final_moderation = content_moderator.make_final_moderation_decision(
+        final_moderation = content_moderator.decide(
             text_moderation=text_moderation,
-            image_moderation={
-                "is_violation": False,
-                "violations": [],
-                "severity": "none",
-                "safe": True
+            image_moderation_results=[],
+        )
+
+        moderation_result = {
+            "is_violation": final_moderation["is_violation"],
+            "violation_score": final_moderation["violation_score"],
+            "max_severity": final_moderation["max_severity"],
+            "text_result": text_moderation,
+            "image_results": [],
+        }
+
+        should_block = moderation_result["is_violation"]
+
+        if target_type == TargetTypeEnum.SHARE:
+            return {
+                "moderation": moderation_result,
+                "emotion": None,
+                "should_block": should_block,
+                "skip_reason": "share_type",
             }
+
+        emotion_result = await self._run_emotion_analysis(
+            text=text,
+            image_inputs=[],
         )
 
         return {
-            # Emotion Analysis
-            "textEmotion": text_emotion_result,
-            "finalEmotion": final_emotion,
-            "finalScores": text_scores,
-            "intensity": intensity,
-            "psychologicalRisk": risk_assessment,
-            "recommendations": risk_assessment["recommendations"],
-            
-            # Moderation
-            "moderation": final_moderation
+            "moderation": moderation_result,
+            "emotion": emotion_result,
+            "should_block": should_block,
         }
 
 
-# Singleton instance
+# Singleton
 analysis_flow_service = AnalysisFlowService()

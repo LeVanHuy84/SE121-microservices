@@ -1,235 +1,108 @@
 # app/services/domain/risk/risk_scorer.py
 
 """
-Domain Service: Risk Scoring
-- Thuần logic đánh giá rủi ro tâm lý
-- Không phụ thuộc DB, Kafka, Redis
-- Dễ unit test
+Domain Service: Risk Hint Detection
+- Keyword-based risk hint ONLY
+- NO user history analysis
+- NO longitudinal patterns
+- NO numeric risk scoring
+- Output: RiskHintLevelEnum (NONE | WEAK | MEDIUM | HIGH)
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-from app.enums.emotion_enum import EmotionEnum
+from typing import Dict
+from app.enums.emotion_enum import RiskHintLevelEnum
 
 logger = logging.getLogger(__name__)
 
 
 class RiskScorer:
     """
-    Domain service for psychological risk assessment.
-    Pure business logic without infrastructure dependencies.
+    Domain service for keyword-based risk hint detection.
+    
+    Architecture: Domain Layer
+    - Simple keyword matching for risk signals
+    - NO deep analysis, NO user history
+    - Output is hint level only
+    - Full risk pipeline is separate (out of scope)
     """
     
-    # Risk weights cho từng emotion
-    EMOTION_RISK_WEIGHTS = {
-        EmotionEnum.SADNESS: 0.7,
-        EmotionEnum.ANGER: 0.5,
-        EmotionEnum.FEAR: 0.6,
-        EmotionEnum.DISGUST: 0.3,
-        EmotionEnum.JOY: 0.0,
-        EmotionEnum.SURPRISE: 0.1,
-        EmotionEnum.NEUTRAL: 0.0,
-    }
-    
-    # Từ khóa nguy hiểm
+    # Critical risk keywords (high severity)
     CRITICAL_KEYWORDS = [
-        'chết', 'tự tử', 'tự sát', 'kết thúc', 'vô vọng',
-        'không muốn sống', 'mệt mỏi', 'bỏ cuộc', 'thất vọng',
-        'cô đơn', 'không ai hiểu', 'buồn quá', 'trầm cảm'
+        'tự tử', 'tự sát', 'tự vẫn', 'kết thúc cuộc đời',
+        'không muốn sống', 'chết đi', 'tự kết liễu'
     ]
     
-    def calculate_risk(
-        self,
-        emotion: str,
-        intensity: str,
-        text: str = "",
-        image_scene_type: str = "",
-        user_history: Optional[List[Dict]] = None,
-        post_time: Optional[datetime] = None
-    ) -> dict:
+    # Medium risk keywords
+    MEDIUM_RISK_KEYWORDS = [
+        'vô vọng', 'bỏ cuộc', 'thất vọng', 'trầm cảm',
+        'tuyệt vọng', 'không còn hy vọng', 'chán nản'
+    ]
+    
+    # Weak risk keywords
+    WEAK_RISK_KEYWORDS = [
+        'buồn', 'cô đơn', 'mệt mỏi', 'không ai hiểu',
+        'buồn quá', 'stress', 'căng thẳng'
+    ]
+    
+    def detect_risk_hint(self, text: str, emotion: str, intensity: str) -> RiskHintLevelEnum:
         """
-        Calculate comprehensive risk score.
+        Detect risk hint level from text keywords and emotion context.
+        
+        SCOPE: Keyword-based hint ONLY
+        - NO user history
+        - NO longitudinal analysis
+        - NO numeric scoring
         
         Args:
+            text: Text content
             emotion: Dominant emotion
             intensity: Emotion intensity level
-            text: Text content
-            image_scene_type: Scene type from images
-            user_history: User's emotion history
-            post_time: Post timestamp
             
         Returns:
-            {
-                "level": "low|medium|high|critical",
-                "score": 0.0-1.0,
-                "triggers": ["trigger1", "trigger2"],
-                "recommendations": ["rec1", "rec2"]
-            }
+            RiskHintLevelEnum: NONE | WEAK | MEDIUM | HIGH
         """
-        risk_score = 0.0
-        triggers = []
+        if not text:
+            return RiskHintLevelEnum.NONE
         
-        # 1. Base risk từ emotion
-        emotion_enum = EmotionEnum(emotion) if emotion in [e.value for e in EmotionEnum] else EmotionEnum.NEUTRAL
-        base_risk = self.EMOTION_RISK_WEIGHTS.get(emotion_enum, 0.0)
-        risk_score += base_risk * 0.4  # 40% weight
-        
-        # 2. Intensity boost
-        intensity_multiplier = {
-            "mild": 1.0,
-            "moderate": 1.3,
-            "severe": 1.8
-        }.get(intensity, 1.0)
-        risk_score *= intensity_multiplier
-        
-        # 3. Critical keywords trong text
         text_lower = text.lower()
-        critical_count = sum(1 for keyword in self.CRITICAL_KEYWORDS if keyword in text_lower)
-        if critical_count > 0:
-            risk_score += min(critical_count * 0.15, 0.4)  # Max +0.4
-            triggers.append(f"critical_keywords_{critical_count}")
         
-        # 4. Dark imagery
-        if image_scene_type == "dark_scenery":
-            risk_score += 0.1
-            triggers.append("dark_imagery")
+        # Check critical keywords - immediate HIGH risk hint
+        if self._contains_keywords(text_lower, self.CRITICAL_KEYWORDS):
+            return RiskHintLevelEnum.HIGH
         
-        # 5. User history pattern
-        if user_history:
-            history_risk = self._analyze_history_pattern(user_history)
-            risk_score += history_risk * 0.3  # 30% weight
-            if history_risk > 0.5:
-                triggers.append("repeated_negative_pattern")
+        # Check medium risk keywords
+        has_medium = self._contains_keywords(text_lower, self.MEDIUM_RISK_KEYWORDS)
         
-        # 6. Temporal pattern (late night posting)
-        if post_time:
-            hour = post_time.hour
-            if 2 <= hour <= 5:  # 2-5 AM
-                risk_score += 0.15
-                triggers.append("late_night_posting")
+        # Check weak risk keywords
+        has_weak = self._contains_keywords(text_lower, self.WEAK_RISK_KEYWORDS)
         
-        # Normalize score to 0-1
-        risk_score = min(risk_score, 1.0)
+        # Combine with emotion context
+        negative_emotions = ['sadness', 'fear', 'anger']
+        is_negative = emotion in negative_emotions
+        is_severe = intensity == 'severe'
         
-        # Determine risk level
-        level = self._determine_risk_level(risk_score)
+        # Decision logic
+        if has_medium and is_negative and is_severe:
+            return RiskHintLevelEnum.HIGH
         
-        # Generate recommendations
-        recommendations = self._generate_recommendations(level, triggers, emotion)
+        if has_medium and is_negative:
+            return RiskHintLevelEnum.MEDIUM
         
-        return {
-            "level": level,
-            "score": round(risk_score, 3),
-            "triggers": triggers,
-            "recommendations": recommendations
-        }
+        if has_medium or (has_weak and is_severe):
+            return RiskHintLevelEnum.MEDIUM
+        
+        if has_weak and is_negative:
+            return RiskHintLevelEnum.WEAK
+        
+        if has_weak:
+            return RiskHintLevelEnum.WEAK
+        
+        return RiskHintLevelEnum.NONE
     
-    def _analyze_history_pattern(self, history: List[Dict]) -> float:
-        """
-        Analyze patterns from user history.
-        
-        Args:
-            history: List of recent posts with emotion
-            
-        Returns:
-            risk_score: 0.0-1.0
-        """
-        if not history or len(history) < 3:
-            return 0.0
-        
-        # Count negative emotions
-        negative_emotions = [EmotionEnum.SADNESS, EmotionEnum.ANGER, EmotionEnum.FEAR]
-        negative_count = sum(
-            1 for item in history 
-            if item.get("emotion") in [e.value for e in negative_emotions]
-        )
-        
-        negative_ratio = negative_count / len(history)
-        
-        # Consecutive negative posts
-        consecutive = 0
-        max_consecutive = 0
-        for item in history:
-            if item.get("emotion") in [e.value for e in negative_emotions]:
-                consecutive += 1
-                max_consecutive = max(max_consecutive, consecutive)
-            else:
-                consecutive = 0
-        
-        # Risk calculation
-        ratio_risk = negative_ratio * 0.6  # 60% weight
-        consecutive_risk = min(max_consecutive / 5, 1.0) * 0.4  # 40% weight
-        
-        return ratio_risk + consecutive_risk
-    
-    def _determine_risk_level(self, risk_score: float) -> str:
-        """
-        Determine risk level from score.
-        
-        Args:
-            risk_score: Risk score (0.0-1.0)
-            
-        Returns:
-            Risk level string
-        """
-        if risk_score >= 0.75:
-            return "critical"
-        elif risk_score >= 0.5:
-            return "high"
-        elif risk_score >= 0.25:
-            return "medium"
-        else:
-            return "low"
-    
-    def _generate_recommendations(
-        self, 
-        level: str, 
-        triggers: List[str], 
-        emotion: str
-    ) -> List[str]:
-        """
-        Generate personalized recommendations based on risk.
-        
-        Args:
-            level: Risk level
-            triggers: List of risk triggers
-            emotion: Dominant emotion
-            
-        Returns:
-            List of recommendations
-        """
-        recommendations = []
-        
-        if level == "critical":
-            recommendations.extend([
-                "alert_support_team",
-                "show_helpline_resources",
-                "hide_triggering_content",
-                "suggest_professional_help"
-            ])
-        elif level == "high":
-            recommendations.extend([
-                "show_uplifting_content",
-                "suggest_community_support",
-                "limit_sad_content_exposure"
-            ])
-        elif level == "medium":
-            recommendations.extend([
-                "show_positive_posts",
-                "suggest_mindfulness_content"
-            ])
-        else:
-            recommendations.append("normal_feed")
-        
-        # Specific recommendations based on triggers
-        if "late_night_posting" in triggers:
-            recommendations.append("suggest_sleep_tips")
-        
-        if "repeated_negative_pattern" in triggers:
-            recommendations.append("suggest_journaling")
-        
-        return recommendations
+    def _contains_keywords(self, text: str, keywords: list) -> bool:
+        """Check if text contains any keyword from list."""
+        return any(keyword in text for keyword in keywords)
 
 
 # Singleton instance

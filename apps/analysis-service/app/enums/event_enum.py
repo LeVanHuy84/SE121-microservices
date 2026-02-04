@@ -1,10 +1,10 @@
 from enum import Enum
 
-class EventType(str, Enum):
+class EventTypeEnum(str, Enum):
     ANALYSIS_CREATED = "analysis_created"
     ANALYSIS_UPDATED = "analysis_updated"
 
 class TargetTypeEnum(str, Enum):
-    POST = "post"
-    COMMENT = "comment"
-    SHARE = "share"
+    POST = "POST"
+    COMMENT = "COMMENT"
+    SHARE = "SHARE"

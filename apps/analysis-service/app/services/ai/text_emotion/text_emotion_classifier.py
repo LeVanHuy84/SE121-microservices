@@ -61,6 +61,7 @@ class TextEmotionClassifier:
         # Gate non-Vietnamese (fail-closed)
         if lang is not None and lang != "vi":
             return {
+                "content": text,
                 "dominantEmotion": "neutral",
                 "emotionScores": {
                     "neutral": 1.0

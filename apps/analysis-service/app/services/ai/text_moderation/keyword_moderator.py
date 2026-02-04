@@ -5,47 +5,31 @@ class KeywordModerator:
     def __init__(self):
         # Ban cứng: không cho publish
         self.banned_keywords = {
-            # =====================
-            # 🔞 Sexual explicit
-            # =====================
-            "sexual": [
-                "sex", "porn", "xxx", "xnxx",
-                "nude", "naked",
-                "jav", "hentai", "onlyfans",
-                "địt nhau", "chịch", "đụ",
-            ],
+            # Sexual explicit
+            "sex", "porn", "xxx", "xnxx",
+            "nude", "naked",
+            "jav", "hentai", "onlyfans",
+            "địt nhau", "chịch", "đụ",
 
-            # =====================
-            # 🤬 Profanity nặng (explicit)
-            # =====================
-            "toxic": [
-                "địt", "đéo", "đụ",
-                "cc", "cặc", "lồn", "buồi", "cứt", "đĩ",
-                "đ!t", "đ*o", "đ**", "đbrr", "xàm l",
-                "xàm c", "như l", "như cc",
-                "fuck", "f*ck", "fck", "fk",
-                "fucking", "motherfucker", "pussy", "bitch", "asshole",
-            ],
+            # Profanity nặng (explicit)
+            "địt", "đéo", "đụ",
+            "cc", "cặc", "lồn", "buồi", "cứt", "đĩ",
+            "đ!t", "đ*o", "đ**", "đbrr", "xàm l",
+            "xàm c", "như l", "như cc",
+            "fuck", "f*ck", "fck", "fk",
+            "fucking", "motherfucker", "pussy", "bitch", "asshole",
 
-            # =====================
-            # 🎯 Offensive nặng (direct insult)
-            # =====================
-            "offensive": [
-                "óc chó", "não chó",
-                "thiểu năng",
-                "retarded",
-            ],
+            # Offensive nặng (direct insult)
+            "óc chó", "não chó",
+            "thiểu năng",
+            "retarded",
 
-            # =====================
-            # 🧨 Hate speech (zero tolerance)
-            # =====================
-            "hate_speech": [
-                "nigger", "faggot",
-                "chink", "raghead",
-                "parky",
-                "bắc kỳ", "nam kỳ",
-                "bắc kì", "nam kì",
-            ],
+            # Hate speech
+            "nigger", "faggot",
+            "chink", "raghead",
+            "parky",
+            "bắc kỳ", "nam kỳ",
+            "bắc kì", "nam kì",
         }
 
         # Nội dung nhạy cảm: chỉ flag
@@ -67,18 +51,20 @@ class KeywordModerator:
         flags: Dict[str, bool] = {}
         matched_keywords: Dict[str, List[str]] = {}
 
-        # 1. Check banned keywords
-        for category, keywords in self.banned_keywords.items():
-            hits = [kw for kw in keywords if kw in text_lower]
-            if hits:
-                return {
-                    "blocked": True,
-                    "blockedCategory": category,
-                    "matchedKeywords": hits,
-                    "flags": {}
-                }
+        # =====================
+        # 1. Check banned keywords (HARD BLOCK)
+        # =====================
+        hits = [kw for kw in self.banned_keywords if kw in text_lower]
+        if hits:
+            return {
+                "blocked": True,
+                "matchedKeywords": hits,
+                "flags": {}
+            }
 
-        # 2. Check sensitive keywords (self-harm)
+        # =====================
+        # 2. Check sensitive keywords (FLAG ONLY)
+        # =====================
         for category, keywords in self.sensitive_keywords.items():
             hits = [kw for kw in keywords if kw in text_lower]
             if hits:

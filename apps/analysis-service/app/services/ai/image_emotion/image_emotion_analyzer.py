@@ -23,8 +23,7 @@ PRINCIPLES:
 
 import logging
 from typing import List, Dict
-import aiohttp
-
+from app.core.dto.image_input import ImageInput
 from app.services.domain.emotion.emotion_normalizer import normalize_image_label
 from app.services.ai.image_emotion.fer_analyzer import fer_analyzer
 from app.services.ai.image_understanding import clip_analyzer
@@ -33,40 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# IO
-# =============================================================================
-
-async def download_image(url: str) -> bytes | None:
-    """
-    Download image from URL.
-
-    Args:
-        url: Image URL
-
-    Returns:
-        Image bytes or None
-    """
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
-                if response.status == 200:
-                    return await response.read()
-                else:
-                    logger.error(f"Failed to download image {url}: {response.status}")
-                    return None
-    except Exception as e:
-        logger.error(f"Error downloading image {url}: {e}")
-        return None
-
-
-# =============================================================================
 # CORE API
 # =============================================================================
 
-async def analyze_single_image_url(url: str) -> dict:
+async def analyze_single_image(image: ImageInput) -> dict:
     """
     Analyze emotion from a single image URL using CLIP + FER dual pipeline.
 
@@ -85,11 +54,11 @@ async def analyze_single_image_url(url: str) -> dict:
         # ---------------------------------------------------------------------
         # Download
         # ---------------------------------------------------------------------
-        image_data = await download_image(url)
+        image_data = image.bytes
 
         if not image_data:
             return {
-                "url": url,
+                "url": image.url,
                 "error": "download_failed",
                 "retryable": True
             }
@@ -147,7 +116,7 @@ async def analyze_single_image_url(url: str) -> dict:
         # Response
         # ---------------------------------------------------------------------
         return {
-            "url": url,
+            "url": image.url,
             "sceneEmotion": {
                 "dominant": scene_dominant,
                 "scores": scene_emotion,
@@ -162,23 +131,23 @@ async def analyze_single_image_url(url: str) -> dict:
         }
 
     except Exception as e:
-        logger.exception(f"Error analyzing image {url}: {e}")
+        logger.exception(f"Error analyzing image {image.url}: {e}")
         return {
-            "url": url,
+            "url": image.url,
             "error": str(e),
             "retryable": True
         }
 
 
-async def analyze_multiple_image_urls(urls: List[str]) -> List[dict]:
+async def analyze_multiple_images(images: List[ImageInput]) -> List[dict]:
     """
     Analyze emotion from multiple image URLs concurrently.
     """
-    if not urls:
+    if not images:
         return []
 
     import asyncio
-    tasks = [analyze_single_image_url(url) for url in urls]
+    tasks = [analyze_single_image(image) for image in images]
     results = await asyncio.gather(*tasks)
 
     return list(results)

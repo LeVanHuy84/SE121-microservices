@@ -1,242 +1,183 @@
-# app/services/orchestration/handle_event_service.py
-
-"""
-Application Service: Event Handler Orchestration
-- Xử lý Kafka events (created, updated)
-- Tích hợp với AnalysisFlowService
-- Quản lý DB persistence
-"""
-
 import logging
-from datetime import datetime, timezone
-from typing import List, Dict
+from typing import Dict, Any
 
 from app.services.orchestration.analysis_flow_service import analysis_flow_service
-from app.database.analysis_repository import AnalysisRepository
-from app.database.schemas.emotion_aggregate import EmotionAggregate
-from app.enums.analysis_status_enum import AnalysisStatusEnum, RetryScopeEnum
+from app.services.orchestration.handle.moderation_writer import ModerationWriter
+from app.services.orchestration.handle.emotion_writer import EmotionWriter
+from app.services.orchestration.handle.task_manager import TaskManager
+from app.services.orchestration.handle.outbox_emitter import OutboxEmitter
+
+from app.enums.event_enum import TargetTypeEnum, EventTypeEnum
 from app.utils.exceptions import RetryableException
 
 logger = logging.getLogger(__name__)
 
 
 class HandleEventService:
-    """
-    Application service for handling Kafka events.
-    Orchestrates analysis flow and database persistence.
-    """
-    
-    def __init__(self, repo: AnalysisRepository):
-        """
-        Initialize event handler.
-        
-        Args:
-            repo: Analysis repository for DB operations
-        """
-        self.repo = repo
 
-    async def handle_created(self, event: dict) -> EmotionAggregate:
-        """
-        Handle content created event.
-        
-        Args:
-            event: Kafka event payload
-            
-        Returns:
-            Saved EmotionAggregate document
-        """
-        text = event["content"]
+    def __init__(
+        self,
+        analysis_repo,
+        moderation_repo,
+        task_repo,
+        outbox_repo,
+    ):
+        self.moderation_writer = ModerationWriter(moderation_repo)
+        self.emotion_writer = EmotionWriter(analysis_repo)
+        self.task_manager = TaskManager(task_repo)
+        self.outbox = OutboxEmitter(outbox_repo)
+
+    # ======================================================
+    # CREATED EVENT
+    # ======================================================
+    async def handle_created(self, event: dict) -> Dict[str, Any]:
+
+        text = event.get("content", "")
         image_urls = event.get("imageUrls", [])
         user_id = event["userId"]
         target_id = event["targetId"]
-        target_type = event["targetType"]
-        
-        # Fetch user history for risk scoring
-        user_history = await self._fetch_user_history(user_id)
-        
-        # Get post time
-        post_time = event.get("createdAt")
-        if isinstance(post_time, str):
-            post_time = datetime.fromisoformat(post_time.replace('Z', '+00:00'))
-        elif not post_time:
-            post_time = datetime.now(timezone.utc)
+        target_type = TargetTypeEnum(event["targetType"])
 
         try:
-            # Analyze content using flow service
             result = await analysis_flow_service.analyze_content(
                 text=text,
                 image_urls=image_urls,
-                user_id=user_id,
-                user_history=user_history,
-                post_time=post_time
+                target_type=target_type,
             )
 
-            # Create success document
-            doc = EmotionAggregate(
-                userId=user_id,
-                targetId=target_id,
-                targetType=target_type,
+            moderation_result = result["moderation"]
+            emotion_result = result.get("emotion")
+            should_block = result.get("should_block", False)
+            skip_reason = result.get("skip_reason")
+
+            moderation = await self.moderation_writer.save_created(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
                 content=text,
-                imageUrls=image_urls,
-                
-                textEmotion=result.get("textEmotion"),
-                imageEmotions=result.get("imageEmotions", []),
-                finalEmotion=result.get("finalEmotion"),
-                finalScores=result.get("finalScores"),
-                intensity=result.get("intensity"),
-                psychologicalRisk=result.get("psychologicalRisk"),
-                recommendations=result.get("recommendations", []),
-                moderation=result.get("moderation"),
-                
-                status=AnalysisStatusEnum.SUCCESS
+                moderation_data=moderation_result,
             )
+
+            if moderation.is_violation:
+                await self.outbox.emit_moderation(moderation)
+
+            if skip_reason or should_block or not emotion_result:
+                return {
+                    "moderation": moderation,
+                    "emotion": None,
+                    "should_block": should_block,
+                    "skip_reason": skip_reason,
+                }
+
+            emotion = await self.emotion_writer.save_created(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
+                emotion_data=emotion_result,
+            )
+
+            await self.outbox.emit_emotion(emotion)
+
+            return {
+                "moderation": moderation,
+                "emotion": emotion,
+                "should_block": False,
+            }
 
         except RetryableException as e:
-            logger.warning(f"Retryable error during analysis: {e}")
-            
-            # Create failed document with retry scope
-            doc = EmotionAggregate(
-                userId=user_id,
-                targetId=target_id,
-                targetType=target_type,
+
+            await self.task_manager.upsert_failed_task(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
+                action=EventTypeEnum.ANALYSIS_CREATED,
+                reason=str(e),
                 content=text,
-                imageUrls=image_urls,
-                status=AnalysisStatusEnum.FAILED,
-                retryScope=RetryScopeEnum.FULL,
-                retryCount=0,
-                errorReason=str(e)
+                image_urls=image_urls,
             )
 
         except Exception as e:
-            logger.exception(f"Permanent error during analysis: {e}")
-            
-            # Create permanent failed document
-            doc = EmotionAggregate(
-                userId=user_id,
-                targetId=target_id,
-                targetType=target_type,
-                content=text,
-                imageUrls=image_urls,
-                status=AnalysisStatusEnum.PERMANENT_FAILED,
-                errorReason=str(e)
+
+            await self.task_manager.mark_permanent_failed(
+                target_id=target_id,
+                target_type=target_type,
+                reason=str(e),
             )
 
-        # Save to database
-        return await self.repo.save_analysis(doc)
+            raise
 
-    async def handle_updated(self, event: dict) -> EmotionAggregate:
-        """
-        Handle content updated event.
-        
-        Args:
-            event: Kafka event payload
-            
-        Returns:
-            Updated EmotionAggregate document
-        """
-        target_id = event["targetId"]
-        target_type = event["targetType"]
-        new_text = event["content"]
+    # ======================================================
+    # UPDATED EVENT
+    # ======================================================
+    async def handle_updated(self, event: dict) -> Dict[str, Any]:
+
+        new_text = event.get("content", "")
         user_id = event["userId"]
-        
-        # Get existing analysis
-        doc = await self.repo.get_analysis_by_target(target_id, target_type)
-        if not doc:
-            raise RetryableException("EmotionAggregate not found yet")
-        
-        # Fetch user history
-        user_history = await self._fetch_user_history(user_id)
+        target_id = event["targetId"]
+        target_type = TargetTypeEnum(event["targetType"])
 
         try:
-            # Analyze updated text
             result = await analysis_flow_service.analyze_text_only(
                 text=new_text,
-                user_id=user_id,
-                user_history=user_history
+                target_type=target_type,
             )
 
-            # Update payload
-            update_payload = {
-                "content": new_text,
-                "textEmotion": result.get("textEmotion"),
-                "finalEmotion": result.get("finalEmotion"),
-                "finalScores": result.get("finalScores"),
-                "intensity": result.get("intensity"),
-                "psychologicalRisk": result.get("psychologicalRisk"),
-                "recommendations": result.get("recommendations", []),
-                "moderation": result.get("moderation"),
-                "status": AnalysisStatusEnum.SUCCESS,
-                "errorReason": None,
-                "updatedAt": datetime.now(timezone.utc)
+            moderation_result = result["moderation"]
+            emotion_result = result.get("emotion")
+            should_block = result.get("should_block", False)
+            skip_reason = result.get("skip_reason")
+
+            moderation = await self.moderation_writer.save_updated(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
+                content=new_text,
+                moderation_data=moderation_result,
+            )
+
+            if moderation.is_violation:
+                await self.outbox.emit_moderation(moderation)
+
+            if skip_reason or should_block or not emotion_result:
+                return {
+                    "moderation": moderation,
+                    "emotion": None,
+                    "should_block": should_block,
+                    "skip_reason": skip_reason,
+                }
+
+            emotion = await self.emotion_writer.save_updated(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
+                emotion_data=emotion_result,
+            )
+
+            await self.outbox.emit_emotion(emotion)
+
+            return {
+                "moderation": moderation,
+                "emotion": emotion,
+                "should_block": False,
             }
 
         except RetryableException as e:
-            logger.warning(f"Retryable error during update: {e}")
-            
-            update_payload = {
-                "content": new_text,
-                "status": AnalysisStatusEnum.FAILED,
-                "retryScope": RetryScopeEnum.TEXT_ONLY,
-                "retryCount": 0,
-                "errorReason": str(e),
-                "updatedAt": datetime.now(timezone.utc)
-            }
+
+            await self.task_manager.upsert_failed_task(
+                user_id=user_id,
+                target_id=target_id,
+                target_type=target_type,
+                action=EventTypeEnum.ANALYSIS_UPDATED,
+                reason=str(e),
+                content=new_text,
+                image_urls=[],
+            )
+
 
         except Exception as e:
-            logger.exception(f"Permanent error during update: {e}")
-            
-            update_payload = {
-                "status": AnalysisStatusEnum.PERMANENT_FAILED,
-                "errorReason": str(e),
-                "updatedAt": datetime.now(timezone.utc)
-            }
-        
-        # Update in database
-        updated = await self.repo.update_analysis(str(doc.id), update_payload)
-        if not updated:
-            raise RetryableException("Failed to update EmotionAggregate")
 
-        return updated
-    
-    async def _fetch_user_history(self, user_id: str, limit: int = 30) -> List[Dict]:
-        """
-        Fetch user's recent emotion analysis history.
-        
-        Args:
-            user_id: User ID
-            limit: Maximum number of records to fetch
-            
-        Returns:
-            List of recent analyses
-        """
-        try:
-            history = await self.repo.get_user_recent_analyses(user_id, limit)
-            
-            # Transform to simplified format for risk scoring
-            return [
-                {
-                    "emotion": item.finalEmotion,
-                    "intensity": item.intensity.get("level") if item.intensity else "mild",
-                    "timestamp": item.createdAt.isoformat() if item.createdAt else None
-                }
-                for item in history
-                if item.finalEmotion
-            ]
-            
-        except Exception as e:
-            logger.error(f"Error fetching user history: {e}")
-            return []
-
-
-# Factory function to create instance with repository
-def create_handle_event_service(repo: AnalysisRepository) -> HandleEventService:
-    """
-    Create HandleEventService instance.
-    
-    Args:
-        repo: Analysis repository
-        
-    Returns:
-        HandleEventService instance
-    """
-    return HandleEventService(repo)
+            await self.task_manager.mark_permanent_failed(
+                target_id=target_id,
+                target_type=target_type,
+                reason=str(e),
+            )

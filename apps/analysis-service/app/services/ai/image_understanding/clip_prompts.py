@@ -11,16 +11,10 @@ CLIP Moderation & Emotion Prompts
 # ============================================================================
 
 CLIP_MODERATION_PROMPTS = {
-    "sexual_explicit": [
-        "a photo of people having sexual intercourse",
-        "explicit sexual activity with visible genitals",
-        "pornographic image showing explicit sex"
-    ],
-
-    "sexual_suggestive": [
-        "a sexually suggestive pose with revealing clothing",
-        "a sensual image focusing on body curves",
-        "provocative but non explicit sexual content"
+    "sexual": [
+        "sexual or erotic content involving nudity or sexual acts",
+        "pornographic or sexually explicit image",
+        "suggestive sexual content intended to arouse"
     ],
 
     "violence": [

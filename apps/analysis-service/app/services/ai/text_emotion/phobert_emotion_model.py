@@ -49,7 +49,7 @@ class PhoBERTEmotionModel:
                 "text-classification",
                 model=self.model,
                 tokenizer=self.tokenizer,
-                return_all_scores=True
+                top_k=None
             )
             
             self.device = "cuda" if torch.cuda.is_available() else "cpu"

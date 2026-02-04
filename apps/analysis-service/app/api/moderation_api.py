@@ -4,8 +4,9 @@ from typing import List, Optional, Literal, Dict
 import logging
 
 from app.services.ai.text_moderation import moderation_aggregator
+from app.core.services.image_downloader import image_downloader
 from app.services.ai.image_moderation.image_moderator import (
-    moderate_multiple_image_urls,
+    moderate_multiple_images,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,19 +52,8 @@ class ImageModerationRequest(BaseModel):
 
 
 class UnsafeSceneDetails(BaseModel):
-    is_unsafe: bool
     category: str
-    confidence: float
-    signal_strength: str
-
-    # clip-v2 / clip-v3 / None
-    model: Optional[str] = None
-
-    # ✅ FIX: flat softmax scores
     scores: Optional[Dict[str, float]] = None
-
-    error: Optional[str] = None
-
 
 class ImageModerationResult(BaseModel):
     url: str
@@ -72,7 +62,7 @@ class ImageModerationResult(BaseModel):
 
     severity: Literal["none", "weak", "medium", "high"]
     violation: Optional[str] = None
-    safe: bool
+    signal_strength: str
 
     unsafe_details: Optional[UnsafeSceneDetails] = None
 
@@ -88,5 +78,8 @@ async def check_images(request: ImageModerationRequest):
     """
     Image moderation endpoint.
     """
-    results = await moderate_multiple_image_urls(request.urls)
+
+    image_inputs = await image_downloader.download(request.urls)
+
+    results = await moderate_multiple_images(image_inputs)
     return results
