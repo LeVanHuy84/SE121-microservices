@@ -4,6 +4,7 @@ from app.database.outbox_repository import OutboxRepository
 from app.database.schemas.outbox import Outbox
 from app.database.schemas.moderation_result import ModerationResult
 from app.database.schemas.emotion_aggregate import EmotionAggregate
+from app.enums.event_enum import ResultEventEnum
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +16,11 @@ class OutboxEmitter:
 
     async def emit_moderation(self, moderation: ModerationResult):
         outbox = Outbox(
-            topic="analysis.moderation.completed",
-            eventType="moderation.completed",
+            topic="analysis",
+            eventType=ResultEventEnum.MODERATION_REJECTION.value,
             payload={
-                "userId": moderation.userId,
                 "targetId": moderation.targetId,
                 "targetType": moderation.targetType,
-                "is_violation": moderation.is_violation,
-                "severity": moderation.max_severity,
-                "violations": moderation.violation_categories,
-                "decided_by": moderation.decided_by
             }
         )
         await self.outbox_repo.save_outbox(outbox)
@@ -32,15 +28,13 @@ class OutboxEmitter:
     async def emit_emotion(self, emotion: EmotionAggregate):
         outbox = Outbox(
             topic="analysis.emotion.completed",
-            eventType="emotion.completed",
+            eventType=ResultEventEnum.EMOTION_RESULT.value,
             payload={
-                "userId": emotion.userId,
                 "targetId": emotion.targetId,
                 "targetType": emotion.targetType,
                 "finalEmotion": emotion.finalEmotion,
                 "finalScores": emotion.finalScores,
                 "riskHintLevel": emotion.riskHintLevel,
-                "dominantModality": emotion.dominantModality
             }
         )
         await self.outbox_repo.save_outbox(outbox)

@@ -44,6 +44,29 @@ async def test_created(req: TestPostRequest):
         "result": result
     }
 
+class UpdatePostRequest(BaseModel):
+    userId: str
+    targetId: str
+    targetType: str
+    content: str
+
+@test_router.post("/update-post")
+async def test_updated(req: UpdatePostRequest):
+
+    event = {
+        "userId": req.userId,
+        "targetId": req.targetId,
+        "targetType": req.targetType,
+        "content": req.content
+    }
+
+    result = await event_service.handle_updated(event)
+
+    return {
+        "success": True,
+        "result": result
+    }
+
 class TestRequest(BaseModel):
     content: str
     imageUrls: List[str] = []
@@ -62,3 +85,4 @@ async def test_before_save(req: TestRequest):
         "success": True,
         "result": result
     }
+

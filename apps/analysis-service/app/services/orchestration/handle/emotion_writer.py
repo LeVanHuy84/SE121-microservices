@@ -93,7 +93,7 @@ class EmotionWriter:
         emotion_data: Dict,
     ) -> EmotionAggregate:
 
-        existing = await self.analysis_repo.find_by_target(
+        existing = await self.analysis_repo.get_analysis_by_target(
             user_id=user_id,
             target_id=target_id,
             target_type=target_type.value,
@@ -109,7 +109,7 @@ class EmotionWriter:
             "finalScores": emotion_data["finalScores"],
             "finalConfidence": emotion_data["finalConfidence"],
             "dominantModality": emotion_data["dominantModality"],
-            "textResults": self._build_text_result(emotion_data),
+            "textResult": self._build_text_result(emotion_data),
             "imageResults": self._build_image_results(emotion_data),
             "riskHintLevel": emotion_data.get(
                 "riskHintLevel", RiskHintLevelEnum.NONE

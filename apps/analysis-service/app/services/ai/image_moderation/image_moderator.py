@@ -30,7 +30,8 @@ async def moderate_single_image(image: ImageInput) -> dict:
             "severity": "none",
             "violation_score": 0.0,
             "signal_strength": "none",
-            "unsafe_details": None,
+            "category": None,
+            "scores": None,
             "error": "download_failed",
         }
 
@@ -40,6 +41,8 @@ async def moderate_single_image(image: ImageInput) -> dict:
     is_violation = bool(ai_result.get("is_unsafe"))
 
     severity = _determine_severity(is_violation, violation_score)
+    category = ai_result.get("category") if ai_result else None
+    scores = ai_result.get("scores") if ai_result else None
 
     return {
         "url": image.url,
@@ -54,10 +57,8 @@ async def moderate_single_image(image: ImageInput) -> dict:
         "signal_strength": _signal_strength(violation_score),
 
         # 🔍 AI DETAILS (for explain / debug)
-        "unsafe_details": {
-            "category": ai_result.get("category"),
-            "scores": ai_result.get("scores"),
-        } if ai_result else None,
+        "category": category,
+        "scores": scores,
 
         "error": ai_result.get("error"),
     }

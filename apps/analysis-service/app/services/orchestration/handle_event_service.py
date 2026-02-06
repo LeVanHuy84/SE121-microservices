@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any
 
-from app.services.orchestration.analysis_flow_service import analysis_flow_service
 from app.services.orchestration.handle.moderation_writer import ModerationWriter
 from app.services.orchestration.handle.emotion_writer import EmotionWriter
 from app.services.orchestration.handle.task_manager import TaskManager
@@ -17,15 +16,19 @@ class HandleEventService:
 
     def __init__(
         self,
+        analysis_flow_service,
         analysis_repo,
         moderation_repo,
         task_repo,
         outbox_repo,
     ):
+        self.analysis_flow_service = analysis_flow_service
+
         self.moderation_writer = ModerationWriter(moderation_repo)
         self.emotion_writer = EmotionWriter(analysis_repo)
         self.task_manager = TaskManager(task_repo)
         self.outbox = OutboxEmitter(outbox_repo)
+
 
     # ======================================================
     # CREATED EVENT
@@ -39,7 +42,7 @@ class HandleEventService:
         target_type = TargetTypeEnum(event["targetType"])
 
         try:
-            result = await analysis_flow_service.analyze_content(
+            result = await self.analysis_flow_service.analyze_content(
                 text=text,
                 image_urls=image_urls,
                 target_type=target_type,
@@ -49,6 +52,8 @@ class HandleEventService:
             emotion_result = result.get("emotion")
             should_block = result.get("should_block", False)
             skip_reason = result.get("skip_reason")
+
+            print("MODERATION_RESULT:", moderation_result)
 
             moderation = await self.moderation_writer.save_created(
                 user_id=user_id,
@@ -117,10 +122,13 @@ class HandleEventService:
         target_type = TargetTypeEnum(event["targetType"])
 
         try:
-            result = await analysis_flow_service.analyze_text_only(
+            result = await self.analysis_flow_service.analyze_text_only(
                 text=new_text,
+                target_id=target_id,
                 target_type=target_type,
             )
+
+            print(result)
 
             moderation_result = result["moderation"]
             emotion_result = result.get("emotion")
@@ -173,6 +181,7 @@ class HandleEventService:
                 image_urls=[],
             )
 
+            raise
 
         except Exception as e:
 
@@ -181,3 +190,5 @@ class HandleEventService:
                 target_type=target_type,
                 reason=str(e),
             )
+
+            raise

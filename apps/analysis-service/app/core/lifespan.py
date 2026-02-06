@@ -16,6 +16,7 @@ from app.database.moderation_repository import ModerationRepository
 from app.database.task_repository import TaskRepository
 from app.processors.retry_worker import RetryWorker
 from app.services.ai.model_loader import ensure_models_loaded
+from app.services.orchestration.analysis_flow_service import AnalysisFlowService
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +33,17 @@ analysis_repo = AnalysisRepository(engine)
 moderation_repo = ModerationRepository(engine)
 task_repo = TaskRepository(engine)
 
+# Inject repositories vào analysis_flow_service
+analysis_flow_service = AnalysisFlowService(
+    moderation_repo,
+    analysis_repo,
+)
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
 processor = OutboxBatchProcessor(outbox_repo, kafka_producer)
 retry_worker = RetryWorker(analysis_repo, moderation_repo, task_repo, outbox_repo)
 
-event_service = HandleEventService(analysis_repo, moderation_repo, task_repo, outbox_repo)
+event_service = HandleEventService(analysis_flow_service, analysis_repo, moderation_repo, task_repo, outbox_repo)
 dispatcher = EventDispatcher(event_service)
 
 # -------------------------------------------------------

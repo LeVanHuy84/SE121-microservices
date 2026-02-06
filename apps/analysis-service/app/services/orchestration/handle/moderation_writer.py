@@ -6,7 +6,6 @@ from app.database.schemas.moderation_result import (
     ModerationResult,
     TextModerationResult,
     ImageModerationResult,
-    ImageUnsafeDetails
 )
 from app.enums.event_enum import TargetTypeEnum
 from app.enums.moderation_enum import SeverityEnum
@@ -60,7 +59,8 @@ class ModerationWriter:
                 "severity": severity,
                 "violation_score": img.get("violation_score"),
                 "signal_strength": img.get("signal_strength"),
-                "unsafe_details": img.get("unsafe_details"),  # Pass dict directly, not EmbeddedModel object
+                "category": img.get("category"),
+                "scores": img.get("scores"),
                 "error": img.get("error"),
             }
 
@@ -88,7 +88,9 @@ class ModerationWriter:
             max_severity=max_severity,
         )
 
-        return await self.moderation_repo.save_moderation_raw(moderation)
+        print("Saving new moderation:", moderation)
+
+        return await self.moderation_repo.save_moderation(moderation)
 
     async def save_updated(
         self,
@@ -145,7 +147,8 @@ class ModerationWriter:
                     "severity": severity,
                     "violation_score": img.get("violation_score"),
                     "signal_strength": img.get("signal_strength"),
-                    "unsafe_details": img.get("unsafe_details"),  # Pass dict directly
+                    "category": img.get("category"),
+                    "scores": img.get("scores"),
                     "error": img.get("error"),
                 }
 

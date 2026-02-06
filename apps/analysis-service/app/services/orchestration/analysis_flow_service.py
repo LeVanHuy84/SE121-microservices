@@ -1,3 +1,4 @@
+# app/services/orchestration/analysis_flow_service.py
 """
 Application Service: Analysis Flow Orchestration
 - Orchestrates emotion analysis flow
@@ -38,6 +39,10 @@ class AnalysisFlowService:
     - Enforces moderation-first rule
     - Returns CONTRACT-CORRECT DTOs
     """
+
+    def __init__(self, moderation_repo=None, analysis_repo=None):
+        self.moderation_repo = moderation_repo
+        self.analysis_repo = analysis_repo
 
     # ======================================================
     # PUBLIC API
@@ -233,6 +238,74 @@ class AnalysisFlowService:
             "imageResults": image_results,
             "riskHintLevel": risk_hint_level,
         }
+    
+    async def _recompute_emotion_with_cached_images(
+        self,
+        text: str,
+        cached_image_results: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+
+        # ===============================
+        # TEXT EMOTION (re-run)
+        # ===============================
+        text_emotion = text_emotion_classifier.classify(text)
+
+        text_scores = text_emotion["emotionScores"]
+        text_confidence = text_emotion.get("confidence", 0.8)
+
+        text_result = {
+            "content": text,
+            "dominantEmotion": text_emotion["dominantEmotion"],
+            "scores": text_scores,
+            "confidence": text_confidence,
+            "model": text_emotion.get("model", "phobert"),
+            "meta": text_emotion.get("meta"),
+        }
+
+        # ===============================
+        # IMAGE EMOTION (from cache)
+        # ===============================
+        image_results = cached_image_results or []
+
+        image_scores_avg = emotion_analyzer.average_image_scores_from_results(image_results)
+        image_confidence = emotion_analyzer.get_average_image_confidence_from_results(image_results)
+
+        dominant_modality = "text"
+        if image_confidence > text_confidence and image_confidence > 0.3:
+            dominant_modality = "image"
+
+        # ===============================
+        # FUSION
+        # ===============================
+        final_scores = emotion_analyzer.fuse_emotions(
+            text_scores=text_scores,
+            image_scores=image_scores_avg,
+            text_confidence=text_confidence,
+            image_confidence=image_confidence,
+        )
+
+        final_emotion = emotion_analyzer.get_dominant_emotion(final_scores)
+
+        intensity = emotion_analyzer.calculate_intensity(final_scores)
+
+        risk_hint_level = risk_scorer.detect_risk_hint(
+            text=text,
+            emotion=final_emotion,
+            intensity=intensity["level"],
+        )
+
+        final_confidence = image_confidence if dominant_modality == "image" else text_confidence
+
+        return {
+            "finalEmotion": final_emotion,
+            "finalScores": final_scores,
+            "finalConfidence": final_confidence,
+            "dominantModality": dominant_modality,
+            "textResult": text_result,
+            "imageResults": image_results,
+            "riskHintLevel": risk_hint_level,
+        }
+
 
     # ======================================================
     # TEXT ONLY (UPDATED EVENT)
@@ -240,14 +313,41 @@ class AnalysisFlowService:
     async def analyze_text_only(
         self,
         text: str,
+        target_id: str,
         target_type: TargetTypeEnum,
     ) -> Dict[str, Any]:
+        """
+        Phân tích lại khi chỉ cập nhật text.
+        Kết hợp text mới với image results đã lưu từ trước.
+        """
+        # ===============================
+        # LẤY DỮ LIỆU CŨ TỪ DB
+        # ===============================
+        old_moderation = await self.moderation_repo.get_by_target(target_id, target_type)
+        old_emotion = await self.analysis_repo.get_analysis_by_target(target_id, target_type)
 
+        print("Old moderation:", old_moderation)
+        print("Old emotion:", old_emotion)
+
+        # Lấy image moderation results cũ
+        old_image_moderation = (
+            old_moderation.image_results if old_moderation else []
+        )
+
+        # Lấy image emotion results cũ
+        old_image_emotion = (
+            old_emotion.imageResults if old_emotion else []
+        )
+
+        # ===============================
+        # MODERATION: Text mới + Image cũ
+        # ===============================
         text_moderation = moderation_aggregator.moderate(text)
 
+        # Quyết định moderation cuối cùng: kết hợp text mới + image cũ
         final_moderation = content_moderator.decide(
-            text_moderation=text_moderation,
-            image_moderation_results=[],
+            text_moderation,
+            image_moderation_results=old_image_moderation,
         )
 
         moderation_result = {
@@ -255,11 +355,14 @@ class AnalysisFlowService:
             "violation_score": final_moderation["violation_score"],
             "max_severity": final_moderation["max_severity"],
             "text_result": text_moderation,
-            "image_results": [],
+            "image_results": old_image_moderation,  # GIỮ NGUYÊN IMAGE CŨ
         }
 
         should_block = moderation_result["is_violation"]
 
+        # ===============================
+        # SKIP LOGIC
+        # ===============================
         if target_type == TargetTypeEnum.SHARE:
             return {
                 "moderation": moderation_result,
@@ -268,9 +371,33 @@ class AnalysisFlowService:
                 "skip_reason": "share_type",
             }
 
-        emotion_result = await self._run_emotion_analysis(
+        if should_block:
+            logger.info("Content blocked after text update → skip emotion analysis")
+            return {
+                "moderation": moderation_result,
+                "emotion": None,
+                "should_block": should_block,
+                "skip_reason": "blocked_content",
+            }
+
+        # ===============================
+        # EMOTION: Text mới + Image cũ
+        # ===============================
+        # Convert old image emotion từ DB schema sang dict format
+        cached_image_results = []
+        if old_image_emotion:
+            for img in old_image_emotion:
+                cached_image_results.append({
+                    "url": img.url,
+                    "dominantEmotion": img.dominantEmotion,
+                    "scores": dict(img.scores),
+                    "confidence": img.confidence,
+                    "model": img.model,
+                })
+
+        emotion_result = await self._recompute_emotion_with_cached_images(
             text=text,
-            image_inputs=[],
+            cached_image_results=cached_image_results,
         )
 
         return {
