@@ -1,37 +1,40 @@
-from odmantic import AIOEngine
+from motor.motor_asyncio import AsyncIOMotorCollection
 from bson import ObjectId
 from typing import Optional
 
-from app.database.schemas.moderation_result import ModerationResult
 from app.enums.event_enum import TargetTypeEnum
 
 
 class ModerationRepository:
     """Repository for ModerationResult persistence."""
 
-    def __init__(self, engine: AIOEngine):
-        self.engine = engine
+    def __init__(self, collection: AsyncIOMotorCollection):
+        self.collection = collection
 
     # ======================================================
     # SAVE
     # ======================================================
-    async def save_moderation(self, data: ModerationResult):
-        return await self.engine.save(data)
+    async def save_moderation(self, data: dict) -> dict:
+        """Insert new moderation result. Accepts dict, returns dict with _id."""
+        result = await self.collection.insert_one(data)
+        data["_id"] = str(result.inserted_id)
+        return data
 
 
     # ======================================================
     # GET BY ID
     # ======================================================
-    async def get_by_id(self, moderation_id: str) -> Optional[ModerationResult]:
+    async def get_by_id(self, moderation_id: str) -> Optional[dict]:
+        """Get moderation result by ID."""
         try:
             obj_id = ObjectId(moderation_id)
         except Exception:
             return None
 
-        return await self.engine.find_one(
-            ModerationResult,
-            ModerationResult.id == obj_id
-        )
+        doc = await self.collection.find_one({"_id": obj_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
 
     # ======================================================
     # GET BY TARGET
@@ -40,13 +43,17 @@ class ModerationRepository:
         self,
         target_id: str,
         target_type: TargetTypeEnum
-    ) -> Optional[ModerationResult]:
-
-        return await self.engine.find_one(
-            ModerationResult,
-            (ModerationResult.targetId == target_id) &
-            (ModerationResult.targetType == target_type)
-        )
+    ) -> Optional[dict]:
+        """Get moderation result by target ID and type."""
+        target_type_str = target_type.value if hasattr(target_type, 'value') else str(target_type)
+        
+        doc = await self.collection.find_one({
+            "targetId": target_id,
+            "targetType": target_type_str
+        })
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
 
     # ======================================================
     # UPDATE
@@ -55,8 +62,8 @@ class ModerationRepository:
         self,
         moderation_id: str,
         update_data: dict
-    ) -> Optional[ModerationResult]:
-
+    ) -> Optional[dict]:
+        """Update moderation result by ID."""
         try:
             obj_id = (
                 ObjectId(moderation_id)
@@ -66,21 +73,16 @@ class ModerationRepository:
         except Exception:
             return None
 
-        moderation = await self.engine.find_one(
-            ModerationResult,
-            ModerationResult.id == obj_id
+        result = await self.collection.update_one(
+            {"_id": obj_id},
+            {"$set": update_data}
         )
 
-        if not moderation:
+        if result.matched_count == 0:
             return None
 
-        for key, value in update_data.items():
-            if hasattr(moderation, key):
-                setattr(moderation, key, value)
-
-        # ⚠️ rebuild lại model trước khi save
-        moderation = ModerationResult.model_validate(
-            moderation.model_dump(mode="python", by_alias=True)
-        )
-
-        return await self.engine.save(moderation)
+        # Return updated document
+        doc = await self.collection.find_one({"_id": obj_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc

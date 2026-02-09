@@ -82,16 +82,16 @@ class OutboxBatchProcessor:
         for outbox in outboxes:
             try:
                 kafka_message = {
-                    "type": outbox.eventType,
-                    "payload": outbox.payload
+                    "type": outbox.get("eventType"),
+                    "payload": outbox.get("payload", {})
                 }
 
                 await self.kafka.send(
-                    topic=outbox.topic,
+                    topic=outbox.get("topic"),
                     message=kafka_message
                 )
 
-                processed_ids.append(outbox.id)
+                processed_ids.append(outbox["_id"])
 
             except Exception as e:
                 print("[Batch] Kafka send error:", e)

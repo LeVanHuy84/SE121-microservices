@@ -22,8 +22,8 @@ class ModerationAggregator:
         if kw.get("blocked"):
             return {
                 "content": text,
-                "is_violation": True,
-                "violation_score": 1.0,
+                "isViolation": True,
+                "violationScore": 1.0,
                 "source": "keyword_hard",
                 "flags": {},
                 "sensitive": False,
@@ -39,8 +39,8 @@ class ModerationAggregator:
 
             return {
                 "content": text,
-                "is_violation": score >= self.model_threshold,
-                "violation_score": round(score, 4),
+                "isViolation": score >= self.model_threshold,
+                "violationScore": round(score, 4),
                 "source": ph["model"],
                 "flags": kw.get("flags", {}),
                 "sensitive": bool(kw.get("flags")),
@@ -51,8 +51,8 @@ class ModerationAggregator:
         # ============================
         return {
             "content": text,
-            "is_violation": False,
-            "violation_score": 0.0,
+            "isViolation": False,
+            "violationScore": 0.0,
             "source": "keyword_only",
             "flags": kw.get("flags", {}),
             "sensitive": bool(kw.get("flags")),

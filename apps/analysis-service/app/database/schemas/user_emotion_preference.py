@@ -1,8 +1,10 @@
 from datetime import date
-from odmantic import Model
+from pydantic import BaseModel
+from typing import Optional
 
 
-class UserEmotionPreference(Model):
+class UserEmotionPreference(BaseModel):
+    id: Optional[str] = None
     userId: str
 
     preferredEmotions: list[str]

@@ -73,7 +73,7 @@ class FERAnalyzer:
                 "emotions": aggregated,         # raw FER scores
                 "confidence": round(aggregated[dominant], 4),
                 "face_count": len(results),
-                "model": "fer2013",
+                "model": "fer2013: 22.4.0",
             }
 
 

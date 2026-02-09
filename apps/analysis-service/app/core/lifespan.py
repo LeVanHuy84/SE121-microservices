@@ -8,7 +8,7 @@ from app.messaging.kafka_consumer import KafkaConsumerService
 from app.messaging.kafka_producer import KafkaProducerService
 from app.processors.batch_processor import OutboxBatchProcessor
 from app.database.outbox_repository import OutboxRepository
-from app.database.mongo_client import engine
+from app.database.mongo import collections
 from app.messaging.event_dispatcher import EventDispatcher
 from app.services.orchestration.handle_event_service import HandleEventService
 from app.database.analysis_repository import AnalysisRepository
@@ -26,12 +26,12 @@ logging.basicConfig(
 )
 
 # -------------------------------------------------------
-# INIT SINGLETONS
+# INIT SINGLETONS - Now using Motor collections
 # -------------------------------------------------------
-outbox_repo = OutboxRepository(engine)
-analysis_repo = AnalysisRepository(engine)
-moderation_repo = ModerationRepository(engine)
-task_repo = TaskRepository(engine)
+outbox_repo = OutboxRepository(collections['outbox_events'])
+analysis_repo = AnalysisRepository(collections['emotion_aggregates'])
+moderation_repo = ModerationRepository(collections['moderation_results'])
+task_repo = TaskRepository(collections['analysis_tasks'])
 
 # Inject repositories vào analysis_flow_service
 analysis_flow_service = AnalysisFlowService(

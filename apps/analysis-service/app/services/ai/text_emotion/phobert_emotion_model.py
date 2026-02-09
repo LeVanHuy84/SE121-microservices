@@ -31,19 +31,18 @@ class PhoBERTEmotionModel:
         self.model = None
         self.pipeline = None
         self.device = None
+        self.model_name = "visolex/phobert-emotion"
     
     def initialize(self):
         """Initialize PhoBERT emotion model."""
         if self._instance_initialized:
             return
         
-        try:
-            model_name = "visolex/phobert-emotion"
+        try:            
+            logger.info(f"[PhoBERTEmotion] Loading model: {self.model_name}")
             
-            logger.info(f"[PhoBERTEmotion] Loading model: {model_name}")
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
             
             self.pipeline = pipeline(
                 "text-classification",
@@ -77,6 +76,10 @@ class PhoBERTEmotionModel:
         if not self._instance_initialized:
             raise RuntimeError("PhoBERT emotion model not initialized. Call initialize() first.")
         return self.model
+    
+    def get_model_name(self) -> str:
+        """Get model name."""
+        return self.model_name
     
     def get_pipeline(self):
         """Get pipeline instance."""

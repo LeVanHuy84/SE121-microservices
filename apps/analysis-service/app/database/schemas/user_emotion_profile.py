@@ -1,8 +1,9 @@
-from odmantic import Model
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, Dict
 
-class UserEmotionProfile(Model):
+class UserEmotionProfile(BaseModel):
+    id: Optional[str] = None
     userId: str
     
     #  === Long-term baseline ===
@@ -11,7 +12,7 @@ class UserEmotionProfile(Model):
 
     # === Risk tracking ===
     negativeStreakDays: int
-    lastNegativeAt: Optional[datetime]
+    lastNegativeAt: Optional[datetime] = None
 
     # === Meta ===
     totalAnalyses: int

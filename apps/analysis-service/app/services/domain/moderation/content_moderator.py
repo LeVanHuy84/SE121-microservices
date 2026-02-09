@@ -105,10 +105,10 @@ class ContentModerator:
         # Detect violations
         # --------------------------------------------------
 
-        text_violate = bool(text_result and text_result.get("is_violation"))
+        text_violate = bool(text_result and text_result.get("isViolation"))
 
         violating_images = [
-            img for img in image_results if img.get("is_violation")
+            img for img in image_results if img.get("isViolation")
         ]
 
         image_violate = bool(violating_images)
@@ -116,9 +116,9 @@ class ContentModerator:
 
         if not is_violation:
             return {
-                "is_violation": False,
-                "violation_score": 0.0,
-                "max_severity": "none",
+                "isViolation": False,
+                "violationScore": 0.0,
+                "maxSeverity": "none",
             }
 
         # --------------------------------------------------
@@ -130,7 +130,7 @@ class ContentModerator:
 
         # ---------- TEXT ----------
         if text_violate:
-            text_score = float(text_result.get("violation_score", 0.0))
+            text_score = float(text_result.get("violationScore", 0.0))
             scores.append(text_score)
             severities.append(text_severity(text_result))
 
@@ -144,9 +144,9 @@ class ContentModerator:
         # --------------------------------------------------
 
         return {
-            "is_violation": True,
-            "violation_score": round(max(scores), 4),
-            "max_severity": max_severity(severities),
+            "isViolation": True,
+            "violationScore": round(max(scores), 4),
+            "maxSeverity": max_severity(severities),
         }
 
 

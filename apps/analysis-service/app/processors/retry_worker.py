@@ -69,13 +69,13 @@ class RetryWorker:
     # ======================================================
     # RETRY SINGLE TASK
     # ======================================================
-    async def retry_task(self, task):
+    async def retry_task(self, task: dict):
 
         try:
             result = await analysis_flow_service.analyze_content(
-                text=task.content,
-                image_urls=task.imageUrls or [],
-                target_type=task.targetType
+                text=task.get("content", ""),
+                image_urls=task.get("imageUrls", []),
+                target_type=task["targetType"]
             )
 
             moderation_result = result["moderation"]
@@ -86,35 +86,34 @@ class RetryWorker:
             # ==========================================
             # 1️⃣ SAVE MODERATION
             # ==========================================
-            if task.action == EventTypeEnum.ANALYSIS_CREATED:
+            if task["action"] == EventTypeEnum.ANALYSIS_CREATED.value:
 
                 moderation = await self.moderation_writer.save_created(
-                    user_id=task.userId,
-                    target_id=task.targetId,
-                    target_type=task.targetType,
-                    content=task.content,
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
+                    content=task.get("content", ""),
                     moderation_data=moderation_result
                 )
 
             else:
-                existing = await self.moderation_repo.find_by_target(
-                    user_id=task.userId,
-                    target_id=task.targetId,
-                    target_type=task.targetType.value
+                existing = await self.moderation_repo.get_by_target(
+                    target_id=task["targetId"],
+                    target_type=task["targetType"]
                 )
 
                 if not existing:
                     raise ValueError(
-                        f"ModerationResult not found for target {task.targetId}"
+                        f"ModerationResult not found for target {task['targetId']}"
                     )
 
                 moderation = await self.moderation_writer.save_updated(
                     existing=existing,
-                    new_content=task.content,
+                    new_content=task.get("content", ""),
                     moderation_data=moderation_result
                 )
 
-            if moderation.is_violation:
+            if moderation.get("is_violation"):
                 await self.outbox.emit_moderation(moderation)
 
             # ==========================================
@@ -122,16 +121,16 @@ class RetryWorker:
             # ==========================================
             if skip_reason:
                 await self.task_manager.mark_permanent_failed(
-                    task.targetId,
-                    task.targetType,
+                    task["targetId"],
+                    task["targetType"],
                     skip_reason
                 )
                 return
 
             if should_block or not emotion_result:
                 await self.task_manager.mark_permanent_failed(
-                    task.targetId,
-                    task.targetType,
+                    task["targetId"],
+                    task["targetType"],
                     "blocked_or_emotion_missing"
                 )
                 return
@@ -139,21 +138,21 @@ class RetryWorker:
             # ==========================================
             # 3️⃣ SAVE EMOTION
             # ==========================================
-            if task.action == EventTypeEnum.ANALYSIS_CREATED:
+            if task["action"] == EventTypeEnum.ANALYSIS_CREATED.value:
 
                 emotion = await self.emotion_writer.save_created(
-                    user_id=task.userId,
-                    target_id=task.targetId,
-                    target_type=task.targetType,
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
                     emotion_data=emotion_result
                 )
 
             else:
 
                 emotion = await self.emotion_writer.save_updated(
-                    user_id=task.userId,
-                    target_id=task.targetId,
-                    target_type=task.targetType,
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
                     emotion_data=emotion_result
                 )
 
@@ -161,7 +160,7 @@ class RetryWorker:
 
             # mark success
             await self.task_repository.update_task(
-                str(task.id),
+                task["_id"],
                 {
                     "status": "SUCCESS"
                 }
@@ -171,10 +170,10 @@ class RetryWorker:
             logger.warning(f"[RetryWorker] Retryable error: {e}")
 
             await self.task_repository.update_task(
-                str(task.id),
+                task["_id"],
                 {
                     "status": "FAILED",
-                    "retryCount": task.retryCount + 1,
+                    "retryCount": task.get("retryCount", 0) + 1,
                     "error": str(e)
                 }
             )
@@ -184,8 +183,8 @@ class RetryWorker:
             logger.exception("[RetryWorker] Permanent error")
 
             await self.task_manager.mark_permanent_failed(
-                task.targetId,
-                task.targetType,
+                task["targetId"],
+                task["targetType"],
                 str(e)
             )
             raise

@@ -1,51 +1,62 @@
-from odmantic import AIOEngine
+from motor.motor_asyncio import AsyncIOMotorCollection
 from bson import ObjectId
-from app.database.schemas.emotion_aggregate import EmotionAggregate
+from typing import Optional, List
 from datetime import datetime
 
 
 class AnalysisRepository:
-    def __init__(self, engine: AIOEngine):
-        self.engine = engine
+    def __init__(self, collection: AsyncIOMotorCollection):
+        self.collection = collection
 
-    async def save_analysis(self, data: EmotionAggregate):
-        return await self.engine.save(data)
+    async def save_analysis(self, data: dict) -> dict:
+        """Insert new emotion aggregate. Accepts dict, returns dict with _id."""
+        result = await self.collection.insert_one(data)
+        data["_id"] = str(result.inserted_id)
+        return data
 
-    async def get_analysis_by_id(self, analysisId: str):
-        # convert id string -> ObjectId
+    async def get_analysis_by_id(self, analysisId: str) -> Optional[dict]:
+        """Get emotion aggregate by ID."""
         try:
             obj_id = ObjectId(analysisId)
-        except:
+        except Exception:
             return None
-        return await self.engine.find_one(EmotionAggregate, EmotionAggregate.id == obj_id)
+        
+        doc = await self.collection.find_one({"_id": obj_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
 
-    async def get_analysis_by_target(self, targetId: str, targetType: str):
-        return await self.engine.find_one(
-            EmotionAggregate,
-            (EmotionAggregate.targetId == targetId) &
-            (EmotionAggregate.targetType == targetType)
-        )
+    async def get_analysis_by_target(self, targetId: str, targetType: str) -> Optional[dict]:
+        """Get emotion aggregate by target ID and type."""
+        doc = await self.collection.find_one({
+            "targetId": targetId,
+            "targetType": targetType
+        })
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
     
 
-    async def update_analysis(self, analysisId, update_data: dict):
+    async def update_analysis(self, analysisId: str, update_data: dict) -> Optional[dict]:
+        """Update emotion aggregate by ID."""
         try:
             obj_id = ObjectId(analysisId) if isinstance(analysisId, str) else analysisId
         except Exception:
             return None
 
-        analysis = await self.engine.find_one(
-            EmotionAggregate,
-            EmotionAggregate.id == obj_id
+        result = await self.collection.update_one(
+            {"_id": obj_id},
+            {"$set": update_data}
         )
 
-        if not analysis:
+        if result.matched_count == 0:
             return None
 
-        for key, value in update_data.items():
-            if hasattr(analysis, key):
-                setattr(analysis, key, value)
-
-        return await self.engine.save(analysis)
+        # Return updated document
+        doc = await self.collection.find_one({"_id": obj_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
 
     # NEW: Get limit
     async def get_history(
@@ -55,48 +66,72 @@ class AnalysisRepository:
         end: datetime,
         cursor: datetime | None = None,
         limit: int = 20
-    ):
-        query = (
-            (EmotionAggregate.userId == user_id) &
-            (EmotionAggregate.createdAtVN >= start) &
-            (EmotionAggregate.createdAtVN <= end)
-        )
+    ) -> List[dict]:
+        """Get paginated history with date range filter."""
+        query = {
+            "userId": user_id,
+            "createdAtVN": {
+                "$gte": start,
+                "$lte": end
+            }
+        }
 
         if cursor:
-            query = query & (EmotionAggregate.createdAtVN < cursor)
+            query["createdAtVN"]["$lt"] = cursor
 
-        return await self.engine.find(
-            EmotionAggregate,
-            query,
-            sort=EmotionAggregate.createdAtVN.desc(),
-            limit=limit
-        )
+        cursor_obj = self.collection.find(query).sort("createdAtVN", -1).limit(limit)
+        docs = await cursor_obj.to_list(length=limit)
+        
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+        return docs
 
 
 
     # NEW: filter by date range
-    async def get_analysis_by_date_range(self, user_id: str, from_date: datetime, to_date: datetime):
-        return await self.engine.find(
-            EmotionAggregate,
-            (EmotionAggregate.userId == user_id) &
-            (EmotionAggregate.createdAtVN >= from_date) &
-            (EmotionAggregate.createdAtVN <= to_date),
-        )
+    async def get_analysis_by_date_range(self, user_id: str, from_date: datetime, to_date: datetime) -> List[dict]:
+        """Get all analyses in date range."""
+        query = {
+            "userId": user_id,
+            "createdAtVN": {
+                "$gte": from_date,
+                "$lte": to_date
+            }
+        }
+        
+        cursor = self.collection.find(query)
+        docs = await cursor.to_list(length=None)
+        
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+        return docs
 
     # NEW: get successful entries for summary
-    async def get_all_for_summary(self, user_id: str, start: datetime, end: datetime):
-        return await self.engine.find(
-            EmotionAggregate,
-            (EmotionAggregate.userId == user_id) &
-            (EmotionAggregate.createdAtVN >= start) &
-            (EmotionAggregate.createdAtVN <= end)
-        )    
+    async def get_all_for_summary(self, user_id: str, start: datetime, end: datetime) -> List[dict]:
+        """Get all analyses for summary in date range."""
+        query = {
+            "userId": user_id,
+            "createdAtVN": {
+                "$gte": start,
+                "$lte": end
+            }
+        }
+        
+        cursor = self.collection.find(query)
+        docs = await cursor.to_list(length=None)
+        
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+        return docs
     
-    async def get_user_recent_analyses(self, user_id: str, limit: int = 30):
-        return await self.engine.find(
-            EmotionAggregate,
-            (EmotionAggregate.userId == user_id),
-            sort=EmotionAggregate.createdAt.desc(),
-            limit=limit
-        )
+    async def get_user_recent_analyses(self, user_id: str, limit: int = 30) -> List[dict]:
+        """Get recent analyses for user."""
+        query = {"userId": user_id}
+        
+        cursor = self.collection.find(query).sort("createdAt", -1).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+        return docs
 

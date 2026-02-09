@@ -5,6 +5,7 @@ Application Service: Analysis Flow Orchestration
 - Orchestrates moderation flow (SEPARATE from emotion)
 - Integrates Domain Services and AI Layer
 - Handles SHARE targetType (moderation only, no emotion)
+- Output normalized DTO for Feed re-rank usage
 """
 
 import logging
@@ -68,7 +69,7 @@ class AnalysisFlowService:
         # STEP 2: MODERATION (ALWAYS)
         # ========================================
         moderation_result = await self._run_moderation(text, image_inputs)
-        should_block = moderation_result["is_violation"]
+        should_block = moderation_result["isViolation"]
 
         # ========================================
         # STEP 3: SKIP RULES
@@ -77,8 +78,8 @@ class AnalysisFlowService:
             return {
                 "moderation": moderation_result,
                 "emotion": None,
-                "should_block": should_block,
-                "skip_reason": "share_type",
+                "shouldBlock": should_block,
+                "skipReason": "share_type",
             }
 
         if should_block:
@@ -86,8 +87,8 @@ class AnalysisFlowService:
             return {
                 "moderation": moderation_result,
                 "emotion": None,
-                "should_block": should_block,
-                "skip_reason": "blocked_content",
+                "shouldBlock": should_block,
+                "skipReason": "blocked_content",
             }
 
         # ========================================
@@ -98,7 +99,7 @@ class AnalysisFlowService:
         return {
             "moderation": moderation_result,
             "emotion": emotion_result,
-            "should_block": should_block,
+            "shouldBlock": should_block,
         }
 
     # ======================================================
@@ -122,15 +123,15 @@ class AnalysisFlowService:
         )
 
         return {
-            "is_violation": final_moderation["is_violation"],
-            "violation_score": final_moderation["violation_score"],
-            "max_severity": final_moderation["max_severity"],
-            "text_result": text_moderation,
-            "image_results": image_moderation_results,
+            "isViolation": final_moderation["isViolation"],
+            "violationScore": final_moderation["violationScore"],
+            "maxSeverity": final_moderation["maxSeverity"],
+            "textResult": text_moderation,
+            "imageResults": image_moderation_results,
         }
 
     # ======================================================
-    # EMOTION FLOW (✅ CONTRACT-CORRECT)
+    # EMOTION FLOW (NORMALIZED)
     # ======================================================
     async def _run_emotion_analysis(
         self,
@@ -142,13 +143,15 @@ class AnalysisFlowService:
         # TEXT EMOTION
         # ===============================
         text_emotion = text_emotion_classifier.classify(text)
+        print("Text emotion:", text_emotion)
 
-        text_scores = text_emotion["emotionScores"]
-        text_confidence = text_emotion.get("confidence", 0.8)
+        text_scores_raw = text_emotion.get("emotionScores") or {}
+        text_scores = emotion_analyzer.normalize_scores(text_scores_raw)
+        text_confidence = float(text_emotion.get("confidence", 0.8))
 
         text_result = {
             "content": text,
-            "dominantEmotion": text_emotion["dominantEmotion"],
+            "dominantEmotion": text_emotion.get("dominantEmotion"),
             "scores": text_scores,
             "confidence": text_confidence,
             "model": text_emotion.get("model", "phobert"),
@@ -162,14 +165,17 @@ class AnalysisFlowService:
         image_scores_avg = {}
         image_confidence = 0.0
         dominant_modality = "text"
+        dominant_scene_type = ""
 
         if image_inputs:
             image_emotions = await analyze_multiple_images(image_inputs)
+            print("Image emotions:", image_emotions)
 
             retryable_errors = [
                 x for x in image_emotions
                 if x.get("error") and x.get("retryable")
             ]
+
             retry_ratio = (
                 len(retryable_errors) / len(image_emotions)
                 if image_emotions else 0
@@ -180,29 +186,33 @@ class AnalysisFlowService:
                     f"Retryable image emotion ratio too high: {retry_ratio}"
                 )
 
+            # Map AI output → normalized image_results
             for img in image_emotions:
                 if img.get("error"):
                     continue
 
-                face = img.get("faceEmotion") or {}
-                scene = img.get("sceneEmotion") or {}
+                scores_raw = img.get("finalScores") or {}
+                norm_scores = emotion_analyzer.normalize_scores(scores_raw)
 
                 image_results.append({
                     "url": img.get("url", ""),
                     "dominantEmotion": img.get("finalEmotion", "neutral"),
-                    "scores": face.get("scores") or scene.get("scores", {}),
-                    "confidence": img.get("finalConfidence", 0.0),
+                    "scores": norm_scores,
+                    "confidence": float(img.get("finalConfidence", 0.0)),
                     "model": img.get("finalSource", "clip"),
+                    "sceneType": img.get("sceneType", ""),
+                    "sceneContext": img.get("sceneContext", ""),
                 })
 
-            image_scores_avg = emotion_analyzer.average_image_scores(image_emotions)
-            image_confidence = emotion_analyzer.get_average_image_confidence(image_emotions)
+            image_scores_avg = emotion_analyzer.average_image_scores(image_results)
+            image_confidence = emotion_analyzer.get_average_image_confidence(image_results)
+            dominant_scene_type = emotion_analyzer.get_dominant_scene_type(image_results)
 
             if image_confidence > text_confidence and image_confidence > 0.3:
                 dominant_modality = "image"
 
         # ===============================
-        # FUSION & DOMAIN LOGIC
+        # FUSION
         # ===============================
         final_scores = emotion_analyzer.fuse_emotions(
             text_scores=text_scores,
@@ -222,23 +232,26 @@ class AnalysisFlowService:
         )
 
         final_confidence = (
-            image_confidence if dominant_modality == "image"
+            image_confidence
+            if dominant_modality == "image"
             else text_confidence
         )
 
         # ===============================
-        # ✅ FINAL DTO (MATCH EmotionAggregate)
+        # FINAL DTO (FOR FEED RE-RANK)
         # ===============================
         return {
             "finalEmotion": final_emotion,
             "finalScores": final_scores,
             "finalConfidence": final_confidence,
             "dominantModality": dominant_modality,
+            "dominantSceneType": dominant_scene_type,
+            "intensity": intensity,                 # <- feed có thể dùng để weight
             "textResult": text_result,
             "imageResults": image_results,
             "riskHintLevel": risk_hint_level,
         }
-    
+
     async def _recompute_emotion_with_cached_images(
         self,
         text: str,
@@ -250,12 +263,13 @@ class AnalysisFlowService:
         # ===============================
         text_emotion = text_emotion_classifier.classify(text)
 
-        text_scores = text_emotion["emotionScores"]
-        text_confidence = text_emotion.get("confidence", 0.8)
+        text_scores_raw = text_emotion.get("emotionScores") or {}
+        text_scores = emotion_analyzer.normalize_scores(text_scores_raw)
+        text_confidence = float(text_emotion.get("confidence", 0.8))
 
         text_result = {
             "content": text,
-            "dominantEmotion": text_emotion["dominantEmotion"],
+            "dominantEmotion": text_emotion.get("dominantEmotion"),
             "scores": text_scores,
             "confidence": text_confidence,
             "model": text_emotion.get("model", "phobert"),
@@ -267,8 +281,8 @@ class AnalysisFlowService:
         # ===============================
         image_results = cached_image_results or []
 
-        image_scores_avg = emotion_analyzer.average_image_scores_from_results(image_results)
-        image_confidence = emotion_analyzer.get_average_image_confidence_from_results(image_results)
+        image_scores_avg = emotion_analyzer.average_image_scores(image_results)
+        image_confidence = emotion_analyzer.get_average_image_confidence(image_results)
 
         dominant_modality = "text"
         if image_confidence > text_confidence and image_confidence > 0.3:
@@ -301,11 +315,12 @@ class AnalysisFlowService:
             "finalScores": final_scores,
             "finalConfidence": final_confidence,
             "dominantModality": dominant_modality,
+            "dominantSceneType": emotion_analyzer.get_dominant_scene_type(image_results),
+            "intensity": intensity,
             "textResult": text_result,
             "imageResults": image_results,
             "riskHintLevel": risk_hint_level,
         }
-
 
     # ======================================================
     # TEXT ONLY (UPDATED EVENT)
@@ -327,16 +342,15 @@ class AnalysisFlowService:
         old_emotion = await self.analysis_repo.get_analysis_by_target(target_id, target_type)
 
         print("Old moderation:", old_moderation)
-        print("Old emotion:", old_emotion)
 
         # Lấy image moderation results cũ
         old_image_moderation = (
-            old_moderation.image_results if old_moderation else []
+            old_moderation.get("imageResults", []) if old_moderation else []
         )
 
         # Lấy image emotion results cũ
         old_image_emotion = (
-            old_emotion.imageResults if old_emotion else []
+            old_emotion.get("imageResults", []) if old_emotion else []
         )
 
         # ===============================
@@ -344,21 +358,20 @@ class AnalysisFlowService:
         # ===============================
         text_moderation = moderation_aggregator.moderate(text)
 
-        # Quyết định moderation cuối cùng: kết hợp text mới + image cũ
         final_moderation = content_moderator.decide(
             text_moderation,
-            image_moderation_results=old_image_moderation,
+            old_image_moderation,
         )
 
         moderation_result = {
-            "is_violation": final_moderation["is_violation"],
-            "violation_score": final_moderation["violation_score"],
-            "max_severity": final_moderation["max_severity"],
-            "text_result": text_moderation,
-            "image_results": old_image_moderation,  # GIỮ NGUYÊN IMAGE CŨ
+            "isViolation": final_moderation["isViolation"],
+            "violationScore": final_moderation["violationScore"],
+            "maxSeverity": final_moderation["maxSeverity"],
+            "textResult": text_moderation,
+            "imageResults": old_image_moderation,
         }
 
-        should_block = moderation_result["is_violation"]
+        should_block = moderation_result["isViolation"]
 
         # ===============================
         # SKIP LOGIC
@@ -367,8 +380,8 @@ class AnalysisFlowService:
             return {
                 "moderation": moderation_result,
                 "emotion": None,
-                "should_block": should_block,
-                "skip_reason": "share_type",
+                "shouldBlock": should_block,
+                "skipReason": "share_type",
             }
 
         if should_block:
@@ -376,24 +389,26 @@ class AnalysisFlowService:
             return {
                 "moderation": moderation_result,
                 "emotion": None,
-                "should_block": should_block,
-                "skip_reason": "blocked_content",
+                "shouldBlock": should_block,
+                "skipReason": "blocked_content",
             }
 
         # ===============================
         # EMOTION: Text mới + Image cũ
         # ===============================
-        # Convert old image emotion từ DB schema sang dict format
         cached_image_results = []
-        if old_image_emotion:
-            for img in old_image_emotion:
-                cached_image_results.append({
-                    "url": img.url,
-                    "dominantEmotion": img.dominantEmotion,
-                    "scores": dict(img.scores),
-                    "confidence": img.confidence,
-                    "model": img.model,
-                })
+        for img in old_image_emotion:
+            cached_image_results.append({
+                "url": img.get("url", ""),
+                "dominantEmotion": img.get("dominantEmotion", "neutral"),
+                "scores": emotion_analyzer.normalize_scores(
+                    img.get("scores", {})
+                ),
+                "confidence": float(img.get("confidence", 0.0)),
+                "model": img.get("model", "clip"),
+                "sceneType": img.get("sceneType", ""),
+                "sceneContext": img.get("sceneContext", ""),
+            })
 
         emotion_result = await self._recompute_emotion_with_cached_images(
             text=text,
@@ -403,7 +418,7 @@ class AnalysisFlowService:
         return {
             "moderation": moderation_result,
             "emotion": emotion_result,
-            "should_block": should_block,
+            "shouldBlock": should_block,
         }
 
 

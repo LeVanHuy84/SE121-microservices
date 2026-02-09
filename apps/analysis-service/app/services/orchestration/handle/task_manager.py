@@ -26,7 +26,7 @@ class TaskManager:
         reason: str,
         content: str,
         image_urls: list[str],
-    ) -> AnalysisTask:
+    ) -> dict:
 
         existing = await self.task_repo.get_by_target(
             target_id,
@@ -39,11 +39,11 @@ class TaskManager:
             logger.info("Update existing failed task")
 
             return await self.task_repo.update_task(
-                str(existing.id),
+                existing["_id"],
                 {
-                    "status": AnalysisStatusEnum.FAILED,
-                    "action": action,
-                    "retryCount": existing.retryCount + 1,
+                    "status": AnalysisStatusEnum.FAILED.value,
+                    "action": action.value,
+                    "retryCount": existing.get("retryCount", 0) + 1,
                     "error": reason,
                     "updatedAt": now
                 }
@@ -51,6 +51,7 @@ class TaskManager:
 
         logger.info("Create new failed task")
 
+        # Build Pydantic DTO
         task = AnalysisTask(
             userId=user_id,
             targetId=target_id,
@@ -63,7 +64,18 @@ class TaskManager:
             imageUrls=image_urls,
         )
 
-        return await self.task_repo.save_task(task)
+        # Convert to dict for persistence
+        data = task.model_dump(mode='json', exclude_none=False, exclude={'id'})
+        
+        # Convert enums to strings
+        if hasattr(data.get('targetType'), 'value'):
+            data['targetType'] = data['targetType'].value
+        if hasattr(data.get('action'), 'value'):
+            data['action'] = data['action'].value
+        if hasattr(data.get('status'), 'value'):
+            data['status'] = data['status'].value
+
+        return await self.task_repo.save_task(data)
 
     # ======================================================
     # PERMANENT FAILED
@@ -84,9 +96,9 @@ class TaskManager:
             return
 
         await self.task_repo.update_task(
-            str(task.id),
+            task["_id"],
             {
-                "status": AnalysisStatusEnum.PERMANENT_FAILED,
+                "status": AnalysisStatusEnum.PERMANENT_FAILED.value,
                 "error": reason,
                 "updatedAt": datetime.now(timezone.utc)
             }

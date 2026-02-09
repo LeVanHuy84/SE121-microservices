@@ -50,10 +50,8 @@ class HandleEventService:
 
             moderation_result = result["moderation"]
             emotion_result = result.get("emotion")
-            should_block = result.get("should_block", False)
-            skip_reason = result.get("skip_reason")
-
-            print("MODERATION_RESULT:", moderation_result)
+            should_block = result.get("shouldBlock", False)
+            skip_reason = result.get("skipReason")
 
             moderation = await self.moderation_writer.save_created(
                 user_id=user_id,
@@ -63,15 +61,15 @@ class HandleEventService:
                 moderation_data=moderation_result,
             )
 
-            if moderation.is_violation:
+            if moderation.get("isViolation"):
                 await self.outbox.emit_moderation(moderation)
 
             if skip_reason or should_block or not emotion_result:
                 return {
                     "moderation": moderation,
                     "emotion": None,
-                    "should_block": should_block,
-                    "skip_reason": skip_reason,
+                    "shouldBlock": should_block,
+                    "skipReason": skip_reason,
                 }
 
             emotion = await self.emotion_writer.save_created(
@@ -86,7 +84,7 @@ class HandleEventService:
             return {
                 "moderation": moderation,
                 "emotion": emotion,
-                "should_block": False,
+                "shouldBlock": False,
             }
 
         except RetryableException as e:
@@ -132,41 +130,40 @@ class HandleEventService:
 
             moderation_result = result["moderation"]
             emotion_result = result.get("emotion")
-            should_block = result.get("should_block", False)
-            skip_reason = result.get("skip_reason")
+            should_block = result.get("shouldBlock", False)
+            skip_reason = result.get("skipReason")
 
             moderation = await self.moderation_writer.save_updated(
-                user_id=user_id,
                 target_id=target_id,
                 target_type=target_type,
                 content=new_text,
                 moderation_data=moderation_result,
             )
 
-            if moderation.is_violation:
+            if moderation.get("isViolation"):
                 await self.outbox.emit_moderation(moderation)
 
             if skip_reason or should_block or not emotion_result:
                 return {
                     "moderation": moderation,
                     "emotion": None,
-                    "should_block": should_block,
-                    "skip_reason": skip_reason,
+                    "shouldBlock": should_block,
+                    "skipReason": skip_reason,
                 }
 
             emotion = await self.emotion_writer.save_updated(
-                user_id=user_id,
                 target_id=target_id,
                 target_type=target_type,
                 emotion_data=emotion_result,
             )
+
 
             await self.outbox.emit_emotion(emotion)
 
             return {
                 "moderation": moderation,
                 "emotion": emotion,
-                "should_block": False,
+                "shouldBlock": False,
             }
 
         except RetryableException as e:

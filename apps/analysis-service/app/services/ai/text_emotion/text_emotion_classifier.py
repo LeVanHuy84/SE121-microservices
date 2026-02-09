@@ -72,7 +72,7 @@ class TextEmotionClassifier:
                     "hasEmoji": prep["hasEmoji"],
                     "skipped": True
                 },
-                "model": "phobert_mxh_ensemble"
+                "model": phobert_emotion_model.get_model_name()
             }
 
         # ---------------------------------------------------------------------
@@ -149,7 +149,7 @@ class TextEmotionClassifier:
                     "lowConfidence": True,
                     "originalEmotion": dominant
                 },
-                "model": "phobert_mxh_ensemble"
+                "model": phobert_emotion_model.get_model_name()
             }
 
         # ---------------------------------------------------------------------
@@ -165,7 +165,7 @@ class TextEmotionClassifier:
                 "language": lang or "unknown",
                 "hasEmoji": prep["hasEmoji"]
             },
-            "model": "phobert_mxh_ensemble"
+            "model": phobert_emotion_model.get_model_name()
         }
 
 

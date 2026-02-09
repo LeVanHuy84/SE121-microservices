@@ -31,6 +31,7 @@ class CLIPLoader:
         self.model = None
         self.processor = None
         self.device = None
+        self.model_name = None
     
     def initialize(self, model_name: str = "openai/clip-vit-base-patch32"):
         """
@@ -42,6 +43,8 @@ class CLIPLoader:
         if self._instance_initialized:
             logger.info("[CLIPLoader] Already initialized")
             return
+        
+        self.model_name = model_name
         
         try:
             logger.info(f"[CLIPLoader] Loading CLIP model: {model_name}")
@@ -69,6 +72,12 @@ class CLIPLoader:
     def is_loaded(self) -> bool:
         """Check if CLIP model is loaded and ready."""
         return self._instance_initialized and self.model is not None
+    
+    def get_model_name(self) -> str:
+        if not self.is_loaded():
+            raise RuntimeError("CLIP not loaded")
+        return self.model_name
+
     
     def get_model(self):
         """Get CLIP model instance."""

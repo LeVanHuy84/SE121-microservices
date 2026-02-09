@@ -1,9 +1,10 @@
-from odmantic import Model
+from pydantic import BaseModel
 from datetime import date
-from typing import Dict
+from typing import Dict, Optional
 from app.enums.emotion_enum import EmotionTimeWindowEnum
 
-class UserEmotionSnapshot(Model):
+class UserEmotionSnapshot(BaseModel):
+    id: Optional[str] = None
     userId: str
     window: EmotionTimeWindowEnum # 24h, 7d, 30d
     

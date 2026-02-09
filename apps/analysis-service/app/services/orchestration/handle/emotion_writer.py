@@ -50,6 +50,8 @@ class EmotionWriter:
                 scores=r["scores"],
                 confidence=r["confidence"],
                 model=r["model"],
+                sceneType=r.get("sceneType"),
+                sceneContext=r.get("sceneContext"),
             )
             for r in emotion_data.get("imageResults", [])
         ]
@@ -63,16 +65,18 @@ class EmotionWriter:
         target_id: str,
         target_type: TargetTypeEnum,
         emotion_data: Dict,
-    ) -> EmotionAggregate:
-        
+    ) -> dict:
+
         aggregate = EmotionAggregate(
             userId=user_id,
             targetId=target_id,
-            targetType=target_type.value,
+            targetType=target_type,  # truyền enum trực tiếp
             finalEmotion=emotion_data["finalEmotion"],
             finalScores=emotion_data["finalScores"],
             finalConfidence=emotion_data["finalConfidence"],
             dominantModality=emotion_data["dominantModality"],
+            dominantSceneType=emotion_data.get("dominantSceneType"),
+            intensity=emotion_data.get("intensity"),
             textResult=self._build_text_result(emotion_data),
             imageResults=self._build_image_results(emotion_data),
             riskHintLevel=emotion_data.get(
@@ -80,23 +84,28 @@ class EmotionWriter:
             ),
         )
 
-        return await self.analysis_repo.save_analysis(aggregate)
+        data = aggregate.model_dump(
+            mode='json',
+            exclude_none=False,
+            exclude={'id'}
+        )
+
+        return await self.analysis_repo.save_analysis(data)
+
 
     # ======================================================
     # UPDATED (FIXED SIGNATURE)
     # ======================================================
     async def save_updated(
         self,
-        user_id: str,
         target_id: str,
         target_type: TargetTypeEnum,
         emotion_data: Dict,
-    ) -> EmotionAggregate:
+    ) -> dict:
 
         existing = await self.analysis_repo.get_analysis_by_target(
-            user_id=user_id,
-            target_id=target_id,
-            target_type=target_type.value,
+            targetId=target_id,
+            targetType=target_type.value,  # nếu DB lưu string
         )
 
         if not existing:
@@ -104,13 +113,27 @@ class EmotionWriter:
                 f"EmotionAggregate not found for target {target_id}"
             )
 
+        text_result_dto = self._build_text_result(emotion_data)
+        text_result_dict = (
+            text_result_dto.model_dump(mode='json')
+            if text_result_dto else None
+        )
+
+        image_results_dtos = self._build_image_results(emotion_data)
+        image_results_dicts = [
+            img.model_dump(mode='json')
+            for img in image_results_dtos
+        ]
+
         update_data = {
             "finalEmotion": emotion_data["finalEmotion"],
             "finalScores": emotion_data["finalScores"],
             "finalConfidence": emotion_data["finalConfidence"],
             "dominantModality": emotion_data["dominantModality"],
-            "textResult": self._build_text_result(emotion_data),
-            "imageResults": self._build_image_results(emotion_data),
+            "dominantSceneType": emotion_data.get("dominantSceneType"),
+            "intensity": emotion_data.get("intensity"),
+            "textResult": text_result_dict,
+            "imageResults": image_results_dicts,
             "riskHintLevel": emotion_data.get(
                 "riskHintLevel", RiskHintLevelEnum.NONE
             ),
@@ -118,6 +141,6 @@ class EmotionWriter:
         }
 
         return await self.analysis_repo.update_analysis(
-            str(existing.id),
+            existing["_id"],
             update_data,
         )

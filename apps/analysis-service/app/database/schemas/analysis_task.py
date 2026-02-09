@@ -1,13 +1,14 @@
 
 from datetime import datetime, timezone
 from typing import Optional
-from odmantic import Field, Model
+from pydantic import BaseModel, Field
 from app.enums.analysis_status_enum import AnalysisStatusEnum
 from app.enums.event_enum import EventTypeEnum
 from app.enums.event_enum import TargetTypeEnum
 
 
-class AnalysisTask(Model):
+class AnalysisTask(BaseModel):
+    id: Optional[str] = None
     userId: str
     targetId: str
     targetType: TargetTypeEnum

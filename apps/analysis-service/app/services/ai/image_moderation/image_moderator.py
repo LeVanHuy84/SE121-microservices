@@ -25,11 +25,11 @@ async def moderate_single_image(image: ImageInput) -> dict:
     if not image.bytes:
         return {
             "url": image.url,
-            "is_violation": False,
+            "isViolation": False,
             "violation": None,
             "severity": "none",
-            "violation_score": 0.0,
-            "signal_strength": "none",
+            "violationScore": 0.0,
+            "signalStrength": "none",
             "category": None,
             "scores": None,
             "error": "download_failed",
@@ -48,19 +48,17 @@ async def moderate_single_image(image: ImageInput) -> dict:
         "url": image.url,
 
         # 🔑 FINAL DECISION (image-level)
-        "is_violation": is_violation,
+        "isViolation": is_violation,
         "violation": ai_result.get("category") if is_violation else None,
         "severity": severity,
 
         # 🔑 FLATTENED SIGNALS
-        "violation_score": round(violation_score, 4),
-        "signal_strength": _signal_strength(violation_score),
+        "violationScore": round(violation_score, 4),
+        "signalStrength": _signal_strength(violation_score),
 
         # 🔍 AI DETAILS (for explain / debug)
         "category": category,
         "scores": scores,
-
-        "error": ai_result.get("error"),
     }
 
 

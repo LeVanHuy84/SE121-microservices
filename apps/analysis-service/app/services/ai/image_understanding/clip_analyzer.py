@@ -30,6 +30,9 @@ class CLIPAnalyzer:
     # PUBLIC APIs
     # =========================================================================
 
+    def get_clip_model_name(self) -> str:
+        return clip_loader.get_model_name()
+
     def analyze_moderation(self, image_data: bytes) -> Dict[str, float]:
         ensure_clip_loaded()
         image = Image.open(BytesIO(image_data)).convert("RGB")

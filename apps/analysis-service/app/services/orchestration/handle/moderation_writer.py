@@ -25,16 +25,16 @@ class ModerationWriter:
         target_type: TargetTypeEnum,
         content: str,
         moderation_data: Dict
-    ) -> ModerationResult:
-        
+    ) -> dict:
+
         # ---- text result ----
         text_result = None
-        if moderation_data.get("text_result"):
-            t = moderation_data["text_result"]
+        if moderation_data.get("textResult"):
+            t = moderation_data["textResult"]
             text_result = TextModerationResult(
                 content=content,
-                is_violation=t.get("is_violation", False),
-                violation_score=t.get("violation_score", 0.0),
+                isViolation=t.get("isViolation", False),
+                violationScore=t.get("violationScore", 0.0),
                 source=t.get("source", "keyword"),
                 sensitive=t.get("sensitive", False),
                 flags=t.get("flags") or {},
@@ -43,120 +43,111 @@ class ModerationWriter:
         # ---- image results ----
         image_results: List[ImageModerationResult] = []
 
-        for img in moderation_data.get("image_results", []):
-            # Convert severity to string value for ODMantic serialization
-            severity = img.get("severity", "none")
-            if isinstance(severity, SeverityEnum):
-                severity = severity.value
-            elif not isinstance(severity, str):
-                severity = SeverityEnum(severity).value
-
-            # Build image result dict with all fields as primitives/dicts
-            image_data = {
-                "url": img.get("url", ""),
-                "is_violation": img.get("is_violation", False),
-                "violation": img.get("violation"),
-                "severity": severity,
-                "violation_score": img.get("violation_score"),
-                "signal_strength": img.get("signal_strength"),
-                "category": img.get("category"),
-                "scores": img.get("scores"),
-                "error": img.get("error"),
-            }
-
-            # Create ImageModerationResult from dict
-            image_results.append(ImageModerationResult(**image_data))
-
-        # Convert max_severity to string value for ODMantic serialization
-        max_severity = moderation_data.get("max_severity", "none")
-        if isinstance(max_severity, SeverityEnum):
-            max_severity = max_severity.value
-        elif not isinstance(max_severity, str):
-            max_severity = SeverityEnum(max_severity).value
-
-        # Convert targetType enum to string value
-        target_type_str = target_type.value if isinstance(target_type, TargetTypeEnum) else str(target_type)
+        for img in moderation_data.get("imageResults", []):
+            image_results.append(
+                ImageModerationResult(
+                    url=img.get("url", ""),
+                    isViolation=img.get("isViolation", False),
+                    violation=img.get("violation"),
+                    severity=img.get("severity", SeverityEnum.NONE),
+                    violationScore=img.get("violationScore"),
+                    signalStrength=img.get("signalStrength"),
+                    category=img.get("category"),
+                    scores=img.get("scores"),
+                )
+            )
 
         moderation = ModerationResult(
             userId=user_id,
             targetId=target_id,
-            targetType=target_type_str,
-            text_result=text_result,
-            image_results=image_results,
-            is_violation=moderation_data.get("is_violation", False),
-            violation_score=moderation_data.get("violation_score", 0.0),
-            max_severity=max_severity,
+            targetType=target_type,  # truyền enum trực tiếp
+            textResult=text_result,
+            imageResults=image_results,
+            isViolation=moderation_data.get("isViolation", False),
+            violationScore=moderation_data.get("violationScore", 0.0),
+            maxSeverity=moderation_data.get("maxSeverity", SeverityEnum.NONE),
         )
 
-        print("Saving new moderation:", moderation)
+        data = moderation.model_dump(mode="json", exclude_none=False, exclude={'id'})
 
-        return await self.moderation_repo.save_moderation(moderation)
+        logger.info(f"Saving new moderation for target {target_id}")
+
+        return await self.moderation_repo.save_moderation(data)
+
 
     async def save_updated(
         self,
-        existing: ModerationResult,
-        new_content: str,
+        target_id: str,
+        target_type: TargetTypeEnum,
+        content: str,
         moderation_data: Dict
-    ) -> ModerationResult:
+    ) -> dict:
 
-        # Convert max_severity to string value
-        max_severity = moderation_data.get("max_severity", existing.max_severity)
-        if isinstance(max_severity, SeverityEnum):
-            max_severity = max_severity.value
-        elif not isinstance(max_severity, str):
-            max_severity = SeverityEnum(max_severity).value
+        existing = await self.moderation_repo.get_by_target(
+            target_id,
+            target_type
+        )
+
+        if not existing:
+            raise ValueError(
+                f"Moderation not found for target {target_id}"
+            )
 
         update_data = {
-            "is_violation": moderation_data.get("is_violation", existing.is_violation),
-            "violation_score": moderation_data.get(
-                "violation_score",
-                existing.violation_score
+            "isViolation": moderation_data.get(
+                "isViolation",
+                existing.get("isViolation"),
             ),
-            "max_severity": max_severity,
+            "violationScore": moderation_data.get(
+                "violationScore",
+                existing.get("violationScore"),
+            ),
+            "maxSeverity": moderation_data.get(
+                "maxSeverity",
+                existing.get("maxSeverity"),
+            ),
         }
 
-        # ---- update text result ----
-        if moderation_data.get("text_result"):
-            t = moderation_data["text_result"]
-            update_data["text_result"] = TextModerationResult(
-                content=new_content,
-                is_violation=t.get("is_violation", False),
-                violation_score=t.get("violation_score", 0.0),
+        # ---- text ----
+        if moderation_data.get("textResult"):
+            t = moderation_data["textResult"]
+
+            text_result_dto = TextModerationResult(
+                content=content,
+                isViolation=t.get("isViolation", False),
+                violationScore=t.get("violationScore", 0.0),
                 source=t.get("source", "keyword"),
                 sensitive=t.get("sensitive", False),
                 flags=t.get("flags") or {},
             )
 
-        # ---- update image results (replace all) ----
-        if moderation_data.get("image_results") is not None:
+            update_data["textResult"] = text_result_dto.model_dump(mode="json")
+
+        # ---- image ----
+        if moderation_data.get("imageResults") is not None:
+
             image_results: List[ImageModerationResult] = []
 
-            for img in moderation_data.get("image_results", []):
-                # Convert severity to string value
-                severity = img.get("severity", "none")
-                if isinstance(severity, SeverityEnum):
-                    severity = severity.value
-                elif not isinstance(severity, str):
-                    severity = SeverityEnum(severity).value
+            for img in moderation_data.get("imageResults", []):
+                image_results.append(
+                    ImageModerationResult(
+                        url=img.get("url", ""),
+                        isViolation=img.get("isViolation", False),
+                        violation=img.get("violation"),
+                        severity=img.get("severity", SeverityEnum.NONE),
+                        violationScore=img.get("violationScore"),
+                        signalStrength=img.get("signalStrength"),
+                        category=img.get("category"),
+                        scores=img.get("scores"),
+                        error=img.get("error"),
+                    )
+                )
 
-                # Build image result dict with all fields as primitives/dicts
-                image_data = {
-                    "url": img.get("url", ""),
-                    "is_violation": img.get("is_violation", False),
-                    "violation": img.get("violation"),
-                    "severity": severity,
-                    "violation_score": img.get("violation_score"),
-                    "signal_strength": img.get("signal_strength"),
-                    "category": img.get("category"),
-                    "scores": img.get("scores"),
-                    "error": img.get("error"),
-                }
-
-                image_results.append(ImageModerationResult(**image_data))
-
-            update_data["image_results"] = image_results
+            update_data["imageResults"] = [
+                img.model_dump(mode="json") for img in image_results
+            ]
 
         return await self.moderation_repo.update_moderation(
-            str(existing.id),
-            update_data
+            existing["_id"],
+            update_data,
         )
