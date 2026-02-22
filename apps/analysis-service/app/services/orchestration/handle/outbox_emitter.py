@@ -2,7 +2,7 @@ import logging
 
 from app.database.outbox_repository import OutboxRepository
 from app.database.schemas.outbox import Outbox
-from app.enums.event_enum import ResultEventEnum
+from app.enums.event_enum import EventTypeEnum, ResultEventEnum
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ class OutboxEmitter:
         """Emit moderation rejection event"""
         # Build Pydantic DTO
         outbox = Outbox(
-            topic="analysis",
-            eventType=ResultEventEnum.MODERATION_REJECTION.value,
+            topic=ResultEventEnum.MODERATION_REJECTED.value,
+            eventType="",
             payload={
                 "targetId": moderation["targetId"],
                 "targetType": moderation["targetType"],
@@ -28,17 +28,22 @@ class OutboxEmitter:
         data = outbox.model_dump(mode='json', exclude_none=False, exclude={'id'})
         await self.outbox_repo.save_outbox(data)
 
-    async def emit_emotion(self, emotion: dict):
+    async def emit_emotion(self, action: EventTypeEnum, emotion: dict):
         """Emit emotion analysis result event"""
         # Build Pydantic DTO
         outbox = Outbox(
-            topic="analysis.emotion.completed",
-            eventType=ResultEventEnum.EMOTION_RESULT.value,
+            topic=ResultEventEnum.EMOTION_RESULT.value,
+            eventType=action.value,
             payload={
                 "targetId": emotion["targetId"],
                 "targetType": emotion["targetType"],
                 "finalEmotion": emotion["finalEmotion"],
-                "finalScores": emotion["finalScores"],
+                "scores": emotion["finalScores"],
+                "confidence": emotion["confidence"],
+                "intensityScore": emotion["intensity"]["score"],
+                "intensityLevel": emotion["intensity"]["level"],
+                "dominantModality": emotion["dominantModality"],
+                "dominantSceneType": emotion.get("dominantSceneType"),
                 "riskHintLevel": emotion.get("riskHintLevel"),
             }
         )

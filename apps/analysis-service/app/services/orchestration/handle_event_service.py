@@ -79,7 +79,7 @@ class HandleEventService:
                 emotion_data=emotion_result,
             )
 
-            await self.outbox.emit_emotion(emotion)
+            await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_CREATED, emotion)
 
             return {
                 "moderation": moderation,
@@ -158,7 +158,7 @@ class HandleEventService:
             )
 
 
-            await self.outbox.emit_emotion(emotion)
+            await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_UPDATED, emotion)
 
             return {
                 "moderation": moderation,

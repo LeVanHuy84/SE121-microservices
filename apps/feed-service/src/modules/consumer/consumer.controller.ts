@@ -12,7 +12,7 @@ export class ConsumerController {
   // ----------------------------
   // 🧩 POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @EventPattern(EventTopic.EMOTION_RESULT)
   async handleAnalysisEvents(@Payload() message: AnalysisResultEvent) {
     const { type, payload } = message;
 

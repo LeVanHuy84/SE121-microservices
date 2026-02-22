@@ -24,6 +24,33 @@ export class StatsEmbedded {
   @Prop({ default: 0 }) shares: number;
 }
 
+@Schema({ _id: false })
+export class EmotionFeature {
+  @Prop({ required: true })
+  label: string; // joy, anger, ...
+
+  @Prop({ required: true })
+  confidence: number; // 0..1
+
+  @Prop({ required: true })
+  intensity: number; // 0..1 (lấy từ intensity.score)
+
+  @Prop()
+  intensityLevel?: string; // low | medium | high | severe (optional, debug/rule)
+
+  @Prop()
+  dominantScene?: string; // happy_portrait, ...
+
+  @Prop({ type: Map, of: Number })
+  scores?: Record<string, number>; // full distribution
+
+  @Prop()
+  dominantModality?: string; // text | image | video
+
+  @Prop()
+  riskHintLevel?: string;
+}
+
 @Schema({ collection: 'post_snapshots', timestamps: true })
 export class PostSnapshot {
   _id?: Types.ObjectId;
@@ -49,8 +76,8 @@ export class PostSnapshot {
   @Prop({ default: 0 })
   mediaRemaining: number;
 
-  @Prop()
-  mainEmotion?: Emotion;
+  @Prop({ type: EmotionFeature })
+  emotionFeature?: EmotionFeature;
 
   @Prop()
   postCreatedAt: Date;

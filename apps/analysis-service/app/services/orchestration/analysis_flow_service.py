@@ -29,6 +29,7 @@ from app.services.ai.image_moderation import moderate_multiple_images
 # Utils
 from app.utils.exceptions import RetryableException
 from app.enums.event_enum import TargetTypeEnum
+from app.enums.emotion_enum import DominantModalityEnum
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,7 @@ class AnalysisFlowService:
         image_results: List[Dict[str, Any]] = []
         image_scores_avg = {}
         image_confidence = 0.0
-        dominant_modality = "text"
+        dominant_modality = DominantModalityEnum.TEXT
         dominant_scene_type = ""
 
         if image_inputs:
@@ -209,7 +210,7 @@ class AnalysisFlowService:
             dominant_scene_type = emotion_analyzer.get_dominant_scene_type(image_results)
 
             if image_confidence > text_confidence and image_confidence > 0.3:
-                dominant_modality = "image"
+                dominant_modality = DominantModalityEnum.IMAGE
 
         # ===============================
         # FUSION
@@ -233,7 +234,7 @@ class AnalysisFlowService:
 
         final_confidence = (
             image_confidence
-            if dominant_modality == "image"
+            if dominant_modality == DominantModalityEnum.IMAGE
             else text_confidence
         )
 
@@ -284,9 +285,9 @@ class AnalysisFlowService:
         image_scores_avg = emotion_analyzer.average_image_scores(image_results)
         image_confidence = emotion_analyzer.get_average_image_confidence(image_results)
 
-        dominant_modality = "text"
+        dominant_modality = DominantModalityEnum.TEXT
         if image_confidence > text_confidence and image_confidence > 0.3:
-            dominant_modality = "image"
+            dominant_modality = DominantModalityEnum.IMAGE
 
         # ===============================
         # FUSION
@@ -308,7 +309,7 @@ class AnalysisFlowService:
             intensity=intensity["level"],
         )
 
-        final_confidence = image_confidence if dominant_modality == "image" else text_confidence
+        final_confidence = image_confidence if dominant_modality == DominantModalityEnum.IMAGE else text_confidence
 
         return {
             "finalEmotion": final_emotion,
@@ -340,8 +341,6 @@ class AnalysisFlowService:
         # ===============================
         old_moderation = await self.moderation_repo.get_by_target(target_id, target_type)
         old_emotion = await self.analysis_repo.get_analysis_by_target(target_id, target_type)
-
-        print("Old moderation:", old_moderation)
 
         # Lấy image moderation results cũ
         old_image_moderation = (

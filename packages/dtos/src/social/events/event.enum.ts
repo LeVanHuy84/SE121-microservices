@@ -6,8 +6,8 @@ export enum EventTopic {
   GROUP_CRUD = 'group-crud-events',
   USER = 'user-events',
   ANALYSIS = 'analysis-events',
-  ANALYSIS_RESULT = 'analysis-result-events',
-  MODERATION_REJECTION = 'moderation-rejection-events',
+  EMOTION_RESULT = 'emotion-result-events',
+  MODERATION_REJECTED = 'moderation-rejected-events',
   LOGGING = 'logging-events',
   MEDIA = 'media-events',
 }

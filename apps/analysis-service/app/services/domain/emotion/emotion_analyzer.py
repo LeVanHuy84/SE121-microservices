@@ -9,7 +9,7 @@ Domain Service: Emotion Analysis
 
 import logging
 from typing import List, Optional, Dict
-from app.enums.emotion_enum import EmotionEnum
+from app.enums.emotion_enum import EmotionEnum, IntensityLevelEnum
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +93,11 @@ class EmotionAnalyzer:
         max_score = max(scores.values()) if scores else 0.0
 
         if max_score >= 0.75:
-            level = "severe"
+            level = IntensityLevelEnum.SEVERE.value
         elif max_score >= 0.5:
-            level = "moderate"
+            level = IntensityLevelEnum.MODERATE.value
         else:
-            level = "mild"
+            level = IntensityLevelEnum.MILD.value
 
         return {
             "level": level,

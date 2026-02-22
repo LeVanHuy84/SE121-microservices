@@ -18,66 +18,90 @@ export class ConsumerService {
   ) {}
 
   async handleCreated(payload: AnalysisResultEventPayload): Promise<void> {
-    // Xử lý sự kiện CREATED ở đây
     switch (payload.targetType) {
-      case TargetType.POST:
+      case TargetType.POST: {
         const post = await this.postModel.findOne({ postId: payload.targetId });
-        if (post) {
-          post.mainEmotion = payload.finalEmotion as Emotion;
-          await post.save();
-          if (!post.groupId) {
-            await this.updateTrendingEmotion(
-              payload.targetId,
-              undefined,
-              payload.finalEmotion as Emotion,
-            );
-          }
-        }
+        if (!post) return;
 
+        const newFeature = this.buildEmotionFeature(payload);
+
+        const oldLabel = post.emotionFeature?.label;
+        post.emotionFeature = newFeature;
+
+        await post.save();
+
+        if (!post.groupId) {
+          await this.updateTrendingEmotion(
+            payload.targetId,
+            oldLabel as any,
+            newFeature.label as any,
+          );
+        }
         break;
+      }
       default:
         break;
     }
   }
 
   async handleUpdated(payload: AnalysisResultEventPayload): Promise<void> {
-    // Xử lý sự kiện UPDATED ở đây
-    console.log('Handling UPDATED event:', payload);
     switch (payload.targetType) {
-      case TargetType.POST:
+      case TargetType.POST: {
         const post = await this.postModel.findOne({ postId: payload.targetId });
-        if (post) {
-          const oldEmotion = post.mainEmotion;
-          post.mainEmotion = payload.finalEmotion as Emotion;
-          await post.save();
-          await this.updateTrendingEmotion(
-            payload.targetId,
-            oldEmotion,
-            payload.finalEmotion as Emotion,
-          );
-        }
+        if (!post) return;
+
+        const oldLabel = post.emotionFeature?.label;
+
+        const newFeature = this.buildEmotionFeature(payload);
+        post.emotionFeature = newFeature;
+
+        await post.save();
+
+        await this.updateTrendingEmotion(
+          payload.targetId,
+          oldLabel as any,
+          newFeature.label as any,
+        );
         break;
+      }
       default:
         break;
     }
   }
 
+  private buildEmotionFeature(payload: AnalysisResultEventPayload) {
+    // intensity có thể là map, lấy theo finalEmotion nếu có
+    const intensityValue =
+      typeof payload.intensity === 'object'
+        ? (payload.intensity[payload.finalEmotion] ?? 0)
+        : 0;
+
+    return {
+      label: payload.finalEmotion,
+      confidence: payload.confidence,
+      intensity: intensityValue,
+      dominantScene: payload.dominantSceneType,
+      scores: {
+        [payload.finalEmotion]: payload.finalScores,
+      },
+      riskHintLevel: payload.riskHintLevel,
+    };
+  }
+
   private async updateTrendingEmotion(
     postId: string,
-    oldEmotion?: Emotion,
-    newEmotion?: Emotion,
+    oldEmotion?: string,
+    newEmotion?: string,
   ) {
     const exists = await this.redis.zscore('post:score', postId);
 
-    // Bài chưa có điểm → chưa trending → bỏ
+    // Chưa trending thì bỏ
     if (!exists) return;
 
-    // 1️⃣ Xóa emotion cũ
     if (oldEmotion) {
       await this.redis.srem(`post:emotion:${oldEmotion.toLowerCase()}`, postId);
     }
 
-    // 2️⃣ Thêm emotion mới
     if (newEmotion) {
       await this.redis.sadd(`post:emotion:${newEmotion.toLowerCase()}`, postId);
     }
