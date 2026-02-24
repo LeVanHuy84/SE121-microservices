@@ -25,21 +25,23 @@ export class TrendingService {
   private async getEffectiveKey(emotion?: Emotion): Promise<string | null> {
     if (!emotion) return 'post:score';
 
-    const emotionKey = `post:emotion:${emotion.toLowerCase()}`;
+    // ✅ Dùng ZSET với intensity score (thay vì SET)
+    const emotionKey = `post:emotion:${emotion.toLowerCase()}:score`;
     const exists = await this.redis.exists(emotionKey);
 
     if (!exists) return null;
 
     const tempKey = `post:score:tmp:${emotion.toLowerCase()}`;
 
+    // ZINTERSTORE với WEIGHTS để combine ranking score + emotion intensity
     await this.redis.zinterstore(
       tempKey,
       2,
       'post:score',
       emotionKey,
       'WEIGHTS',
-      1,
-      0,
+      1, // post:score weight = 1 (engagement-based)
+      0.3, // ⭐ emotion intensity weight = 0.3 (boost by intensity)
     );
 
     await this.redis.expire(tempKey, 5);

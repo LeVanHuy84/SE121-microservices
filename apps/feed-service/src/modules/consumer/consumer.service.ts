@@ -31,10 +31,11 @@ export class ConsumerService {
         await post.save();
 
         if (!post.groupId) {
-          await this.updateTrendingEmotion(
+          // ⭐ Index emotion intensity vào Redis (bao gồm cả remove old emotion)
+          await this.indexEmotionToRedis(
             payload.targetId,
-            oldLabel as any,
-            newFeature.label as any,
+            newFeature,
+            oldLabel,
           );
         }
         break;
@@ -57,11 +58,8 @@ export class ConsumerService {
 
         await post.save();
 
-        await this.updateTrendingEmotion(
-          payload.targetId,
-          oldLabel as any,
-          newFeature.label as any,
-        );
+        // ⭐ Update emotion intensity trong Redis (bao gồm cả remove old emotion)
+        await this.indexEmotionToRedis(payload.targetId, newFeature, oldLabel);
         break;
       }
       default:
@@ -88,22 +86,47 @@ export class ConsumerService {
     };
   }
 
-  private async updateTrendingEmotion(
+  /**
+   * ⭐ Index emotion intensity vào Redis cho ranking
+   * - Remove from old emotion ZSET (nếu có)
+   * - Add to new emotion ZSET với intensity score
+   * - Update metadata
+   */
+  private async indexEmotionToRedis(
     postId: string,
-    oldEmotion?: string,
-    newEmotion?: string,
+    emotionFeature: {
+      label: string;
+      intensity: number;
+      confidence: number;
+    },
+    oldLabel?: string,
   ) {
     const exists = await this.redis.zscore('post:score', postId);
+    if (!exists) return; // chỉ index cho trending posts
 
-    // Chưa trending thì bỏ
-    if (!exists) return;
+    const { label, intensity, confidence } = emotionFeature;
 
-    if (oldEmotion) {
-      await this.redis.srem(`post:emotion:${oldEmotion.toLowerCase()}`, postId);
+    // 1. Remove from old emotion ZSET (nếu emotion thay đổi)
+    if (oldLabel && oldLabel !== label) {
+      await this.redis.zrem(
+        `post:emotion:${oldLabel.toLowerCase()}:score`,
+        postId,
+      );
     }
 
-    if (newEmotion) {
-      await this.redis.sadd(`post:emotion:${newEmotion.toLowerCase()}`, postId);
-    }
+    // 2. Update post metadata với emotion fields
+    const metaKey = `post:meta:${postId}`;
+    await this.redis.hset(metaKey, {
+      emotionLabel: label,
+      emotionIntensity: intensity.toString(),
+      emotionConfidence: confidence.toString(),
+    });
+
+    // 3. Add/update vào emotion-specific score ZSET (dùng intensity làm score)
+    const emotionScoreKey = `post:emotion:${label.toLowerCase()}:score`;
+    await this.redis.zadd(emotionScoreKey, intensity, postId);
+
+    // 4. Set TTL
+    await this.redis.expire(emotionScoreKey, 30 * 24 * 60 * 60); // 30 days
   }
 }
