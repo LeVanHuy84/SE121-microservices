@@ -23,7 +23,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class GroupController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
   @Get('health')
@@ -44,7 +44,7 @@ export class GroupController {
   @Get('recommendations')
   recommend(
     @Query() query: CursorPaginationDTO,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
     return this.client.send('recommend_groups', { userId, query });
   }
@@ -52,7 +52,7 @@ export class GroupController {
   @Get('invited-groups')
   getInvitedGroups(
     @Query() query: CursorPaginationDTO,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
     return this.client.send('get_invited_groups', { userId, query });
   }
@@ -60,16 +60,16 @@ export class GroupController {
   @Post()
   create(
     @CurrentUserId() userId: string,
-    @Body() createGroupDto: CreateGroupDTO
+    @Body() createGroupDto: CreateGroupDTO,
   ) {
     return this.client.send('create_group', { userId, dto: createGroupDto });
   }
 
-  @Patch('group/:id')
+  @Patch(':id')
   update(
     @CurrentUserId() userId: string,
     @Param('id') id: string,
-    @Body() updateGroupDto: Partial<UpdateGroupDTO>
+    @Body() updateGroupDto: Partial<UpdateGroupDTO>,
   ) {
     return this.client.send('update_group', {
       userId,
@@ -78,25 +78,25 @@ export class GroupController {
     });
   }
 
-  @Delete('group/:id')
+  @Delete(':id')
   delete(@CurrentUserId() userId: string, @Param('id') id: string) {
     return this.client.send('delete_group', { userId, groupId: id });
   }
 
   // Setting
-  @Get('group/:id/settings')
+  @Get(':id/settings')
   getGroupSettings(
     @CurrentUserId() userId: string,
-    @Param('id') groupId: string
+    @Param('id') groupId: string,
   ) {
     return this.client.send('get-group-setting', { userId, groupId });
   }
 
-  @Patch('group/:id/settings')
+  @Patch(':id/settings')
   updateGroupSettings(
     @CurrentUserId() userId: string,
     @Param('id') groupId: string,
-    @Body() settings: UpdateGroupSettingDTO
+    @Body() settings: UpdateGroupSettingDTO,
   ) {
     return this.client.send('update-group-setting', {
       userId,
