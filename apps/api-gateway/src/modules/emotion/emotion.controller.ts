@@ -4,7 +4,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 import { DashboardQueryDTO, SystemRole } from '@repo/dtos';
 
-@Controller('emotion')
+@Controller('emotions')
 export class EmotionController {
   constructor(private readonly emotionService: EmotionService) {}
 
@@ -26,7 +26,7 @@ export class EmotionController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
     @Query('cursor') cursor?: string,
-    @Query('limit') limit?: number
+    @Query('limit') limit?: number,
   ) {
     return this.emotionService.getHistory({
       userId,
@@ -43,7 +43,7 @@ export class EmotionController {
     @CurrentUserId() userId: string,
     @Query('preset') preset: string,
     @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string
+    @Query('toDate') toDate?: string,
   ) {
     return this.emotionService.getSummary({
       userId,
@@ -58,7 +58,7 @@ export class EmotionController {
     @CurrentUserId() userId: string,
     @Query('preset') preset = 'week',
     @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string
+    @Query('toDate') toDate?: string,
   ) {
     return this.emotionService.getDailyTrend({
       userId,
