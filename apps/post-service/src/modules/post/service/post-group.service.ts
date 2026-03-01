@@ -1,9 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   CreatePostDTO,
   EventDestination,
   EventTopic,
-  GroupEventLog,
   GroupPermission,
   GroupPrivacy,
   GroupRole,
@@ -32,7 +31,7 @@ export class PostGroupService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly postCache: PostCacheService,
-    private readonly outboxService: OutboxService
+    private readonly outboxService: OutboxService,
   ) {}
 
   // ----------------------------------------
@@ -40,7 +39,8 @@ export class PostGroupService {
   // ----------------------------------------
   async create(
     userId: string,
-    dto: CreatePostDTO
+    groupId: string,
+    dto: CreatePostDTO,
   ): Promise<{
     post: PostSnapshotDTO;
     status: PostGroupStatus;
@@ -50,21 +50,19 @@ export class PostGroupService {
       const post = manager.create(Post, {
         ...dto,
         userId,
+        groupId,
         postStat: manager.create(PostStat),
         postGroupInfo: manager.create(PostGroupInfo),
       });
 
-      if (!dto.groupId) {
+      if (!groupId) {
         throw new RpcException({
           statusCode: 400,
           message: 'Group ID is required for group posts',
         });
       }
 
-      const info = await this.postCache.getGroupUserPermission(
-        userId,
-        dto.groupId
-      );
+      const info = await this.postCache.getGroupUserPermission(userId, groupId);
 
       if (!info.isMember) {
         throw new RpcException({
@@ -99,7 +97,7 @@ export class PostGroupService {
               contentId: entity.id,
               items: post.media
                 .filter(
-                  (m): m is typeof m & { publicId: string } => !!m.publicId
+                  (m): m is typeof m & { publicId: string } => !!m.publicId,
                 )
                 .map((m) => ({
                   publicId: m.publicId,
@@ -124,13 +122,13 @@ export class PostGroupService {
         await this.outboxService.createAnalysisEvent(
           manager,
           TargetType.POST,
-          entity
+          entity,
         );
       } else {
         await this.createOutboxGroupEvent(
           manager,
           post,
-          PostGroupEventType.POST_PENDING
+          PostGroupEventType.POST_PENDING,
         );
       }
 
@@ -145,7 +143,11 @@ export class PostGroupService {
     });
   }
 
-  async approvePost(userId: string, postId: string): Promise<boolean> {
+  async approvePost(
+    userId: string,
+    groupId: string,
+    postId: string,
+  ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
@@ -164,9 +166,16 @@ export class PostGroupService {
         });
       }
 
+      if (post.groupId !== groupId) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Post does not belong to the specified group',
+        });
+      }
+
       const info = await this.postCache.getGroupUserPermission(
         userId,
-        post.groupId
+        post.groupId,
       );
 
       if (
@@ -189,12 +198,12 @@ export class PostGroupService {
             manager,
             post,
             PostGroupEventType.POST_APPROVED,
-            userId
+            userId,
           ),
           this.outboxService.createAnalysisEvent(
             manager,
             TargetType.POST,
-            post
+            post,
           ),
         ]);
       }
@@ -202,7 +211,11 @@ export class PostGroupService {
     });
   }
 
-  async rejectPost(userId: string, postId: string): Promise<boolean> {
+  async rejectPost(
+    userId: string,
+    groupId: string,
+    postId: string,
+  ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
@@ -219,9 +232,17 @@ export class PostGroupService {
           message: 'Post is not pending approval',
         });
       }
+
+      if (post.groupId !== groupId) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Post does not belong to the specified group',
+        });
+      }
+
       const info = await this.postCache.getGroupUserPermission(
         userId,
-        post.groupId
+        post.groupId,
       );
 
       if (
@@ -241,7 +262,7 @@ export class PostGroupService {
           manager,
           post,
           PostGroupEventType.POST_REJECTED,
-          userId
+          userId,
         );
       }
       return true;
@@ -272,7 +293,7 @@ export class PostGroupService {
     manager: EntityManager,
     post: Post,
     eventType: PostGroupEventType,
-    actorId?: string
+    actorId?: string,
   ) {
     const payload: PostGroupEventPayload = {
       postId: post.id,
