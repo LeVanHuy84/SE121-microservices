@@ -8,27 +8,22 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import {
-  CreatePostDTO,
-  GetGroupPostQueryDTO,
-  GetPostQueryDTO,
-  PostGroupStatus,
-} from '@repo/dtos';
+import { CreatePostDTO, GetGroupPostQueryDTO } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
-@Controller('posts')
+@Controller('groups')
 export class GroupPostController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
-  @Get('group/:groupId')
+  @Get(':groupId/posts')
   getGroupPosts(
     @Param('groupId') groupId: string,
     @CurrentUserId() currentUserId: string,
-    @Query() pagination: GetGroupPostQueryDTO
+    @Query() pagination: GetGroupPostQueryDTO,
   ) {
     return this.client.send('get_group_posts', {
       groupId,
@@ -37,27 +32,38 @@ export class GroupPostController {
     });
   }
 
-  @Post('/group')
+  @Post(':groupId/posts')
   create(
+    @Param('groupId') groupId: string,
     @Body() createPostDTO: CreatePostDTO,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('create_post_in_group', { userId, createPostDTO });
+    return this.client.send('create_post_in_group', {
+      userId,
+      groupId,
+      createPostDTO,
+    });
   }
 
-  @Post('/group/approve/:postId')
+  @Post(':groupId/posts/:postId/moderation')
   approvePostInGroup(
     @Param('postId') postId: string,
-    @CurrentUserId() userId: string
+    @Param('groupId') groupId: string,
+    @CurrentUserId() userId: string,
+    @Body('action') action: 'approve' | 'reject',
   ) {
-    return this.client.send('approve_post_in_group', { userId, postId });
-  }
-
-  @Post('/group/reject/:postId')
-  rejectPostInGroup(
-    @Param('postId') postId: string,
-    @CurrentUserId() userId: string
-  ) {
-    return this.client.send('reject_post_in_group', { userId, postId });
+    if (action === 'approve') {
+      return this.client.send('approve_post_in_group', {
+        userId,
+        groupId,
+        postId,
+      });
+    } else {
+      return this.client.send('reject_post_in_group', {
+        userId,
+        groupId,
+        postId,
+      });
+    }
   }
 }

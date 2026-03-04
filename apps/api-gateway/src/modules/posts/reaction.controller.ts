@@ -17,15 +17,15 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class ReactionController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
-  @Post('react')
+  @Post()
   react(@CurrentUserId() userId: string, @Body() dto: ReactDTO) {
     return this.client.send('react', { userId, dto });
   }
 
-  @Delete('dis-react')
+  @Delete()
   disReact(@CurrentUserId() userId: string, @Body() dto: DisReactDTO) {
     return this.client.send('dis_react', { userId, dto });
   }

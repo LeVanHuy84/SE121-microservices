@@ -22,7 +22,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class ShareController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
   @Post()
@@ -30,27 +30,10 @@ export class ShareController {
     return this.client.send('share_post', { userId, dto });
   }
 
-  @Patch('share/:id')
-  update(
-    @CurrentUserId() userId: string,
-    @Param('id') shareId: string,
-    @Body() dto: UpdateShareDTO
-  ) {
-    return this.client.send('update_share_post', { userId, shareId, dto });
-  }
-
-  @Get('share/:id')
-  findById(@Param('id') id: string, @CurrentUserId() currentUserId: string) {
-    return this.client.send('find_share_by_id', {
-      userId: currentUserId,
-      shareId: id,
-    });
-  }
-
   @Get('me')
   getMyShares(
     @CurrentUserId() currentUserId: string,
-    @Query() query: CursorPaginationDTO
+    @Query() query: CursorPaginationDTO,
   ) {
     return this.client.send('get_my_shares', { currentUserId, query });
   }
@@ -59,7 +42,7 @@ export class ShareController {
   findByUserId(
     @Param('id') userId: string,
     @Query() pagination: CursorPaginationDTO,
-    @CurrentUserId() currentUserId: string
+    @CurrentUserId() currentUserId: string,
   ) {
     return this.client.send('find_shares_by_user_id', {
       userId,
@@ -72,7 +55,7 @@ export class ShareController {
   findByPostId(
     @CurrentUserId() currentUserId: string,
     @Param('id') postId: string,
-    @Query() pagination: CursorPaginationDTO
+    @Query() pagination: CursorPaginationDTO,
   ) {
     return this.client.send('find_shares_by_post_id', {
       currentUserId,
@@ -81,7 +64,24 @@ export class ShareController {
     });
   }
 
-  @Delete('share/:id')
+  @Patch(':id')
+  update(
+    @CurrentUserId() userId: string,
+    @Param('id') shareId: string,
+    @Body() dto: UpdateShareDTO,
+  ) {
+    return this.client.send('update_share_post', { userId, shareId, dto });
+  }
+
+  @Get(':id')
+  findById(@Param('id') id: string, @CurrentUserId() currentUserId: string) {
+    return this.client.send('find_share_by_id', {
+      userId: currentUserId,
+      shareId: id,
+    });
+  }
+
+  @Delete(':id')
   remove(@CurrentUserId() userId: string, @Param('id') shareId: string) {
     return this.client.send('remove_share', { userId, shareId });
   }
