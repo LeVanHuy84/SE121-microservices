@@ -40,7 +40,7 @@ export class IngestionShareService {
     if (!payload.shareId) return;
     await this.shareModel.updateOne(
       { shareId: payload.shareId },
-      { $set: { content: payload.content } },
+      { $set: { content: payload.content, audience: payload.audience } },
     );
   }
 

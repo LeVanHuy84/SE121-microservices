@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { PersonalFeedService } from './personal-feed.service';
+import { PersonalFeedService } from '../services/personal-feed.service';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { PersonalFeedQuery } from '@repo/dtos';
 
@@ -15,7 +15,12 @@ export class PersonalFeedController {
   }
 
   @EventPattern('view_feed')
-  async viewFeed(@Payload() feedItemIds: string[]) {
-    await this.queryService.markFeedItemViewed(feedItemIds);
+  async viewFeed(
+    @Payload() payload: { userId: string; feedItemIds: string[] },
+  ) {
+    await this.queryService.markFeedItemViewed(
+      payload.userId,
+      payload.feedItemIds,
+    );
   }
 }

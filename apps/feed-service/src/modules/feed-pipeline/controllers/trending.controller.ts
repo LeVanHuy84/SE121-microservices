@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
-import { TrendingService } from './trending.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TrendingQuery } from '@repo/dtos';
+import { TrendingService } from '../services/trending.service';
 
 @Controller('trending')
 export class TrendingController {

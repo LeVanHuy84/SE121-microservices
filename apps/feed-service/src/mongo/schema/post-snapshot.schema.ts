@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Audience, Emotion } from '@repo/dtos';
+import { Audience } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ _id: false })
@@ -27,25 +27,25 @@ export class StatsEmbedded {
 @Schema({ _id: false })
 export class EmotionFeature {
   @Prop({ required: true })
-  label: string; // joy, anger, ...
+  label: string;
 
   @Prop({ required: true })
-  confidence: number; // 0..1
+  confidence: number;
 
   @Prop({ required: true })
-  intensity: number; // 0..1 (lấy từ intensity.score)
+  intensity: number;
 
   @Prop()
-  intensityLevel?: string; // low | medium | high | severe (optional, debug/rule)
+  intensityLevel?: string;
 
   @Prop()
-  dominantScene?: string; // happy_portrait, ...
+  dominantScene?: string;
 
   @Prop({ type: Map, of: Number })
-  scores?: Record<string, number>; // full distribution
+  scores?: Record<string, number>;
 
   @Prop()
-  dominantModality?: string; // text | image | video
+  dominantModality?: string;
 
   @Prop()
   riskHintLevel?: string;
@@ -55,10 +55,10 @@ export class EmotionFeature {
 export class PostSnapshot {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, index: true })
   postId: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: true })
   userId: string;
 
   @Prop()
@@ -68,7 +68,7 @@ export class PostSnapshot {
   audience: Audience;
 
   @Prop()
-  content: string;
+  content?: string;
 
   @Prop({ type: [MediaPreview], default: [] })
   mediaPreviews: MediaPreview[];
@@ -76,10 +76,11 @@ export class PostSnapshot {
   @Prop({ default: 0 })
   mediaRemaining: number;
 
+  // SINGLE SOURCE OF TRUTH cho emotion
   @Prop({ type: EmotionFeature })
   emotionFeature?: EmotionFeature;
 
-  @Prop()
+  @Prop({ required: true, index: true })
   postCreatedAt: Date;
 
   @Prop({ type: StatsEmbedded, default: {} })

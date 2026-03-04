@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import {
@@ -13,13 +13,18 @@ import { SnapshotMapper } from 'src/common/snapshot.mapper';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { RankingService } from '../../ranking/services/ranking.service';
+import { RankingCandidate } from '../../ranking/interfaces/ranking-strategy.interface';
 
 @Injectable()
 export class TrendingService {
+  private readonly logger = new Logger(TrendingService.name);
+
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly snapshotRepo: SnapshotRepository,
-    @Inject('POST_SERVICE') private readonly postClient: ClientProxy, // 👈 thêm dòng này
+    @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
+    private readonly rankingService: RankingService, // ⭐ Inject RankingService
   ) {}
 
   private async getEffectiveKey(emotion?: Emotion): Promise<string | null> {
@@ -49,16 +54,14 @@ export class TrendingService {
   }
 
   /**
-   * 🔥 Lấy danh sách bài trending (cursor pagination chuẩn)
-   * Cursor = `${rankingScore}_${createdAt}`
+   * 🔥 Lấy danh sách bài trending (với RankingService)
+   * Cursor = `${finalScore}_${createdAt}`
    */
   async getTrendingPosts(query: TrendingQuery, userId?: string) {
     const { cursor, limit = 10, mainEmotion } = query;
 
-    // ✅ LẤY KEY ĐÚNG Ở ĐÂY
+    // ✅ Lấy key phù hợp (có filter emotion hoặc không)
     const effectiveKey = await this.getEffectiveKey(mainEmotion);
-
-    // 👉 emotion không có dữ liệu → trả rỗng
     if (!effectiveKey) {
       return new CursorPageResponse([], null, false);
     }
@@ -67,7 +70,6 @@ export class TrendingService {
     // 1️⃣ Parse cursor
     // ------------------------------
     let maxScore = '+inf';
-    let minScore = '-inf';
 
     if (cursor) {
       const [scoreStr] = cursor.split('_');
@@ -76,15 +78,16 @@ export class TrendingService {
     }
 
     // ------------------------------
-    // 2️⃣ Lấy danh sách postId theo score
+    // 2️⃣ Lấy top N*3 candidates từ Redis (để re-rank)
     // ------------------------------
+    const candidateLimit = limit * 3; // over-fetch để đủ sau khi re-rank
     const ids = await this.redis.zrevrangebyscore(
       effectiveKey,
       maxScore,
-      minScore,
+      '-inf',
       'LIMIT',
       0,
-      limit,
+      candidateLimit,
     );
 
     if (!ids.length) {
@@ -92,23 +95,60 @@ export class TrendingService {
     }
 
     // ------------------------------
-    // 3️⃣ Lấy snapshot trực tiếp từ DB (bỏ cache)
+    // 3️⃣ Load snapshots từ DB
     // ------------------------------
-    const postsFromDB = ids.length
-      ? await this.snapshotRepo.findPostsByIds(ids)
-      : [];
-
+    const postsFromDB = await this.snapshotRepo.findPostsByIds(ids);
     const snapshotMap = new Map(postsFromDB.map((p) => [String(p.postId), p]));
 
+    // Preserve order từ Redis
     const orderedSnapshots = ids
       .map((id) => snapshotMap.get(id))
       .filter((p): p is PostSnapshot => p != null);
 
+    if (!orderedSnapshots.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
     // ------------------------------
-    // 4️⃣ Gọi sang POST_SERVICE lấy reaction của user
+    // 4️⃣ Convert sang RankingCandidates & Re-rank
+    // ------------------------------
+    const candidates: RankingCandidate[] = await Promise.all(
+      orderedSnapshots.map(async (snapshot) => {
+        // Get base score từ Redis
+        const baseScore =
+          (await this.redis.zscore(effectiveKey, snapshot.postId)) || 0;
+
+        return {
+          postId: snapshot.postId,
+          snapshot,
+          baseScore: parseFloat(baseScore as any),
+          timestamp: snapshot.postCreatedAt || new Date(),
+        };
+      }),
+    );
+
+    // ⭐ Re-rank với RankingService
+    const rankedItems = await this.rankingService.rankForTrending(
+      candidates,
+      mainEmotion,
+    );
+
+    // Take top limit items
+    const topItems = rankedItems.slice(0, limit);
+
+    if (!topItems.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    this.logger.debug(
+      `Trending re-ranked: ${candidates.length} → ${topItems.length} (emotion=${mainEmotion || 'all'})`,
+    );
+
+    // ------------------------------
+    // 5️⃣ Lấy reaction của user
     // ------------------------------
     let reactions: Record<string, ReactionType> = {};
-    if (userId && orderedSnapshots.length) {
+    if (userId) {
       try {
         reactions = await firstValueFrom(
           this.postClient.send<Record<string, ReactionType>>(
@@ -116,41 +156,37 @@ export class TrendingService {
             {
               userId,
               targetType: TargetType.POST,
-              targetIds: orderedSnapshots.map((p) => p.postId),
+              targetIds: topItems.map((item) => item.postId),
             },
           ),
         );
       } catch (err) {
-        console.warn('⚠️ Failed to fetch reactions, continuing without them');
+        this.logger.warn(
+          '⚠️ Failed to fetch reactions, continuing without them',
+        );
       }
     }
 
     // ------------------------------
-    // 5️⃣ Map sang DTO kèm reaction
+    // 6️⃣ Map sang DTO
     // ------------------------------
     const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(
-      orderedSnapshots,
+      topItems.map((item) => item.snapshot),
       reactions,
     );
 
     // ------------------------------
-    // 6️⃣ Tính nextCursor
+    // 7️⃣ Tính nextCursor
     // ------------------------------
     let nextCursor: string | null = null;
-    if (dtoPosts.length === limit) {
-      const last = orderedSnapshots[orderedSnapshots.length - 1];
-      const meta = await this.redis.hgetall(`post:meta:${last.postId}`);
+    const hasMore = rankedItems.length > limit;
 
-      const createdAt = meta?.createdAt
-        ? parseInt(meta.createdAt, 10)
-        : new Date(last.postCreatedAt ?? Date.now()).getTime();
-
-      const score = await this.redis.zscore(effectiveKey, last.postId);
-      if (score) {
-        nextCursor = `${score}_${createdAt}`;
-      }
+    if (hasMore) {
+      const last = topItems[topItems.length - 1];
+      const createdAt = last.timestamp.getTime();
+      nextCursor = `${last.finalScore}_${createdAt}`;
     }
 
-    return new CursorPageResponse(dtoPosts, nextCursor, !!nextCursor);
+    return new CursorPageResponse(dtoPosts, nextCursor, hasMore);
   }
 }

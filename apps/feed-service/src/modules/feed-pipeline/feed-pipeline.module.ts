@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { PersonalFeedController } from './personal-feed.controller';
-import { PersonalFeedService } from './personal-feed.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
 import {
@@ -13,6 +11,12 @@ import {
 } from 'src/mongo/schema/share-snapshot.schema';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { RankingModule } from '../ranking/ranking.module';
+import { PersonalFeedController } from './controllers/personal-feed.controller';
+import { TrendingController } from './controllers/trending.controller';
+import { PersonalFeedService } from './services/personal-feed.service';
+import { TrendingService } from './services/trending.service';
+import { StatsTrendingCron } from './services/stats.trending.cron';
 
 @Module({
   imports: [
@@ -47,8 +51,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         }),
       },
     ]),
+    RankingModule, // ⭐ Import RankingModule
   ],
-  controllers: [PersonalFeedController],
-  providers: [PersonalFeedService],
+  controllers: [PersonalFeedController, TrendingController],
+  providers: [PersonalFeedService, TrendingService, StatsTrendingCron],
 })
-export class PersonalFeedModule {}
+export class FeedPipelineModule {}

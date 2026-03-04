@@ -68,20 +68,14 @@ export class ConsumerService {
   }
 
   private buildEmotionFeature(payload: AnalysisResultEventPayload) {
-    // intensity có thể là map, lấy theo finalEmotion nếu có
-    const intensityValue =
-      typeof payload.intensity === 'object'
-        ? (payload.intensity[payload.finalEmotion] ?? 0)
-        : 0;
-
     return {
       label: payload.finalEmotion,
       confidence: payload.confidence,
-      intensity: intensityValue,
+      intensity: payload.intensityScore,
+      intensityLevel: payload.intensityLevel,
+      dominantModality: payload.dominantModality,
       dominantScene: payload.dominantSceneType,
-      scores: {
-        [payload.finalEmotion]: payload.finalScores,
-      },
+      scores: payload.scores,
       riskHintLevel: payload.riskHintLevel,
     };
   }

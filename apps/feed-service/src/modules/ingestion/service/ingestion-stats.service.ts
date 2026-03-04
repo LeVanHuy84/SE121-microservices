@@ -68,7 +68,6 @@ export class StatsIngestionService {
         }
       }
 
-      // --- Cập nhật điểm xếp hạng Redis ---
       // --- Cập nhật điểm xếp hạng Redis (chỉ cho POST) ---
       if (totalScoreDelta !== 0 && isTrendingCandidate) {
         const metaKey = `post:meta:${targetId}`;

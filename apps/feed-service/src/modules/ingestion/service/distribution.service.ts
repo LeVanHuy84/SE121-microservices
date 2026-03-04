@@ -2,7 +2,7 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
+import { lastValueFrom, timeout } from 'rxjs';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
 import { calculateRankingScore } from 'src/utils/utils';
@@ -37,14 +37,15 @@ export class DistributionService {
 
       if (groupId) {
         receiver = await lastValueFrom(
-          this.groupClient.send('get_group_member_user_ids', { groupId }),
+          this.groupClient
+            .send('get_group_member_user_ids', { groupId })
+            .pipe(timeout(5000)),
         );
       } else {
         receiver = await lastValueFrom(
-          this.socialClient.send(
-            { cmd: 'get_friend_ids' },
-            { userId: actorId, limit: 200 },
-          ),
+          this.socialClient
+            .send({ cmd: 'get_friend_ids' }, { userId: actorId, limit: 200 })
+            .pipe(timeout(5000)),
         );
       }
 
@@ -55,7 +56,10 @@ export class DistributionService {
 
       // 2. Chuẩn bị các FeedItem cho từng bạn bè
       const now = new Date();
-      const rankingScore = calculateRankingScore('post');
+
+      const rankingScore = calculateRankingScore(
+        type === FeedEventType.POST ? 'post' : 'share',
+      );
 
       const feedItems = receiver.map((fid) => ({
         userId: fid,

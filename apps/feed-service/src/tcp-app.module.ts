@@ -3,10 +3,9 @@ import { MongoModule } from './mongo/mongo.module';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ScheduleModule } from '@nestjs/schedule';
-import { TrendingModule } from './modules/trending/trending.module';
-import { PersonalFeedModule } from './modules/personal-feed/personal-feed.module';
 import { CacheLayerModule } from './modules/cache-layer/cache-layer.module';
 import { RankingModule } from './modules/ranking/ranking.module';
+import { FeedPipelineModule } from './modules/feed-pipeline/feed-pipeline.module';
 
 @Module({
   imports: [
@@ -25,9 +24,8 @@ import { RankingModule } from './modules/ranking/ranking.module';
     }),
     ScheduleModule.forRoot(),
     MongoModule,
-    RankingModule, // ⭐ Thêm RankingModule
-    TrendingModule,
-    PersonalFeedModule,
+    RankingModule,
+    FeedPipelineModule,
     CacheLayerModule,
   ],
   controllers: [],
