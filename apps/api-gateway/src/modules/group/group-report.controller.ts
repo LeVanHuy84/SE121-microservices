@@ -8,28 +8,23 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import {
-  AdminGroupQuery,
-  CreateGroupReportDTO,
-  GroupReportQuery,
-  SystemRole,
-} from '@repo/dtos';
+import { CreateGroupReportDTO, GroupReportQuery, SystemRole } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 
-@Controller('groups')
+@Controller('group-reports')
 export class GroupReportController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
-  @Post('/group/:groupId/reports')
+  @Post('/:groupId')
   createGroupReport(
     @Param('groupId') groupId: string,
     @Body() createGroupReport: CreateGroupReportDTO,
-    @CurrentUserId() reporterId: string
+    @CurrentUserId() reporterId: string,
   ) {
     return this.client.send('create_group_report', {
       groupId,
@@ -38,7 +33,7 @@ export class GroupReportController {
     });
   }
 
-  @Get('/reports')
+  @Get()
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   getGroupReports(@Query() filter: GroupReportQuery) {
     return this.client.send('get_group_reports', filter);
@@ -51,30 +46,30 @@ export class GroupReportController {
     return this.client.send('get_top_reported_groups', { topN });
   }
 
-  @Post('/group/:id/ignore')
+  @Post('/:groupId/ignore')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   ignoreGroupReport(
-    @Param('id') groupId: string,
-    @CurrentUserId() actorId: string
+    @Param('groupId') groupId: string,
+    @CurrentUserId() actorId: string,
   ) {
     return this.client.send('ignore_group_report', { groupId, actorId });
   }
 
-  @Post('/group/:id/ban')
+  @Post('/:groupId/ban')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
-  banGroup(@Param('id') groupId: string, @CurrentUserId() actorId: string) {
+  banGroup(
+    @Param('groupId') groupId: string,
+    @CurrentUserId() actorId: string,
+  ) {
     return this.client.send('ban_group', { groupId, actorId });
   }
 
-  @Post('/group/:id/unban')
+  @Post('/:groupId/unban')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
-  unbanGroup(@Param('id') groupId: string, @CurrentUserId() actorId: string) {
+  unbanGroup(
+    @Param('groupId') groupId: string,
+    @CurrentUserId() actorId: string,
+  ) {
     return this.client.send('unban_group', { groupId, actorId });
-  }
-
-  @Get('admin')
-  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
-  getGroupByAdmin(@Query() filter: AdminGroupQuery) {
-    return this.client.send('get_group_by_admin', filter);
   }
 }

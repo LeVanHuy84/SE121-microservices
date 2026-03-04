@@ -5,14 +5,14 @@ import { lastValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 
-@Controller('admins')
+@Controller('admin')
 export class AdminController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
     private userClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private postClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
-    private groupClient: ClientProxy
+    private groupClient: ClientProxy,
   ) {}
 
   // Content
@@ -87,7 +87,7 @@ export class AdminController {
 
     // sort theo ngày tăng dần (frontend rất thích)
     return Array.from(map.values()).sort((a, b) =>
-      a.date.localeCompare(b.date)
+      a.date.localeCompare(b.date),
     );
   }
 }

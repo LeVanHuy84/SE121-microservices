@@ -18,30 +18,22 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class PostController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
   @Post()
   create(
     @Body() createPostDTO: CreatePostDTO,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
     return this.client.send('create_post', { userId, createPostDTO });
-  }
-
-  @Get('post/:id')
-  findById(
-    @Param('id') postId: string,
-    @CurrentUserId() currentUserId: string
-  ) {
-    return this.client.send('find_post_by_id', { currentUserId, postId });
   }
 
   @Get('user/:id')
   findByUserId(
     @Param('id') userId: string,
     @Query() pagination: GetPostQueryDTO,
-    @CurrentUserId() currentUserId: string
+    @CurrentUserId() currentUserId: string,
   ) {
     return this.client.send('find_posts_by_user_id', {
       userId,
@@ -53,30 +45,38 @@ export class PostController {
   @Get('me')
   getMyPosts(
     @Query() query: GetPostQueryDTO,
-    @CurrentUserId() currentUserId: string
+    @CurrentUserId() currentUserId: string,
   ) {
     return this.client.send('get_my_posts', { currentUserId, query });
   }
 
-  @Patch('update/:id')
+  @Get(':postId/edit-histories')
+  getPostEditHistories(
+    @Param('postId') postId: string,
+    @CurrentUserId() userId: string,
+  ) {
+    return this.client.send('get_post_edit_histories', { userId, postId });
+  }
+
+  @Get(':id')
+  findById(
+    @Param('id') postId: string,
+    @CurrentUserId() currentUserId: string,
+  ) {
+    return this.client.send('find_post_by_id', { currentUserId, postId });
+  }
+
+  @Patch(':id')
   update(
     @Param('id') postId: string,
     @Body() updatePostDTO: Partial<CreatePostDTO>,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
     return this.client.send('update_post', { userId, postId, updatePostDTO });
   }
 
-  @Delete('delete/:id')
+  @Delete(':id')
   remove(@Param('id') id: string, @CurrentUserId() userId: string) {
     return this.client.send('remove_post', { id, userId });
-  }
-
-  @Get('post/:postId/edit-histories')
-  getPostEditHistories(
-    @Param('postId') postId: string,
-    @CurrentUserId() userId: string
-  ) {
-    return this.client.send('get_post_edit_histories', { userId, postId });
   }
 }

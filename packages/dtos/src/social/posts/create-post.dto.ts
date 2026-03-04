@@ -11,10 +11,6 @@ import { MediaItemDTO } from '../../common';
 
 export class CreatePostDTO {
   @IsOptional()
-  @IsString()
-  groupId?: string; // NULL = cá nhân, NOT NULL = group
-
-  @IsOptional()
   @IsEnum(Emotion)
   feeling: Emotion;
 
