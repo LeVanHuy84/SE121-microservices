@@ -118,6 +118,12 @@ export class ShareCacheService {
       if (stat) share.shareStat = stat;
     }
 
+    // 👇 reorder lại theo shareIds
+    const shareMap = new Map(shares.map((s) => [s.id, s]));
+    return shareIds
+      .map((id) => shareMap.get(id))
+      .filter((s): s is Share => !!s);
+
     return shares;
   }
 

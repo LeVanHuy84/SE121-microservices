@@ -77,8 +77,8 @@ class OutboxBatchProcessor:
 
         print(f"[Batch] Processing {len(outboxes)} outboxes...")
 
-        processed_ids = []
-
+        # Prepare all send tasks
+        send_tasks = []
         for outbox in outboxes:
             try:
                 kafka_message = {
@@ -93,11 +93,7 @@ class OutboxBatchProcessor:
 
                 processed_ids.append(outbox["_id"])
 
-            except Exception as e:
-                print("[Batch] Kafka send error:", e)
-                continue
-
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)
 
-        print(f"[Batch] Done. Processed {len(processed_ids)}")
+        print(f"[Batch] Done. Processed {len(processed_ids)}/{len(outboxes)}")

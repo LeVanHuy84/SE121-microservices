@@ -8,21 +8,21 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class FeedController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.FEED_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
   @Get('trending')
   getTrendingFeed(
     @Query() query: TrendingQuery,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
     return this.client.send('get_trending', { query, userId });
   }
 
-  @Get('my_feed')
+  @Get('my-feed')
   getMyFeed(
     @CurrentUserId() userId: string,
-    @Query() query: PersonalFeedQuery
+    @Query() query: PersonalFeedQuery,
   ) {
     return this.client.send('get_my_feed', { userId, query });
   }
