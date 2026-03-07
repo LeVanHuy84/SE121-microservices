@@ -42,9 +42,9 @@ class AnalysisFlowService:
     - Returns CONTRACT-CORRECT DTOs
     """
 
-    def __init__(self, moderation_repo=None, analysis_repo=None):
+    def __init__(self, moderation_repo=None, emotion_aggregate_repo=None):
         self.moderation_repo = moderation_repo
-        self.analysis_repo = analysis_repo
+        self.emotion_aggregate_repo = emotion_aggregate_repo
 
     # ======================================================
     # PUBLIC API
@@ -340,7 +340,7 @@ class AnalysisFlowService:
         # LẤY DỮ LIỆU CŨ TỪ DB
         # ===============================
         old_moderation = await self.moderation_repo.get_by_target(target_id, target_type)
-        old_emotion = await self.analysis_repo.get_analysis_by_target(target_id, target_type)
+        old_emotion = await self.emotion_aggregate_repo.get_analysis_by_target(target_id, target_type)
 
         # Lấy image moderation results cũ
         old_image_moderation = (

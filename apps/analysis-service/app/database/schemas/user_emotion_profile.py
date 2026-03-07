@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -17,3 +17,7 @@ class UserEmotionProfile(BaseModel):
     # === Meta ===
     totalAnalyses: int
     updatedAt: datetime
+    
+    # === Idempotency & Concurrency ===
+    lastProcessedAggregateId: Optional[str] = None  # Prevents duplicate processing
+    version: int = Field(default=1)  # Optimistic locking for concurrent updates

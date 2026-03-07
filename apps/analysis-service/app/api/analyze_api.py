@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 from fastapi import APIRouter, Depends, Query
-from app.database.analysis_repository import AnalysisRepository
+from app.database.emotion_aggregate_repository import EmotionAggregateRepository
 from app.database.mongo import collections
 from app.utils.preset_mapper import resolve_preset_range, validate_range
 from app.enums.emotion_enum import EmotionEnum
@@ -14,7 +14,7 @@ analyze_router = APIRouter(
     dependencies=[Depends(verify_internal_key)]
 )
 
-repo = AnalysisRepository(collections['emotion_aggregates'])
+repo = EmotionAggregateRepository(collections['emotion_aggregates'])
 
 @analyze_router.get("/dashboard")
 async def get_community_emotion_dashboard(

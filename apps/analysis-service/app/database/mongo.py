@@ -19,7 +19,6 @@ collections = {
     'moderation_results': db['moderation_results'],
     'emotion_aggregates': db['emotion_aggregates'],
     'user_emotion_profiles': db['user_emotion_profiles'],
-    'user_emotion_preferences': db['user_emotion_preferences'],
     'user_emotion_snapshots': db['user_emotion_snapshots'],
     'outbox_events': db['outbox_events'],
 }

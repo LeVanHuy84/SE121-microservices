@@ -30,6 +30,7 @@ class OutboxEmitter:
 
     async def emit_emotion(self, action: EventTypeEnum, emotion: dict):
         """Emit emotion analysis result event"""
+        print(f'[OutboxEmitter]', emotion)
         # Build Pydantic DTO
         outbox = Outbox(
             topic=ResultEventEnum.EMOTION_RESULT.value,
@@ -39,7 +40,7 @@ class OutboxEmitter:
                 "targetType": emotion["targetType"],
                 "finalEmotion": emotion["finalEmotion"],
                 "scores": emotion["finalScores"],
-                "confidence": emotion["confidence"],
+                "confidence": emotion["finalConfidence"],
                 "intensityScore": emotion["intensity"]["score"],
                 "intensityLevel": emotion["intensity"]["level"],
                 "dominantModality": emotion["dominantModality"],

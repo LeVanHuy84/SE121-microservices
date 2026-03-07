@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from app.database.analysis_repository import AnalysisRepository
+from app.database.emotion_aggregate_repository import EmotionAggregateRepository
 from app.database.schemas.emotion_aggregate import (
     EmotionAggregate,
     TextEmotionResult,
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class EmotionWriter:
 
-    def __init__(self, analysis_repo: AnalysisRepository):
-        self.analysis_repo = analysis_repo
+    def __init__(self, emotion_aggregate_repo: EmotionAggregateRepository):
+        self.emotion_aggregate_repo = emotion_aggregate_repo
 
     # ======================================================
     # BUILDERS
@@ -90,7 +90,7 @@ class EmotionWriter:
             exclude={'id'}
         )
 
-        return await self.analysis_repo.save_analysis(data)
+        return await self.emotion_aggregate_repo.save(data)
 
 
     # ======================================================
@@ -103,7 +103,7 @@ class EmotionWriter:
         emotion_data: Dict,
     ) -> dict:
 
-        existing = await self.analysis_repo.get_analysis_by_target(
+        existing = await self.emotion_aggregate_repo.get_by_target(
             targetId=target_id,
             targetType=target_type.value,  # nếu DB lưu string
         )
@@ -140,7 +140,7 @@ class EmotionWriter:
             "updatedAt": datetime.now(timezone.utc),
         }
 
-        return await self.analysis_repo.update_analysis(
+        return await self.emotion_aggregate_repo.update(
             existing["_id"],
             update_data,
         )

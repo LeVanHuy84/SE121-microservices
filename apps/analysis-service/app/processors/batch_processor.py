@@ -77,10 +77,10 @@ class OutboxBatchProcessor:
 
         print(f"[Batch] Processing {len(outboxes)} outboxes...")
 
-        # Prepare all send tasks
-        send_tasks = []
-        for outbox in outboxes:
-            try:
+        semaphore = asyncio.Semaphore(20)
+
+        async def send_one(outbox):
+            async with semaphore:
                 kafka_message = {
                     "type": outbox.get("eventType"),
                     "payload": outbox.get("payload", {})
@@ -90,8 +90,14 @@ class OutboxBatchProcessor:
                     topic=outbox.get("topic"),
                     message=kafka_message
                 )
+                return outbox["_id"]
 
-                processed_ids.append(outbox["_id"])
+        tasks = [send_one(o) for o in outboxes]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        processed_ids = [
+            r for r in results if not isinstance(r, Exception)
+        ]
 
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)

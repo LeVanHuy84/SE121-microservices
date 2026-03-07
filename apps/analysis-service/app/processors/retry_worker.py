@@ -20,7 +20,7 @@ class RetryWorker:
 
     def __init__(
         self,
-        analysis_repo,
+        emotion_aggregate_repo,
         moderation_repo,
         task_repo,
         outbox_repo
@@ -29,7 +29,7 @@ class RetryWorker:
         self.moderation_repo = moderation_repo
 
         self.moderation_writer = ModerationWriter(moderation_repo)
-        self.emotion_writer = EmotionWriter(analysis_repo)
+        self.emotion_writer = EmotionWriter(emotion_aggregate_repo)
         self.task_manager = TaskManager(task_repo)
         self.outbox = OutboxEmitter(outbox_repo)
 

@@ -17,7 +17,7 @@ class HandleEventService:
     def __init__(
         self,
         analysis_flow_service,
-        analysis_repo,
+        emotion_aggregate_repo,
         moderation_repo,
         task_repo,
         outbox_repo,
@@ -25,7 +25,7 @@ class HandleEventService:
         self.analysis_flow_service = analysis_flow_service
 
         self.moderation_writer = ModerationWriter(moderation_repo)
-        self.emotion_writer = EmotionWriter(analysis_repo)
+        self.emotion_writer = EmotionWriter(emotion_aggregate_repo)
         self.task_manager = TaskManager(task_repo)
         self.outbox = OutboxEmitter(outbox_repo)
 

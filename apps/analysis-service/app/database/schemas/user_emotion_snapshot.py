@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import datetime
 from typing import Dict, Optional
 from app.enums.emotion_enum import EmotionTimeWindowEnum
 
@@ -14,4 +14,6 @@ class UserEmotionSnapshot(BaseModel):
     negativeRatio: float
     riskScore: float  # 0 to 1
     
-    computedAt: date
+    emotionVolatility: float  # 0 to 1 - measures emotional instability
+    
+    computedAt: datetime
