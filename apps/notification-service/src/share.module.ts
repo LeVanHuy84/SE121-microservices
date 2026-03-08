@@ -4,6 +4,7 @@ import { ConfigModule } from "@nestjs/config";
 import { NotificationModule } from "./notification/notification.module";
 import { MongoModule } from "./mongo/mongo.module";
 import { UserPreferenceModule } from "./user-preference/user-preference.module";
+import { FirebaseModule } from "./firebase/firebase.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { UserPreferenceModule } from "./user-preference/user-preference.module";
           : 6379,
       },
     }),
+    FirebaseModule,
     NotificationModule,
     MongoModule,
     UserPreferenceModule,
