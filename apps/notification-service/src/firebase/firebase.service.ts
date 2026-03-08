@@ -1,10 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import { ServiceAccount } from 'firebase-admin';
+import * as path from 'path';
 
 @Injectable()
-export class FirebaseService implements OnModuleInit {
+export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FirebaseService.name);
   private firebaseApp: admin.app.App;
 
@@ -14,8 +15,34 @@ export class FirebaseService implements OnModuleInit {
     this.initializeFirebase();
   }
 
+  async onModuleDestroy() {
+    try {
+      if (this.firebaseApp) {
+        await this.firebaseApp.delete();
+        this.logger.log('Firebase Admin SDK instance destroyed');
+      }
+    } catch (error) {
+      this.logger.error('Error destroying Firebase Admin SDK', error);
+    }
+  }
+
   private initializeFirebase() {
     try {
+      // Check if Firebase app exists and is still valid
+      if (admin.apps.length > 0) {
+        const existingApp = admin.app();
+        // Check if app is not deleted
+        try {
+          existingApp.name; // This will throw if app is deleted
+          this.firebaseApp = existingApp;
+          this.logger.log('Using existing Firebase Admin SDK instance');
+          return;
+        } catch {
+          // App exists but is deleted, need to reinitialize
+          this.logger.warn('Existing Firebase app is deleted, reinitializing...');
+        }
+      }
+
       const serviceAccountPath = this.configService.get<string>(
         'FIREBASE_SERVICE_ACCOUNT_PATH'
       );
@@ -23,7 +50,11 @@ export class FirebaseService implements OnModuleInit {
 
       // Option 1: Load from file path
       if (serviceAccountPath) {
-        const serviceAccount = require(serviceAccountPath) as ServiceAccount;
+        // Resolve path relative to project root (process.cwd())
+        const resolvedPath = path.isAbsolute(serviceAccountPath)
+          ? serviceAccountPath
+          : path.resolve(process.cwd(), serviceAccountPath);
+        const serviceAccount = require(resolvedPath) as ServiceAccount;
         this.firebaseApp = admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
