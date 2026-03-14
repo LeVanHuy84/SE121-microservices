@@ -7,7 +7,6 @@ from app.messaging.init_kafka import start_kafka, register_consumer
 from app.messaging.kafka_consumer import KafkaConsumerService
 from app.messaging.kafka_producer import KafkaProducerService
 from app.processors.batch_processor import OutboxBatchProcessor
-from app.processors.user_emotion_snapshot_cron import UserEmotionSnapshotCron
 from app.database.outbox_repository import OutboxRepository
 from app.database.mongo import collections, db
 from app.messaging.event_dispatcher import EventDispatcher
@@ -22,7 +21,10 @@ from app.database.user_emotion_snapshot_repository import UserEmotionSnapshotRep
 from app.database.emotion_aggregate_repository import EmotionAggregateRepository
 from app.services.domain.emotion.user_emotion_profile_service import UserEmotionProfileService
 from app.services.domain.emotion.user_emotion_snapshot_service import UserEmotionSnapshotService
-from app.services.orchestration.emotion.user_emotion_processing_orchestrator import UserEmotionProcessingOrchestrator
+from app.services.orchestration.emotion.emotion_profile_orchestrator import EmotionProfileOrchestrator
+from app.services.orchestration.emotion.emotion_snapshot_orchestrator import EmotionSnapshotOrchestrator
+from app.services.orchestration.emotion.emotion_snapshot_queue_service import EmotionSnapshotQueueService
+from app.services.orchestration.emotion.emotion_daily_aggregation_job import EmotionDailyAggregationJob
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +46,35 @@ user_emotion_profile_repo = UserEmotionProfileRepository(collections['user_emoti
 user_emotion_snapshot_repo = UserEmotionSnapshotRepository(collections['user_emotion_snapshots'])
 
 # Domain services
-user_emotion_profile_service = UserEmotionProfileService()
+user_emotion_profile_service = UserEmotionProfileService(
+    alpha=settings.EMOTION_PROFILE_EMA_ALPHA
+)
 user_emotion_snapshot_service = UserEmotionSnapshotService()
 
-# Orchestrator (coordinates domain services and repositories)
-user_emotion_orchestrator = UserEmotionProcessingOrchestrator(
+# Orchestrators (coordinates domain services and repositories)
+# Profile orchestrator: manages emotion profile updates only
+emotion_profile_orchestrator = EmotionProfileOrchestrator(
     profile_service=user_emotion_profile_service,
-    snapshot_service=user_emotion_snapshot_service,
     profile_repository=user_emotion_profile_repo,
+)
+
+# Snapshot orchestrator: manages snapshot recomputation (called by daily cron)
+emotion_snapshot_orchestrator = EmotionSnapshotOrchestrator(
+    snapshot_service=user_emotion_snapshot_service,
     snapshot_repository=user_emotion_snapshot_repo,
-    aggregate_repository=emotion_aggregate_repo
+    aggregate_repository=emotion_aggregate_repo,
+)
+
+# Queue service: Redis SET of users whose profile/snapshots are stale
+snapshot_queue_service = EmotionSnapshotQueueService()
+
+emotion_daily_aggregation_job = EmotionDailyAggregationJob(
+    snapshot_queue_service=snapshot_queue_service,
+    emotion_profile_orchestrator=emotion_profile_orchestrator,
+    emotion_snapshot_orchestrator=emotion_snapshot_orchestrator,
+    emotion_aggregate_repository=emotion_aggregate_repo,
+    run_hour=settings.EMOTION_DAILY_CRON_HOUR_UTC,
+    run_minute=settings.EMOTION_DAILY_CRON_MINUTE_UTC,
 )
 
 # Inject repositories vào analysis_flow_service
@@ -71,17 +92,13 @@ retry_worker = RetryWorker(
     outbox_repo
 )
 
-# User Emotion Snapshot Cron (runs every 10 minutes)
-user_emotion_snapshot_cron = UserEmotionSnapshotCron(
-    orchestrator=user_emotion_orchestrator
-)
-
 event_service = HandleEventService(
     analysis_flow_service,
     emotion_aggregate_repo,
     moderation_repo,
     task_repo,
-    outbox_repo
+    outbox_repo,
+    snapshot_queue_service,
 )
 dispatcher = EventDispatcher(event_service)
 
@@ -117,7 +134,7 @@ async def init_database():
         logger.info("[DB Init] Creating indexes...")
         
         # User Emotion Snapshots: Unique index on (userId, window)
-        # Ensures each user has only ONE snapshot per time window (24h, 7d, 30d)
+        # Ensures each user has only ONE snapshot per time window (7d, 30d)
         await db['user_emotion_snapshots'].create_index(
             [("userId", 1), ("window", 1)],
             unique=True,
@@ -140,6 +157,13 @@ async def init_database():
         )
         logger.info("[DB Init] ✅ Created unique index: user_emotion_profiles(userId)")
         
+        # CRITICAL: Create index on emotion_aggregates for snapshot/profile batch queries
+        await db['emotion_aggregates'].create_index(
+            [("userId", 1), ("createdAt", 1)],
+            name="idx_userId_createdAt"
+        )
+        logger.info("[DB Init] ✅ Created index: emotion_aggregates(userId, createdAt)")
+        
         logger.info("[DB Init] ✅ All indexes created successfully")
         
     except Exception as e:
@@ -159,7 +183,7 @@ async def lifespan(app):
         logger.info("=" * 70)
 
         # 0. Database initialization (indexes)
-        logger.info("[Startup] Step 0/7: Initializing database indexes...")
+        logger.info("[Startup] Step 0/6: Initializing database indexes...")
         await init_database()
         logger.info("[Startup] ✅ Database indexes ready")
 
@@ -194,12 +218,12 @@ async def lifespan(app):
         )
         logger.info("[Startup] ✅ Retry Worker started")
 
-        # 6. User Emotion Snapshot Cron (every 10 minutes)
-        logger.info("[Startup] Step 6/6: Starting User Emotion Snapshot Cron...")
+        # 6. Daily profile/snapshot aggregation job
+        logger.info("[Startup] Step 6/6: Starting Emotion Daily Aggregation Job...", settings.EMOTION_DAILY_CRON_HOUR_UTC, settings.EMOTION_DAILY_CRON_MINUTE_UTC)
         background_tasks.append(
-            asyncio.create_task(user_emotion_snapshot_cron.start())
+            asyncio.create_task(emotion_daily_aggregation_job.run())
         )
-        logger.info("[Startup] ✅ User Emotion Snapshot Cron started (interval: 10min)")
+        logger.info("[Startup] ✅ Emotion Daily Aggregation Job started")
 
         logger.info("=" * 70)
         logger.info("✅ Analysis Service V2.0 - Fully operational!")
@@ -218,7 +242,7 @@ async def lifespan(app):
 
         processor.stop()
         retry_worker.stop()
-        user_emotion_snapshot_cron.stop()
+        emotion_daily_aggregation_job.stop()
 
         await kafka_producer.stop()
         logger.info("[Shutdown] Kafka Producer stopped")

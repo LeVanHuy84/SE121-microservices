@@ -8,7 +8,7 @@ from app.enums.emotion_enum import EmotionTimeWindowEnum
 class UserEmotionSnapshotRepository:
     """
     Repository for UserEmotionSnapshot collection.
-    Handles persistence of time-windowed emotion snapshots (24h, 7d, 30d).
+    Handles persistence of time-windowed emotion snapshots (7d, 30d).
     
     ARCHITECTURE:
     - Each user has exactly ONE snapshot per time window
@@ -64,7 +64,7 @@ class UserEmotionSnapshotRepository:
         """
         Get all snapshots for a user (all time windows).
         
-        Returns at most 3 documents (24h, 7d, 30d).
+        Returns at most 2 documents (7d, 30d).
         """
         cursor = self.collection.find({"userId": user_id}).sort("window", 1)
         docs = await cursor.to_list(length=None)
@@ -98,8 +98,8 @@ class UserEmotionSnapshotRepository:
         
         Args:
             user_id: User identifier
-            window: Time window (24h, 7d, 30d)
-            data: Complete snapshot data (must include computedAt)
+            window: Time window (7d, 30d)
+            data: Complete snapshot data (must include createdAt)
             
         Returns:
             Updated snapshot document

@@ -6,14 +6,11 @@ from app.enums.emotion_enum import EmotionTimeWindowEnum
 class UserEmotionSnapshot(BaseModel):
     id: Optional[str] = None
     userId: str
-    window: EmotionTimeWindowEnum # 24h, 7d, 30d
+    window: EmotionTimeWindowEnum # 7d, 30d
     
-    emotionDistribution: Dict[str, float]  # {"joy": 3, "sadness": 5}
-    dominantEmotion: str
-    
+    emotionDistribution: Dict[str, float]
     negativeRatio: float
-    riskScore: float  # 0 to 1
-    
-    emotionVolatility: float  # 0 to 1 - measures emotional instability
-    
-    computedAt: datetime
+    # Required for emotional stability analytics; do not remove in refactors.
+    emotionVolatility: float
+    riskScore: float
+    createdAt: datetime

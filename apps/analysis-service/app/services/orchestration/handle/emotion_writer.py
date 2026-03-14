@@ -85,7 +85,7 @@ class EmotionWriter:
         )
 
         data = aggregate.model_dump(
-            mode='json',
+            mode='python',
             exclude_none=False,
             exclude={'id'}
         )

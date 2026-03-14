@@ -37,6 +37,8 @@ async def test_created(req: TestPostRequest):
         "imageUrls": req.imageUrls
     }
 
+    print("Received test event:", event)
+
     result = await event_service.handle_created(event)
 
     return {

@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorCollection
 from bson import ObjectId
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime, timedelta, timezone
 from app.enums.emotion_enum import EmotionTimeWindowEnum
 
@@ -29,6 +29,7 @@ class EmotionAggregateRepository:
         Returns:
             Document with _id as string
         """
+        data = self._normalize_timestamps(data)
         result = await self.collection.insert_one(data)
         data["_id"] = str(result.inserted_id)
         return data
@@ -49,6 +50,8 @@ class EmotionAggregateRepository:
         except Exception:
             return None
 
+        update_data = self._normalize_timestamps(update_data)
+
         result = await self.collection.update_one(
             {"_id": obj_id},
             {"$set": update_data}
@@ -60,7 +63,7 @@ class EmotionAggregateRepository:
         # Return updated document
         doc = await self.collection.find_one({"_id": obj_id})
         if doc:
-            doc["_id"] = str(doc["_id"])
+            doc = self._normalize_output_document(doc)
         return doc
 
     # ========================================================================
@@ -86,7 +89,7 @@ class EmotionAggregateRepository:
             "targetType": target_type
         })
         if doc:
-            doc["_id"] = str(doc["_id"])
+            doc = self._normalize_output_document(doc)
         return doc
 
     # ========================================================================
@@ -110,7 +113,7 @@ class EmotionAggregateRepository:
         docs = await cursor.to_list(length=limit)
         
         for doc in docs:
-            doc["_id"] = str(doc["_id"])
+            self._normalize_output_document(doc)
         return docs
 
     async def get_by_user_since(
@@ -120,34 +123,47 @@ class EmotionAggregateRepository:
         reference_time: Optional[datetime] = None
     ) -> List[dict]:
         """
-        Get all emotion aggregates for a user since a specific time.
-        
-        OPTIMIZED for multi-window snapshot computation.
-        Query once for the largest window (30d), then filter in-memory for shorter windows.
-        
-        Args:
-            user_id: User ID
-            since: Start time (inclusive)
-            reference_time: End time (defaults to now)
-        
-        Returns:
-            List of emotion aggregates sorted by createdAt ascending
+        Get emotion aggregates for snapshot computation.
+
+        Optimized version:
+        - Uses MongoDB projection to fetch only required fields
+        - Reduces network and memory usage significantly
+
+        Fields required by snapshot service:
+        - createdAt
+        - finalEmotion
+        - finalScores
+        - intensity
         """
+
         if reference_time is None:
             reference_time = datetime.now(timezone.utc)
 
         query = {
             "userId": user_id,
-            "createdAt": {"$gte": since, "$lte": reference_time}
+            "createdAt": {
+                "$gte": since,
+                "$lte": reference_time
+            }
         }
 
-        # Sort ascending for easier time-based filtering
-        cursor = self.collection.find(query).sort("createdAt", 1)
+        # Only fetch fields required for snapshot computation
+        projection = {
+            "_id": 0,
+            "createdAt": 1,
+            "finalEmotion": 1,
+            "finalScores": 1,
+            "intensity": 1,
+        }
+
+        cursor = (
+            self.collection
+            .find(query, projection)
+            .sort("createdAt", 1)
+        )
+
         docs = await cursor.to_list(length=None)
-        
-        for doc in docs:
-            doc["_id"] = str(doc["_id"])
-        
+
         return docs
 
     async def get_by_user_in_time_window(
@@ -163,7 +179,7 @@ class EmotionAggregateRepository:
         
         Args:
             user_id: User ID
-            window: Time window (24h, 7d, 30d)
+            window: Time window (7d, 30d)
             reference_time: Reference time (defaults to now)
         
         Returns:
@@ -184,7 +200,7 @@ class EmotionAggregateRepository:
         docs = await cursor.to_list(length=None)
         
         for doc in docs:
-            doc["_id"] = str(doc["_id"])
+            self._normalize_output_document(doc)
         
         return docs
 
@@ -224,7 +240,7 @@ class EmotionAggregateRepository:
         docs = await cursor_obj.to_list(length=limit)
         
         for doc in docs:
-            doc["_id"] = str(doc["_id"])
+            self._normalize_output_document(doc)
         return docs
 
     async def get_all_for_summary(
@@ -257,7 +273,7 @@ class EmotionAggregateRepository:
         docs = await cursor.to_list(length=None)
         
         for doc in docs:
-            doc["_id"] = str(doc["_id"])
+            self._normalize_output_document(doc)
         return docs
 
     async def get_by_user_in_date_range(
@@ -276,7 +292,7 @@ class EmotionAggregateRepository:
         docs = await cursor.to_list(length=None)
         
         for doc in docs:
-            doc["_id"] = str(doc["_id"])
+            self._normalize_output_document(doc)
         
         return docs
 
@@ -307,8 +323,51 @@ class EmotionAggregateRepository:
     def _get_window_delta(self, window: EmotionTimeWindowEnum) -> timedelta:
         """Convert window enum to timedelta."""
         window_map = {
-            EmotionTimeWindowEnum.LAST_24_HOURS: timedelta(hours=24),
             EmotionTimeWindowEnum.LAST_7_DAYS: timedelta(days=7),
             EmotionTimeWindowEnum.LAST_30_DAYS: timedelta(days=30),
         }
         return window_map.get(window, timedelta(days=7))
+
+    def _normalize_timestamps(self, data: dict) -> dict:
+        """Ensure aggregate timestamps are stored as UTC datetime objects."""
+        normalized = dict(data)
+        for field in ("createdAt", "updatedAt"):
+            value = normalized.get(field)
+            parsed = self._coerce_datetime_utc(value)
+            if parsed is not None:
+                normalized[field] = parsed
+        return normalized
+
+    def _normalize_output_document(self, doc: dict) -> dict:
+        """Normalize Mongo document timestamp fields to UTC-aware datetimes."""
+        doc["_id"] = str(doc["_id"])
+        for field in ("createdAt", "updatedAt", "createdAtVN"):
+            parsed = self._coerce_datetime_utc(doc.get(field))
+            if parsed is not None:
+                doc[field] = parsed
+        return doc
+
+    def _coerce_datetime_utc(self, value: Any) -> Optional[datetime]:
+        """Convert timestamp input to timezone-aware UTC datetime when possible."""
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value.astimezone(timezone.utc)
+
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate.endswith("Z"):
+                candidate = f"{candidate[:-1]}+00:00"
+            try:
+                parsed = datetime.fromisoformat(candidate)
+            except ValueError:
+                return None
+
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+
+        return None
