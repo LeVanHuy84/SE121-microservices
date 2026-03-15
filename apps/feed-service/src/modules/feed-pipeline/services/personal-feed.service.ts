@@ -212,7 +212,7 @@ export class PersonalFeedService {
 
   /**
    * 👁️ Mark feed items as viewed
-   * - Reduce rankingScore by 5% (decay mechanism)
+   * - Reduce rankingScore by 10% (decay mechanism)
    * - Track viewed emotions for affinity learning
    */
   async markFeedItemViewed(userId: string, feedItemIds: string[]) {
@@ -222,7 +222,7 @@ export class PersonalFeedService {
     await this.feedItemModel.updateMany({ _id: { $in: feedItemIds } }, [
       {
         $set: {
-          rankingScore: { $multiply: ['$rankingScore', 0.95] },
+          rankingScore: { $multiply: ['$rankingScore', 0.9] },
           lastViewedAt: new Date(),
         },
       },
@@ -251,6 +251,7 @@ export class PersonalFeedService {
             userId,
             post.postId,
             post.emotionFeature.label,
+            post.emotionFeature.scores,
           ),
         );
       }

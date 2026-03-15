@@ -9,6 +9,11 @@ import {
   EMOTION_MULTIPLIERS,
   TRENDING_DECAY_LAMBDA,
 } from '../ranking.constants';
+import { EmotionFeatures } from '../interfaces/emotion-features.interface';
+import {
+  computeSharedEmotionalSafetyAdjustment,
+  PostEmotionFeature,
+} from './personal-ranking.strategy';
 
 /**
  * Ranking strategy cho Trending Feed
@@ -19,6 +24,13 @@ import {
 @Injectable()
 export class TrendingRankingStrategy implements IRankingStrategy {
   private readonly logger = new Logger(TrendingRankingStrategy.name);
+  private readonly safetyStrength = {
+    positiveBoost: 2.0,
+    negativeSuppression: 0.5,
+    streakPositiveBoost: 1.5,
+    minAdjustment: 0.5,
+    maxAdjustment: 2.0,
+  } as const;
 
   getName(): string {
     return 'trending';
@@ -29,17 +41,33 @@ export class TrendingRankingStrategy implements IRankingStrategy {
     context: RankingContext,
   ): Promise<number> {
     const { snapshot, timestamp } = candidate;
+    const { emotionFeatures } = context;
 
     const engagementScore = this.computeEngagement(snapshot.stats);
     const freshnessScore = this.computeFreshness(timestamp);
     const emotionBoost = this.computeEmotionBoost(snapshot.emotionFeature);
     const qualityScore = this.computeQuality(snapshot);
 
-    const finalScore =
+    const trendingScore =
       Math.pow(engagementScore, TRENDING_WEIGHTS.ENGAGEMENT) *
       Math.pow(freshnessScore, TRENDING_WEIGHTS.FRESHNESS) *
       Math.pow(emotionBoost, TRENDING_WEIGHTS.EMOTION) *
       Math.pow(qualityScore, TRENDING_WEIGHTS.QUALITY);
+
+    const emotionalRelevance = this.computeEmotionalRelevance(
+      snapshot.emotionFeature,
+      emotionFeatures,
+    );
+
+    const emotionalStateAdjustment = computeSharedEmotionalSafetyAdjustment(
+      snapshot.emotionFeature?.label,
+      emotionFeatures,
+      this.safetyStrength,
+      this.logger,
+    );
+
+    const finalScore =
+      trendingScore * emotionalRelevance * emotionalStateAdjustment;
 
     return finalScore;
   }
@@ -47,7 +75,9 @@ export class TrendingRankingStrategy implements IRankingStrategy {
   /**
    * Engagement Score = log10(reactions×1 + comments×3 + shares×5 + 1)
    */
-  private computeEngagement(stats: any): number {
+  private computeEngagement(
+    stats: RankingCandidate['snapshot']['stats'],
+  ): number {
     const total =
       (stats?.reactions || 0) * 1 +
       (stats?.comments || 0) * 3 +
@@ -71,7 +101,7 @@ export class TrendingRankingStrategy implements IRankingStrategy {
    * VD: Post joy với intensity=0.85, confidence=0.92
    *     → 0.85 × 1.2 × 0.92 = 0.938
    */
-  private computeEmotionBoost(emotionFeature?: any): number {
+  private computeEmotionBoost(emotionFeature?: PostEmotionFeature): number {
     if (!emotionFeature) return 1.0;
 
     const { label, intensity, confidence } = emotionFeature;
@@ -83,10 +113,23 @@ export class TrendingRankingStrategy implements IRankingStrategy {
     return baseIntensity * popularityMultiplier * qualityFactor;
   }
 
+  private computeEmotionalRelevance(
+    emotionFeature: PostEmotionFeature | undefined,
+    features?: EmotionFeatures,
+  ): number {
+    if (!emotionFeature) return 1.0;
+
+    const preference =
+      features?.userEmotionPreference?.[emotionFeature.label] ?? 0;
+    const intensity = emotionFeature.intensity ?? 0.5;
+
+    return 1 + preference * intensity * 0.5;
+  }
+
   /**
    * Quality Score = confidence×0.6 + hasMedia×0.3 + isSafe×0.1
    */
-  private computeQuality(snapshot: any): number {
+  private computeQuality(snapshot: RankingCandidate['snapshot']): number {
     const { emotionFeature, mediaPreviews } = snapshot;
 
     const confidenceScore = emotionFeature?.confidence || 0.5;

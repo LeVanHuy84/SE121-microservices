@@ -7,16 +7,14 @@ import {
 import { TrendingRankingStrategy } from '../strategies/trending-ranking.strategy';
 import { PersonalRankingStrategy } from '../strategies/personal-ranking.strategy';
 import { UserAffinityService } from './user-affinity.service';
-import { EmotionProfileService } from './emotion-profile.service';
-import { UserFilterService } from './user-filter.service';
+import { EmotionFeatureService } from './emotion-feature.service';
 
 /**
  * RankingService - Orchestrator cho ranking logic
  *
  * Nhiệm vụ:
  * - Chọn strategy phù hợp (trending/personal)
- * - Load user context (affinity, profile, preference)
- * - Pre-filter theo user preferences
+ * - Load user context (affinity, emotion features)
  * - Compute scores cho candidates
  * - Sort và return ranked items
  */
@@ -28,8 +26,7 @@ export class RankingService {
     private readonly trendingStrategy: TrendingRankingStrategy,
     private readonly personalStrategy: PersonalRankingStrategy,
     private readonly userAffinityService: UserAffinityService,
-    private readonly emotionProfileService: EmotionProfileService,
-    private readonly userFilterService: UserFilterService,
+    private readonly emotionFeatureService: EmotionFeatureService,
   ) {}
 
   /**
@@ -62,9 +59,7 @@ export class RankingService {
     return scoredItems.sort((a, b) => b.finalScore - a.finalScore);
   }
 
-  /**
-   * Re-rank candidates cho Personal Feed (Enhanced với emotion profile)
-   */
+  /** Re-rank candidates cho Personal Feed */
   async rankForPersonal(
     candidates: RankingCandidate[],
     userId: string,
@@ -72,45 +67,29 @@ export class RankingService {
     if (!candidates.length) return [];
 
     // 1. Load user context (parallel)
-    const [userAffinity, recentEmotions, emotionProfile, emotionPreference] =
-      await Promise.all([
-        this.userAffinityService.getUserAffinity(userId),
-        this.userAffinityService.getRecentEmotions(userId, 20),
-        this.emotionProfileService.getUserProfile(userId),
-        this.emotionProfileService.getUserPreference(userId),
-      ]);
-
-    // 2. Pre-filter theo user preferences (hard filter)
-    const filteredCandidates = this.userFilterService.filterByPreference(
-      candidates,
-      emotionPreference,
-    );
-
-    if (!filteredCandidates.length) {
-      this.logger.warn(
-        `All candidates filtered out for user ${userId}. Returning empty.`,
-      );
-      return [];
-    }
+    const [userAffinity, recentEmotions, emotionFeatures] = await Promise.all([
+      this.userAffinityService.getUserAffinity(userId),
+      this.userAffinityService.getRecentEmotions(userId, 20),
+      this.emotionFeatureService.getEmotionFeatures(userId),
+    ]);
 
     const context: RankingContext = {
       userId,
       userAffinity,
       recentEmotions,
-      emotionProfile: emotionProfile || undefined,
-      emotionPreference: emotionPreference || undefined,
+      emotionFeatures: emotionFeatures || undefined,
     };
 
     // Log risk status
-    if (emotionProfile?.riskScore && emotionProfile.riskScore > 0.7) {
+    if (emotionFeatures?.riskScore && emotionFeatures.riskScore > 0.7) {
       this.logger.warn(
-        `High-risk user detected: ${userId} (risk=${emotionProfile.riskScore.toFixed(2)}, streak=${emotionProfile.negativeStreak})`,
+        `High-risk user detected: ${userId} (risk=${emotionFeatures.riskScore.toFixed(2)}, streak=${emotionFeatures.negativeStreak})`,
       );
     }
 
-    // 3. Compute scores in parallel
+    // 2. Compute scores in parallel
     const scoredItems = await Promise.all(
-      filteredCandidates.map(async (candidate) => {
+      candidates.map(async (candidate) => {
         const finalScore = await this.personalStrategy.computeScore(
           candidate,
           context,
@@ -127,7 +106,7 @@ export class RankingService {
       }),
     );
 
-    // 4. Sort by final score
+    // 3. Sort by final score
     return scoredItems.sort((a, b) => b.finalScore - a.finalScore);
   }
 
@@ -173,11 +152,17 @@ export class RankingService {
     userId: string,
     postId: string,
     emotionLabel?: string,
+    emotionScores?: Record<string, number>,
   ): Promise<void> {
     if (!emotionLabel) return;
 
+    const signal =
+      emotionScores && Object.keys(emotionScores).length > 0
+        ? emotionScores
+        : { [emotionLabel]: 1 };
+
     await Promise.all([
-      this.userAffinityService.updateAffinity(userId, emotionLabel, 'view'),
+      this.userAffinityService.updateAffinity(userId, signal, 'view'),
       this.userAffinityService.trackViewedEmotion(userId, emotionLabel),
     ]);
   }
@@ -190,7 +175,12 @@ export class RankingService {
     postId: string,
     emotionLabel: string,
     action: 'like' | 'comment' | 'share',
+    emotionScores?: Record<string, number>,
   ): Promise<void> {
-    await this.userAffinityService.updateAffinity(userId, emotionLabel, action);
+    const signal =
+      emotionScores && Object.keys(emotionScores).length > 0
+        ? emotionScores
+        : { [emotionLabel]: 1 };
+    await this.userAffinityService.updateAffinity(userId, signal, action);
   }
 }

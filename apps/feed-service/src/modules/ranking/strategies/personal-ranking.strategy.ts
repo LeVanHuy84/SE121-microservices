@@ -4,6 +4,7 @@ import {
   RankingCandidate,
   RankingContext,
 } from '../interfaces/ranking-strategy.interface';
+import { EmotionFeatures } from '../interfaces/emotion-features.interface';
 import {
   PERSONAL_DECAY_RATE,
   DIVERSITY_PENALTY_BASE,
@@ -12,6 +13,61 @@ import {
   isPositiveEmotion,
   isNegativeEmotion,
 } from '../interfaces/emotion-categories.interface';
+
+export interface PostEmotionFeature {
+  label: string;
+  intensity?: number;
+  confidence?: number;
+}
+
+interface EmotionalSafetyStrength {
+  positiveBoost: number;
+  negativeSuppression: number;
+  streakPositiveBoost: number;
+  minAdjustment: number;
+  maxAdjustment: number;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function computeSharedEmotionalSafetyAdjustment(
+  postEmotion: string | undefined,
+  features: EmotionFeatures | undefined,
+  strength: EmotionalSafetyStrength,
+  logger?: Logger,
+): number {
+  if (!postEmotion) return 1.0;
+
+  let adjustment = 1.0;
+
+  if ((features?.riskScore ?? 0) > 0.7) {
+    if (isPositiveEmotion(postEmotion)) {
+      adjustment *= strength.positiveBoost;
+      logger?.debug(
+        `High-risk user: boosting positive content (${postEmotion})`,
+      );
+    } else if (isNegativeEmotion(postEmotion)) {
+      adjustment *= strength.negativeSuppression;
+      logger?.debug(
+        `High-risk user: suppressing negative content (${postEmotion})`,
+      );
+    }
+  } else if (
+    (features?.negativeStreak ?? 0) > 3 &&
+    isPositiveEmotion(postEmotion)
+  ) {
+    const streakFactor = Math.min((features?.negativeStreak ?? 0) / 7, 1.0);
+    const streakBoost = 1 + streakFactor * (strength.streakPositiveBoost - 1);
+    adjustment *= streakBoost;
+    logger?.debug(
+      `Negative streak: boosting positive (streak=${features?.negativeStreak ?? 0})`,
+    );
+  }
+
+  return clamp(adjustment, strength.minAdjustment, strength.maxAdjustment);
+}
 
 /**
  * Ranking strategy cho Personal Feed
@@ -23,6 +79,13 @@ import {
 @Injectable()
 export class PersonalRankingStrategy implements IRankingStrategy {
   private readonly logger = new Logger(PersonalRankingStrategy.name);
+  private readonly safetyStrength: EmotionalSafetyStrength = {
+    positiveBoost: 2.5,
+    negativeSuppression: 0.3,
+    streakPositiveBoost: 2.0,
+    minAdjustment: 0.3,
+    maxAdjustment: 2.5,
+  };
 
   getName(): string {
     return 'personal';
@@ -33,19 +96,18 @@ export class PersonalRankingStrategy implements IRankingStrategy {
     context: RankingContext,
   ): Promise<number> {
     const { snapshot, baseScore, timestamp } = candidate;
-    const { userAffinity, recentEmotions, emotionProfile, emotionPreference } =
-      context;
+    const { userAffinity, recentEmotions, emotionFeatures } = context;
 
     const affinityMultiplier = this.computeAffinityMultiplier(
       snapshot.emotionFeature,
       userAffinity,
+      emotionFeatures?.userEmotionPreference,
     );
 
-    // ⭐ NEW: Emotional state adjustment (content safety)
+    // Emotional state adjustment (content safety)
     const emotionalStateAdjustment = this.computeEmotionalStateAdjustment(
       snapshot.emotionFeature?.label,
-      emotionProfile,
-      emotionPreference,
+      emotionFeatures,
     );
 
     const freshnessDecay = this.computeFreshnessDecay(timestamp);
@@ -75,16 +137,20 @@ export class PersonalRankingStrategy implements IRankingStrategy {
    *     → 1 + (0.75 × 0.9) = 1.675 (boost 67.5%)
    */
   private computeAffinityMultiplier(
-    emotionFeature?: any,
+    emotionFeature?: PostEmotionFeature,
     userAffinity?: Record<string, number>,
+    userEmotionPreference?: Record<string, number>,
   ): number {
-    if (!emotionFeature || !userAffinity) return 1.0;
+    if (!emotionFeature) return 1.0;
 
     const emotion = emotionFeature.label;
-    const affinity = userAffinity[emotion] || 0.3; // default neutral
+    const affinity = userAffinity?.[emotion] ?? 0.3; // default neutral
+    const preference = userEmotionPreference?.[emotion] ?? 0;
     const intensity = emotionFeature.intensity || 0.5;
 
-    return 1 + affinity * intensity;
+    // Blend learned affinity with emotion preference features.
+    const emotionalRelevance = 0.7 * affinity + 0.3 * preference;
+    return clamp(1 + emotionalRelevance * intensity, 0.8, 2.0);
   }
 
   /**
@@ -115,69 +181,54 @@ export class PersonalRankingStrategy implements IRankingStrategy {
   /**
    * Engagement Boost = 1 + log10(totalEngagement + 1) × 0.1
    */
-  private computeEngagementBoost(stats: any): number {
+  private computeEngagementBoost(
+    stats: RankingCandidate['snapshot']['stats'],
+  ): number {
     const total =
       (stats?.reactions || 0) +
       (stats?.comments || 0) * 2 +
       (stats?.shares || 0) * 3;
 
-    return 1 + Math.log10(total + 1) * 0.1;
+    return Math.max(1, 1 + Math.log10(total + 1) * 0.1);
   }
 
   /**
-   * ⭐ Emotional State Adjustment - Content Safety Algorithm
+   * Emotional State Adjustment - Content Safety Algorithm
    *
    * Prevent negative spiral khi user at-risk:
    * - High risk (>0.7) → boost positive 2.5x, suppress negative 0.3x
    * - Negative streak (>3 days) → gradual boost positive
-   * - Preferred emotions → extra boost 1.3x
-   * - Healing mode → extra boost positive 1.5x
+   * - userEmotionPreference → mild personalization boost
    */
   private computeEmotionalStateAdjustment(
     postEmotion?: string,
-    profile?: any,
-    preference?: any,
+    features?: EmotionFeatures,
   ): number {
-    if (!postEmotion) return 1.0;
+    let adjustment = computeSharedEmotionalSafetyAdjustment(
+      postEmotion,
+      features,
+      this.safetyStrength,
+      this.logger,
+    );
 
-    let adjustment = 1.0;
-
-    // ===== 1. High-risk intervention =====
-    if (profile?.riskScore > 0.7) {
-      if (isPositiveEmotion(postEmotion)) {
-        adjustment *= 2.5; // strongly boost positive
-        this.logger.debug(
-          `High-risk user: boosting positive content (${postEmotion})`,
-        );
-      } else if (isNegativeEmotion(postEmotion)) {
-        adjustment *= 0.3; // strongly suppress negative
-        this.logger.debug(
-          `High-risk user: suppressing negative content (${postEmotion})`,
-        );
-      }
+    if (!postEmotion) {
+      return clamp(
+        adjustment,
+        this.safetyStrength.minAdjustment,
+        this.safetyStrength.maxAdjustment,
+      );
     }
 
-    // ===== 2. Negative streak recovery =====
-    else if (profile?.negativeStreak > 3) {
-      const boostFactor = Math.min(profile.negativeStreak / 7, 1.0);
-      if (isPositiveEmotion(postEmotion)) {
-        adjustment *= 1 + boostFactor; // gradual boost (1.0 - 2.0)
-        this.logger.debug(
-          `Negative streak: boosting positive (streak=${profile.negativeStreak})`,
-        );
-      }
+    // ===== 3. Mild boost from model-derived user emotion preference =====
+    const preference = features?.userEmotionPreference?.[postEmotion] ?? 0;
+    if (preference > 0) {
+      adjustment *= 1 + Math.min(preference, 1) * 0.2; // max 1.2x
     }
 
-    // ===== 3. Preferred emotions boost =====
-    if (preference?.preferredEmotions?.includes(postEmotion)) {
-      adjustment *= 1.3;
-    }
-
-    // ===== 4. Healing content mode =====
-    if (preference?.allowHealingContent && isPositiveEmotion(postEmotion)) {
-      adjustment *= 1.2;
-    }
-
-    return adjustment;
+    return clamp(
+      adjustment,
+      this.safetyStrength.minAdjustment,
+      this.safetyStrength.maxAdjustment,
+    );
   }
 }

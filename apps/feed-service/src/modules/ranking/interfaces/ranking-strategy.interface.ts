@@ -1,5 +1,5 @@
 import { PostSnapshot } from 'src/mongo/schema/post-snapshot.schema';
-import { EmotionProfile, EmotionPreference } from './emotion-profile.interface';
+import { EmotionFeatures } from './emotion-features.interface';
 
 /**
  * Candidate cho ranking (raw data)
@@ -21,11 +21,8 @@ export interface RankingContext {
   userAffinity?: Record<string, number>; // {joy: 0.75, anger: 0.1}
   recentEmotions?: string[]; // ['joy', 'surprise', 'joy', ...]
 
-  // ===== Layer 2: Emotional State (from analysis-service) =====
-  emotionProfile?: EmotionProfile; // user's emotional baseline & risk
-
-  // ===== Layer 3: Explicit Preferences (from analysis-service) =====
-  emotionPreference?: EmotionPreference; // user's explicit settings
+  // ===== Layer 2: Emotional Features (from analysis-service) =====
+  emotionFeatures?: EmotionFeatures;
 
   // ===== Query params =====
   query?: {

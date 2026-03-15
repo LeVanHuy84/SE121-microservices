@@ -30,7 +30,7 @@ class EmotionRankingFeaturesResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 emotion_feature_router = APIRouter(
-    prefix="/emotion-features",
+    prefix="/emotion",
     dependencies=[Depends(verify_internal_key)],
 )
 

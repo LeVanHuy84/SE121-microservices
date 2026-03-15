@@ -11,6 +11,6 @@
     "download-models": "venv\\Scripts\\python.exe download_models.py",
     "start:dev": "venv\\Scripts\\python.exe -m app.main",
     "health": "curl http://localhost:4011/health",
-    "prod": "venv\\Scripts\\uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1"
+    "start:prod": "venv\\Scripts\\uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1"
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Audience } from '@repo/dtos';
 import { Model } from 'mongoose';
 import {
   PostSnapshot,
@@ -36,5 +37,31 @@ export class SnapshotRepository {
       ...(mainEmotion ? { 'post.mainEmotion': mainEmotion } : {}),
     };
     return this.shareModel.find(filter).lean<ShareSnapshot[]>().exec();
+  }
+
+  async findTrendingCandidates(limit = 1000): Promise<PostSnapshot[]> {
+    const filter = {
+      audience: Audience.PUBLIC,
+      $and: [
+        {
+          $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }],
+        },
+        {
+          $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+        },
+      ],
+    };
+
+    return this.postModel
+      .find(filter)
+      .sort({
+        'stats.reactions': -1,
+        'stats.comments': -1,
+        'stats.shares': -1,
+        postCreatedAt: -1,
+      })
+      .limit(limit)
+      .lean<PostSnapshot[]>()
+      .exec();
   }
 }
