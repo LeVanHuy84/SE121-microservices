@@ -7,7 +7,7 @@ import {
   REDIS_KEYS,
   CACHE_TTL,
   INTERACTION_WEIGHTS,
-} from '../ranking.constants';
+} from './affinity.constants';
 
 /**
  * Service quản lý User Emotion Affinity

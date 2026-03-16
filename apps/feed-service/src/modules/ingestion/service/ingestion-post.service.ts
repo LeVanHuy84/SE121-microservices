@@ -73,6 +73,7 @@ export class IngestionPostService {
       FeedEventType.POST,
       entity._id.toString(),
       entity.postId,
+      entity.postId,
       entity.userId,
       entity.groupId,
     );

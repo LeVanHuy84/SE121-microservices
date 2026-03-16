@@ -42,7 +42,6 @@ class OutboxEmitter:
                 "scores": emotion["finalScores"],
                 "confidence": emotion["finalConfidence"],
                 "intensityScore": emotion["intensity"]["score"],
-                "intensityLevel": emotion["intensity"]["level"],
                 "dominantModality": emotion["dominantModality"],
                 "dominantSceneType": emotion.get("dominantSceneType"),
                 "riskHintLevel": emotion.get("riskHintLevel"),

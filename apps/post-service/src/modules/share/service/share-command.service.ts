@@ -12,6 +12,8 @@ import {
   TargetType,
   StatsEventType,
   EventDestination,
+  InteractionEventPayload,
+  InteractionType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -92,6 +94,23 @@ export class ShareCommandService {
           });
           promises.push(manager.save(outbox));
         }
+
+        const interactionPayload: InteractionEventPayload = {
+          userId: userId,
+          targetType: RootType.POST,
+          targetId: dto.postId,
+          interactionType: InteractionType.SHARE,
+          createdAt: new Date(),
+        };
+
+        const interactionOutbox = manager.create(OutboxEvent, {
+          topic: EventTopic.INTERACTION,
+          destination: EventDestination.KAFKA,
+          eventType: 'user.interaction',
+          payload: interactionPayload,
+        });
+
+        promises.push(manager.save(interactionOutbox));
 
         // ✅ Chạy tất cả các tác vụ song song (trong transaction)
         await Promise.all(promises);

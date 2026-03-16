@@ -37,4 +37,19 @@ export class ConsumerController {
       throw error; // để Kafka retry lại
     }
   }
+
+  @EventPattern(EventTopic.INTERACTION)
+  async handleInteractionEvents(@Payload() message: any) {
+    const { type, payload } = message;
+
+    try {
+      await this.consumerService.handleInteraction(payload);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process INTERACTION event ${type} for ${payload.targetId}: ${error.message}`,
+        error.stack,
+      );
+      throw error; // để Kafka retry lại
+    }
+  }
 }

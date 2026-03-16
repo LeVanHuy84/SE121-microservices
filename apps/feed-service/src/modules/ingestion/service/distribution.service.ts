@@ -27,6 +27,7 @@ export class DistributionService {
     type: FeedEventType,
     snapshotId: string,
     refId: string,
+    postId: string,
     actorId: string,
     groupId?: string,
   ) {
@@ -66,6 +67,7 @@ export class DistributionService {
         snapshotId: new Types.ObjectId(snapshotId),
         eventType: type,
         refId: refId,
+        postId: postId,
         timestamp: now,
         rankingScore,
       }));

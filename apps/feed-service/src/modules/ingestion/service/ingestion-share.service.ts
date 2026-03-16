@@ -32,6 +32,7 @@ export class IngestionShareService {
       FeedEventType.SHARE,
       shareSnapshot.id,
       shareSnapshot.shareId,
+      shareSnapshot.postId,
       shareSnapshot.userId,
     );
   }

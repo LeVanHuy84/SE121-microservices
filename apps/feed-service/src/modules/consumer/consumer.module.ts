@@ -7,12 +7,14 @@ import {
   PostSnapshot,
   PostSnapshotSchema,
 } from 'src/mongo/schema/post-snapshot.schema';
+import { AffinityModule } from '../affinity/affinity.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PostSnapshot.name, schema: PostSnapshotSchema },
     ]),
+    AffinityModule,
   ],
   controllers: [ConsumerController],
   providers: [ConsumerService],

@@ -10,7 +10,7 @@ export class RedisTrendingWarmupService {
   private readonly TRENDING_KEY = 'post:score';
   private readonly LOCK_KEY = 'lock:trending-rebuild';
   private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60;
-  private readonly MAX_REBUILD_POSTS = 1000;
+  private readonly MAX_REBUILD_POSTS = 2000;
 
   constructor(
     @InjectRedis() private readonly redis: Redis,

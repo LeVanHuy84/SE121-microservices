@@ -39,29 +39,6 @@ export const PERSONAL_DECAY_RATE = 0.05;
 export const DIVERSITY_PENALTY_BASE = 0.95;
 
 /**
- * Interaction weights cho user affinity
- */
-export const INTERACTION_WEIGHTS = {
-  view: 0.1,
-  like: 0.3,
-  comment: 0.5,
-  share: 0.7,
-} as const;
-
-/**
- * Default user affinity nếu user mới
- */
-export const DEFAULT_USER_AFFINITY: Record<string, number> = {
-  joy: 0.35,
-  surprise: 0.25,
-  love: 0.2,
-  neutral: 0.1,
-  sadness: 0.05,
-  anger: 0.03,
-  fear: 0.02,
-};
-
-/**
  * Redis key patterns
  */
 export const REDIS_KEYS = {
@@ -76,7 +53,6 @@ export const REDIS_KEYS = {
  * TTLs
  */
 export const CACHE_TTL = {
-  USER_AFFINITY: 7 * 24 * 3600, // 7 days
   RECENT_EMOTIONS: 7 * 24 * 3600, // 7 days
   POST_META: 30 * 24 * 3600, // 30 days
 } as const;

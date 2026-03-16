@@ -6,8 +6,8 @@ import {
 } from '../interfaces/ranking-strategy.interface';
 import { TrendingRankingStrategy } from '../strategies/trending-ranking.strategy';
 import { PersonalRankingStrategy } from '../strategies/personal-ranking.strategy';
-import { UserAffinityService } from './user-affinity.service';
 import { EmotionFeatureService } from './emotion-feature.service';
+import { UserAffinityService } from 'src/modules/affinity/user-affinity.service';
 
 /**
  * RankingService - Orchestrator cho ranking logic
@@ -174,7 +174,7 @@ export class RankingService {
     userId: string,
     postId: string,
     emotionLabel: string,
-    action: 'like' | 'comment' | 'share',
+    action: 'react' | 'comment' | 'share',
     emotionScores?: Record<string, number>,
   ): Promise<void> {
     const signal =

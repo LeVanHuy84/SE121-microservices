@@ -8,7 +8,6 @@ export * from './ranking.constants';
 
 // Services
 export * from './services/ranking.service';
-export * from './services/user-affinity.service';
 export * from './services/emotion-feature.service';
 export * from './services/user-filter.service';
 
