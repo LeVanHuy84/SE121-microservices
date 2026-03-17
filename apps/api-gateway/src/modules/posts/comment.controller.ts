@@ -22,7 +22,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class CommentController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
   @Post()
@@ -30,7 +30,15 @@ export class CommentController {
     return this.client.send('create_comment', { userId, dto });
   }
 
-  @Get('comment/:id')
+  @Get()
+  findByQuery(
+    @CurrentUserId() userRequestId: string,
+    @Query() query: GetCommentQueryDTO,
+  ) {
+    return this.client.send('find_comments_by_query', { userRequestId, query });
+  }
+
+  @Get(':id')
   findById(@CurrentUserId() userRequestId: string, @Param('id') id: string) {
     return this.client.send('find_comment_by_id', {
       userRequestId,
@@ -38,19 +46,11 @@ export class CommentController {
     });
   }
 
-  @Get()
-  findByQuery(
-    @CurrentUserId() userRequestId: string,
-    @Query() query: GetCommentQueryDTO
-  ) {
-    return this.client.send('find_comments_by_query', { userRequestId, query });
-  }
-
   @Put(':id')
   update(
     @CurrentUserId() userId: string,
     @Param('id') commentId: string,
-    @Body() dto: UpdateCommentDTO
+    @Body() dto: UpdateCommentDTO,
   ) {
     return this.client.send('update_comment', { userId, commentId, dto });
   }

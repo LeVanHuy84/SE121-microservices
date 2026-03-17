@@ -57,6 +57,11 @@ async def lifespan(app):
     try:
         logger.info("🚀 Application startup")
 
+        # Warmup ML models (loads them lazily and runs warmup inference)
+        from app.services.model_loader import model_loader
+        await asyncio.get_event_loop().run_in_executor(None, model_loader.warmup)
+        logger.info("[ModelLoader] Models warmed up")
+
         # Kafka Producer
         await kafka_producer.start()
         logger.info("[KafkaProducer] Started")

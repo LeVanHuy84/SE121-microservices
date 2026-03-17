@@ -35,7 +35,7 @@ export class PostCommandService {
     @InjectRepository(Post) private readonly postRepo: Repository<Post>,
     private readonly dataSource: DataSource,
     private readonly postCache: PostCacheService,
-    private readonly outboxService: OutboxService
+    private readonly outboxService: OutboxService,
   ) {}
 
   // ----------------------------------------
@@ -58,7 +58,7 @@ export class PostCommandService {
               contentId: entity.id,
               items: post.media
                 .filter(
-                  (m): m is typeof m & { publicId: string } => !!m.publicId
+                  (m): m is typeof m & { publicId: string } => !!m.publicId,
                 )
                 .map((m) => ({
                   publicId: m.publicId,
@@ -101,7 +101,7 @@ export class PostCommandService {
       await this.outboxService.createAnalysisEvent(
         manager,
         TargetType.POST,
-        entity
+        entity,
       );
 
       return PostShortenMapper.toPostSnapshotDTO(entity);
@@ -114,7 +114,7 @@ export class PostCommandService {
   async update(
     userId: string,
     postId: string,
-    dto: Partial<UpdatePostDTO>
+    dto: UpdatePostDTO,
   ): Promise<PostSnapshotDTO> {
     const post = await this.postRepo.findOneBy({ id: postId });
     if (!post)
@@ -157,7 +157,7 @@ export class PostCommandService {
               topic: EventTopic.POST,
               destination: EventDestination.KAFKA,
               eventType: PostEventType.UPDATED,
-              payload: { postId, content: dto.content },
+              payload: { postId, content: dto.content, audience: dto.audience },
             });
 
       await manager.save(outbox);
@@ -166,7 +166,7 @@ export class PostCommandService {
           manager,
           TargetType.POST,
           postId,
-          dto.content
+          dto.content,
         );
       }
 

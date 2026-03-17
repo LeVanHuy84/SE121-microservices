@@ -8,7 +8,7 @@ import { Group } from 'src/entities/group.entity';
 export class GroupCacheService {
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
-  private readonly TTL = 300; // 5 minutes
+  private readonly TTL = 120; // 2 minutes
   private readonly NEGATIVE_TTL = 60; // 1 minute for not-found
 
   private getKey(id: string) {

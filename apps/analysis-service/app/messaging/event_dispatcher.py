@@ -36,7 +36,7 @@ class EventDispatcher:
             if not handler:
                 print(f"[DISPATCHER] No handler registered for: {event_type}")
                 return None
-
+            
             result = await handler(payload)
 
             if not result:

@@ -60,7 +60,7 @@ class EmotionAnalyzer:
         text_result = text_classifier.classify_emotion(new_text)
         text_scores = text_result["emotionScores"]
 
-        image_emotions = emotion_analysis.image_emotions or []
+        image_emotions = emotion_analysis.imageEmotions or []
 
         image_scores_avg = self._average_image_scores(image_emotions)
         total_face_count = sum(item.get("faceCount", 0) for item in image_emotions)

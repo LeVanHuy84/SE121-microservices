@@ -3,8 +3,9 @@
 import logging
 import numpy as np
 import cv2
+import torch
 from fer import FER
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 logger = logging.getLogger(__name__)
 
@@ -14,30 +15,59 @@ class ModelLoader:
     Load toàn bộ model cần thiết cho hệ thống:
     - PhoBERT Emotion (text)
     - FER (image emotion) → PyTorch backend
+    
+    Models are loaded lazily on first use to:
+    - Reduce startup time
+    - Allow GPU device configuration
+    - Avoid loading unused models
     """
 
-    fer_warmed = False
-
     def __init__(self):
-        self._load_phobert()
-        self._load_fer_detector()
+        self._tokenizer = None
+        self._model = None
+        self._fer_detector = None
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"[ModelLoader] Using device: {self._device}")
+
+    @property
+    def tokenizer(self):
+        """Lazy load PhoBERT tokenizer"""
+        if self._tokenizer is None:
+            self._load_phobert()
+        return self._tokenizer
+
+    @property
+    def model(self):
+        """Lazy load PhoBERT model"""
+        if self._model is None:
+            self._load_phobert()
+        return self._model
+
+    @property
+    def fer_detector(self):
+        """Lazy load FER detector"""
+        if self._fer_detector is None:
+            self._load_fer_detector()
+        return self._fer_detector
 
     # -----------------------------
     #  PHOBERT TEXT EMOTION
     # -----------------------------
     def _load_phobert(self):
+        """Load PhoBERT model to configured device"""
+        if self._model is not None:
+            return
+            
         model_name = "visolex/phobert-emotion"
-        logger.info("[ModelLoader] Loading PhoBERT emotion model...")
+        logger.info(f"[ModelLoader] Loading PhoBERT emotion model to {self._device}...")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
-
-        self.emotion_pipeline = pipeline(
-            "text-classification",
-            model=self.model,
-            tokenizer=self.tokenizer,
-        )
-
+        self._tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self._model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        
+        # Move model to GPU if available
+        self._model.to(self._device)
+        self._model.eval()  # Set to evaluation mode
+        
         logger.info("[ModelLoader] PhoBERT emotion model loaded.")
 
     # -----------------------------
@@ -47,29 +77,35 @@ class ModelLoader:
         """
         Load FER model (PyTorch) cho image emotion.
         """
+        if self._fer_detector is not None:
+            return
+            
         logger.info("[ModelLoader] Loading FER model (PyTorch)...")
-        self.fer_detector = FER(mtcnn=True)
+        self._fer_detector = FER(mtcnn=True)
         logger.info("[ModelLoader] FER model loaded.")
 
     # -----------------------------
-    #  FER WARMUP
+    #  WARMUP (Optional - for first request optimization)
     # -----------------------------
-    @classmethod
-    def warmup_fer(cls):
-        if cls.fer_warmed:
-            return
-
-        logger.info("[ModelLoader] Warming up FER model...")
-
+    def warmup(self):
+        """Warmup all models with dummy inputs"""
+        logger.info("[ModelLoader] Warming up models...")
+        
+        # Warmup PhoBERT
         try:
-            # dummy image
-            dummy = np.zeros((150, 150, 3), dtype=np.uint8)
-            detector = FER()
-            detector.detect_emotions(dummy)
-
-            cls.fer_warmed = True
-            logger.info("[ModelLoader] FER warmup completed.")
-
+            dummy_text = "warmup text"
+            inputs = self.tokenizer(dummy_text, return_tensors="pt").to(self._device)
+            with torch.no_grad():
+                _ = self.model(**inputs)
+            logger.info("[ModelLoader] PhoBERT warmup completed")
+        except Exception as e:
+            logger.exception("[ModelLoader] PhoBERT warmup failed: %s", e)
+        
+        # Warmup FER
+        try:
+            dummy_img = np.zeros((150, 150, 3), dtype=np.uint8)
+            _ = self.fer_detector.detect_emotions(dummy_img)
+            logger.info("[ModelLoader] FER warmup completed")
         except Exception as e:
             logger.exception("[ModelLoader] FER warmup failed: %s", e)
 
@@ -111,5 +147,5 @@ class ModelLoader:
         }
 
 
-# Singleton
+# Singleton instance
 model_loader = ModelLoader()

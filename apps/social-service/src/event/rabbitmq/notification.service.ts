@@ -26,7 +26,7 @@ export class NotificationService {
         priority: 1,
         maxRetries: 3,
       },
-      channels: []
+      channels: [],
     };
 
     const message = {
