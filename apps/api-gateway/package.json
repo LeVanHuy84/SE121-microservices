@@ -20,8 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@nestjs-modules/ioredis": "^2.0.2",
     "@clerk/backend": "^2.13.0",
+    "@nestjs-modules/ioredis": "^2.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
@@ -42,7 +42,8 @@
     "redis": "^5.9.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "svix": "^1.86.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

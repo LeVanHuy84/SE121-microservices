@@ -1,6 +1,6 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bull';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
   CreateNotificationDto,
@@ -8,7 +8,6 @@ import {
   CursorPaginationDTO,
   NotificationResponseDto,
 } from '@repo/dtos';
-import type { ChannelWrapper } from 'amqp-connection-manager';
 import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
@@ -19,10 +18,12 @@ import {
 } from 'src/mongo/schema/notification.schema';
 import { UserPreferenceService } from 'src/user-preference/user-preference.service';
 import { TemplateService } from './template.service';
+import { FirebaseService } from 'src/firebase/firebase.service';
+import { DeviceTokenService } from 'src/firebase/device-token.service';
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  private readonly defaultMaxRetries = 3;
   private readonly NOTIF_CACHE_TTL = 2 * 60 * 60;
   private readonly EMPTY_CACHE_TTL = 60;
   constructor(
@@ -31,8 +32,9 @@ export class NotificationService {
     private readonly templateService: TemplateService,
     private readonly userPreferenceService: UserPreferenceService,
     @InjectQueue('notifications') private notificationQueue: Queue,
-    @Inject('RABBITMQ_CHANNEL') private readonly rabbitChannel: ChannelWrapper,
-    @InjectRedis() private readonly redis: Redis
+    @InjectRedis() private readonly redis: Redis,
+    private readonly firebaseService: FirebaseService,
+    private readonly deviceTokenService: DeviceTokenService
   ) {}
 
   async create(dto: CreateNotificationDto) {
@@ -139,41 +141,95 @@ export class NotificationService {
   }
 
   async publishToChannels(doc: NotificationDocument) {
-    if (!doc.channels?.length) {
-      this.logger.warn(`Notification ${doc._id} has no channels to publish`);
-      return;
+    // Firebase FCM is now the default notification delivery method
+    // No need to specify 'push' channel - all notifications are sent via FCM
+    
+    try {
+      await this.sendPushNotification(doc);
+      this.logger.log(`Sent push notification ${doc._id} via FCM to user ${doc.userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send push notification for ${doc._id}`,
+        error
+      );
     }
-    const basePayload = plainToInstance(
-      NotificationResponseDto,
-      doc.toObject(),
-      {}
-    );
+  }
 
-    // ensure maxRetries in meta
-    const maxRetries = doc.meta?.maxRetries ?? this.defaultMaxRetries;
+  /**
+   * Send push notification via Firebase Cloud Messaging
+   */
+  private async sendPushNotification(doc: NotificationDocument) {
+    try {
+      // Get user's device tokens
+      const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
+        doc.userId
+      );
 
-    await Promise.all(
-      doc.channels.map((ch) => {
-        const routingKey = `channel.${ch}`; // e.g. channel.inapp, channel.email
-        const headers = {
-          'x-request-id':
-            doc.requestId || (doc._id as Types.ObjectId).toString(),
-          'x-retries': 0,
-          'x-max-retries': maxRetries,
-        };
-        return this.rabbitChannel.publish(
-          'notification', // change from notification_exchange to 'notification'
-          routingKey,
-          basePayload,
-          {
-            persistent: true,
-            contentType: 'application/json',
-            headers,
-          }
+      if (deviceTokens.length === 0) {
+        this.logger.warn(`No device tokens found for user ${doc.userId}`);
+        return;
+      }
+
+      const tokens = deviceTokens.map((dt) => dt.token);
+
+      // Prepare notification data
+      const title = this.getNotificationTitle(doc.type);
+      const body = doc.message || 'You have a new notification';
+      const data = {
+        notificationId: (doc._id as Types.ObjectId).toString(),
+        type: doc.type,
+        userId: doc.userId,
+        ...doc.payload,
+      };
+
+      // Convert all data values to strings (FCM requirement)
+      const stringData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(data)) {
+        stringData[key] = typeof value === 'string' ? value : JSON.stringify(value);
+      }
+
+      // Send to multiple devices
+      const result = await this.firebaseService.sendToMultipleDevices(
+        tokens,
+        title,
+        body,
+        stringData
+      );
+
+      this.logger.log(
+        `FCM sent to ${result.successCount}/${tokens.length} devices for user ${doc.userId}`
+      );
+
+      // Mark invalid tokens as inactive
+      if (result.invalidTokens.length > 0) {
+        await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
+        this.logger.warn(
+          `Marked ${result.invalidTokens.length} invalid tokens as inactive`
         );
-      })
-    );
-    this.logger.log(`Published notification ${doc._id} -> ${doc.channels}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to send push notification for ${doc._id}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Get notification title based on type
+   */
+  private getNotificationTitle(type: string): string {
+    const titles: Record<string, string> = {
+      like: 'New Like',
+      comment: 'New Comment',
+      follow: 'New Follower',
+      mention: 'You were mentioned',
+      message: 'New Message',
+      friend_request: 'Friend Request',
+      group_invite: 'Group Invitation',
+      post: 'New Post',
+    };
+    return titles[type] || 'Notification';
   }
 
   async findById(id: string) {
