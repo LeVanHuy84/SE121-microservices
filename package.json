@@ -34,7 +34,6 @@
     "dayjs": "^1.11.19",
     "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.8.1",
-    "kafkajs": "^2.2.4",
-    "neo4j-driver": "^5.28.2"
+    "kafkajs": "^2.2.4"
   }
 }
