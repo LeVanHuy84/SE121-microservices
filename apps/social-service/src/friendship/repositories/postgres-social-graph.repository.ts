@@ -4,6 +4,7 @@ import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
+import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import {
   FriendRecommendation,
@@ -20,6 +21,8 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     private readonly friendshipRepo: Repository<FriendshipEntity>,
     @InjectRepository(UserBlockEntity)
     private readonly userBlockRepo: Repository<UserBlockEntity>,
+    @InjectRepository(FriendRecommendationDismissalEntity)
+    private readonly recommendationDismissalRepo: Repository<FriendRecommendationDismissalEntity>,
   ) {}
 
   async getRelationshipStatus(userId: string, targetId: string) {
@@ -127,6 +130,21 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     });
   }
 
+  async dismissFriendRecommendation(
+    userId: string,
+    candidateId: string,
+    expiresAt: Date,
+  ) {
+    await this.recommendationDismissalRepo.upsert(
+      {
+        userId,
+        candidateId,
+        expiresAt,
+      },
+      ['userId', 'candidateId'],
+    );
+  }
+
   async getFriends(
     userId: string,
     query: CursorPaginationDTO,
@@ -225,6 +243,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           WHERE block_in.blocker_id = cm.candidate_id
             AND block_in.blocked_id = $1
       )
+        AND NOT EXISTS (
+          SELECT 1 FROM friend_recommendation_dismissals dismissal
+          WHERE dismissal.user_id = $1
+            AND dismissal.candidate_id = cm.candidate_id
+            AND dismissal.expires_at > NOW()
+      )
         ${cursorClause}
       ORDER BY "mutualFriends" DESC, id ASC
       LIMIT $${limitParamIndex}
@@ -300,6 +324,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           SELECT 1 FROM user_blocks block_in
           WHERE block_in.blocker_id = rc.candidate_id
             AND block_in.blocked_id = $1
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM friend_recommendation_dismissals dismissal
+          WHERE dismissal.user_id = $1
+            AND dismissal.candidate_id = rc.candidate_id
+            AND dismissal.expires_at > NOW()
       )
       GROUP BY rc.candidate_id
       ORDER BY rc.candidate_id ASC

@@ -1,4 +1,8 @@
-import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
+import {
+  BaseUserDTO,
+  CursorPaginationDTO,
+  CursorPageResponse,
+} from '@repo/dtos';
 
 export type RelationshipStatus =
   | 'NONE'
@@ -11,10 +15,14 @@ export interface FriendRecommendation {
   id: string;
   mutualFriends: number;
   mutualFriendIds: string[];
+  user?: BaseUserDTO | null;
+  mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;
   commonGroupIds?: string[];
   score?: number;
   reasons?: string[];
+  recommendationId?: string;
+  recommendationRequestId?: string;
 }
 
 export interface SocialGraphRepository {
@@ -29,6 +37,11 @@ export interface SocialGraphRepository {
   removeFriend(userId: string, friendId: string): Promise<void>;
   blockUser(userId: string, targetId: string): Promise<void>;
   unblockUser(userId: string, targetId: string): Promise<void>;
+  dismissFriendRecommendation(
+    userId: string,
+    candidateId: string,
+    expiresAt: Date,
+  ): Promise<void>;
   getFriends(
     userId: string,
     query: CursorPaginationDTO,

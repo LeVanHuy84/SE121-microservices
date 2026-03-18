@@ -4,6 +4,7 @@ import {
   GroupClientService,
   GroupRecommendationCandidate,
 } from '../client/group/group-client.service';
+import { UserClientService } from '../client/user/user-client.service';
 import {
   FriendRecommendation,
   SOCIAL_GRAPH_REPOSITORY,
@@ -20,6 +21,7 @@ export class FriendRecommendationService {
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
     private readonly groupClient: GroupClientService,
+    private readonly userClient: UserClientService,
   ) {}
 
   async recommendFriends(
@@ -27,13 +29,16 @@ export class FriendRecommendationService {
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>> {
     const requestedLimit = this.normalizeLimit(query.limit);
-    const candidateLimit = Math.min(
-      Math.max(requestedLimit * this.overscanMultiplier, requestedLimit),
-      this.maxOverscan,
-    );
+    const candidateLimit = query.cursor
+      ? this.maxOverscan
+      : Math.min(
+          Math.max(requestedLimit * this.overscanMultiplier, requestedLimit),
+          this.maxOverscan,
+        );
 
     const graphCandidatePage = await this.socialGraphRepo.recommendFriends(userId, {
       ...query,
+      cursor: undefined,
       limit: candidateLimit,
     });
     const groupCandidates = await this.groupClient.getGroupRecommendationCandidates(
@@ -92,21 +97,36 @@ export class FriendRecommendationService {
         return left.id.localeCompare(right.id);
       });
 
-    const visibleData = rankedCandidates.slice(0, requestedLimit);
+    const startIndex = this.resolveStartIndex(rankedCandidates, query.cursor);
+    if (startIndex === null) {
+      return {
+        data: [],
+        nextCursor: null,
+        hasNextPage: false,
+      };
+    }
+
+    const visibleData = rankedCandidates.slice(
+      startIndex,
+      startIndex + requestedLimit,
+    );
+    const hydratedVisibleData =
+      await this.hydrateRecommendationUsers(visibleData);
+    const nextIndex = startIndex + visibleData.length;
     const hasNextPage =
+      nextIndex < rankedCandidates.length ||
       graphCandidatePage.hasNextPage ||
-      groupCandidates.length >= candidateLimit ||
-      rankedCandidates.length > requestedLimit;
+      groupCandidates.length >= candidateLimit;
 
     this.logger.debug(
       `Ranked ${rankedCandidates.length} friend candidates for user ${userId}`,
     );
 
     return {
-      data: visibleData,
+      data: hydratedVisibleData,
       nextCursor:
-        hasNextPage && visibleData.length > 0
-          ? visibleData[visibleData.length - 1].id
+        hasNextPage && hydratedVisibleData.length > 0
+          ? hydratedVisibleData[hydratedVisibleData.length - 1].id
           : null,
       hasNextPage,
     };
@@ -161,5 +181,48 @@ export class FriendRecommendationService {
     }
 
     return Math.max(1, Math.floor(limit));
+  }
+
+  private async hydrateRecommendationUsers(
+    recommendations: FriendRecommendation[],
+  ): Promise<FriendRecommendation[]> {
+    if (recommendations.length === 0) {
+      return recommendations;
+    }
+
+    const userIds = [
+      ...new Set(
+        recommendations.flatMap((recommendation) => [
+          recommendation.id,
+          ...recommendation.mutualFriendIds.slice(0, 3),
+        ]),
+      ),
+    ];
+
+    const usersById = await this.userClient.getUserInfos(userIds);
+
+    return recommendations.map((recommendation) => ({
+      ...recommendation,
+      user: usersById[recommendation.id] ?? null,
+      mutualFriendPreview: recommendation.mutualFriendIds
+        .slice(0, 3)
+        .map((mutualFriendId) => usersById[mutualFriendId])
+        .filter((user): user is NonNullable<typeof user> => Boolean(user)),
+    }));
+  }
+
+  private resolveStartIndex(
+    rankedCandidates: FriendRecommendation[],
+    cursor: string | undefined,
+  ): number | null {
+    if (!cursor) {
+      return 0;
+    }
+
+    const cursorIndex = rankedCandidates.findIndex(
+      (candidate) => candidate.id === cursor,
+    );
+
+    return cursorIndex === -1 ? null : cursorIndex + 1;
   }
 }

@@ -91,6 +91,17 @@ export class SocialController {
     return this.socialClient.send('suggest_friends', { userId, query });
   }
 
+  @Post('friends/recommend/dismiss/:targetId')
+  async dismissFriendRecommendation(
+    @CurrentUserId() userId: string,
+    @Param('targetId') targetId: string
+  ) {
+    return this.socialClient.send('dismiss_friend_recommendation', {
+      userId,
+      targetId,
+    });
+  }
+
   @Get('friends/:userId')
   async getUserFriends(
     @Param('userId') userId: string,

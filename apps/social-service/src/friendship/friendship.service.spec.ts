@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { FriendRecommendationService } from './friend-recommendation.service';
 import { FriendshipService } from './friendship.service';
@@ -6,8 +7,11 @@ import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository'
 
 describe('FriendshipService', () => {
   let service: FriendshipService;
+  const dismissFriendRecommendation = jest.fn();
 
   beforeEach(async () => {
+    dismissFriendRecommendation.mockReset();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FriendshipService,
@@ -22,6 +26,7 @@ describe('FriendshipService', () => {
             removeFriend: jest.fn(),
             blockUser: jest.fn(),
             unblockUser: jest.fn(),
+            dismissFriendRecommendation,
             getFriends: jest.fn(),
             getFriendRequests: jest.fn(),
             recommendFriends: jest.fn(),
@@ -51,5 +56,26 @@ describe('FriendshipService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should dismiss friend recommendation with expiry', async () => {
+    const before = Date.now();
+
+    const result = await service.dismissFriendRecommendation('self', 'target');
+
+    expect(dismissFriendRecommendation).toHaveBeenCalledTimes(1);
+    expect(dismissFriendRecommendation).toHaveBeenCalledWith(
+      'self',
+      'target',
+      expect.any(Date),
+    );
+    expect(result.message).toBe('Friend recommendation dismissed successfully');
+    expect(result.expiresAt.getTime()).toBeGreaterThan(before);
+  });
+
+  it('should reject dismissing yourself', async () => {
+    await expect(
+      service.dismissFriendRecommendation('self', 'self'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

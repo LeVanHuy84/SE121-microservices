@@ -16,6 +16,8 @@ import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository'
 @Injectable()
 export class FriendshipService {
   private readonly logger = new Logger(FriendshipService.name);
+  private readonly recommendationDismissDurationMs =
+    30 * 24 * 60 * 60 * 1000;
 
   constructor(
     @Inject(SOCIAL_GRAPH_REPOSITORY)
@@ -146,6 +148,27 @@ export class FriendshipService {
     await this.socialGraphRepo.unblockUser(userId, targetId);
 
     return { message: 'User unblocked successfully' };
+  }
+
+  async dismissFriendRecommendation(userId: string, targetId: string) {
+    if (userId === targetId) {
+      throw new BadRequestException('Cannot dismiss yourself');
+    }
+
+    const expiresAt = new Date(
+      Date.now() + this.recommendationDismissDurationMs,
+    );
+
+    await this.socialGraphRepo.dismissFriendRecommendation(
+      userId,
+      targetId,
+      expiresAt,
+    );
+
+    return {
+      message: 'Friend recommendation dismissed successfully',
+      expiresAt,
+    };
   }
 
   async getFriends(

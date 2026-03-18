@@ -118,6 +118,20 @@ export class FriendshipController {
     return this.friendshipService.blockUser(data.userId, data.targetId);
   }
 
+  @MessagePattern('dismiss_friend_recommendation')
+  async dismissFriendRecommendation(
+    @Payload()
+    data: {
+      userId: string;
+      targetId: string;
+    },
+  ) {
+    return this.friendshipService.dismissFriendRecommendation(
+      data.userId,
+      data.targetId,
+    );
+  }
+
   @MessagePattern('unblock_user')
   async unblockUser(
     @Payload()
