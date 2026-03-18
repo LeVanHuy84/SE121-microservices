@@ -248,6 +248,74 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     };
   }
 
+  async summarizeCandidates(
+    userId: string,
+    candidateIds: string[],
+  ): Promise<FriendRecommendation[]> {
+    const dedupedCandidateIds = [...new Set(candidateIds.filter(Boolean))];
+    if (dedupedCandidateIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.dataSource.query(
+      `
+      WITH requested_candidates AS (
+        SELECT UNNEST($2::varchar[]) AS candidate_id
+      )
+      SELECT
+        rc.candidate_id AS id,
+        COUNT(DISTINCT candidate_friend.friend_id)::int AS "mutualFriends",
+        COALESCE(
+          ARRAY_AGG(DISTINCT candidate_friend.friend_id ORDER BY candidate_friend.friend_id)
+            FILTER (WHERE candidate_friend.friend_id IS NOT NULL),
+          '{}'
+        ) AS "mutualFriendIds"
+      FROM requested_candidates rc
+      LEFT JOIN friendships viewer_friend
+        ON viewer_friend.user_id = $1
+      LEFT JOIN friendships candidate_friend
+        ON candidate_friend.user_id = rc.candidate_id
+       AND candidate_friend.friend_id = viewer_friend.friend_id
+      WHERE NOT EXISTS (
+          SELECT 1 FROM friendships direct_friend
+          WHERE direct_friend.user_id = $1
+            AND direct_friend.friend_id = rc.candidate_id
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM friend_requests outgoing_req
+          WHERE outgoing_req.requester_id = $1
+            AND outgoing_req.receiver_id = rc.candidate_id
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM friend_requests incoming_req
+          WHERE incoming_req.requester_id = rc.candidate_id
+            AND incoming_req.receiver_id = $1
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks block_out
+          WHERE block_out.blocker_id = $1
+            AND block_out.blocked_id = rc.candidate_id
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks block_in
+          WHERE block_in.blocker_id = rc.candidate_id
+            AND block_in.blocked_id = $1
+      )
+      GROUP BY rc.candidate_id
+      ORDER BY rc.candidate_id ASC
+      `,
+      [userId, dedupedCandidateIds],
+    );
+
+    return rows.map((row) => ({
+      id: String(row.id),
+      mutualFriends: Number(row.mutualFriends),
+      mutualFriendIds: (row.mutualFriendIds ?? []).map((value: unknown) =>
+        String(value),
+      ),
+    }));
+  }
+
   async getFriendIds(userId: string, limit?: number): Promise<string[]> {
     const rows = await this.friendshipRepo.find({
       where: { userId },

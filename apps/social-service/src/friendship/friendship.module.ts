@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { GroupClientModule } from 'src/client/group/group-client.module';
 import { FriendshipController } from './friendship.controller';
+import { FriendRecommendationService } from './friend-recommendation.service';
 import { FriendshipService } from './friendship.service';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
@@ -10,6 +12,7 @@ import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository'
 
 @Module({
   imports: [
+    GroupClientModule,
     TypeOrmModule.forFeature([
       FriendRequestEntity,
       FriendshipEntity,
@@ -18,6 +21,7 @@ import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository'
   ],
   controllers: [FriendshipController],
   providers: [
+    FriendRecommendationService,
     FriendshipService,
     PostgresSocialGraphRepository,
     {

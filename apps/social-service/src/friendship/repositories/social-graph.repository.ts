@@ -11,6 +11,10 @@ export interface FriendRecommendation {
   id: string;
   mutualFriends: number;
   mutualFriendIds: string[];
+  commonGroups?: number;
+  commonGroupIds?: string[];
+  score?: number;
+  reasons?: string[];
 }
 
 export interface SocialGraphRepository {
@@ -37,6 +41,10 @@ export interface SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>>;
+  summarizeCandidates(
+    userId: string,
+    candidateIds: string[],
+  ): Promise<FriendRecommendation[]>;
   getFriendIds(userId: string, limit?: number): Promise<string[]>;
   getBlockedUsers(
     userId: string,

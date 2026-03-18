@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
+import { FriendRecommendationService } from './friend-recommendation.service';
 import type {
   FriendRecommendation,
   SocialGraphRepository,
@@ -19,6 +20,7 @@ export class FriendshipService {
   constructor(
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
+    private readonly friendRecommendationService: FriendRecommendationService,
     private readonly buffer: RecentActivityBufferService,
   ) {}
 
@@ -170,7 +172,7 @@ export class FriendshipService {
     this.logger.debug(
       `Recommending friends for userId: ${userId} with query: ${JSON.stringify(query)}`,
     );
-    return this.socialGraphRepo.recommendFriends(userId, query);
+    return this.friendRecommendationService.recommendFriends(userId, query);
   }
 
   async getFriendIds(userId: string, limit?: number) {

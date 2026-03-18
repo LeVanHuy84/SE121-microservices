@@ -105,4 +105,25 @@ export class GroupMemberController {
   ): Promise<string[]> {
     return await this.groupMemberService.getMemberUserIds(payload.groupId);
   }
+
+
+  @MessagePattern('get_common_group_counts_batch')
+  async getCommonGroupCountsBatch(
+    @Payload() payload: { userId: string; candidateIds: string[] },
+  ): Promise<Record<string, number>> {
+    return this.groupMemberService.getCommonGroupCountsBatch(
+      payload.userId,
+      payload.candidateIds,
+    );
+  }
+
+  @MessagePattern('get_group_recommendation_candidates')
+  async getGroupRecommendationCandidates(
+    @Payload() payload: { userId: string; limit: number },
+  ): Promise<Array<{ id: string; commonGroups: number }>> {
+    return this.groupMemberService.getGroupRecommendationCandidates(
+      payload.userId,
+      payload.limit,
+    );
+  }
 }

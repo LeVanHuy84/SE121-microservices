@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
+import { FriendRecommendationService } from './friend-recommendation.service';
 import { FriendshipService } from './friendship.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 
@@ -24,6 +25,7 @@ describe('FriendshipService', () => {
             getFriends: jest.fn(),
             getFriendRequests: jest.fn(),
             recommendFriends: jest.fn(),
+            summarizeCandidates: jest.fn(),
             getFriendIds: jest.fn(),
             getBlockedUsers: jest.fn(),
           },
@@ -33,6 +35,12 @@ describe('FriendshipService', () => {
           useValue: {
             addRecentActivity: jest.fn(),
             clearActivity: jest.fn(),
+          },
+        },
+        {
+          provide: FriendRecommendationService,
+          useValue: {
+            recommendFriends: jest.fn(),
           },
         },
       ],
