@@ -8,6 +8,11 @@ import {
   TRENDING_WEIGHTS,
   EMOTION_MULTIPLIERS,
   TRENDING_DECAY_LAMBDA,
+  CONFIDENCE_SIGMOID_FACTOR,
+  CONFIDENCE_SIGMOID_MIDPOINT,
+  RISK_HINT_MULTIPLIERS,
+  HIGH_RISK_EXTRA_SUPPRESSION,
+  MODALITY_WEIGHTS,
 } from '../ranking.constants';
 import { EmotionFeatures } from '../interfaces/emotion-features.interface';
 import {
@@ -19,11 +24,13 @@ import {
  * Ranking strategy cho Trending Feed
  *
  * Formula:
- * finalScore = (engagement^0.4) × (freshness^0.2) × (emotionBoost^0.3) × (quality^0.1)
+ * modelScore = (engagement^0.4) × (freshness^0.2) × (emotionBoost^0.3) × (quality^0.1)
+ * finalScore = baseScore^alpha × modelScore^(1 - alpha)
  */
 @Injectable()
 export class TrendingRankingStrategy implements IRankingStrategy {
   private readonly logger = new Logger(TrendingRankingStrategy.name);
+  private readonly baseScoreBlendAlpha = 0.7;
   private readonly safetyStrength = {
     positiveBoost: 2.0,
     negativeSuppression: 0.5,
@@ -40,7 +47,7 @@ export class TrendingRankingStrategy implements IRankingStrategy {
     candidate: RankingCandidate,
     context: RankingContext,
   ): Promise<number> {
-    const { snapshot, timestamp } = candidate;
+    const { snapshot, timestamp, baseScore } = candidate;
     const { emotionFeatures } = context;
 
     const engagementScore = this.computeEngagement(snapshot.stats);
@@ -66,10 +73,38 @@ export class TrendingRankingStrategy implements IRankingStrategy {
       this.logger,
     );
 
+    const riskMultiplier = this.computeRiskHintMultiplier(
+      snapshot.emotionFeature?.riskHintLevel,
+      emotionFeatures?.riskScore,
+    );
+
+    const modalityWeight = this.computeModalityWeight(
+      snapshot.emotionFeature?.dominantModality,
+    );
+
+    const modelScore =
+      trendingScore *
+      emotionalRelevance *
+      emotionalStateAdjustment *
+      riskMultiplier *
+      modalityWeight;
+
+    const stableBaseScore = this.ensurePositiveScore(baseScore);
+    const stableModelScore = this.ensurePositiveScore(modelScore);
+
     const finalScore =
-      trendingScore * emotionalRelevance * emotionalStateAdjustment;
+      Math.pow(stableBaseScore, this.baseScoreBlendAlpha) *
+      Math.pow(stableModelScore, 1 - this.baseScoreBlendAlpha);
 
     return finalScore;
+  }
+
+  private ensurePositiveScore(value: number): number {
+    if (!Number.isFinite(value) || value <= 0) {
+      return 1e-6;
+    }
+
+    return value;
   }
 
   /**
@@ -108,9 +143,20 @@ export class TrendingRankingStrategy implements IRankingStrategy {
 
     const baseIntensity = intensity || 0.5;
     const popularityMultiplier = EMOTION_MULTIPLIERS[label] || 1.0;
-    const qualityFactor = confidence || 0.7;
+    const confidenceWeight = this.computeConfidenceWeight(confidence);
 
-    return baseIntensity * popularityMultiplier * qualityFactor;
+    return baseIntensity * popularityMultiplier * confidenceWeight;
+  }
+
+  private computeConfidenceWeight(confidence?: number): number {
+    if (confidence === undefined || confidence === null) {
+      return 1;
+    }
+
+    const normalized = Math.max(0, Math.min(1, confidence));
+    const x =
+      CONFIDENCE_SIGMOID_FACTOR * (normalized - CONFIDENCE_SIGMOID_MIDPOINT);
+    return 1 / (1 + Math.exp(-x));
   }
 
   private computeEmotionalRelevance(
@@ -127,15 +173,36 @@ export class TrendingRankingStrategy implements IRankingStrategy {
   }
 
   /**
-   * Quality Score = confidence×0.6 + hasMedia×0.3 + isSafe×0.1
+   * Quality Score = confidence×0.6 + hasMedia×0.3
+   * (risk safety handled by riskHint multiplier in final score)
    */
   private computeQuality(snapshot: RankingCandidate['snapshot']): number {
     const { emotionFeature, mediaPreviews } = snapshot;
 
     const confidenceScore = emotionFeature?.confidence || 0.5;
     const hasMedia = mediaPreviews?.length > 0 ? 0.3 : 0;
-    const isSafe = emotionFeature?.riskHintLevel === 'low' ? 0.1 : 0;
 
-    return confidenceScore * 0.6 + hasMedia + isSafe;
+    return confidenceScore * 0.6 + hasMedia;
+  }
+
+  private computeRiskHintMultiplier(
+    riskHintLevel?: string,
+    userRiskScore?: number,
+  ): number {
+    if (!riskHintLevel) return 1;
+
+    const key = riskHintLevel.toLowerCase();
+    let multiplier = RISK_HINT_MULTIPLIERS[key] ?? 1;
+
+    if ((userRiskScore ?? 0) > 0.7 && (key === 'high' || key === 'critical')) {
+      multiplier *= HIGH_RISK_EXTRA_SUPPRESSION;
+    }
+
+    return multiplier;
+  }
+
+  private computeModalityWeight(dominantModality?: string): number {
+    if (!dominantModality) return 1;
+    return MODALITY_WEIGHTS[dominantModality.toLowerCase()] ?? 1;
   }
 }

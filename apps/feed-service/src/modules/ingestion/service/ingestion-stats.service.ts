@@ -23,7 +23,6 @@ import {
 @Injectable()
 export class StatsIngestionService {
   private readonly logger = new Logger(StatsIngestionService.name);
-  private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 ngày
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
@@ -75,8 +74,7 @@ export class StatsIngestionService {
 
         pipeline.zincrby(scoreKey, totalScoreDelta, targetId);
         pipeline.hset(metaKey, 'lastStatAt', timestamp);
-        pipeline.expire(metaKey, this.SCORE_TTL_SECONDS);
-        pipeline.expire(scoreKey, this.SCORE_TTL_SECONDS);
+        pipeline.expire(metaKey, 30 * 24 * 60 * 60);
       }
 
       // --- Cập nhật snapshot trong MongoDB ---

@@ -15,6 +15,7 @@ export class ConsumerController {
   @EventPattern(EventTopic.EMOTION_RESULT)
   async handleAnalysisEvents(@Payload() message: AnalysisResultEvent) {
     const { type, payload } = message;
+    this.logger.debug(`Received event ${type} for target ${payload.targetId}`);
 
     try {
       switch (type) {

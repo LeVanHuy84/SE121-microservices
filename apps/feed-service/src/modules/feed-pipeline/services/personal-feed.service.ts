@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 import {
   CursorPageResponse,
   FeedEventType,
@@ -9,7 +10,7 @@ import {
   TargetType,
 } from '@repo/dtos';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { SnapshotMapper } from '../../../common/snapshot.mapper';
 import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
@@ -17,10 +18,26 @@ import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { RankingService } from '../../ranking/services/ranking.service';
 import { RankingCandidate } from '../../ranking/interfaces/ranking-strategy.interface';
+import Redis from 'ioredis';
+
+type PersonalRankingCandidate = RankingCandidate & {
+  candidateId: string;
+};
+
+type PersonalFeedCursor = {
+  offset: number;
+  frontier: {
+    score: number;
+    createdAt: number;
+    id: string;
+  } | null;
+};
 
 @Injectable()
 export class PersonalFeedService {
   private readonly logger = new Logger(PersonalFeedService.name);
+  private readonly sessionWindowTtlSeconds = 300;
+  private readonly maxSessionWindowSize = 300;
 
   constructor(
     @InjectModel(FeedItem.name)
@@ -28,262 +45,441 @@ export class PersonalFeedService {
     private readonly snapshotRepo: SnapshotRepository,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
     @Inject('GROUP_SERVICE') private readonly groupClient: ClientProxy,
-    private readonly rankingService: RankingService, // ⭐ Inject RankingService
+    @InjectRedis() private readonly redis: Redis,
+    private readonly rankingService: RankingService,
   ) {}
 
-  /**
-   * 📌 Personal feed with emotion-aware ranking
-   *
-   * New Flow (schema updated):
-   * 1. Query feed_items (có postId cho cả POST và SHARE)
-   * 2. Extract unique postIds → batch load post_snapshots (1 query)
-   * 3. Build RankingCandidates từ post_snapshots
-   * 4. Re-rank with RankingService
-   * 5. Load share_snapshots CHỈ cho top N SHARE items
-   * 6. Map to DTO
-   */
   async getUserFeed(
     userId: string,
     query: PersonalFeedQuery,
   ): Promise<CursorPageResponse<FeedItemDTO>> {
-    const { cursor, limit, mainEmotion } = query;
-
-    // 🎯 Step 1: Over-fetch feed items (3x for re-ranking)
-    const overFetchLimit = limit * 3;
-    const feedItems = await this.getFeedItems(userId, cursor, overFetchLimit);
-    if (!feedItems.length) return new CursorPageResponse([], null, false);
-
-    const hasNextPage = feedItems.length > overFetchLimit;
-    const candidates = feedItems.slice(0, overFetchLimit);
-
-    // 🎯 Step 2: Extract unique postIds (feed_items.postId works for both POST & SHARE)
-    const uniquePostIds = Array.from(
-      new Set(candidates.map((item) => item.postId)),
-    );
-
-    // 🎯 Step 3: Batch load post_snapshots (1 query!)
-    const posts = await this.snapshotRepo.findPostsByIds(
-      uniquePostIds,
-      mainEmotion,
-    );
-    const postMap = new Map(posts.map((p) => [p.postId, p]));
-
-    // 🎯 Step 4: Build RankingCandidates từ post_snapshots
-    const rankingCandidates: RankingCandidate[] = [];
-
-    for (const item of candidates) {
-      const post = postMap.get(item.postId);
-      if (post) {
-        rankingCandidates.push({
-          postId: item.postId,
-          snapshot: post,
-          baseScore: item.rankingScore ?? 1000,
-          timestamp: new Date(item.createdAt ?? Date.now()),
-        });
-      }
+    if (query.mainEmotion) {
+      return this.getEmotionFilteredFeed(userId, query);
     }
 
-    if (!rankingCandidates.length) {
+    return this.getRankedFeed(userId, query);
+  }
+
+  private async getEmotionFilteredFeed(
+    userId: string,
+    query: PersonalFeedQuery,
+  ): Promise<CursorPageResponse<FeedItemDTO>> {
+    const { limit, mainEmotion } = query;
+    const pageLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
+
+    const feedItems = await this.feedItemModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(pageLimit)
+      .lean();
+
+    if (!feedItems.length) {
       return new CursorPageResponse([], null, false);
     }
 
-    // 🎯 Step 5: Re-rank with emotional state adjustment
-    const ranked = await this.rankingService.rankForPersonal(
-      rankingCandidates,
-      userId,
-    );
+    const postIds = [...new Set(feedItems.map((f) => f.postId))];
 
-    const topRanked = ranked.slice(0, limit);
+    const posts = await this.snapshotRepo.findPostsByIds(postIds, mainEmotion);
+    const postMap = new Map(posts.map((p) => [p.postId, p]));
 
-    // 🎯 Step 6: Build response DTOs
-    // Map ranked postIds back to original feedItems
-    const rankedPostIdSet = new Set(topRanked.map((r) => r.postId));
-    const topFeedItems = candidates.filter((item) =>
-      rankedPostIdSet.has(item.postId),
-    );
-
-    // Load share snapshots for SHARE items only
-    const shareIds = topFeedItems
-      .filter((item) => item.eventType === FeedEventType.SHARE)
-      .map((item) => item.refId);
+    const shareIds = feedItems
+      .filter((f) => f.eventType === FeedEventType.SHARE)
+      .map((f) => f.refId);
 
     const shares = await this.snapshotRepo.findSharesByIds(shareIds);
     const shareMap = new Map(shares.map((s) => [s.shareId, s]));
 
-    // Load group info
+    const data: FeedItemDTO[] = [];
+
+    for (const feedItem of feedItems) {
+      const post = postMap.get(feedItem.postId);
+      if (!post) continue;
+
+      if (feedItem.eventType === FeedEventType.POST) {
+        data.push({
+          id: feedItem._id?.toString() ?? '',
+          type: FeedEventType.POST,
+          item: SnapshotMapper.toPostSnapshotDTO(post),
+        });
+      } else {
+        const share = shareMap.get(feedItem.refId);
+        if (!share) continue;
+
+        data.push({
+          id: feedItem._id?.toString() ?? '',
+          type: FeedEventType.SHARE,
+          item: SnapshotMapper.toShareSnapshotDTO(share, post),
+        });
+      }
+    }
+
+    const lastItem = feedItems[feedItems.length - 1];
+
+    const nextCursor = lastItem
+      ? `${lastItem.createdAt?.getTime()}:${lastItem._id}`
+      : null;
+
+    return new CursorPageResponse(
+      data,
+      nextCursor,
+      feedItems.length === pageLimit,
+    );
+  }
+
+  /**
+   * =====================================================
+   * PERSONAL RANKED FEED
+   * =====================================================
+   */
+
+  private async getRankedFeed(
+    userId: string,
+    query: PersonalFeedQuery,
+  ): Promise<CursorPageResponse<FeedItemDTO>> {
+    const { cursor, limit } = query;
+    const pageLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
+
+    const parsedCursor = this.parseCursor(cursor);
+    const sessionKey = this.getSessionWindowKey(userId);
+
+    let offset = parsedCursor.offset;
+    let windowIds = await this.getSessionWindow(sessionKey);
+
+    /**
+     * rebuild window nếu cache miss
+     */
+    if (!windowIds) {
+      const rebuiltWindow = await this.buildRankedWindow(
+        userId,
+        undefined,
+        parsedCursor.frontier,
+      );
+
+      windowIds = rebuiltWindow;
+      offset = 0;
+
+      if (windowIds.length) {
+        await this.redis.setex(
+          sessionKey,
+          this.sessionWindowTtlSeconds,
+          windowIds.join(','),
+        );
+      }
+    }
+
+    if (!windowIds?.length || offset >= windowIds.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    const pageIds = windowIds.slice(offset, offset + pageLimit);
+
+    const topFeedItems = await this.findFeedItemsByIdsInOrder(pageIds);
+
+    if (!topFeedItems.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    /**
+     * ==============================
+     * Load snapshots + reactions (parallel)
+     * ==============================
+     */
+
+    const uniquePostIds = Array.from(
+      new Set(topFeedItems.map((i) => i.postId)),
+    );
+
+    const shareIds = topFeedItems
+      .filter((i) => i.eventType === FeedEventType.SHARE)
+      .map((i) => i.refId);
+
+    const postIds = topFeedItems
+      .filter((i) => i.eventType === FeedEventType.POST)
+      .map((i) => i.refId);
+
+    const [posts, shares, [postReactions, shareReactions]] = await Promise.all([
+      this.snapshotRepo.findPostsByIds(uniquePostIds),
+
+      this.snapshotRepo.findSharesByIds(shareIds),
+
+      Promise.all([
+        firstValueFrom(
+          this.postClient.send<Record<string, ReactionType>>(
+            'get_reacted_types_batch',
+            {
+              userId,
+              targetType: TargetType.POST,
+              targetIds: postIds,
+            },
+          ),
+        ),
+        firstValueFrom(
+          this.postClient.send<Record<string, ReactionType>>(
+            'get_reacted_types_batch',
+            {
+              userId,
+              targetType: TargetType.SHARE,
+              targetIds: shareIds,
+            },
+          ),
+        ),
+      ]),
+    ]);
+
+    const postMap = new Map(posts.map((p) => [p.postId, p]));
+    const shareMap = new Map(shares.map((s) => [s.shareId, s]));
+
+    /**
+     * ==============================
+     * Load group info
+     * ==============================
+     */
+
     const groupIds = Array.from(
       new Set(posts.map((p) => p.groupId).filter(Boolean) as string[]),
     );
 
     let groupMap = new Map<string, GroupInfoDTO>();
-    if (groupIds.length > 0) {
+
+    if (groupIds.length) {
       const groups = await firstValueFrom(
         this.groupClient.send<GroupInfoDTO[]>('get_group_info_batch', groupIds),
       );
+
       groupMap = new Map(groups.map((g) => [g.id, g]));
     }
 
-    // Attach groups to posts
     posts.forEach((post) => {
       if (post.groupId) {
         (post as any).group = groupMap.get(post.groupId);
       }
     });
 
-    // Get reactions
-    const postIds = topFeedItems
-      .filter((item) => item.eventType === FeedEventType.POST)
-      .map((item) => item.refId);
+    /**
+     * ==============================
+     * Map DTO
+     * ==============================
+     */
 
-    const [postReactions, shareReactions] = await Promise.all([
-      firstValueFrom(
-        this.postClient.send<Record<string, ReactionType>>(
-          'get_reacted_types_batch',
-          {
-            userId,
-            targetType: TargetType.POST,
-            targetIds: postIds,
-          },
-        ),
-      ),
-      firstValueFrom(
-        this.postClient.send<Record<string, ReactionType>>(
-          'get_reacted_types_batch',
-          {
-            userId,
-            targetType: TargetType.SHARE,
-            targetIds: shareIds,
-          },
-        ),
-      ),
-    ]);
-
-    // 🎯 Step 7: Map to FeedItemDTO (preserve ranking order)
     const data: FeedItemDTO[] = [];
-    for (const rankedItem of topRanked) {
-      const feedItem = topFeedItems.find(
-        (item) => item.postId === rankedItem.postId,
-      );
-      if (!feedItem) continue;
 
+    for (const feedItem of topFeedItems) {
       const post = postMap.get(feedItem.postId);
       if (!post) continue;
 
       if (feedItem.eventType === FeedEventType.POST) {
         const reactedType = postReactions?.[feedItem.refId];
+
         data.push({
           id: feedItem._id?.toString() ?? '',
           type: FeedEventType.POST,
           item: SnapshotMapper.toPostSnapshotDTO(post, reactedType),
         });
-      } else if (feedItem.eventType === FeedEventType.SHARE) {
+      } else {
         const share = shareMap.get(feedItem.refId);
+        if (!share) continue;
+
         const reactedType = shareReactions?.[feedItem.refId];
-        if (share) {
-          data.push({
-            id: feedItem._id?.toString() ?? '',
-            type: FeedEventType.SHARE,
-            item: SnapshotMapper.toShareSnapshotDTO(share, post, reactedType),
-          });
-        }
+
+        data.push({
+          id: feedItem._id?.toString() ?? '',
+          type: FeedEventType.SHARE,
+          item: SnapshotMapper.toShareSnapshotDTO(share, post, reactedType),
+        });
       }
     }
 
-    // 🎯 Step 8: Build cursor
+    /**
+     * ==============================
+     * Cursor build (NO extra query)
+     * ==============================
+     */
+
     let nextCursor: string | null = null;
-    if (data.length > 0 && topRanked.length > 0) {
-      const lastRanked = topRanked[topRanked.length - 1];
-      const lastFeedItem = topFeedItems.find(
-        (item) => item.postId === lastRanked.postId,
-      );
-      if (lastFeedItem) {
-        nextCursor = `${lastFeedItem.rankingScore}_${new Date(
-          lastFeedItem.createdAt ?? Date.now(),
-        ).getTime()}`;
+    const nextOffset = offset + pageIds.length;
+    const hasNextPage = nextOffset < windowIds.length;
+
+    if (hasNextPage) {
+      const lastItem = topFeedItems[topFeedItems.length - 1];
+
+      if (lastItem?._id) {
+        nextCursor = `${nextOffset}:${lastItem.rankingScore ?? 0}:${new Date(
+          lastItem.createdAt ?? Date.now(),
+        ).getTime()}:${lastItem._id.toString()}`;
       }
     }
 
     this.logger.log(
-      `Personal feed for user ${userId}: ${topRanked.length}/${rankingCandidates.length} items re-ranked`,
+      `Personal ranked feed for user ${userId}: ${data.length}/${windowIds.length}`,
     );
 
     return new CursorPageResponse(data, nextCursor, hasNextPage);
   }
 
   /**
-   * 👁️ Mark feed items as viewed
-   * - Reduce rankingScore by 10% (decay mechanism)
-   * - Track viewed emotions for affinity learning
+   * =====================================================
+   * SESSION WINDOW
+   * =====================================================
    */
-  async markFeedItemViewed(userId: string, feedItemIds: string[]) {
-    if (!feedItemIds?.length) return;
 
-    // 1️⃣ Update rankingScore decay
-    await this.feedItemModel.updateMany({ _id: { $in: feedItemIds } }, [
-      {
-        $set: {
-          rankingScore: { $multiply: ['$rankingScore', 0.9] },
-          lastViewedAt: new Date(),
-        },
-      },
-    ]);
+  private async buildRankedWindow(
+    userId: string,
+    mainEmotion?: string,
+    frontier?: PersonalFeedCursor['frontier'] | null,
+  ): Promise<string[]> {
+    const candidateLimit = this.maxSessionWindowSize * 2;
 
-    // 2️⃣ Track viewed emotions for affinity learning
-    const feedItems = await this.feedItemModel
-      .find({ _id: { $in: feedItemIds } })
-      .lean();
+    const candidates = await this.getCandidatesByFrontier(
+      userId,
+      candidateLimit,
+      frontier,
+    );
 
-    if (!feedItems.length) return;
+    if (!candidates.length) return [];
 
-    // Extract unique postIds (feedItem.postId works for both POST & SHARE)
-    const postIds = Array.from(new Set(feedItems.map((item) => item.postId)));
+    const uniquePostIds = Array.from(new Set(candidates.map((c) => c.postId)));
 
-    // Batch load posts
-    const posts = await this.snapshotRepo.findPostsByIds(postIds);
+    const posts = await this.snapshotRepo.findPostsByIds(
+      uniquePostIds,
+      mainEmotion,
+    );
 
-    // Track each viewed post with emotion
-    const trackPromises: Promise<void>[] = [];
+    const postMap = new Map(posts.map((p) => [p.postId, p]));
 
-    posts.forEach((post) => {
-      if (post.emotionFeature?.label) {
-        trackPromises.push(
-          this.rankingService.trackUserView(
-            userId,
-            post.postId,
-            post.emotionFeature.label,
-            post.emotionFeature.scores,
-          ),
-        );
-      }
-    });
+    const rankingCandidates: PersonalRankingCandidate[] = [];
 
-    if (trackPromises.length > 0) {
-      await Promise.all(trackPromises);
-      this.logger.debug(
-        `Tracked ${trackPromises.length} viewed emotions for user ${userId}`,
-      );
+    for (const item of candidates) {
+      const post = postMap.get(item.postId);
+      const candidateId = item._id?.toString();
+
+      if (!post || !candidateId) continue;
+
+      rankingCandidates.push({
+        candidateId,
+        postId: item.postId,
+        snapshot: post,
+        baseScore: item.rankingScore ?? 1000,
+        timestamp: new Date(item.createdAt ?? Date.now()),
+      });
     }
+
+    if (!rankingCandidates.length) return [];
+
+    /**
+     * skip ranking nếu candidate nhỏ
+     */
+    if (rankingCandidates.length <= this.maxSessionWindowSize) {
+      return rankingCandidates.map((c) => c.candidateId);
+    }
+
+    const ranked = await this.rankingService.rankForPersonal(
+      rankingCandidates,
+      userId,
+    );
+
+    return ranked.slice(0, this.maxSessionWindowSize).map((c) => c.candidateId);
   }
 
-  // ========================================================
-  // Private helpers
-  // ========================================================
+  /**
+   * =====================================================
+   * Mongo helpers
+   * =====================================================
+   */
 
-  /** 🔹 Truy vấn feed items từ Mongo */
-  private async getFeedItems(userId: string, cursor?: string, limit = 10) {
+  private async getCandidatesByFrontier(
+    userId: string,
+    limit: number,
+    frontier?: PersonalFeedCursor['frontier'] | null,
+  ) {
     const filter: any = { userId };
-    if (cursor) {
-      const [rankingScore, createdAt] = cursor.split('_').map(Number);
+
+    if (frontier && Types.ObjectId.isValid(frontier.id)) {
+      const cursorId = new Types.ObjectId(frontier.id);
+      const createdAtDate = new Date(frontier.createdAt);
+
       filter.$or = [
-        { rankingScore: { $lt: rankingScore } },
-        { rankingScore, createdAt: { $lt: new Date(createdAt) } },
+        { rankingScore: { $lt: frontier.score } },
+        { rankingScore: frontier.score, createdAt: { $lt: createdAtDate } },
+        {
+          rankingScore: frontier.score,
+          createdAt: createdAtDate,
+          _id: { $lt: cursorId },
+        },
       ];
     }
 
     return this.feedItemModel
       .find(filter)
-      .sort({ rankingScore: -1, createdAt: -1 })
-      .limit(limit + 1)
+      .select('_id postId rankingScore createdAt refId eventType')
+      .sort({ rankingScore: -1, createdAt: -1, _id: -1 })
+      .limit(limit)
       .lean();
+  }
+
+  private async findFeedItemsByIdsInOrder(candidateIds: string[]) {
+    if (!candidateIds.length) return [];
+
+    const objectIds = candidateIds
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+
+    const items = await this.feedItemModel
+      .find({ _id: { $in: objectIds } })
+      .lean();
+
+    const itemMap = new Map(items.map((i) => [i._id?.toString(), i]));
+
+    return candidateIds
+      .map((id) => itemMap.get(id))
+      .filter((i): i is (typeof items)[number] => i != null);
+  }
+
+  /**
+   * =====================================================
+   * Redis helpers
+   * =====================================================
+   */
+
+  private getSessionWindowKey(userId: string) {
+    return `feed:session:${userId}:personal`;
+  }
+
+  private async getSessionWindow(sessionKey: string): Promise<string[] | null> {
+    const cached = await this.redis.get(sessionKey);
+
+    if (!cached) return null;
+
+    return cached.split(',').filter(Boolean);
+  }
+
+  /**
+   * =====================================================
+   * Cursor
+   * =====================================================
+   */
+
+  private parseCursor(cursor?: string): PersonalFeedCursor {
+    if (!cursor) return { offset: 0, frontier: null };
+
+    const parts = cursor.split(':');
+
+    if (parts.length >= 4) {
+      const offset = Number(parts[0]);
+      const score = Number(parts[1]);
+      const createdAt = Number(parts[2]);
+      const id = parts.slice(3).join(':');
+
+      return {
+        offset: Number.isInteger(offset) ? offset : 0,
+        frontier:
+          Number.isFinite(score) &&
+          Number.isFinite(createdAt) &&
+          Types.ObjectId.isValid(id)
+            ? { score, createdAt, id }
+            : null,
+      };
+    }
+
+    return { offset: 0, frontier: null };
   }
 }

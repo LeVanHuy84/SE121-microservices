@@ -35,6 +35,9 @@ export class EmotionFeature {
   @Prop({ required: true })
   intensity: number;
 
+  /**
+   * @deprecated Derived bucket of intensity. Keep for backward compatibility.
+   */
   @Prop()
   intensityLevel?: string;
 

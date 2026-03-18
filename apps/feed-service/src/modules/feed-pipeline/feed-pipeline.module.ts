@@ -16,7 +16,6 @@ import { PersonalFeedController } from './controllers/personal-feed.controller';
 import { TrendingController } from './controllers/trending.controller';
 import { PersonalFeedService } from './services/personal-feed.service';
 import { TrendingService } from './services/trending.service';
-import { StatsTrendingCron } from './services/stats.trending.cron';
 
 @Module({
   imports: [
@@ -54,6 +53,6 @@ import { StatsTrendingCron } from './services/stats.trending.cron';
     RankingModule, // ⭐ Import RankingModule
   ],
   controllers: [PersonalFeedController, TrendingController],
-  providers: [PersonalFeedService, TrendingService, StatsTrendingCron],
+  providers: [PersonalFeedService, TrendingService],
 })
 export class FeedPipelineModule {}

@@ -38,7 +38,7 @@ class OutboxEmitter:
             payload={
                 "targetId": emotion["targetId"],
                 "targetType": emotion["targetType"],
-                "finalEmotion": emotion["finalEmotion"],
+                "finalEmotion": emotion["finalEmotion"].upper(),
                 "scores": emotion["finalScores"],
                 "confidence": emotion["finalConfidence"],
                 "intensityScore": emotion["intensity"]["score"],

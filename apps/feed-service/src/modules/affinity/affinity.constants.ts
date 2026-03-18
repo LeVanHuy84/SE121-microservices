@@ -2,19 +2,21 @@ import { InteractionType } from '@repo/dtos';
 
 /**
  * Default user affinity nếu user mới
+ * CANONICAL EMOTIONS ONLY: joy, sadness, anger, fear, disgust, surprise, neutral
  */
 export const DEFAULT_USER_AFFINITY: Record<string, number> = {
   joy: 0.35,
   surprise: 0.25,
-  love: 0.2,
-  neutral: 0.1,
-  sadness: 0.05,
-  anger: 0.03,
-  fear: 0.02,
+  neutral: 0.15,
+  sadness: 0.1,
+  anger: 0.07,
+  fear: 0.05,
+  disgust: 0.03,
 } as const;
 
 export const REDIS_KEYS = {
   USER_AFFINITY: (userId: string) => `user:${userId}:affinity`,
+  USER_SCENE_AFFINITY: (userId: string) => `user:${userId}:scene-affinity`,
   USER_RECENT_EMOTIONS: (userId: string) => `user:${userId}:recent:emotions`,
 } as const;
 

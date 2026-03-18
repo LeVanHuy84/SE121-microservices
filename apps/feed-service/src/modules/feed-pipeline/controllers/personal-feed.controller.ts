@@ -14,13 +14,13 @@ export class PersonalFeedController {
     return await this.queryService.getUserFeed(payload.userId, payload.query);
   }
 
-  @EventPattern('view_feed')
-  async viewFeed(
-    @Payload() payload: { userId: string; feedItemIds: string[] },
-  ) {
-    await this.queryService.markFeedItemViewed(
-      payload.userId,
-      payload.feedItemIds,
-    );
-  }
+  // @EventPattern('view_feed')
+  // async viewFeed(
+  //   @Payload() payload: { userId: string; feedItemIds: string[] },
+  // ) {
+  //   await this.queryService.markFeedItemViewed(
+  //     payload.userId,
+  //     payload.feedItemIds,
+  //   );
+  // }
 }

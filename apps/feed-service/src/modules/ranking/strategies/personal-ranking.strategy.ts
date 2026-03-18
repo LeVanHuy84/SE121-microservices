@@ -8,6 +8,16 @@ import { EmotionFeatures } from '../interfaces/emotion-features.interface';
 import {
   PERSONAL_DECAY_RATE,
   DIVERSITY_PENALTY_BASE,
+  EMOTION_DIVERSITY_WEIGHT,
+  EMOTION_DIVERSITY_MIN,
+  EMOTION_DIVERSITY_MAX,
+  CONFIDENCE_SIGMOID_FACTOR,
+  CONFIDENCE_SIGMOID_MIDPOINT,
+  RISK_HINT_MULTIPLIERS,
+  HIGH_RISK_EXTRA_SUPPRESSION,
+  SCENE_AFFINITY_WEIGHT,
+  SCENE_AFFINITY_MIN,
+  SCENE_AFFINITY_MAX,
 } from '../ranking.constants';
 import {
   isPositiveEmotion,
@@ -18,6 +28,10 @@ export interface PostEmotionFeature {
   label: string;
   intensity?: number;
   confidence?: number;
+  riskHintLevel?: string;
+  dominantScene?: string;
+  dominantModality?: string;
+  scores?: Record<string, number>;
 }
 
 interface EmotionalSafetyStrength {
@@ -98,10 +112,15 @@ export class PersonalRankingStrategy implements IRankingStrategy {
     const { snapshot, baseScore, timestamp } = candidate;
     const { userAffinity, recentEmotions, emotionFeatures } = context;
 
+    const confidenceWeight = this.computeConfidenceWeight(
+      snapshot.emotionFeature?.confidence,
+    );
+
     const affinityMultiplier = this.computeAffinityMultiplier(
       snapshot.emotionFeature,
       userAffinity,
       emotionFeatures?.userEmotionPreference,
+      confidenceWeight,
     );
 
     // Emotional state adjustment (content safety)
@@ -117,6 +136,21 @@ export class PersonalRankingStrategy implements IRankingStrategy {
       recentEmotions,
     );
 
+    const vectorDiversityFactor = this.computeVectorDiversityFactor(
+      snapshot.emotionFeature?.scores,
+      userAffinity,
+    );
+
+    const riskMultiplier = this.computeRiskHintMultiplier(
+      snapshot.emotionFeature?.riskHintLevel,
+      emotionFeatures?.riskScore,
+    );
+
+    const sceneBoost = this.computeSceneBoost(
+      snapshot.emotionFeature?.dominantScene,
+      emotionFeatures,
+    );
+
     const engagementBoost = this.computeEngagementBoost(snapshot.stats);
 
     const finalScore =
@@ -125,6 +159,9 @@ export class PersonalRankingStrategy implements IRankingStrategy {
       emotionalStateAdjustment *
       freshnessDecay *
       diversityPenalty *
+      vectorDiversityFactor *
+      riskMultiplier *
+      sceneBoost *
       engagementBoost;
 
     return finalScore;
@@ -140,6 +177,7 @@ export class PersonalRankingStrategy implements IRankingStrategy {
     emotionFeature?: PostEmotionFeature,
     userAffinity?: Record<string, number>,
     userEmotionPreference?: Record<string, number>,
+    confidenceWeight = 1,
   ): number {
     if (!emotionFeature) return 1.0;
 
@@ -150,7 +188,22 @@ export class PersonalRankingStrategy implements IRankingStrategy {
 
     // Blend learned affinity with emotion preference features.
     const emotionalRelevance = 0.7 * affinity + 0.3 * preference;
-    return clamp(1 + emotionalRelevance * intensity, 0.8, 2.0);
+    return clamp(
+      1 + emotionalRelevance * intensity * confidenceWeight,
+      0.8,
+      2.0,
+    );
+  }
+
+  private computeConfidenceWeight(confidence?: number): number {
+    if (confidence === undefined || confidence === null) {
+      return 1;
+    }
+
+    const normalized = clamp(confidence, 0, 1);
+    const x =
+      CONFIDENCE_SIGMOID_FACTOR * (normalized - CONFIDENCE_SIGMOID_MIDPOINT);
+    return 1 / (1 + Math.exp(-x));
   }
 
   /**
@@ -178,6 +231,51 @@ export class PersonalRankingStrategy implements IRankingStrategy {
     return Math.pow(DIVERSITY_PENALTY_BASE, count);
   }
 
+  private computeVectorDiversityFactor(
+    scores?: Record<string, number>,
+    recentEmotionVector?: Record<string, number>,
+  ): number {
+    if (!scores || Object.keys(scores).length === 0) {
+      return 1;
+    }
+
+    if (!recentEmotionVector || Object.keys(recentEmotionVector).length === 0) {
+      return 1;
+    }
+
+    const similarity = this.cosineSimilarity(scores, recentEmotionVector);
+    const raw = 1 - EMOTION_DIVERSITY_WEIGHT * similarity;
+    return clamp(raw, EMOTION_DIVERSITY_MIN, EMOTION_DIVERSITY_MAX);
+  }
+
+  private cosineSimilarity(
+    left: Record<string, number>,
+    right: Record<string, number>,
+  ): number {
+    const keys = new Set<string>([...Object.keys(left), ...Object.keys(right)]);
+
+    let dot = 0;
+    let leftNormSq = 0;
+    let rightNormSq = 0;
+
+    for (const key of keys) {
+      const l = Number.isFinite(left[key]) ? Number(left[key]) : 0;
+      const r = Number.isFinite(right[key]) ? Number(right[key]) : 0;
+      dot += l * r;
+      leftNormSq += l * l;
+      rightNormSq += r * r;
+    }
+
+    const leftNorm = Math.sqrt(leftNormSq);
+    const rightNorm = Math.sqrt(rightNormSq);
+
+    if (leftNorm === 0 || rightNorm === 0) {
+      return 0;
+    }
+
+    return clamp(dot / (leftNorm * rightNorm), 0, 1);
+  }
+
   /**
    * Engagement Boost = 1 + log10(totalEngagement + 1) × 0.1
    */
@@ -190,6 +288,41 @@ export class PersonalRankingStrategy implements IRankingStrategy {
       (stats?.shares || 0) * 3;
 
     return Math.max(1, 1 + Math.log10(total + 1) * 0.1);
+  }
+
+  private computeRiskHintMultiplier(
+    riskHintLevel?: string,
+    userRiskScore?: number,
+  ): number {
+    if (!riskHintLevel) return 1;
+
+    const key = riskHintLevel.toLowerCase();
+    let multiplier = RISK_HINT_MULTIPLIERS[key] ?? 1;
+
+    if ((userRiskScore ?? 0) > 0.7 && (key === 'high' || key === 'critical')) {
+      multiplier *= HIGH_RISK_EXTRA_SUPPRESSION;
+    }
+
+    return multiplier;
+  }
+
+  private computeSceneBoost(
+    dominantScene?: string,
+    features?: EmotionFeatures,
+  ): number {
+    if (!dominantScene) return 1;
+
+    const sceneAffinityMap = (
+      features as EmotionFeatures & {
+        userSceneAffinity?: Record<string, number>;
+      }
+    )?.userSceneAffinity;
+
+    if (!sceneAffinityMap) return 1;
+
+    const sceneAffinity = sceneAffinityMap[dominantScene] ?? 0;
+    const raw = 1 + SCENE_AFFINITY_WEIGHT * clamp(sceneAffinity, 0, 1);
+    return clamp(raw, SCENE_AFFINITY_MIN, SCENE_AFFINITY_MAX);
   }
 
   /**
