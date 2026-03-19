@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GroupClientModule } from 'src/client/group/group-client.module';
+import { RecommendationClientModule } from 'src/client/recommendation/recommendation-client.module';
 import { UserClientModule } from 'src/client/user/user-client.module';
 import { FriendshipController } from './friendship.controller';
 import { FriendRecommendationService } from './friend-recommendation.service';
@@ -12,10 +13,13 @@ import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import { PostgresSocialGraphRepository } from './repositories/postgres-social-graph.repository';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
+import { CandidateSourceService } from './recommendation/candidate-source.service';
+import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 
 @Module({
   imports: [
     GroupClientModule,
+    RecommendationClientModule,
     UserClientModule,
     TypeOrmModule.forFeature([
       FriendRecommendationEventEntity,
@@ -27,9 +31,11 @@ import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository'
   ],
   controllers: [FriendshipController],
   providers: [
+    CandidateSourceService,
     FriendRecommendationService,
     FriendshipService,
     PostgresSocialGraphRepository,
+    RecommendationQueryService,
     {
       provide: SOCIAL_GRAPH_REPOSITORY,
       useExisting: PostgresSocialGraphRepository,

@@ -1,8 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { GroupClientService } from '../client/group/group-client.service';
+import { RecommendationClientService } from '../client/recommendation/recommendation-client.service';
 import { UserClientService } from '../client/user/user-client.service';
 import { FriendRecommendationService } from './friend-recommendation.service';
+import { CandidateSourceService } from './recommendation/candidate-source.service';
+import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 
 describe('FriendRecommendationService', () => {
@@ -12,7 +15,9 @@ describe('FriendRecommendationService', () => {
   const recordRecommendationEvents = jest.fn();
   const getCommonGroupCounts = jest.fn();
   const getGroupRecommendationCandidates = jest.fn();
+  const rerankCandidates = jest.fn();
   const getUserInfos = jest.fn();
+  const configGet = jest.fn();
 
   beforeEach(async () => {
     recommendFriends.mockReset();
@@ -20,12 +25,18 @@ describe('FriendRecommendationService', () => {
     recordRecommendationEvents.mockReset();
     getCommonGroupCounts.mockReset();
     getGroupRecommendationCandidates.mockReset();
+    rerankCandidates.mockReset();
     getUserInfos.mockReset();
+    configGet.mockReset();
     getUserInfos.mockResolvedValue({});
+    rerankCandidates.mockResolvedValue({});
+    configGet.mockImplementation(() => undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FriendRecommendationService,
+        CandidateSourceService,
+        RecommendationQueryService,
         {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
@@ -42,6 +53,12 @@ describe('FriendRecommendationService', () => {
           },
         },
         {
+          provide: RecommendationClientService,
+          useValue: {
+            rerankCandidates,
+          },
+        },
+        {
           provide: UserClientService,
           useValue: {
             getUserInfos,
@@ -50,7 +67,7 @@ describe('FriendRecommendationService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn(),
+            get: configGet,
           },
         },
       ],
@@ -87,6 +104,7 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 2,
+        baseScore: 22,
         score: 22,
         reasons: ['1 mutual friend', '2 common groups'],
         recommendationId: expect.any(String),
@@ -99,6 +117,7 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 0,
+        baseScore: 10,
         score: 10,
         reasons: ['1 mutual friend'],
         recommendationId: expect.any(String),
@@ -148,6 +167,7 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 3,
+        baseScore: 18,
         score: 18,
         reasons: ['3 common groups'],
         recommendationId: expect.any(String),
@@ -160,6 +180,7 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 0,
+        baseScore: 10,
         score: 10,
         reasons: ['1 mutual friend'],
         recommendationId: expect.any(String),
@@ -196,6 +217,7 @@ describe('FriendRecommendationService', () => {
 
     expect(result.data[0]).toMatchObject({
       id: 'b',
+      baseScore: 10,
       recommendationId: expect.any(String),
       recommendationRequestId: expect.any(String),
       user: {
@@ -283,6 +305,7 @@ describe('FriendRecommendationService', () => {
         candidateId: 'heavy-social',
         eventType: 'served',
         metadata: expect.objectContaining({
+          baseScore: 68,
           score: 68,
         }),
       }),
@@ -337,5 +360,110 @@ describe('FriendRecommendationService', () => {
         }),
       }),
     ]);
+  });
+
+  it('should combine AI rerank score with base score when enabled', async () => {
+    configGet.mockImplementation((key: string) => {
+      switch (key) {
+        case 'FRIEND_RECOMMEND_AI_ENABLED':
+          return 'true';
+        case 'FRIEND_RECOMMEND_AI_WEIGHT':
+          return '20';
+        case 'FRIEND_RECOMMEND_AI_TOP_K':
+          return '5';
+        default:
+          return undefined;
+      }
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        FriendRecommendationService,
+        CandidateSourceService,
+        RecommendationQueryService,
+        {
+          provide: SOCIAL_GRAPH_REPOSITORY,
+          useValue: {
+            recommendFriends,
+            summarizeCandidates,
+            recordRecommendationEvents,
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts,
+            getGroupRecommendationCandidates,
+          },
+        },
+        {
+          provide: RecommendationClientService,
+          useValue: {
+            rerankCandidates,
+          },
+        },
+        {
+          provide: UserClientService,
+          useValue: {
+            getUserInfos,
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: configGet,
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<FriendRecommendationService>(
+      FriendRecommendationService,
+    );
+
+    recommendFriends.mockResolvedValue({
+      data: [
+        { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
+        { id: 'b', mutualFriends: 1, mutualFriendIds: ['u2'] },
+      ],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    summarizeCandidates.mockResolvedValue([]);
+    getGroupRecommendationCandidates.mockResolvedValue([]);
+    getCommonGroupCounts.mockResolvedValue({
+      a: 0,
+      b: 0,
+    });
+    rerankCandidates.mockResolvedValue({
+      a: 0.1,
+      b: 0.9,
+    });
+
+    const result = await service.recommendFriends('self', { limit: 2 });
+
+    expect(rerankCandidates).toHaveBeenCalledWith('self', [
+      {
+        candidateId: 'a',
+        mutualFriends: 1,
+        commonGroups: 0,
+        baseScore: 10,
+        reasons: ['1 mutual friend'],
+      },
+      {
+        candidateId: 'b',
+        mutualFriends: 1,
+        commonGroups: 0,
+        baseScore: 10,
+        reasons: ['1 mutual friend'],
+      },
+    ]);
+    expect(result.data.map((candidate) => candidate.id)).toEqual(['b', 'a']);
+    expect(result.data[0]).toMatchObject({
+      id: 'b',
+      baseScore: 10,
+      modelScore: 0.9,
+      score: 28,
+    });
   });
 });

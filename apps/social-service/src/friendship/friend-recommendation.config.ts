@@ -5,6 +5,9 @@ export interface FriendRecommendationScoringConfig {
   commonGroupWeight: number;
   mutualFriendCap: number;
   commonGroupCap: number;
+  aiEnabled: boolean;
+  aiWeight: number;
+  aiTopK: number;
   diversityWindowSize: number;
   sharedMutualFriendPenalty: number;
   sourceRepeatPenalty: number;
@@ -16,6 +19,9 @@ export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringC
     commonGroupWeight: 6,
     mutualFriendCap: 5,
     commonGroupCap: 3,
+    aiEnabled: false,
+    aiWeight: 12,
+    aiTopK: 15,
     diversityWindowSize: 3,
     sharedMutualFriendPenalty: 4,
     sourceRepeatPenalty: 1,
@@ -31,6 +37,34 @@ function parsePositiveInt(
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveNumber(
+  value: string | undefined,
+  fallback: number,
+): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return false;
+  }
+
+  return fallback;
 }
 
 export function loadFriendRecommendationScoringConfig(
@@ -52,6 +86,18 @@ export function loadFriendRecommendationScoringConfig(
     commonGroupCap: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_CAP'),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupCap,
+    ),
+    aiEnabled: parseBoolean(
+      configService.get<string>('FRIEND_RECOMMEND_AI_ENABLED'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiEnabled,
+    ),
+    aiWeight: parsePositiveNumber(
+      configService.get<string>('FRIEND_RECOMMEND_AI_WEIGHT'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiWeight,
+    ),
+    aiTopK: parsePositiveInt(
+      configService.get<string>('FRIEND_RECOMMEND_AI_TOP_K'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiTopK,
     ),
     diversityWindowSize: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE'),

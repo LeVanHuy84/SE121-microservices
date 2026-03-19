@@ -213,6 +213,50 @@ The report currently returns:
 
 This closes the loop between logging and decision-making. The team can now inspect whether mutual-friend suggestions, common-group suggestions, or mixed suggestions actually convert better before tuning weights further.
 
+## 8. AI Recommendation Service
+
+### Problem
+
+Rule-based scoring is useful for stability and explainability, but it has a ceiling. At some point the system needs a model-based reranker that can learn better ordering from labeled recommendation outcomes.
+
+### Change
+
+- Added a new Python/FastAPI microservice at `apps/recommendation-service`.
+- The service follows the same architectural style as `analysis-service`:
+  - lazy model loading
+  - warmup during lifespan startup
+  - internal-key protection via `x-internal-key`
+  - `transformers` + `torch` inference
+- Added a new internal endpoint:
+  - `POST /recommend/rerank`
+- Added a new `social-service` client:
+  - `RecommendationClientService`
+- `FriendRecommendationService` now supports optional AI reranking:
+  - base candidates are still generated and scored by rule-based logic
+  - top candidates are sent to `recommendation-service`
+  - returned `modelScore` is blended into the final score using configurable weight
+  - if the service is disabled, missing, or times out, the system falls back to rule-based ranking
+
+### Reason
+
+This is the safest place to introduce AI. Candidate generation remains deterministic and explainable, while the model only improves ordering. That keeps the blast radius small and avoids making recommendation availability depend entirely on model serving.
+
+### Current Activation Model
+
+AI reranking is controlled by:
+
+- `FRIEND_RECOMMEND_AI_ENABLED`
+- `FRIEND_RECOMMEND_AI_WEIGHT`
+- `FRIEND_RECOMMEND_AI_TOP_K`
+- `RECOMMENDATION_SERVICE_URL`
+- `RECOMMENDATION_INTERNAL_KEY`
+
+`recommendation-service` itself loads the model from:
+
+- `RECOMMENDATION_MODEL_NAME`
+
+This should point to the actual fine-tuned checkpoint in your environment.
+
 ## Key Files
 
 ### Backend
@@ -223,10 +267,16 @@ This closes the loop between logging and decision-making. The team can now inspe
 - `apps/social-service/src/friendship/friendship.controller.ts`
 - `apps/social-service/src/friendship/repositories/social-graph.repository.ts`
 - `apps/social-service/src/friendship/repositories/postgres-social-graph.repository.ts`
+- `apps/social-service/src/client/recommendation/recommendation-client.service.ts`
+- `apps/social-service/src/client/recommendation/recommendation-client.module.ts`
 - `apps/social-service/src/postgres/entities/friend-request.entity.ts`
 - `apps/social-service/src/postgres/entities/friend-recommendation-dismissal.entity.ts`
 - `apps/social-service/src/postgres/entities/friend-recommendation-event.entity.ts`
 - `apps/api-gateway/src/modules/social/social.controller.ts`
+- `apps/recommendation-service/app/main.py`
+- `apps/recommendation-service/app/services/model_loader.py`
+- `apps/recommendation-service/app/services/rerank_service.py`
+- `apps/recommendation-service/app/api/recommend_api.py`
 
 ### Shared / Web
 
@@ -252,6 +302,7 @@ The system now supports:
 - persistent dismiss/skip
 - configurable and capped recommendation scoring
 - diversity-aware reranking to reduce repeated clusters
+- optional AI reranking through a dedicated recommendation microservice
 - per-item recommendation attribution IDs
 - event logging for `served`, `dismissed`, `request_sent`, and `accepted`
 - a usable recommendation funnel analytics endpoint
@@ -260,5 +311,6 @@ The system now supports:
 
 The next step should focus on recommendation quality:
 
+- point `RECOMMENDATION_MODEL_NAME` to the real fine-tuned checkpoint and calibrate AI weight
 - add an interaction-recency signal from upstream activity data
 - add integration tests that exercise the real cross-service recommendation flow
