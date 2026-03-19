@@ -288,4 +288,54 @@ describe('FriendRecommendationService', () => {
       }),
     ]);
   });
+
+  it('should diversify repeated mutual-friend clusters in ranked order', async () => {
+    recommendFriends.mockResolvedValue({
+      data: [
+        { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
+        { id: 'b', mutualFriends: 1, mutualFriendIds: ['u1'] },
+        { id: 'c', mutualFriends: 1, mutualFriendIds: ['u2'] },
+      ],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    summarizeCandidates.mockResolvedValue([]);
+    getGroupRecommendationCandidates.mockResolvedValue([]);
+    getCommonGroupCounts.mockResolvedValue({
+      a: 0,
+      b: 0,
+      c: 0,
+    });
+
+    const result = await service.recommendFriends('self', { limit: 3 });
+
+    expect(result.data.map((candidate) => candidate.id)).toEqual([
+      'a',
+      'c',
+      'b',
+    ]);
+    expect(recordRecommendationEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        candidateId: 'a',
+        metadata: expect.objectContaining({
+          source: 'mutual_only',
+          position: 0,
+        }),
+      }),
+      expect.objectContaining({
+        candidateId: 'c',
+        metadata: expect.objectContaining({
+          source: 'mutual_only',
+          position: 1,
+        }),
+      }),
+      expect.objectContaining({
+        candidateId: 'b',
+        metadata: expect.objectContaining({
+          source: 'mutual_only',
+          position: 2,
+        }),
+      }),
+    ]);
+  });
 });

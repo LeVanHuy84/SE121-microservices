@@ -8,6 +8,7 @@ import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { FriendRecommendationService } from './friend-recommendation.service';
 import type {
+  FriendRecommendationAnalytics,
   FriendRecommendationAttribution,
   FriendRecommendation,
   SocialGraphRepository,
@@ -19,6 +20,8 @@ export class FriendshipService {
   private readonly logger = new Logger(FriendshipService.name);
   private readonly recommendationDismissDurationMs =
     30 * 24 * 60 * 60 * 1000;
+  private readonly defaultAnalyticsWindowDays = 30;
+  private readonly maxAnalyticsWindowDays = 365;
 
   constructor(
     @Inject(SOCIAL_GRAPH_REPOSITORY)
@@ -250,6 +253,25 @@ export class FriendshipService {
     return this.friendRecommendationService.recommendFriends(userId, query);
   }
 
+  async getFriendRecommendationAnalytics(
+    userId: string,
+    days?: number,
+  ): Promise<FriendRecommendationAnalytics> {
+    const windowDays = this.normalizeAnalyticsWindowDays(days);
+    const since = new Date(
+      Date.now() - windowDays * 24 * 60 * 60 * 1000,
+    );
+    const analytics = await this.socialGraphRepo.getFriendRecommendationAnalytics(
+      userId,
+      since,
+    );
+
+    return {
+      ...analytics,
+      windowDays,
+    };
+  }
+
   async getFriendIds(userId: string, limit?: number) {
     return this.socialGraphRepo.getFriendIds(userId, limit);
   }
@@ -259,5 +281,16 @@ export class FriendshipService {
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
     return this.socialGraphRepo.getBlockedUsers(userId, query);
+  }
+
+  private normalizeAnalyticsWindowDays(days: number | undefined): number {
+    if (typeof days !== 'number' || !Number.isFinite(days)) {
+      return this.defaultAnalyticsWindowDays;
+    }
+
+    return Math.min(
+      this.maxAnalyticsWindowDays,
+      Math.max(1, Math.floor(days)),
+    );
   }
 }

@@ -11,6 +11,7 @@ describe('FriendshipService', () => {
   const sendFriendRequest = jest.fn();
   const acceptFriendRequest = jest.fn();
   const getRelationshipStatus = jest.fn();
+  const getFriendRecommendationAnalytics = jest.fn();
   const recordRecommendationEvents = jest.fn();
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
@@ -20,11 +21,29 @@ describe('FriendshipService', () => {
     sendFriendRequest.mockReset();
     acceptFriendRequest.mockReset();
     getRelationshipStatus.mockReset();
+    getFriendRecommendationAnalytics.mockReset();
     recordRecommendationEvents.mockReset();
     addRecentActivity.mockReset();
     clearActivity.mockReset();
     getRelationshipStatus.mockResolvedValue({ status: 'NONE' });
     acceptFriendRequest.mockResolvedValue(null);
+    getFriendRecommendationAnalytics.mockResolvedValue({
+      windowStart: '2026-03-01T00:00:00.000Z',
+      windowEnd: '2026-03-18T00:00:00.000Z',
+      totals: {
+        served: 10,
+        dismissed: 2,
+        requestSent: 3,
+        accepted: 1,
+      },
+      rates: {
+        dismissFromServed: 0.2,
+        requestSentFromServed: 0.3,
+        acceptFromServed: 0.1,
+        acceptFromRequests: 1 / 3,
+      },
+      sources: [],
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -47,6 +66,7 @@ describe('FriendshipService', () => {
             summarizeCandidates: jest.fn(),
             getFriendIds: jest.fn(),
             getBlockedUsers: jest.fn(),
+            getFriendRecommendationAnalytics,
             recordRecommendationEvents,
           },
         },
@@ -155,5 +175,17 @@ describe('FriendshipService', () => {
       targetId: 'requester',
       type: 'friendship_accept',
     });
+  });
+
+  it('should return recommendation analytics with normalized window days', async () => {
+    const result = await service.getFriendRecommendationAnalytics('self', 999);
+
+    expect(getFriendRecommendationAnalytics).toHaveBeenCalledTimes(1);
+    expect(getFriendRecommendationAnalytics).toHaveBeenCalledWith(
+      'self',
+      expect.any(Date),
+    );
+    expect(result.windowDays).toBe(365);
+    expect(result.totals.served).toBe(10);
   });
 });

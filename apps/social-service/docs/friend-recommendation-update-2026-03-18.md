@@ -163,10 +163,55 @@ Default behavior is now:
 
 - mutual friends: weight `10`, cap `5`
 - common groups: weight `6`, cap `3`
+- diversity window size: `3`
+- shared mutual-friend penalty: `4`
+- source repeat penalty: `1`
 
 ### Reason
 
 This keeps the scoring model rule-based and explainable, while making it safer to tune. Caps are important because they prevent a single dense social cluster from overwhelming all other signals.
+
+### Diversity Reranking
+
+After computing base score, the service now applies a lightweight deterministic rerank step to reduce repetition in the top results. The reranker currently penalizes:
+
+- candidates that share the same mutual-friend cluster as recently selected items
+- consecutive recommendations from the same source bucket
+
+This is intentionally a small penalty layered on top of the base score rather than a full replacement of the score formula.
+
+## 7. Recommendation Funnel Report
+
+### Problem
+
+After adding `friend_recommendation_events`, the system could write analytics but still had no built-in way to read funnel performance back out for tuning.
+
+### Change
+
+- Added repository-level aggregation for recommendation funnel analytics.
+- Added service/controller/gateway flow for:
+  - `get_friend_recommendation_analytics`
+  - `GET /social/friends/recommend/analytics?days=30`
+- Added shared API contract for recommendation analytics.
+
+The report currently returns:
+
+- window metadata
+- totals for:
+  - `served`
+  - `dismissed`
+  - `requestSent`
+  - `accepted`
+- derived rates
+- source breakdown:
+  - `mutual_only`
+  - `group_only`
+  - `mixed`
+  - `fallback`
+
+### Reason
+
+This closes the loop between logging and decision-making. The team can now inspect whether mutual-friend suggestions, common-group suggestions, or mixed suggestions actually convert better before tuning weights further.
 
 ## Key Files
 
@@ -206,12 +251,14 @@ The system now supports:
 - hydrated suggestion payloads
 - persistent dismiss/skip
 - configurable and capped recommendation scoring
+- diversity-aware reranking to reduce repeated clusters
 - per-item recommendation attribution IDs
 - event logging for `served`, `dismissed`, `request_sent`, and `accepted`
+- a usable recommendation funnel analytics endpoint
 
 ## Recommended Next Step
 
-The next step should be scoring configuration and analytics consumption:
+The next step should focus on recommendation quality:
 
-- add diversity rules and additional signals such as recency
-- build a simple query/report to inspect recommendation funnel metrics from `friend_recommendation_events`
+- add an interaction-recency signal from upstream activity data
+- add integration tests that exercise the real cross-service recommendation flow

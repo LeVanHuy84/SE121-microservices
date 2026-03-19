@@ -112,6 +112,20 @@ export class FriendshipController {
     return this.friendshipService.recommendFriends(data.userId, data.query);
   }
 
+  @MessagePattern('get_friend_recommendation_analytics')
+  async getFriendRecommendationAnalytics(
+    @Payload()
+    data: {
+      userId: string;
+      days?: number;
+    },
+  ) {
+    return this.friendshipService.getFriendRecommendationAnalytics(
+      data.userId,
+      data.days,
+    );
+  }
+
   @MessagePattern('block_user')
   async blockUser(
     @Payload()

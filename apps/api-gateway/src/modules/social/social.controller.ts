@@ -101,6 +101,22 @@ export class SocialController {
     return this.socialClient.send('suggest_friends', { userId, query });
   }
 
+  @Get('friends/recommend/analytics')
+  async getFriendRecommendationAnalytics(
+    @CurrentUserId() userId: string,
+    @Query('days') days?: string,
+  ) {
+    const parsedDays =
+      typeof days === 'string' && days.trim().length > 0
+        ? Number.parseInt(days, 10)
+        : undefined;
+
+    return this.socialClient.send('get_friend_recommendation_analytics', {
+      userId,
+      days: parsedDays,
+    });
+  }
+
   @Post('friends/recommend/dismiss/:targetId')
   async dismissFriendRecommendation(
     @CurrentUserId() userId: string,

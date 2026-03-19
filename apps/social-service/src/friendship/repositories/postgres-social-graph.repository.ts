@@ -9,6 +9,7 @@ import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/frien
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import {
   AcceptedFriendRequestAttribution,
+  FriendRecommendationAnalyticsSource,
   FriendRecommendationAttribution,
   FriendRecommendationEvent,
   FriendRecommendation,
@@ -434,6 +435,136 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     await this.recommendationEventRepo.insert(
       insertValues as Parameters<typeof this.recommendationEventRepo.insert>[0],
     );
+  }
+
+  async getFriendRecommendationAnalytics(userId: string, since: Date) {
+    const totalRows = await this.dataSource.query(
+      `
+      SELECT
+        event_type AS "eventType",
+        COUNT(*)::int AS count
+      FROM friend_recommendation_events
+      WHERE user_id = $1
+        AND created_at >= $2
+      GROUP BY event_type
+      `,
+      [userId, since],
+    );
+
+    const sourceRows = await this.dataSource.query(
+      `
+      WITH served AS (
+        SELECT
+          recommendation_id,
+          COALESCE((metadata->>'mutualFriends')::int, 0) AS mutual_friends,
+          COALESCE((metadata->>'commonGroups')::int, 0) AS common_groups
+        FROM friend_recommendation_events
+        WHERE user_id = $1
+          AND event_type = 'served'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      dismissed AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE user_id = $1
+          AND event_type = 'dismissed'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      request_sent AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE user_id = $1
+          AND event_type = 'request_sent'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      accepted AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE user_id = $1
+          AND event_type = 'accepted'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      served_with_source AS (
+        SELECT
+          recommendation_id,
+          CASE
+            WHEN mutual_friends > 0 AND common_groups > 0 THEN 'mixed'
+            WHEN mutual_friends > 0 THEN 'mutual_only'
+            WHEN common_groups > 0 THEN 'group_only'
+            ELSE 'fallback'
+          END AS source
+        FROM served
+      )
+      SELECT
+        source,
+        COUNT(*)::int AS served,
+        COUNT(dismissed.recommendation_id)::int AS dismissed,
+        COUNT(request_sent.recommendation_id)::int AS "requestSent",
+        COUNT(accepted.recommendation_id)::int AS accepted
+      FROM served_with_source served
+      LEFT JOIN dismissed
+        ON dismissed.recommendation_id = served.recommendation_id
+      LEFT JOIN request_sent
+        ON request_sent.recommendation_id = served.recommendation_id
+      LEFT JOIN accepted
+        ON accepted.recommendation_id = served.recommendation_id
+      GROUP BY source
+      ORDER BY source ASC
+      `,
+      [userId, since],
+    );
+
+    const totals = {
+      served: 0,
+      dismissed: 0,
+      requestSent: 0,
+      accepted: 0,
+    };
+
+    for (const row of totalRows) {
+      switch (String(row.eventType)) {
+        case 'served':
+          totals.served = Number(row.count);
+          break;
+        case 'dismissed':
+          totals.dismissed = Number(row.count);
+          break;
+        case 'request_sent':
+          totals.requestSent = Number(row.count);
+          break;
+        case 'accepted':
+          totals.accepted = Number(row.count);
+          break;
+      }
+    }
+
+    const denominatorFromServed = totals.served || 1;
+    const denominatorFromRequests = totals.requestSent || 1;
+
+    return {
+      windowStart: since.toISOString(),
+      windowEnd: new Date().toISOString(),
+      totals,
+      rates: {
+        dismissFromServed: totals.dismissed / denominatorFromServed,
+        requestSentFromServed: totals.requestSent / denominatorFromServed,
+        acceptFromServed: totals.accepted / denominatorFromServed,
+        acceptFromRequests: totals.accepted / denominatorFromRequests,
+      },
+      sources: sourceRows.map((row: Record<string, unknown>) => ({
+        source: String(
+          row.source,
+        ) as FriendRecommendationAnalyticsSource,
+        served: Number(row.served),
+        dismissed: Number(row.dismissed),
+        requestSent: Number(row.requestSent),
+        accepted: Number(row.accepted),
+      })),
+    };
   }
 
   private buildStringPage(

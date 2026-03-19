@@ -15,7 +15,10 @@ import {
   FriendRecommendationScoringConfig,
   loadFriendRecommendationScoringConfig,
 } from './friend-recommendation.config';
-import type { SocialGraphRepository } from './repositories/social-graph.repository';
+import type {
+  FriendRecommendationAnalyticsSource,
+  SocialGraphRepository,
+} from './repositories/social-graph.repository';
 
 @Injectable()
 export class FriendRecommendationService {
@@ -84,28 +87,16 @@ export class FriendRecommendationService {
     );
     this.mergeGroupCandidateScores(commonGroupCountsByUser, groupCandidates);
 
-    const rankedCandidates = mergedCandidates
+    const rankedCandidates = this.rerankForDiversity(
+      mergedCandidates
       .map((candidate) =>
         this.buildRecommendation(
           candidate,
           commonGroupCountsByUser[candidate.id] ?? 0,
         ),
       )
-      .sort((left, right) => {
-        if ((right.score ?? 0) !== (left.score ?? 0)) {
-          return (right.score ?? 0) - (left.score ?? 0);
-        }
-
-        if (right.mutualFriends !== left.mutualFriends) {
-          return right.mutualFriends - left.mutualFriends;
-        }
-
-        if ((right.commonGroups ?? 0) !== (left.commonGroups ?? 0)) {
-          return (right.commonGroups ?? 0) - (left.commonGroups ?? 0);
-        }
-
-        return left.id.localeCompare(right.id);
-      });
+      .sort((left, right) => this.compareRecommendations(left, right)),
+    );
 
     const startIndex = this.resolveStartIndex(rankedCandidates, query.cursor);
     if (startIndex === null) {
@@ -141,6 +132,7 @@ export class FriendRecommendationService {
           mutualFriends: recommendation.mutualFriends,
           commonGroups: recommendation.commonGroups ?? 0,
           score: recommendation.score ?? 0,
+          source: this.getRecommendationSource(recommendation),
           reasons: recommendation.reasons ?? [],
           position: startIndex + index,
         },
@@ -262,6 +254,133 @@ export class FriendRecommendationService {
       recommendationId: randomUUID(),
       recommendationRequestId,
     }));
+  }
+
+  private rerankForDiversity(
+    recommendations: FriendRecommendation[],
+  ): FriendRecommendation[] {
+    if (recommendations.length <= 1) {
+      return recommendations;
+    }
+
+    const selected: FriendRecommendation[] = [];
+    const remaining = [...recommendations];
+
+    while (remaining.length > 0) {
+      const recentSelections = selected.slice(
+        Math.max(0, selected.length - this.scoringConfig.diversityWindowSize),
+      );
+
+      let bestIndex = 0;
+      let bestAdjustedScore = Number.NEGATIVE_INFINITY;
+
+      for (let index = 0; index < remaining.length; index += 1) {
+        const candidate = remaining[index];
+        const adjustedScore = this.getDiversityAdjustedScore(
+          candidate,
+          recentSelections,
+        );
+
+        if (adjustedScore > bestAdjustedScore) {
+          bestAdjustedScore = adjustedScore;
+          bestIndex = index;
+          continue;
+        }
+
+        if (
+          adjustedScore === bestAdjustedScore &&
+          this.compareRecommendations(candidate, remaining[bestIndex]) < 0
+        ) {
+          bestIndex = index;
+        }
+      }
+
+      selected.push(remaining[bestIndex]);
+      remaining.splice(bestIndex, 1);
+    }
+
+    return selected;
+  }
+
+  private getDiversityAdjustedScore(
+    candidate: FriendRecommendation,
+    recentSelections: FriendRecommendation[],
+  ): number {
+    const baseScore = candidate.score ?? 0;
+    if (recentSelections.length === 0) {
+      return baseScore;
+    }
+
+    const candidateSource = this.getRecommendationSource(candidate);
+    const overlapPenalty = recentSelections.reduce((sum, selected) => {
+      return (
+        sum +
+        this.countSharedMutualFriends(candidate, selected) *
+          this.scoringConfig.sharedMutualFriendPenalty
+      );
+    }, 0);
+    const repeatSourcePenalty = recentSelections.reduce((sum, selected) => {
+      return (
+        sum +
+        (this.getRecommendationSource(selected) === candidateSource
+          ? this.scoringConfig.sourceRepeatPenalty
+          : 0)
+      );
+    }, 0);
+
+    return baseScore - overlapPenalty - repeatSourcePenalty;
+  }
+
+  private countSharedMutualFriends(
+    left: FriendRecommendation,
+    right: FriendRecommendation,
+  ): number {
+    if (left.mutualFriendIds.length === 0 || right.mutualFriendIds.length === 0) {
+      return 0;
+    }
+
+    const rightIds = new Set(right.mutualFriendIds);
+    return left.mutualFriendIds.reduce((count, id) => {
+      return count + (rightIds.has(id) ? 1 : 0);
+    }, 0);
+  }
+
+  private getRecommendationSource(
+    recommendation: FriendRecommendation,
+  ): FriendRecommendationAnalyticsSource {
+    const hasMutualFriends = recommendation.mutualFriends > 0;
+    const hasCommonGroups = (recommendation.commonGroups ?? 0) > 0;
+
+    if (hasMutualFriends && hasCommonGroups) {
+      return 'mixed';
+    }
+    if (hasMutualFriends) {
+      return 'mutual_only';
+    }
+    if (hasCommonGroups) {
+      return 'group_only';
+    }
+
+    return 'fallback';
+  }
+
+  private compareRecommendations(
+    left: FriendRecommendation,
+    right: FriendRecommendation,
+  ): number {
+    if ((right.score ?? 0) !== (left.score ?? 0)) {
+      return (right.score ?? 0) - (left.score ?? 0);
+    }
+
+    if (right.mutualFriends !== left.mutualFriends) {
+      return right.mutualFriends - left.mutualFriends;
+    }
+
+    if ((right.commonGroups ?? 0) !== (left.commonGroups ?? 0)) {
+      return (right.commonGroups ?? 0) - (left.commonGroups ?? 0);
+    }
+
+    return left.id.localeCompare(right.id);
   }
 
   private resolveStartIndex(

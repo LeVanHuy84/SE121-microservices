@@ -5,6 +5,9 @@ export interface FriendRecommendationScoringConfig {
   commonGroupWeight: number;
   mutualFriendCap: number;
   commonGroupCap: number;
+  diversityWindowSize: number;
+  sharedMutualFriendPenalty: number;
+  sourceRepeatPenalty: number;
 }
 
 export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringConfig =
@@ -13,6 +16,9 @@ export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringC
     commonGroupWeight: 6,
     mutualFriendCap: 5,
     commonGroupCap: 3,
+    diversityWindowSize: 3,
+    sharedMutualFriendPenalty: 4,
+    sourceRepeatPenalty: 1,
   };
 
 function parsePositiveInt(
@@ -46,6 +52,18 @@ export function loadFriendRecommendationScoringConfig(
     commonGroupCap: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_CAP'),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupCap,
+    ),
+    diversityWindowSize: parsePositiveInt(
+      configService.get<string>('FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.diversityWindowSize,
+    ),
+    sharedMutualFriendPenalty: parsePositiveInt(
+      configService.get<string>('FRIEND_RECOMMEND_SHARED_MUTUAL_FRIEND_PENALTY'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.sharedMutualFriendPenalty,
+    ),
+    sourceRepeatPenalty: parsePositiveInt(
+      configService.get<string>('FRIEND_RECOMMEND_SOURCE_REPEAT_PENALTY'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.sourceRepeatPenalty,
     ),
   };
 }

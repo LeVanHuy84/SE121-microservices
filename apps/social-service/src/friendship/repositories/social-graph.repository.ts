@@ -50,6 +50,40 @@ export interface AcceptedFriendRequestAttribution {
   recommendationRequestId: string | null;
 }
 
+export type FriendRecommendationAnalyticsSource =
+  | 'mutual_only'
+  | 'group_only'
+  | 'mixed'
+  | 'fallback';
+
+export interface FriendRecommendationAnalyticsTotals {
+  served: number;
+  dismissed: number;
+  requestSent: number;
+  accepted: number;
+}
+
+export interface FriendRecommendationAnalyticsSourceBreakdown
+  extends FriendRecommendationAnalyticsTotals {
+  source: FriendRecommendationAnalyticsSource;
+}
+
+export interface FriendRecommendationAnalyticsRates {
+  dismissFromServed: number;
+  requestSentFromServed: number;
+  acceptFromServed: number;
+  acceptFromRequests: number;
+}
+
+export interface FriendRecommendationAnalytics {
+  windowDays: number;
+  windowStart: string;
+  windowEnd: string;
+  totals: FriendRecommendationAnalyticsTotals;
+  rates: FriendRecommendationAnalyticsRates;
+  sources: FriendRecommendationAnalyticsSourceBreakdown[];
+}
+
 export interface SocialGraphRepository {
   getRelationshipStatus(
     userId: string,
@@ -95,6 +129,10 @@ export interface SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>>;
+  getFriendRecommendationAnalytics(
+    userId: string,
+    since: Date,
+  ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
   recordRecommendationEvents(
     events: FriendRecommendationEvent[],
   ): Promise<void>;
