@@ -25,14 +25,46 @@ export interface FriendRecommendation {
   recommendationRequestId?: string;
 }
 
+export type FriendRecommendationEventType =
+  | 'served'
+  | 'dismissed'
+  | 'request_sent'
+  | 'accepted';
+
+export interface FriendRecommendationAttribution {
+  recommendationId?: string;
+  recommendationRequestId?: string;
+}
+
+export interface FriendRecommendationEvent {
+  userId: string;
+  candidateId: string;
+  eventType: FriendRecommendationEventType;
+  recommendationId?: string | null;
+  recommendationRequestId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AcceptedFriendRequestAttribution {
+  recommendationId: string | null;
+  recommendationRequestId: string | null;
+}
+
 export interface SocialGraphRepository {
   getRelationshipStatus(
     userId: string,
     targetId: string,
   ): Promise<{ status: RelationshipStatus }>;
-  sendFriendRequest(userId: string, targetId: string): Promise<void>;
+  sendFriendRequest(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ): Promise<void>;
   cancelFriendRequest(userId: string, targetId: string): Promise<void>;
-  acceptFriendRequest(userId: string, requesterId: string): Promise<void>;
+  acceptFriendRequest(
+    userId: string,
+    requesterId: string,
+  ): Promise<AcceptedFriendRequestAttribution | null>;
   declineFriendRequest(userId: string, requesterId: string): Promise<void>;
   removeFriend(userId: string, friendId: string): Promise<void>;
   blockUser(userId: string, targetId: string): Promise<void>;
@@ -63,6 +95,9 @@ export interface SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>>;
+  recordRecommendationEvents(
+    events: FriendRecommendationEvent[],
+  ): Promise<void>;
 }
 
 export const SOCIAL_GRAPH_REPOSITORY = 'SOCIAL_GRAPH_REPOSITORY';

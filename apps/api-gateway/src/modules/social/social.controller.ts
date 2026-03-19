@@ -21,9 +21,19 @@ export class SocialController {
   @Post('request/:targetId')
   sendFriendRequest(
     @CurrentUserId() userId: string,
-    @Param('targetId') targetId: string
+    @Param('targetId') targetId: string,
+    @Body()
+    body: {
+      recommendationId?: string;
+      recommendationRequestId?: string;
+    }
   ) {
-    return this.socialClient.send('send_friend_request', { userId, targetId });
+    return this.socialClient.send('send_friend_request', {
+      userId,
+      targetId,
+      recommendationId: body?.recommendationId,
+      recommendationRequestId: body?.recommendationRequestId,
+    });
   }
 
   @Post('cancel/:targetId')
@@ -94,11 +104,18 @@ export class SocialController {
   @Post('friends/recommend/dismiss/:targetId')
   async dismissFriendRecommendation(
     @CurrentUserId() userId: string,
-    @Param('targetId') targetId: string
+    @Param('targetId') targetId: string,
+    @Body()
+    body: {
+      recommendationId?: string;
+      recommendationRequestId?: string;
+    }
   ) {
     return this.socialClient.send('dismiss_friend_recommendation', {
       userId,
       targetId,
+      recommendationId: body?.recommendationId,
+      recommendationRequestId: body?.recommendationRequestId,
     });
   }
 

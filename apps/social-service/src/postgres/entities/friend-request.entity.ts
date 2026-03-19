@@ -20,6 +20,16 @@ export class FriendRequestEntity {
   @Column({ name: 'receiver_id', type: 'varchar' })
   receiverId: string;
 
+  @Column({ name: 'recommendation_id', type: 'varchar', nullable: true })
+  recommendationId: string | null;
+
+  @Column({
+    name: 'recommendation_request_id',
+    type: 'varchar',
+    nullable: true,
+  })
+  recommendationRequestId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

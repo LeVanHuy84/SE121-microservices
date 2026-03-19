@@ -21,9 +21,14 @@ export class FriendshipController {
     data: {
       userId: string;
       targetId: string;
+      recommendationId?: string;
+      recommendationRequestId?: string;
     },
   ) {
-    return this.friendshipService.sendFriendRequest(data.userId, data.targetId);
+    return this.friendshipService.sendFriendRequest(data.userId, data.targetId, {
+      recommendationId: data.recommendationId,
+      recommendationRequestId: data.recommendationRequestId,
+    });
   }
 
   @MessagePattern('cancel_friend_request')
@@ -124,11 +129,17 @@ export class FriendshipController {
     data: {
       userId: string;
       targetId: string;
+      recommendationId?: string;
+      recommendationRequestId?: string;
     },
   ) {
     return this.friendshipService.dismissFriendRecommendation(
       data.userId,
       data.targetId,
+      {
+        recommendationId: data.recommendationId,
+        recommendationRequestId: data.recommendationRequestId,
+      },
     );
   }
 

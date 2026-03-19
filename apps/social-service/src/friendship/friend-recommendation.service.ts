@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import {
   GroupClientService,
@@ -9,6 +11,10 @@ import {
   FriendRecommendation,
   SOCIAL_GRAPH_REPOSITORY,
 } from './repositories/social-graph.repository';
+import {
+  FriendRecommendationScoringConfig,
+  loadFriendRecommendationScoringConfig,
+} from './friend-recommendation.config';
 import type { SocialGraphRepository } from './repositories/social-graph.repository';
 
 @Injectable()
@@ -16,13 +22,17 @@ export class FriendRecommendationService {
   private readonly logger = new Logger(FriendRecommendationService.name);
   private readonly overscanMultiplier = 5;
   private readonly maxOverscan = 100;
+  private readonly scoringConfig: FriendRecommendationScoringConfig;
 
   constructor(
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
     private readonly groupClient: GroupClientService,
     private readonly userClient: UserClientService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    this.scoringConfig = loadFriendRecommendationScoringConfig(configService);
+  }
 
   async recommendFriends(
     userId: string,
@@ -110,13 +120,32 @@ export class FriendRecommendationService {
       startIndex,
       startIndex + requestedLimit,
     );
+    const visibleRecommendations =
+      this.attachRecommendationTrackingIds(visibleData);
     const hydratedVisibleData =
-      await this.hydrateRecommendationUsers(visibleData);
+      await this.hydrateRecommendationUsers(visibleRecommendations);
     const nextIndex = startIndex + visibleData.length;
     const hasNextPage =
       nextIndex < rankedCandidates.length ||
       graphCandidatePage.hasNextPage ||
       groupCandidates.length >= candidateLimit;
+
+    await this.socialGraphRepo.recordRecommendationEvents(
+      hydratedVisibleData.map((recommendation, index) => ({
+        userId,
+        candidateId: recommendation.id,
+        eventType: 'served',
+        recommendationId: recommendation.recommendationId ?? null,
+        recommendationRequestId: recommendation.recommendationRequestId ?? null,
+        metadata: {
+          mutualFriends: recommendation.mutualFriends,
+          commonGroups: recommendation.commonGroups ?? 0,
+          score: recommendation.score ?? 0,
+          reasons: recommendation.reasons ?? [],
+          position: startIndex + index,
+        },
+      })),
+    );
 
     this.logger.debug(
       `Ranked ${rankedCandidates.length} friend candidates for user ${userId}`,
@@ -148,7 +177,15 @@ export class FriendRecommendationService {
     candidate: FriendRecommendation,
     commonGroups: number,
   ): FriendRecommendation {
-    const score = candidate.mutualFriends * 10 + commonGroups * 6;
+    const mutualFriendContribution =
+      Math.min(
+        candidate.mutualFriends,
+        this.scoringConfig.mutualFriendCap,
+      ) * this.scoringConfig.mutualFriendWeight;
+    const commonGroupContribution =
+      Math.min(commonGroups, this.scoringConfig.commonGroupCap) *
+      this.scoringConfig.commonGroupWeight;
+    const score = mutualFriendContribution + commonGroupContribution;
     const reasons: string[] = [];
 
     if (candidate.mutualFriends > 0) {
@@ -208,6 +245,22 @@ export class FriendRecommendationService {
         .slice(0, 3)
         .map((mutualFriendId) => usersById[mutualFriendId])
         .filter((user): user is NonNullable<typeof user> => Boolean(user)),
+    }));
+  }
+
+  private attachRecommendationTrackingIds(
+    recommendations: FriendRecommendation[],
+  ): FriendRecommendation[] {
+    if (recommendations.length === 0) {
+      return recommendations;
+    }
+
+    const recommendationRequestId = randomUUID();
+
+    return recommendations.map((recommendation) => ({
+      ...recommendation,
+      recommendationId: randomUUID(),
+      recommendationRequestId,
     }));
   }
 

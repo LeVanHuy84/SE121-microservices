@@ -8,6 +8,7 @@ import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { FriendRecommendationService } from './friend-recommendation.service';
 import type {
+  FriendRecommendationAttribution,
   FriendRecommendation,
   SocialGraphRepository,
 } from './repositories/social-graph.repository';
@@ -30,7 +31,11 @@ export class FriendshipService {
     return this.socialGraphRepo.getRelationshipStatus(userId, targetId);
   }
 
-  async sendFriendRequest(userId: string, targetId: string) {
+  async sendFriendRequest(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot send request to yourself');
     }
@@ -46,7 +51,20 @@ export class FriendshipService {
       throw new BadRequestException('Cannot send request to a blocked user');
     }
 
-    await this.socialGraphRepo.sendFriendRequest(userId, targetId);
+    await this.socialGraphRepo.sendFriendRequest(userId, targetId, attribution);
+
+    if (attribution?.recommendationId || attribution?.recommendationRequestId) {
+      await this.socialGraphRepo.recordRecommendationEvents([
+        {
+          userId,
+          candidateId: targetId,
+          eventType: 'request_sent',
+          recommendationId: attribution?.recommendationId ?? null,
+          recommendationRequestId:
+            attribution?.recommendationRequestId ?? null,
+        },
+      ]);
+    }
 
     await this.buffer.addRecentActivity({
       actorId: userId,
@@ -79,7 +97,25 @@ export class FriendshipService {
       throw new BadRequestException('No pending friend request to accept');
     }
 
-    await this.socialGraphRepo.acceptFriendRequest(userId, requesterId);
+    const attribution = await this.socialGraphRepo.acceptFriendRequest(
+      userId,
+      requesterId,
+    );
+
+    if (
+      attribution?.recommendationId ||
+      attribution?.recommendationRequestId
+    ) {
+      await this.socialGraphRepo.recordRecommendationEvents([
+        {
+          userId: requesterId,
+          candidateId: userId,
+          eventType: 'accepted',
+          recommendationId: attribution.recommendationId,
+          recommendationRequestId: attribution.recommendationRequestId,
+        },
+      ]);
+    }
 
     await this.buffer.addRecentActivity({
       actorId: userId,
@@ -150,7 +186,11 @@ export class FriendshipService {
     return { message: 'User unblocked successfully' };
   }
 
-  async dismissFriendRecommendation(userId: string, targetId: string) {
+  async dismissFriendRecommendation(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot dismiss yourself');
     }
@@ -164,6 +204,18 @@ export class FriendshipService {
       targetId,
       expiresAt,
     );
+    await this.socialGraphRepo.recordRecommendationEvents([
+      {
+        userId,
+        candidateId: targetId,
+        eventType: 'dismissed',
+        recommendationId: attribution?.recommendationId ?? null,
+        recommendationRequestId: attribution?.recommendationRequestId ?? null,
+        metadata: {
+          expiresAt: expiresAt.toISOString(),
+        },
+      },
+    ]);
 
     return {
       message: 'Friend recommendation dismissed successfully',

@@ -2,11 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { DataSource, MoreThan, Repository } from 'typeorm';
+import { FriendRecommendationEventEntity } from 'src/postgres/entities/friend-recommendation-event.entity';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
 import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import {
+  AcceptedFriendRequestAttribution,
+  FriendRecommendationAttribution,
+  FriendRecommendationEvent,
   FriendRecommendation,
   SocialGraphRepository,
 } from './social-graph.repository';
@@ -15,6 +19,8 @@ import {
 export class PostgresSocialGraphRepository implements SocialGraphRepository {
   constructor(
     private readonly dataSource: DataSource,
+    @InjectRepository(FriendRecommendationEventEntity)
+    private readonly recommendationEventRepo: Repository<FriendRecommendationEventEntity>,
     @InjectRepository(FriendRequestEntity)
     private readonly friendRequestRepo: Repository<FriendRequestEntity>,
     @InjectRepository(FriendshipEntity)
@@ -48,12 +54,21 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     return { status: 'NONE' as const };
   }
 
-  async sendFriendRequest(userId: string, targetId: string) {
+  async sendFriendRequest(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ) {
     await this.friendRequestRepo
       .createQueryBuilder()
       .insert()
       .into(FriendRequestEntity)
-      .values({ requesterId: userId, receiverId: targetId })
+      .values({
+        requesterId: userId,
+        receiverId: targetId,
+        recommendationId: attribution?.recommendationId ?? null,
+        recommendationRequestId: attribution?.recommendationRequestId ?? null,
+      })
       .orIgnore()
       .execute();
   }
@@ -65,8 +80,18 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     });
   }
 
-  async acceptFriendRequest(userId: string, requesterId: string) {
-    await this.dataSource.transaction(async (manager) => {
+  async acceptFriendRequest(
+    userId: string,
+    requesterId: string,
+  ): Promise<AcceptedFriendRequestAttribution | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const pendingRequest = await manager.findOne(FriendRequestEntity, {
+        where: {
+          requesterId,
+          receiverId: userId,
+        },
+      });
+
       await manager.delete(FriendRequestEntity, {
         requesterId,
         receiverId: userId,
@@ -82,6 +107,14 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         ])
         .orIgnore()
         .execute();
+
+      return pendingRequest
+        ? {
+            recommendationId: pendingRequest.recommendationId ?? null,
+            recommendationRequestId:
+              pendingRequest.recommendationRequestId ?? null,
+          }
+        : null;
     });
   }
 
@@ -380,6 +413,26 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     return this.buildStringPage(
       rows.map((row) => row.blockedId),
       query.limit,
+    );
+  }
+
+  async recordRecommendationEvents(events: FriendRecommendationEvent[]) {
+    if (events.length === 0) {
+      return;
+    }
+
+    const insertValues = events.map((event) => ({
+        userId: event.userId,
+        candidateId: event.candidateId,
+        eventType: event.eventType,
+        recommendationId: event.recommendationId ?? null,
+        recommendationRequestId: event.recommendationRequestId ?? null,
+        metadata:
+          (event.metadata ?? null) as FriendRecommendationEventEntity['metadata'],
+      }));
+
+    await this.recommendationEventRepo.insert(
+      insertValues as Parameters<typeof this.recommendationEventRepo.insert>[0],
     );
   }
 
