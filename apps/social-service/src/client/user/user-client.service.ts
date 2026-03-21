@@ -1,7 +1,7 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { BaseUserDTO } from '@repo/dtos';
+import { BaseUserDTO, UserResponseDTO } from '@repo/dtos';
 import Redis from 'ioredis';
 import { lastValueFrom } from 'rxjs';
 
@@ -99,5 +99,28 @@ export class UserClientService {
     }
 
     return profiles;
+  }
+
+  async getUserProfiles(
+    userIds: string[],
+  ): Promise<Record<string, UserResponseDTO>> {
+    const dedupedIds = [...new Set(userIds.filter(Boolean))];
+    if (dedupedIds.length === 0) {
+      return {};
+    }
+
+    const profiles = await lastValueFrom(
+      this.userClient.send<UserResponseDTO[]>('getUsersBatch', dedupedIds),
+    );
+
+    return (profiles ?? []).reduce<Record<string, UserResponseDTO>>(
+      (acc, profile) => {
+        if (profile?.id) {
+          acc[profile.id] = profile;
+        }
+        return acc;
+      },
+      {},
+    );
   }
 }

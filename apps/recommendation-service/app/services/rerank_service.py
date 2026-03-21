@@ -25,7 +25,7 @@ class RerankService:
             return []
 
         similarity_scores = self._resolve_similarity_scores(
-            request.viewerId,
+            request.viewerProfileText,
             valid_candidates,
         )
 
@@ -62,7 +62,7 @@ class RerankService:
             return []
 
         similarity_scores = self._resolve_similarity_scores(
-            request.viewerId,
+            request.viewerProfileText,
             valid_candidates,
         )
         max_mutual_friends = max(
@@ -109,22 +109,9 @@ class RerankService:
 
         return ranked[:10]
 
-    def _build_prompt(self, viewer_id: str, candidate: RecommendationCandidateInput) -> str:
-        reasons = ", ".join(candidate.reasons) if candidate.reasons else "suggested for you"
-        return (
-            f"viewer={viewer_id} "
-            f"candidate={candidate.candidateId} "
-            f"mutual_friends={candidate.mutualFriends} "
-            f"interaction_score={candidate.interactionScore:.4f} "
-            f"shared_interest_count={candidate.sharedInterestCount} "
-            f"common_groups={candidate.commonGroups} "
-            f"base_score={candidate.baseScore:.2f} "
-            f"reasons={reasons}"
-        )
-
     def _resolve_similarity_scores(
         self,
-        viewer_id: str,
+        viewer_profile_text: str | None,
         candidates: List[RecommendationCandidateInput],
     ) -> dict[str, float]:
         resolved: dict[str, float] = {}
@@ -135,20 +122,30 @@ class RerankService:
                 resolved[candidate.candidateId] = self._clamp_score(
                     candidate.similarityScore
                 )
-            else:
-                candidates_to_predict.append(candidate)
+                continue
+
+            if not viewer_profile_text or not candidate.candidateProfileText:
+                resolved[candidate.candidateId] = 0.0
+                continue
+
+            candidates_to_predict.append(candidate)
 
         if not candidates_to_predict:
             return resolved
 
-        prompts = [
-            self._build_prompt(viewer_id, candidate)
-            for candidate in candidates_to_predict
-        ]
-        predicted_scores = model_loader.predict_scores(prompts)
+        predicted_scores = model_loader.predict_similarity_scores(
+            viewer_profile_text,
+            [
+                candidate.candidateProfileText or ""
+                for candidate in candidates_to_predict
+            ],
+        )
 
         for candidate, predicted_score in zip(candidates_to_predict, predicted_scores):
             resolved[candidate.candidateId] = self._clamp_score(predicted_score)
+
+        for candidate in candidates_to_predict[len(predicted_scores) :]:
+            resolved[candidate.candidateId] = 0.0
 
         return resolved
 
@@ -161,9 +158,7 @@ class RerankService:
         reason_parts: List[str] = []
 
         if candidate.mutualFriends > 0:
-            reason_parts.append(
-                f"Co {candidate.mutualFriends} ban chung"
-            )
+            reason_parts.append(f"Co {candidate.mutualFriends} ban chung")
 
         if interaction_score >= 0.6:
             reason_parts.append("co tuong tac gan day")

@@ -2,7 +2,8 @@ import logging
 from typing import List
 
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer
 
 from app.core.config import settings
 
@@ -33,16 +34,14 @@ class ModelLoader:
             return
 
         logger.info(
-            "[RecommendationModelLoader] Loading model %s to %s",
+            "[RecommendationModelLoader] Loading embedding model %s to %s",
             settings.RECOMMENDATION_MODEL_NAME,
             self._device,
         )
         self._tokenizer = AutoTokenizer.from_pretrained(
             settings.RECOMMENDATION_MODEL_NAME
         )
-        self._model = AutoModelForSequenceClassification.from_pretrained(
-            settings.RECOMMENDATION_MODEL_NAME
-        )
+        self._model = AutoModel.from_pretrained(settings.RECOMMENDATION_MODEL_NAME)
         self._model.to(self._device)
         self._model.eval()
         logger.info("[RecommendationModelLoader] Model loaded")
@@ -50,27 +49,39 @@ class ModelLoader:
     def warmup(self):
         logger.info("[RecommendationModelLoader] Warming up model")
         try:
-            dummy_inputs = self.tokenizer(
-                ["viewer=user-a candidate=user-b mutual=2 common_groups=1 base_score=20 reasons=2 mutual friends"],
-                padding=True,
-                truncation=True,
-                max_length=settings.RECOMMENDATION_MAX_LENGTH,
-                return_tensors="pt",
+            _ = self.predict_similarity_scores(
+                "name: viewer example\nbio: likes technology and football",
+                [
+                    "name: candidate example\nbio: builds mobile apps and joins football groups"
+                ],
             )
-            dummy_inputs = {
-                key: value.to(self._device) for key, value in dummy_inputs.items()
-            }
-            with torch.no_grad():
-                _ = self.model(**dummy_inputs)
             logger.info("[RecommendationModelLoader] Warmup completed")
         except Exception as exc:
             logger.exception("[RecommendationModelLoader] Warmup failed: %s", exc)
 
-    def predict_scores(self, texts: List[str]) -> List[float]:
-        if not texts:
+    def predict_similarity_scores(
+        self, query_text: str, candidate_texts: List[str]
+    ) -> List[float]:
+        if not query_text or not candidate_texts:
             return []
 
-        scores: List[float] = []
+        embeddings = self._encode_texts([query_text, *candidate_texts])
+        if embeddings.shape[0] <= 1:
+            return []
+
+        query_embedding = embeddings[0:1]
+        candidate_embeddings = embeddings[1:]
+        similarity_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(
+            -1
+        )
+        normalized_scores = ((similarity_scores + 1.0) / 2.0).clamp(0.0, 1.0)
+        return [float(score) for score in normalized_scores.detach().cpu().tolist()]
+
+    def _encode_texts(self, texts: List[str]) -> torch.Tensor:
+        if not texts:
+            return torch.empty((0, 1), dtype=torch.float32)
+
+        batches: List[torch.Tensor] = []
         batch_size = max(1, settings.RECOMMENDATION_BATCH_SIZE)
 
         for start in range(0, len(texts), batch_size):
@@ -87,19 +98,20 @@ class ModelLoader:
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
-            logits = outputs.logits.detach().cpu()
-            if logits.ndim == 1:
-                logits = logits.unsqueeze(-1)
+            pooled = self._mean_pool(outputs.last_hidden_state, inputs["attention_mask"])
+            normalized = F.normalize(pooled, p=2, dim=1)
+            batches.append(normalized.detach().cpu())
 
-            if logits.shape[-1] == 1:
-                batch_scores = torch.sigmoid(logits.squeeze(-1)).tolist()
-            else:
-                probabilities = torch.softmax(logits, dim=-1)
-                batch_scores = probabilities[:, -1].tolist()
+        return torch.cat(batches, dim=0)
 
-            scores.extend(float(score) for score in batch_scores)
-
-        return scores
+    def _mean_pool(
+        self, last_hidden_state: torch.Tensor, attention_mask: torch.Tensor
+    ) -> torch.Tensor:
+        mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        masked_embeddings = last_hidden_state * mask
+        summed = masked_embeddings.sum(dim=1)
+        counts = mask.sum(dim=1).clamp(min=1e-9)
+        return summed / counts
 
 
 model_loader = ModelLoader()

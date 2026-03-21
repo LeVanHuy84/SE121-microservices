@@ -153,10 +153,8 @@ This was simple, but it made tuning risky because changing recommendation behavi
 
 - Added a dedicated scoring config loader in `friend-recommendation.config.ts`.
 - Added environment-backed tuning knobs:
-  - `FRIEND_RECOMMEND_MUTUAL_FRIEND_WEIGHT`
-  - `FRIEND_RECOMMEND_COMMON_GROUP_WEIGHT`
-  - `FRIEND_RECOMMEND_MUTUAL_FRIEND_CAP`
-  - `FRIEND_RECOMMEND_COMMON_GROUP_CAP`
+- `FRIEND_RECOMMEND_MUTUAL_FRIEND_CAP`
+- `FRIEND_RECOMMEND_COMMON_GROUP_CAP`
 - `FriendRecommendationService` now computes score using capped contributions instead of unbounded multiplication.
 
 Default behavior is now:
@@ -235,7 +233,7 @@ Rule-based scoring is useful for stability and explainability, but it has a ceil
   - base candidates are still generated and scored by rule-based logic
   - top candidates are sent to `recommendation-service`
   - returned `modelScore` is blended into the final score using configurable weight
-  - if the service is disabled, missing, or times out, the system falls back to rule-based ranking
+  - if the service is missing or times out, the system falls back to rule-based ranking
 
 ### Reason
 
@@ -245,7 +243,6 @@ This is the safest place to introduce AI. Candidate generation remains determini
 
 AI reranking is controlled by:
 
-- `FRIEND_RECOMMEND_AI_ENABLED`
 - `FRIEND_RECOMMEND_AI_WEIGHT`
 - `FRIEND_RECOMMEND_AI_TOP_K`
 - `RECOMMENDATION_SERVICE_URL`

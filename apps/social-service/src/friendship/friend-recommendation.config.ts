@@ -1,11 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 
 export interface FriendRecommendationScoringConfig {
-  mutualFriendWeight: number;
-  commonGroupWeight: number;
   mutualFriendCap: number;
   commonGroupCap: number;
-  aiEnabled: boolean;
   aiWeight: number;
   aiTopK: number;
   diversityWindowSize: number;
@@ -15,12 +12,9 @@ export interface FriendRecommendationScoringConfig {
 
 export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringConfig =
   {
-    mutualFriendWeight: 10,
-    commonGroupWeight: 6,
     mutualFriendCap: 5,
     commonGroupCap: 3,
-    aiEnabled: false,
-    aiWeight: 12,
+    aiWeight: 0.5,
     aiTopK: 15,
     diversityWindowSize: 3,
     sharedMutualFriendPenalty: 4,
@@ -51,34 +45,10 @@ function parsePositiveNumber(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (!value) {
-    return fallback;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
-    return true;
-  }
-  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
-    return false;
-  }
-
-  return fallback;
-}
-
 export function loadFriendRecommendationScoringConfig(
   configService: ConfigService,
 ): FriendRecommendationScoringConfig {
   return {
-    mutualFriendWeight: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_MUTUAL_FRIEND_WEIGHT'),
-      DEFAULT_FRIEND_RECOMMENDATION_SCORING.mutualFriendWeight,
-    ),
-    commonGroupWeight: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_WEIGHT'),
-      DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupWeight,
-    ),
     mutualFriendCap: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_MUTUAL_FRIEND_CAP'),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.mutualFriendCap,
@@ -86,10 +56,6 @@ export function loadFriendRecommendationScoringConfig(
     commonGroupCap: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_CAP'),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupCap,
-    ),
-    aiEnabled: parseBoolean(
-      configService.get<string>('FRIEND_RECOMMEND_AI_ENABLED'),
-      DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiEnabled,
     ),
     aiWeight: parsePositiveNumber(
       configService.get<string>('FRIEND_RECOMMEND_AI_WEIGHT'),

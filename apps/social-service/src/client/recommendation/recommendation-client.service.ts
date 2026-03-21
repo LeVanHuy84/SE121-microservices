@@ -6,6 +6,10 @@ export interface RecommendationRerankCandidate {
   candidateId: string;
   mutualFriends: number;
   commonGroups: number;
+  interactionScore?: number;
+  similarityScore?: number;
+  candidateProfileText?: string;
+  sharedInterestCount?: number;
   baseScore: number;
   reasons: string[];
 }
@@ -29,6 +33,7 @@ export class RecommendationClientService {
   async rerankCandidates(
     viewerId: string,
     candidates: RecommendationRerankCandidate[],
+    viewerProfileText?: string,
   ): Promise<Record<string, number>> {
     if (!viewerId || candidates.length === 0) {
       return {};
@@ -48,6 +53,7 @@ export class RecommendationClientService {
         `${baseUrl}/recommend/rerank`,
         {
           viewerId,
+          viewerProfileText,
           candidates,
         },
         {

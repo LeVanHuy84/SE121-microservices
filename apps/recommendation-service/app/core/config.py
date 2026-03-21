@@ -7,6 +7,7 @@ load_dotenv()
 class Settings:
     PORT: int = int(os.getenv("PORT", 4011))
     HOST: str = os.getenv("HOST", "0.0.0.0")
+    RELOAD: bool = os.getenv("RELOAD", "false").lower() == "true"
 
     INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY")
     if not INTERNAL_SERVICE_KEY:
@@ -14,7 +15,7 @@ class Settings:
 
     RECOMMENDATION_MODEL_NAME: str = os.getenv(
         "RECOMMENDATION_MODEL_NAME",
-        "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     )
     RECOMMENDATION_MAX_LENGTH: int = int(
         os.getenv("RECOMMENDATION_MAX_LENGTH", 256)

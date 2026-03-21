@@ -7,6 +7,7 @@ class RecommendationCandidateInput(BaseModel):
     mutualFriends: int = 0
     interactionScore: float = 0
     similarityScore: Optional[float] = None
+    candidateProfileText: Optional[str] = None
     sharedInterestCount: int = 0
     alreadyFriend: bool = False
     isBlocked: bool = False
@@ -18,6 +19,7 @@ class RecommendationCandidateInput(BaseModel):
 
 class RecommendationRerankRequest(BaseModel):
     viewerId: str
+    viewerProfileText: Optional[str] = None
     candidates: List[RecommendationCandidateInput] = Field(default_factory=list)
 
 

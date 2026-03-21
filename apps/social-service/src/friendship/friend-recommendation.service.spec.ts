@@ -3,9 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { GroupClientService } from '../client/group/group-client.service';
 import { RecommendationClientService } from '../client/recommendation/recommendation-client.service';
 import { UserClientService } from '../client/user/user-client.service';
+import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { FriendRecommendationService } from './friend-recommendation.service';
 import { CandidateSourceService } from './recommendation/candidate-source.service';
+import { RecommendationBaselineRankerService } from './recommendation/recommendation-baseline-ranker.service';
+import { RecommendationDiversityService } from './recommendation/recommendation-diversity.service';
+import { RecommendationFeatureService } from './recommendation/recommendation-feature.service';
+import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
+import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 
 describe('FriendRecommendationService', () => {
@@ -17,6 +23,8 @@ describe('FriendRecommendationService', () => {
   const getGroupRecommendationCandidates = jest.fn();
   const rerankCandidates = jest.fn();
   const getUserInfos = jest.fn();
+  const getUserProfiles = jest.fn();
+  const getRecentInteractionScores = jest.fn();
   const configGet = jest.fn();
 
   beforeEach(async () => {
@@ -27,16 +35,25 @@ describe('FriendRecommendationService', () => {
     getGroupRecommendationCandidates.mockReset();
     rerankCandidates.mockReset();
     getUserInfos.mockReset();
+    getUserProfiles.mockReset();
+    getRecentInteractionScores.mockReset();
     configGet.mockReset();
     getUserInfos.mockResolvedValue({});
+    getUserProfiles.mockResolvedValue({});
     rerankCandidates.mockResolvedValue({});
+    getRecentInteractionScores.mockResolvedValue({});
     configGet.mockImplementation(() => undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FriendRecommendationService,
         CandidateSourceService,
+        RecommendationBaselineRankerService,
+        RecommendationDiversityService,
+        RecommendationFeatureService,
+        RecommendationHydrationService,
         RecommendationQueryService,
+        RecommendationTrackingService,
         {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
@@ -62,6 +79,13 @@ describe('FriendRecommendationService', () => {
           provide: UserClientService,
           useValue: {
             getUserInfos,
+            getUserProfiles,
+          },
+        },
+        {
+          provide: RecentActivityBufferService,
+          useValue: {
+            getRecentInteractionScores,
           },
         },
         {
@@ -104,8 +128,8 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 2,
-        baseScore: 22,
-        score: 22,
+        baseScore: 0.233333,
+        score: 0.233333,
         reasons: ['1 mutual friend', '2 common groups'],
         recommendationId: expect.any(String),
         recommendationRequestId: expect.any(String),
@@ -117,8 +141,8 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 0,
-        baseScore: 10,
-        score: 10,
+        baseScore: 0.1,
+        score: 0.1,
         reasons: ['1 mutual friend'],
         recommendationId: expect.any(String),
         recommendationRequestId: expect.any(String),
@@ -134,7 +158,7 @@ describe('FriendRecommendationService', () => {
       metadata: expect.objectContaining({
         mutualFriends: 1,
         commonGroups: 2,
-        score: 22,
+        score: 0.233333,
         position: 0,
       }),
     });
@@ -167,8 +191,8 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 3,
-        baseScore: 18,
-        score: 18,
+        baseScore: 0.2,
+        score: 0.2,
         reasons: ['3 common groups'],
         recommendationId: expect.any(String),
         recommendationRequestId: expect.any(String),
@@ -180,8 +204,8 @@ describe('FriendRecommendationService', () => {
         user: null,
         mutualFriendPreview: [],
         commonGroups: 0,
-        baseScore: 10,
-        score: 10,
+        baseScore: 0.1,
+        score: 0.1,
         reasons: ['1 mutual friend'],
         recommendationId: expect.any(String),
         recommendationRequestId: expect.any(String),
@@ -217,7 +241,7 @@ describe('FriendRecommendationService', () => {
 
     expect(result.data[0]).toMatchObject({
       id: 'b',
-      baseScore: 10,
+      baseScore: 0.1,
       recommendationId: expect.any(String),
       recommendationRequestId: expect.any(String),
       user: {
@@ -296,7 +320,7 @@ describe('FriendRecommendationService', () => {
       id: 'heavy-social',
       mutualFriends: 9,
       commonGroups: 6,
-      score: 68,
+      score: 0.7,
       reasons: ['9 mutual friends', '6 common groups'],
     });
     expect(recordRecommendationEvents).toHaveBeenCalledWith([
@@ -305,8 +329,8 @@ describe('FriendRecommendationService', () => {
         candidateId: 'heavy-social',
         eventType: 'served',
         metadata: expect.objectContaining({
-          baseScore: 68,
-          score: 68,
+          baseScore: 0.7,
+          score: 0.7,
         }),
       }),
     ]);
@@ -365,10 +389,8 @@ describe('FriendRecommendationService', () => {
   it('should combine AI rerank score with base score when enabled', async () => {
     configGet.mockImplementation((key: string) => {
       switch (key) {
-        case 'FRIEND_RECOMMEND_AI_ENABLED':
-          return 'true';
         case 'FRIEND_RECOMMEND_AI_WEIGHT':
-          return '20';
+          return '0.5';
         case 'FRIEND_RECOMMEND_AI_TOP_K':
           return '5';
         default:
@@ -380,7 +402,12 @@ describe('FriendRecommendationService', () => {
       providers: [
         FriendRecommendationService,
         CandidateSourceService,
+        RecommendationBaselineRankerService,
+        RecommendationDiversityService,
+        RecommendationFeatureService,
+        RecommendationHydrationService,
         RecommendationQueryService,
+        RecommendationTrackingService,
         {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
@@ -406,6 +433,13 @@ describe('FriendRecommendationService', () => {
           provide: UserClientService,
           useValue: {
             getUserInfos,
+            getUserProfiles,
+          },
+        },
+        {
+          provide: RecentActivityBufferService,
+          useValue: {
+            getRecentInteractionScores,
           },
         },
         {
@@ -439,31 +473,108 @@ describe('FriendRecommendationService', () => {
       a: 0.1,
       b: 0.9,
     });
+    getUserProfiles.mockResolvedValue({
+      self: {
+        id: 'self',
+        email: 'self@example.com',
+        isActive: true,
+        firstName: 'Self',
+        lastName: 'User',
+        avatarUrl: '',
+        bio: 'I build social apps',
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      },
+      a: {
+        id: 'a',
+        email: 'a@example.com',
+        isActive: true,
+        firstName: 'Anh',
+        lastName: 'Tran',
+        avatarUrl: '',
+        bio: 'Mobile developer and runner',
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      },
+      b: {
+        id: 'b',
+        email: 'b@example.com',
+        isActive: true,
+        firstName: 'Binh',
+        lastName: 'Le',
+        avatarUrl: '',
+        bio: 'Mobile developer and designer',
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      },
+    });
 
     const result = await service.recommendFriends('self', { limit: 2 });
 
-    expect(rerankCandidates).toHaveBeenCalledWith('self', [
-      {
-        candidateId: 'a',
-        mutualFriends: 1,
-        commonGroups: 0,
-        baseScore: 10,
-        reasons: ['1 mutual friend'],
-      },
-      {
-        candidateId: 'b',
-        mutualFriends: 1,
-        commonGroups: 0,
-        baseScore: 10,
-        reasons: ['1 mutual friend'],
-      },
-    ]);
+    expect(getUserProfiles).toHaveBeenCalledWith(['self', 'a', 'b']);
+    expect(rerankCandidates).toHaveBeenCalledWith(
+      'self',
+      [
+        {
+          candidateId: 'a',
+          mutualFriends: 1,
+          commonGroups: 0,
+          interactionScore: 0,
+          similarityScore: 0,
+          candidateProfileText: 'name: Anh Tran\nbio: Mobile developer and runner',
+          sharedInterestCount: 0,
+          baseScore: 0.1,
+          reasons: ['1 mutual friend'],
+        },
+        {
+          candidateId: 'b',
+          mutualFriends: 1,
+          commonGroups: 0,
+          interactionScore: 0,
+          similarityScore: 0,
+          candidateProfileText:
+            'name: Binh Le\nbio: Mobile developer and designer',
+          sharedInterestCount: 0,
+          baseScore: 0.1,
+          reasons: ['1 mutual friend'],
+        },
+      ],
+      'name: Self User\nbio: I build social apps',
+    );
     expect(result.data.map((candidate) => candidate.id)).toEqual(['b', 'a']);
     expect(result.data[0]).toMatchObject({
       id: 'b',
-      baseScore: 10,
+      baseScore: 0.1,
       modelScore: 0.9,
-      score: 28,
+      score: 0.55,
+    });
+  });
+
+  it('should boost candidates with recent interaction score', async () => {
+    recommendFriends.mockResolvedValue({
+      data: [
+        { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
+        { id: 'b', mutualFriends: 1, mutualFriendIds: ['u2'] },
+      ],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    summarizeCandidates.mockResolvedValue([]);
+    getGroupRecommendationCandidates.mockResolvedValue([]);
+    getCommonGroupCounts.mockResolvedValue({
+      a: 0,
+      b: 0,
+    });
+    getRecentInteractionScores.mockResolvedValue({
+      a: 0.8,
+      b: 0,
+    });
+
+    const result = await service.recommendFriends('self', { limit: 2 });
+
+    expect(getRecentInteractionScores).toHaveBeenCalledWith('self', ['a', 'b']);
+    expect(result.data.map((candidate) => candidate.id)).toEqual(['a', 'b']);
+    expect(result.data[0]).toMatchObject({
+      id: 'a',
+      baseScore: 0.34,
+      score: 0.34,
     });
   });
 });

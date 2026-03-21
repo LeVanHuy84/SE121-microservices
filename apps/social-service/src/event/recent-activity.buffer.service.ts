@@ -2,20 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
-// Các loại activity social
 export type SocialActivityType = 'friendship_request' | 'friendship_accept';
 
 export interface RecentSocialActivity {
-  actorId: string; // user thực hiện hành động
+  actorId: string;
   type: SocialActivityType;
-  targetId: string; // user nhận hành động
+  targetId: string;
 }
 
 @Injectable()
 export class RecentActivityBufferService {
   private readonly logger = new Logger(RecentActivityBufferService.name);
-  private readonly TTL_SECONDS = 300; // 5 phút
-  private readonly PROCESSING_TTL_SECONDS = 300; // 5 phút cho snapshot key
+  private readonly ttlSeconds = 300;
+  private readonly processingTtlSeconds = 300;
+  private readonly requestActivityWeight = 0.7;
+  private readonly acceptActivityWeight = 1;
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
@@ -26,6 +27,7 @@ export class RecentActivityBufferService {
   private async scanKeys(pattern: string): Promise<string[]> {
     const keys: string[] = [];
     let cursor = '0';
+
     do {
       const [nextCursor, batch] = await this.redis.scan(
         cursor,
@@ -35,30 +37,32 @@ export class RecentActivityBufferService {
         '100',
       );
       cursor = nextCursor;
-      if (batch?.length) keys.push(...batch);
+      if (batch?.length) {
+        keys.push(...batch);
+      }
     } while (cursor !== '0');
+
     return keys;
   }
 
-  /** Lưu hoặc ghi đè activity gần nhất */
   async addRecentActivity(activity: RecentSocialActivity) {
     const key = this.getRedisKey(activity);
-    await this.redis.set(key, JSON.stringify(activity), 'EX', this.TTL_SECONDS);
+    await this.redis.set(key, JSON.stringify(activity), 'EX', this.ttlSeconds);
     this.logger.debug(
-      `💾 Cached ${activity.type} for target:${activity.targetId} (actor ${activity.actorId})`,
+      `Cached ${activity.type} for target:${activity.targetId} actor:${activity.actorId}`,
     );
   }
 
-  /** Snapshot tất cả activity và chuyển sang vùng processing */
   async snapshotAndGetAll(): Promise<Record<string, RecentSocialActivity>> {
     const allKeys = await this.scanKeys('recent:activity:*');
-
-    // LOẠI BỎ mấy key processing
     const keys = allKeys.filter(
-      (k) => !k.startsWith('recent:activity:processing:'),
+      (key) => !key.startsWith('recent:activity:processing:'),
     );
     const snapshot: Record<string, RecentSocialActivity> = {};
-    if (keys.length === 0) return snapshot;
+
+    if (keys.length === 0) {
+      return snapshot;
+    }
 
     const pipeline = this.redis.pipeline();
 
@@ -68,34 +72,38 @@ export class RecentActivityBufferService {
         'recent:activity:processing:',
       );
       pipeline.rename(key, processingKey);
-      pipeline.expire(processingKey, this.PROCESSING_TTL_SECONDS);
+      pipeline.expire(processingKey, this.processingTtlSeconds);
       pipeline.get(processingKey);
     }
 
     const results = await pipeline.exec();
-    if (!results) return snapshot;
+    if (!results) {
+      return snapshot;
+    }
 
-    // Mỗi key xử lý 3 lệnh => rename / expire / get
-    for (let i = 0; i < keys.length; i++) {
-      const getResult = results[i * 3 + 2]?.[1] as string | null;
-      if (!getResult) continue;
-      const [, , type, targetId, actorId] = keys[i].split(':');
+    for (let index = 0; index < keys.length; index += 1) {
+      const getResult = results[index * 3 + 2]?.[1] as string | null;
+      if (!getResult) {
+        continue;
+      }
+
+      const [, , type, targetId, actorId] = keys[index].split(':');
       snapshot[`${type}:${targetId}:${actorId}`] = JSON.parse(getResult);
     }
 
     this.logger.debug(
-      `📸 Snapshot ${Object.keys(snapshot).length} activities`,
+      `Snapshot ${Object.keys(snapshot).length} activities`,
       snapshot,
     );
+
     return snapshot;
   }
 
-  /** Xoá toàn bộ snapshot key sau khi flush xong */
   async clearProcessingSnapshot() {
     const keys = await this.scanKeys('recent:activity:processing:*');
     if (keys.length > 0) {
       await this.redis.del(...keys);
-      this.logger.debug(`🧹 Cleared ${keys.length} processing activities`);
+      this.logger.debug(`Cleared ${keys.length} processing activities`);
     }
   }
 
@@ -107,9 +115,68 @@ export class RecentActivityBufferService {
     const key = `recent:activity:${type}:${targetId}:${actorId}`;
     const deleted = await this.redis.del(key);
     if (deleted) {
-      this.logger.debug(
-        `🧹 Cleared activity ${type}:${targetId} (actor ${actorId})`,
-      );
+      this.logger.debug(`Cleared activity ${type}:${targetId} actor:${actorId}`);
     }
+  }
+
+  async getRecentInteractionScores(
+    viewerId: string,
+    candidateIds: string[],
+  ): Promise<Record<string, number>> {
+    const dedupedCandidateIds = [...new Set(candidateIds.filter(Boolean))];
+    if (!viewerId || dedupedCandidateIds.length === 0) {
+      return {};
+    }
+
+    const descriptors = dedupedCandidateIds.flatMap((candidateId) => [
+      {
+        candidateId,
+        key: `recent:activity:friendship_request:${candidateId}:${viewerId}`,
+        weight: this.requestActivityWeight,
+      },
+      {
+        candidateId,
+        key: `recent:activity:friendship_request:${viewerId}:${candidateId}`,
+        weight: this.requestActivityWeight,
+      },
+      {
+        candidateId,
+        key: `recent:activity:friendship_accept:${candidateId}:${viewerId}`,
+        weight: this.acceptActivityWeight,
+      },
+      {
+        candidateId,
+        key: `recent:activity:friendship_accept:${viewerId}:${candidateId}`,
+        weight: this.acceptActivityWeight,
+      },
+    ]);
+
+    const pipeline = this.redis.pipeline();
+    descriptors.forEach((descriptor) => pipeline.ttl(descriptor.key));
+    const results = await pipeline.exec();
+
+    if (!results) {
+      return {};
+    }
+
+    return descriptors.reduce<Record<string, number>>((acc, descriptor, index) => {
+      const ttl = Number(results[index]?.[1] ?? -2);
+      if (!Number.isFinite(ttl) || ttl <= 0) {
+        if (acc[descriptor.candidateId] === undefined) {
+          acc[descriptor.candidateId] = 0;
+        }
+        return acc;
+      }
+
+      const normalizedScore = Math.min(ttl, this.ttlSeconds) / this.ttlSeconds;
+      const weightedScore = Number(
+        (normalizedScore * descriptor.weight).toFixed(6),
+      );
+      acc[descriptor.candidateId] = Math.max(
+        acc[descriptor.candidateId] ?? 0,
+        weightedScore,
+      );
+      return acc;
+    }, {});
   }
 }

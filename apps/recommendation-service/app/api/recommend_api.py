@@ -8,7 +8,7 @@ recommend_router = APIRouter(prefix="/recommend")
 
 
 @recommend_router.post("/rerank", dependencies=[Depends(verify_internal_key)])
-async def rerank_candidates(req: RecommendationRerankRequest):
+def rerank_candidates(req: RecommendationRerankRequest):
     scores = rerank_service.rerank(req)
     return {
         "success": True,
@@ -19,6 +19,6 @@ async def rerank_candidates(req: RecommendationRerankRequest):
 
 
 @recommend_router.post("/friends", dependencies=[Depends(verify_internal_key)])
-async def recommend_friends(req: RecommendationRerankRequest):
+def recommend_friends(req: RecommendationRerankRequest):
     recommendations = rerank_service.recommend(req)
     return recommendations

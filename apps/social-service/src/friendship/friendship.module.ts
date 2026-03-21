@@ -14,7 +14,12 @@ import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import { PostgresSocialGraphRepository } from './repositories/postgres-social-graph.repository';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 import { CandidateSourceService } from './recommendation/candidate-source.service';
+import { RecommendationBaselineRankerService } from './recommendation/recommendation-baseline-ranker.service';
+import { RecommendationDiversityService } from './recommendation/recommendation-diversity.service';
+import { RecommendationFeatureService } from './recommendation/recommendation-feature.service';
+import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
+import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
 
 @Module({
   imports: [
@@ -35,7 +40,12 @@ import { RecommendationQueryService } from './recommendation/recommendation-quer
     FriendRecommendationService,
     FriendshipService,
     PostgresSocialGraphRepository,
+    RecommendationBaselineRankerService,
+    RecommendationDiversityService,
+    RecommendationFeatureService,
+    RecommendationHydrationService,
     RecommendationQueryService,
+    RecommendationTrackingService,
     {
       provide: SOCIAL_GRAPH_REPOSITORY,
       useExisting: PostgresSocialGraphRepository,
