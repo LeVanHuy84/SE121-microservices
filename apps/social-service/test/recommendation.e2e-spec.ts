@@ -36,6 +36,8 @@ describe('Recommendation flow integration', () => {
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
   const getRecentInteractionScores = jest.fn();
+  const addRecentActivity = jest.fn();
+  const clearActivity = jest.fn();
   const configGet = jest.fn();
 
   beforeEach(async () => {
@@ -48,6 +50,8 @@ describe('Recommendation flow integration', () => {
     getUsers.mockResolvedValue({});
     getProfileRecommendationCandidates.mockResolvedValue([]);
     getRecentInteractionScores.mockResolvedValue({});
+    addRecentActivity.mockResolvedValue(undefined);
+    clearActivity.mockResolvedValue(undefined);
     configGet.mockImplementation((key: string) => {
       switch (key) {
         case 'FRIEND_RECOMMEND_AI_WEIGHT':
@@ -103,7 +107,8 @@ describe('Recommendation flow integration', () => {
         {
           provide: RecentActivityBufferService,
           useValue: {
-            getRecentInteractionScores,
+            addRecentActivity,
+            clearActivity,
           },
         },
         {
@@ -520,7 +525,7 @@ describe('Recommendation flow integration', () => {
     ]);
   });
 
-  it('should boost candidates with recent interaction score in the integrated flow', async () => {
+  it('should ignore recent interaction score in the integrated flow when interaction weight is disabled', async () => {
     recommendFriends.mockResolvedValue({
       data: [
         { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
@@ -608,10 +613,11 @@ describe('Recommendation flow integration', () => {
     });
 
     expect(result.data.map((candidate) => candidate.id)).toEqual(['a', 'b']);
+    expect(getRecentInteractionScores).not.toHaveBeenCalled();
     expect(result.data[0]).toMatchObject({
       id: 'a',
-      baseScore: 0.34,
-      score: 0.34,
+      baseScore: 0.1,
+      score: 0.1,
     });
     expect(result.data[1]).toMatchObject({
       id: 'b',
@@ -622,16 +628,14 @@ describe('Recommendation flow integration', () => {
       expect.objectContaining({
         candidateId: 'a',
         metadata: expect.objectContaining({
-          interactionScore: 0.8,
-          baseScore: 0.34,
-          score: 0.34,
+          baseScore: 0.1,
+          score: 0.1,
           position: 0,
         }),
       }),
       expect.objectContaining({
         candidateId: 'b',
         metadata: expect.objectContaining({
-          interactionScore: 0,
           baseScore: 0.1,
           score: 0.1,
           position: 1,
@@ -906,7 +910,6 @@ describe('Recommendation flow integration', () => {
     getGroupRecommendationCandidates.mockResolvedValue(fixture.groupCandidates);
     summarizeCandidates.mockResolvedValue(fixture.summarizedGroupCandidates);
     getCommonGroupCounts.mockResolvedValue(fixture.commonGroupCounts);
-    getRecentInteractionScores.mockResolvedValue(fixture.interactionScores);
     getCommonGroupNames.mockResolvedValue(fixture.commonGroupNames);
     rerankCandidates.mockResolvedValue(fixture.aiScores);
     getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') =>
@@ -927,9 +930,9 @@ describe('Recommendation flow integration', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'semantic-peer',
-          baseScore: 0.296667,
+          baseScore: 0.266667,
           modelScore: 0.9,
-          score: 0.746667,
+          score: 0.7166669999999999,
         }),
         expect.objectContaining({
           id: 'community-host',
@@ -939,9 +942,9 @@ describe('Recommendation flow integration', () => {
         }),
         expect.objectContaining({
           id: 'runner-a',
-          baseScore: 0.346667,
+          baseScore: 0.166667,
           modelScore: 0.4,
-          score: 0.546667,
+          score: 0.366667,
         }),
       ]),
     );
@@ -952,9 +955,9 @@ describe('Recommendation flow integration', () => {
           metadata: expect.objectContaining({
             source: 'mixed',
             position: 0,
-            baseScore: 0.296667,
+            baseScore: 0.266667,
             modelScore: 0.9,
-            score: 0.746667,
+            score: 0.7166669999999999,
           }),
         }),
         expect.objectContaining({
@@ -972,10 +975,9 @@ describe('Recommendation flow integration', () => {
           metadata: expect.objectContaining({
             source: 'mixed',
             position: 3,
-            interactionScore: 0.6,
-            baseScore: 0.346667,
+            baseScore: 0.166667,
             modelScore: 0.4,
-            score: 0.546667,
+            score: 0.366667,
           }),
         }),
       ]),

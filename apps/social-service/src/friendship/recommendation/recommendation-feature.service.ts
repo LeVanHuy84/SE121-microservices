@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RecentActivityBufferService } from '../../event/recent-activity.buffer.service';
 import {
   FriendRecommendationScoringConfig,
   loadFriendRecommendationScoringConfig,
@@ -15,27 +14,13 @@ import {
 export class RecommendationFeatureService {
   private readonly scoringConfig: FriendRecommendationScoringConfig;
 
-  constructor(
-    configService: ConfigService,
-    private readonly recentActivityBuffer: RecentActivityBufferService,
-  ) {
+  constructor(configService: ConfigService) {
     this.scoringConfig = loadFriendRecommendationScoringConfig(configService);
-  }
-
-  async getInteractionScores(
-    userId: string,
-    candidateIds: string[],
-  ): Promise<Record<string, number>> {
-    return this.recentActivityBuffer.getRecentInteractionScores(
-      userId,
-      candidateIds,
-    );
   }
 
   buildFeatureVector(
     candidate: FriendRecommendation,
     commonGroups: number,
-    interactionScore = 0,
   ): RecommendationFeatureVector {
     const mutualFriendScore = this.normalizeCount(
       candidate.mutualFriends,
@@ -77,7 +62,6 @@ export class RecommendationFeatureService {
       mutualFriendScore,
       commonGroupsCount: commonGroups,
       commonGroupScore,
-      interactionScore: this.clampScore(interactionScore),
       groupAffinityScore,
       profileAffinityScore,
       source: getRecommendationSource(candidate.mutualFriends, commonGroups),

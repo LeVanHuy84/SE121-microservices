@@ -34,7 +34,6 @@ interface MultiUserRecommendationFixture {
   summarizedGroupCandidates: FriendRecommendation[];
   commonGroupCounts: Record<string, number>;
   commonGroupNames: Record<string, string[]>;
-  interactionScores: Record<string, number>;
   aiScores: Record<string, number>;
   profileCandidates: ProfileRecommendationCandidateDTO[];
   fullUsers: Record<string, UserResponseDTO>;
@@ -231,16 +230,6 @@ export function buildMultiUserRecommendationFixture(): MultiUserRecommendationFi
       'mutual-local': [],
       'community-host': ['Community Builders', 'Weekend Runners', 'Startup Friends'],
       'group-designer': ['Design Circle', 'Product Guild'],
-    },
-    interactionScores: {
-      'semantic-peer': 0.1,
-      'deep-graph': 0,
-      'runner-a': 0.6,
-      'runner-b': 0.55,
-      'mutual-docs': 0.2,
-      'mutual-local': 0.4,
-      'community-host': 0,
-      'group-designer': 0,
     },
     aiScores: {
       'semantic-peer': 0.9,

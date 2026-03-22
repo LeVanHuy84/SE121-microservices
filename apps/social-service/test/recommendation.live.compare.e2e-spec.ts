@@ -71,10 +71,8 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
             : resolveFixtureUsers(fixture.baseUsers, ids),
         ),
     );
-    const getRecentInteractionScores = jest
-      .fn()
-      .mockResolvedValue(fixture.interactionScores);
-
+    const addRecentActivity = jest.fn().mockResolvedValue(undefined);
+    const clearActivity = jest.fn().mockResolvedValue(undefined);
     const configValues = new Map<string, string | number | undefined>([
       [
         'RECOMMENDATION_SERVICE_URL',
@@ -137,7 +135,8 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
         {
           provide: RecentActivityBufferService,
           useValue: {
-            getRecentInteractionScores,
+            addRecentActivity,
+            clearActivity,
           },
         },
         {

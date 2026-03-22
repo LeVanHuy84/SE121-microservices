@@ -15,13 +15,26 @@ export class RecentActivityBufferService {
   private readonly logger = new Logger(RecentActivityBufferService.name);
   private readonly ttlSeconds = 300;
   private readonly processingTtlSeconds = 300;
-  private readonly requestActivityWeight = 0.7;
-  private readonly acceptActivityWeight = 1;
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
   private getRedisKey(activity: RecentSocialActivity): string {
     return `recent:activity:${activity.type}:${activity.targetId}:${activity.actorId}`;
+  }
+
+  private getLogicalKey(activity: RecentSocialActivity): string {
+    return `${activity.type}:${activity.targetId}:${activity.actorId}`;
+  }
+
+  private getProcessingRedisKey(activity: RecentSocialActivity): string {
+    return this.getRedisKey(activity).replace(
+      'recent:activity:',
+      'recent:activity:processing:',
+    );
+  }
+
+  private getProcessingRedisKeyFromLogicalKey(logicalKey: string): string {
+    return `recent:activity:processing:${logicalKey}`;
   }
 
   private async scanKeys(pattern: string): Promise<string[]> {
@@ -87,8 +100,8 @@ export class RecentActivityBufferService {
         continue;
       }
 
-      const [, , type, targetId, actorId] = keys[index].split(':');
-      snapshot[`${type}:${targetId}:${actorId}`] = JSON.parse(getResult);
+      const activity = JSON.parse(getResult) as RecentSocialActivity;
+      snapshot[this.getLogicalKey(activity)] = activity;
     }
 
     this.logger.debug(
@@ -119,64 +132,37 @@ export class RecentActivityBufferService {
     }
   }
 
-  async getRecentInteractionScores(
-    viewerId: string,
-    candidateIds: string[],
-  ): Promise<Record<string, number>> {
-    const dedupedCandidateIds = [...new Set(candidateIds.filter(Boolean))];
-    if (!viewerId || dedupedCandidateIds.length === 0) {
-      return {};
+  async acknowledgeProcessingActivities(logicalKeys: string[]): Promise<void> {
+    if (logicalKeys.length === 0) {
+      return;
     }
 
-    const descriptors = dedupedCandidateIds.flatMap((candidateId) => [
-      {
-        candidateId,
-        key: `recent:activity:friendship_request:${candidateId}:${viewerId}`,
-        weight: this.requestActivityWeight,
-      },
-      {
-        candidateId,
-        key: `recent:activity:friendship_request:${viewerId}:${candidateId}`,
-        weight: this.requestActivityWeight,
-      },
-      {
-        candidateId,
-        key: `recent:activity:friendship_accept:${candidateId}:${viewerId}`,
-        weight: this.acceptActivityWeight,
-      },
-      {
-        candidateId,
-        key: `recent:activity:friendship_accept:${viewerId}:${candidateId}`,
-        weight: this.acceptActivityWeight,
-      },
-    ]);
+    const processingKeys = logicalKeys.map((logicalKey) =>
+      this.getProcessingRedisKeyFromLogicalKey(logicalKey),
+    );
+    await this.redis.del(...processingKeys);
+    this.logger.debug(`Acknowledged ${logicalKeys.length} processing activities`);
+  }
+
+  async requeueProcessingActivities(
+    activities: RecentSocialActivity[],
+  ): Promise<void> {
+    if (activities.length === 0) {
+      return;
+    }
 
     const pipeline = this.redis.pipeline();
-    descriptors.forEach((descriptor) => pipeline.ttl(descriptor.key));
-    const results = await pipeline.exec();
-
-    if (!results) {
-      return {};
+    for (const activity of activities) {
+      pipeline.set(
+        this.getRedisKey(activity),
+        JSON.stringify(activity),
+        'EX',
+        this.ttlSeconds,
+      );
+      pipeline.del(this.getProcessingRedisKey(activity));
     }
 
-    return descriptors.reduce<Record<string, number>>((acc, descriptor, index) => {
-      const ttl = Number(results[index]?.[1] ?? -2);
-      if (!Number.isFinite(ttl) || ttl <= 0) {
-        if (acc[descriptor.candidateId] === undefined) {
-          acc[descriptor.candidateId] = 0;
-        }
-        return acc;
-      }
-
-      const normalizedScore = Math.min(ttl, this.ttlSeconds) / this.ttlSeconds;
-      const weightedScore = Number(
-        (normalizedScore * descriptor.weight).toFixed(6),
-      );
-      acc[descriptor.candidateId] = Math.max(
-        acc[descriptor.candidateId] ?? 0,
-        weightedScore,
-      );
-      return acc;
-    }, {});
+    await pipeline.exec();
+    this.logger.warn(`Requeued ${activities.length} activities for retry`);
   }
 }

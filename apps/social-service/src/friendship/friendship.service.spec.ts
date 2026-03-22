@@ -175,6 +175,23 @@ describe('FriendshipService', () => {
       targetId: 'requester',
       type: 'friendship_accept',
     });
+    expect(clearActivity).toHaveBeenCalledWith(
+      'friendship_request',
+      'receiver',
+      'requester',
+    );
+  });
+
+  it('should clear pending request activity when declining a friend request', async () => {
+    getRelationshipStatus.mockResolvedValue({ status: 'REQUESTED_IN' });
+
+    await service.declineFriendRequest('receiver', 'requester');
+
+    expect(clearActivity).toHaveBeenCalledWith(
+      'friendship_request',
+      'receiver',
+      'requester',
+    );
   });
 
   it('should return recommendation analytics with normalized window days', async () => {

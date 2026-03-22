@@ -120,6 +120,8 @@ export class FriendshipService {
       ]);
     }
 
+    await this.buffer.clearActivity('friendship_request', userId, requesterId);
+
     await this.buffer.addRecentActivity({
       actorId: userId,
       targetId: requesterId,
@@ -140,6 +142,7 @@ export class FriendshipService {
     }
 
     await this.socialGraphRepo.declineFriendRequest(userId, requesterId);
+    await this.buffer.clearActivity('friendship_request', userId, requesterId);
 
     return { message: 'Friend request declined' };
   }

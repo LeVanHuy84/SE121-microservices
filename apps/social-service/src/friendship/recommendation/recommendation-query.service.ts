@@ -118,13 +118,6 @@ export class RecommendationQueryService {
       };
     }
 
-    const interactionStartedAt = Date.now();
-    const interactionScores = await this.featureService.getInteractionScores(
-      userId,
-      candidateBundle.mergedCandidates.map((candidate) => candidate.id),
-    );
-    const interactionMs = Date.now() - interactionStartedAt;
-
     const scoringStartedAt = Date.now();
     const scoredCandidates = await this.applyAiModelScores(
       userId,
@@ -133,7 +126,6 @@ export class RecommendationQueryService {
           this.baselineRanker.buildRecommendation(
             candidate,
             candidateBundle.commonGroupCountsByUser[candidate.id] ?? 0,
-            interactionScores[candidate.id] ?? 0,
           ),
         )
         .sort((left, right) =>
@@ -158,7 +150,7 @@ export class RecommendationQueryService {
     const snapshotWriteMs = Date.now() - snapshotWriteStartedAt;
 
     this.logger.debug(
-      `Recommendation query resolved with snapshot write: userId=${userId} requestedLimit=${requestedLimit} candidateLimit=${candidateLimit} mergedCandidates=${candidateBundle.mergedCandidates.length} ranked=${rankedCandidates.length} graphNextCursor=${candidateBundle.graphNextCursor ?? 'null'} groupCandidates=${candidateBundle.groupCandidates.length} candidateLoadMs=${candidateLoadMs} interactionMs=${interactionMs} scoringMs=${scoringMs} snapshotWriteMs=${snapshotWriteMs} totalMs=${Date.now() - requestStartedAt}`,
+      `Recommendation query resolved with snapshot write: userId=${userId} requestedLimit=${requestedLimit} candidateLimit=${candidateLimit} mergedCandidates=${candidateBundle.mergedCandidates.length} ranked=${rankedCandidates.length} graphNextCursor=${candidateBundle.graphNextCursor ?? 'null'} groupCandidates=${candidateBundle.groupCandidates.length} candidateLoadMs=${candidateLoadMs} scoringMs=${scoringMs} snapshotWriteMs=${snapshotWriteMs} totalMs=${Date.now() - requestStartedAt}`,
     );
 
     return this.buildRecommendationResponse(

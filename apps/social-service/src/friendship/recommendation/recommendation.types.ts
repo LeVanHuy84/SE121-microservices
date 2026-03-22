@@ -18,7 +18,6 @@ export interface RecommendationFeatureVector {
   mutualFriendScore: number;
   commonGroupsCount: number;
   commonGroupScore: number;
-  interactionScore: number;
   groupAffinityScore: number;
   profileAffinityScore: number;
   source: FriendRecommendationAnalyticsSource;

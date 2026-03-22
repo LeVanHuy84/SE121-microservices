@@ -54,8 +54,6 @@ export class RecommendationTrackingService {
           mutualFriendScore:
             recommendation.featureVector?.mutualFriendScore ?? null,
           commonGroups: recommendation.commonGroups ?? 0,
-          interactionScore:
-            recommendation.featureVector?.interactionScore ?? null,
           groupAffinityScore:
             recommendation.featureVector?.groupAffinityScore ?? null,
           profileAffinityScore:

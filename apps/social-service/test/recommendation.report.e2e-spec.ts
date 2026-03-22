@@ -22,9 +22,7 @@ import {
   resolveFixtureUsers,
 } from './recommendation-test.helpers';
 
-
-
-describe('Recommendation live ranking report', () => {
+describe('Recommendation ranking report', () => {
   let controller: FriendshipController;
 
   const recommendFriends = jest.fn();
@@ -33,6 +31,7 @@ describe('Recommendation live ranking report', () => {
   const getCommonGroupCounts = jest.fn();
   const getCommonGroupNames = jest.fn();
   const getGroupRecommendationCandidates = jest.fn();
+  const rerankCandidates = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
   const addRecentActivity = jest.fn();
@@ -40,44 +39,6 @@ describe('Recommendation live ranking report', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
-    const fixture = buildMultiUserRecommendationFixture();
-
-    recommendFriends.mockResolvedValue({
-      data: fixture.graphCandidates,
-      nextCursor: null,
-      hasNextPage: false,
-    });
-    summarizeCandidates.mockResolvedValue(fixture.summarizedGroupCandidates);
-    getCommonGroupCounts.mockResolvedValue(fixture.commonGroupCounts);
-    getCommonGroupNames.mockResolvedValue(fixture.commonGroupNames);
-    getGroupRecommendationCandidates.mockResolvedValue(fixture.groupCandidates);
-    getProfileRecommendationCandidates.mockResolvedValue(
-      fixture.profileCandidates,
-    );
-    getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') =>
-      Promise.resolve(
-        projection === 'full'
-          ? resolveFixtureUsers(fixture.fullUsers, ids)
-          : resolveFixtureUsers(fixture.baseUsers, ids),
-      ),
-    );
-
-    const configValues = new Map<string, string | number | undefined>([
-      [
-        'RECOMMENDATION_SERVICE_URL',
-        process.env.RECOMMENDATION_SERVICE_URL ?? 'http://127.0.0.1:4011',
-      ],
-      [
-        'RECOMMENDATION_INTERNAL_KEY',
-        process.env.INTERNAL_SERVICE_KEY ?? 'recommendation-internal-key-123',
-      ],
-      ['RECOMMENDATION_SERVICE_TIMEOUT_MS', 30000],
-      ['FRIEND_RECOMMEND_AI_WEIGHT', '0.5'],
-      ['FRIEND_RECOMMEND_AI_TOP_K', '8'],
-      ['FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT', '0.15'],
-      ['FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE', '1'],
-    ]);
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [FriendshipController],
@@ -91,7 +52,6 @@ describe('Recommendation live ranking report', () => {
         RecommendationQueryService,
         RecommendationSnapshotService,
         RecommendationTrackingService,
-        RecommendationClientService,
         {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
@@ -106,6 +66,12 @@ describe('Recommendation live ranking report', () => {
             getCommonGroupCounts,
             getCommonGroupNames,
             getGroupRecommendationCandidates,
+          },
+        },
+        {
+          provide: RecommendationClientService,
+          useValue: {
+            rerankCandidates,
           },
         },
         {
@@ -125,8 +91,20 @@ describe('Recommendation live ranking report', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: (key: string, defaultValue?: unknown) =>
-              configValues.get(key) ?? defaultValue,
+            get: (key: string) => {
+              switch (key) {
+                case 'FRIEND_RECOMMEND_AI_WEIGHT':
+                  return '0.5';
+                case 'FRIEND_RECOMMEND_AI_TOP_K':
+                  return '8';
+                case 'FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT':
+                  return '0.15';
+                case 'FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE':
+                  return '1';
+                default:
+                  return undefined;
+              }
+            },
           },
         },
         {
@@ -139,8 +117,29 @@ describe('Recommendation live ranking report', () => {
     controller = moduleRef.get(FriendshipController);
   });
 
-  it('should print a live recommendation table with real AI scores', async () => {
+  it('should print a readable recommendation table for a larger fixture', async () => {
     const fixture = buildMultiUserRecommendationFixture();
+
+    recommendFriends.mockResolvedValue({
+      data: fixture.graphCandidates,
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getGroupRecommendationCandidates.mockResolvedValue(fixture.groupCandidates);
+    summarizeCandidates.mockResolvedValue(fixture.summarizedGroupCandidates);
+    getCommonGroupCounts.mockResolvedValue(fixture.commonGroupCounts);
+    getCommonGroupNames.mockResolvedValue(fixture.commonGroupNames);
+    rerankCandidates.mockResolvedValue(fixture.aiScores);
+    getProfileRecommendationCandidates.mockResolvedValue(
+      fixture.profileCandidates,
+    );
+    getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') =>
+      Promise.resolve(
+        projection === 'full'
+          ? resolveFixtureUsers(fixture.fullUsers, ids)
+          : resolveFixtureUsers(fixture.baseUsers, ids),
+      ),
+    );
 
     const result = await controller.recommendFriends({
       userId: fixture.viewerId,
@@ -178,15 +177,20 @@ describe('Recommendation live ranking report', () => {
       baseScore: candidate.baseScore ?? 0,
       modelScore: candidate.modelScore ?? 0,
       finalScore: candidate.score ?? 0,
-      reasons: candidate.reasons.join(' | '),
     }));
 
-    console.log('\nLive recommendation report fixture');
+    console.log('\nRecommendation report fixture');
     console.table(rows);
 
-    expect(result.data).toHaveLength(fixture.expectedOrder.length);
-    expect(rows[0].modelScore).toBeGreaterThanOrEqual(0);
-    expect(rows.some((row) => row.candidateId === 'semantic-peer')).toBe(true);
-    expect(recordRecommendationEvents).toHaveBeenCalled();
+    expect(rows.map((row) => row.candidateId)).toEqual([
+      'semantic-peer',
+      'community-host',
+      'runner-a',
+      'deep-graph',
+      'runner-b',
+      'group-designer',
+      'mutual-docs',
+      'mutual-local',
+    ]);
   });
 });

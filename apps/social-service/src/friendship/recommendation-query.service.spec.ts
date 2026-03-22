@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { GroupClientService } from '../client/group/group-client.service';
 import { RecommendationClientService } from '../client/recommendation/recommendation-client.service';
 import { UserClientService } from '../client/user/user-client.service';
-import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { CandidateSourceService } from './recommendation/candidate-source.service';
 import { RecommendationBaselineRankerService } from './recommendation/recommendation-baseline-ranker.service';
 import { RecommendationDiversityService } from './recommendation/recommendation-diversity.service';
@@ -159,12 +158,6 @@ describe('RecommendationQueryService', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
-          },
-        },
-        {
-          provide: RecentActivityBufferService,
-          useValue: {
-            getRecentInteractionScores,
           },
         },
         {
@@ -573,12 +566,6 @@ describe('RecommendationQueryService', () => {
           },
         },
         {
-          provide: RecentActivityBufferService,
-          useValue: {
-            getRecentInteractionScores,
-          },
-        },
-        {
           provide: ConfigService,
           useValue: {
             get: configGet,
@@ -714,7 +701,7 @@ describe('RecommendationQueryService', () => {
     });
   });
 
-  it('should boost candidates with recent interaction score', async () => {
+  it('should ignore recent interaction score when interaction weight is disabled', async () => {
     recommendFriends.mockResolvedValue({
       data: [
         { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
@@ -729,19 +716,16 @@ describe('RecommendationQueryService', () => {
       a: 0,
       b: 0,
     });
-    getRecentInteractionScores.mockResolvedValue({
-      a: 0.8,
-      b: 0,
-    });
+  
 
     const result = await service.recommendFriends('self', { limit: 2 });
 
-    expect(getRecentInteractionScores).toHaveBeenCalledWith('self', ['a', 'b']);
+
     expect(result.data.map((candidate) => candidate.id)).toEqual(['a', 'b']);
     expect(result.data[0]).toMatchObject({
       id: 'a',
-      baseScore: 0.34,
-      score: 0.34,
+      baseScore: 0.1,
+      score: 0.1,
     });
   });
 });

@@ -22,18 +22,12 @@ export class RecommendationBaselineRankerService {
   buildRecommendation(
     candidate: FriendRecommendation,
     commonGroups: number,
-    interactionScore = 0,
   ): FeatureScoredRecommendation {
     const featureVector =
-      this.recommendationFeatureService.buildFeatureVector(
-        candidate,
-        commonGroups,
-        interactionScore,
-      );
+      this.recommendationFeatureService.buildFeatureVector(candidate, commonGroups);
     const score = Number(
       (
         0.5 * featureVector.mutualFriendScore +
-        0.3 * featureVector.interactionScore +
         0.2 * featureVector.groupAffinityScore +
         this.scoringConfig.profileMatchWeight * featureVector.profileAffinityScore
       ).toFixed(6),
