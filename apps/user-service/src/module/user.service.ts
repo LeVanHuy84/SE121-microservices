@@ -27,12 +27,11 @@ import { USER_STATUS } from 'src/constants';
 const CACHE_TTL = {
   USER: 300,
   USERS_LIST: 600,
-  BASE_USER: 300,
 };
 
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger();
+  private readonly logger = new Logger(UserService.name);
 
   constructor(
     @Inject(DRIZZLE) private db: DrizzleDB,
@@ -41,6 +40,7 @@ export class UserService {
   ) {}
 
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
+    const normalizedProfile = this.resolveProfileInput(dto);
     const user = await this.db.transaction(async (tx) => {
       const [user] = await tx
         .insert(users)
@@ -52,10 +52,16 @@ export class UserService {
 
       await tx.insert(profiles).values({
         userId: user.id,
-        firstName: dto.firstName ?? '',
-        lastName: dto.lastName ?? '',
-        avatarUrl: dto.avatarUrl ?? null,
+        firstName: normalizedProfile.firstName ?? '',
+        lastName: normalizedProfile.lastName ?? '',
+        avatarUrl: normalizedProfile.avatarUrl ?? null,
         coverImage: null,
+        bio: normalizedProfile.bio,
+        location: normalizedProfile.location,
+        jobTitle: normalizedProfile.jobTitle,
+        company: normalizedProfile.company,
+        school: normalizedProfile.school,
+        interests: normalizedProfile.interests,
         stats: { followers: 0, following: 0, posts: 0 },
       });
 
@@ -89,10 +95,15 @@ export class UserService {
     const payload: InferUserPayload<UserEventType.CREATED> = {
       userId: user.id,
       email: user.email,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      avatarUrl: dto.avatarUrl,
-      bio: dto.bio,
+      firstName: normalizedProfile.firstName ?? '',
+      lastName: normalizedProfile.lastName ?? '',
+      avatarUrl: normalizedProfile.avatarUrl ?? undefined,
+      bio: normalizedProfile.bio ?? undefined,
+      location: normalizedProfile.location ?? undefined,
+      jobTitle: normalizedProfile.jobTitle ?? undefined,
+      company: normalizedProfile.company ?? undefined,
+      school: normalizedProfile.school ?? undefined,
+      interests: normalizedProfile.interests ?? undefined,
       isActive: true,
       createdAt: new Date(),
     };
@@ -103,9 +114,17 @@ export class UserService {
       payload
     );
 
-    return plainToInstance(UserResponseDTO, user, {
-      excludeExtraneousValues: true,
-    });
+    return plainToInstance(
+      UserResponseDTO,
+      {
+        ...user,
+        ...normalizedProfile,
+        coverImage: null,
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
   }
 
   async findAll(): Promise<UserResponseDTO[]> {
@@ -124,6 +143,11 @@ export class UserService {
             avatarUrl: true,
             coverImage: true,
             bio: true,
+            location: true,
+            jobTitle: true,
+            company: true,
+            school: true,
+            interests: true,
           },
         },
       },
@@ -167,6 +191,11 @@ export class UserService {
             avatarUrl: true,
             coverImage: true,
             bio: true,
+            location: true,
+            jobTitle: true,
+            company: true,
+            school: true,
+            interests: true,
           },
         },
       },
@@ -220,13 +249,18 @@ export class UserService {
         .then((p) => p[0]);
       if (!profile) throw new NotFoundException('Profile not found');
 
-      // Resolve final profile state
+      const nextProfileInput = this.resolveProfileInput(dto);
       const updatedProfile = {
-        firstName: dto.firstName ?? profile.firstName,
-        lastName: dto.lastName ?? profile.lastName,
-        avatarUrl: dto.avatarUrl ?? profile.avatarUrl,
+        firstName: nextProfileInput.firstName ?? profile.firstName,
+        lastName: nextProfileInput.lastName ?? profile.lastName,
+        avatarUrl: nextProfileInput.avatarUrl ?? profile.avatarUrl,
         coverImage: dto.coverImage ?? profile.coverImage,
-        bio: dto.bio ?? profile.bio,
+        bio: nextProfileInput.bio ?? profile.bio,
+        location: nextProfileInput.location ?? profile.location,
+        jobTitle: nextProfileInput.jobTitle ?? profile.jobTitle,
+        company: nextProfileInput.company ?? profile.company,
+        school: nextProfileInput.school ?? profile.school,
+        interests: nextProfileInput.interests ?? profile.interests ?? [],
         updatedAt: new Date(),
       };
 
@@ -299,8 +333,13 @@ export class UserService {
       email: finalUser.email,
       firstName: finalProfile.firstName,
       lastName: finalProfile.lastName,
-      avatarUrl: finalProfile.avatarUrl,
-      bio: finalProfile.bio,
+      avatarUrl: finalProfile.avatarUrl ?? undefined,
+      bio: finalProfile.bio ?? undefined,
+      location: finalProfile.location ?? undefined,
+      jobTitle: finalProfile.jobTitle ?? undefined,
+      company: finalProfile.company ?? undefined,
+      school: finalProfile.school ?? undefined,
+      interests: finalProfile.interests ?? undefined,
     };
 
     await this.outboxService.createUserOutboxEvent(
@@ -338,17 +377,22 @@ export class UserService {
       with: { profile: true },
     });
 
-    return plainToInstance(UserResponseDTO, result, {
-      excludeExtraneousValues: true,
-    });
+    return result.map((user) =>
+      plainToInstance(
+        UserResponseDTO,
+        {
+          ...user,
+          ...user.profile,
+        },
+        {
+          excludeExtraneousValues: true,
+        },
+      ),
+    );
   }
 
   async getBaseUsersBatch(ids: string[]): Promise<Record<string, BaseUserDTO>> {
     if (!ids.length) return {};
-
-    const cacheKey = `baseUsers:${ids.sort().join(',')}`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
 
     const rows = await this.db
       .select({
@@ -371,13 +415,55 @@ export class UserService {
       acc[u.id] = u;
       return acc;
     }, {});
-
-    await this.redis.set(
-      cacheKey,
-      JSON.stringify(result),
-      'EX',
-      CACHE_TTL.BASE_USER
-    );
     return result;
+  }
+
+  private resolveProfileInput(
+    dto: Partial<CreateUserDTO>,
+  ): Partial<{
+    firstName: string | null;
+    lastName: string | null;
+    avatarUrl: string | null;
+    bio: string | null;
+    location: string | null;
+    jobTitle: string | null;
+    company: string | null;
+    school: string | null;
+    interests: string[];
+  }> {
+    return {
+      firstName: this.normalizeOptionalText(dto.firstName),
+      lastName: this.normalizeOptionalText(dto.lastName),
+      avatarUrl: this.normalizeOptionalText(dto.avatarUrl),
+      bio: this.normalizeOptionalText(dto.bio),
+      location: this.normalizeOptionalText(dto.location),
+      jobTitle: this.normalizeOptionalText(dto.jobTitle),
+      company: this.normalizeOptionalText(dto.company),
+      school: this.normalizeOptionalText(dto.school),
+      interests:
+        dto.interests === undefined
+          ? undefined
+          : this.normalizeInterests(dto.interests),
+    };
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string | null {
+    if (typeof value !== 'string') {
+      return value ?? null;
+    }
+
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private normalizeInterests(interests: string[] | undefined): string[] {
+    if (!Array.isArray(interests)) {
+      return [];
+    }
+
+    return [...new Set(interests.map((item) => item.trim()).filter(Boolean))].slice(
+      0,
+      10,
+    );
   }
 }

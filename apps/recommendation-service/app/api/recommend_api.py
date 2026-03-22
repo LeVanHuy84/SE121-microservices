@@ -13,12 +13,7 @@ def rerank_candidates(req: RecommendationRerankRequest):
     return {
         "success": True,
         "data": {
+            "model": rerank_service.get_runtime_metadata(),
             "scores": scores,
         },
     }
-
-
-@recommend_router.post("/friends", dependencies=[Depends(verify_internal_key)])
-def recommend_friends(req: RecommendationRerankRequest):
-    recommendations = rerank_service.recommend(req)
-    return recommendations

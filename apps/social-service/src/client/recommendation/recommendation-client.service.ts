@@ -6,12 +6,7 @@ export interface RecommendationRerankCandidate {
   candidateId: string;
   mutualFriends: number;
   commonGroups: number;
-  interactionScore?: number;
-  similarityScore?: number;
   candidateProfileText?: string;
-  sharedInterestCount?: number;
-  baseScore: number;
-  reasons: string[];
 }
 
 interface RecommendationRerankScoreResponse {
@@ -49,6 +44,7 @@ export class RecommendationClientService {
     }
 
     try {
+      const startedAt = Date.now();
       const res = await axios.post<RecommendationRerankScoreResponse>(
         `${baseUrl}/recommend/rerank`,
         {
@@ -71,7 +67,7 @@ export class RecommendationClientService {
         ? res.data.data.scores
         : [];
 
-      return scores.reduce((acc: Record<string, number>, item) => {
+      const parsedScores = scores.reduce((acc: Record<string, number>, item) => {
         const candidateId = String(item?.candidateId ?? '');
         const modelScore = Number(item?.modelScore);
         if (candidateId && Number.isFinite(modelScore)) {
@@ -79,6 +75,12 @@ export class RecommendationClientService {
         }
         return acc;
       }, {});
+
+      this.logger.debug(
+        `RECOMMENDATION_SERVICE rerank resolved: viewerId=${viewerId} requested=${candidates.length} scored=${Object.keys(parsedScores).length} durationMs=${Date.now() - startedAt}`,
+      );
+
+      return parsedScores;
     } catch (error) {
       this.logger.error(
         `RECOMMENDATION_SERVICE rerank failed: ${error instanceof Error ? error.message : String(error)}`,

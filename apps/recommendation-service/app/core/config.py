@@ -15,13 +15,26 @@ class Settings:
 
     RECOMMENDATION_MODEL_NAME: str = os.getenv(
         "RECOMMENDATION_MODEL_NAME",
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        "intfloat/multilingual-e5-base",
     )
     RECOMMENDATION_MAX_LENGTH: int = int(
         os.getenv("RECOMMENDATION_MAX_LENGTH", 256)
     )
     RECOMMENDATION_BATCH_SIZE: int = int(
         os.getenv("RECOMMENDATION_BATCH_SIZE", 16)
+    )
+    RECOMMENDATION_MAX_CANDIDATES: int = int(
+        os.getenv("RECOMMENDATION_MAX_CANDIDATES", 100)
+    )
+    RECOMMENDATION_QUERY_INSTRUCTION: str = os.getenv(
+        "RECOMMENDATION_QUERY_INSTRUCTION",
+        "Find candidate profiles that are likely to become meaningful social connections for this viewer.",
+    )
+    RECOMMENDATION_SCORE_FLOOR: float = float(
+        os.getenv("RECOMMENDATION_SCORE_FLOOR", 0.55)
+    )
+    RECOMMENDATION_SCORE_CEILING: float = float(
+        os.getenv("RECOMMENDATION_SCORE_CEILING", 0.9)
     )
 
 

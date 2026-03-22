@@ -117,6 +117,18 @@ export class GroupMemberController {
     );
   }
 
+  @MessagePattern('get_common_group_names_batch')
+  async getCommonGroupNamesBatch(
+    @Payload()
+    payload: { userId: string; candidateIds: string[]; limitPerCandidate?: number },
+  ): Promise<Record<string, string[]>> {
+    return this.groupMemberService.getCommonGroupNamesBatch(
+      payload.userId,
+      payload.candidateIds,
+      payload.limitPerCandidate,
+    );
+  }
+
   @MessagePattern('get_group_recommendation_candidates')
   async getGroupRecommendationCandidates(
     @Payload() payload: { userId: string; limit: number },

@@ -6,7 +6,10 @@ import {
   loadFriendRecommendationScoringConfig,
 } from '../friend-recommendation.config';
 import type { FriendRecommendation } from '../repositories/social-graph.repository';
-import type { RecommendationFeatureVector } from './recommendation.types';
+import {
+  getRecommendationSource,
+  type RecommendationFeatureVector,
+} from './recommendation.types';
 
 @Injectable()
 export class RecommendationFeatureService {
@@ -42,7 +45,7 @@ export class RecommendationFeatureService {
       commonGroups,
       this.scoringConfig.commonGroupCap,
     );
-    const similarityScore = commonGroupScore;
+    const groupAffinityScore = commonGroupScore;
     const reasons: string[] = [];
 
     if (candidate.mutualFriends > 0) {
@@ -68,9 +71,8 @@ export class RecommendationFeatureService {
       commonGroupsCount: commonGroups,
       commonGroupScore,
       interactionScore: this.clampScore(interactionScore),
-      similarityScore,
-      sharedInterestCount: 0,
-      source: this.getRecommendationSource(candidate.mutualFriends, commonGroups),
+      groupAffinityScore,
+      source: getRecommendationSource(candidate.mutualFriends, commonGroups),
       reasons,
     };
   }
@@ -90,25 +92,5 @@ export class RecommendationFeatureService {
     }
 
     return Number(Math.max(0, Math.min(1, value)).toFixed(6));
-  }
-
-  private getRecommendationSource(
-    mutualFriends: number,
-    commonGroups: number,
-  ): RecommendationFeatureVector['source'] {
-    const hasMutualFriends = mutualFriends > 0;
-    const hasCommonGroups = commonGroups > 0;
-
-    if (hasMutualFriends && hasCommonGroups) {
-      return 'mixed';
-    }
-    if (hasMutualFriends) {
-      return 'mutual_only';
-    }
-    if (hasCommonGroups) {
-      return 'group_only';
-    }
-
-    return 'fallback';
   }
 }

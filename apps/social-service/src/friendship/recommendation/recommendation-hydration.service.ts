@@ -22,7 +22,7 @@ export class RecommendationHydrationService {
       ),
     ];
 
-    const usersById = await this.userClient.getUserInfos(userIds);
+    const usersById = await this.userClient.getUsers(userIds, 'base');
 
     return recommendations.map((recommendation) => ({
       ...recommendation,

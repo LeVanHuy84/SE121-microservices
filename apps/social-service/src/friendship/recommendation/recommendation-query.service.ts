@@ -1,28 +1,25 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  BaseUserDTO,
   CursorPaginationDTO,
   CursorPageResponse,
   UserResponseDTO,
 } from '@repo/dtos';
 import { RecommendationClientService } from '../../client/recommendation/recommendation-client.service';
+import { GroupClientService } from '../../client/group/group-client.service';
 import { UserClientService } from '../../client/user/user-client.service';
 import {
   FriendRecommendationScoringConfig,
   loadFriendRecommendationScoringConfig,
 } from '../friend-recommendation.config';
-import {
-  FriendRecommendation,
-  SOCIAL_GRAPH_REPOSITORY,
-} from '../repositories/social-graph.repository';
-import type {
-  SocialGraphRepository,
-} from '../repositories/social-graph.repository';
+import { FriendRecommendation } from '../repositories/social-graph.repository';
 import { CandidateSourceService } from './candidate-source.service';
 import { RecommendationBaselineRankerService } from './recommendation-baseline-ranker.service';
 import { RecommendationDiversityService } from './recommendation-diversity.service';
 import { RecommendationFeatureService } from './recommendation-feature.service';
 import { RecommendationHydrationService } from './recommendation-hydration.service';
+import { RecommendationSnapshotService } from './recommendation-snapshot.service';
 import { RecommendationTrackingService } from './recommendation-tracking.service';
 import type { FeatureScoredRecommendation } from './recommendation.types';
 
@@ -34,15 +31,15 @@ export class RecommendationQueryService {
   private readonly scoringConfig: FriendRecommendationScoringConfig;
 
   constructor(
-    @Inject(SOCIAL_GRAPH_REPOSITORY)
-    private readonly socialGraphRepo: SocialGraphRepository,
     private readonly candidateSourceService: CandidateSourceService,
     private readonly baselineRanker: RecommendationBaselineRankerService,
     private readonly diversityService: RecommendationDiversityService,
     private readonly featureService: RecommendationFeatureService,
     private readonly hydrationService: RecommendationHydrationService,
+    private readonly snapshotService: RecommendationSnapshotService,
     private readonly trackingService: RecommendationTrackingService,
     private readonly recommendationClient: RecommendationClientService,
+    private readonly groupClient: GroupClientService,
     private readonly userClient: UserClientService,
     configService: ConfigService,
   ) {
@@ -54,20 +51,66 @@ export class RecommendationQueryService {
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>> {
     const requestedLimit = this.normalizeLimit(query.limit);
-    const candidateLimit = query.cursor
-      ? this.maxOverscan
-      : Math.min(
-          Math.max(requestedLimit * this.overscanMultiplier, requestedLimit),
-          this.maxOverscan,
+    const requestStartedAt = Date.now();
+    let graphCursor: string | null = null;
+    let includeGroupCandidates = true;
+
+    if (query.cursor) {
+      const snapshotStartedAt = Date.now();
+      const snapshotPage =
+        await this.snapshotService.getSnapshotPage<FeatureScoredRecommendation>(
+          userId,
+          query.cursor,
+          requestedLimit,
         );
 
-    const candidateBundle = await this.candidateSourceService.loadCandidateBundle(
-      userId,
-      query,
-      candidateLimit,
+      if (snapshotPage) {
+        this.logger.debug(
+          `Recommendation snapshot hit: userId=${userId} requestedLimit=${requestedLimit} startIndex=${snapshotPage.startIndex} visible=${snapshotPage.data.length} durationMs=${Date.now() - snapshotStartedAt}`,
+        );
+        return this.buildRecommendationResponse(
+          userId,
+          snapshotPage.data,
+          snapshotPage.startIndex,
+          snapshotPage.nextCursor,
+          snapshotPage.hasNextPage,
+        );
+      }
+
+      graphCursor = this.snapshotService.getGraphContinuationCursor(query.cursor);
+      includeGroupCandidates = false;
+
+      if (!graphCursor) {
+        this.logger.debug(
+          `Recommendation snapshot miss: userId=${userId} requestedLimit=${requestedLimit} durationMs=${Date.now() - snapshotStartedAt}`,
+        );
+
+        throw new BadRequestException(
+          'Recommendation cursor is invalid or expired',
+        );
+      }
+    }
+
+    const candidateLimit = Math.min(
+      Math.max(requestedLimit * this.overscanMultiplier, requestedLimit),
+      this.maxOverscan,
     );
 
+    const candidateLoadStartedAt = Date.now();
+    const candidateBundle = await this.candidateSourceService.loadCandidateBundle(
+      userId,
+      candidateLimit,
+      {
+        graphCursor,
+        includeGroupCandidates,
+      },
+    );
+    const candidateLoadMs = Date.now() - candidateLoadStartedAt;
+
     if (candidateBundle.mergedCandidates.length === 0) {
+      this.logger.debug(
+        `Recommendation query returned no candidates: userId=${userId} requestedLimit=${requestedLimit} candidateLimit=${candidateLimit} totalMs=${Date.now() - requestStartedAt}`,
+      );
       return {
         data: [],
         nextCursor: null,
@@ -75,11 +118,14 @@ export class RecommendationQueryService {
       };
     }
 
+    const interactionStartedAt = Date.now();
     const interactionScores = await this.featureService.getInteractionScores(
       userId,
       candidateBundle.mergedCandidates.map((candidate) => candidate.id),
     );
+    const interactionMs = Date.now() - interactionStartedAt;
 
+    const scoringStartedAt = Date.now();
     const scoredCandidates = await this.applyAiModelScores(
       userId,
       candidateBundle.mergedCandidates
@@ -94,58 +140,34 @@ export class RecommendationQueryService {
           this.baselineRanker.compareRecommendations(left, right),
         ),
     );
+    const scoringMs = Date.now() - scoringStartedAt;
     const rankedCandidates = this.diversityService.rerank(
       scoredCandidates.sort((left, right) =>
         this.baselineRanker.compareRecommendations(left, right),
       ),
     );
 
-    const startIndex = this.resolveStartIndex(rankedCandidates, query.cursor);
-    if (startIndex === null) {
-      return {
-        data: [],
-        nextCursor: null,
-        hasNextPage: false,
-      };
-    }
-
-    const visibleData = rankedCandidates.slice(
-      startIndex,
-      startIndex + requestedLimit,
-    );
-    const visibleRecommendations =
-      this.trackingService.attachRecommendationTrackingIds(visibleData);
-    const hydratedVisibleData =
-      await this.hydrationService.hydrateRecommendationUsers(
-        visibleRecommendations,
-      );
-    const responseData: FriendRecommendation[] = hydratedVisibleData.map(
-      ({ featureVector: _featureVector, ...recommendation }) => recommendation,
-    );
-    const nextIndex = startIndex + visibleData.length;
-    const hasNextPage =
-      nextIndex < rankedCandidates.length ||
-      candidateBundle.graphHasNextPage ||
-      candidateBundle.groupCandidates.length >= candidateBundle.candidateLimit;
-
-    await this.trackingService.recordServedEvents(
+    const snapshotWriteStartedAt = Date.now();
+    const snapshotPage =
+      await this.snapshotService.createSnapshotPage<FeatureScoredRecommendation>(
       userId,
-      hydratedVisibleData,
-      startIndex,
+      rankedCandidates,
+      requestedLimit,
+      candidateBundle.graphNextCursor,
     );
+    const snapshotWriteMs = Date.now() - snapshotWriteStartedAt;
 
     this.logger.debug(
-      `Ranked ${rankedCandidates.length} friend candidates for user ${userId}`,
+      `Recommendation query resolved with snapshot write: userId=${userId} requestedLimit=${requestedLimit} candidateLimit=${candidateLimit} mergedCandidates=${candidateBundle.mergedCandidates.length} ranked=${rankedCandidates.length} graphNextCursor=${candidateBundle.graphNextCursor ?? 'null'} groupCandidates=${candidateBundle.groupCandidates.length} candidateLoadMs=${candidateLoadMs} interactionMs=${interactionMs} scoringMs=${scoringMs} snapshotWriteMs=${snapshotWriteMs} totalMs=${Date.now() - requestStartedAt}`,
     );
 
-    return {
-      data: responseData,
-      nextCursor:
-        hasNextPage && responseData.length > 0
-          ? responseData[responseData.length - 1].id
-          : null,
-      hasNextPage,
-    };
+    return this.buildRecommendationResponse(
+      userId,
+      snapshotPage.data,
+      snapshotPage.startIndex,
+      snapshotPage.nextCursor,
+      snapshotPage.hasNextPage,
+    );
   }
 
   private async applyAiModelScores(
@@ -160,9 +182,27 @@ export class RecommendationQueryService {
       0,
       this.scoringConfig.aiTopK,
     );
-    const userProfiles = await this.userClient.getUserProfiles([
-      userId,
-      ...rerankCandidates.map((candidate) => candidate.id),
+    const mutualFriendIds = [
+      ...new Set(
+        rerankCandidates.flatMap((candidate) =>
+          candidate.mutualFriendIds.slice(0, 3),
+        ),
+      ),
+    ];
+    const [userProfiles, mutualFriendProfiles, commonGroupNames] = await Promise.all([
+      this.userClient.getUsers(
+        [
+          userId,
+          ...rerankCandidates.map((candidate) => candidate.id),
+        ],
+        'full',
+      ),
+      this.userClient.getUsers(mutualFriendIds, 'base'),
+      this.groupClient.getCommonGroupNames(
+        userId,
+        rerankCandidates.map((candidate) => candidate.id),
+        3,
+      ),
     ]);
     const viewerProfileText = this.buildSemanticProfileText(userProfiles[userId]);
     const modelScores = await this.recommendationClient.rerankCandidates(
@@ -171,14 +211,12 @@ export class RecommendationQueryService {
         candidateId: candidate.id,
         mutualFriends: candidate.mutualFriends,
         commonGroups: candidate.commonGroups ?? 0,
-        interactionScore: candidate.featureVector.interactionScore,
-        similarityScore: candidate.featureVector.similarityScore,
-        candidateProfileText: this.buildSemanticProfileText(
+        candidateProfileText: this.buildCandidateSemanticProfileText(
           userProfiles[candidate.id],
+          candidate,
+          mutualFriendProfiles,
+          commonGroupNames[candidate.id] ?? [],
         ),
-        sharedInterestCount: candidate.featureVector.sharedInterestCount,
-        baseScore: candidate.baseScore ?? candidate.score ?? 0,
-        reasons: candidate.reasons ?? [],
       })),
       viewerProfileText,
     );
@@ -211,19 +249,39 @@ export class RecommendationQueryService {
     return Math.max(1, Math.floor(limit));
   }
 
-  private resolveStartIndex(
-    rankedCandidates: FriendRecommendation[],
-    cursor: string | undefined,
-  ): number | null {
-    if (!cursor) {
-      return 0;
-    }
-
-    const cursorIndex = rankedCandidates.findIndex(
-      (candidate) => candidate.id === cursor,
+  private async buildRecommendationResponse(
+    userId: string,
+    visibleData: FeatureScoredRecommendation[],
+    startIndex: number,
+    nextCursor: string | null,
+    hasNextPage: boolean,
+  ): Promise<CursorPageResponse<FriendRecommendation>> {
+    const responseStartedAt = Date.now();
+    const visibleRecommendations =
+      this.trackingService.attachRecommendationTrackingIds(visibleData);
+    const hydratedVisibleData =
+      await this.hydrationService.hydrateRecommendationUsers(
+        visibleRecommendations,
+      );
+    const responseData: FriendRecommendation[] = hydratedVisibleData.map(
+      ({ featureVector: _featureVector, ...recommendation }) => recommendation,
     );
 
-    return cursorIndex === -1 ? null : cursorIndex + 1;
+    await this.trackingService.recordServedEvents(
+      userId,
+      hydratedVisibleData,
+      startIndex,
+    );
+
+    this.logger.debug(
+      `Recommendation response built: userId=${userId} visible=${responseData.length} startIndex=${startIndex} hasNextPage=${hasNextPage} durationMs=${Date.now() - responseStartedAt}`,
+    );
+
+    return {
+      data: responseData,
+      nextCursor,
+      hasNextPage,
+    };
   }
 
   private buildSemanticProfileText(
@@ -241,9 +299,77 @@ export class RecommendationQueryService {
       typeof profile.bio === 'string' && profile.bio.trim().length > 0
         ? profile.bio.trim()
         : '';
+    const location =
+      typeof profile.location === 'string' && profile.location.trim().length > 0
+        ? profile.location.trim()
+        : '';
+    const school =
+      typeof profile.school === 'string' && profile.school.trim().length > 0
+        ? profile.school.trim()
+        : '';
+    const jobTitle =
+      typeof profile.jobTitle === 'string' && profile.jobTitle.trim().length > 0
+        ? profile.jobTitle.trim()
+        : '';
+    const company =
+      typeof profile.company === 'string' && profile.company.trim().length > 0
+        ? profile.company.trim()
+        : '';
+    const interests = Array.isArray(profile.interests)
+      ? profile.interests
+          .map((interest) =>
+            typeof interest === 'string' ? interest.trim() : '',
+          )
+          .filter(Boolean)
+      : [];
+    const work = [jobTitle, company].filter(Boolean).join(' at ');
     const segments = [
       fullName ? `name: ${fullName}` : '',
       bio ? `bio: ${bio}` : '',
+      location ? `location: ${location}` : '',
+      work ? `work: ${work}` : '',
+      school ? `school: ${school}` : '',
+      interests.length > 0 ? `interests: ${interests.join(', ')}` : '',
+    ].filter(Boolean);
+
+    return segments.length > 0 ? segments.join('\n') : undefined;
+  }
+
+  private buildCandidateSemanticProfileText(
+    profile: UserResponseDTO | undefined,
+    candidate: FeatureScoredRecommendation,
+    mutualFriendProfiles: Record<string, BaseUserDTO>,
+    commonGroupNames: string[],
+  ): string | undefined {
+    const baseProfileText = this.buildSemanticProfileText(profile);
+    const mutualFriendNames = candidate.mutualFriendIds
+      .slice(0, 3)
+      .map((mutualFriendId) => {
+        const user = mutualFriendProfiles[mutualFriendId];
+        if (!user) {
+          return '';
+        }
+
+        return [user.firstName, user.lastName]
+          .filter((value) => typeof value === 'string' && value.trim().length > 0)
+          .join(' ')
+          .trim();
+      })
+      .filter(Boolean);
+    const segments = [
+      baseProfileText ?? '',
+      candidate.mutualFriends > 0
+        ? `social context: ${candidate.mutualFriends} mutual friends`
+        : '',
+      mutualFriendNames.length > 0
+        ? `connected with: ${mutualFriendNames.join(', ')}`
+        : '',
+      (candidate.commonGroups ?? 0) > 0
+        ? `group context: ${candidate.commonGroups} common groups`
+        : '',
+      commonGroupNames.length > 0
+        ? `common groups: ${commonGroupNames.join(', ')}`
+        : '',
     ].filter(Boolean);
 
     return segments.length > 0 ? segments.join('\n') : undefined;

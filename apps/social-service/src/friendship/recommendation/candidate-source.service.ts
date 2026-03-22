@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { CursorPaginationDTO } from '@repo/dtos';
 import { GroupClientService } from '../../client/group/group-client.service';
 import {
   SOCIAL_GRAPH_REPOSITORY,
@@ -17,18 +16,23 @@ export class CandidateSourceService {
 
   async loadCandidateBundle(
     userId: string,
-    query: CursorPaginationDTO,
     candidateLimit: number,
+    options?: {
+      graphCursor?: string | null;
+      includeGroupCandidates?: boolean;
+    },
   ): Promise<RecommendationCandidateBundle> {
-    const graphCandidatePage = await this.socialGraphRepo.recommendFriends(userId, {
-      ...query,
-      cursor: undefined,
-      limit: candidateLimit,
-    });
-    const groupCandidates = await this.groupClient.getGroupRecommendationCandidates(
-      userId,
-      candidateLimit,
-    );
+    const graphCursor = options?.graphCursor ?? undefined;
+    const includeGroupCandidates = options?.includeGroupCandidates ?? !graphCursor;
+    const [graphCandidatePage, groupCandidates] = await Promise.all([
+      this.socialGraphRepo.recommendFriends(userId, {
+        cursor: graphCursor,
+        limit: candidateLimit,
+      }),
+      includeGroupCandidates
+        ? this.groupClient.getGroupRecommendationCandidates(userId, candidateLimit)
+        : Promise.resolve([]),
+    ]);
 
     const graphCandidatesById = new Map(
       graphCandidatePage.data.map((candidate) => [candidate.id, candidate]),
@@ -56,7 +60,9 @@ export class CandidateSourceService {
     }
 
     return {
-      graphHasNextPage: graphCandidatePage.hasNextPage,
+      graphNextCursor: graphCandidatePage.hasNextPage
+        ? graphCandidatePage.nextCursor
+        : null,
       candidateLimit,
       mergedCandidates,
       groupCandidates,

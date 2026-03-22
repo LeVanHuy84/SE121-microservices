@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FriendRecommendationScoringConfig, loadFriendRecommendationScoringConfig } from '../friend-recommendation.config';
-import type {
-  FriendRecommendation,
-  FriendRecommendationAnalyticsSource,
-} from '../repositories/social-graph.repository';
+import type { FriendRecommendation } from '../repositories/social-graph.repository';
 import { RecommendationBaselineRankerService } from './recommendation-baseline-ranker.service';
+import { getRecommendationSource } from './recommendation.types';
 
 @Injectable()
 export class RecommendationDiversityService {
@@ -16,12 +14,6 @@ export class RecommendationDiversityService {
     private readonly baselineRanker: RecommendationBaselineRankerService,
   ) {
     this.scoringConfig = loadFriendRecommendationScoringConfig(configService);
-  }
-
-  rerankForDiversity(
-    recommendations: FriendRecommendation[],
-  ): FriendRecommendation[] {
-    return this.rerank(recommendations);
   }
 
   rerank<T extends FriendRecommendation>(recommendations: T[]): T[] {
@@ -71,25 +63,6 @@ export class RecommendationDiversityService {
     return selected;
   }
 
-  getRecommendationSource(
-    recommendation: FriendRecommendation,
-  ): FriendRecommendationAnalyticsSource {
-    const hasMutualFriends = recommendation.mutualFriends > 0;
-    const hasCommonGroups = (recommendation.commonGroups ?? 0) > 0;
-
-    if (hasMutualFriends && hasCommonGroups) {
-      return 'mixed';
-    }
-    if (hasMutualFriends) {
-      return 'mutual_only';
-    }
-    if (hasCommonGroups) {
-      return 'group_only';
-    }
-
-    return 'fallback';
-  }
-
   private getDiversityAdjustedScore(
     candidate: FriendRecommendation,
     recentSelections: FriendRecommendation[],
@@ -99,7 +72,10 @@ export class RecommendationDiversityService {
       return baseScore;
     }
 
-    const candidateSource = this.getRecommendationSource(candidate);
+    const candidateSource = getRecommendationSource(
+      candidate.mutualFriends,
+      candidate.commonGroups ?? 0,
+    );
     const overlapPenalty = recentSelections.reduce((sum, selected) => {
       return (
         sum +
@@ -110,7 +86,10 @@ export class RecommendationDiversityService {
     const repeatSourcePenalty = recentSelections.reduce((sum, selected) => {
       return (
         sum +
-        (this.getRecommendationSource(selected) === candidateSource
+        (getRecommendationSource(
+          selected.mutualFriends,
+          selected.commonGroups ?? 0,
+        ) === candidateSource
           ? this.scoringConfig.sourceRepeatPenalty
           : 0)
       );

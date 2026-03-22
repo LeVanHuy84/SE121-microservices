@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
-import { FriendRecommendationService } from './friend-recommendation.service';
 import { FriendshipService } from './friendship.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
+import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 
 describe('FriendshipService', () => {
   let service: FriendshipService;
@@ -78,7 +78,7 @@ describe('FriendshipService', () => {
           },
         },
         {
-          provide: FriendRecommendationService,
+          provide: RecommendationQueryService,
           useValue: {
             recommendFriends: jest.fn(),
           },

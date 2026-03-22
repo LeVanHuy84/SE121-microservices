@@ -4,7 +4,6 @@ import { GroupClientModule } from 'src/client/group/group-client.module';
 import { RecommendationClientModule } from 'src/client/recommendation/recommendation-client.module';
 import { UserClientModule } from 'src/client/user/user-client.module';
 import { FriendshipController } from './friendship.controller';
-import { FriendRecommendationService } from './friend-recommendation.service';
 import { FriendshipService } from './friendship.service';
 import { FriendRecommendationEventEntity } from 'src/postgres/entities/friend-recommendation-event.entity';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
@@ -19,6 +18,7 @@ import { RecommendationDiversityService } from './recommendation/recommendation-
 import { RecommendationFeatureService } from './recommendation/recommendation-feature.service';
 import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
+import { RecommendationSnapshotService } from './recommendation/recommendation-snapshot.service';
 import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
 
 @Module({
@@ -37,7 +37,6 @@ import { RecommendationTrackingService } from './recommendation/recommendation-t
   controllers: [FriendshipController],
   providers: [
     CandidateSourceService,
-    FriendRecommendationService,
     FriendshipService,
     PostgresSocialGraphRepository,
     RecommendationBaselineRankerService,
@@ -45,6 +44,7 @@ import { RecommendationTrackingService } from './recommendation/recommendation-t
     RecommendationFeatureService,
     RecommendationHydrationService,
     RecommendationQueryService,
+    RecommendationSnapshotService,
     RecommendationTrackingService,
     {
       provide: SOCIAL_GRAPH_REPOSITORY,

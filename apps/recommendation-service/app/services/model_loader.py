@@ -1,5 +1,6 @@
 import logging
-from typing import List
+import re
+from typing import List, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -60,24 +61,58 @@ class ModelLoader:
             logger.exception("[RecommendationModelLoader] Warmup failed: %s", exc)
 
     def predict_similarity_scores(
-        self, query_text: str, candidate_texts: List[str]
+        self, viewer_profile_text: str, candidate_texts: List[str]
     ) -> List[float]:
-        if not query_text or not candidate_texts:
-            return []
+        normalized_viewer_text = self._normalize_text(viewer_profile_text)
+        normalized_candidate_texts = [
+            self._normalize_text(text) for text in candidate_texts
+        ]
+        valid_candidate_texts = [text for text in normalized_candidate_texts if text]
 
-        embeddings = self._encode_texts([query_text, *candidate_texts])
-        if embeddings.shape[0] <= 1:
-            return []
+        if not normalized_viewer_text or not valid_candidate_texts:
+            return [0.0 for _ in candidate_texts]
 
-        query_embedding = embeddings[0:1]
-        candidate_embeddings = embeddings[1:]
-        similarity_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(
-            -1
+        query_embedding = self._encode_texts(
+            [self._format_query_text(normalized_viewer_text)]
         )
-        normalized_scores = ((similarity_scores + 1.0) / 2.0).clamp(0.0, 1.0)
-        return [float(score) for score in normalized_scores.detach().cpu().tolist()]
+        candidate_embeddings = self._encode_texts(
+            [
+                self._format_candidate_text(text)
+                for text in normalized_candidate_texts
+                if text
+            ]
+        )
 
-    def _encode_texts(self, texts: List[str]) -> torch.Tensor:
+        if query_embedding.shape[0] == 0 or candidate_embeddings.shape[0] == 0:
+            return [0.0 for _ in candidate_texts]
+
+        cosine_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(-1)
+        calibrated_scores = [
+            self._calibrate_cosine_score(float(score))
+            for score in cosine_scores.detach().cpu().tolist()
+        ]
+
+        resolved_scores: List[float] = []
+        score_index = 0
+        for text in normalized_candidate_texts:
+            if not text:
+                resolved_scores.append(0.0)
+                continue
+
+            resolved_scores.append(calibrated_scores[score_index])
+            score_index += 1
+
+        return resolved_scores
+
+    def get_model_metadata(self) -> dict[str, str]:
+        return {
+            "modelName": settings.RECOMMENDATION_MODEL_NAME,
+            "device": self._device,
+            "scoreFloor": str(settings.RECOMMENDATION_SCORE_FLOOR),
+            "scoreCeiling": str(settings.RECOMMENDATION_SCORE_CEILING),
+        }
+
+    def _encode_texts(self, texts: Sequence[str]) -> torch.Tensor:
         if not texts:
             return torch.empty((0, 1), dtype=torch.float32)
 
@@ -85,7 +120,7 @@ class ModelLoader:
         batch_size = max(1, settings.RECOMMENDATION_BATCH_SIZE)
 
         for start in range(0, len(texts), batch_size):
-            batch = texts[start : start + batch_size]
+            batch = list(texts[start : start + batch_size])
             inputs = self.tokenizer(
                 batch,
                 padding=True,
@@ -112,6 +147,48 @@ class ModelLoader:
         summed = masked_embeddings.sum(dim=1)
         counts = mask.sum(dim=1).clamp(min=1e-9)
         return summed / counts
+
+    def _normalize_text(self, value: str | None) -> str:
+        if not value:
+            return ""
+
+        return re.sub(r"\s+", " ", value).strip()
+
+    def _format_query_text(self, viewer_profile_text: str) -> str:
+        model_name = settings.RECOMMENDATION_MODEL_NAME.lower()
+
+        if "e5" in model_name and "instruct" in model_name:
+            return (
+                f"Instruct: {settings.RECOMMENDATION_QUERY_INSTRUCTION}\n"
+                f"Query: {viewer_profile_text}"
+            )
+
+        if "e5" in model_name:
+            return f"query: {viewer_profile_text}"
+
+        return viewer_profile_text
+
+    def _format_candidate_text(self, candidate_profile_text: str) -> str:
+        model_name = settings.RECOMMENDATION_MODEL_NAME.lower()
+
+        if "e5" in model_name and "instruct" not in model_name:
+            return f"passage: {candidate_profile_text}"
+
+        return candidate_profile_text
+
+    def _calibrate_cosine_score(self, cosine_score: float) -> float:
+        floor = settings.RECOMMENDATION_SCORE_FLOOR
+        ceiling = settings.RECOMMENDATION_SCORE_CEILING
+
+        if ceiling <= floor:
+            normalized = (cosine_score + 1.0) / 2.0
+            return self._clamp_score(normalized)
+
+        normalized = (cosine_score - floor) / (ceiling - floor)
+        return self._clamp_score(normalized)
+
+    def _clamp_score(self, value: float) -> float:
+        return max(0.0, min(1.0, float(value)))
 
 
 model_loader = ModelLoader()

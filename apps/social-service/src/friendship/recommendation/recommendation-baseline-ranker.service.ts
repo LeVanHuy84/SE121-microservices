@@ -24,7 +24,7 @@ export class RecommendationBaselineRankerService {
       (
         0.5 * featureVector.mutualFriendScore +
         0.3 * featureVector.interactionScore +
-        0.2 * featureVector.similarityScore
+        0.2 * featureVector.groupAffinityScore
       ).toFixed(6),
     );
 
