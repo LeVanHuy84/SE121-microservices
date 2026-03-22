@@ -29,7 +29,8 @@ export class RecommendationBaselineRankerService {
       (
         0.5 * featureVector.mutualFriendScore +
         0.2 * featureVector.groupAffinityScore +
-        this.scoringConfig.profileMatchWeight * featureVector.profileAffinityScore
+        this.scoringConfig.profileMatchWeight * featureVector.profileAffinityScore +
+        this.scoringConfig.semanticMatchWeight * featureVector.semanticAffinityScore
       ).toFixed(6),
     );
 

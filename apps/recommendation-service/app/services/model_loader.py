@@ -104,6 +104,33 @@ class ModelLoader:
 
         return resolved_scores
 
+    def encode_profile_texts(self, profile_texts: Sequence[str]) -> List[List[float]]:
+        normalized_profile_texts = [self._normalize_text(text) for text in profile_texts]
+        valid_profile_texts = [text for text in normalized_profile_texts if text]
+
+        if not valid_profile_texts:
+            return [[] for _ in profile_texts]
+
+        embeddings = self._encode_texts(valid_profile_texts)
+        if embeddings.shape[0] == 0:
+            return [[] for _ in profile_texts]
+
+        embedding_values = embeddings.detach().cpu().tolist()
+        resolved_embeddings: List[List[float]] = []
+        embedding_index = 0
+
+        for text in normalized_profile_texts:
+            if not text:
+                resolved_embeddings.append([])
+                continue
+
+            resolved_embeddings.append(
+                [float(value) for value in embedding_values[embedding_index]]
+            )
+            embedding_index += 1
+
+        return resolved_embeddings
+
     def get_model_metadata(self) -> dict[str, str]:
         return {
             "modelName": settings.RECOMMENDATION_MODEL_NAME,

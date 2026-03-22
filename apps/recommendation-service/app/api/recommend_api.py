@@ -3,7 +3,12 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.core.security import verify_internal_key
-from app.models.rerank_request import RecommendationRerankRequest
+from app.models.rerank_request import (
+    RecommendationEmbeddingOutput,
+    RecommendationEmbeddingRequest,
+    RecommendationRerankRequest,
+)
+from app.services.model_loader import model_loader
 from app.services.rerank_service import rerank_service
 
 recommend_router = APIRouter(prefix="/recommend")
@@ -28,5 +33,30 @@ def rerank_candidates(req: RecommendationRerankRequest):
         "data": {
             "model": rerank_service.get_runtime_metadata(),
             "scores": scores,
+        },
+    }
+
+
+@recommend_router.post("/embed", dependencies=[Depends(verify_internal_key)])
+def embed_profile_texts(req: RecommendationEmbeddingRequest):
+    entity_ids = [item.entityId for item in req.items if item.entityId]
+    embeddings = model_loader.encode_profile_texts(
+        [item.profileText or "" for item in req.items if item.entityId]
+    )
+    rows = [
+        RecommendationEmbeddingOutput(entityId=entity_id, embedding=embedding)
+        for entity_id, embedding in zip(entity_ids, embeddings)
+    ]
+
+    logger.info(
+        "Recommendation embed completed: requested=%s embedded=%s",
+        len(req.items),
+        sum(1 for row in rows if row.embedding),
+    )
+    return {
+        "success": True,
+        "data": {
+            "model": rerank_service.get_runtime_metadata(),
+            "embeddings": rows,
         },
     }

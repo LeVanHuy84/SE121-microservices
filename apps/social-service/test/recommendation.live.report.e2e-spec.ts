@@ -35,6 +35,7 @@ describe('Recommendation live ranking report', () => {
   const getGroupRecommendationCandidates = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
+  const getSemanticRecommendationCandidates = jest.fn();
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
 
@@ -55,6 +56,10 @@ describe('Recommendation live ranking report', () => {
     getProfileRecommendationCandidates.mockResolvedValue(
       fixture.profileCandidates,
     );
+    getSemanticRecommendationCandidates.mockResolvedValue(
+      fixture.semanticCandidates,
+    );
+    getSemanticRecommendationCandidates.mockResolvedValue([]);
     getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') =>
       Promise.resolve(
         projection === 'full'
@@ -113,6 +118,7 @@ describe('Recommendation live ranking report', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
+            getSemanticRecommendationCandidates,
           },
         },
         {
@@ -169,10 +175,15 @@ describe('Recommendation live ranking report', () => {
             ? 'group_only'
             : candidate.mutualFriends
               ? 'mutual_only'
+              : (candidate.semanticMatchScore ?? 0) > 0
+                ? 'semantic_only'
+                : (candidate.profileMatchScore ?? 0) > 0
+                  ? 'profile_only'
               : 'fallback',
       mutualFriends: candidate.mutualFriends,
       commonGroups: candidate.commonGroups ?? 0,
       profileScore: candidate.profileMatchScore ?? 0,
+      semanticScore: candidate.semanticMatchScore ?? 0,
       sharedInterests: candidate.sharedInterestsCount ?? 0,
       profileSignals: (candidate.profileMatchedSignals ?? []).join(', '),
       baseScore: candidate.baseScore ?? 0,

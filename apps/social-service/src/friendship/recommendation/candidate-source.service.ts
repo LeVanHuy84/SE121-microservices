@@ -23,24 +23,31 @@ export class CandidateSourceService {
       graphCursor?: string | null;
       includeGroupCandidates?: boolean;
       includeProfileCandidates?: boolean;
+      includeSemanticCandidates?: boolean;
     },
   ): Promise<RecommendationCandidateBundle> {
     const graphCursor = options?.graphCursor ?? undefined;
     const includeGroupCandidates = options?.includeGroupCandidates ?? !graphCursor;
     const includeProfileCandidates =
       options?.includeProfileCandidates ?? !graphCursor;
-    const [graphCandidatePage, groupCandidates, profileCandidates] = await Promise.all([
-      this.socialGraphRepo.recommendFriends(userId, {
-        cursor: graphCursor,
-        limit: candidateLimit,
-      }),
-      includeGroupCandidates
-        ? this.groupClient.getGroupRecommendationCandidates(userId, candidateLimit)
-        : Promise.resolve([]),
-      includeProfileCandidates
-        ? this.userClient.getProfileRecommendationCandidates(userId, candidateLimit)
-        : Promise.resolve([]),
-    ]);
+    const includeSemanticCandidates =
+      options?.includeSemanticCandidates ?? !graphCursor;
+    const [graphCandidatePage, groupCandidates, profileCandidates, semanticCandidates] =
+      await Promise.all([
+        this.socialGraphRepo.recommendFriends(userId, {
+          cursor: graphCursor,
+          limit: candidateLimit,
+        }),
+        includeGroupCandidates
+          ? this.groupClient.getGroupRecommendationCandidates(userId, candidateLimit)
+          : Promise.resolve([]),
+        includeProfileCandidates
+          ? this.userClient.getProfileRecommendationCandidates(userId, candidateLimit)
+          : Promise.resolve([]),
+        includeSemanticCandidates
+          ? this.userClient.getSemant`icRecommendationCandidates(userId, candidateLimit)
+          : Promise.resolve([]),
+      ]);
 
     const graphCandidatesById = new Map(
       graphCandidatePage.data.map((candidate) => [candidate.id, candidate]),
@@ -54,6 +61,9 @@ export class CandidateSourceService {
     const profileCandidatesById = new Map(
       profileCandidates.map((candidate) => [candidate.id, candidate]),
     );
+    const semanticCandidatesById = new Map(
+      semanticCandidates.map((candidate) => [candidate.id, candidate]),
+    );
     const profileOnlyCandidateIds = profileCandidates
       .map((candidate) => candidate.id)
       .filter(
@@ -61,24 +71,55 @@ export class CandidateSourceService {
           !graphCandidatesById.has(candidateId) &&
           !groupCandidatesById.has(candidateId),
       );
-    const [groupOnlyCandidates, profileOnlyCandidates] = await Promise.all([
+    const semanticOnlyCandidateIds = semanticCandidates
+      .map((candidate) => candidate.id)
+      .filter(
+        (candidateId) =>
+          !graphCandidatesById.has(candidateId) &&
+          !groupCandidatesById.has(candidateId) &&
+          !profileCandidatesById.has(candidateId),
+      );
+    const [groupOnlyCandidates, profileOnlyCandidates, semanticOnlyCandidates] =
+      await Promise.all([
       groupOnlyCandidateIds.length > 0
         ? this.socialGraphRepo.summarizeCandidates(userId, groupOnlyCandidateIds)
         : Promise.resolve([]),
       profileOnlyCandidateIds.length > 0
         ? this.socialGraphRepo.summarizeCandidates(userId, profileOnlyCandidateIds)
         : Promise.resolve([]),
-    ]);
+      semanticOnlyCandidateIds.length > 0
+        ? this.socialGraphRepo.summarizeCandidates(userId, semanticOnlyCandidateIds)
+        : Promise.resolve([]),
+      ]);
 
     const mergedCandidates = [
       ...graphCandidatePage.data.map((candidate) =>
-        this.applyProfileMatch(candidate, profileCandidatesById.get(candidate.id)),
+        this.applySourceScores(
+          candidate,
+          profileCandidatesById.get(candidate.id),
+          semanticCandidatesById.get(candidate.id),
+        ),
       ),
       ...groupOnlyCandidates.map((candidate) =>
-        this.applyProfileMatch(candidate, profileCandidatesById.get(candidate.id)),
+        this.applySourceScores(
+          candidate,
+          profileCandidatesById.get(candidate.id),
+          semanticCandidatesById.get(candidate.id),
+        ),
       ),
       ...profileOnlyCandidates.map((candidate) =>
-        this.applyProfileMatch(candidate, profileCandidatesById.get(candidate.id)),
+        this.applySourceScores(
+          candidate,
+          profileCandidatesById.get(candidate.id),
+          semanticCandidatesById.get(candidate.id),
+        ),
+      ),
+      ...semanticOnlyCandidates.map((candidate) =>
+        this.applySourceScores(
+          candidate,
+          profileCandidatesById.get(candidate.id),
+          semanticCandidatesById.get(candidate.id),
+        ),
       ),
     ];
     const commonGroupCountsByUser = await this.groupClient.getCommonGroupCounts(
@@ -104,7 +145,7 @@ export class CandidateSourceService {
     };
   }
 
-  private applyProfileMatch(
+  private applySourceScores(
     candidate: RecommendationCandidateBundle['mergedCandidates'][number],
     profileCandidate:
       | {
@@ -113,16 +154,22 @@ export class CandidateSourceService {
           sharedInterestsCount?: number;
         }
       | undefined,
+    semanticCandidate:
+      | {
+          semanticMatchScore: number;
+        }
+      | undefined,
   ) {
-    if (!profileCandidate) {
+    if (!profileCandidate && !semanticCandidate) {
       return candidate;
     }
 
     return {
       ...candidate,
-      profileMatchScore: profileCandidate.profileMatchScore,
-      profileMatchedSignals: profileCandidate.matchedSignals ?? [],
-      sharedInterestsCount: profileCandidate.sharedInterestsCount ?? 0,
+      profileMatchScore: profileCandidate?.profileMatchScore,
+      profileMatchedSignals: profileCandidate?.matchedSignals ?? [],
+      sharedInterestsCount: profileCandidate?.sharedInterestsCount ?? 0,
+      semanticMatchScore: semanticCandidate?.semanticMatchScore,
     };
   }
 }

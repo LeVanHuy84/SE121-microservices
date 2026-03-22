@@ -28,6 +28,7 @@ describe('RecommendationQueryService', () => {
   const getGraphContinuationCursor = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
+  const getSemanticRecommendationCandidates = jest.fn();
   const configGet = jest.fn();
   let snapshotRecommendations: unknown[] = [];
   let snapshotGraphContinuationCursor: string | null = null;
@@ -45,11 +46,13 @@ describe('RecommendationQueryService', () => {
     getGraphContinuationCursor.mockReset();
     getUsers.mockReset();
     getProfileRecommendationCandidates.mockReset();
+    getSemanticRecommendationCandidates.mockReset();
     configGet.mockReset();
     snapshotRecommendations = [];
     snapshotGraphContinuationCursor = null;
     getUsers.mockResolvedValue({});
     getProfileRecommendationCandidates.mockResolvedValue([]);
+    getSemanticRecommendationCandidates.mockResolvedValue([]);
     getCommonGroupNames.mockResolvedValue({});
     rerankCandidates.mockResolvedValue({});
     configGet.mockImplementation(() => undefined);
@@ -155,6 +158,7 @@ describe('RecommendationQueryService', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
+            getSemanticRecommendationCandidates,
           },
         },
         {
@@ -560,6 +564,7 @@ describe('RecommendationQueryService', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
+            getSemanticRecommendationCandidates,
           },
         },
         {

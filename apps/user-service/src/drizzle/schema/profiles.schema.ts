@@ -1,12 +1,55 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import {
+  customType,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { relations, sql } from "drizzle-orm";
-import { pgEnum } from "drizzle-orm/pg-core";
 import { PRIVACY_LEVEL } from "src/constants";
 export const privacyLevelEnum = pgEnum(
   "privacy_level",
   ...[Object.values(PRIVACY_LEVEL) as [string, ...string[]]]
 );
+
+const PROFILE_SEMANTIC_EMBEDDING_DIMENSIONS = 768;
+
+const pgVector = customType<{
+  data: number[];
+  driverData: string;
+  config: { dimensions: number };
+}>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? PROFILE_SEMANTIC_EMBEDDING_DIMENSIONS})`;
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    if (typeof value !== "string") {
+      return [];
+    }
+
+    const normalized = value.trim();
+    if (!normalized.startsWith("[") || !normalized.endsWith("]")) {
+      return [];
+    }
+
+    const inner = normalized.slice(1, -1).trim();
+    if (!inner) {
+      return [];
+    }
+
+    return inner
+      .split(",")
+      .map((item) => Number(item.trim()))
+      .filter((item) => Number.isFinite(item));
+  },
+});
 
 export const profiles = pgTable("profiles", {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -23,6 +66,11 @@ export const profiles = pgTable("profiles", {
   company: varchar("company", { length: 120 }),
   school: varchar("school", { length: 120 }),
   interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  semanticProfileText: text("semantic_profile_text"),
+  semanticEmbedding: pgVector("semantic_embedding", {
+    dimensions: PROFILE_SEMANTIC_EMBEDDING_DIMENSIONS,
+  }).$type<number[]>(),
+  semanticEmbeddingUpdatedAt: timestamp("semantic_embedding_updated_at"),
 
   stats: jsonb("stats").default({ friends: 0, posts: 0 }).notNull(),
   privacyLevel: privacyLevelEnum("privacy_level")

@@ -18,6 +18,7 @@ export interface FriendRecommendation {
   profileMatchScore?: number;
   profileMatchedSignals?: string[];
   sharedInterestsCount?: number;
+  semanticMatchScore?: number;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;
@@ -58,6 +59,8 @@ export interface AcceptedFriendRequestAttribution {
 export type FriendRecommendationAnalyticsSource =
   | 'mutual_only'
   | 'group_only'
+  | 'profile_only'
+  | 'semantic_only'
   | 'mixed'
   | 'fallback';
 

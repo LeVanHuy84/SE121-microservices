@@ -26,6 +26,7 @@ type RecommendationRow = {
   rank: number;
   candidateId: string;
   profileScore: number;
+  semanticScore: number;
   baseScore: number;
   modelScore: number;
   finalScore: number;
@@ -63,6 +64,9 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
     const getProfileRecommendationCandidates = jest
       .fn()
       .mockResolvedValue(fixture.profileCandidates);
+    const getSemanticRecommendationCandidates = jest
+      .fn()
+      .mockResolvedValue(fixture.semanticCandidates);
     const getUsers = jest.fn().mockImplementation(
       (ids: string[], projection: 'base' | 'full') =>
         Promise.resolve(
@@ -130,6 +134,7 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
+            getSemanticRecommendationCandidates,
           },
         },
         {
@@ -161,6 +166,7 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
       rank: index + 1,
       candidateId: candidate.id,
       profileScore: candidate.profileMatchScore ?? 0,
+      semanticScore: candidate.semanticMatchScore ?? 0,
       baseScore: candidate.baseScore ?? 0,
       modelScore: candidate.modelScore ?? 0,
       finalScore: candidate.score ?? 0,
@@ -190,6 +196,7 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
       finalRank: row.rank,
       deltaRank: (baselineRanks.get(row.candidateId) ?? 0) - row.rank,
       profileScore: row.profileScore,
+      semanticScore: row.semanticScore,
       baseScore: row.baseScore,
       modelScore: row.modelScore,
       finalScore: row.finalScore,

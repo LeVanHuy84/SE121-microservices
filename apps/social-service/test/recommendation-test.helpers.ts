@@ -1,6 +1,7 @@
 import type {
   BaseUserDTO,
   ProfileRecommendationCandidateDTO,
+  SemanticRecommendationCandidateDTO,
   UserResponseDTO,
 } from '@repo/dtos';
 import type { GroupRecommendationCandidate } from '../src/client/group/group-client.service';
@@ -36,6 +37,7 @@ interface MultiUserRecommendationFixture {
   commonGroupNames: Record<string, string[]>;
   aiScores: Record<string, number>;
   profileCandidates: ProfileRecommendationCandidateDTO[];
+  semanticCandidates: SemanticRecommendationCandidateDTO[];
   fullUsers: Record<string, UserResponseDTO>;
   baseUsers: Record<string, BaseUserDTO>;
   expectedOrder: string[];
@@ -271,6 +273,24 @@ export function buildMultiUserRecommendationFixture(): MultiUserRecommendationFi
         profileMatchScore: 0.3,
         matchedSignals: ['location', 'interests:1'],
         sharedInterestsCount: 1,
+      },
+    ],
+    semanticCandidates: [
+      {
+        id: 'semantic-peer',
+        semanticMatchScore: 0.82,
+      },
+      {
+        id: 'community-host',
+        semanticMatchScore: 0.65,
+      },
+      {
+        id: 'runner-a',
+        semanticMatchScore: 0.61,
+      },
+      {
+        id: 'runner-b',
+        semanticMatchScore: 0.57,
       },
     ],
     fullUsers,

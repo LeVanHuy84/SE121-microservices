@@ -13,3 +13,11 @@ export class ProfileRecommendationCandidateDTO {
   @Expose()
   sharedInterestsCount: number;
 }
+
+export class SemanticRecommendationCandidateDTO {
+  @Expose()
+  id: string;
+
+  @Expose()
+  semanticMatchScore: number;
+}

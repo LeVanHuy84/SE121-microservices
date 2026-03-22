@@ -32,6 +32,7 @@ export class RecommendationFeatureService {
     );
     const groupAffinityScore = commonGroupScore;
     const profileAffinityScore = this.clampScore(candidate.profileMatchScore ?? 0);
+    const semanticAffinityScore = this.clampScore(candidate.semanticMatchScore ?? 0);
     const reasons: string[] = [];
 
     if (candidate.mutualFriends > 0) {
@@ -52,6 +53,10 @@ export class RecommendationFeatureService {
       );
     }
 
+    if (semanticAffinityScore > 0) {
+      reasons.push('Strong semantic profile match');
+    }
+
     if (reasons.length === 0) {
       reasons.push('Suggested for you');
     }
@@ -64,7 +69,13 @@ export class RecommendationFeatureService {
       commonGroupScore,
       groupAffinityScore,
       profileAffinityScore,
-      source: getRecommendationSource(candidate.mutualFriends, commonGroups),
+      semanticAffinityScore,
+      source: getRecommendationSource(
+        candidate.mutualFriends,
+        commonGroups,
+        profileAffinityScore,
+        semanticAffinityScore,
+      ),
       reasons,
     };
   }

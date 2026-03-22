@@ -1,4 +1,7 @@
 import unittest
+from unittest.mock import patch
+
+import torch
 
 from app.core.config import settings
 from app.services.model_loader import ModelLoader
@@ -38,6 +41,23 @@ class ModelLoaderTestCase(unittest.TestCase):
         finally:
             settings.RECOMMENDATION_SCORE_FLOOR = original_floor
             settings.RECOMMENDATION_SCORE_CEILING = original_ceiling
+
+    def test_encode_profile_texts_preserves_input_order_and_blank_entries(self):
+        loader = ModelLoader()
+
+        with patch.object(
+            loader,
+            "_encode_texts",
+            return_value=torch.tensor([[0.1, 0.2], [0.3, 0.4]], dtype=torch.float32),
+        ) as encode_texts:
+            result = loader.encode_profile_texts(["name: An", " ", "name: Binh"])
+
+        self.assertEqual(result[1], [])
+        self.assertAlmostEqual(result[0][0], 0.1, places=6)
+        self.assertAlmostEqual(result[0][1], 0.2, places=6)
+        self.assertAlmostEqual(result[2][0], 0.3, places=6)
+        self.assertAlmostEqual(result[2][1], 0.4, places=6)
+        encode_texts.assert_called_once_with(["name: An", "name: Binh"])
 
 
 if __name__ == "__main__":

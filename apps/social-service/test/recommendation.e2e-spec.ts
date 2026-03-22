@@ -35,6 +35,7 @@ describe('Recommendation flow integration', () => {
   const rerankCandidates = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
+  const getSemanticRecommendationCandidates = jest.fn();
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
   const configGet = jest.fn();
@@ -48,6 +49,7 @@ describe('Recommendation flow integration', () => {
     rerankCandidates.mockResolvedValue({});
     getUsers.mockResolvedValue({});
     getProfileRecommendationCandidates.mockResolvedValue([]);
+    getSemanticRecommendationCandidates.mockResolvedValue([]);
     addRecentActivity.mockResolvedValue(undefined);
     clearActivity.mockResolvedValue(undefined);
     configGet.mockImplementation((key: string) => {
@@ -100,6 +102,7 @@ describe('Recommendation flow integration', () => {
           useValue: {
             getUsers,
             getProfileRecommendationCandidates,
+            getSemanticRecommendationCandidates,
           },
         },
         {
@@ -753,6 +756,60 @@ describe('Recommendation flow integration', () => {
       baseScore: 0.06,
       score: 0.06,
       reasons: ['Similar profile: location'],
+    });
+  });
+
+  it('should surface semantic candidates when graph, group, and profile sources are empty', async () => {
+    recommendFriends.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getGroupRecommendationCandidates.mockResolvedValue([]);
+    getProfileRecommendationCandidates.mockResolvedValue([]);
+    getSemanticRecommendationCandidates.mockResolvedValue([
+      {
+        id: 's1',
+        semanticMatchScore: 0.84,
+      },
+      {
+        id: 's2',
+        semanticMatchScore: 0.52,
+      },
+    ]);
+    summarizeCandidates.mockImplementation(
+      async (_userId: string, candidateIds: string[]) =>
+        candidateIds.map((candidateId) => ({
+          id: candidateId,
+          mutualFriends: 0,
+          mutualFriendIds: [],
+        })),
+    );
+    getCommonGroupCounts.mockResolvedValue({
+      s1: 0,
+      s2: 0,
+    });
+    rerankCandidates.mockResolvedValue({});
+    getUsers.mockResolvedValue({});
+    getCommonGroupNames.mockResolvedValue({});
+
+    const result = await controller.recommendFriends({
+      userId: 'viewer',
+      query: { limit: 2 },
+    });
+
+    expect(result.data.map((candidate) => candidate.id)).toEqual(['s1', 's2']);
+    expect(result.data[0]).toMatchObject({
+      id: 's1',
+      baseScore: 0.168,
+      score: 0.168,
+      reasons: ['Strong semantic profile match'],
+    });
+    expect(result.data[1]).toMatchObject({
+      id: 's2',
+      baseScore: 0.104,
+      score: 0.104,
+      reasons: ['Strong semantic profile match'],
     });
   });
 

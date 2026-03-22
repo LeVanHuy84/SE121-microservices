@@ -20,6 +20,7 @@ export interface RecommendationFeatureVector {
   commonGroupScore: number;
   groupAffinityScore: number;
   profileAffinityScore: number;
+  semanticAffinityScore: number;
   source: FriendRecommendationAnalyticsSource;
   reasons: string[];
 }
@@ -31,9 +32,13 @@ export interface FeatureScoredRecommendation extends FriendRecommendation {
 export function getRecommendationSource(
   mutualFriends: number,
   commonGroups: number,
+  profileAffinityScore = 0,
+  semanticAffinityScore = 0,
 ): FriendRecommendationAnalyticsSource {
   const hasMutualFriends = mutualFriends > 0;
   const hasCommonGroups = commonGroups > 0;
+  const hasSemanticMatch = semanticAffinityScore > 0;
+  const hasProfileMatch = profileAffinityScore > 0;
 
   if (hasMutualFriends && hasCommonGroups) {
     return 'mixed';
@@ -43,6 +48,12 @@ export function getRecommendationSource(
   }
   if (hasCommonGroups) {
     return 'group_only';
+  }
+  if (hasSemanticMatch) {
+    return 'semantic_only';
+  }
+  if (hasProfileMatch) {
+    return 'profile_only';
   }
 
   return 'fallback';

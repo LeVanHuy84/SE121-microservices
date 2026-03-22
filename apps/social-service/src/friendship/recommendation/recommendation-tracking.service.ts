@@ -58,6 +58,10 @@ export class RecommendationTrackingService {
             recommendation.featureVector?.groupAffinityScore ?? null,
           profileAffinityScore:
             recommendation.featureVector?.profileAffinityScore ?? null,
+          semanticAffinityScore:
+            recommendation.featureVector?.semanticAffinityScore ??
+            recommendation.semanticMatchScore ??
+            null,
           profileMatchedSignals: recommendation.profileMatchedSignals ?? [],
           sharedInterestsCount: recommendation.sharedInterestsCount ?? 0,
           baseScore: recommendation.baseScore ?? recommendation.score ?? 0,
@@ -68,6 +72,8 @@ export class RecommendationTrackingService {
             getRecommendationSource(
               recommendation.mutualFriends,
               recommendation.commonGroups ?? 0,
+              recommendation.profileMatchScore ?? 0,
+              recommendation.semanticMatchScore ?? 0,
             ),
           reasons: recommendation.reasons ?? [],
           position: startIndex + index,

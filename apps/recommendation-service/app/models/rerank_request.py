@@ -19,7 +19,21 @@ class RecommendationRerankRequest(BaseModel):
     candidates: List[RecommendationCandidateInput] = Field(default_factory=list)
 
 
+class RecommendationEmbeddingItemInput(BaseModel):
+    entityId: str
+    profileText: Optional[str] = None
+
+
+class RecommendationEmbeddingRequest(BaseModel):
+    items: List[RecommendationEmbeddingItemInput] = Field(default_factory=list)
+
+
 class RecommendationCandidateScore(BaseModel):
     candidateId: str
     modelScore: float
     reason: str
+
+
+class RecommendationEmbeddingOutput(BaseModel):
+    entityId: str
+    embedding: List[float]
