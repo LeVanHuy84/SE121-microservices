@@ -6,6 +6,10 @@
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=12",
     "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
+    "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
+   
+    "recommend:report:live": "npm --workspace=social-service run test:recommend:live:report",
+    
     "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

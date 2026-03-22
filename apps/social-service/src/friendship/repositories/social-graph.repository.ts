@@ -15,6 +15,9 @@ export interface FriendRecommendation {
   id: string;
   mutualFriends: number;
   mutualFriendIds: string[];
+  profileMatchScore?: number;
+  profileMatchedSignals?: string[];
+  sharedInterestsCount?: number;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;

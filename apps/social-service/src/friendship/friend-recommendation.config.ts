@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 export interface FriendRecommendationScoringConfig {
   mutualFriendCap: number;
   commonGroupCap: number;
+  profileMatchWeight: number;
   aiWeight: number;
   aiTopK: number;
   diversityWindowSize: number;
@@ -14,6 +15,7 @@ export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringC
   {
     mutualFriendCap: 5,
     commonGroupCap: 3,
+    profileMatchWeight: 0.15,
     aiWeight: 0.5,
     aiTopK: 15,
     diversityWindowSize: 3,
@@ -56,6 +58,10 @@ export function loadFriendRecommendationScoringConfig(
     commonGroupCap: parsePositiveInt(
       configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_CAP'),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupCap,
+    ),
+    profileMatchWeight: parsePositiveNumber(
+      configService.get<string>('FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT'),
+      DEFAULT_FRIEND_RECOMMENDATION_SCORING.profileMatchWeight,
     ),
     aiWeight: parsePositiveNumber(
       configService.get<string>('FRIEND_RECOMMEND_AI_WEIGHT'),

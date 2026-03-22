@@ -1,7 +1,11 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { BaseUserDTO, UserResponseDTO } from '@repo/dtos';
+import {
+  BaseUserDTO,
+  ProfileRecommendationCandidateDTO,
+  UserResponseDTO,
+} from '@repo/dtos';
 import Redis from 'ioredis';
 import { lastValueFrom } from 'rxjs';
 
@@ -65,6 +69,32 @@ export class UserClientService {
     );
 
     return usersById;
+  }
+
+  async getProfileRecommendationCandidates(
+    userId: string,
+    limit: number,
+  ): Promise<ProfileRecommendationCandidateDTO[]> {
+    if (!userId || !Number.isFinite(limit) || limit <= 0) {
+      return [];
+    }
+
+    const startedAt = Date.now();
+    const candidates = await lastValueFrom(
+      this.userClient.send<ProfileRecommendationCandidateDTO[]>(
+        'getProfileRecommendationCandidates',
+        {
+          userId,
+          limit,
+        },
+      ),
+    );
+
+    this.logger.debug(
+      `USER_SERVICE profile recommendation candidates resolved: userId=${userId} limit=${limit} returned=${candidates?.length ?? 0} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return Array.isArray(candidates) ? candidates : [];
   }
 
   private async getCachedBaseUsers(

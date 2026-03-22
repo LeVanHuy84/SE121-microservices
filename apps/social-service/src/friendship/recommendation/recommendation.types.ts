@@ -20,6 +20,7 @@ export interface RecommendationFeatureVector {
   commonGroupScore: number;
   interactionScore: number;
   groupAffinityScore: number;
+  profileAffinityScore: number;
   source: FriendRecommendationAnalyticsSource;
   reasons: string[];
 }

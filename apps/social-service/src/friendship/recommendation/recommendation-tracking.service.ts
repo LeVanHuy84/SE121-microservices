@@ -58,6 +58,10 @@ export class RecommendationTrackingService {
             recommendation.featureVector?.interactionScore ?? null,
           groupAffinityScore:
             recommendation.featureVector?.groupAffinityScore ?? null,
+          profileAffinityScore:
+            recommendation.featureVector?.profileAffinityScore ?? null,
+          profileMatchedSignals: recommendation.profileMatchedSignals ?? [],
+          sharedInterestsCount: recommendation.sharedInterestsCount ?? 0,
           baseScore: recommendation.baseScore ?? recommendation.score ?? 0,
           modelScore: recommendation.modelScore ?? null,
           score: recommendation.score ?? 0,

@@ -61,4 +61,14 @@ export class UserController {
   async getBaseUserBatch(@Payload() ids: string[]) {
     return this.userService.getBaseUsersBatch(ids);
   }
+
+  @MessagePattern('getProfileRecommendationCandidates')
+  async getProfileRecommendationCandidates(
+    @Payload() data: { userId: string; limit?: number },
+  ) {
+    return this.userService.getProfileRecommendationCandidates(
+      data.userId,
+      data.limit,
+    );
+  }
 }

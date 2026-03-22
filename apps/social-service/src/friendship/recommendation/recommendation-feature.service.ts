@@ -46,6 +46,7 @@ export class RecommendationFeatureService {
       this.scoringConfig.commonGroupCap,
     );
     const groupAffinityScore = commonGroupScore;
+    const profileAffinityScore = this.clampScore(candidate.profileMatchScore ?? 0);
     const reasons: string[] = [];
 
     if (candidate.mutualFriends > 0) {
@@ -57,6 +58,12 @@ export class RecommendationFeatureService {
     if (commonGroups > 0) {
       reasons.push(
         `${commonGroups} common group${commonGroups === 1 ? '' : 's'}`,
+      );
+    }
+
+    if ((candidate.profileMatchedSignals?.length ?? 0) > 0) {
+      reasons.push(
+        `Similar profile: ${candidate.profileMatchedSignals?.join(', ')}`,
       );
     }
 
@@ -72,6 +79,7 @@ export class RecommendationFeatureService {
       commonGroupScore,
       interactionScore: this.clampScore(interactionScore),
       groupAffinityScore,
+      profileAffinityScore,
       source: getRecommendationSource(candidate.mutualFriends, commonGroups),
       reasons,
     };

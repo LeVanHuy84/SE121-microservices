@@ -6,9 +6,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "venv": "powershell.exe -NoExit -Command .\\venv\\Scripts\\Activate.ps1",
+    "venv": "powershell.exe -NoExit -Command .\\.venv\\Scripts\\Activate.ps1",
     "install": "pip install -r requirements.txt",
-    "start:dev": "venv\\Scripts\\python.exe -m app.main",
-    "test": "python -m unittest discover -s tests -p \"test_*.py\""
+    "start:dev": ".venv\\Scripts\\python.exe -m app.main",
+    "test": "python -m unittest discover -s tests -p \"test_*.py\"",
+    "test:live": "python -m unittest tests.test_live_service"
   }
 }
