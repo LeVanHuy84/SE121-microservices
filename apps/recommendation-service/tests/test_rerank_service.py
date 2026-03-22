@@ -52,15 +52,11 @@ class RerankServiceTestCase(unittest.TestCase):
             ["name: A"],
         )
 
-    def test_rerank_uses_override_score_before_model_prediction(self):
+    def test_rerank_predicts_scores_and_falls_back_to_zero_without_text(self):
         request = RecommendationRerankRequest(
             viewerId="viewer-1",
             viewerProfileText="name: Viewer",
             candidates=[
-                RecommendationCandidateInput(
-                    candidateId="override",
-                    similarityScore=0.85,
-                ),
                 RecommendationCandidateInput(
                     candidateId="predicted",
                     candidateProfileText="name: Candidate",
@@ -80,7 +76,6 @@ class RerankServiceTestCase(unittest.TestCase):
         self.assertEqual(
             [(item.candidateId, item.modelScore) for item in result],
             [
-                ("override", 0.85),
                 ("predicted", 0.42),
                 ("missing-text", 0.0),
             ],

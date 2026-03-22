@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 class RecommendationCandidateInput(BaseModel):
     candidateId: str
     mutualFriends: int = 0
-    similarityScore: Optional[float] = None
     candidateProfileText: Optional[str] = None
     alreadyFriend: bool = False
     isBlocked: bool = False

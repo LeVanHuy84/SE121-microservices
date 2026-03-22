@@ -6,7 +6,7 @@ Service nay khong con giu business logic ranking tong hop. `social-service` van 
 
 - sinh candidate
 - enforce hard constraints
-- tinh graph score va interaction score
+- nhan semantic profile text va cham semantic similarity score
 - diversity rerank
 - paginate theo snapshot
 
@@ -75,11 +75,17 @@ Mac dinh:
 
 Day la gia tri khoi dau de quan sat phan bo score trong production va tune tiep.
 
-### 5. `similarityScore` chi con la external override
+### 5. Service tu cham diem semantic
 
-Neu request gui san `similarityScore`, service se dung gia tri do nhu mot semantic override.
+`recommendation-service` khong nhan heuristic score de override ket qua model nua.
 
-Nhung `social-service` khong nen gui cac heuristic score vao field nay nua. Neu khong, AI scoring se bi bypass.
+No chi nhan:
+
+- `viewerProfileText`
+- `candidateProfileText`
+- social context toi thieu de sinh reason
+
+Va tu sinh `modelScore` tu embedding model.
 
 ## API
 

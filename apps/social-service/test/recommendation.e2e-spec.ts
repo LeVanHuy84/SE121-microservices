@@ -35,7 +35,6 @@ describe('Recommendation flow integration', () => {
   const rerankCandidates = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
-  const getRecentInteractionScores = jest.fn();
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
   const configGet = jest.fn();
@@ -49,7 +48,6 @@ describe('Recommendation flow integration', () => {
     rerankCandidates.mockResolvedValue({});
     getUsers.mockResolvedValue({});
     getProfileRecommendationCandidates.mockResolvedValue([]);
-    getRecentInteractionScores.mockResolvedValue({});
     addRecentActivity.mockResolvedValue(undefined);
     clearActivity.mockResolvedValue(undefined);
     configGet.mockImplementation((key: string) => {
@@ -539,10 +537,7 @@ describe('Recommendation flow integration', () => {
       a: 0,
       b: 0,
     });
-    getRecentInteractionScores.mockResolvedValue({
-      a: 0.8,
-      b: 0,
-    });
+   
     rerankCandidates.mockResolvedValue({});
     getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') => {
       if (projection === 'full') {
@@ -613,7 +608,7 @@ describe('Recommendation flow integration', () => {
     });
 
     expect(result.data.map((candidate) => candidate.id)).toEqual(['a', 'b']);
-    expect(getRecentInteractionScores).not.toHaveBeenCalled();
+  
     expect(result.data[0]).toMatchObject({
       id: 'a',
       baseScore: 0.1,

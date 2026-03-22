@@ -28,7 +28,6 @@ describe('RecommendationQueryService', () => {
   const getGraphContinuationCursor = jest.fn();
   const getUsers = jest.fn();
   const getProfileRecommendationCandidates = jest.fn();
-  const getRecentInteractionScores = jest.fn();
   const configGet = jest.fn();
   let snapshotRecommendations: unknown[] = [];
   let snapshotGraphContinuationCursor: string | null = null;
@@ -46,7 +45,6 @@ describe('RecommendationQueryService', () => {
     getGraphContinuationCursor.mockReset();
     getUsers.mockReset();
     getProfileRecommendationCandidates.mockReset();
-    getRecentInteractionScores.mockReset();
     configGet.mockReset();
     snapshotRecommendations = [];
     snapshotGraphContinuationCursor = null;
@@ -54,7 +52,6 @@ describe('RecommendationQueryService', () => {
     getProfileRecommendationCandidates.mockResolvedValue([]);
     getCommonGroupNames.mockResolvedValue({});
     rerankCandidates.mockResolvedValue({});
-    getRecentInteractionScores.mockResolvedValue({});
     configGet.mockImplementation(() => undefined);
     createSnapshotPage.mockImplementation(
       async (
@@ -701,31 +698,4 @@ describe('RecommendationQueryService', () => {
     });
   });
 
-  it('should ignore recent interaction score when interaction weight is disabled', async () => {
-    recommendFriends.mockResolvedValue({
-      data: [
-        { id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] },
-        { id: 'b', mutualFriends: 1, mutualFriendIds: ['u2'] },
-      ],
-      nextCursor: null,
-      hasNextPage: false,
-    });
-    summarizeCandidates.mockResolvedValue([]);
-    getGroupRecommendationCandidates.mockResolvedValue([]);
-    getCommonGroupCounts.mockResolvedValue({
-      a: 0,
-      b: 0,
-    });
-  
-
-    const result = await service.recommendFriends('self', { limit: 2 });
-
-
-    expect(result.data.map((candidate) => candidate.id)).toEqual(['a', 'b']);
-    expect(result.data[0]).toMatchObject({
-      id: 'a',
-      baseScore: 0.1,
-      score: 0.1,
-    });
-  });
 });

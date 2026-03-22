@@ -17,7 +17,6 @@ import { FriendRecommendation } from '../repositories/social-graph.repository';
 import { CandidateSourceService } from './candidate-source.service';
 import { RecommendationBaselineRankerService } from './recommendation-baseline-ranker.service';
 import { RecommendationDiversityService } from './recommendation-diversity.service';
-import { RecommendationFeatureService } from './recommendation-feature.service';
 import { RecommendationHydrationService } from './recommendation-hydration.service';
 import { RecommendationSnapshotService } from './recommendation-snapshot.service';
 import { RecommendationTrackingService } from './recommendation-tracking.service';
@@ -34,7 +33,6 @@ export class RecommendationQueryService {
     private readonly candidateSourceService: CandidateSourceService,
     private readonly baselineRanker: RecommendationBaselineRankerService,
     private readonly diversityService: RecommendationDiversityService,
-    private readonly featureService: RecommendationFeatureService,
     private readonly hydrationService: RecommendationHydrationService,
     private readonly snapshotService: RecommendationSnapshotService,
     private readonly trackingService: RecommendationTrackingService,

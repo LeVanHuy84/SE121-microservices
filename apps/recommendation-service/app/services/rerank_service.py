@@ -81,12 +81,6 @@ class RerankService:
         candidates_to_predict: List[RecommendationCandidateInput] = []
 
         for candidate in candidates:
-            if candidate.similarityScore is not None:
-                resolved_scores[candidate.candidateId] = self._clamp_score(
-                    candidate.similarityScore
-                )
-                continue
-
             if not viewer_profile_text or not candidate.candidateProfileText:
                 resolved_scores[candidate.candidateId] = 0.0
                 continue
