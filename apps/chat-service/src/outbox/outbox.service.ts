@@ -8,6 +8,8 @@ import {
 
 @Injectable()
 export class OutboxService {
+  private readonly chatTopic = 'chat-events';
+
   constructor(
     @InjectModel(OutboxEvent.name)
     private readonly outboxModel: Model<OutboxEventDocument>,
@@ -16,7 +18,7 @@ export class OutboxService {
   async enqueue(
     topic: string,
     eventType: string,
-    payload: Record<string, any>,
+    payload: object,
     aggregateId?: string,
   ) {
     const outbox = new this.outboxModel({
@@ -31,5 +33,13 @@ export class OutboxService {
     });
 
     return outbox.save();
+  }
+
+  async enqueueChatEvent(
+    eventType: string,
+    payload: object,
+    aggregateId?: string,
+  ) {
+    return this.enqueue(this.chatTopic, eventType, payload, aggregateId);
   }
 }

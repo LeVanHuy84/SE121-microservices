@@ -9,7 +9,6 @@ import {
   ConversationSchema,
 } from 'src/mongo/schema/conversation.schema';
 import { ConversationModule } from 'src/conversation/conversation.module';
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import { OutboxModule } from 'src/outbox/outbox.module';
 
 @Module({
@@ -22,7 +21,7 @@ import { OutboxModule } from 'src/outbox/outbox.module';
     OutboxModule,
   ],
   controllers: [MessageController],
-  providers: [MessageService, MessageCacheService, ChatStreamProducerService],
+  providers: [MessageService, MessageCacheService],
   exports: [MessageService],
 })
 export class MessageModule {}

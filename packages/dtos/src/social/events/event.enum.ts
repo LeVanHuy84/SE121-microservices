@@ -1,4 +1,5 @@
 export enum EventTopic {
+  CHAT = 'chat-events',
   POST = 'post-events',
   SHARE = 'share-events',
   STATS = 'stats-events',

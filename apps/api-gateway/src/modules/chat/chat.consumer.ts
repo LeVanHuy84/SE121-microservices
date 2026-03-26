@@ -290,6 +290,32 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           );
           break;
         }
+        case 'conversation.hidden': {
+          const data: {
+            conversationId: string;
+            userId: string;
+          } = JSON.parse(payload);
+
+          this.chatGateway.emitConversationHidden(
+            data.conversationId,
+            data.userId
+          );
+          break;
+        }
+        case 'conversation.unhidden': {
+          const data: {
+            userId: string;
+            conversation: ConversationResponseDTO;
+          } = JSON.parse(payload);
+
+          if (await this.shouldProcessConversationEvent(data.conversation)) {
+            this.chatGateway.emitConversationUnhidden(
+              data.conversation,
+              data.userId
+            );
+          }
+          break;
+        }
 
         default:
           this.logger.warn(`Unknown chat event: ${event}`);

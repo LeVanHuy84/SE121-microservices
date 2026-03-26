@@ -21,7 +21,6 @@ import { populateAndMapMessage } from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
@@ -39,7 +38,6 @@ export class MessageService {
 
     private readonly msgCache: MessageCacheService,
 
-    private readonly messageStreamProducer: ChatStreamProducerService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -211,12 +209,20 @@ export class MessageService {
     const tasks: Promise<unknown>[] = [
       this.msgCache.setMessageDetail(dtoMsg),
       this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
-      this.messageStreamProducer.publishMessageCreated(dtoMsg),
+      this.outboxService.enqueueChatEvent(
+        'message.created',
+        dtoMsg,
+        dto.conversationId,
+      ),
     ];
 
     if (convDto) {
       tasks.push(
-        this.messageStreamProducer.publishConversationUpdated(convDto),
+        this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          convDto,
+          convDto._id,
+        ),
       );
     }
 
@@ -286,12 +292,20 @@ export class MessageService {
         dtoMsg.conversationId,
         dtoMsg,
       ),
-      this.messageStreamProducer.publishMessageDeleted(dtoMsg),
+      this.outboxService.enqueueChatEvent(
+        'message.deleted',
+        dtoMsg,
+        dtoMsg.conversationId,
+      ),
     ];
 
     if (convDto) {
       tasks.push(
-        this.messageStreamProducer.publishConversationUpdated(convDto),
+        this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          convDto,
+          convDto._id,
+        ),
       );
     }
 

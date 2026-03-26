@@ -19,7 +19,6 @@ import {
 import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import { OutboxService } from 'src/outbox/outbox.service';
 
 @Injectable()
@@ -33,7 +32,6 @@ export class ConversationService {
     private readonly messageModel: Model<Message>,
 
     private readonly cache: ConversationCacheService,
-    private readonly chatStreamProducer: ChatStreamProducerService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -209,7 +207,11 @@ export class ConversationService {
       await this.updateConversationCache(doc);
 
       const convDto = populateAndMapConversation(doc);
-      await this.chatStreamProducer.publishConversationCreated(convDto);
+      await this.outboxService.enqueueChatEvent(
+        'conversation.created',
+        convDto,
+        convDto._id,
+      );
       return convDto;
     }
 
@@ -231,7 +233,11 @@ export class ConversationService {
 
     const createTasks: Promise<unknown>[] = [
       this.updateConversationCache(doc),
-      this.chatStreamProducer.publishConversationCreated(convDto),
+      this.outboxService.enqueueChatEvent(
+        'conversation.created',
+        convDto,
+        convDto._id,
+      ),
     ];
 
     if (dto.groupAvatar?.publicId) {
@@ -343,23 +349,35 @@ export class ConversationService {
       }
     }
 
-    await this.chatStreamProducer.publishConversationUpdated(convDto);
+    await this.outboxService.enqueueChatEvent(
+      'conversation.updated',
+      convDto,
+      convDto._id,
+    );
 
     // 🔥 event: memberJoined
     if (toAdd.length) {
-      await this.chatStreamProducer.publishConversationMemberJoined({
-        conversation: convDto,
-        joinedUserIds: toAdd,
-      });
+      await this.outboxService.enqueueChatEvent(
+        'conversation.memberJoined',
+        {
+          conversation: convDto,
+          joinedUserIds: toAdd,
+        },
+        convDto._id,
+      );
     }
 
     // 🔥 event: memberLeft
     if (toRemove.length) {
       await Promise.all([
-        this.chatStreamProducer.publishConversationMemberLeft({
+        this.outboxService.enqueueChatEvent(
+          'conversation.memberLeft',
+          {
+            conversationId,
+            leftUserIds: toRemove,
+          },
           conversationId,
-          leftUserIds: toRemove,
-        }),
+        ),
         ...toRemove.map((leftUserId) =>
           this.cache.removeConversationFromUser(leftUserId, conversationId),
         ),
@@ -459,11 +477,15 @@ export class ConversationService {
           [userId, targetId],
         ]),
       } as any),
-      this.chatStreamProducer.publishConversationRead({
+      this.outboxService.enqueueChatEvent(
+        'conversation.read',
+        {
+          conversationId,
+          userId,
+          lastSeenMessageId: targetId,
+        },
         conversationId,
-        userId,
-        lastSeenMessageId: targetId,
-      }),
+      ),
     ]);
 
     return targetId;
@@ -489,13 +511,28 @@ export class ConversationService {
       }; // đã không ở trong group -> coi như ok
     }
 
+    const previousParticipants = [...(conv.participants || [])];
+
     conv.participants = conv.participants.filter((p) => p !== userId);
     conv.admins = (conv.admins || []).filter((a) => a !== userId);
     conv.hiddenFor = (conv.hiddenFor || []).filter((u) => u !== userId);
 
     // Không còn ai -> xoá hẳn conv
     if (!conv.participants.length) {
-      throw new RpcException('Conversation has no participants left');
+      await Promise.all([
+        this.hardDeleteConversation(conv, previousParticipants),
+        this.outboxService.enqueueChatEvent(
+          'conversation.deleted',
+          {
+            conversationId,
+            participants: previousParticipants,
+          },
+          conversationId,
+        ),
+      ]);
+      return {
+        message: 'Conversation deleted because the last participant left',
+      };
     }
 
     // Nếu không còn admin -> promote 1 người còn lại
@@ -504,14 +541,31 @@ export class ConversationService {
     }
 
     await conv.save();
-    await Promise.all([
-      this.updateConversationCache(conv),
+    const convDto = await this.updateConversationCache(conv);
+
+    const tasks: Promise<unknown>[] = [
       this.cache.removeConversationFromUser(userId, conversationId),
-      this.chatStreamProducer.publishConversationMemberLeft({
+      this.outboxService.enqueueChatEvent(
+        'conversation.memberLeft',
+        {
+          conversationId,
+          leftUserIds: [userId],
+        },
         conversationId,
-        leftUserIds: [userId],
-      }),
-    ]);
+      ),
+    ];
+
+    if (convDto) {
+      tasks.push(
+        this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          convDto,
+          convDto._id,
+        ),
+      );
+    }
+
+    await Promise.all(tasks);
     return {
       message: 'You have left the conversation',
     };
@@ -548,10 +602,14 @@ export class ConversationService {
 
     await Promise.all([
       this.hardDeleteConversation(conv),
-      this.chatStreamProducer.publishConversationDeleted({
+      this.outboxService.enqueueChatEvent(
+        'conversation.deleted',
+        {
+          conversationId,
+          participants: conv.participants,
+        },
         conversationId,
-        participants: conv.participants,
-      }),
+      ),
     ]);
     return { message: 'Conversation deleted' };
   }
@@ -576,7 +634,17 @@ export class ConversationService {
       await conv.save();
     }
 
-    await this.updateConversationCache(conv);
+    await Promise.all([
+      this.updateConversationCache(conv),
+      this.outboxService.enqueueChatEvent(
+        'conversation.hidden',
+        {
+          conversationId,
+          userId,
+        },
+        conversationId,
+      ),
+    ]);
     return {
       message: 'Conversation hidden',
     };
@@ -605,7 +673,18 @@ export class ConversationService {
     conv.hiddenFor = conv.hiddenFor.filter((u) => u !== userId);
     await conv.save();
 
-    await this.updateConversationCache(conv);
+    const convDto = await this.updateConversationCache(conv);
+
+    if (convDto) {
+      await this.outboxService.enqueueChatEvent(
+        'conversation.unhidden',
+        {
+          userId,
+          conversation: convDto,
+        },
+        conversationId,
+      );
+    }
     return {
       message: 'Conversation unhidden',
     };
@@ -613,9 +692,12 @@ export class ConversationService {
 
   // ============ HARD DELETE (group) ============
 
-  private async hardDeleteConversation(conv: ConversationDocument) {
+  private async hardDeleteConversation(
+    conv: ConversationDocument,
+    participantsOverride?: string[],
+  ) {
     const convId = conv._id.toString();
-    const participants = conv.participants || [];
+    const participants = participantsOverride ?? conv.participants ?? [];
 
     await this.enqueueConversationMediaDelete(convId, conv._id);
 

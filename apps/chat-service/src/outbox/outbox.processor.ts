@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { KafkaProducerService } from '@repo/common';
+import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import {
   OutboxEvent,
   OutboxEventDocument,
@@ -11,6 +12,7 @@ import {
 @Injectable()
 export class OutboxProcessor {
   private readonly logger = new Logger(OutboxProcessor.name);
+  private readonly chatTopic = 'chat-events';
   private running = false;
   private readonly maxRetries = 10;
   private readonly baseDelayMs = 5000;
@@ -23,6 +25,7 @@ export class OutboxProcessor {
     @InjectModel(OutboxEvent.name)
     private readonly outboxModel: Model<OutboxEventDocument>,
     private readonly kafkaProducer: KafkaProducerService,
+    private readonly chatStreamProducer: ChatStreamProducerService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -114,11 +117,15 @@ export class OutboxProcessor {
     const { id, topic, eventType, payload, aggregateId } = event;
 
     try {
-      await this.kafkaProducer.sendMessage(
-        topic,
-        { type: eventType, payload },
-        aggregateId || id,
-      );
+      if (topic === this.chatTopic) {
+        await this.chatStreamProducer.publishEvent(eventType, payload);
+      } else {
+        await this.kafkaProducer.sendMessage(
+          topic,
+          { type: eventType, payload },
+          aggregateId || id,
+        );
+      }
 
       event.processed = true;
       event.processing = false;

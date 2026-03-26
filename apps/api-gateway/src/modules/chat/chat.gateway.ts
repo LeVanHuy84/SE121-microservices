@@ -290,17 +290,18 @@ export class ChatGateway
     void this.revokeConversationAccessForUsers(participants, convId);
   }
 
-  // emitConversationHidden(convId: string, userId: string) {
-  //   this.server
-  //     .to(`user:${userId}`)
-  //     .emit('conversation.hidden', { id: convId });
+  emitConversationHidden(conversationId: string, userId: string) {
+    this.server.to(`user:${userId}`).emit('conversation.hidden', {
+      id: conversationId,
+    });
+    void this.revokeConversationAccessForUsers([userId], conversationId);
+  }
 
-  //   this.server.to(`user:${userId}`).socketsLeave(`conversation:${convId}`);
-  // }
-
-  // emitConversationUnhidden(convId: string, userId: string) {
-  //   this.server.to(`user:${userId}`).emit('conversation.unhidden', convId);
-  // }
+  emitConversationUnhidden(conversation: ConversationResponseDTO, userId: string) {
+    this.server
+      .to(`user:${userId}`)
+      .emit('conversation.unhidden', conversation);
+  }
 
   emitMemberLeft(conversationId: string, participants: string[]) {
     this.emitToUsers(participants, 'conversation.memberLeft', {
