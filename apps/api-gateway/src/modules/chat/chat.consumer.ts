@@ -318,10 +318,10 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         try {
           await this.redis.xadd(
             `${this.streamKey}:dlq`,
-            '*',
             'MAXLEN',
             '~',
             this.dlqMaxLen,
+            '*',
             'event',
             event,
             'payload',

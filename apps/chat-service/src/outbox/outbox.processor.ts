@@ -15,6 +15,9 @@ export class OutboxProcessor {
   private readonly maxRetries = 10;
   private readonly baseDelayMs = 5000;
   private readonly maxDelayMs = 300000;
+  private readonly leaseMs = Number(process.env.OUTBOX_LEASE_MS ?? 60_000);
+  private readonly workerId =
+    process.env.HOSTNAME || `chat-outbox-${process.pid}`;
 
   constructor(
     @InjectModel(OutboxEvent.name)
@@ -41,10 +44,22 @@ export class OutboxProcessor {
 
   private async processBatch() {
     const now = new Date();
+    const staleLockCutoff = new Date(now.getTime() - this.leaseMs);
     const events = await this.outboxModel
       .find({
         processed: false,
-        $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+        $and: [
+          {
+            $or: [
+              { processing: { $ne: true } },
+              { lockedAt: null },
+              { lockedAt: { $lte: staleLockCutoff } },
+            ],
+          },
+          {
+            $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+          },
+        ],
       })
       .sort({ createdAt: 1 })
       .limit(100)
@@ -64,14 +79,30 @@ export class OutboxProcessor {
 
   private async lockEvent(id: string): Promise<boolean> {
     const now = new Date();
+    const staleLockCutoff = new Date(now.getTime() - this.leaseMs);
     const updated = await this.outboxModel
       .findOneAndUpdate(
         {
           _id: id,
           processed: false,
-          $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+          $and: [
+            {
+              $or: [
+                { processing: { $ne: true } },
+                { lockedAt: null },
+                { lockedAt: { $lte: staleLockCutoff } },
+              ],
+            },
+            {
+              $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+            },
+          ],
         },
-        { processed: true },
+        {
+          processing: true,
+          lockedAt: now,
+          lockedBy: this.workerId,
+        },
         { new: true },
       )
       .exec();
@@ -90,6 +121,9 @@ export class OutboxProcessor {
       );
 
       event.processed = true;
+      event.processing = false;
+      event.lockedAt = undefined;
+      event.lockedBy = undefined;
       event.processedAt = new Date();
       event.nextRetryAt = undefined;
       event.lastError = undefined;
@@ -109,6 +143,9 @@ export class OutboxProcessor {
           { _id: id },
           {
             processed: true,
+            processing: false,
+            lockedAt: null,
+            lockedBy: null,
             processedAt: new Date(),
             retryCount,
             lastError: err.message,
@@ -124,6 +161,9 @@ export class OutboxProcessor {
         { _id: id },
         {
           processed: false,
+          processing: false,
+          lockedAt: null,
+          lockedBy: null,
           retryCount,
           nextRetryAt,
           lastError: err.message,

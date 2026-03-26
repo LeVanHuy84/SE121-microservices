@@ -15,6 +15,15 @@ export class OutboxEvent {
   @Prop({ default: false })
   processed: boolean;
 
+  @Prop({ default: false })
+  processing: boolean;
+
+  @Prop({ type: Date, default: null })
+  lockedAt?: Date;
+
+  @Prop({ type: String, default: null })
+  lockedBy?: string;
+
   @Prop({ type: Date, default: null })
   processedAt?: Date;
 
@@ -34,3 +43,5 @@ export class OutboxEvent {
 export type OutboxEventDocument = HydratedDocument<OutboxEvent>;
 
 export const OutboxEventSchema = SchemaFactory.createForClass(OutboxEvent);
+
+OutboxEventSchema.index({ processed: 1, processing: 1, nextRetryAt: 1, createdAt: 1 });

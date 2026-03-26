@@ -1,5 +1,6 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Logger, OnModuleDestroy } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   ConnectedSocket,
   MessageBody,
@@ -18,7 +19,9 @@ import type {
 } from '@repo/dtos';
 import { ConversationResponseDTO, MessageResponseDTO } from '@repo/dtos';
 import Redis from 'ioredis';
+import { lastValueFrom } from 'rxjs';
 import { Server, Socket } from 'socket.io';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
 
 @WebSocketGateway({
@@ -46,7 +49,11 @@ export class ChatGateway
   private readonly HEARTBEAT_MIN_INTERVAL_MS = Number(
     process.env.PRESENCE_HEARTBEAT_MIN_INTERVAL_MS ?? 5000
   );
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
+    private readonly chatClient: ClientProxy
+  ) {}
 
   async onModuleInit() {
     this.sub = this.redis.duplicate();
@@ -152,11 +159,22 @@ export class ChatGateway
   }
 
   @SubscribeMessage('conversation.join')
-  handleJoinConversation(
+  async handleJoinConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string }
   ) {
     if (!data?.conversationId) return;
+    const allowed = await this.ensureConversationAccess(
+      client,
+      data.conversationId
+    );
+    if (!allowed) {
+      client.emit('conversation.error', {
+        conversationId: data.conversationId,
+        message: 'Forbidden conversation access',
+      });
+      return;
+    }
     client.join(`conversation:${data.conversationId}`);
   }
 
@@ -172,12 +190,17 @@ export class ChatGateway
   // ============= TYPING =============
 
   @SubscribeMessage('typing.start')
-  handleTypingStart(
+  async handleTypingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string }
   ) {
     const userId = client.user?.id as string;
     if (!userId || !data?.conversationId) return;
+    const allowed = await this.ensureConversationAccess(
+      client,
+      data.conversationId
+    );
+    if (!allowed) return;
     this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
@@ -186,12 +209,17 @@ export class ChatGateway
   }
 
   @SubscribeMessage('typing.stop')
-  handleTypingStop(
+  async handleTypingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string }
   ) {
     const userId = client.user?.id as string;
     if (!userId || !data?.conversationId) return;
+    const allowed = await this.ensureConversationAccess(
+      client,
+      data.conversationId
+    );
+    if (!allowed) return;
     this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
@@ -259,9 +287,7 @@ export class ChatGateway
 
   emitConversationDeleted(convId: string, participants: string[]) {
     this.emitToUsers(participants, 'conversation.deleted', { id: convId });
-    this.server
-      .to(participants.map((id) => `user:${id}`))
-      .socketsLeave(`conversation:${convId}`);
+    void this.revokeConversationAccessForUsers(participants, convId);
   }
 
   // emitConversationHidden(convId: string, userId: string) {
@@ -280,6 +306,7 @@ export class ChatGateway
     this.emitToUsers(participants, 'conversation.memberLeft', {
       conversationId,
     });
+    void this.revokeConversationAccessForUsers(participants, conversationId);
     this.logger.debug(
       `Emitted memberLeft for conversation ${conversationId} to [${participants.join(', ')}]`
     );
@@ -362,5 +389,59 @@ export class ChatGateway
     if (!hiddenFor.length) return participants;
     const hiddenSet = new Set(hiddenFor);
     return participants.filter((u) => !hiddenSet.has(u));
+  }
+
+  private getAuthorizedConversationIds(client: Socket): Set<string> {
+    if (!(client.data.authorizedConversationIds instanceof Set)) {
+      client.data.authorizedConversationIds = new Set<string>();
+    }
+    return client.data.authorizedConversationIds as Set<string>;
+  }
+
+  private async ensureConversationAccess(
+    client: Socket,
+    conversationId: string
+  ): Promise<boolean> {
+    const userId = client.user?.id;
+    if (!userId || !conversationId) return false;
+
+    const authorizedConversationIds = this.getAuthorizedConversationIds(client);
+    if (authorizedConversationIds.has(conversationId)) {
+      return true;
+    }
+
+    try {
+      await lastValueFrom(
+        this.chatClient.send('getConversationById', {
+          userId,
+          conversationId,
+        })
+      );
+      authorizedConversationIds.add(conversationId);
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Rejected conversation access userId=${userId} conversationId=${conversationId}: ${error.message}`
+      );
+      return false;
+    }
+  }
+
+  private async revokeConversationAccessForUsers(
+    userIds: string[],
+    conversationId: string
+  ) {
+    if (!userIds.length || !conversationId) return;
+
+    const sockets = await this.server
+      .in(userIds.map((userId) => `user:${userId}`))
+      .fetchSockets();
+
+    for (const socket of sockets) {
+      socket.leave(`conversation:${conversationId}`);
+      const authorizedConversationIds = socket.data
+        .authorizedConversationIds as Set<string> | undefined;
+      authorizedConversationIds?.delete(conversationId);
+    }
   }
 }
