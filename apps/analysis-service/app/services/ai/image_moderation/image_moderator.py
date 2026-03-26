@@ -87,7 +87,7 @@ def _determine_severity(is_violation: bool, violation_score: float) -> str:
     if violation_score >= 0.50:
         return "medium"
     if violation_score >= 0.30:
-        return "weak"
+        return "low"
     return "none"
 
 
@@ -97,5 +97,5 @@ def _signal_strength(violation_score: float) -> str:
     if violation_score >= 0.50:
         return "medium"
     if violation_score >= 0.30:
-        return "weak"
+        return "low"
     return "none"

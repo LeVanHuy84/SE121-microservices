@@ -144,7 +144,6 @@ class AnalysisFlowService:
         # TEXT EMOTION
         # ===============================
         text_emotion = text_emotion_classifier.classify(text)
-        print("Text emotion:", text_emotion)
 
         text_scores_raw = text_emotion.get("emotionScores") or {}
         text_scores = emotion_analyzer.normalize_scores(text_scores_raw)

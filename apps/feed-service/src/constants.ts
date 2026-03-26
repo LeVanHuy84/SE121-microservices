@@ -3,3 +3,6 @@ export const MICROSERVICE_CLIENT = {
   GROUP_SERVICE: 'GROUP_SERVICE',
   ANALYSIS_SERVICE: 'ANALYSIS_SERVICE', // ⭐ NEW
 };
+
+export const SCORE_SCALE = 1e6;
+export const TIME_SCALE = 1e13;

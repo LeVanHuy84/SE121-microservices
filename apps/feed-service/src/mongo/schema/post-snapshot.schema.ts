@@ -48,9 +48,6 @@ export class EmotionFeature {
   scores?: Record<string, number>;
 
   @Prop()
-  dominantModality?: string;
-
-  @Prop()
   riskHintLevel?: string;
 }
 

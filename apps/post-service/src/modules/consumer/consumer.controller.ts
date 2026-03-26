@@ -1,7 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import {
-  AnalysisEventType,
   AnalysisResultEvent,
   EventTopic,
   ModerationRejectedEvent,

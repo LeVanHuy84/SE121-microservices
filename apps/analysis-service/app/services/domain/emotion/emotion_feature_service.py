@@ -5,13 +5,13 @@ from app.database.emotion_aggregate_repository import EmotionAggregateRepository
 from app.enums.emotion_enum import EmotionTimeWindowEnum
 
 _NEUTRAL_DISTRIBUTION: dict[str, float] = {
-    "joy": 0.0,
-    "sadness": 0.0,
-    "anger": 0.0,
-    "fear": 0.0,
-    "disgust": 0.0,
-    "surprise": 0.0,
-    "neutral": 1.0,
+    "joy": 0.1,
+    "sadness": 0.1,
+    "anger": 0.1,
+    "fear": 0.1,
+    "disgust": 0.1,
+    "surprise": 0.1,
+    "neutral": 0.4,
 }
 
 
@@ -56,7 +56,7 @@ class EmotionFeatureService:
         # ── Query 1: profile + snapshots in one aggregation ──────────────
         profile_doc = await self._fetch_profile_with_snapshots(user_id)
 
-        emotion_vector_ema: dict[str, float] = profile_doc.get("emotionVectorEMA") or {}
+        emotion_vector_ema: dict[str, float] = profile_doc.get("emotionVectorEMA") or _NEUTRAL_DISTRIBUTION
         negative_streak: int = profile_doc.get("negativeStreak") or 0
 
         snapshot_7d = self._extract_snapshot_7d(profile_doc.get("snapshots") or [])

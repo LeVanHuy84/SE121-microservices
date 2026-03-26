@@ -24,7 +24,7 @@ class UserEmotionProfileService:
                 total += 1
 
         if total == 0:
-            return counts
+            return None
 
         return {key: value / total for key, value in counts.items()}
 

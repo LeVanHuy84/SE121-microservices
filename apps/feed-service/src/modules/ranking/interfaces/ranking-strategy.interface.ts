@@ -32,14 +32,6 @@ export interface RankingContext {
 }
 
 /**
- * Kết quả sau khi ranked
- */
-export interface RankedItem extends RankingCandidate {
-  finalScore: number;
-  featureScores?: Record<string, number>; // debug: {affinity: 1.5, freshness: 0.8}
-}
-
-/**
  * Interface cho ranking strategy
  */
 export interface IRankingStrategy {

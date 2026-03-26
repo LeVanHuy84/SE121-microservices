@@ -1,45 +1,43 @@
 import { InteractionType } from '@repo/dtos';
 
 /**
- * Default user affinity nếu user mới
- * CANONICAL EMOTIONS ONLY: joy, sadness, anger, fear, disgust, surprise, neutral
+ * Redis keys
  */
-export const DEFAULT_USER_AFFINITY: Record<string, number> = {
-  joy: 0.35,
-  surprise: 0.25,
-  neutral: 0.15,
-  sadness: 0.1,
-  anger: 0.07,
-  fear: 0.05,
-  disgust: 0.03,
-} as const;
-
 export const REDIS_KEYS = {
-  USER_AFFINITY: (userId: string) => `user:${userId}:affinity`,
-  USER_SCENE_AFFINITY: (userId: string) => `user:${userId}:scene-affinity`,
-  USER_RECENT_EMOTIONS: (userId: string) => `user:${userId}:recent:emotions`,
-} as const;
-
-export const CACHE_TTL = {
-  USER_AFFINITY: 7 * 24 * 3600, // 7 days
-  RECENT_EMOTIONS: 7 * 24 * 3600, // 7 days
+  CATEGORY: (userId: string) => `user:${userId}:affinity:category`,
+  AUTHOR: (userId: string) => `user:${userId}:affinity:author`,
 } as const;
 
 /**
- * Interaction weights cho user affinity
+ * TTL
  */
-export const INTERACTION_WEIGHTS = {
-  view: 0.1,
-  react: 0.3,
-  comment: 0.5,
-  share: 0.7,
+export const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
+/**
+ * Explicit interaction weights
+ */
+export const INTERACTION_WEIGHTS: Record<string, number> = {
+  [InteractionType.REACT]: 2,
+  [InteractionType.COMMENT]: 3,
+  [InteractionType.SHARE]: 4,
+
+  // implicit
+  view: 1,
+  view_long: 1.5,
+};
+
+/**
+ * View thresholds (ms)
+ */
+export const VIEW_THRESHOLDS = {
+  MIN: 2000, // <2s → ignore
+  LONG: 5000, // >=5s → view_long
 } as const;
 
-export const INTERACTION_TO_WEIGHT_KEY: Record<
-  InteractionType,
-  keyof typeof INTERACTION_WEIGHTS
-> = {
-  [InteractionType.REACT]: 'react',
-  [InteractionType.COMMENT]: 'comment',
-  [InteractionType.SHARE]: 'share',
-};
+/**
+ * Ranking weights
+ */
+export const AFFINITY_WEIGHT = {
+  CATEGORY: 0.7,
+  AUTHOR: 0.3,
+} as const;

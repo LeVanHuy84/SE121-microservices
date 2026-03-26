@@ -20,12 +20,12 @@ export class FeedItem {
   @Prop({ required: true, index: true })
   postId: string;
 
+  @Prop({ index: true })
+  emotionLabel?: string; // optional
+
   // ref gốc (postId hoặc shareId)
   @Prop({ required: true })
   refId: string;
-
-  @Prop({ default: 0, index: true })
-  rankingScore: number;
 
   @Prop({ index: true })
   createdAt?: Date;

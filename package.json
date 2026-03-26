@@ -6,7 +6,7 @@
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=12",
     "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
-    "demo": "turbo run start:prod --parallel --concurrency=12",
+    "demo": "turbo run start:prod --parallel --concurrency=12 --filter=!feed-service --filter=!search-service",
     "demo:test": "turbo run start:prod --filter=analysis-service --filter=api-gateway --filter=feed-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

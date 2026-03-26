@@ -58,7 +58,7 @@ class EmotionDailyAggregationJob:
         if now is None:
             now = datetime.now(timezone.utc)
 
-        yesterday_start, yesterday_end = self._yesterday_range(now)
+        yesterday_start, yesterday_end = self._last_24h_range(now)
         dirty_users = await self.snapshot_queue_service.get_dirty_users()
         users = sorted(dirty_users) if dirty_users else []
 
@@ -83,14 +83,14 @@ class EmotionDailyAggregationJob:
                     end_time=yesterday_end,
                 )
 
-                await self.profile_orchestrator.upsert_daily_profile(
-                    user_id=user_id,
-                    yesterday_aggregates=yesterday_aggregates,
-                )
-
                 await self.snapshot_orchestrator.recompute_user_snapshots(
                     user_id=user_id,
                     reference_time=now,
+                )
+
+                await self.profile_orchestrator.upsert_daily_profile(
+                    user_id=user_id,
+                    yesterday_aggregates=yesterday_aggregates,
                 )
 
                 await self.snapshot_queue_service.remove_user(user_id)
@@ -131,4 +131,9 @@ class EmotionDailyAggregationJob:
         yesterday = (now - timedelta(days=1)).date()
         start = datetime.combine(yesterday, time.min, tzinfo=timezone.utc)
         end = datetime.combine(yesterday, time.max, tzinfo=timezone.utc)
+        return start, end
+    
+    def _last_24h_range(self, now: datetime) -> tuple[datetime, datetime]:
+        end = now
+        start = now - timedelta(hours=24)
         return start, end

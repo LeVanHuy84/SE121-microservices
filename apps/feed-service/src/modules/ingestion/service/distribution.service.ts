@@ -5,7 +5,6 @@ import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
-import { calculateRankingScore } from 'src/utils/utils';
 import { FeedEventType } from '@repo/dtos';
 
 @Injectable()
@@ -58,10 +57,6 @@ export class DistributionService {
       // 2. Chuẩn bị các FeedItem cho từng bạn bè
       const now = new Date();
 
-      const rankingScore = calculateRankingScore(
-        type === FeedEventType.POST ? 'post' : 'share',
-      );
-
       const feedItems = receiver.map((fid) => ({
         userId: fid,
         snapshotId: new Types.ObjectId(snapshotId),
@@ -69,7 +64,6 @@ export class DistributionService {
         refId: refId,
         postId: postId,
         timestamp: now,
-        rankingScore,
       }));
 
       // 3. Bulk insert

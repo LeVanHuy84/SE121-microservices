@@ -21,7 +21,6 @@ export class ConsumerService {
     @InjectRepository(Post) private readonly postRepository: Repository<Post>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
-    @InjectRepository(Share)
     private readonly dataSource: DataSource,
   ) {}
 

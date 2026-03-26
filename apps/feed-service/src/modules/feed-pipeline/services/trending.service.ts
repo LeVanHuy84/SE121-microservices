@@ -1,299 +1,312 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   CursorPageResponse,
-  TrendingQuery,
-  Emotion,
   ReactionType,
   TargetType,
+  TrendingQuery,
 } from '@repo/dtos';
-import { SnapshotMapper } from 'src/common/snapshot.mapper';
-import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
-import { ClientProxy } from '@nestjs/microservices';
+import Redis from 'ioredis';
 import { firstValueFrom } from 'rxjs';
-import { RankingService } from '../../ranking/services/ranking.service';
-import { RankingCandidate } from '../../ranking/interfaces/ranking-strategy.interface';
+import { SnapshotMapper } from 'src/common/snapshot.mapper';
+import { AffinityService } from 'src/modules/affinity/affinity.service';
+import { EmotionFeatureService } from 'src/modules/ranking/services/emotion-feature.service';
+import { ScoreCombinerService } from 'src/modules/ranking/services/score-combiner.service';
+import { SnapshotRepository } from 'src/mongo/repository/snapshot.repository';
+
+type RankFeature = {
+  label: string;
+  scores: Record<string, number>;
+  intensity: number;
+  confidence: number;
+  dominantScene?: string;
+  riskHintLevel?: string;
+  authorId?: string;
+};
+
+type Candidate = {
+  postId: string;
+  baseScore: number;
+  feature: RankFeature;
+};
+
+type CursorPayload = {
+  baseScore: number;
+  postId: string;
+};
 
 @Injectable()
 export class TrendingService {
+  private readonly DEFAULT_PAGE_SIZE = 10;
   private readonly logger = new Logger(TrendingService.name);
-
-  private readonly trendingCandidateFactor = 2;
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly snapshotRepo: SnapshotRepository,
+    private readonly emotionService: EmotionFeatureService,
+    private readonly affinityService: AffinityService,
+    private readonly combiner: ScoreCombinerService,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
-    private readonly rankingService: RankingService,
   ) {}
 
-  async getTrendingPosts(query: TrendingQuery, userId: string) {
-    if (query.mainEmotion) {
-      return this.getEmotionTrendingPosts(query, userId);
-    }
+  async getTrendingPosts(
+    query: TrendingQuery,
+    userId?: string,
+  ): Promise<CursorPageResponse<any>> {
+    const { cursor, limit = this.DEFAULT_PAGE_SIZE, mainEmotion } = query;
 
-    return this.getDefaultTrendingPosts(query, userId);
-  }
+    const candidateSize = mainEmotion ? limit : limit * 5;
 
-  /**
-   * =========================================
-   * DEFAULT TRENDING (WITH RANKING SERVICE)
-   * =========================================
-   */
-  private async getDefaultTrendingPosts(query: TrendingQuery, userId: string) {
-    const { cursor, limit = 10 } = query;
+    const key = mainEmotion
+      ? `post:emotion:${mainEmotion.toLocaleLowerCase()}:score`
+      : 'post:score';
 
-    const effectiveKey = 'post:score';
-
-    let maxScore = '+inf';
-    let cursorTuple:
-      | { score: number; createdAt: number; postId?: string }
-      | undefined;
+    // ==============================
+    // 1️⃣ Decode cursor (BASE ONLY)
+    // ==============================
+    let cursorData: CursorPayload | null = null;
 
     if (cursor) {
-      const [scoreStr, createdAtStr, postId] = cursor.split('_');
-      const score = parseFloat(scoreStr);
-      const createdAt = Number(createdAtStr);
-
-      if (Number.isFinite(score)) {
-        maxScore = `${score}`;
-      }
-
-      if (Number.isFinite(score) && Number.isFinite(createdAt)) {
-        cursorTuple = {
-          score,
-          createdAt,
-          postId: postId || undefined,
-        };
-      }
+      cursorData = this.decodeCursor(cursor);
     }
 
-    const candidateLimit = limit * this.trendingCandidateFactor;
-    const fetchLimit = candidateLimit * 3 + 1;
+    // ==============================
+    // 2️⃣ Query Redis (SOURCE OF TRUTH)
+    // ==============================
+    const max = cursorData ? `(${cursorData.baseScore}` : '+inf';
 
-    const rawCandidates = await this.redis.zrevrangebyscore(
-      effectiveKey,
-      maxScore,
+    const zset = await this.redis.zrevrangebyscore(
+      key,
+      max,
       '-inf',
       'WITHSCORES',
       'LIMIT',
       0,
-      fetchLimit,
+      candidateSize,
     );
 
-    if (!rawCandidates.length) {
+    const candidatesRaw = this.parseZset(zset);
+
+    if (!candidatesRaw.length) {
       return new CursorPageResponse([], null, false);
     }
 
-    const baseScoredItems: Array<{ postId: string; baseScore: number }> = [];
+    // ==============================
+    // 3️⃣ Load rank features
+    // ==============================
+    const pipeline = this.redis.pipeline();
 
-    for (let i = 0; i < rawCandidates.length; i += 2) {
-      const postId = rawCandidates[i];
-      const baseScore = Number(rawCandidates[i + 1]);
-
-      if (!postId || !Number.isFinite(baseScore)) continue;
-
-      baseScoredItems.push({ postId, baseScore });
+    for (const c of candidatesRaw) {
+      pipeline.hgetall(`post:rank:${c.postId}`);
     }
 
-    const postsFromDB = await this.snapshotRepo.findPostsByIds(
-      baseScoredItems.map((item) => item.postId),
-    );
+    const rankResults = await pipeline.exec();
 
-    const snapshotMap = new Map(postsFromDB.map((p) => [String(p.postId), p]));
+    const candidates: Candidate[] = [];
 
-    const orderedCandidates = baseScoredItems
-      .map((item) => {
-        const snapshot = snapshotMap.get(item.postId);
-        if (!snapshot) return null;
+    candidatesRaw.forEach((c, idx) => {
+      const rank = rankResults?.[idx]?.[1] as Record<string, string>;
 
+      if (!rank || !rank.scores) return;
+
+      try {
+        candidates.push({
+          postId: c.postId,
+          baseScore: c.score,
+          feature: {
+            label: rank.label,
+            scores: JSON.parse(rank.scores),
+            intensity: Number(rank.intensity || 0),
+            confidence: Number(rank.confidence || 0),
+            dominantScene: rank.dominantScene,
+            riskHintLevel: rank.riskHintLevel,
+            authorId: rank.authorId,
+          },
+        });
+      } catch {
+        // skip corrupted
+      }
+    });
+
+    if (!candidates.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    // ==============================
+    // 4️⃣ User context
+    // ==============================
+    const [emotionFeatures, affinity] = await Promise.all([
+      userId ? this.emotionService.getEmotionFeatures(userId) : null,
+      userId ? this.affinityService.getAffinity(userId) : null,
+    ]);
+
+    // ==============================
+    // 5️⃣ Re-rank (ONLY FOR DISPLAY)
+    // ==============================
+    const scored = candidates.map((item) => {
+      const base = this.normalize(item.baseScore);
+
+      if (mainEmotion) {
         return {
           postId: item.postId,
-          snapshot,
+          finalScore: base,
           baseScore: item.baseScore,
-          timestamp: snapshot.postCreatedAt || new Date(),
         };
-      })
-      .filter((item): item is RankingCandidate => item != null)
-      .sort((a, b) => {
-        if (b.baseScore !== a.baseScore) return b.baseScore - a.baseScore;
-
-        const timeDiff = b.timestamp.getTime() - a.timestamp.getTime();
-        if (timeDiff !== 0) return timeDiff;
-
-        return b.postId.localeCompare(a.postId);
-      });
-
-    const candidates = cursorTuple
-      ? orderedCandidates.filter((item) =>
-          this.isAfterCursorInBaseOrder(item, cursorTuple!),
-        )
-      : orderedCandidates;
-
-    const retrievedCandidates = candidates.slice(0, candidateLimit);
-
-    const rankedItems = await this.rankingService.rankForTrending(
-      retrievedCandidates,
-      userId,
-    );
-
-    const topItems = rankedItems.slice(0, limit);
-
-    return this.buildResponse(
-      topItems,
-      retrievedCandidates,
-      candidates,
-      limit,
-      userId,
-    );
-  }
-
-  /**
-   * =========================================
-   * EMOTION TRENDING (NO RANKING)
-   * =========================================
-   */
-  private async getEmotionTrendingPosts(query: TrendingQuery, userId?: string) {
-    const { cursor, limit = 10, mainEmotion } = query;
-
-    const emotionKey = `post:emotion:${mainEmotion!.toLowerCase()}:score`;
-
-    const exists = await this.redis.exists(emotionKey);
-    if (!exists) {
-      return new CursorPageResponse([], null, false);
-    }
-
-    let maxScore = '+inf';
-
-    if (cursor) {
-      const [score] = cursor.split('_');
-      if (Number.isFinite(Number(score))) {
-        maxScore = score;
       }
-    }
 
-    const rawCandidates = await this.redis.zrevrangebyscore(
-      emotionKey,
-      maxScore,
-      '-inf',
-      'WITHSCORES',
-      'LIMIT',
-      0,
-      limit + 1,
-    );
+      const emotion = emotionFeatures
+        ? this.emotionService.calcEmotionScore(emotionFeatures, item.feature)
+        : 0;
 
-    if (!rawCandidates.length) {
-      return new CursorPageResponse([], null, false);
-    }
+      const affinityScore =
+        affinity && item.feature.authorId
+          ? this.affinityService.calcAffinityScore(affinity, {
+              category: item.feature.dominantScene || '',
+              authorId: item.feature.authorId,
+            })
+          : 0;
 
-    const items: { postId: string; baseScore: number }[] = [];
-
-    for (let i = 0; i < rawCandidates.length; i += 2) {
-      const postId = rawCandidates[i];
-      const score = Number(rawCandidates[i + 1]);
-
-      if (!postId || !Number.isFinite(score)) continue;
-
-      items.push({
-        postId,
-        baseScore: score,
+      const finalScore = this.combiner.combine({
+        base,
+        emotion,
+        affinity: affinityScore,
       });
-    }
 
-    const postIds = items.slice(0, limit).map((i) => i.postId);
+      return {
+        postId: item.postId,
+        finalScore,
+        baseScore: item.baseScore,
+      };
+    });
 
-    const snapshots = await this.snapshotRepo.findPostsByIds(postIds);
+    // ==============================
+    // 6️⃣ Sort by FINAL SCORE (DISPLAY ONLY)
+    // ==============================
+    scored.sort((a, b) => {
+      if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+      return b.baseScore - a.baseScore;
+    });
 
-    const reactions = await this.fetchUserReactions(userId, postIds);
+    const topDebug = scored.slice(0, 10).map((item) => {
+      const candidate = candidates.find((c) => c.postId === item.postId)!;
 
-    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(snapshots, reactions);
+      const base = this.normalize(candidate.baseScore);
 
-    let nextCursor: string | null = null;
-    const hasMore = items.length > limit;
+      const emotion = emotionFeatures
+        ? this.emotionService.calcEmotionScore(
+            emotionFeatures,
+            candidate.feature,
+          )
+        : 0;
 
-    if (hasMore) {
-      const last = items[limit - 1];
-      nextCursor = `${last.baseScore}_${Date.now()}_${last.postId}`;
-    }
+      const affinityScore =
+        affinity && candidate.feature.authorId
+          ? this.affinityService.calcAffinityScore(affinity, {
+              category: candidate.feature.dominantScene || '',
+              authorId: candidate.feature.authorId,
+            })
+          : 0;
 
-    return new CursorPageResponse(dtoPosts, nextCursor, hasMore);
-  }
+      return {
+        postId: item.postId,
+        base: Number(base.toFixed(3)),
+        emotion: Number(emotion.toFixed(3)),
+        affinity: Number(affinityScore.toFixed(3)),
+        final: Number(item.finalScore.toFixed(3)),
+      };
+    });
 
-  /**
-   * =========================================
-   * COMMON RESPONSE BUILDER
-   * =========================================
-   */
-  private async buildResponse(
-    topItems: RankingCandidate[],
-    retrievedCandidates: RankingCandidate[],
-    candidates: RankingCandidate[],
-    limit: number,
-    userId?: string,
-  ) {
-    if (!topItems.length) {
+    // ==============================
+    // 7️⃣ Take page
+    // ==============================
+    const page = scored.slice(0, limit);
+
+    if (!page.length) {
       return new CursorPageResponse([], null, false);
     }
 
-    const reactions = await this.fetchUserReactions(
-      userId,
-      topItems.map((i) => i.postId),
-    );
+    // ==============================
+    // 8️⃣ Hydrate DB
+    // ==============================
+    const topIds = page.map((p) => p.postId);
 
-    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(
-      topItems.map((i) => i.snapshot),
-      reactions,
-    );
+    const posts = await this.snapshotRepo.findPostsByIds(topIds);
 
-    const frontier = retrievedCandidates[retrievedCandidates.length - 1];
+    const postMap = new Map(posts.map((p) => [p.postId, p]));
 
-    const createdAt = frontier.timestamp.getTime();
+    const orderedPosts = topIds
+      .map((id) => postMap.get(id))
+      .filter((p): p is any => !!p);
 
-    const nextCursor = `${frontier.baseScore}_${createdAt}_${frontier.postId}`;
+    // ==============================
+    // 9️⃣ Reactions
+    // ==============================
+    let reactions: Record<string, ReactionType> = {};
 
-    const hasMore = candidates.length > retrievedCandidates.length;
-
-    return new CursorPageResponse(dtoPosts, nextCursor, hasMore);
-  }
-
-  private async fetchUserReactions(
-    userId: string | undefined,
-    postIds: string[],
-  ): Promise<Record<string, ReactionType>> {
-    if (!userId) return {};
-
-    try {
-      return await firstValueFrom(
-        this.postClient.send<Record<string, ReactionType>>(
-          'get_reacted_types_batch',
-          {
+    if (userId && orderedPosts.length) {
+      try {
+        reactions = await firstValueFrom(
+          this.postClient.send('get_reacted_types_batch', {
             userId,
             targetType: TargetType.POST,
-            targetIds: postIds,
-          },
-        ),
-      );
-    } catch {
-      this.logger.warn('Failed to fetch reactions');
-      return {};
+            targetIds: orderedPosts.map((p) => p.postId),
+          }),
+        );
+      } catch {}
     }
+
+    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(orderedPosts, reactions);
+
+    // ==============================
+    // 🔟 Next cursor (BASE ONLY)
+    // ==============================
+    let nextCursor: string | null = null;
+
+    if (candidatesRaw.length === candidateSize) {
+      const last = candidatesRaw[candidatesRaw.length - 1];
+
+      nextCursor = this.encodeCursor(last.score, last.postId);
+    }
+
+    return new CursorPageResponse(
+      dtoPosts,
+      nextCursor,
+      candidatesRaw.length === candidateSize,
+    );
   }
 
-  private isAfterCursorInBaseOrder(
-    item: RankingCandidate,
-    cursor: { score: number; createdAt: number; postId?: string },
-  ): boolean {
-    if (item.baseScore < cursor.score) return true;
-    if (item.baseScore > cursor.score) return false;
+  // ==============================
+  // Utils
+  // ==============================
 
-    const itemCreatedAt = item.timestamp.getTime();
+  private normalize(score: number): number {
+    return score / 5;
+  }
 
-    if (itemCreatedAt < cursor.createdAt) return true;
-    if (itemCreatedAt > cursor.createdAt) return false;
+  private parseZset(zset: string[]) {
+    const result: { postId: string; score: number }[] = [];
 
-    if (!cursor.postId) return false;
+    for (let i = 0; i < zset.length; i += 2) {
+      result.push({
+        postId: zset[i],
+        score: Number(zset[i + 1]),
+      });
+    }
 
-    return item.postId.localeCompare(cursor.postId) < 0;
+    return result;
+  }
+
+  private encodeCursor(baseScore: number, postId: string): string {
+    return `${baseScore}_${postId}`;
+  }
+
+  private decodeCursor(cursor: string): CursorPayload {
+    const [baseScore, postId] = cursor.split('_');
+
+    return {
+      baseScore: Number(baseScore),
+      postId,
+    };
   }
 }

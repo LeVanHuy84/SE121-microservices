@@ -1,11 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { RankingService } from './services/ranking.service';
 import { EmotionFeatureService } from './services/emotion-feature.service';
-import { UserFilterService } from './services/user-filter.service';
-import { TrendingRankingStrategy } from './strategies/trending-ranking.strategy';
-import { PersonalRankingStrategy } from './strategies/personal-ranking.strategy';
 import { AffinityModule } from '../affinity/affinity.module';
+import { ScoreCombinerService } from './services/score-combiner.service';
 
 /**
  * RankingModule - Module quản lý ranking logic
@@ -18,17 +15,10 @@ import { AffinityModule } from '../affinity/affinity.module';
 @Module({
   imports: [ConfigModule, AffinityModule],
   providers: [
-    // Main orchestrator
-    RankingService,
-
     // Services
     EmotionFeatureService,
-    UserFilterService,
-
-    // Strategies
-    TrendingRankingStrategy,
-    PersonalRankingStrategy,
+    ScoreCombinerService,
   ],
-  exports: [RankingService, EmotionFeatureService],
+  exports: [EmotionFeatureService, ScoreCombinerService],
 })
 export class RankingModule {}

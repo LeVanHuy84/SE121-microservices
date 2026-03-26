@@ -7,7 +7,7 @@ import {
   EmotionFeaturesResponse,
 } from '../interfaces/emotion-features.interface';
 
-const CACHE_TTL_SECONDS = 3600; // 1 hour
+const CACHE_TTL_SECONDS = 900; // 15 minute
 
 @Injectable()
 export class EmotionFeatureService {
@@ -55,6 +55,56 @@ export class EmotionFeatureService {
 
   async invalidateUserCache(userId: string): Promise<void> {
     await this.redis.del(this.getCacheKey(userId));
+  }
+
+  calcEmotionScore(
+    features: EmotionFeatures,
+    post: {
+      scores: Record<string, number>;
+      intensity?: number;
+      confidence?: number;
+      riskHintLevel?: string;
+    },
+  ): number {
+    const pref = this.calcPreferenceMatch(
+      features.userEmotionPreference,
+      post.scores,
+    );
+
+    const moodRaw = this.calcMoodMatch(
+      features.last24hEmotionDistribution,
+      post.scores,
+    );
+
+    const mood = this.applyMoodBoost(moodRaw, post.scores, features);
+
+    const risk = this.calcRiskPenalty(features.riskScore, post.scores);
+
+    // ------------------------------
+    // 🔥 NEW: intensity boost
+    // ------------------------------
+    const intensityBoost = 0.8 + (post.intensity || 0) * 0.4;
+    // range: 0.8 → 1.2
+
+    // ------------------------------
+    // 🔥 NEW: confidence weight
+    // ------------------------------
+    const confidenceWeight = 0.7 + (post.confidence || 0) * 0.3;
+    // range: 0.7 → 1
+
+    // ------------------------------
+    // 🔥 NEW: risk hint penalty
+    // ------------------------------
+    const riskHintPenalty = post.riskHintLevel === 'HIGH' ? 0.2 : 0;
+
+    let score =
+      (0.5 * pref + 0.4 * mood - 0.2 * risk) *
+      intensityBoost *
+      confidenceWeight;
+
+    score -= riskHintPenalty;
+
+    return Math.max(0, Math.min(1, score));
   }
 
   private getCacheKey(userId: string): string {
@@ -165,5 +215,66 @@ export class EmotionFeatureService {
 
   private clamp(value: number): number {
     return Math.max(0, Math.min(1, value));
+  }
+
+  private calcPreferenceMatch(
+    userPref: Record<string, number>,
+    postScores: Record<string, number>,
+  ): number {
+    let score = 0;
+
+    for (const key in userPref) {
+      score += (userPref[key] || 0) * (postScores[key] || 0);
+    }
+
+    return score; // ~0 → 1
+  }
+
+  private calcMoodMatch(
+    last24h: Record<string, number>,
+    postScores: Record<string, number>,
+  ): number {
+    let score = 0;
+
+    for (const key in last24h) {
+      score += (last24h[key] || 0) * (postScores[key] || 0);
+    }
+
+    return score;
+  }
+
+  private applyMoodBoost(
+    moodMatch: number,
+    postScores: Record<string, number>,
+    features: EmotionFeatures,
+  ): number {
+    let score = moodMatch;
+
+    const sadness = features.last24hEmotionDistribution.sadness || 0;
+
+    // user đang buồn → ưu tiên joy
+    if (sadness > 0.6) {
+      const joy = postScores.joy || 0;
+
+      if (joy > 0.3) {
+        score *= 1.3;
+      } else {
+        score *= 0.8;
+      }
+    }
+
+    return score;
+  }
+
+  private calcRiskPenalty(
+    riskScore: number,
+    postScores: Record<string, number>,
+  ): number {
+    const negative =
+      (postScores.sadness || 0) +
+      (postScores.anger || 0) +
+      (postScores.fear || 0);
+
+    return riskScore * negative; // 0 → 1
   }
 }

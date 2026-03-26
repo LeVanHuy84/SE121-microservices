@@ -8,11 +8,18 @@ import {
   PostSnapshotSchema,
 } from 'src/mongo/schema/post-snapshot.schema';
 import { AffinityModule } from '../affinity/affinity.module';
+import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
+import {
+  ShareSnapshot,
+  ShareSnapshotSchema,
+} from 'src/mongo/schema/share-snapshot.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PostSnapshot.name, schema: PostSnapshotSchema },
+      { name: ShareSnapshot.name, schema: ShareSnapshotSchema },
+      { name: FeedItem.name, schema: FeedItemSchema },
     ]),
     AffinityModule,
   ],

@@ -10,28 +10,21 @@ import {
 import { Redis } from 'ioredis';
 import { Model } from 'mongoose';
 import {
+  EmotionFeature,
   PostSnapshot,
   PostSnapshotDocument,
 } from 'src/mongo/schema/post-snapshot.schema';
 import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
-import { UserAffinityService } from '../affinity/user-affinity.service';
-import { INTERACTION_TO_WEIGHT_KEY } from '../affinity/affinity.constants';
 import {
   normalizeEmotionEnum,
   normalizeEmotionScores,
 } from 'src/utils/emotion-normalizer';
+import { AffinityService } from '../affinity/affinity.service';
+import { FeedItem } from 'src/mongo/schema/feed-item.schema';
 
 @Injectable()
 export class ConsumerService {
   private readonly logger = new Logger(ConsumerService.name);
-  private readonly emotionLocalCache = new Map<
-    string,
-    {
-      emotionSignal: Record<string, number> | string;
-      dominantScene?: string;
-      ts: number;
-    }
-  >();
 
   constructor(
     @InjectModel(PostSnapshot.name)
@@ -40,50 +33,77 @@ export class ConsumerService {
     @InjectModel(ShareSnapshot.name)
     private readonly shareModel: Model<ShareSnapshot>,
 
+    @InjectModel(FeedItem.name)
+    private readonly feedItemModel: Model<FeedItem>,
+
     @InjectRedis()
     private readonly redis: Redis,
 
-    private readonly affinityService: UserAffinityService,
+    private readonly affinityService: AffinityService,
   ) {}
 
-  private readonly emotionSignalCacheTtlSeconds = 21600;
-
-  async handleCreated(payload: AnalysisResultEventPayload): Promise<void> {
-    if (payload.targetType !== TargetType.POST) return;
-
-    const post = await this.postModel.findOne({ postId: payload.targetId });
-    if (!post) return;
-
-    const newFeature = this.buildEmotionFeature(payload);
-    const oldLabel = post.emotionFeature?.label;
-
-    post.emotionFeature = newFeature;
-    await post.save();
-
-    if (!post.groupId) {
-      await this.indexEmotionToRedis(payload.targetId, newFeature, oldLabel);
-    }
+  async handleCreated(payload: AnalysisResultEventPayload) {
+    await this.upsertEmotionFeature(payload);
   }
 
-  async handleUpdated(payload: AnalysisResultEventPayload): Promise<void> {
+  async handleUpdated(payload: AnalysisResultEventPayload) {
+    await this.upsertEmotionFeature(payload);
+  }
+
+  private async upsertEmotionFeature(
+    payload: AnalysisResultEventPayload,
+  ): Promise<void> {
     if (payload.targetType !== TargetType.POST) return;
 
-    const post = await this.postModel.findOne({ postId: payload.targetId });
-    if (!post) return;
-
-    const oldLabel = post.emotionFeature?.label;
     const newFeature = this.buildEmotionFeature(payload);
 
-    post.emotionFeature = newFeature;
-    await post.save();
+    /**
+     * 1. UPDATE POST (atomic)
+     */
+    const updatedPost = await this.postModel.findOneAndUpdate(
+      { postId: payload.targetId },
+      {
+        $set: {
+          emotionFeature: newFeature,
+        },
+      },
+      {
+        new: true, // trả về doc sau update
+        projection: { userId: 1, groupId: 1, 'emotionFeature.label': 1 },
+      },
+    );
 
-    const emotionKey = `emotion:post:${payload.targetId}`;
+    if (!updatedPost) return;
 
-    await this.redis.pipeline().del(emotionKey).exec();
+    const oldLabel = updatedPost.emotionFeature?.label;
 
-    this.emotionLocalCache.delete(payload.targetId);
+    /**
+     * 2. UPDATE FEED ITEM (KHÔNG CẦN CHECK)
+     */
+    await this.feedItemModel.updateMany(
+      { postId: payload.targetId },
+      {
+        $set: {
+          emotionLabel: newFeature.label,
+        },
+      },
+    );
 
-    await this.indexEmotionToRedis(payload.targetId, newFeature, oldLabel);
+    /**
+     * 3. REDIS (chỉ khi không có group)
+     */
+    if (!updatedPost.groupId) {
+      const emotionKey = `emotion:post:${payload.targetId}`;
+
+      await this.redis.pipeline().del(emotionKey).exec();
+
+      await this.indexEmotionToRedis(
+        payload.targetId,
+        newFeature,
+        updatedPost.userId,
+        oldLabel,
+      );
+    }
   }
 
   async handleInteraction(payload: InteractionEventPayload): Promise<void> {
@@ -93,24 +113,22 @@ export class ConsumerService {
       const postId = await this.resolvePostId(targetId, targetType);
       if (!postId) return;
 
-      const emotionContext = await this.getEmotionSignal(postId);
-      if (!emotionContext) return;
+      const post = await this.postModel
+        .findOne({ postId })
+        .select('userId emotionFeature.dominantScene')
+        .lean();
 
-      const weightKey = INTERACTION_TO_WEIGHT_KEY[interactionType];
+      if (!post) return;
 
-      await this.affinityService.updateAffinity(
+      const category = post.emotionFeature?.dominantScene;
+      if (!category) return;
+
+      await this.affinityService.updateAffinity({
         userId,
-        emotionContext.emotionSignal,
-        weightKey,
-      );
-
-      if (emotionContext.dominantScene) {
-        await this.affinityService.updateSceneAffinity(
-          userId,
-          emotionContext.dominantScene,
-          weightKey,
-        );
-      }
+        category,
+        authorId: post.userId,
+        type: interactionType,
+      });
     } catch (err) {
       this.logger.error('handleInteraction error', err);
     }
@@ -141,144 +159,9 @@ export class ConsumerService {
     return postId;
   }
 
-  private async getEmotionSignal(postId: string): Promise<{
-    emotionSignal: Record<string, number> | string;
-    dominantScene?: string;
-  } | null> {
-    const local = this.emotionLocalCache.get(postId);
-
-    if (local) {
-      const age = Date.now() - local.ts;
-
-      // TTL memory cache = 10 phút
-      if (age < 10 * 60 * 1000) {
-        return {
-          emotionSignal: local.emotionSignal,
-          dominantScene: local.dominantScene,
-        };
-      }
-
-      this.emotionLocalCache.delete(postId);
-    }
-
-    const cacheKey = `emotion:post:${postId}`;
-
-    const cached = await this.redis.get(cacheKey);
-    if (cached) {
-      const parsed = this.parseEmotionSignalCache(cached);
-      if (parsed) {
-        this.setEmotionLocalCache(postId, parsed);
-      }
-      return parsed;
-    }
-
-    const post = await this.postModel
-      .findOne({ postId })
-      .select(
-        'emotionFeature.label emotionFeature.scores emotionFeature.dominantScene',
-      )
-      .lean();
-
-    if (!post?.emotionFeature) return null;
-
-    const payload = {
-      emotionSignal: post.emotionFeature.scores ?? post.emotionFeature.label,
-      dominantScene: post.emotionFeature.dominantScene,
-    };
-
-    await this.redis.set(
-      cacheKey,
-      JSON.stringify(payload),
-      'EX',
-      this.emotionSignalCacheTtlSeconds,
-    );
-
-    this.setEmotionLocalCache(postId, payload);
-
-    return payload;
-  }
-
-  private setEmotionLocalCache(
-    postId: string,
-    payload: {
-      emotionSignal: Record<string, number> | string;
-      dominantScene?: string;
-    },
-  ): void {
-    this.emotionLocalCache.set(postId, {
-      ...payload,
-      ts: Date.now(),
-    });
-
-    if (this.emotionLocalCache.size > 5000) {
-      const keys = [...this.emotionLocalCache.keys()];
-      const evictCount = Math.min(500, keys.length);
-
-      for (let i = 0; i < evictCount; i += 1) {
-        const key = keys[Math.floor(Math.random() * keys.length)];
-        this.emotionLocalCache.delete(key);
-      }
-    }
-  }
-
-  private parseEmotionSignalCache(cached: string): {
-    emotionSignal: Record<string, number> | string;
-    dominantScene?: string;
-  } | null {
-    const parsed: unknown = JSON.parse(cached);
-
-    if (typeof parsed === 'string') {
-      return {
-        emotionSignal: parsed,
-      };
-    }
-
-    if (this.isEmotionScoreMap(parsed)) {
-      return {
-        emotionSignal: parsed,
-      };
-    }
-
-    if (!this.isCachedEmotionContext(parsed)) {
-      return null;
-    }
-
-    if (
-      typeof parsed.emotionSignal !== 'string' &&
-      !this.isEmotionScoreMap(parsed.emotionSignal)
-    ) {
-      return null;
-    }
-
-    return {
-      emotionSignal: parsed.emotionSignal,
-      dominantScene:
-        typeof parsed.dominantScene === 'string'
-          ? parsed.dominantScene
-          : undefined,
-    };
-  }
-
-  private isCachedEmotionContext(value: unknown): value is {
-    emotionSignal?: unknown;
-    dominantScene?: unknown;
-  } {
-    return (
-      typeof value === 'object' && value !== null && 'emotionSignal' in value
-    );
-  }
-
-  private isEmotionScoreMap(value: unknown): value is Record<string, number> {
-    if (typeof value !== 'object' || value === null) {
-      return false;
-    }
-
-    return Object.values(value).every(
-      (entry) => typeof entry === 'number' && Number.isFinite(entry),
-    );
-  }
-
-  private buildEmotionFeature(payload: AnalysisResultEventPayload) {
+  private buildEmotionFeature(
+    payload: AnalysisResultEventPayload,
+  ): EmotionFeature {
     // CRITICAL: Normalize uppercase Emotion enum to lowercase keys
     const normalizedLabel = normalizeEmotionEnum(payload.finalEmotion);
     const normalizedScores = normalizeEmotionScores(payload.scores);
@@ -288,7 +171,6 @@ export class ConsumerService {
       confidence: payload.confidence,
       intensity: payload.intensityScore,
       intensityLevel: payload.intensityLevel,
-      dominantModality: payload.dominantModality,
       dominantScene: payload.dominantSceneType,
       scores: normalizedScores,
       riskHintLevel: payload.riskHintLevel,
@@ -297,42 +179,75 @@ export class ConsumerService {
 
   private async indexEmotionToRedis(
     postId: string,
-    emotionFeature: {
-      label: string;
-      intensity: number;
-      confidence: number;
-    },
+    emotionFeature: EmotionFeature,
+    userId: string,
     oldLabel?: string,
   ) {
     const exists = await this.redis.zscore('post:score', postId);
     if (!exists) return;
 
-    const { label, intensity, confidence } = emotionFeature;
+    const {
+      label,
+      intensity,
+      confidence,
+      dominantScene,
+      scores,
+      riskHintLevel,
+    } = emotionFeature;
 
-    // CRITICAL: Ensure label is lowercase for Redis key consistency
     const normalizedLabel = normalizeEmotionEnum(label);
 
     const pipeline = this.redis.pipeline();
 
+    // ------------------------------
+    // 🔥 REMOVE old emotion index
+    // ------------------------------
     if (oldLabel) {
-      // Normalize old label as well
-      const normalizedOldLabel = normalizeEmotionEnum(oldLabel);
-      if (normalizedOldLabel && normalizedOldLabel !== normalizedLabel) {
-        pipeline.zrem(`post:emotion:${normalizedOldLabel}:score`, postId);
+      const normalizedOld = normalizeEmotionEnum(oldLabel);
+      if (normalizedOld && normalizedOld !== normalizedLabel) {
+        pipeline.zrem(`post:emotion:${normalizedOld}:score`, postId);
       }
     }
 
+    // ------------------------------
+    // 🔥 META (lightweight)
+    // ------------------------------
     pipeline.hset(`post:meta:${postId}`, {
       emotionLabel: normalizedLabel,
       emotionIntensity: intensity.toString(),
       emotionConfidence: confidence.toString(),
     });
 
-    const emotionScoreKey = `post:emotion:${normalizedLabel}:score`;
+    // ------------------------------
+    // 🔥 FULL RANK DATA (QUAN TRỌNG)
+    // ------------------------------
+    pipeline.hset(`post:rank:${postId}`, {
+      scores: JSON.stringify(scores || {}),
+      intensity: intensity.toString(),
+      confidence: confidence.toString(),
+      dominantScene: dominantScene || '',
+      riskHintLevel: riskHintLevel || '',
+      authorId: userId,
+    });
 
-    pipeline.zadd(emotionScoreKey, intensity, postId);
-    pipeline.expire(emotionScoreKey, 30 * 24 * 60 * 60);
+    pipeline.expire(`post:rank:${postId}`, 30 * 24 * 60 * 60);
 
+    // ------------------------------
+    // 🔥 emotion index (optional filter)
+    // ------------------------------
+    const score = await this.redis.zscore('post:score', postId);
+    if (score) {
+      pipeline.zadd(
+        `post:emotion:${normalizedLabel}:score`,
+        Number(score),
+        postId,
+      );
+
+      pipeline.expire(
+        `post:emotion:${normalizedLabel}:score`,
+        30 * 24 * 60 * 60,
+      );
+    }
     await pipeline.exec();
   }
 }

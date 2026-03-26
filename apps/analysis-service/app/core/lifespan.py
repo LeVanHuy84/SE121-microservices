@@ -219,7 +219,11 @@ async def lifespan(app):
         logger.info("[Startup] ✅ Retry Worker started")
 
         # 6. Daily profile/snapshot aggregation job
-        logger.info("[Startup] Step 6/6: Starting Emotion Daily Aggregation Job...", settings.EMOTION_DAILY_CRON_HOUR_UTC, settings.EMOTION_DAILY_CRON_MINUTE_UTC)
+        logger.info(
+            "[Startup] Step 6/6: Starting Emotion Daily Aggregation Job at %s:%s",
+            settings.EMOTION_DAILY_CRON_HOUR_UTC,
+            settings.EMOTION_DAILY_CRON_MINUTE_UTC
+        )
         background_tasks.append(
             asyncio.create_task(emotion_daily_aggregation_job.run())
         )

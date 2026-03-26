@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { UserAffinityService } from './user-affinity.service';
+import { AffinityService } from './affinity.service';
 
 @Module({
-  providers: [UserAffinityService],
-  exports: [UserAffinityService],
+  providers: [AffinityService],
+  exports: [AffinityService],
 })
 export class AffinityModule {}

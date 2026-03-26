@@ -44,7 +44,7 @@ def text_severity(text_result: Dict[str, Any]) -> str:
     """
     Map text violation score to severity (domain policy).
     """
-    score = float(text_result.get("violation_score", 0.0))
+    score = float(text_result.get("violationScore", 0.0))
 
     if score >= 0.85:
         return "high"
@@ -56,29 +56,7 @@ def text_severity(text_result: Dict[str, Any]) -> str:
 
 
 def image_violation_score(image_result: Dict[str, Any]) -> float:
-    """
-    Extract MAX non-safe score from image raw_scores.
-    Domain rule:
-    - NEVER use 'safe' score
-    - If no non-safe signal → 0.0
-    """
-    unsafe = image_result.get("unsafe_details") or {}
-    scores = unsafe.get("scores") or {}
-
-    if not scores:
-        return 0.0
-
-    # Explicitly exclude safe
-    non_safe_scores = [
-        float(v)
-        for k, v in scores.items()
-        if k != "safe"
-    ]
-
-    if not non_safe_scores:
-        return 0.0
-
-    return max(non_safe_scores)
+    return float(image_result.get("violationScore", 0.0))
 
 
 # ==================================================

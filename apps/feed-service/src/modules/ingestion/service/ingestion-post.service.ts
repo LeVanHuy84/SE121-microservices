@@ -63,7 +63,11 @@ export class IngestionPostService {
         lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
       });
       await this.redis.expire(metaKey, this.META_TTL_SECONDS);
-      await this.redis.zadd('post:score', 8, payload.postId);
+      await this.redis.zadd('post:score', 1, payload.postId);
+      const ttlFreshMs = 48 * 60 * 60 * 1000; // 48h
+      const expireAt = createdAt.getTime() + ttlFreshMs;
+
+      await this.redis.zadd('post:fresh', expireAt, payload.postId);
     }
 
     // ------------------------------

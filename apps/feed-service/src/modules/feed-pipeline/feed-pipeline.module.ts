@@ -16,6 +16,8 @@ import { PersonalFeedController } from './controllers/personal-feed.controller';
 import { TrendingController } from './controllers/trending.controller';
 import { PersonalFeedService } from './services/personal-feed.service';
 import { TrendingService } from './services/trending.service';
+import { TrendingWorker } from './services/trending-score-worker';
+import { AffinityModule } from '../affinity/affinity.module';
 
 @Module({
   imports: [
@@ -50,9 +52,10 @@ import { TrendingService } from './services/trending.service';
         }),
       },
     ]),
-    RankingModule, // ⭐ Import RankingModule
+    RankingModule,
+    AffinityModule,
   ],
   controllers: [PersonalFeedController, TrendingController],
-  providers: [PersonalFeedService, TrendingService],
+  providers: [PersonalFeedService, TrendingService, TrendingWorker],
 })
 export class FeedPipelineModule {}
