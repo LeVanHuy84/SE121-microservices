@@ -5,6 +5,7 @@ import {
   CursorPageResponse,
   CursorPaginationDTO,
   EventTopic,
+  MediaType,
   MediaEventType,
   MessageResponseDTO,
   SendMessageDTO,
@@ -378,10 +379,9 @@ export class MessageService {
       msg.attachments
         ?.map((att) => {
           if (!att?.publicId) return null;
-          const resourceType =
-            att.mimeType && att.mimeType.startsWith('video/')
-              ? 'video'
-              : 'image';
+          const resourceType = this.toCloudinaryResourceType(
+            this.resolveAttachmentType(att),
+          );
           return { publicId: att.publicId, resourceType };
         })
         .filter(Boolean) || [];
@@ -394,7 +394,7 @@ export class MessageService {
       {
         items: items as {
           publicId: string;
-          resourceType?: 'image' | 'video';
+          resourceType?: 'image' | 'video' | 'raw';
         }[],
         source: 'chat-service',
         reason: 'message.deleted',
@@ -413,14 +413,10 @@ export class MessageService {
       msg.attachments
         ?.map((att) => {
           if (!att?.publicId) return null;
-          const resourceType =
-            att.mimeType && att.mimeType.startsWith('video/')
-              ? 'video'
-              : 'image';
           return {
             publicId: att.publicId,
             url: att.url,
-            type: resourceType,
+            type: this.resolveAttachmentType(att),
           };
         })
         .filter(Boolean) || [];
@@ -435,13 +431,48 @@ export class MessageService {
         items: items as {
           publicId: string;
           url?: string;
-          type?: 'image' | 'video';
+          type?: MediaType;
         }[],
         source: 'chat-service',
       },
       messageId,
       session,
     );
+  }
+
+  private resolveAttachmentType(att: {
+    type?: MediaType;
+    mimeType?: string;
+  }): MediaType {
+    if (att.type) {
+      return att.type;
+    }
+    if (att.mimeType?.startsWith('image/')) {
+      return MediaType.IMAGE;
+    }
+    if (att.mimeType?.startsWith('video/')) {
+      return MediaType.VIDEO;
+    }
+    if (att.mimeType?.startsWith('audio/')) {
+      return MediaType.AUDIO;
+    }
+
+    return MediaType.FILE;
+  }
+
+  private toCloudinaryResourceType(
+    type: MediaType,
+  ): 'image' | 'video' | 'raw' {
+    switch (type) {
+      case MediaType.IMAGE:
+        return 'image';
+      case MediaType.VIDEO:
+      case MediaType.AUDIO:
+        return 'video';
+      case MediaType.FILE:
+      default:
+        return 'raw';
+    }
   }
 
   // ============= REACTION =============

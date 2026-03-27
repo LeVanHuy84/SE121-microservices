@@ -26,11 +26,13 @@ function mapMessage(obj: any): MessageResponseDTO | undefined {
   const replyTo = hasPopulatedReply ? mapMessage(rawReply) : undefined;
   const attachments = Array.isArray(base.attachments)
     ? base.attachments.map((a: any) => ({
+        type: a.type,
         url: a.url,
         fileName: a.fileName,
         publicId: a.publicId,
         mimeType: a.mimeType,
         size: a.size,
+        duration: a.duration,
         thumbnailUrl: a.thumbnailUrl,
       }))
     : [];

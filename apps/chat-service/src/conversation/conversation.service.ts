@@ -7,6 +7,7 @@ import {
   CursorPageResponse,
   CursorPaginationDTO,
   EventTopic,
+  MediaType,
   MediaEventType,
   UpdateConversationDTO,
 } from '@repo/dtos';
@@ -377,6 +378,7 @@ export class ConversationService {
           await this.enqueueGroupAvatarDelete(
             conversationId,
             prevPublicId,
+            undefined,
             undefined,
             session,
           );
@@ -862,10 +864,9 @@ export class ConversationService {
         .flatMap((msg) => msg.attachments || [])
         .map((att) => {
           if (!att?.publicId) return null;
-          const resourceType =
-            att.mimeType && att.mimeType.startsWith('video/')
-              ? 'video'
-              : 'image';
+          const resourceType = this.toCloudinaryResourceType(
+            this.resolveAttachmentType(att),
+          );
           return { publicId: att.publicId, resourceType };
         })
         .filter(Boolean) || [];
@@ -876,7 +877,7 @@ export class ConversationService {
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize) as {
         publicId: string;
-        resourceType?: 'image' | 'video';
+        resourceType?: 'image' | 'video' | 'raw';
       }[];
 
       try {
@@ -902,15 +903,12 @@ export class ConversationService {
 
   private async enqueueGroupAvatarAssign(
     conversationId: string,
-    avatar: { publicId?: string; url?: string; mimeType?: string },
+    avatar: { publicId?: string; url?: string; mimeType?: string; type?: MediaType },
     session?: ClientSession,
   ) {
     if (!avatar?.publicId) return;
 
-    const type =
-      avatar.mimeType && avatar.mimeType.startsWith('video/')
-        ? 'video'
-        : 'image';
+    const type = this.resolveAttachmentType(avatar);
 
     await this.outboxService.enqueue(
       EventTopic.MEDIA,
@@ -934,11 +932,13 @@ export class ConversationService {
   private async enqueueGroupAvatarDelete(
     conversationId: string,
     publicId: string,
+    type?: MediaType,
     mimeType?: string,
     session?: ClientSession,
   ) {
-    const resourceType =
-      mimeType && mimeType.startsWith('video/') ? 'video' : 'image';
+    const resourceType = this.toCloudinaryResourceType(
+      this.resolveAttachmentType({ type, mimeType }),
+    );
 
     await this.outboxService.enqueue(
       EventTopic.MEDIA,
@@ -957,6 +957,41 @@ export class ConversationService {
       conversationId,
       session,
     );
+  }
+
+  private resolveAttachmentType(att: {
+    type?: MediaType;
+    mimeType?: string;
+  }): MediaType {
+    if (att.type) {
+      return att.type;
+    }
+    if (att.mimeType?.startsWith('image/')) {
+      return MediaType.IMAGE;
+    }
+    if (att.mimeType?.startsWith('video/')) {
+      return MediaType.VIDEO;
+    }
+    if (att.mimeType?.startsWith('audio/')) {
+      return MediaType.AUDIO;
+    }
+
+    return MediaType.FILE;
+  }
+
+  private toCloudinaryResourceType(
+    type: MediaType,
+  ): 'image' | 'video' | 'raw' {
+    switch (type) {
+      case MediaType.IMAGE:
+        return 'image';
+      case MediaType.VIDEO:
+      case MediaType.AUDIO:
+        return 'video';
+      case MediaType.FILE:
+      default:
+        return 'raw';
+    }
   }
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============

@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type MediaType = 'image' | 'video';
+export type MediaType = 'image' | 'video' | 'audio' | 'file';
 export type MediaStatus = 'UPLOADED' | 'READY' | 'FAILED';
 
 @Entity('media')
@@ -22,8 +22,14 @@ export class Media {
   @Column({ nullable: true })
   url?: string;
 
-  @Column({ type: 'enum', enum: ['image', 'video'] })
+  @Column({ type: 'enum', enum: ['image', 'video', 'audio', 'file'] })
   type: MediaType;
+
+  @Column({ nullable: true })
+  fileName?: string;
+
+  @Column({ nullable: true })
+  mimeType?: string;
 
   @Column({ nullable: true })
   contentId?: string;
@@ -43,6 +49,9 @@ export class Media {
 
   @Column({ nullable: true, type: 'int' })
   duration?: number;
+
+  @Column({ nullable: true })
+  thumbnailUrl?: string;
 
   @CreateDateColumn()
   createdAt: Date;

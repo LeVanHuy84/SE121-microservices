@@ -169,4 +169,88 @@ describe('MessageService', () => {
       } as any),
     ).rejects.toThrow('Reply message does not belong to this conversation');
   });
+
+  it('maps audio and file attachments to the correct media delete resource types', async () => {
+    const service = createService();
+
+    await (service as any).enqueueMediaDeleteEvent(
+      {
+        attachments: [
+          {
+            publicId: 'audio-1',
+            url: 'https://cdn.example.com/audio.mp3',
+            mimeType: 'audio/mpeg',
+          },
+          {
+            publicId: 'file-1',
+            url: 'https://cdn.example.com/doc.pdf',
+            mimeType: 'application/pdf',
+          },
+        ],
+      },
+      'msg-1',
+      session,
+    );
+
+    expect(outboxService.enqueue).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        items: [
+          { publicId: 'audio-1', resourceType: 'video' },
+          { publicId: 'file-1', resourceType: 'raw' },
+        ],
+        source: 'chat-service',
+        reason: 'message.deleted',
+      },
+      'msg-1',
+      session,
+    );
+  });
+
+  it('keeps attachment semantic types when assigning media content ids', async () => {
+    const service = createService();
+
+    await (service as any).enqueueMediaAssignEvent(
+      {
+        attachments: [
+          {
+            publicId: 'audio-1',
+            url: 'https://cdn.example.com/audio.mp3',
+            type: 'audio',
+          },
+          {
+            publicId: 'file-1',
+            url: 'https://cdn.example.com/doc.pdf',
+            mimeType: 'application/pdf',
+          },
+        ],
+      },
+      'msg-1',
+      session,
+    );
+
+    expect(outboxService.enqueue).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        contentId: 'msg-1',
+        items: [
+          {
+            publicId: 'audio-1',
+            url: 'https://cdn.example.com/audio.mp3',
+            type: 'audio',
+          },
+          {
+            publicId: 'file-1',
+            url: 'https://cdn.example.com/doc.pdf',
+            type: 'file',
+          },
+        ],
+        source: 'chat-service',
+      },
+      'msg-1',
+      session,
+    );
+  });
 });
