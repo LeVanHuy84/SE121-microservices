@@ -13,6 +13,7 @@ describe('ConversationService', () => {
   };
 
   const conversationModel = {
+    deleteOne: jest.fn(),
     findById: jest.fn(),
     find: jest.fn(),
     updateOne: jest.fn(),
@@ -34,6 +35,12 @@ describe('ConversationService', () => {
     enqueue: jest.fn(),
     enqueueChatEvent: jest.fn(),
   };
+
+  const createQuery = (result: any) => ({
+    session: jest.fn().mockReturnThis(),
+    populate: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(result),
+  });
 
   const createService = () =>
     new ConversationService(
@@ -61,9 +68,7 @@ describe('ConversationService', () => {
       save: jest.fn().mockResolvedValue(undefined),
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById.mockReturnValue(createQuery(conv));
     jest
       .spyOn(service, 'updateConversationCache')
       .mockResolvedValue({ _id: 'conv-1' } as any);
@@ -79,6 +84,7 @@ describe('ConversationService', () => {
         userId: 'user-1',
       },
       'conv-1',
+      session,
     );
   });
 
@@ -96,9 +102,9 @@ describe('ConversationService', () => {
       hiddenFor: [],
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById
+      .mockReturnValueOnce(createQuery(conv))
+      .mockReturnValueOnce(createQuery(updatedConversation));
     jest
       .spyOn(service, 'updateConversationCache')
       .mockResolvedValue(updatedConversation as any);
@@ -111,9 +117,10 @@ describe('ConversationService', () => {
       'conversation.unhidden',
       {
         userId: 'user-1',
-        conversation: updatedConversation,
+        conversation: expect.objectContaining(updatedConversation),
       },
       'conv-1',
+      session,
     );
   });
 
@@ -133,9 +140,9 @@ describe('ConversationService', () => {
       admins: ['user-2'],
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById
+      .mockReturnValueOnce(createQuery(conv))
+      .mockReturnValueOnce(createQuery(updatedConversation));
     jest
       .spyOn(service, 'updateConversationCache')
       .mockResolvedValue(updatedConversation as any);
@@ -154,11 +161,13 @@ describe('ConversationService', () => {
         leftUserIds: ['user-1'],
       },
       'conv-1',
+      session,
     );
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.updated',
-      updatedConversation,
+      expect.objectContaining(updatedConversation),
       'conv-1',
+      session,
     );
   });
 
@@ -173,9 +182,7 @@ describe('ConversationService', () => {
       save: jest.fn().mockResolvedValue(undefined),
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById.mockReturnValue(createQuery(conv));
     const hardDeleteSpy = jest
       .spyOn(service as any, 'hardDeleteConversation')
       .mockResolvedValue(undefined);
@@ -185,7 +192,10 @@ describe('ConversationService', () => {
     expect(result).toEqual({
       message: 'Conversation deleted because the last participant left',
     });
-    expect(hardDeleteSpy).toHaveBeenCalledWith(conv, ['user-1']);
+    expect(hardDeleteSpy).toHaveBeenCalledWith(conv, ['user-1'], session);
+    expect(cache.removeConversationGlobally).toHaveBeenCalledWith('conv-1', [
+      'user-1',
+    ]);
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.deleted',
       {
@@ -193,6 +203,7 @@ describe('ConversationService', () => {
         participants: ['user-1'],
       },
       'conv-1',
+      session,
     );
   });
 
@@ -214,19 +225,10 @@ describe('ConversationService', () => {
       createdAt: new Date('2026-03-26T10:05:00.000Z'),
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById.mockReturnValue(createQuery(conv));
     messageModel.findById
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(olderTarget),
-      })
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(previousTarget),
-      })
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(olderTarget),
-      });
+      .mockReturnValueOnce(createQuery(olderTarget))
+      .mockReturnValueOnce(createQuery(previousTarget));
 
     const result = await service.markConversationAsRead(
       'user-1',
@@ -263,19 +265,10 @@ describe('ConversationService', () => {
       createdAt: new Date('2026-03-26T10:05:00.000Z'),
     };
 
-    conversationModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(conv),
-    });
+    conversationModel.findById.mockReturnValue(createQuery(conv));
     messageModel.findById
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(nextTarget),
-      })
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(previousTarget),
-      })
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(nextTarget),
-      });
+      .mockReturnValueOnce(createQuery(nextTarget))
+      .mockReturnValueOnce(createQuery(previousTarget));
     conversationModel.updateOne.mockResolvedValue(undefined);
     messageModel.updateMany.mockResolvedValue(undefined);
     jest
@@ -298,7 +291,7 @@ describe('ConversationService', () => {
           syncVersion: expect.any(Number),
         },
       },
-      { timestamps: false },
+      { timestamps: false, session },
     );
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.read',
@@ -308,6 +301,7 @@ describe('ConversationService', () => {
         lastSeenMessageId: 'msg-2',
       },
       'conv-1',
+      session,
     );
   });
 

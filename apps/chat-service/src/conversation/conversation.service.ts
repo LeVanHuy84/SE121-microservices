@@ -438,88 +438,94 @@ export class ConversationService {
     conversationId: string,
     lastMessageId?: string,
   ): Promise<string | null> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
+    let updatedConversationId: string | null = null;
+    let result: string | null = null;
 
-    // 1) Xác định target message
-    let targetMsg: MessageDocument | null = null;
-
-    if (lastMessageId) {
-      targetMsg = await this.messageModel.findById(lastMessageId).exec();
-      if (!targetMsg) throw new RpcException('Message not found');
-      if (targetMsg.conversationId.toString() !== conversationId) {
-        throw new RpcException('Message does not belong to this conversation');
+    await this.withTransaction(async (session) => {
+      const conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
+      if (!conv) throw new RpcException('Conversation not found');
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
       }
-    } else {
-      if (!conv.lastMessage) return null;
-      targetMsg = await this.messageModel.findById(conv.lastMessage).exec();
-      if (!targetMsg) return null;
-    }
 
-    const targetId = targetMsg._id.toString();
+      let targetMsg: MessageDocument | null = null;
 
-    // 2) Early return nếu trùng id (mở conversation nhiều lần)
-    const prevId = conv.lastSeenMessageId?.get(userId);
-    if (prevId && prevId === targetId) {
-      return prevId;
-    }
+      if (lastMessageId) {
+        targetMsg = await this.messageModel
+          .findById(lastMessageId)
+          .session(session)
+          .exec();
+        if (!targetMsg) throw new RpcException('Message not found');
+        if (targetMsg.conversationId.toString() !== conversationId) {
+          throw new RpcException('Message does not belong to this conversation');
+        }
+      } else {
+        if (!conv.lastMessage) {
+          result = null;
+          return;
+        }
 
-    // 3) Không đi lùi (so createdAt để chắc chắn)
-    if (prevId) {
-      const [prev, now] = await Promise.all([
-        this.messageModel.findById(prevId).exec(),
-        this.messageModel.findById(targetId).exec(),
-      ]);
-
-      // nếu target cũ hơn/equal prev => không update
-      if (prev && now && (prev as any).createdAt >= (now as any).createdAt) {
-        return prevId;
+        targetMsg = await this.messageModel
+          .findById(conv.lastMessage)
+          .session(session)
+          .exec();
+        if (!targetMsg) {
+          result = null;
+          return;
+        }
       }
-    }
 
-    // 4) Mark seenBy cho các message <= target (trừ message do mình gửi)
-    const baseFilter: any = {
-      conversationId: conv._id,
-      _id: { $lte: targetMsg._id },
-      senderId: { $ne: userId },
-      seenBy: { $ne: userId },
-    };
+      const targetId = targetMsg._id.toString();
+      const prevId = conv.lastSeenMessageId?.get(userId);
 
-    await this.messageModel.updateMany(baseFilter, {
-      $addToSet: { seenBy: userId },
-    });
+      if (prevId && prevId === targetId) {
+        result = prevId;
+        return;
+      }
 
-    // 5) Update lastSeenMessageId mà KHÔNG bump updatedAt
-    // Map<string,string> trong Mongoose sẽ lưu dạng object: lastSeenMessageId: { [userId]: targetId }
-    await this.conversationModel.updateOne(
-      { _id: conv._id },
-      {
-        $set: {
-          [`lastSeenMessageId.${userId}`]: targetId,
-          syncVersion: Date.now(),
+      if (prevId) {
+        const previousMessage = await this.messageModel
+          .findById(prevId)
+          .session(session)
+          .exec();
+
+        if (
+          previousMessage &&
+          (previousMessage as any).createdAt >= (targetMsg as any).createdAt
+        ) {
+          result = prevId;
+          return;
+        }
+      }
+
+      await this.messageModel.updateMany(
+        {
+          conversationId: conv._id,
+          _id: { $lte: targetMsg._id },
+          senderId: { $ne: userId },
+          seenBy: { $ne: userId },
         },
-      },
-      { timestamps: false } as any,
-    );
+        {
+          $addToSet: { seenBy: userId },
+        },
+        { session },
+      );
 
-    // 6) Update cache + broadcast (chỉ khi có thay đổi)
-    await Promise.all([
-      this.updateConversationCache({
-        ...conv.toObject(),
-        lastSeenMessageId: new Map<string, string>([
-          ...(conv.lastSeenMessageId?.entries?.()
-            ? (Array.from(conv.lastSeenMessageId.entries()) as [
-                string,
-                string,
-              ][])
-            : []),
-          [userId, targetId],
-        ]),
-      } as any),
-      this.outboxService.enqueueChatEvent(
+      await this.conversationModel.updateOne(
+        { _id: conv._id },
+        {
+          $set: {
+            [`lastSeenMessageId.${userId}`]: targetId,
+            syncVersion: Date.now(),
+          },
+        },
+        { timestamps: false, session } as any,
+      );
+
+      await this.outboxService.enqueueChatEvent(
         'conversation.read',
         {
           conversationId,
@@ -527,92 +533,122 @@ export class ConversationService {
           lastSeenMessageId: targetId,
         },
         conversationId,
-      ),
-    ]);
+        session,
+      );
 
-    return targetId;
+      updatedConversationId = conv._id.toString();
+      result = targetId;
+    });
+
+    if (updatedConversationId) {
+      await this.refreshConversationCache(updatedConversationId);
+    }
+
+    return result;
   }
-
   // ============ LEAVE GROUP ============
 
   async leaveConversation(
     userId: string,
     conversationId: string,
   ): Promise<{ message: string }> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
+    let updatedConversationId: string | null = null;
+    let deletedParticipants: string[] | null = null;
+    let message = 'You have left the conversation';
 
-    if (!conv) throw new RpcException('Conversation not found');
+    await this.withTransaction(async (session) => {
+      const conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
 
-    if (!conv.isGroup) {
-      throw new RpcException('Cannot leave direct conversation');
-    }
+      if (!conv) throw new RpcException('Conversation not found');
 
-    if (!conv.participants.includes(userId)) {
-      return {
-        message: 'You are not in this conversation',
-      }; // đã không ở trong group -> coi như ok
-    }
+      if (!conv.isGroup) {
+        throw new RpcException('Cannot leave direct conversation');
+      }
 
-    const previousParticipants = [...(conv.participants || [])];
+      if (!conv.participants.includes(userId)) {
+        message = 'You are not in this conversation';
+        return;
+      }
 
-    conv.participants = conv.participants.filter((p) => p !== userId);
-    conv.admins = (conv.admins || []).filter((a) => a !== userId);
-    conv.hiddenFor = (conv.hiddenFor || []).filter((u) => u !== userId);
+      const previousParticipants = [...(conv.participants || [])];
 
-    // Không còn ai -> xoá hẳn conv
-    if (!conv.participants.length) {
-      await Promise.all([
-        this.hardDeleteConversation(conv, previousParticipants),
-        this.outboxService.enqueueChatEvent(
+      conv.participants = conv.participants.filter((p) => p !== userId);
+      conv.admins = (conv.admins || []).filter((a) => a !== userId);
+      conv.hiddenFor = (conv.hiddenFor || []).filter((u) => u !== userId);
+
+      if (!conv.participants.length) {
+        await this.hardDeleteConversation(conv, previousParticipants, session);
+        await this.outboxService.enqueueChatEvent(
           'conversation.deleted',
           {
             conversationId,
             participants: previousParticipants,
           },
           conversationId,
-        ),
-      ]);
-      return {
-        message: 'Conversation deleted because the last participant left',
-      };
-    }
+          session,
+        );
 
-    // Nếu không còn admin -> promote 1 người còn lại
-    if (!conv.admins.length) {
-      conv.admins = [conv.participants[0]];
-    }
+        deletedParticipants = previousParticipants;
+        message = 'Conversation deleted because the last participant left';
+        return;
+      }
 
-    await conv.save();
-    const convDto = await this.updateConversationCache(conv);
+      if (!conv.admins.length) {
+        conv.admins = [conv.participants[0]];
+      }
 
-    const tasks: Promise<unknown>[] = [
-      this.cache.removeConversationFromUser(userId, conversationId),
-      this.outboxService.enqueueChatEvent(
+      await conv.save({ session });
+
+      const fullConv = await this.conversationModel
+        .findById(conv._id)
+        .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+        .session(session)
+        .exec();
+      if (!fullConv) {
+        throw new RpcException('Conversation not found');
+      }
+
+      const convDto = populateAndMapConversation(fullConv);
+
+      await this.outboxService.enqueueChatEvent(
         'conversation.memberLeft',
         {
           conversationId,
           leftUserIds: [userId],
         },
         conversationId,
-      ),
-    ];
-
-    if (convDto) {
-      tasks.push(
-        this.outboxService.enqueueChatEvent(
-          'conversation.updated',
-          convDto,
-          convDto._id,
-        ),
+        session,
       );
+      await this.outboxService.enqueueChatEvent(
+        'conversation.updated',
+        convDto,
+        convDto._id,
+        session,
+      );
+
+      updatedConversationId = fullConv._id.toString();
+    });
+
+    if (deletedParticipants) {
+      await this.cache.removeConversationGlobally(
+        conversationId,
+        deletedParticipants,
+      );
+      return { message };
     }
 
-    await Promise.all(tasks);
-    return {
-      message: 'You have left the conversation',
-    };
-  }
+    if (!updatedConversationId) {
+      return { message };
+    }
 
+    await this.refreshConversationCache(updatedConversationId);
+    await this.cache.removeConversationFromUser(userId, conversationId);
+
+    return { message };
+  }
   // ============ DELETE CONVERSATION ============
 
   async deleteConversation(
@@ -621,41 +657,64 @@ export class ConversationService {
   ): Promise<{
     message: string;
   }> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
+    const existingConversation = await this.conversationModel
+      .findById(conversationId)
+      .exec();
 
-    if (!conv) throw new RpcException('Conversation not found');
+    if (!existingConversation) {
+      throw new RpcException('Conversation not found');
+    }
 
-    if (!conv.participants.includes(userId)) {
+    if (!existingConversation.participants.includes(userId)) {
       throw new RpcException('You are not in this conversation');
     }
 
-    // DIRECT: "delete" = hide cho riêng user
-    if (!conv.isGroup) {
+    if (!existingConversation.isGroup) {
       return {
         message:
           'Direct conversation cannot be deleted, only hidden locally by client',
       };
     }
 
-    // GROUP: admin mới được xóa hẳn
-    if (!conv.admins?.includes(userId)) {
-      throw new RpcException('You are not admin of this conversation');
-    }
+    let deletedParticipants: string[] = [];
 
-    await Promise.all([
-      this.hardDeleteConversation(conv),
-      this.outboxService.enqueueChatEvent(
+    await this.withTransaction(async (session) => {
+      const conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
+
+      if (!conv) throw new RpcException('Conversation not found');
+
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
+      }
+
+      if (!conv.admins?.includes(userId)) {
+        throw new RpcException('You are not admin of this conversation');
+      }
+
+      deletedParticipants = [...(conv.participants || [])];
+
+      await this.hardDeleteConversation(conv, undefined, session);
+      await this.outboxService.enqueueChatEvent(
         'conversation.deleted',
         {
           conversationId,
-          participants: conv.participants,
+          participants: deletedParticipants,
         },
         conversationId,
-      ),
-    ]);
+        session,
+      );
+    });
+
+    await this.cache.removeConversationGlobally(
+      conversationId,
+      deletedParticipants,
+    );
+
     return { message: 'Conversation deleted' };
   }
-
   // ============ HIDE / UNHIDE (APPLY CHO CẢ GROUP & DIRECT) ============
 
   async hideConversationForUser(
@@ -664,29 +723,43 @@ export class ConversationService {
   ): Promise<{
     message: string;
   }> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
+    let updatedConversationId: string | null = null;
 
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
+    await this.withTransaction(async (session) => {
+      const conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
 
-    if (!conv.hiddenFor?.includes(userId)) {
+      if (!conv) throw new RpcException('Conversation not found');
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
+      }
+
+      if (conv.hiddenFor?.includes(userId)) {
+        return;
+      }
+
       conv.hiddenFor = [...(conv.hiddenFor || []), userId];
-      await conv.save();
-    }
+      await conv.save({ session });
 
-    await Promise.all([
-      this.updateConversationCache(conv),
-      this.outboxService.enqueueChatEvent(
+      await this.outboxService.enqueueChatEvent(
         'conversation.hidden',
         {
           conversationId,
           userId,
         },
         conversationId,
-      ),
-    ]);
+        session,
+      );
+
+      updatedConversationId = conv._id.toString();
+    });
+
+    if (updatedConversationId) {
+      await this.refreshConversationCache(updatedConversationId);
+    }
+
     return {
       message: 'Conversation hidden',
     };
@@ -698,26 +771,36 @@ export class ConversationService {
   ): Promise<{
     message: string;
   }> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
+    let updatedConversationId: string | null = null;
 
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
+    await this.withTransaction(async (session) => {
+      const conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
 
-    if (!conv.hiddenFor?.includes(userId)) {
-      // vốn không hide -> thôi
-      return {
-        message: 'Conversation was not hidden',
-      };
-    }
+      if (!conv) throw new RpcException('Conversation not found');
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
+      }
 
-    conv.hiddenFor = conv.hiddenFor.filter((u) => u !== userId);
-    await conv.save();
+      if (!conv.hiddenFor?.includes(userId)) {
+        return;
+      }
 
-    const convDto = await this.updateConversationCache(conv);
+      conv.hiddenFor = conv.hiddenFor.filter((u) => u !== userId);
+      await conv.save({ session });
 
-    if (convDto) {
+      const fullConv = await this.conversationModel
+        .findById(conv._id)
+        .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+        .session(session)
+        .exec();
+      if (!fullConv) {
+        throw new RpcException('Conversation not found');
+      }
+
+      const convDto = populateAndMapConversation(fullConv);
       await this.outboxService.enqueueChatEvent(
         'conversation.unhidden',
         {
@@ -725,30 +808,44 @@ export class ConversationService {
           conversation: convDto,
         },
         conversationId,
+        session,
       );
+
+      updatedConversationId = fullConv._id.toString();
+    });
+
+    if (!updatedConversationId) {
+      return {
+        message: 'Conversation was not hidden',
+      };
     }
+
+    await this.refreshConversationCache(updatedConversationId);
+
     return {
       message: 'Conversation unhidden',
     };
   }
-
   // ============ HARD DELETE (group) ============
 
   private async hardDeleteConversation(
     conv: ConversationDocument,
-    participantsOverride?: string[],
+    _participantsOverride?: string[],
+    session?: ClientSession,
   ) {
     const convId = conv._id.toString();
-    const participants = participantsOverride ?? conv.participants ?? [];
 
-    await this.enqueueConversationMediaDelete(convId, conv._id);
+    await this.enqueueConversationMediaDelete(convId, conv._id, session);
 
-    await this.conversationModel.deleteOne({ _id: conv._id });
-    await this.messageModel.deleteMany({ conversationId: conv._id });
-
-    await this.cache.removeConversationGlobally(convId, participants);
+    await this.conversationModel.deleteOne(
+      { _id: conv._id },
+      session ? { session } : undefined,
+    );
+    await this.messageModel.deleteMany(
+      { conversationId: conv._id },
+      session ? { session } : undefined,
+    );
   }
-
   private async enqueueConversationMediaDelete(
     conversationId: string,
     conversationObjectId: any,
@@ -864,6 +961,12 @@ export class ConversationService {
 
   // ============ UPDATE CACHE SAU KHI CONV THAY ĐỔI ============
 
+  private async refreshConversationCache(conversationId: string) {
+    return this.updateConversationCache({
+      _id: conversationId,
+    } as unknown as ConversationDocument);
+  }
+
   async updateConversationCache(
     conv: ConversationDocument,
   ): Promise<ConversationResponseDTO | null> {
@@ -893,3 +996,4 @@ export class ConversationService {
     return dto;
   }
 }
+
