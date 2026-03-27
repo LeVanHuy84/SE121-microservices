@@ -18,6 +18,10 @@ export class OutboxProcessor {
   private readonly baseDelayMs = 5000;
   private readonly maxDelayMs = 300000;
   private readonly leaseMs = Number(process.env.OUTBOX_LEASE_MS ?? 60_000);
+  private readonly leaseRefreshMs = Math.max(
+    5_000,
+    Math.floor(this.leaseMs / 3),
+  );
   private readonly workerId =
     process.env.HOSTNAME || `chat-outbox-${process.pid}`;
 
@@ -115,6 +119,13 @@ export class OutboxProcessor {
 
   private async processEvent(event: OutboxEventDocument) {
     const { id, topic, eventType, payload, aggregateId } = event;
+    const leaseRefresher = setInterval(() => {
+      this.refreshEventLease(id).catch((err) =>
+        this.logger.warn(
+          `Failed to refresh outbox lease for ${id}: ${err.message}`,
+        ),
+      );
+    }, this.leaseRefreshMs);
 
     try {
       if (topic === this.chatTopic) {
@@ -180,6 +191,24 @@ export class OutboxProcessor {
         `Failed to process outbox event ${id}, retry #${retryCount} at ${nextRetryAt.toISOString()}: ${err.message}`,
         err.stack,
       );
+    } finally {
+      clearInterval(leaseRefresher);
     }
+  }
+
+  private async refreshEventLease(id: string) {
+    await this.outboxModel.updateOne(
+      {
+        _id: id,
+        processed: false,
+        processing: true,
+        lockedBy: this.workerId,
+      },
+      {
+        $set: {
+          lockedAt: new Date(),
+        },
+      },
+    );
   }
 }

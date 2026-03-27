@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   CursorPageResponse,
   CursorPaginationDTO,
@@ -9,7 +9,7 @@ import {
   MessageResponseDTO,
   SendMessageDTO,
 } from '@repo/dtos';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import {
   Conversation,
@@ -17,7 +17,10 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 
 import { ConversationService } from 'src/conversation/conversation.service';
-import { populateAndMapMessage } from 'src/utils/mapping';
+import {
+  populateAndMapConversation,
+  populateAndMapMessage,
+} from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
@@ -39,7 +42,26 @@ export class MessageService {
     private readonly msgCache: MessageCacheService,
 
     private readonly outboxService: OutboxService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
+
+  private async withTransaction<T>(
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const result = await work(session);
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
 
   // ============= HISTORY =============
 
@@ -173,62 +195,83 @@ export class MessageService {
     userId: string,
     dto: SendMessageDTO,
   ): Promise<MessageResponseDTO> {
-    const conv = await this.conversationModel
-      .findById(dto.conversationId)
-      .exec();
+    let conv: ConversationDocument | null = null;
+    let msg: MessageDocument | null = null;
+    let dtoMsg!: MessageResponseDTO;
 
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
+    await this.withTransaction(async (session) => {
+      conv = await this.conversationModel
+        .findById(dto.conversationId)
+        .session(session)
+        .exec();
 
-    const msg = new this.messageModel({
-      conversationId: conv._id,
-      senderId: userId,
-      content: dto.content,
-      attachments: dto.attachments,
-      replyTo: dto.replyTo ? new Types.ObjectId(dto.replyTo) : undefined,
-      seenBy: [userId],
-      status: 'sent',
-    });
+      if (!conv) throw new RpcException('Conversation not found');
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
+      }
 
-    await msg.save();
+      let replyMessage: MessageDocument | null = null;
+      if (dto.replyTo) {
+        replyMessage = await this.messageModel
+          .findById(dto.replyTo)
+          .session(session)
+          .exec();
+        if (!replyMessage) {
+          throw new RpcException('Reply message not found');
+        }
+        if (replyMessage.conversationId.toString() !== dto.conversationId) {
+          throw new RpcException(
+            'Reply message does not belong to this conversation',
+          );
+        }
+      }
 
-    if (msg.replyTo) {
-      await msg.populate('replyTo');
-    }
+      msg = new this.messageModel({
+        conversationId: conv._id,
+        senderId: userId,
+        content: dto.content,
+        attachments: dto.attachments,
+        replyTo: replyMessage?._id,
+        seenBy: [userId],
+        status: 'sent',
+      });
 
-    // cập nhật lastMessage + updatedAt conversation
-    conv.lastMessage = msg._id as any;
-    await conv.save();
+      await msg.save({ session });
 
-    const convDto =
-      await this.conversationService.updateConversationCache(conv);
-    const dtoMsg = populateAndMapMessage(msg)!;
+      // cập nhật lastMessage + updatedAt conversation
+      conv.lastMessage = msg._id as any;
+      await conv.save({ session });
 
-    const tasks: Promise<unknown>[] = [
-      this.msgCache.setMessageDetail(dtoMsg),
-      this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
-      this.outboxService.enqueueChatEvent(
+      dtoMsg = populateAndMapMessage({
+        ...msg.toObject(),
+        replyTo: replyMessage ? replyMessage.toObject() : undefined,
+      })!;
+
+      await this.outboxService.enqueueChatEvent(
         'message.created',
         dtoMsg,
         dto.conversationId,
-      ),
-    ];
-
-    if (convDto) {
-      tasks.push(
-        this.outboxService.enqueueChatEvent(
-          'conversation.updated',
-          convDto,
-          convDto._id,
-        ),
+        session,
       );
+      await this.outboxService.enqueueChatEvent(
+        'conversation.updated',
+        populateAndMapConversation(conv),
+        conv._id.toString(),
+        session,
+      );
+      await this.enqueueMediaAssignEvent(msg, msg._id.toString(), session);
+    });
+
+    if (!conv) {
+      throw new RpcException('Conversation not found');
     }
 
-    await Promise.all(tasks);
+    await this.conversationService.updateConversationCache(conv);
+    await Promise.all([
+      this.msgCache.setMessageDetail(dtoMsg),
+      this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
+    ]);
 
-    await this.enqueueMediaAssignEvent(msg, msg._id.toString());
     return dtoMsg;
   }
 
@@ -260,64 +303,76 @@ export class MessageService {
     messageId: string,
     forEveryone = true,
   ): Promise<MessageResponseDTO> {
-    const msg = await this.messageModel.findById(messageId).exec();
-    if (!msg) throw new RpcException('Message not found');
+    let msg: MessageDocument | null = null;
+    let dtoMsg!: MessageResponseDTO;
+    let conv: ConversationDocument | null = null;
+    let shouldUpdateConversation = false;
 
-    if (msg.senderId !== userId) {
-      // tuỳ bà cho admin xoá hay không
-      throw new RpcException('You can only delete your own message');
+    await this.withTransaction(async (session) => {
+      msg = await this.messageModel.findById(messageId).session(session).exec();
+      if (!msg) throw new RpcException('Message not found');
+
+      if (msg.senderId !== userId) {
+        // tuỳ bà cho admin xoá hay không
+        throw new RpcException('You can only delete your own message');
+      }
+
+      // soft delete
+      msg.isDeleted = true;
+      msg.deletedAt = new Date();
+      // msg.content = ''; // hoặc để nguyên và hide ở FE
+      await msg.save({ session });
+
+      dtoMsg = populateAndMapMessage(msg)!;
+      conv = await this.conversationModel
+        .findById(dtoMsg.conversationId)
+        .session(session)
+        .exec();
+      shouldUpdateConversation =
+        !!conv?.lastMessage && conv.lastMessage.toString() === dtoMsg._id;
+
+      await this.outboxService.enqueueChatEvent(
+        'message.deleted',
+        dtoMsg,
+        dtoMsg.conversationId,
+        session,
+      );
+
+      if (conv && shouldUpdateConversation) {
+        await this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          populateAndMapConversation(conv),
+          conv._id.toString(),
+          session,
+        );
+      }
+
+      await this.enqueueMediaDeleteEvent(msg, messageId, session);
+    });
+
+    if (!msg) {
+      throw new RpcException('Message not found');
     }
 
-    // soft delete
-    msg.isDeleted = true;
-    msg.deletedAt = new Date();
-    // msg.content = ''; // hoặc để nguyên và hide ở FE
-    await msg.save();
+    if (conv && shouldUpdateConversation) {
+      await this.conversationService.updateConversationCache(conv);
+    }
 
-    const dtoMsg = populateAndMapMessage(msg)!;
-    const conv = await this.conversationModel
-      .findById(dtoMsg.conversationId)
-      .exec();
-    const shouldUpdateConversation =
-      !!conv?.lastMessage && conv.lastMessage.toString() === dtoMsg._id;
-    const convDto = shouldUpdateConversation
-      ? await this.conversationService.updateConversationCache(conv)
-      : null;
-
-    const tasks: Promise<unknown>[] = [
-      // Keep detail cache and list in sync after delete.
+    await Promise.all([
       this.msgCache.setMessageDetail(dtoMsg),
-
       this.msgCache.upsertMessageToConversationList(
         dtoMsg.conversationId,
         dtoMsg,
       ),
-      this.outboxService.enqueueChatEvent(
-        'message.deleted',
-        dtoMsg,
-        dtoMsg.conversationId,
-      ),
-    ];
+    ]);
 
-    if (convDto) {
-      tasks.push(
-        this.outboxService.enqueueChatEvent(
-          'conversation.updated',
-          convDto,
-          convDto._id,
-        ),
-      );
-    }
-
-    await Promise.all(tasks);
-
-    await this.enqueueMediaDeleteEvent(msg, messageId);
     return dtoMsg;
   }
 
   private async enqueueMediaDeleteEvent(
     msg: MessageDocument,
     messageId: string,
+    session?: ClientSession,
   ) {
     const items =
       msg.attachments
@@ -345,12 +400,14 @@ export class MessageService {
         reason: 'message.deleted',
       },
       messageId,
+      session,
     );
   }
 
   private async enqueueMediaAssignEvent(
     msg: MessageDocument,
     messageId: string,
+    session?: ClientSession,
   ) {
     const items =
       msg.attachments
@@ -383,6 +440,7 @@ export class MessageService {
         source: 'chat-service',
       },
       messageId,
+      session,
     );
   }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import {
   OutboxEvent,
   OutboxEventDocument,
@@ -20,6 +20,7 @@ export class OutboxService {
     eventType: string,
     payload: object,
     aggregateId?: string,
+    session?: ClientSession,
   ) {
     const outbox = new this.outboxModel({
       topic,
@@ -32,14 +33,21 @@ export class OutboxService {
       lastError: null,
     });
 
-    return outbox.save();
+    return outbox.save(session ? { session } : undefined);
   }
 
   async enqueueChatEvent(
     eventType: string,
     payload: object,
     aggregateId?: string,
+    session?: ClientSession,
   ) {
-    return this.enqueue(this.chatTopic, eventType, payload, aggregateId);
+    return this.enqueue(
+      this.chatTopic,
+      eventType,
+      payload,
+      aggregateId,
+      session,
+    );
   }
 }

@@ -1,8 +1,20 @@
 import { ConversationService } from './conversation.service';
 
 describe('ConversationService', () => {
+  const session = {
+    startTransaction: jest.fn(),
+    commitTransaction: jest.fn().mockResolvedValue(undefined),
+    abortTransaction: jest.fn().mockResolvedValue(undefined),
+    endSession: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const connection = {
+    startSession: jest.fn().mockResolvedValue(session),
+  };
+
   const conversationModel = {
     findById: jest.fn(),
+    find: jest.fn(),
     updateOne: jest.fn(),
   };
 
@@ -28,11 +40,16 @@ describe('ConversationService', () => {
       conversationModel as any,
       messageModel as any,
       cache as any,
-      outboxService as any
+      outboxService as any,
+      connection as any,
     );
 
   beforeEach(() => {
     jest.clearAllMocks();
+    connection.startSession.mockResolvedValue(session);
+    session.commitTransaction.mockResolvedValue(undefined);
+    session.abortTransaction.mockResolvedValue(undefined);
+    session.endSession.mockResolvedValue(undefined);
   });
 
   it('publishes hidden event when a conversation is hidden', async () => {
@@ -61,7 +78,7 @@ describe('ConversationService', () => {
         conversationId: 'conv-1',
         userId: 'user-1',
       },
-      'conv-1'
+      'conv-1',
     );
   });
 
@@ -96,7 +113,7 @@ describe('ConversationService', () => {
         userId: 'user-1',
         conversation: updatedConversation,
       },
-      'conv-1'
+      'conv-1',
     );
   });
 
@@ -128,7 +145,7 @@ describe('ConversationService', () => {
     expect(result).toEqual({ message: 'You have left the conversation' });
     expect(cache.removeConversationFromUser).toHaveBeenCalledWith(
       'user-1',
-      'conv-1'
+      'conv-1',
     );
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.memberLeft',
@@ -136,12 +153,12 @@ describe('ConversationService', () => {
         conversationId: 'conv-1',
         leftUserIds: ['user-1'],
       },
-      'conv-1'
+      'conv-1',
     );
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.updated',
       updatedConversation,
-      'conv-1'
+      'conv-1',
     );
   });
 
@@ -175,7 +192,7 @@ describe('ConversationService', () => {
         conversationId: 'conv-1',
         participants: ['user-1'],
       },
-      'conv-1'
+      'conv-1',
     );
   });
 
@@ -214,7 +231,7 @@ describe('ConversationService', () => {
     const result = await service.markConversationAsRead(
       'user-1',
       'conv-1',
-      'msg-1'
+      'msg-1',
     );
 
     expect(result).toBe('msg-2');
@@ -268,7 +285,7 @@ describe('ConversationService', () => {
     const result = await service.markConversationAsRead(
       'user-1',
       'conv-1',
-      'msg-2'
+      'msg-2',
     );
 
     expect(result).toBe('msg-2');
@@ -281,7 +298,7 @@ describe('ConversationService', () => {
           syncVersion: expect.any(Number),
         },
       },
-      { timestamps: false }
+      { timestamps: false },
     );
     expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
       'conversation.read',
@@ -290,7 +307,28 @@ describe('ConversationService', () => {
         userId: 'user-1',
         lastSeenMessageId: 'msg-2',
       },
-      'conv-1'
+      'conv-1',
+    );
+  });
+
+  it('filters hidden conversations in DB fallback queries', async () => {
+    const service = createService();
+    const findExec = jest.fn().mockResolvedValue([]);
+    const findLimit = jest.fn().mockReturnValue({ exec: findExec });
+    const findPopulate = jest.fn().mockReturnValue({ limit: findLimit });
+    const findSort = jest.fn().mockReturnValue({ populate: findPopulate });
+    conversationModel.find.mockReturnValue({ sort: findSort });
+    cache.hasEmptyFlag = jest.fn().mockResolvedValue(false);
+    cache.getUserConversationsPage = jest.fn().mockResolvedValue(null);
+    cache.markEmpty = jest.fn().mockResolvedValue(undefined);
+
+    await service.getConversations('user-1', { limit: 20 } as any);
+
+    expect(conversationModel.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: 'user-1',
+        hiddenFor: { $ne: 'user-1' },
+      }),
     );
   });
 });

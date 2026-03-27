@@ -1,10 +1,10 @@
-import { of, throwError } from 'rxjs';
-import { ChatGateway } from './chat.gateway';
+import { of, throwError } from "rxjs";
+import { ChatGateway } from "./chat.gateway";
 
-describe('ChatGateway', () => {
+describe("ChatGateway", () => {
   const redis = {
     duplicate: jest.fn(),
-    publish: jest.fn(),
+    publish: jest.fn().mockResolvedValue(1),
   };
 
   const chatClient = {
@@ -18,8 +18,8 @@ describe('ChatGateway', () => {
 
   const createClient = () =>
     ({
-      id: 'socket-1',
-      user: { id: 'user-1' },
+      id: "socket-1",
+      user: { id: "user-1" },
       data: {},
       join: jest.fn(),
       leave: jest.fn(),
@@ -30,41 +30,41 @@ describe('ChatGateway', () => {
     jest.clearAllMocks();
   });
 
-  it('joins a conversation only after access verification succeeds', async () => {
+  it("joins a conversation only after access verification succeeds", async () => {
     const gateway = createGateway();
     const client = createClient();
-    chatClient.send.mockReturnValue(of({ _id: 'conv-1' }));
+    chatClient.send.mockReturnValue(of({ _id: "conv-1" }));
 
-    await gateway.handleJoinConversation(client, { conversationId: 'conv-1' });
+    await gateway.handleJoinConversation(client, { conversationId: "conv-1" });
 
-    expect(chatClient.send).toHaveBeenCalledWith('getConversationById', {
-      userId: 'user-1',
-      conversationId: 'conv-1',
+    expect(chatClient.send).toHaveBeenCalledWith("getConversationById", {
+      userId: "user-1",
+      conversationId: "conv-1",
     });
-    expect(client.join).toHaveBeenCalledWith('conversation:conv-1');
+    expect(client.join).toHaveBeenCalledWith("conversation:conv-1");
     expect(client.emit).not.toHaveBeenCalledWith(
-      'conversation.error',
-      expect.anything()
+      "conversation.error",
+      expect.anything(),
     );
   });
 
-  it('rejects a conversation join when access verification fails', async () => {
+  it("rejects a conversation join when access verification fails", async () => {
     const gateway = createGateway();
     const client = createClient();
     chatClient.send.mockReturnValue(
-      throwError(() => new Error('forbidden conversation'))
+      throwError(() => new Error("forbidden conversation")),
     );
 
-    await gateway.handleJoinConversation(client, { conversationId: 'conv-1' });
+    await gateway.handleJoinConversation(client, { conversationId: "conv-1" });
 
     expect(client.join).not.toHaveBeenCalled();
-    expect(client.emit).toHaveBeenCalledWith('conversation.error', {
-      conversationId: 'conv-1',
-      message: 'Forbidden conversation access',
+    expect(client.emit).toHaveBeenCalledWith("conversation.error", {
+      conversationId: "conv-1",
+      message: "Forbidden conversation access",
     });
   });
 
-  it('blocks typing events when the socket has no conversation access', async () => {
+  it("blocks typing events when the socket has no conversation access", async () => {
     const gateway = createGateway();
     const client = createClient();
     const emit = jest.fn();
@@ -72,11 +72,51 @@ describe('ChatGateway', () => {
       to: jest.fn().mockReturnValue({ emit }),
     } as any;
     chatClient.send.mockReturnValue(
-      throwError(() => new Error('forbidden conversation'))
+      throwError(() => new Error("forbidden conversation")),
     );
 
-    await gateway.handleTypingStart(client, { conversationId: 'conv-1' });
+    await gateway.handleTypingStart(client, { conversationId: "conv-1" });
 
     expect(emit).not.toHaveBeenCalled();
+  });
+
+  it("publishes heartbeats to the presence events channel", () => {
+    const gateway = createGateway();
+    const client = createClient();
+
+    gateway.handleHeartbeat(client);
+
+    expect(redis.publish).toHaveBeenCalledWith(
+      "presence:events",
+      expect.any(String),
+    );
+    const payload = JSON.parse(redis.publish.mock.calls[0][1]);
+    expect(payload).toEqual(
+      expect.objectContaining({
+        type: "HEARTBEAT",
+        userId: "user-1",
+        connectionId: "socket-1",
+      }),
+    );
+  });
+
+  it("publishes a disconnect event when a socket disconnects", async () => {
+    const gateway = createGateway();
+    const client = createClient();
+
+    await gateway.handleDisconnect(client);
+
+    expect(redis.publish).toHaveBeenCalledWith(
+      "presence:events",
+      expect.any(String),
+    );
+    const payload = JSON.parse(redis.publish.mock.calls[0][1]);
+    expect(payload).toEqual(
+      expect.objectContaining({
+        type: "DISCONNECT",
+        userId: "user-1",
+        connectionId: "socket-1",
+      }),
+    );
   });
 });

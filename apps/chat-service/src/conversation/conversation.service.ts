@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   ConversationResponseDTO,
   CreateConversationDTO,
@@ -11,7 +11,7 @@ import {
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
-import { Model } from 'mongoose';
+import { ClientSession, Connection, Model } from 'mongoose';
 import {
   Conversation,
   ConversationDocument,
@@ -33,7 +33,26 @@ export class ConversationService {
 
     private readonly cache: ConversationCacheService,
     private readonly outboxService: OutboxService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
+
+  private async withTransaction<T>(
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const result = await work(session);
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
 
   // ==================== GET BY ID ====================
   async getConversationById(
@@ -116,7 +135,7 @@ export class ConversationService {
       ? { updatedAt: { $lt: new Date(Number(query.cursor)) } }
       : {};
     const dbItems = await this.conversationModel
-      .find({ participants: userId, ...dbFilter })
+      .find({ participants: userId, hiddenFor: { $ne: userId }, ...dbFilter })
       .sort({ updatedAt: -1 })
       .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
       .limit(limit + 1)
@@ -203,15 +222,19 @@ export class ConversationService {
         admins: [],
       });
 
-      await doc.save();
-      await this.updateConversationCache(doc);
+      let convDto!: ConversationResponseDTO;
+      await this.withTransaction(async (session) => {
+        await doc.save({ session });
+        convDto = populateAndMapConversation(doc);
+        await this.outboxService.enqueueChatEvent(
+          'conversation.created',
+          convDto,
+          convDto._id,
+          session,
+        );
+      });
 
-      const convDto = populateAndMapConversation(doc);
-      await this.outboxService.enqueueChatEvent(
-        'conversation.created',
-        convDto,
-        convDto._id,
-      );
+      await this.updateConversationCache(doc);
       return convDto;
     }
 
@@ -228,25 +251,26 @@ export class ConversationService {
       admins: [userId],
     });
 
-    await doc.save();
-    const convDto = populateAndMapConversation(doc);
-
-    const createTasks: Promise<unknown>[] = [
-      this.updateConversationCache(doc),
-      this.outboxService.enqueueChatEvent(
+    let convDto!: ConversationResponseDTO;
+    await this.withTransaction(async (session) => {
+      await doc.save({ session });
+      convDto = populateAndMapConversation(doc);
+      await this.outboxService.enqueueChatEvent(
         'conversation.created',
         convDto,
         convDto._id,
-      ),
-    ];
-
-    if (dto.groupAvatar?.publicId) {
-      createTasks.push(
-        this.enqueueGroupAvatarAssign(convDto._id, dto.groupAvatar),
+        session,
       );
-    }
+      if (dto.groupAvatar?.publicId) {
+        await this.enqueueGroupAvatarAssign(
+          convDto._id,
+          dto.groupAvatar,
+          session,
+        );
+      }
+    });
 
-    await Promise.all(createTasks);
+    await this.updateConversationCache(doc);
 
     return convDto;
   }
@@ -258,134 +282,152 @@ export class ConversationService {
     conversationId: string,
     dto: UpdateConversationDTO,
   ): Promise<ConversationResponseDTO> {
-    const conv = await this.conversationModel.findById(conversationId).exec();
+    let conv: ConversationDocument | null = null;
+    let convDto!: ConversationResponseDTO;
+    let toRemove: string[] = [];
 
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.isGroup) {
-      throw new RpcException('Cannot update direct conversation');
-    }
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
-    }
-    if (!conv.admins?.includes(userId)) {
-      throw new RpcException('You are not admin of this conversation');
-    }
+    await this.withTransaction(async (session) => {
+      conv = await this.conversationModel
+        .findById(conversationId)
+        .session(session)
+        .exec();
 
-    const previousGroupAvatar = conv.groupAvatar;
-
-    if (dto.groupName !== undefined) conv.groupName = dto.groupName;
-    if (dto.groupAvatar !== undefined) conv.groupAvatar = dto.groupAvatar;
-
-    const toAdd = Array.isArray(dto.participantsToAdd)
-      ? dto.participantsToAdd
-      : [];
-    const toRemove = Array.isArray(dto.participantsToRemove)
-      ? dto.participantsToRemove
-      : [];
-
-    if (toAdd.length) {
-      const existing = new Set(conv.participants);
-      const dup = toAdd.find((p) => existing.has(p));
-      if (dup) {
-        throw new RpcException(
-          'Some participants are already in the conversation',
-        );
+      if (!conv) throw new RpcException('Conversation not found');
+      if (!conv.isGroup) {
+        throw new RpcException('Cannot update direct conversation');
       }
-    }
-
-    // Thêm member
-    if (toAdd.length) {
-      const set = new Set(conv.participants);
-      toAdd.forEach((p) => set.add(p));
-      conv.participants = Array.from(set);
-    }
-
-    // Xóa member
-    if (toRemove.length) {
-      const rm = new Set(toRemove);
-      conv.participants = conv.participants.filter((p) => !rm.has(p));
-      conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
-      conv.hiddenFor = (conv.hiddenFor || []).filter((u) => !rm.has(u));
-    }
-
-    // // Thêm admin
-    // if (dto.addAdmins?.length) {
-    //   const set = new Set(conv.admins || []);
-    //   dto.addAdmins.forEach((a) => {
-    //     if (conv.participants.includes(a)) set.add(a);
-    //   });
-    //   conv.admins = Array.from(set);
-    // }
-
-    // // Xóa admin
-    // if (dto.removeAdmins?.length) {
-    //   const rm = new Set(dto.removeAdmins);
-    //   conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
-    //   if (!conv.admins.length) {
-    //     throw new RpcException('Conversation must have at least 1 admin');
-    //   }
-    // }
-
-    await conv.save();
-    await this.updateConversationCache(conv);
-
-    const convDto = populateAndMapConversation(conv);
-
-    // 🔥 event: conversation updated
-    const mediaTasks: Promise<unknown>[] = [];
-    if (dto.groupAvatar !== undefined) {
-      if (dto.groupAvatar?.publicId) {
-        mediaTasks.push(
-          this.enqueueGroupAvatarAssign(conversationId, dto.groupAvatar),
-        );
+      if (!conv.participants.includes(userId)) {
+        throw new RpcException('You are not in this conversation');
+      }
+      if (!conv.admins?.includes(userId)) {
+        throw new RpcException('You are not admin of this conversation');
       }
 
-      const prevPublicId = previousGroupAvatar?.publicId;
-      const nextPublicId = dto.groupAvatar?.publicId;
-      if (prevPublicId && prevPublicId !== nextPublicId) {
-        mediaTasks.push(
-          this.enqueueGroupAvatarDelete(conversationId, prevPublicId),
-        );
+      const previousGroupAvatar = conv.groupAvatar;
+
+      if (dto.groupName !== undefined) conv.groupName = dto.groupName;
+      if (dto.groupAvatar !== undefined) conv.groupAvatar = dto.groupAvatar;
+
+      const toAdd = Array.isArray(dto.participantsToAdd)
+        ? dto.participantsToAdd
+        : [];
+      toRemove = Array.isArray(dto.participantsToRemove)
+        ? dto.participantsToRemove
+        : [];
+
+      if (toAdd.length) {
+        const existing = new Set(conv.participants);
+        const dup = toAdd.find((p) => existing.has(p));
+        if (dup) {
+          throw new RpcException(
+            'Some participants are already in the conversation',
+          );
+        }
       }
-    }
 
-    await this.outboxService.enqueueChatEvent(
-      'conversation.updated',
-      convDto,
-      convDto._id,
-    );
+      // Thêm member
+      if (toAdd.length) {
+        const set = new Set(conv.participants);
+        toAdd.forEach((p) => set.add(p));
+        conv.participants = Array.from(set);
+      }
 
-    // 🔥 event: memberJoined
-    if (toAdd.length) {
+      // Xóa member
+      if (toRemove.length) {
+        const rm = new Set(toRemove);
+        conv.participants = conv.participants.filter((p) => !rm.has(p));
+        conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
+        conv.hiddenFor = (conv.hiddenFor || []).filter((u) => !rm.has(u));
+      }
+
+      // // Thêm admin
+      // if (dto.addAdmins?.length) {
+      //   const set = new Set(conv.admins || []);
+      //   dto.addAdmins.forEach((a) => {
+      //     if (conv.participants.includes(a)) set.add(a);
+      //   });
+      //   conv.admins = Array.from(set);
+      // }
+
+      // // Xóa admin
+      // if (dto.removeAdmins?.length) {
+      //   const rm = new Set(dto.removeAdmins);
+      //   conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
+      //   if (!conv.admins.length) {
+      //     throw new RpcException('Conversation must have at least 1 admin');
+      //   }
+      // }
+
+      await conv.save({ session });
+      convDto = populateAndMapConversation(conv);
+
+      // 🔥 event: conversation updated
+      if (dto.groupAvatar !== undefined) {
+        if (dto.groupAvatar?.publicId) {
+          await this.enqueueGroupAvatarAssign(
+            conversationId,
+            dto.groupAvatar,
+            session,
+          );
+        }
+
+        const prevPublicId = previousGroupAvatar?.publicId;
+        const nextPublicId = dto.groupAvatar?.publicId;
+        if (prevPublicId && prevPublicId !== nextPublicId) {
+          await this.enqueueGroupAvatarDelete(
+            conversationId,
+            prevPublicId,
+            undefined,
+            session,
+          );
+        }
+      }
+
       await this.outboxService.enqueueChatEvent(
-        'conversation.memberJoined',
-        {
-          conversation: convDto,
-          joinedUserIds: toAdd,
-        },
+        'conversation.updated',
+        convDto,
         convDto._id,
+        session,
       );
-    }
 
-    // 🔥 event: memberLeft
-    if (toRemove.length) {
-      await Promise.all([
-        this.outboxService.enqueueChatEvent(
+      // 🔥 event: memberJoined
+      if (toAdd.length) {
+        await this.outboxService.enqueueChatEvent(
+          'conversation.memberJoined',
+          {
+            conversation: convDto,
+            joinedUserIds: toAdd,
+          },
+          convDto._id,
+          session,
+        );
+      }
+
+      // 🔥 event: memberLeft
+      if (toRemove.length) {
+        await this.outboxService.enqueueChatEvent(
           'conversation.memberLeft',
           {
             conversationId,
             leftUserIds: toRemove,
           },
           conversationId,
-        ),
-        ...toRemove.map((leftUserId) =>
-          this.cache.removeConversationFromUser(leftUserId, conversationId),
-        ),
-      ]);
+          session,
+        );
+      }
+    });
+
+    if (!conv) {
+      throw new RpcException('Conversation not found');
     }
 
-    if (mediaTasks.length) {
-      await Promise.all(mediaTasks);
+    await this.updateConversationCache(conv);
+    if (toRemove.length) {
+      await Promise.all(
+        toRemove.map((leftUserId) =>
+          this.cache.removeConversationFromUser(leftUserId, conversationId),
+        ),
+      );
     }
 
     return convDto;
@@ -710,9 +752,11 @@ export class ConversationService {
   private async enqueueConversationMediaDelete(
     conversationId: string,
     conversationObjectId: any,
+    session?: ClientSession,
   ) {
     const messages = await this.messageModel
       .find({ conversationId: conversationObjectId }, { attachments: 1 })
+      .session(session ?? null)
       .lean()
       .exec();
 
@@ -749,6 +793,7 @@ export class ConversationService {
             conversationId,
           },
           conversationId,
+          session,
         );
       } catch (error) {
         this.logger.warn(
@@ -761,6 +806,7 @@ export class ConversationService {
   private async enqueueGroupAvatarAssign(
     conversationId: string,
     avatar: { publicId?: string; url?: string; mimeType?: string },
+    session?: ClientSession,
   ) {
     if (!avatar?.publicId) return;
 
@@ -784,6 +830,7 @@ export class ConversationService {
         source: 'chat-service',
       },
       conversationId,
+      session,
     );
   }
 
@@ -791,6 +838,7 @@ export class ConversationService {
     conversationId: string,
     publicId: string,
     mimeType?: string,
+    session?: ClientSession,
   ) {
     const resourceType =
       mimeType && mimeType.startsWith('video/') ? 'video' : 'image';
@@ -810,6 +858,7 @@ export class ConversationService {
         conversationId,
       },
       conversationId,
+      session,
     );
   }
 
@@ -826,11 +875,18 @@ export class ConversationService {
     if (!fullConv) return null;
 
     const dto = populateAndMapConversation(fullConv);
+    const hiddenUsers = new Set(fullConv.hiddenFor || []);
+    const visibleUsers = (fullConv.participants || []).filter(
+      (userId) => !hiddenUsers.has(userId),
+    );
 
     await Promise.all([
       this.cache.setConversationDetail(dto),
-      ...(fullConv.participants ?? []).map((userId) =>
+      ...visibleUsers.map((userId) =>
         this.cache.upsertConversationToUserList(userId, dto),
+      ),
+      ...Array.from(hiddenUsers).map((userId) =>
+        this.cache.removeConversationFromUser(userId, dto._id),
       ),
     ]);
 
