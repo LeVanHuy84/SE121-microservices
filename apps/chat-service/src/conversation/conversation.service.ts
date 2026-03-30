@@ -239,6 +239,10 @@ export class ConversationService {
       return convDto;
     }
 
+    if (dto.participants?.length && dto.participants.length < 3) {
+      throw new RpcException('Group conversation must have at least 3 participants');
+    }
+
     if (!dto.groupName || dto.groupName.trim().length === 0) {
       throw new RpcException('Group name cannot be empty string');
     }

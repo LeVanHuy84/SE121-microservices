@@ -68,7 +68,7 @@ export class CommentService {
                 {
                   publicId: comment.media.publicId,
                   type:
-                    comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+                    comment.media.type,
                   url: comment.media.url,
                 },
               ],

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   Audience,
   MediaItemDTO,
+  MediaType,
   PostSnapshotDTO,
   ReactionType,
   ShareSnapshotDTO,
@@ -81,7 +82,7 @@ export class SnapshotMapper {
 
   static toMediaItemDTO(media: MediaPreview): MediaItemDTO {
     return {
-      type: media.type,
+      type: media.type as MediaType,
       url: media.url,
     };
   }

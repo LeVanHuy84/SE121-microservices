@@ -5,7 +5,7 @@ import { HydratedDocument, Types } from 'mongoose';
 @Schema({ _id: false })
 export class MediaPreview {
   @Prop({ required: true })
-  type: number;
+  type: string;
 
   @Prop({ required: true })
   url: string;

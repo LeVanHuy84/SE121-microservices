@@ -45,7 +45,7 @@ export class CandidateSourceService {
           ? this.userClient.getProfileRecommendationCandidates(userId, candidateLimit)
           : Promise.resolve([]),
         includeSemanticCandidates
-          ? this.userClient.getSemant`icRecommendationCandidates(userId, candidateLimit)
+          ? this.userClient.getSemanticRecommendationCandidates(userId, candidateLimit)
           : Promise.resolve([]),
       ]);
 
