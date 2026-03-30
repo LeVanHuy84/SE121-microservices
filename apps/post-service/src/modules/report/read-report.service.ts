@@ -27,13 +27,13 @@ export class ReadReportService {
     private readonly dataSource: DataSource,
     @InjectRepository(Report)
     private readonly reportRepo: Repository<Report>,
-    @InjectRepository(Post) private readonly postRepo: Repository<Post>
+    @InjectRepository(Post) private readonly postRepo: Repository<Post>,
   ) {}
   private readonly VN_OFFSET_HOURS = 7;
 
   // Dashboard
   async getDashboard(
-    filter: DashboardQueryDTO
+    filter: DashboardQueryDTO,
   ): Promise<{ totalPosts: number; pendingReports: number }> {
     // ===== TODAY (VN)
     const todayVN = new Date();
@@ -77,7 +77,7 @@ export class ReadReportService {
   }
 
   async getReports(
-    filter: ReportFilterDTO
+    filter: ReportFilterDTO,
   ): Promise<CursorPageResponse<ReportResponseDTO>> {
     const {
       groupId,
@@ -131,7 +131,7 @@ export class ReadReportService {
   }
 
   async getContentEntry(
-    filter: ContentEntryQuery
+    filter: ContentEntryQuery,
   ): Promise<PageResponse<ContentEntryDTO>> {
     const {
       query,
@@ -166,7 +166,7 @@ export class ReadReportService {
       .leftJoin(
         config.statsTable,
         config.statsAlias,
-        `${config.statsAlias}.${config.statId} = ${config.alias}.id`
+        `${config.statsAlias}.${config.statId} = ${config.alias}.id`,
       );
 
     if (status !== undefined) {
@@ -258,7 +258,7 @@ export class ReadReportService {
     const MAX_DAYS = 30;
     const diffDays =
       Math.floor(
-        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
+        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
       ) + 1;
 
     if (diffDays > MAX_DAYS) {
@@ -274,7 +274,7 @@ export class ReadReportService {
     const buildDateKeys = (from: Date, to: Date) => {
       const keys: string[] = [];
       const startVN = new Date(
-        from.getTime() + this.VN_OFFSET_HOURS * 3600_000
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000,
       );
       const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
 
@@ -311,7 +311,7 @@ export class ReadReportService {
         postCount: 0,
         commentCount: 0,
         shareCount: 0,
-      })
+      }),
     );
 
     // ===============================
@@ -419,7 +419,7 @@ export class ReadReportService {
     const MAX_DAYS = 30;
     const diffDays =
       Math.floor(
-        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
+        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
       ) + 1;
 
     if (diffDays > MAX_DAYS) {
@@ -436,7 +436,7 @@ export class ReadReportService {
       const keys: string[] = [];
 
       const startVN = new Date(
-        from.getTime() + this.VN_OFFSET_HOURS * 3600_000
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000,
       );
       const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
 
@@ -473,7 +473,7 @@ export class ReadReportService {
         pendingCount: 0,
         resolvedCount: 0,
         rejectedCount: 0,
-      })
+      }),
     );
 
     // ===============================
@@ -485,7 +485,7 @@ export class ReadReportService {
       .createQueryBuilder('r')
       .select(
         `to_char(timezone('Asia/Ho_Chi_Minh', r.created_at), 'YYYY-MM-DD')`,
-        'date'
+        'date',
       )
       .addSelect('r.status', 'status')
       .addSelect('COUNT(*)', 'count')
@@ -565,7 +565,7 @@ export class ReadReportService {
     const { y, m, d } = this.normalizeToVNDate(value);
 
     return new Date(
-      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999)
+      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999),
     );
   }
 

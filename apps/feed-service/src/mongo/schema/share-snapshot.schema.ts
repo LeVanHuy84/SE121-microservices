@@ -1,34 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { MediaPreview } from './post-snapshot.schema';
-import { Audience, Emotion } from '@repo/dtos';
-
-@Schema({ _id: false })
-export class PostSnapshotEmbedded {
-  @Prop({ required: true })
-  postId: string;
-
-  @Prop({ required: true })
-  userId: string;
-
-  @Prop()
-  groupId?: string;
-
-  @Prop()
-  content: string;
-
-  @Prop({ type: [MediaPreview], default: [] })
-  mediaPreviews: MediaPreview[];
-
-  @Prop({ default: 0 })
-  mediaRemaining: number;
-
-  @Prop()
-  mainEmotion?: Emotion;
-
-  @Prop()
-  createdAt: Date;
-}
+import { Audience } from '@repo/dtos';
 
 @Schema({ _id: false })
 export class StatsEmbedded {
@@ -46,22 +18,24 @@ export class StatsEmbedded {
 export class ShareSnapshot {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, index: true })
   shareId: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: true })
   userId: string;
+
+  // QUAN TRỌNG: ranking sẽ dùng field này
+  @Prop({ required: true, index: true })
+  postId: string;
 
   @Prop()
   audience?: Audience;
 
-  @Prop({ type: PostSnapshotEmbedded })
-  post: PostSnapshotEmbedded;
-
+  // caption của share
   @Prop()
-  content: string;
+  content?: string;
 
-  @Prop()
+  @Prop({ required: true, index: true })
   shareCreatedAt: Date;
 
   @Prop({ type: StatsEmbedded, default: {} })

@@ -1,7 +1,5 @@
 import asyncio
-import json
 import uuid
-from datetime import datetime
 from app.redis.redis_client import redis_client
 
 
@@ -28,6 +26,9 @@ class OutboxBatchProcessor:
             ex=self.LOCK_TTL,
             nx=True
         )
+    
+    def stop(self):
+        self._running = False
 
     async def refresh_lock(self):
         """
@@ -76,27 +77,27 @@ class OutboxBatchProcessor:
 
         print(f"[Batch] Processing {len(outboxes)} outboxes...")
 
-        # Prepare all send tasks
-        send_tasks = []
-        for outbox in outboxes:
-            kafka_message = {
-                "type": outbox.eventType,
-                "payload": outbox.payload
-            }
-            send_tasks.append(
-                self.kafka.send(topic=outbox.topic, message=kafka_message)
-            )
+        semaphore = asyncio.Semaphore(20)
 
-        # Execute all sends in parallel
-        results = await asyncio.gather(*send_tasks, return_exceptions=True)
+        async def send_one(outbox):
+            async with semaphore:
+                kafka_message = {
+                    "type": outbox.get("eventType"),
+                    "payload": outbox.get("payload", {})
+                }
 
-        # Collect successful sends
-        processed_ids = []
-        for idx, (outbox, result) in enumerate(zip(outboxes, results)):
-            if isinstance(result, Exception):
-                print(f"[Batch] Kafka send error for outbox {outbox.id}: {result}")
-            else:
-                processed_ids.append(outbox.id)
+                await self.kafka.send(
+                    topic=outbox.get("topic"),
+                    message=kafka_message
+                )
+                return outbox["_id"]
+
+        tasks = [send_one(o) for o in outboxes]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        processed_ids = [
+            r for r in results if not isinstance(r, Exception)
+        ]
 
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)
