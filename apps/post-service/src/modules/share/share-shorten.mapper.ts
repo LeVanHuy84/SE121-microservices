@@ -7,7 +7,7 @@ export class ShareShortenMapper {
   static toShareSnapshotDTOs(
     shares: Share[],
     reactionMap?: Map<string, ReactionType | undefined>,
-    groupMap?: Map<string, GroupInfoDTO>
+    groupMap?: Map<string, GroupInfoDTO>,
   ): ShareSnapshotDTO[] {
     return shares.map((share) => {
       const reactedType = reactionMap?.get(share.id);
@@ -19,7 +19,7 @@ export class ShareShortenMapper {
   static toShareSnapshotDTO(
     share: Share,
     reactedType?: ReactionType,
-    group?: GroupInfoDTO
+    group?: GroupInfoDTO,
   ): ShareSnapshotDTO {
     return {
       shareId: share.id,
@@ -42,27 +42,14 @@ export class ShareShortenMapper {
     };
   }
 
-  static toShareSnapshotEvent(
-    share: Share,
-    reactedType?: ReactionType
-  ): ShareSnapshotDTO {
+  static toShareSnapshotEvent(share: Share) {
     return {
       shareId: share.id,
       userId: share.userId,
       audience: share.audience,
       content: share.content,
-      post: {
-        postId: share.post.id,
-        userId: share.post.userId,
-        groupId: share.post.groupId,
-        audience: share.post.audience,
-        content: share.post.content,
-        mediaPreviews: share.post.media?.slice(0, 5),
-        mediaRemaining: Math.max(0, (share.post.media?.length ?? 0) - 5),
-        createdAt: share.post.createdAt,
-      },
+      postId: share.post.id,
       createdAt: share.createdAt,
-      reactedType: reactedType,
     };
   }
 }

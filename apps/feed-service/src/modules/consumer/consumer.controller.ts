@@ -12,9 +12,10 @@ export class ConsumerController {
   // ----------------------------
   // 🧩 POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @EventPattern(EventTopic.EMOTION_RESULT)
   async handleAnalysisEvents(@Payload() message: AnalysisResultEvent) {
     const { type, payload } = message;
+    this.logger.debug(`Received event ${type} for target ${payload.targetId}`);
 
     try {
       switch (type) {
@@ -32,6 +33,21 @@ export class ConsumerController {
     } catch (error) {
       this.logger.error(
         `Failed to process POST event ${type} for ${payload.targetId}: ${error.message}`,
+        error.stack,
+      );
+      throw error; // để Kafka retry lại
+    }
+  }
+
+  @EventPattern(EventTopic.INTERACTION)
+  async handleInteractionEvents(@Payload() message: any) {
+    const { type, payload } = message;
+
+    try {
+      await this.consumerService.handleInteraction(payload);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process INTERACTION event ${type} for ${payload.targetId}: ${error.message}`,
         error.stack,
       );
       throw error; // để Kafka retry lại
