@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -29,6 +30,24 @@ export class MediaService {
     'oga',
     'flac',
     'webm',
+  ]);
+  private readonly maxUploadSize: Record<MediaType, number> = {
+    image: 10 * 1024 * 1024,
+    video: 50 * 1024 * 1024,
+    audio: 20 * 1024 * 1024,
+    file: 25 * 1024 * 1024,
+  };
+  private readonly fileMimeAllowlist = new Set([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/zip',
+    'application/x-zip-compressed',
+    'text/plain',
   ]);
 
   constructor(
@@ -86,6 +105,39 @@ export class MediaService {
     }
   }
 
+  private assertUploadAllowed(
+    type: MediaType,
+    mimeType?: string,
+    size?: number
+  ) {
+    if (!mimeType) {
+      throw new RpcException('mimeType is required');
+    }
+
+    if (type === 'image' && !mimeType.startsWith('image/')) {
+      throw new RpcException(`Unsupported image MIME type: ${mimeType}`);
+    }
+
+    if (type === 'video' && !mimeType.startsWith('video/')) {
+      throw new RpcException(`Unsupported video MIME type: ${mimeType}`);
+    }
+
+    if (type === 'audio' && !mimeType.startsWith('audio/')) {
+      throw new RpcException(`Unsupported audio MIME type: ${mimeType}`);
+    }
+
+    if (type === 'file' && !this.fileMimeAllowlist.has(mimeType)) {
+      throw new RpcException(`Unsupported file MIME type: ${mimeType}`);
+    }
+
+    const effectiveSize = size ?? 0;
+    if (effectiveSize > this.maxUploadSize[type]) {
+      throw new RpcException(
+        `File exceeds the ${type} upload limit of ${this.maxUploadSize[type]} bytes`,
+      );
+    }
+  }
+
   async upload(
     file: Buffer,
     userId: string,
@@ -96,6 +148,7 @@ export class MediaService {
     size?: number
   ) {
     const normalizedType = this.normalizeMediaType(type, mimeType);
+    this.assertUploadAllowed(normalizedType, mimeType, size ?? file.byteLength);
     const result = await this.cloudinary.uploadFile(file, folder, {
       resource_type: this.toCloudinaryResourceType(normalizedType),
     });
