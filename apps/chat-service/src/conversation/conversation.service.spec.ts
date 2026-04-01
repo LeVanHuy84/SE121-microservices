@@ -34,6 +34,8 @@ describe('ConversationService', () => {
   const outboxService = {
     enqueue: jest.fn(),
     enqueueChatEvent: jest.fn(),
+    flushPendingChatEvents: jest.fn().mockResolvedValue(undefined),
+    clearPendingChatEvents: jest.fn(),
   };
 
   const createQuery = (result: any) => ({
@@ -322,6 +324,31 @@ describe('ConversationService', () => {
       expect.objectContaining({
         participants: 'user-1',
         hiddenFor: { $ne: 'user-1' },
+      }),
+    );
+  });
+
+  it('applies search filters when querying conversations', async () => {
+    const service = createService();
+    const findExec = jest.fn().mockResolvedValue([]);
+    const findLimit = jest.fn().mockReturnValue({ exec: findExec });
+    const findPopulate = jest.fn().mockReturnValue({ limit: findLimit });
+    const findSort = jest.fn().mockReturnValue({ populate: findPopulate });
+    conversationModel.find.mockReturnValue({ sort: findSort });
+
+    await service.getConversations('user-1', {
+      limit: 20,
+      query: 'team',
+    } as any);
+
+    expect(conversationModel.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: 'user-1',
+        hiddenFor: { $ne: 'user-1' },
+        $or: [
+          { groupName: { $regex: 'team', $options: 'i' } },
+          { participants: { $regex: 'team', $options: 'i' } },
+        ],
       }),
     );
   });

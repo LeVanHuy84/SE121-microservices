@@ -5,8 +5,8 @@ import {
   ConversationResponseDTO,
   CreateConversationDTO,
   CursorPageResponse,
-  CursorPaginationDTO,
   EventTopic,
+  GetConversationsQueryDTO,
   MediaType,
   MediaEventType,
   UpdateConversationDTO,
@@ -46,11 +46,14 @@ export class ConversationService {
     try {
       const result = await work(session);
       await session.commitTransaction();
+      await this.outboxService.flushPendingChatEvents(session);
       return result;
     } catch (error) {
       await session.abortTransaction();
+      this.outboxService.clearPendingChatEvents(session);
       throw error;
     } finally {
+      this.outboxService.clearPendingChatEvents(session);
       await session.endSession();
     }
   }
@@ -100,8 +103,13 @@ export class ConversationService {
   // ==================== GET CONVERSATIONS (CURSOR PAGING + REDIS ZSET) ====================
   async getConversations(
     userId: string,
-    query: CursorPaginationDTO,
+    query: GetConversationsQueryDTO,
   ): Promise<CursorPageResponse<ConversationResponseDTO>> {
+    const searchTerm = query.query?.trim();
+    if (searchTerm) {
+      return this.searchConversations(userId, query, searchTerm);
+    }
+
     const limit = query.limit;
     // 1) Nếu đã có flag "empty" thì trả về luôn
     if (!query.cursor && (await this.cache.hasEmptyFlag(userId))) {
@@ -169,6 +177,62 @@ export class ConversationService {
 
     await this.cache.markEmpty(userId);
     return new CursorPageResponse([], null, false);
+  }
+
+  private async searchConversations(
+    userId: string,
+    query: GetConversationsQueryDTO,
+    searchTerm: string,
+  ): Promise<CursorPageResponse<ConversationResponseDTO>> {
+    const limit = query.limit;
+    const escapedSearchTerm = this.escapeRegex(searchTerm);
+    const dbFilter: Record<string, any> = {
+      participants: userId,
+      hiddenFor: { $ne: userId },
+      $or: [
+        { groupName: { $regex: escapedSearchTerm, $options: 'i' } },
+        { participants: { $regex: escapedSearchTerm, $options: 'i' } },
+      ],
+    };
+
+    if (query.cursor) {
+      dbFilter.updatedAt = { $lt: new Date(Number(query.cursor)) };
+    }
+
+    const dbItems = await this.conversationModel
+      .find(dbFilter)
+      .sort({ updatedAt: -1 })
+      .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
+      .limit(limit + 1)
+      .exec();
+
+    if (!dbItems.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    const mapped = await Promise.all(
+      dbItems.map((doc) => populateAndMapConversation(doc)),
+    );
+
+    await Promise.all(mapped.map((dto) => this.cache.setConversationDetail(dto)));
+
+    const hasNext = mapped.length > limit;
+    const items = mapped.slice(0, limit);
+    const lastItem = items[items.length - 1];
+    const nextCursor =
+      hasNext && (lastItem as any)?.updatedAt
+        ? new Date((lastItem as any).updatedAt).getTime().toString()
+        : null;
+
+    return new CursorPageResponse(
+      plainToInstance(ConversationResponseDTO, items),
+      nextCursor,
+      hasNext,
+    );
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   // ============ CREATE (DIRECT + GROUP) ============
@@ -1035,4 +1099,3 @@ export class ConversationService {
     return dto;
   }
 }
-

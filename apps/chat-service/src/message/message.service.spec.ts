@@ -32,6 +32,8 @@ describe('MessageService', () => {
   const outboxService = {
     enqueue: jest.fn(),
     enqueueChatEvent: jest.fn(),
+    flushPendingChatEvents: jest.fn().mockResolvedValue(undefined),
+    clearPendingChatEvents: jest.fn(),
   };
 
   const createService = () =>
@@ -168,6 +170,26 @@ describe('MessageService', () => {
         replyTo: 'msg-x',
       } as any),
     ).rejects.toThrow('Reply message does not belong to this conversation');
+  });
+
+  it('rejects attachments larger than the configured upload limit', async () => {
+    const service = createService();
+
+    await expect(
+      service.sendMessage('user-1', {
+        conversationId: 'conv-1',
+        content: 'hello',
+        attachments: [
+          {
+            type: 'file',
+            url: 'https://cdn.example.com/big.zip',
+            size: 11 * 1024 * 1024,
+          },
+        ],
+      } as any),
+    ).rejects.toThrow('File exceeds the file upload limit of 10485760 bytes');
+
+    expect(conversationModel.findById).not.toHaveBeenCalled();
   });
 
   it('maps audio and file attachments to the correct media delete resource types', async () => {

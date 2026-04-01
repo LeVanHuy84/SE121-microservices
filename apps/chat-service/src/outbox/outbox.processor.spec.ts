@@ -11,16 +11,8 @@ describe('OutboxProcessor', () => {
     sendMessage: jest.fn(),
   };
 
-  const chatStreamProducer = {
-    publishEvent: jest.fn(),
-  };
-
   const createProcessor = () =>
-    new OutboxProcessor(
-      outboxModel as any,
-      kafkaProducer as any,
-      chatStreamProducer as any
-    );
+    new OutboxProcessor(outboxModel as any, kafkaProducer as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -104,7 +96,7 @@ describe('OutboxProcessor', () => {
     );
   });
 
-  it('dispatches chat events to the durable realtime stream instead of Kafka', async () => {
+  it('skips legacy chat outbox events instead of forwarding them to Kafka', async () => {
     const processor = createProcessor();
     const event = {
       id: 'evt-chat-1',
@@ -116,16 +108,12 @@ describe('OutboxProcessor', () => {
       processing: true,
       save: jest.fn().mockResolvedValue(undefined),
     };
-    chatStreamProducer.publishEvent.mockResolvedValue(undefined);
 
     await (processor as any).processEvent(event);
 
-    expect(chatStreamProducer.publishEvent).toHaveBeenCalledWith(
-      'message.created',
-      { _id: 'msg-1', conversationId: 'conv-1' }
-    );
     expect(kafkaProducer.sendMessage).not.toHaveBeenCalled();
     expect(event.processed).toBe(true);
+    expect(event.lastError).toBe('skipped_chat_outbox_event');
     expect(event.save).toHaveBeenCalled();
   });
 });

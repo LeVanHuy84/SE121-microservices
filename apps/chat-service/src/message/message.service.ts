@@ -5,6 +5,7 @@ import {
   CursorPageResponse,
   CursorPaginationDTO,
   EventTopic,
+  MEDIA_UPLOAD_MAX_BYTES,
   MediaType,
   MediaEventType,
   MessageResponseDTO,
@@ -55,11 +56,14 @@ export class MessageService {
     try {
       const result = await work(session);
       await session.commitTransaction();
+      await this.outboxService.flushPendingChatEvents(session);
       return result;
     } catch (error) {
       await session.abortTransaction();
+      this.outboxService.clearPendingChatEvents(session);
       throw error;
     } finally {
+      this.outboxService.clearPendingChatEvents(session);
       await session.endSession();
     }
   }
@@ -196,6 +200,8 @@ export class MessageService {
     userId: string,
     dto: SendMessageDTO,
   ): Promise<MessageResponseDTO> {
+    this.validateAttachments(dto.attachments);
+
     let conv: ConversationDocument | null = null;
     let msg: MessageDocument | null = null;
     let dtoMsg!: MessageResponseDTO;
@@ -274,6 +280,31 @@ export class MessageService {
     ]);
 
     return dtoMsg;
+  }
+
+  private validateAttachments(attachments?: SendMessageDTO['attachments']) {
+    if (!attachments?.length) {
+      return;
+    }
+
+    for (const attachment of attachments) {
+      if (
+        typeof attachment.size !== 'number' ||
+        !Number.isFinite(attachment.size) ||
+        attachment.size < 0
+      ) {
+        throw new RpcException('Attachment size is required');
+      }
+
+      const type = this.resolveAttachmentType(attachment);
+      const maxSize = MEDIA_UPLOAD_MAX_BYTES[type];
+
+      if (attachment.size > maxSize) {
+        throw new RpcException(
+          `File exceeds the ${type} upload limit of ${maxSize} bytes`,
+        );
+      }
+    }
   }
 
   // ============= EDIT MESSAGE =============

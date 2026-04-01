@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { MEDIA_UPLOAD_MAX_BYTES } from '@repo/dtos';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { Media, MediaType } from 'src/entities/media.entity';
 
@@ -31,12 +32,8 @@ export class MediaService {
     'flac',
     'webm',
   ]);
-  private readonly maxUploadSize: Record<MediaType, number> = {
-    image: 10 * 1024 * 1024,
-    video: 50 * 1024 * 1024,
-    audio: 20 * 1024 * 1024,
-    file: 25 * 1024 * 1024,
-  };
+  private readonly maxUploadSize: Record<MediaType, number> =
+    MEDIA_UPLOAD_MAX_BYTES;
   private readonly fileMimeAllowlist = new Set([
     'application/pdf',
     'application/msword',

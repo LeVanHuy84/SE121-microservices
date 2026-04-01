@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { KafkaProducerService } from '@repo/common';
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import {
   OutboxEvent,
   OutboxEventDocument,
@@ -29,7 +28,6 @@ export class OutboxProcessor {
     @InjectModel(OutboxEvent.name)
     private readonly outboxModel: Model<OutboxEventDocument>,
     private readonly kafkaProducer: KafkaProducerService,
-    private readonly chatStreamProducer: ChatStreamProducerService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -129,7 +127,19 @@ export class OutboxProcessor {
 
     try {
       if (topic === this.chatTopic) {
-        await this.chatStreamProducer.publishEvent(eventType, payload);
+        event.processed = true;
+        event.processing = false;
+        event.lockedAt = undefined;
+        event.lockedBy = undefined;
+        event.processedAt = new Date();
+        event.nextRetryAt = undefined;
+        event.lastError = 'skipped_chat_outbox_event';
+        await event.save();
+
+        this.logger.warn(
+          `Skipped legacy chat outbox event ${id} (${eventType}) because chat events publish directly to Redis stream.`,
+        );
+        return;
       } else {
         await this.kafkaProducer.sendMessage(
           topic,
