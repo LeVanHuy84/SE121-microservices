@@ -7,8 +7,6 @@ from .emotion_normalizer import (
     TEXT_LABEL_MAPPING,
     IMAGE_LABEL_MAPPING
 )
-from .user_emotion_profile_service import UserEmotionProfileService
-from .user_emotion_snapshot_service import UserEmotionSnapshotService
 
 __all__ = [
     'emotion_analyzer',
@@ -18,6 +16,4 @@ __all__ = [
     'IMAGE_LABEL_MAPPING',
     'resolve_preset_range',
     'validate_range',
-    'UserEmotionProfileService',
-    'UserEmotionSnapshotService',
 ]
