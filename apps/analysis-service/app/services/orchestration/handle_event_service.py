@@ -21,7 +21,6 @@ class HandleEventService:
         moderation_repo,
         task_repo,
         outbox_repo,
-        snapshot_queue_service,
     ):
         self.analysis_flow_service = analysis_flow_service
 
@@ -29,7 +28,6 @@ class HandleEventService:
         self.emotion_writer = EmotionWriter(emotion_aggregate_repo)
         self.task_manager = TaskManager(task_repo)
         self.outbox = OutboxEmitter(outbox_repo)
-        self.snapshot_queue_service = snapshot_queue_service
 
 
     # ======================================================
@@ -80,9 +78,6 @@ class HandleEventService:
                 target_type=target_type,
                 emotion_data=emotion_result,
             )
-
-            # Queue user for daily batch recomputation (profile + snapshots)
-            await self.snapshot_queue_service.mark_user_dirty(user_id)
 
             await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_CREATED, emotion)
 
@@ -161,9 +156,6 @@ class HandleEventService:
                 target_type=target_type,
                 emotion_data=emotion_result,
             )
-
-            # Queue user for daily batch recomputation (profile + snapshots)
-            await self.snapshot_queue_service.mark_user_dirty(user_id)
 
             await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_UPDATED, emotion)
 
