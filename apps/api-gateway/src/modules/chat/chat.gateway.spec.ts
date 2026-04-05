@@ -2,9 +2,20 @@ import { of, throwError } from "rxjs";
 import { ChatGateway } from "./chat.gateway";
 
 describe("ChatGateway", () => {
+  const pipeline = {
+    set: jest.fn().mockReturnThis(),
+    sadd: jest.fn().mockReturnThis(),
+    expire: jest.fn().mockReturnThis(),
+    del: jest.fn().mockReturnThis(),
+    srem: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue([]),
+  };
+
   const redis = {
     duplicate: jest.fn(),
     publish: jest.fn().mockResolvedValue(1),
+    pipeline: jest.fn(() => pipeline),
+    get: jest.fn(),
   };
 
   const chatClient = {
@@ -28,6 +39,13 @@ describe("ChatGateway", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    redis.pipeline.mockReturnValue(pipeline);
+    pipeline.set.mockReturnThis();
+    pipeline.sadd.mockReturnThis();
+    pipeline.expire.mockReturnThis();
+    pipeline.del.mockReturnThis();
+    pipeline.srem.mockReturnThis();
+    pipeline.exec.mockResolvedValue([]);
   });
 
   it("joins a conversation only after access verification succeeds", async () => {
@@ -42,6 +60,12 @@ describe("ChatGateway", () => {
       conversationId: "conv-1",
     });
     expect(client.join).toHaveBeenCalledWith("conversation:conv-1");
+    expect(pipeline.set).toHaveBeenCalledWith(
+      "chat:activeConv:conn:user-1:socket-1",
+      "conv-1",
+      "EX",
+      60,
+    );
     expect(client.emit).not.toHaveBeenCalledWith(
       "conversation.error",
       expect.anything(),
@@ -103,6 +127,7 @@ describe("ChatGateway", () => {
   it("publishes a disconnect event when a socket disconnects", async () => {
     const gateway = createGateway();
     const client = createClient();
+    client.data.activeConversationId = "conv-1";
 
     await gateway.handleDisconnect(client);
 
@@ -117,6 +142,13 @@ describe("ChatGateway", () => {
         userId: "user-1",
         connectionId: "socket-1",
       }),
+    );
+    expect(pipeline.del).toHaveBeenCalledWith(
+      "chat:activeConv:conn:user-1:socket-1",
+    );
+    expect(pipeline.srem).toHaveBeenCalledWith(
+      "chat:activeConv:user:user-1:conv-1",
+      "socket-1",
     );
   });
 });

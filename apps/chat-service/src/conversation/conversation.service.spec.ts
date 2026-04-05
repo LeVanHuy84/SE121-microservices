@@ -38,6 +38,10 @@ describe('ConversationService', () => {
     clearPendingChatEvents: jest.fn(),
   };
 
+  const chatPushService = {
+    clearConversationState: jest.fn().mockResolvedValue(undefined),
+  };
+
   const createQuery = (result: any) => ({
     session: jest.fn().mockReturnThis(),
     populate: jest.fn().mockReturnThis(),
@@ -50,6 +54,7 @@ describe('ConversationService', () => {
       messageModel as any,
       cache as any,
       outboxService as any,
+      chatPushService as any,
       connection as any,
     );
 
@@ -304,6 +309,10 @@ describe('ConversationService', () => {
       },
       'conv-1',
       session,
+    );
+    expect(chatPushService.clearConversationState).toHaveBeenCalledWith(
+      'user-1',
+      'conv-1',
     );
   });
 

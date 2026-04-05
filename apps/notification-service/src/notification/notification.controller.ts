@@ -16,10 +16,14 @@ import {
   RmqContext,
 } from '@nestjs/microservices';
 import { CursorPaginationDTO, PaginationDTO } from '@repo/dtos';
+import { ChatPushService } from './chat-push.service';
 
 @Controller('notification')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly chatPushService: ChatPushService,
+  ) {}
 
   @EventPattern('create_notification')
   async handleNotification(@Payload() data: any, @Ctx() context: RmqContext) {
@@ -33,6 +37,39 @@ export class NotificationController {
     } catch (err) {
       console.error('❌ Error processing message:', err);
       channel.nack(originalMsg, false, false); // bỏ hoặc requeue tùy ý
+    }
+  }
+
+  @EventPattern('send_chat_push')
+  async handleSendChatPush(@Payload() data: any, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.chatPushService.sendChatPush(data.sendChatPushDto);
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error('Error processing chat push message:', err);
+      channel.nack(originalMsg, false, false);
+    }
+  }
+
+  @EventPattern('clear_chat_push_state')
+  async handleClearChatPushState(
+    @Payload() data: any,
+    @Ctx() context: RmqContext,
+  ) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.chatPushService.clearChatPushState(
+        data.clearChatPushStateDto,
+      );
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error('Error clearing chat push state:', err);
+      channel.nack(originalMsg, false, false);
     }
   }
 

@@ -52,6 +52,9 @@ export class ChatGateway
   private readonly HEARTBEAT_MIN_INTERVAL_MS = Number(
     process.env.PRESENCE_HEARTBEAT_MIN_INTERVAL_MS ?? 5000,
   );
+  private readonly ACTIVE_CONVERSATION_TTL_SECONDS = Number(
+    process.env.CHAT_ACTIVE_CONVERSATION_TTL_SECONDS ?? 60,
+  );
   constructor(
     @InjectRedis() private readonly redis: Redis,
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
@@ -97,6 +100,7 @@ export class ChatGateway
   async handleDisconnect(client: Socket) {
     const userId = client.user?.id as string | undefined;
     if (!userId) return;
+    await this.clearActiveConversation(client);
     const evt: PresenceDisconnectEvent = {
       type: "DISCONNECT",
       userId,
@@ -131,6 +135,7 @@ export class ChatGateway
     };
 
     this.redis.publish(this.presenceEventsChannel, JSON.stringify(evt));
+    void this.refreshActiveConversation(client);
     // this.logger.debug(`Received heartbeat from user ${userId}`);
   }
 
@@ -189,15 +194,26 @@ export class ChatGateway
       });
       return;
     }
+    const previousConversationId = client.data.activeConversationId as
+      | string
+      | undefined;
+    if (
+      previousConversationId &&
+      previousConversationId !== data.conversationId
+    ) {
+      client.leave(`conversation:${previousConversationId}`);
+    }
+    await this.registerActiveConversation(client, data.conversationId);
     client.join(`conversation:${data.conversationId}`);
   }
 
   @SubscribeMessage("conversation.leave")
-  handleLeaveConversation(
+  async handleLeaveConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
     if (!data?.conversationId) return;
+    await this.clearActiveConversation(client, data.conversationId);
     client.leave(`conversation:${data.conversationId}`);
   }
 
@@ -461,5 +477,93 @@ export class ChatGateway
         .authorizedConversationIds as Set<string> | undefined;
       authorizedConversationIds?.delete(conversationId);
     }
+  }
+
+  private async registerActiveConversation(
+    client: Socket,
+    conversationId: string,
+  ) {
+    const userId = client.user?.id;
+    if (!userId || !conversationId) return;
+
+    const previousConversationId = client.data.activeConversationId as
+      | string
+      | undefined;
+    if (
+      previousConversationId &&
+      previousConversationId !== conversationId
+    ) {
+      await this.clearActiveConversation(client, previousConversationId);
+    }
+
+    const connKey = this.getActiveConversationConnKey(userId, client.id);
+    const setKey = this.getActiveConversationUserKey(userId, conversationId);
+    const pipeline = this.redis.pipeline();
+    pipeline.set(
+      connKey,
+      conversationId,
+      "EX",
+      this.ACTIVE_CONVERSATION_TTL_SECONDS,
+    );
+    pipeline.sadd(setKey, client.id);
+    pipeline.expire(setKey, this.ACTIVE_CONVERSATION_TTL_SECONDS);
+    await pipeline.exec();
+
+    client.data.activeConversationId = conversationId;
+  }
+
+  private async clearActiveConversation(
+    client: Socket,
+    conversationId?: string,
+  ) {
+    const userId = client.user?.id;
+    if (!userId) return;
+
+    const activeConversationId =
+      conversationId ??
+      (client.data.activeConversationId as string | undefined) ??
+      (await this.redis.get(this.getActiveConversationConnKey(userId, client.id)));
+
+    const connKey = this.getActiveConversationConnKey(userId, client.id);
+    const pipeline = this.redis.pipeline();
+    pipeline.del(connKey);
+    if (activeConversationId) {
+      pipeline.srem(
+        this.getActiveConversationUserKey(userId, activeConversationId),
+        client.id,
+      );
+    }
+    await pipeline.exec();
+
+    if (!conversationId || conversationId === client.data.activeConversationId) {
+      delete client.data.activeConversationId;
+    }
+  }
+
+  private async refreshActiveConversation(client: Socket) {
+    const userId = client.user?.id;
+    const conversationId = client.data.activeConversationId as string | undefined;
+    if (!userId || !conversationId) return;
+
+    const connKey = this.getActiveConversationConnKey(userId, client.id);
+    const setKey = this.getActiveConversationUserKey(userId, conversationId);
+    const pipeline = this.redis.pipeline();
+    pipeline.set(
+      connKey,
+      conversationId,
+      "EX",
+      this.ACTIVE_CONVERSATION_TTL_SECONDS,
+    );
+    pipeline.sadd(setKey, client.id);
+    pipeline.expire(setKey, this.ACTIVE_CONVERSATION_TTL_SECONDS);
+    await pipeline.exec();
+  }
+
+  private getActiveConversationConnKey(userId: string, socketId: string) {
+    return `chat:activeConv:conn:${userId}:${socketId}`;
+  }
+
+  private getActiveConversationUserKey(userId: string, conversationId: string) {
+    return `chat:activeConv:user:${userId}:${conversationId}`;
   }
 }

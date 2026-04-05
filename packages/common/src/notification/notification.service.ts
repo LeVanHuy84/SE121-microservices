@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CreateNotificationDto } from '@repo/dtos';
+import {
+  ClearChatPushStateDto,
+  CreateNotificationDto,
+  SendChatPushDto,
+} from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
 
 @Injectable()
@@ -20,6 +24,16 @@ export class NotificationService {
 
     await lastValueFrom(
       this.client.emit('create_notification', { createNotificationDto })
+    );
+  }
+
+  async sendChatPush(sendChatPushDto: SendChatPushDto) {
+    await lastValueFrom(this.client.emit('send_chat_push', { sendChatPushDto }));
+  }
+
+  async clearChatPushState(clearChatPushStateDto: ClearChatPushStateDto) {
+    await lastValueFrom(
+      this.client.emit('clear_chat_push_state', { clearChatPushStateDto }),
     );
   }
 }

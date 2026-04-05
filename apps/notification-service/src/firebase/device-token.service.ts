@@ -15,9 +15,11 @@ export class DeviceTokenService {
 
   async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
     try {
+      const provider = dto.provider ?? 'fcm';
       const existingToken = await this.deviceTokenModel.findOne({
         userId: dto.userId,
         token: dto.token,
+        provider,
       });
 
       if (existingToken) {
@@ -25,6 +27,8 @@ export class DeviceTokenService {
         existingToken.lastUsed = new Date();
         existingToken.isActive = true;
         existingToken.platform = dto.platform;
+        existingToken.provider = provider;
+        if (dto.appId) existingToken.appId = dto.appId;
         if (dto.deviceId) existingToken.deviceId = dto.deviceId;
         if (dto.deviceName) existingToken.deviceName = dto.deviceName;
         await existingToken.save();
@@ -36,6 +40,8 @@ export class DeviceTokenService {
         userId: dto.userId,
         token: dto.token,
         platform: dto.platform,
+        provider,
+        appId: dto.appId,
         deviceId: dto.deviceId,
         deviceName: dto.deviceName,
         lastUsed: new Date(),
@@ -65,17 +71,22 @@ export class DeviceTokenService {
 
   async getActiveTokensByUserId(
     userId: string
-  ): Promise<{ token: string; platform: string }[]> {
+  ): Promise<{ token: string; platform: string; provider: 'fcm' }[]> {
     try {
       const tokens = await this.deviceTokenModel
         .find({
           userId,
           isActive: true,
+          provider: 'fcm',
         })
-        .select('token platform')
+        .select('token platform provider')
         .lean();
 
-      return tokens.map((t) => ({ token: t.token, platform: t.platform }));
+      return tokens.map((t) => ({
+        token: t.token,
+        platform: t.platform,
+        provider: 'fcm',
+      }));
     } catch (error) {
       this.logger.error('Error getting active tokens', error);
       return [];

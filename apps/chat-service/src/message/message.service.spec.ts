@@ -36,6 +36,10 @@ describe('MessageService', () => {
     clearPendingChatEvents: jest.fn(),
   };
 
+  const chatPushService = {
+    sendMessagePush: jest.fn().mockResolvedValue(undefined),
+  };
+
   const createService = () =>
     new MessageService(
       messageModel as any,
@@ -43,6 +47,7 @@ describe('MessageService', () => {
       conversationService as any,
       msgCache as any,
       outboxService as any,
+      chatPushService as any,
       connection as any,
     );
 

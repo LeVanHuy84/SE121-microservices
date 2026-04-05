@@ -4,6 +4,16 @@ import * as admin from 'firebase-admin';
 import { ServiceAccount } from 'firebase-admin';
 import * as path from 'path';
 
+export interface FirebasePushOptions {
+  collapseKey?: string;
+  androidTag?: string;
+  androidChannelId?: string;
+  apnsCollapseId?: string;
+  apnsThreadId?: string;
+  apnsSummaryArg?: string;
+  apnsSummaryArgCount?: number;
+}
+
 @Injectable()
 export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FirebaseService.name);
@@ -91,7 +101,8 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     token: string,
     title: string,
     body: string,
-    data?: Record<string, string>
+    data?: Record<string, string>,
+    options?: FirebasePushOptions,
   ): Promise<{ success: boolean; error?: string }> {
     if (!this.firebaseApp) {
       return { success: false, error: 'Firebase not initialized' };
@@ -107,12 +118,19 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         token,
         android: {
           priority: 'high',
+          collapseKey: options?.collapseKey,
           notification: {
             sound: 'default',
-            channelId: 'default',
+            channelId: options?.androidChannelId || 'default',
+            tag: options?.androidTag,
           },
         },
         apns: {
+          headers: options?.apnsCollapseId
+            ? {
+                'apns-collapse-id': options.apnsCollapseId,
+              }
+            : undefined,
           payload: {
             aps: {
               alert: {
@@ -121,6 +139,9 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
               },
               sound: 'default',
               badge: 1,
+              'thread-id': options?.apnsThreadId,
+              'summary-arg': options?.apnsSummaryArg,
+              'summary-arg-count': options?.apnsSummaryArgCount,
             },
           },
         },
@@ -139,7 +160,8 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     tokens: string[],
     title: string,
     body: string,
-    data?: Record<string, string>
+    data?: Record<string, string>,
+    options?: FirebasePushOptions,
   ): Promise<{
     successCount: number;
     failureCount: number;
@@ -163,12 +185,19 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         tokens,
         android: {
           priority: 'high',
+          collapseKey: options?.collapseKey,
           notification: {
             sound: 'default',
-            channelId: 'default',
+            channelId: options?.androidChannelId || 'default',
+            tag: options?.androidTag,
           },
         },
         apns: {
+          headers: options?.apnsCollapseId
+            ? {
+                'apns-collapse-id': options.apnsCollapseId,
+              }
+            : undefined,
           payload: {
             aps: {
               alert: {
@@ -177,6 +206,9 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
               },
               sound: 'default',
               badge: 1,
+              'thread-id': options?.apnsThreadId,
+              'summary-arg': options?.apnsSummaryArg,
+              'summary-arg-count': options?.apnsSummaryArgCount,
             },
           },
         },

@@ -10,6 +10,7 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 import { ConversationModule } from 'src/conversation/conversation.module';
 import { OutboxModule } from 'src/outbox/outbox.module';
+import { PushModule } from 'src/push/push.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { OutboxModule } from 'src/outbox/outbox.module';
     ]),
     ConversationModule,
     OutboxModule,
+    PushModule,
   ],
   controllers: [MessageController],
   providers: [MessageService, MessageCacheService],

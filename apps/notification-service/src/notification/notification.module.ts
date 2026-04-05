@@ -6,6 +6,7 @@ import {
 } from 'src/mongo/schema/notification.schema';
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
+import { ChatPushService } from './chat-push.service';
 import { NotificationService } from './notification.service';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
@@ -29,6 +30,6 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     }),
   ],
   controllers: [NotificationController],
-  providers: [NotificationService, TemplateService],
+  providers: [NotificationService, ChatPushService, TemplateService],
 })
 export class NotificationModule {}

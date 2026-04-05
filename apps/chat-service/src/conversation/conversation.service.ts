@@ -21,6 +21,7 @@ import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import { populateAndMapConversation } from 'src/utils/mapping';
 import { ConversationCacheService } from './conversation-cache.service';
 import { OutboxService } from 'src/outbox/outbox.service';
+import { ChatPushService } from 'src/push/chat-push.service';
 
 @Injectable()
 export class ConversationService {
@@ -34,6 +35,7 @@ export class ConversationService {
 
     private readonly cache: ConversationCacheService,
     private readonly outboxService: OutboxService,
+    private readonly chatPushService: ChatPushService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -214,7 +216,9 @@ export class ConversationService {
       dbItems.map((doc) => populateAndMapConversation(doc)),
     );
 
-    await Promise.all(mapped.map((dto) => this.cache.setConversationDetail(dto)));
+    await Promise.all(
+      mapped.map((dto) => this.cache.setConversationDetail(dto)),
+    );
 
     const hasNext = mapped.length > limit;
     const items = mapped.slice(0, limit);
@@ -249,10 +253,9 @@ export class ConversationService {
       throw new RpcException('Conversation must have at least 2 participants');
     }
 
-    // Mặc định: nếu >2 user thì là group
     const isGroup = dto.isGroup ?? participants.length > 2;
+    const groupName = dto.groupName?.trim();
 
-    // ----- DIRECT (1–1) -----
     if (!isGroup) {
       if (participants.length !== 2) {
         throw new RpcException(
@@ -263,73 +266,100 @@ export class ConversationService {
       const sorted = [...participants].sort();
       const directKey = sorted.join(':');
 
-      // Tìm xem đã tồn tại conv direct chưa
       const existed = await this.conversationModel
         .findOne({ directKey })
-        .populate('lastMessage')
+        .populate({
+          path: 'lastMessage',
+          select: '_id senderId content attachments createdAt',
+        })
         .exec();
 
       if (existed) {
-        // Nếu từng bị hide với user này thì bỏ khỏi hiddenFor
-        if (existed.hiddenFor?.includes(userId)) {
-          existed.hiddenFor = existed.hiddenFor.filter((u) => u !== userId);
-          await existed.save();
+        const isHiddenForUser = existed.hiddenFor?.some(
+          (u) => u.toString() === userId,
+        );
+
+        if (isHiddenForUser) {
+          await this.conversationModel.updateOne(
+            { _id: existed._id },
+            { $pull: { hiddenFor: userId } },
+          );
+
+          existed.hiddenFor = existed.hiddenFor?.filter(
+            (u) => u.toString() !== userId,
+          ) as any;
         }
 
-        await this.updateConversationCache(existed);
+        try {
+          await this.updateConversationCache(existed);
+        } catch (error) {
+          this.logger.warn('Failed to update conversation cache', error);
+        }
+
         return populateAndMapConversation(existed);
       }
 
-      // Tạo mới
-      const doc = new this.conversationModel({
-        isGroup: false,
-        participants,
-        admins: [],
-      });
+      const convDto = await this.withTransaction(async (session) => {
+        const doc = new this.conversationModel({
+          isGroup: false,
+          participants: sorted,
+          directKey,
+          admins: [],
+        });
 
-      let convDto!: ConversationResponseDTO;
-      await this.withTransaction(async (session) => {
         await doc.save({ session });
-        convDto = populateAndMapConversation(doc);
+
+        const convDto = populateAndMapConversation(doc);
+
         await this.outboxService.enqueueChatEvent(
           'conversation.created',
           convDto,
           convDto._id,
           session,
         );
+
+        return { doc, convDto };
       });
 
-      await this.updateConversationCache(doc);
-      return convDto;
+      try {
+        await this.updateConversationCache(convDto.doc);
+      } catch (error) {
+        this.logger.warn('Failed to update conversation cache', error);
+      }
+
+      return convDto.convDto;
     }
 
-    if (dto.participants?.length && dto.participants.length < 3) {
-      throw new RpcException('Group conversation must have at least 3 participants');
+    if (participants.length < 3) {
+      throw new RpcException(
+        'Group conversation must have at least 3 participants',
+      );
     }
 
-    if (!dto.groupName || dto.groupName.trim().length === 0) {
-      throw new RpcException('Group name cannot be empty string');
+    if (!groupName) {
+      throw new RpcException('Group name cannot be empty');
     }
 
-    // ----- GROUP -----
-    const doc = new this.conversationModel({
-      isGroup: true,
-      participants,
-      groupName: dto.groupName,
-      groupAvatar: dto.groupAvatar,
-      admins: [userId],
-    });
+    const result = await this.withTransaction(async (session) => {
+      const doc = new this.conversationModel({
+        isGroup: true,
+        participants,
+        groupName,
+        groupAvatar: dto.groupAvatar,
+        admins: [userId],
+      });
 
-    let convDto!: ConversationResponseDTO;
-    await this.withTransaction(async (session) => {
       await doc.save({ session });
-      convDto = populateAndMapConversation(doc);
+
+      const convDto = populateAndMapConversation(doc);
+
       await this.outboxService.enqueueChatEvent(
         'conversation.created',
         convDto,
         convDto._id,
         session,
       );
+
       if (dto.groupAvatar?.publicId) {
         await this.enqueueGroupAvatarAssign(
           convDto._id,
@@ -337,11 +367,17 @@ export class ConversationService {
           session,
         );
       }
+
+      return { doc, convDto };
     });
 
-    await this.updateConversationCache(doc);
+    try {
+      await this.updateConversationCache(result.doc);
+    } catch (error) {
+      this.logger.warn('Failed to update conversation cache', error);
+    }
 
-    return convDto;
+    return result.convDto;
   }
 
   // ============ UPDATE GROUP ============
@@ -530,7 +566,9 @@ export class ConversationService {
           .exec();
         if (!targetMsg) throw new RpcException('Message not found');
         if (targetMsg.conversationId.toString() !== conversationId) {
-          throw new RpcException('Message does not belong to this conversation');
+          throw new RpcException(
+            'Message does not belong to this conversation',
+          );
         }
       } else {
         if (!conv.lastMessage) {
@@ -612,6 +650,10 @@ export class ConversationService {
 
     if (updatedConversationId) {
       await this.refreshConversationCache(updatedConversationId);
+    }
+
+    if (result) {
+      await this.chatPushService.clearConversationState(userId, conversationId);
     }
 
     return result;
@@ -971,7 +1013,12 @@ export class ConversationService {
 
   private async enqueueGroupAvatarAssign(
     conversationId: string,
-    avatar: { publicId?: string; url?: string; mimeType?: string; type?: MediaType },
+    avatar: {
+      publicId?: string;
+      url?: string;
+      mimeType?: string;
+      type?: MediaType;
+    },
     session?: ClientSession,
   ) {
     if (!avatar?.publicId) return;
@@ -1047,9 +1094,7 @@ export class ConversationService {
     return MediaType.FILE;
   }
 
-  private toCloudinaryResourceType(
-    type: MediaType,
-  ): 'image' | 'video' | 'raw' {
+  private toCloudinaryResourceType(type: MediaType): 'image' | 'video' | 'raw' {
     switch (type) {
       case MediaType.IMAGE:
         return 'image';
