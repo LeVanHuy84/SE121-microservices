@@ -6,6 +6,8 @@
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=12",
     "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
+    "demo": "turbo run start:prod --parallel --concurrency=12 --filter=!analysis-service",
+    "demo:test": "turbo run start:prod --filter=analysis-service --filter=api-gateway --filter=feed-service",
     "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
     "recommend:dev:gateway": "turbo run start:dev --parallel --filter=api-gateway --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
     "recommend:report:live": "npm --workspace=social-service run test:recommend:live:report",
@@ -16,6 +18,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "prettier": "^3.6.2",
     "turbo": "^2.5.6",
     "typescript": "5.9.2"

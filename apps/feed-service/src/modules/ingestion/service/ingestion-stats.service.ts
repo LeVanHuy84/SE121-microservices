@@ -23,7 +23,6 @@ import {
 @Injectable()
 export class StatsIngestionService {
   private readonly logger = new Logger(StatsIngestionService.name);
-  private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 ngày
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
@@ -34,22 +33,6 @@ export class StatsIngestionService {
   ) {}
 
   /**
-   * Trọng số cho từng loại thống kê
-   */
-  private weightFor(type: StatsEventType): number {
-    switch (type) {
-      case StatsEventType.REACTION:
-        return 1;
-      case StatsEventType.COMMENT:
-        return 3;
-      case StatsEventType.SHARE:
-        return 4;
-      default:
-        return 0;
-    }
-  }
-
-  /**
    * Xử lý batch thống kê từ Kafka (StatsPayload)
    */
   async processStatsBatch(message: StatsPayload) {
@@ -58,26 +41,27 @@ export class StatsIngestionService {
 
     for (const record of stats) {
       const { targetType, targetId, deltas, isTrendingCandidate } = record;
-      let totalScoreDelta = 0;
 
-      // --- Tính điểm thay đổi cho Redis ranking ---
-      for (const delta of deltas) {
-        const weight = this.weightFor(delta.type);
-        if (weight && 'delta' in delta) {
-          totalScoreDelta += weight * delta.delta;
-        }
-      }
-
-      // --- Cập nhật điểm xếp hạng Redis ---
       // --- Cập nhật điểm xếp hạng Redis (chỉ cho POST) ---
-      if (totalScoreDelta !== 0 && isTrendingCandidate) {
+      if (isTrendingCandidate && deltas.length > 0) {
         const metaKey = `post:meta:${targetId}`;
-        const scoreKey = 'post:score';
+        const engagementKey = `post:engagement:${targetId}`;
 
-        pipeline.zincrby(scoreKey, totalScoreDelta, targetId);
+        for (const delta of deltas) {
+          if (delta.type === StatsEventType.REACTION) {
+            pipeline.hincrby(engagementKey, 'reactions', delta.delta);
+          } else if (delta.type === StatsEventType.COMMENT) {
+            pipeline.hincrby(engagementKey, 'comments', delta.delta);
+          } else if (delta.type === StatsEventType.SHARE) {
+            pipeline.hincrby(engagementKey, 'shares', delta.delta);
+          }
+        }
+
+        // mark dirty
+        pipeline.sadd('post:dirty', targetId);
         pipeline.hset(metaKey, 'lastStatAt', timestamp);
-        pipeline.expire(metaKey, this.SCORE_TTL_SECONDS);
-        pipeline.expire(scoreKey, this.SCORE_TTL_SECONDS);
+        pipeline.expire(metaKey, 2592000); // 30 ngày
+        pipeline.expire(engagementKey, 2592000); // 30 ngày
       }
 
       // --- Cập nhật snapshot trong MongoDB ---

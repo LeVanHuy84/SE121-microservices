@@ -1,11 +1,10 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 from fastapi import APIRouter, Depends, Query
-from app.database.analysis_repository import AnalysisRepository
-from app.database.mongo_client import engine
+from app.database.emotion_aggregate_repository import EmotionAggregateRepository
+from app.database.mongo import collections
 from app.utils.preset_mapper import resolve_preset_range, validate_range
 from app.enums.emotion_enum import EmotionEnum
-from app.database.models.analysis_schema import EmotionAnalysis
 from app.enums.analysis_status_enum import AnalysisStatusEnum
 from app.core.security import verify_internal_key
 
@@ -15,7 +14,7 @@ analyze_router = APIRouter(
     dependencies=[Depends(verify_internal_key)]
 )
 
-repo = AnalysisRepository(engine)
+repo = EmotionAggregateRepository(collections['emotion_aggregates'])
 
 @analyze_router.get("/dashboard")
 async def get_community_emotion_dashboard(
@@ -49,22 +48,25 @@ async def get_community_emotion_dashboard(
     end_dt = datetime.combine(to_date, datetime.max.time())
 
     # ===== QUERY DB =====
-    entries = await engine.find(
-        EmotionAnalysis,
-        (EmotionAnalysis.createdAtVN >= start_dt) &
-        (EmotionAnalysis.createdAtVN <= end_dt) &
-        (EmotionAnalysis.status == AnalysisStatusEnum.SUCCESS)
-    )
+    collection = collections['emotion_aggregates']
+    cursor = collection.find({
+        "createdAt": {
+            "$gte": start_dt,
+            "$lte": end_dt
+        }
+    })
+    entries = await cursor.to_list(length=None)
 
     # ===== GROUP BY DAY + EMOTION =====
     grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
 
     for item in entries:
-        if not item.finalEmotion:
+        if not item.get("finalEmotion"):
             continue
 
-        day = item.createdAtVN.strftime("%Y-%m-%d")
-        emo = item.finalEmotion
+        # Use createdAt since createdAtVN doesn't exist
+        day = item["createdAt"].strftime("%Y-%m-%d")
+        emo = item["finalEmotion"]
 
         if emo in grouped[day]:
             grouped[day][emo] += 1
@@ -98,7 +100,7 @@ async def get_history(
         validate_range(start, end)
     except Exception as e:
         return {"error": str(e)}
-    
+
     cursor_dt = None
     if cursor:
         cursor_dt = datetime.fromisoformat(cursor)
@@ -113,17 +115,17 @@ async def get_history(
 
     data = [
         {
-            "id": str(item.id),
-            "content": item.content,
-            "finalEmotion": item.finalEmotion,
-            "targetType": item.targetType,
-            "createdAt": item.createdAt,
-            "status": item.status,
+            "id": str(item.get("_id")),
+            "content": item.get("textResult", {}).get("content", ""),
+            "finalEmotion": item.get("finalEmotion"),
+            "targetType": item.get("targetType"),
+            "createdAt": item.get("createdAt"),
+            "status": AnalysisStatusEnum.SUCCESS.value,
         }
         for item in result
     ]
 
-    next_cursor = result[-1].createdAtVN if result else None
+    next_cursor = result[-1].get("createdAt") if result else None
 
     return {
         "data": data,
@@ -148,7 +150,7 @@ async def get_summary(userId: str, preset: str, fromDate: str = None, toDate: st
 
     counter = {}
     for e in entries:
-        emo = e.finalEmotion
+        emo = e.get("finalEmotion")
         if emo:
             counter[emo] = counter.get(emo, 0) + 1
 
@@ -184,8 +186,8 @@ async def get_daily_trend(
     grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
 
     for item in entries:
-        day = item.createdAt.strftime("%Y-%m-%d")
-        emo = item.finalEmotion   # joy, sadness, anger,...
+        day = item.get("createdAt").strftime("%Y-%m-%d")
+        emo = item.get("finalEmotion")   # joy, sadness, anger,...
 
         if emo in grouped[day]:
             grouped[day][emo] += 1
@@ -214,8 +216,8 @@ async def get_by_hour(userId: str):
     grouped = defaultdict(lambda: {emo.value: 0 for emo in EmotionEnum})
 
     for item in entries:
-        hour = item.createdAtVN.hour
-        emo = item.finalEmotion
+        hour = item.get("createdAt").hour
+        emo = item.get("finalEmotion")
 
         if emo in grouped[hour]:
             grouped[hour][emo] += 1
@@ -238,14 +240,13 @@ async def get_analysis_detail(analysisId: str):
         return {"error": "Analysis not found"}
 
     return {
-        "userId": analysis.userId,
-        "targetId": analysis.targetId,
-        "targetType": analysis.targetType,
-        "textEmotion": analysis.textEmotion,
-        "imageEmotions": analysis.imageEmotions,
-        "finalEmotion": analysis.finalEmotion,
-        "finalScores": analysis.finalScores,
-        "status": analysis.status,
-        "errorReason": analysis.errorReason,
-        "createdAt": analysis.createdAt,
+        "userId": analysis.get("userId"),
+        "targetId": analysis.get("targetId"),
+        "targetType": analysis.get("targetType"),
+        "textResult": analysis.get("textResult"),
+        "imageResults": analysis.get("imageResults"),
+        "finalEmotion": analysis.get("finalEmotion"),
+        "finalScores": analysis.get("finalScores"),
+        "status": AnalysisStatusEnum.SUCCESS.value,
+        "createdAt": analysis.get("createdAt"),
     }

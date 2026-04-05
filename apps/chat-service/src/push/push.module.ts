@@ -13,7 +13,7 @@ import { ChatPushService } from './chat-push.service';
           `amqp://${config.get('RABBITMQ_USER')}:${config.get('RABBITMQ_PASS')}` +
             `@${config.get('RABBITMQ_HOST')}:${config.get('RABBITMQ_PORT')}`,
         ],
-        queue: 'create_notification_queue',
+        queue: config.get('RABBITMQ_QUEUE') || 'create_notification_queue',
       }),
       inject: [ConfigService],
     }),
