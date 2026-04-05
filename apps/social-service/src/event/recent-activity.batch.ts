@@ -1,15 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { randomUUID } from 'crypto';
+import { NotiTargetType } from '@repo/dtos';
+import { createHash } from 'crypto';
+import pLimit from 'p-limit';
+import { UserClientService } from '../client/user/user-client.service';
 import {
   NotificationSample,
   NotificationService,
 } from './rabbitmq/notification.service';
-import { RecentActivityBufferService } from './recent-activity.buffer.service';
-
-import pLimit from 'p-limit';
-import { UserClientService } from 'src/client/user/user-client.service';
-import { NotiTargetType } from '@repo/dtos';
+import {
+  RecentActivityBufferService,
+  type RecentSocialActivity,
+} from './recent-activity.buffer.service';
 
 @Injectable()
 export class RecentActivityBatch {
@@ -20,31 +22,41 @@ export class RecentActivityBatch {
     private readonly userClient: UserClientService,
     private readonly notificationService: NotificationService,
   ) {
-    this.logger.log('🚀 RecentActivityBatch initialized');
+    this.logger.log('RecentActivityBatch initialized');
+  }
+
+  private buildNotificationRequestId(activityKey: string): string {
+    return createHash('sha256').update(activityKey).digest('hex');
   }
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async flushRecentActivities() {
-    this.logger.log('⏳ Starting flushRecentActivities job...');
+    this.logger.log('Starting flushRecentActivities job');
     const activities = await this.buffer.snapshotAndGetAll();
     const count = Object.keys(activities).length;
-    if (count === 0) return;
+    if (count === 0) {
+      return;
+    }
 
-    this.logger.log(`🚀 Flushing ${count} recent activities...`);
+    this.logger.log(`Flushing ${count} recent activities`);
 
+    const actorsById = await this.userClient.getUsers(
+      [...new Set(Object.values(activities).map((activity) => activity.actorId))],
+      'base',
+    );
     const limit = pLimit(20);
-
-    const tasks = Object.keys(activities).map((key) =>
+    const tasks = Object.entries(activities).map(([activityKey, activity]) =>
       limit(async () => {
-        const activity = activities[key];
         const { actorId, targetId, type } = activity;
 
         try {
-          const actor = await this.userClient.getUserInfo(actorId);
-          if (!actor) return;
+          const actor = actorsById[actorId];
+          if (!actor) {
+            return { status: 'drop' as const, activityKey, activity };
+          }
 
           const message: NotificationSample = {
-            id: randomUUID(),
+            id: this.buildNotificationRequestId(activityKey),
             eventType: type,
             payload: {
               targetType: NotiTargetType.USER,
@@ -57,18 +69,27 @@ export class RecentActivityBatch {
           };
 
           await this.notificationService.sendNotification(message);
-          this.logger.debug(`✅ Sent ${type} :${targetId}`);
-        } catch (err) {
+          this.logger.debug(`Sent ${type}:${targetId}`);
+          return { status: 'sent' as const, activityKey, activity };
+        } catch (error) {
           this.logger.error(
-            `❌ Failed ${type}:${targetId}:  ${err?.message || err}`,
+            `Failed ${type}:${targetId}: ${error instanceof Error ? error.message : String(error)}`,
           );
+          return { status: 'failed' as const, activityKey, activity };
         }
       }),
     );
 
-    await Promise.allSettled(tasks);
-    await this.buffer.clearProcessingSnapshot();
+    const results = await Promise.all(tasks);
+    const completedKeys = results
+      .filter((result) => result.status === 'sent' || result.status === 'drop')
+      .map((result) => result.activityKey);
+    const failedActivities = results
+      .filter((result) => result.status === 'failed')
+      .map((result) => result.activity as RecentSocialActivity);
 
-    this.logger.log(`✅ Done flushing ${count} activities`);
+    await this.buffer.acknowledgeProcessingActivities(completedKeys);
+    await this.buffer.requeueProcessingActivities(failedActivities);
+    this.logger.log(`Done flushing ${count} activities`);
   }
 }

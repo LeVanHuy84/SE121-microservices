@@ -1,15 +1,12 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ChatController } from './chat.controller';
-import { ChatGateway } from './chat.gateway';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ChatController } from "./chat.controller";
+import { ChatGateway } from "./chat.gateway";
 
-import { RedisModule } from '@nestjs-modules/ioredis';
-import { ChatStreamConsumer } from './chat.consumer';
-
-
-
+import { RedisModule } from "@nestjs-modules/ioredis";
+import { ChatStreamConsumer } from "./chat.consumer";
 
 @Module({
   imports: [
@@ -21,17 +18,17 @@ import { ChatStreamConsumer } from './chat.consumer';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CHAT_SERVICE_PORT'),
+            port: config.get<number>("CHAT_SERVICE_PORT"),
           },
         }),
       },
     ]),
     RedisModule.forRoot({
-      type: 'single',
+      type: "single",
       options: {
-        host: process.env.POST_REDIS_HOST,
-        port: process.env.POST_REDIS_PORT
-          ? parseInt(process.env.POST_REDIS_PORT, 10)
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT
+          ? parseInt(process.env.REDIS_PORT, 10)
           : 6379,
       },
     }),

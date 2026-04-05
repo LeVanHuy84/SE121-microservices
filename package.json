@@ -8,6 +8,11 @@
     "dev:test": "turbo run start:dev --parallel --concurrency=12 --filter=!analysis-service",
     "demo": "turbo run start:prod --parallel --concurrency=12 --filter=!analysis-service",
     "demo:test": "turbo run start:prod --filter=analysis-service --filter=api-gateway --filter=feed-service",
+    "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
+    "recommend:dev:gateway": "turbo run start:dev --parallel --filter=api-gateway --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
+    "recommend:report:live": "npm --workspace=social-service run test:recommend:live:report",
+    "recommend:compare:live": "npm --workspace=social-service run test:recommend:live:compare",
+    "group": "turbo run start:dev --filter=api-gateway --filter=group-service",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
@@ -36,7 +41,6 @@
     "dayjs": "^1.11.19",
     "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.8.1",
-    "kafkajs": "^2.2.4",
-    "neo4j-driver": "^5.28.2"
+    "kafkajs": "^2.2.4"
   }
 }
