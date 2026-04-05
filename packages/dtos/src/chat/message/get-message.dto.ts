@@ -1,6 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { ReactionStatsDTO } from './message-reaction-stats.dto';
-import { AttachmentDTO } from './send-message.dto';
+import { MediaType } from '../../common';
 
 export class ReactionDTO {
   @Expose()
@@ -11,6 +11,9 @@ export class ReactionDTO {
 }
 
 export class AttachmentResponseDTO {
+  @Expose()
+  type?: MediaType;
+
   @Expose()
   url: string;
 
@@ -25,6 +28,9 @@ export class AttachmentResponseDTO {
 
   @Expose()
   size?: number;
+
+  @Expose()
+  duration?: number;
 
   @Expose()
   thumbnailUrl?: string;

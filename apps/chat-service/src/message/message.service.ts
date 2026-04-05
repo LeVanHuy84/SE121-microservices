@@ -1,15 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   CursorPageResponse,
   CursorPaginationDTO,
   EventTopic,
+  MEDIA_UPLOAD_MAX_BYTES,
+  MediaType,
   MediaEventType,
   MessageResponseDTO,
   SendMessageDTO,
 } from '@repo/dtos';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { Message, MessageDocument } from 'src/mongo/schema/message.schema';
 import {
   Conversation,
@@ -17,12 +19,15 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 
 import { ConversationService } from 'src/conversation/conversation.service';
-import { populateAndMapMessage } from 'src/utils/mapping';
+import {
+  populateAndMapConversation,
+  populateAndMapMessage,
+} from 'src/utils/mapping';
 import { MessageCacheService } from './message-cache.service';
 import { plainToInstance } from 'class-transformer';
 
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import { OutboxService } from 'src/outbox/outbox.service';
+import { ChatPushService } from 'src/push/chat-push.service';
 
 @Injectable()
 export class MessageService {
@@ -39,9 +44,31 @@ export class MessageService {
 
     private readonly msgCache: MessageCacheService,
 
-    private readonly messageStreamProducer: ChatStreamProducerService,
     private readonly outboxService: OutboxService,
+    private readonly chatPushService: ChatPushService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
+
+  private async withTransaction<T>(
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const result = await work(session);
+      await session.commitTransaction();
+      await this.outboxService.flushPendingChatEvents(session);
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      this.outboxService.clearPendingChatEvents(session);
+      throw error;
+    } finally {
+      this.outboxService.clearPendingChatEvents(session);
+      await session.endSession();
+    }
+  }
 
   // ============= HISTORY =============
 
@@ -171,59 +198,169 @@ export class MessageService {
 
   // ============= SEND MESSAGE =============
 
-  async sendMessage(
-    userId: string,
-    dto: SendMessageDTO,
-  ): Promise<MessageResponseDTO> {
-    const conv = await this.conversationModel
-      .findById(dto.conversationId)
+ async sendMessage(
+  userId: string,
+  dto: SendMessageDTO,
+): Promise<MessageResponseDTO> {
+  this.validateAttachments(dto.attachments);
+
+  const { conversation, dtoMsg } = await this.withTransaction(async (session) => {
+    const conversation = await this.conversationModel
+      .findOne({
+        _id: dto.conversationId,
+        participants: userId,
+      })
+      .session(session)
       .exec();
 
-    if (!conv) throw new RpcException('Conversation not found');
-    if (!conv.participants.includes(userId)) {
-      throw new RpcException('You are not in this conversation');
+    if (!conversation) {
+      throw new RpcException('Conversation not found or access denied');
     }
 
-    const msg = new this.messageModel({
-      conversationId: conv._id,
+    let replyMessage: MessageDocument | null = null;
+    if (dto.replyTo) {
+      replyMessage = await this.messageModel
+        .findById(dto.replyTo)
+        .select('_id conversationId senderId content attachments createdAt')
+        .session(session)
+        .exec();
+
+      if (!replyMessage) {
+        throw new RpcException('Reply message not found');
+      }
+
+      if (replyMessage.conversationId.toString() !== dto.conversationId) {
+        throw new RpcException(
+          'Reply message does not belong to this conversation',
+        );
+      }
+    }
+
+    const msg = await new this.messageModel({
+      conversationId: conversation._id,
       senderId: userId,
       content: dto.content,
       attachments: dto.attachments,
-      replyTo: dto.replyTo ? new Types.ObjectId(dto.replyTo) : undefined,
+      replyTo: replyMessage?._id,
       seenBy: [userId],
       status: 'sent',
+    }).save({ session });
+
+    await this.conversationModel.updateOne(
+      { _id: conversation._id },
+      {
+        $set: {
+          lastMessage: msg._id,
+          updatedAt: new Date(),
+        },
+      },
+      { session },
+    );
+
+    const dtoMsg = populateAndMapMessage({
+      ...msg.toObject(),
+      replyTo: replyMessage ? replyMessage.toObject() : undefined,
+    })!;
+
+    await this.outboxService.enqueueChatEvent(
+      'message.created',
+      dtoMsg,
+      dto.conversationId,
+      session,
+    );
+
+    await this.outboxService.enqueueChatEvent(
+      'conversation.updated',
+      {
+        ...populateAndMapConversation(conversation),
+        lastMessage: dtoMsg,
+      },
+      conversation._id.toString(),
+      session,
+    );
+
+    if (dto.attachments?.length) {
+      await this.enqueueMediaAssignEvent(msg, msg._id.toString(), session);
+    }
+
+    return { conversation, dtoMsg };
+  });
+
+  await Promise.allSettled([
+    this.conversationService.updateConversationCache(conversation),
+    this.msgCache.setMessageDetail(dtoMsg),
+    this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
+  ]);
+
+  try {
+    await this.chatPushService.sendMessagePush({
+      senderId: userId,
+      conversationId: dto.conversationId,
+      conversationName: conversation.groupName,
+      isGroup: conversation.isGroup,
+      receiverIds: conversation.participants.filter(
+        (participantId) => participantId.toString() !== userId,
+      ),
+      messageId: dtoMsg._id,
+      preview: this.buildPushPreview(dtoMsg.content, dtoMsg.attachments),
     });
+  } catch (error) {
+    this.logger.warn('Failed to send push notification', error);
+  }
 
-    await msg.save();
+  return dtoMsg;
+}
 
-    if (msg.replyTo) {
-      await msg.populate('replyTo');
+  private validateAttachments(attachments?: SendMessageDTO['attachments']) {
+    if (!attachments?.length) {
+      return;
     }
 
-    // cập nhật lastMessage + updatedAt conversation
-    conv.lastMessage = msg._id as any;
-    await conv.save();
+    for (const attachment of attachments) {
+      if (
+        typeof attachment.size !== 'number' ||
+        !Number.isFinite(attachment.size) ||
+        attachment.size < 0
+      ) {
+        throw new RpcException('Attachment size is required');
+      }
 
-    const convDto =
-      await this.conversationService.updateConversationCache(conv);
-    const dtoMsg = populateAndMapMessage(msg)!;
+      const type = this.resolveAttachmentType(attachment);
+      const maxSize = MEDIA_UPLOAD_MAX_BYTES[type];
 
-    const tasks: Promise<unknown>[] = [
-      this.msgCache.setMessageDetail(dtoMsg),
-      this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
-      this.messageStreamProducer.publishMessageCreated(dtoMsg),
-    ];
+      if (attachment.size > maxSize) {
+        throw new RpcException(
+          `File exceeds the ${type} upload limit of ${maxSize} bytes`,
+        );
+      }
+    }
+  }
 
-    if (convDto) {
-      tasks.push(
-        this.messageStreamProducer.publishConversationUpdated(convDto),
-      );
+  private buildPushPreview(
+    content?: string | null,
+    attachments?: Array<{ type?: MediaType }>,
+  ) {
+    const trimmedContent = content?.trim();
+    if (trimmedContent) {
+      return trimmedContent;
     }
 
-    await Promise.all(tasks);
+    if (!attachments?.length) {
+      return 'Bạn có tin nhắn mới';
+    }
 
-    await this.enqueueMediaAssignEvent(msg, msg._id.toString());
-    return dtoMsg;
+    const attachmentType = attachments[0]?.type;
+    switch (attachmentType) {
+      case MediaType.IMAGE:
+        return 'Đã gửi một ảnh';
+      case MediaType.VIDEO:
+        return 'Đã gửi một video';
+      case MediaType.AUDIO:
+        return 'Đã gửi một audio';
+      case MediaType.FILE:
+      default:
+        return 'Đã gửi một file đính kèm';
+    }
   }
 
   // ============= EDIT MESSAGE =============
@@ -254,65 +391,84 @@ export class MessageService {
     messageId: string,
     forEveryone = true,
   ): Promise<MessageResponseDTO> {
-    const msg = await this.messageModel.findById(messageId).exec();
-    if (!msg) throw new RpcException('Message not found');
+    let msg: MessageDocument | null = null;
+    let dtoMsg!: MessageResponseDTO;
+    let conv: ConversationDocument | null = null;
+    let shouldUpdateConversation = false;
 
-    if (msg.senderId !== userId) {
-      // tuỳ bà cho admin xoá hay không
-      throw new RpcException('You can only delete your own message');
+    await this.withTransaction(async (session) => {
+      msg = await this.messageModel.findById(messageId).session(session).exec();
+      if (!msg) throw new RpcException('Message not found');
+
+      if (msg.senderId !== userId) {
+        // tuỳ bà cho admin xoá hay không
+        throw new RpcException('You can only delete your own message');
+      }
+
+      // soft delete
+      msg.isDeleted = true;
+      msg.deletedAt = new Date();
+      // msg.content = ''; // hoặc để nguyên và hide ở FE
+      await msg.save({ session });
+
+      dtoMsg = populateAndMapMessage(msg)!;
+      conv = await this.conversationModel
+        .findById(dtoMsg.conversationId)
+        .session(session)
+        .exec();
+      shouldUpdateConversation =
+        !!conv?.lastMessage && conv.lastMessage.toString() === dtoMsg._id;
+
+      await this.outboxService.enqueueChatEvent(
+        'message.deleted',
+        dtoMsg,
+        dtoMsg.conversationId,
+        session,
+      );
+
+      if (conv && shouldUpdateConversation) {
+        await this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          populateAndMapConversation(conv),
+          conv._id.toString(),
+          session,
+        );
+      }
+
+      await this.enqueueMediaDeleteEvent(msg, messageId, session);
+    });
+
+    if (!msg) {
+      throw new RpcException('Message not found');
     }
 
-    // soft delete
-    msg.isDeleted = true;
-    msg.deletedAt = new Date();
-    // msg.content = ''; // hoặc để nguyên và hide ở FE
-    await msg.save();
+    if (conv && shouldUpdateConversation) {
+      await this.conversationService.updateConversationCache(conv);
+    }
 
-    const dtoMsg = populateAndMapMessage(msg)!;
-    const conv = await this.conversationModel
-      .findById(dtoMsg.conversationId)
-      .exec();
-    const shouldUpdateConversation =
-      !!conv?.lastMessage && conv.lastMessage.toString() === dtoMsg._id;
-    const convDto = shouldUpdateConversation
-      ? await this.conversationService.updateConversationCache(conv)
-      : null;
-
-    const tasks: Promise<unknown>[] = [
-      // Keep detail cache and list in sync after delete.
+    await Promise.all([
       this.msgCache.setMessageDetail(dtoMsg),
-
       this.msgCache.upsertMessageToConversationList(
         dtoMsg.conversationId,
         dtoMsg,
       ),
-      this.messageStreamProducer.publishMessageDeleted(dtoMsg),
-    ];
+    ]);
 
-    if (convDto) {
-      tasks.push(
-        this.messageStreamProducer.publishConversationUpdated(convDto),
-      );
-    }
-
-    await Promise.all(tasks);
-
-    await this.enqueueMediaDeleteEvent(msg, messageId);
     return dtoMsg;
   }
 
   private async enqueueMediaDeleteEvent(
     msg: MessageDocument,
     messageId: string,
+    session?: ClientSession,
   ) {
     const items =
       msg.attachments
         ?.map((att) => {
           if (!att?.publicId) return null;
-          const resourceType =
-            att.mimeType && att.mimeType.startsWith('video/')
-              ? 'video'
-              : 'image';
+          const resourceType = this.toCloudinaryResourceType(
+            this.resolveAttachmentType(att),
+          );
           return { publicId: att.publicId, resourceType };
         })
         .filter(Boolean) || [];
@@ -325,31 +481,29 @@ export class MessageService {
       {
         items: items as {
           publicId: string;
-          resourceType?: 'image' | 'video';
+          resourceType?: 'image' | 'video' | 'raw';
         }[],
         source: 'chat-service',
         reason: 'message.deleted',
       },
       messageId,
+      session,
     );
   }
 
   private async enqueueMediaAssignEvent(
     msg: MessageDocument,
     messageId: string,
+    session?: ClientSession,
   ) {
     const items =
       msg.attachments
         ?.map((att) => {
           if (!att?.publicId) return null;
-          const resourceType =
-            att.mimeType && att.mimeType.startsWith('video/')
-              ? 'video'
-              : 'image';
           return {
             publicId: att.publicId,
             url: att.url,
-            type: resourceType,
+            type: this.resolveAttachmentType(att),
           };
         })
         .filter(Boolean) || [];
@@ -364,12 +518,46 @@ export class MessageService {
         items: items as {
           publicId: string;
           url?: string;
-          type?: 'image' | 'video';
+          type?: MediaType;
         }[],
         source: 'chat-service',
       },
       messageId,
+      session,
     );
+  }
+
+  private resolveAttachmentType(att: {
+    type?: MediaType;
+    mimeType?: string;
+  }): MediaType {
+    if (att.type) {
+      return att.type;
+    }
+    if (att.mimeType?.startsWith('image/')) {
+      return MediaType.IMAGE;
+    }
+    if (att.mimeType?.startsWith('video/')) {
+      return MediaType.VIDEO;
+    }
+    if (att.mimeType?.startsWith('audio/')) {
+      return MediaType.AUDIO;
+    }
+
+    return MediaType.FILE;
+  }
+
+  private toCloudinaryResourceType(type: MediaType): 'image' | 'video' | 'raw' {
+    switch (type) {
+      case MediaType.IMAGE:
+        return 'image';
+      case MediaType.VIDEO:
+      case MediaType.AUDIO:
+        return 'video';
+      case MediaType.FILE:
+      default:
+        return 'raw';
+    }
   }
 
   // ============= REACTION =============

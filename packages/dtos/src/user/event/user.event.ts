@@ -14,6 +14,11 @@ export interface UserEventPayloads {
     lastName: string;
     avatarUrl?: string;
     bio?: string;
+    location?: string;
+    jobTitle?: string;
+    company?: string;
+    school?: string;
+    interests?: string[];
     isActive: boolean;
     createdAt: Date;
   };
@@ -24,6 +29,11 @@ export interface UserEventPayloads {
     lastName?: string;
     avatarUrl?: string;
     bio?: string;
+    location?: string;
+    jobTitle?: string;
+    company?: string;
+    school?: string;
+    interests?: string[];
     isActive?: boolean;
   };
   [UserEventType.REMOVED]: {

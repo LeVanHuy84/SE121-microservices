@@ -30,6 +30,7 @@
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/typeorm": "^11.0.0",
     "@repo/common": "*",
+    "@repo/dtos": "*",
     "cloudinary": "^2.7.0",
     "crypto": "^1.0.1",
     "ioredis": "^5.8.0",

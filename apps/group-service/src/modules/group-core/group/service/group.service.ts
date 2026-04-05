@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { InjectRepository } from '@nestjs/typeorm';
 import {
   CreateGroupDTO,
   EventDestination,
@@ -16,18 +15,19 @@ import {
   MediaEventPayloads,
   MediaEventType,
   MediaItemDTO,
+  MediaType,
   UpdateGroupDTO,
 } from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { Group } from 'src/entities/group.entity';
-import { GroupMember } from 'src/entities/group-member.entity';
-import { GroupSetting } from 'src/entities/group-setting.entity';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { GroupCacheService } from './group-cache.service';
-import { GroupLogService } from 'src/modules/group-log/group-log.service';
-import { UserClientService } from 'src/modules/client/user/user-client.service';
 import { formatValue, GROUP_FIELD_LABELS } from 'src/common/constant/constant';
 import { GroupMapper } from 'src/common/mapper/group.mapper';
+import { GroupMember } from 'src/entities/group-member.entity';
+import { GroupSetting } from 'src/entities/group-setting.entity';
+import { Group } from 'src/entities/group.entity';
+import { OutboxEvent } from 'src/entities/outbox.entity';
+import { UserClientService } from 'src/modules/client/user/user-client.service';
+import { GroupLogService } from 'src/modules/group-log/group-log.service';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { GroupCacheService } from './group-cache.service';
 
 @Injectable()
 export class GroupService {
@@ -215,7 +215,7 @@ export class GroupService {
       .filter((m): m is { publicId: string; url?: string } => !!m?.publicId)
       .map((m) => ({
         publicId: m.publicId,
-        type: 'image' as const,
+        type: MediaType.IMAGE,
         url: m.url,
       }));
 

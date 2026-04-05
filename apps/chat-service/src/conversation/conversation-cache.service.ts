@@ -85,7 +85,9 @@ export class ConversationCacheService {
     const payload = JSON.stringify(dto);
     const updatedAt = (dto as any).updatedAt ?? (dto as any).createdAt;
     const inferredVersion = updatedAt ? new Date(updatedAt).getTime() : 0;
-    const syncVersion = Number((dto as any).syncVersion ?? inferredVersion ?? 0);
+    const syncVersion = Number(
+      (dto as any).syncVersion ?? inferredVersion ?? 0,
+    );
     await this.redis.eval(
       this.setIfNewerScript,
       1,
@@ -131,6 +133,12 @@ export class ConversationCacheService {
   ): Promise<void> {
     const { zKey, emptyKey } = this.getUserConvKeys(userId);
     const convId = dto._id.toString();
+    const hiddenFor = new Set(((dto as any).hiddenFor ?? []) as string[]);
+
+    if (hiddenFor.has(userId)) {
+      await this.removeConversationFromUser(userId, convId);
+      return;
+    }
 
     const score = new Date(
       (dto as any).updatedAt ?? (dto as any).createdAt,
@@ -205,7 +213,11 @@ export class ConversationCacheService {
 
     if (missingIds.length) {
       const docs = await this.conversationModel
-        .find({ _id: { $in: missingIds }, participants: userId })
+        .find({
+          _id: { $in: missingIds },
+          participants: userId,
+          hiddenFor: { $ne: userId },
+        })
         .populate<{ lastMessage: MessageDocument | null }>('lastMessage')
         .exec();
 
@@ -224,9 +236,22 @@ export class ConversationCacheService {
       }
     }
 
+    const hiddenIds: string[] = [];
     const items = selected
-      .map((id) => itemsById.get(id))
+      .map((id) => {
+        const item = itemsById.get(id);
+        if (!item) return null;
+        if ((item.hiddenFor || []).includes(userId)) {
+          hiddenIds.push(id);
+          return null;
+        }
+        return item;
+      })
       .filter(Boolean) as CachedConversation[];
+
+    if (hiddenIds.length) {
+      await this.redis.zrem(zKey, ...hiddenIds);
+    }
 
     if (!items.length) return null;
 
@@ -255,6 +280,10 @@ export class ConversationCacheService {
 
       for (const item of items) {
         const id = item._id.toString();
+        if ((item.hiddenFor || []).includes(userId)) {
+          pipeline.zrem(zKey, id);
+          continue;
+        }
         const score = new Date(
           (item as any).updatedAt ?? (item as any).createdAt,
         ).getTime();
