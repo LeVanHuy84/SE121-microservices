@@ -19,6 +19,11 @@ class Settings:
     KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092")
     KAFKA_CLIENT_ID: str = os.getenv("KAFKA_CLIENT_ID", "analysis_service")
 
+    # Daily emotion aggregation
+    EMOTION_PROFILE_EMA_ALPHA: float = float(os.getenv("EMOTION_PROFILE_EMA_ALPHA", 0.2))
+    EMOTION_DAILY_CRON_HOUR_UTC: int = int(os.getenv("EMOTION_DAILY_CRON_HOUR_UTC", 0))
+    EMOTION_DAILY_CRON_MINUTE_UTC: int = int(os.getenv("EMOTION_DAILY_CRON_MINUTE_UTC", 5))
+
     INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY")
     if not INTERNAL_SERVICE_KEY:
         raise RuntimeError("INTERNAL_SERVICE_KEY is not set")

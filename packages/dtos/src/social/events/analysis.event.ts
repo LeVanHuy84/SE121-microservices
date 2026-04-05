@@ -1,8 +1,11 @@
-import { TargetType } from '../enums';
+import { DominantModality, IntensityLevel } from '../../emotion/enums';
+import { Emotion, TargetType } from '../enums';
 
 export enum AnalysisEventType {
   CREATED = 'analysis_created',
   UPDATED = 'analysis_updated',
+  EMOTION_RESULT = 'emotion_result',
+  MODERATION_REJECTED = 'moderation_rejected',
 }
 
 export class CreatedAnalysisEventPayload {
@@ -22,11 +25,30 @@ export class UpdatedAnalysisEventPayload {
 export class AnalysisResultEventPayload {
   targetId: string;
   targetType: TargetType;
-  finalEmotion: string;
-  score: number;
+
+  finalEmotion: Emotion;
+
+  scores: Record<string, number>; // ✅ full distribution
+  confidence: number; // ✅ finalConfidence
+  intensityScore: number; // ✅ intensity.score
+  intensityLevel?: IntensityLevel; // ✅ intensity.level (optional)
+
+  dominantModality: DominantModality;
+  dominantSceneType?: string;
+  riskHintLevel?: string;
+}
+
+export class ModerationEventPayload {
+  targetId: string;
+  targetType: TargetType;
 }
 
 export class AnalysisResultEvent {
-  type: AnalysisEventType;
+  type: string;
   payload: AnalysisResultEventPayload;
+}
+
+export class ModerationRejectedEvent {
+  type: string;
+  payload: ModerationEventPayload;
 }

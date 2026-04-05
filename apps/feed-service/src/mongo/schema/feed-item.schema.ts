@@ -9,19 +9,25 @@ export class FeedItem {
   @Prop({ required: true, index: true })
   userId: string; // feed của user nào
 
-  @Prop({ required: true })
-  snapshotId: string; // tham chiếu tới post_snapshot hoặc share_snapshot
-
   @Prop({ required: true, enum: FeedEventType })
-  eventType: FeedEventType;
+  eventType: FeedEventType; // POST | SHARE
 
-  @Prop()
-  refId: string; // tham chiếu tới postId hoặc shareId
+  // snapshot id tương ứng
+  @Prop({ required: true })
+  snapshotId: string;
 
-  @Prop({ default: 0, index: true })
-  rankingScore: number;
+  // QUAN TRỌNG: luôn có postId cho ranking
+  @Prop({ required: true, index: true })
+  postId: string;
 
-  @Prop()
+  @Prop({ index: true })
+  emotionLabel?: string; // optional
+
+  // ref gốc (postId hoặc shareId)
+  @Prop({ required: true })
+  refId: string;
+
+  @Prop({ index: true })
   createdAt?: Date;
 
   @Prop()

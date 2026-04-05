@@ -8,7 +8,7 @@ import { ShareSnapshot } from 'src/mongo/schema/share-snapshot.schema';
 export class CacheLayerService {
   private readonly POST_PREFIX = 'cache:post';
   private readonly SHARE_PREFIX = 'cache:share';
-  private readonly TTL = 60 * 10; // 10 phút
+  private readonly TTL = 60 * 3; // 3 phút
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 

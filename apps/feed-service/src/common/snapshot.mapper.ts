@@ -32,7 +32,7 @@ export class SnapshotMapper {
       content: post.content,
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
       mediaRemaining: post.mediaRemaining,
-      mainEmotion: post.mainEmotion,
+      mainEmotion: post.emotionFeature?.label?.toUpperCase() || null,
       createdAt: post.postCreatedAt,
       postStat: post.stats,
       reactedType: reactedType,
@@ -41,15 +41,19 @@ export class SnapshotMapper {
 
   static toShareSnapshotDTOs(
     shares: any[],
+    posts: any[],
     reactedMap?: Record<string, ReactionType>,
   ): ShareSnapshotDTO[] {
-    return shares.map((share) =>
-      this.toShareSnapshotDTO(share, reactedMap?.[share.shareId]),
-    );
+    const postMap = new Map(posts.map((p) => [p.postId, p]));
+    return shares.map((share) => {
+      const post = postMap.get(share.postId);
+      return this.toShareSnapshotDTO(share, post, reactedMap?.[share.shareId]);
+    });
   }
 
   static toShareSnapshotDTO(
     share: any,
+    post: any,
     reactedType?: ReactionType,
   ): ShareSnapshotDTO {
     return {
@@ -58,15 +62,15 @@ export class SnapshotMapper {
       content: share.content,
       audience: share.audience ? share.audience : Audience.PUBLIC,
       post: {
-        postId: share.post.postId,
-        userId: share.post.userId,
-        group: share.post.group || undefined,
-        audience: Audience.PUBLIC,
-        content: share.post.content,
-        mediaPreviews: this.toMediaItemDTOs(share.post.mediaPreviews),
-        mediaRemaining: share.post.mediaRemaining,
-        mainEmotion: share.post.mainEmotion,
-        createdAt: share.post.createdAt,
+        postId: post.postId,
+        userId: post.userId,
+        group: post.group || undefined,
+        audience: post.audience || Audience.PUBLIC,
+        content: post.content,
+        mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
+        mediaRemaining: post.mediaRemaining,
+        mainEmotion: post.emotionFeature?.label?.toUpperCase() || null,
+        createdAt: post.postCreatedAt,
       },
       createdAt: share.shareCreatedAt,
       shareStat: share.stats,
