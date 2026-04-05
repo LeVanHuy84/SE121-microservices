@@ -7,7 +7,6 @@ import { ConversationModule } from './conversation/conversation.module';
 import { MessageModule } from './message/message.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { PresenceModule } from './presence/presence.module';
-import { ChatStreamProducerService } from './chat-stream-producer/chat-stream-producer.service';
 import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-producer.module';
 import { KafkaProducerModule } from '@repo/common';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -38,6 +37,6 @@ import { OutboxModule } from './outbox/outbox.module';
     OutboxModule,
   ],
   controllers: [AppController],
-  providers: [AppService, ChatStreamProducerService],
+  providers: [AppService],
 })
 export class AppModule {}

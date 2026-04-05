@@ -8,8 +8,8 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 import { ConversationCacheService } from './conversation-cache.service';
 import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
-import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import { OutboxModule } from 'src/outbox/outbox.module';
+import { PushModule } from 'src/push/push.module';
 
 @Module({
   imports: [
@@ -18,12 +18,12 @@ import { OutboxModule } from 'src/outbox/outbox.module';
       { name: Message.name, schema: MessageSchema },
     ]),
     OutboxModule,
+    PushModule,
   ],
   controllers: [ConversationController],
   providers: [
     ConversationService,
     ConversationCacheService,
-    ChatStreamProducerService,
   ],
   exports: [ConversationService],
 })

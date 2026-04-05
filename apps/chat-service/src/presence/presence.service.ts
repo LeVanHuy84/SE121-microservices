@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
+  PresenceDisconnectEvent,
   PresenceHeartbeatEvent,
   PresenceInfo,
   PresenceStatus,
@@ -17,6 +18,8 @@ import Redis from 'ioredis';
 @Injectable()
 export class PresenceService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PresenceService.name);
+  private readonly presenceEventsChannel = 'presence:events';
+  private readonly presenceUpdatesChannel = 'presence:updates';
   private readonly markOfflineIfStaleScript = `
     local userKey = KEYS[1]
     local zKey = KEYS[2]
@@ -68,6 +71,52 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     redis.call('ZREM', zKey, userId)
     return {0, lastSeen}
   `;
+  private readonly markOfflineOnDisconnectScript = `
+    local userKey = KEYS[1]
+    local zKey = KEYS[2]
+    local onlineKey = KEYS[3]
+    local locationKey = KEYS[4]
+    local connSetKey = KEYS[5]
+    local now = tonumber(ARGV[1])
+    local userId = ARGV[2]
+    local disconnectedConnId = ARGV[3]
+    local connKeyPrefix = ARGV[4]
+
+    if disconnectedConnId and disconnectedConnId ~= '' then
+      redis.call('DEL', connKeyPrefix .. disconnectedConnId)
+      redis.call('SREM', connSetKey, disconnectedConnId)
+    end
+
+    local conns = redis.call('SMEMBERS', connSetKey)
+    local active = 0
+    for i = 1, #conns do
+      local connId = conns[i]
+      local connKey = connKeyPrefix .. connId
+      if redis.call('EXISTS', connKey) == 1 then
+        active = active + 1
+      else
+        redis.call('SREM', connSetKey, connId)
+      end
+    end
+
+    if active > 0 then
+      return {0, tonumber(redis.call('HGET', userKey, 'lastSeen')) or now}
+    end
+
+    redis.call('DEL', connSetKey)
+
+    local status = redis.call('HGET', userKey, 'status')
+    if status == 'online' then
+      redis.call('HSET', userKey, 'status', 'offline', 'lastSeen', tostring(now))
+      redis.call('SREM', onlineKey, userId)
+      redis.call('ZREM', zKey, userId)
+      redis.call('DEL', locationKey)
+      return {1, now}
+    end
+
+    redis.call('ZREM', zKey, userId)
+    return {0, tonumber(redis.call('HGET', userKey, 'lastSeen')) or now}
+  `;
 
   private sub: Redis; // subscriber cho presence:heartbeat
 
@@ -106,11 +155,11 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     this.sub = this.redis.duplicate();
 
-    await this.sub.subscribe('presence:heartbeat');
+    await this.sub.subscribe(this.presenceEventsChannel);
     this.sub.on('message', (channel, message) => {
-      if (channel !== 'presence:heartbeat') return;
-      this.handleHeartbeatMessage(message).catch((err) =>
-        this.logger.error('Error handling heartbeat', err),
+      if (channel !== this.presenceEventsChannel) return;
+      this.handlePresenceEventMessage(message).catch((err) =>
+        this.logger.error('Error handling presence event', err),
       );
     });
   }
@@ -124,19 +173,30 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
 
   // ========== Handle HEARTBEAT từ gateway ==========
 
-  private async handleHeartbeatMessage(raw: string) {
-    let evt: PresenceHeartbeatEvent;
+  private async handlePresenceEventMessage(raw: string) {
+    let evt: PresenceHeartbeatEvent | PresenceDisconnectEvent;
     try {
       evt = JSON.parse(raw);
     } catch (e) {
-      this.logger.error('Invalid heartbeat message', e);
+      this.logger.error('Invalid presence event message', e);
       return;
     }
 
-    if (evt.type !== 'HEARTBEAT') return;
+    if (evt.type === 'HEARTBEAT') {
+      await this.handleHeartbeatEvent(evt);
+      return;
+    }
 
+    if (evt.type === 'DISCONNECT') {
+      await this.handleDisconnectEvent(evt);
+    }
+  }
+
+  private async handleHeartbeatEvent(evt: PresenceHeartbeatEvent) {
     const { userId, ts, serverId, connectionId } = evt;
-    const now = ts || Date.now();
+    if (!userId) return;
+
+    const now = ts ?? Date.now();
 
     const userKey = this.userKey(userId);
     const currentStatus = await this.redis.hget(userKey, 'status');
@@ -183,6 +243,38 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
         userId,
         status: 'online',
         lastSeen: now,
+      });
+    }
+  }
+
+  private async handleDisconnectEvent(evt: PresenceDisconnectEvent) {
+    const { userId, connectionId, ts } = evt;
+    if (!userId || !connectionId) return;
+
+    const now = ts ?? Date.now();
+    const res = (await this.redis.eval(
+      this.markOfflineOnDisconnectScript,
+      5,
+      this.userKey(userId),
+      this.lastSeenZSetKey,
+      this.onlineSetKey,
+      this.userLocationKey(userId),
+      this.userConnSetKey(userId),
+      String(now),
+      userId,
+      connectionId,
+      `presence:conn:${userId}:`,
+    )) as [number, number] | number;
+
+    const flag = Array.isArray(res) ? Number(res[0]) : Number(res);
+    const lastSeen = Array.isArray(res) ? Number(res[1]) : now;
+
+    if (flag === 1) {
+      await this.publishPresenceUpdate({
+        type: 'PRESENCE_UPDATE',
+        userId,
+        status: 'offline',
+        lastSeen,
       });
     }
   }
@@ -241,7 +333,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
   // ========== Helper publish update ra Redis cho gateway ==========
 
   private async publishPresenceUpdate(evt: PresenceUpdateEvent) {
-    await this.redis.publish('presence:updates', JSON.stringify(evt));
+    await this.redis.publish(this.presenceUpdatesChannel, JSON.stringify(evt));
   }
 
   // ========== API nội bộ: lấy presence cho list user ==========
@@ -279,4 +371,3 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     return members.slice(0, limit);
   }
 }
-

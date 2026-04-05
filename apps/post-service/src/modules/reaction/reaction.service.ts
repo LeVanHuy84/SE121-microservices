@@ -3,14 +3,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   CursorPageResponse,
   DisReactDTO,
+  EventDestination,
+  EventTopic,
   GetReactionsDTO,
+  InteractionEventPayload,
+  InteractionType,
   ReactDTO,
   ReactionResponseDTO,
   ReactionType,
+  RootType,
   StatsEventType,
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Reaction } from 'src/entities/reaction.entity';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { CommentStat } from 'src/entities/comment-stat.entity';
@@ -33,14 +39,14 @@ export class ReactionService {
     private readonly reactionRepo: Repository<Reaction>,
     private readonly dataSource: DataSource,
     private readonly statBuffer: StatsBufferService,
-    private readonly recentActivityBuffer: RecentActivityBufferService
+    private readonly recentActivityBuffer: RecentActivityBufferService,
   ) {}
 
   // --------------------------------------------------
   // 🧩 Lấy danh sách reaction (dùng QueryBuilder)
   // --------------------------------------------------
   async getReactions(
-    dto: GetReactionsDTO
+    dto: GetReactionsDTO,
   ): Promise<CursorPageResponse<ReactionResponseDTO>> {
     const qb = this.reactionRepo
       .createQueryBuilder('r')
@@ -75,7 +81,7 @@ export class ReactionService {
     return new CursorPageResponse<ReactionResponseDTO>(
       reactionDTOs,
       nextCursor,
-      hasNextPage
+      hasNextPage,
     );
   }
 
@@ -92,6 +98,27 @@ export class ReactionService {
 
       if (!existing) {
         await this.createReaction(manager, userId, dto);
+        if (dto.targetType !== TargetType.COMMENT) {
+          const interactionPayload: InteractionEventPayload = {
+            userId: userId,
+            targetType:
+              dto.targetType === TargetType.POST
+                ? RootType.POST
+                : RootType.SHARE,
+            targetId: dto.targetId,
+            interactionType: InteractionType.REACT,
+            createdAt: new Date(),
+          };
+
+          const interactionOutbox = manager.create(OutboxEvent, {
+            topic: EventTopic.INTERACTION,
+            destination: EventDestination.KAFKA,
+            eventType: 'user.interaction',
+            payload: interactionPayload,
+          });
+
+          await manager.save(interactionOutbox);
+        }
         return {
           buffer: [{ delta: +1, type: dto.reactionType }],
           isNew: true,
@@ -125,7 +152,7 @@ export class ReactionService {
         ? this.statBuffer.updateMultipleStats(
             dto.targetType,
             dto.targetId,
-            updates
+            updates,
           )
         : Promise.resolve(),
       result.isNew
@@ -167,7 +194,7 @@ export class ReactionService {
         dto.targetType,
         dto.targetId,
         reactionType,
-        -1
+        -1,
       );
 
       return { buffer: { delta: -1, type: reactionType } };
@@ -179,13 +206,12 @@ export class ReactionService {
         dto.targetId,
         StatsEventType.REACTION,
         result.buffer.delta,
-        ReactionType[result.buffer.type]
+        ReactionType[result.buffer.type],
       );
     }
 
     return true;
   }
-
 
   // --------------------------------------------------
   // Get reactedType batch by userId + targetIds
@@ -193,14 +219,14 @@ export class ReactionService {
   async getReactedTypesBatch(
     userId: string,
     targetType: TargetType,
-    targetIds: string[]
+    targetIds: string[],
   ): Promise<Record<string, ReactionType>> {
     if (!targetIds.length) return {};
     const reactions = await this.reactionRepo.find({
       where: { userId, targetId: In(targetIds), targetType },
     });
     return Object.fromEntries(
-      reactions.map((r) => [r.targetId, r.reactionType])
+      reactions.map((r) => [r.targetId, r.reactionType]),
     );
   }
 
@@ -211,7 +237,7 @@ export class ReactionService {
   private async createReaction(
     manager: EntityManager,
     userId: string,
-    dto: ReactDTO
+    dto: ReactDTO,
   ) {
     const repo = manager.getRepository(Reaction);
     await repo.save(
@@ -220,7 +246,7 @@ export class ReactionService {
         targetId: dto.targetId,
         targetType: dto.targetType,
         reactionType: dto.reactionType,
-      })
+      }),
     );
 
     await this.updateStatsWithManager(
@@ -228,21 +254,21 @@ export class ReactionService {
       dto.targetType,
       dto.targetId,
       dto.reactionType,
-      +1
+      +1,
     );
   }
 
   private async switchReaction(
     manager: EntityManager,
     existing: Reaction,
-    newType: ReactionType
+    newType: ReactionType,
   ) {
     await this.updateStatsWithManager(
       manager,
       existing.targetType,
       existing.targetId,
       existing.reactionType,
-      -1
+      -1,
     );
 
     existing.reactionType = newType;
@@ -253,7 +279,7 @@ export class ReactionService {
       existing.targetType,
       existing.targetId,
       newType,
-      +1
+      +1,
     );
   }
 
@@ -262,7 +288,7 @@ export class ReactionService {
     targetType: TargetType,
     targetId: string,
     reactionType: ReactionType,
-    delta: number
+    delta: number,
   ) {
     const field = ReactionFieldMap[reactionType];
     const repoClass = this.statRepoMap[targetType];

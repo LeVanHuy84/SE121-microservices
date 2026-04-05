@@ -24,6 +24,9 @@
     },
     "start:dev": {
       "dependsOn": ["^dev"]
+    },
+    "start:prod": {
+      "cache": false
     }
   }
 }

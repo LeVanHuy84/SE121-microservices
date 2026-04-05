@@ -15,6 +15,7 @@ import {
   ConversationResponseDTO,
   CreateConversationDTO,
   CursorPaginationDTO,
+  GetConversationsQueryDTO,
   MessageResponseDTO,
   SendMessageDTO,
   UpdateConversationDTO,
@@ -33,7 +34,7 @@ export class ChatController {
   @Get('conversations')
   getConversations(
     @CurrentUserId() userId: string,
-    @Query() query: CursorPaginationDTO
+    @Query() query: GetConversationsQueryDTO
   ) {
     return this.chatClient.send('getConversations', { userId, query });
   }

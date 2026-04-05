@@ -7,6 +7,8 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 interface RegisterDeviceTokenDto {
   token: string;
   platform: 'ios' | 'android' | 'web';
+  provider?: 'fcm';
+  appId?: string;
   deviceId?: string;
   deviceName?: string;
 }
