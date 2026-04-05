@@ -47,19 +47,19 @@ export class SnapshotRepository {
       .exec();
   }
 
-  async getUsersWithAggregatesBetween(
-    since: Date,
-    until: Date,
-  ): Promise<string[]> {
-    return this.aggregateModel
-      .distinct('userId', {
-        createdAt: {
-          $gt: since,
-          $lte: until,
-        },
-      })
-      .exec();
-  }
+  // async getUsersWithAggregatesBetween(
+  //   since: Date,
+  //   until: Date,
+  // ): Promise<string[]> {
+  //   return this.aggregateModel
+  //     .distinct('userId', {
+  //       createdAt: {
+  //         $gt: since,
+  //         $lte: until,
+  //       },
+  //     })
+  //     .exec();
+  // }
 
   async upsertUserWindowSnapshot(
     userId: string,
@@ -78,13 +78,51 @@ export class SnapshotRepository {
     );
   }
 
-  async getUserWindowSnapshot(
+  async insertSnapshot(payload: SnapshotPayload): Promise<void> {
+    await this.snapshotModel.create(payload);
+  }
+
+  async getLatestSnapshot(
     userId: string,
     window: EmotionTimeWindow,
   ): Promise<UserEmotionSnapshot | null> {
     return this.snapshotModel
       .findOne({ userId, window })
+      .sort({ createdAt: -1 })
       .lean<UserEmotionSnapshot>()
       .exec();
+  }
+
+  async getPreviousSnapshot(
+    userId: string,
+    window: EmotionTimeWindow,
+  ): Promise<UserEmotionSnapshot | null> {
+    const snapshots = await this.snapshotModel
+      .find({ userId, window })
+      .sort({ createdAt: -1 })
+      .skip(1)
+      .limit(1)
+      .lean<UserEmotionSnapshot[]>()
+      .exec();
+
+    return snapshots[0] ?? null;
+  }
+
+  async getUserWindowSnapshot(
+    userId: string,
+    window: EmotionTimeWindow,
+  ): Promise<UserEmotionSnapshot | null> {
+    return this.getLatestSnapshot(userId, window);
+  }
+
+  // ===== SEED =====
+  async getEarliestEventTime(userId: string): Promise<Date | null> {
+    const doc = await this.aggregateModel
+      .findOne({ userId }, { createdAt: 1 })
+      .sort({ createdAt: 1 })
+      .lean<{ createdAt: Date }>()
+      .exec();
+
+    return doc?.createdAt ?? null;
   }
 }

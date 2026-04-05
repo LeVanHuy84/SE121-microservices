@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Aggregate24hProjection,
-  EmotionFeatureRepository,
-} from './emotion-feature.repository';
-import { Emotion, EmotionRankingFeaturesDto } from '@repo/dtos';
+import { EmotionRankingFeaturesDto } from '@repo/dtos';
+import { EmotionFeatureRepository } from './emotion-feature.repository';
 
 const NEUTRAL_DISTRIBUTION: Record<string, number> = {
   joy: 0.1,
@@ -27,78 +24,48 @@ export class EmotionFeatureService {
   async getUserEmotionFeatures(
     userId: string,
   ): Promise<EmotionRankingFeaturesDto> {
-    const profileDoc =
-      await this.repository.findProfileWithSnapshotsByUserId(userId);
+    // ===== PARALLEL FETCH =====
+    const [profile, { snapshot1d, snapshot7d }] = await Promise.all([
+      this.repository.findProfileByUserId(userId),
+      this.repository.getLatestSnapshots(userId),
+    ]);
 
+    // ===== USER PREFERENCE =====
     const userEmotionPreference =
-      profileDoc?.emotionVectorEMA &&
-      Object.keys(profileDoc.emotionVectorEMA).length > 0
-        ? profileDoc.emotionVectorEMA
+      profile?.emotionVectorEMA &&
+      Object.keys(profile.emotionVectorEMA).length > 0
+        ? profile.emotionVectorEMA
         : { ...NEUTRAL_DISTRIBUTION };
 
+    // ===== SNAPSHOT-BASED FEATURES =====
+    const last24hEmotionDistribution = snapshot1d?.emotionDistribution ?? {
+      ...NEUTRAL_DISTRIBUTION,
+    };
+
+    const negativeRatio7d = this.toSafeNumber(snapshot7d?.negativeRatio);
+
+    const emotionVolatility7d = this.toSafeNumber(
+      snapshot7d?.emotionVolatility,
+    );
+
+    const riskScore = this.toSafeNumber(snapshot7d?.riskScore);
+
+    // ===== PROFILE FEATURES =====
     const recentNegativityScore = this.toSafeNumber(
-      profileDoc?.recentNegativityScore,
+      profile?.recentNegativityScore,
     );
-    const emotionMomentum = this.toSafeNumber(profileDoc?.emotionMomentum);
-    const snapshot7d = profileDoc?.snapshot7d;
 
-    const now = new Date();
-    const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const aggregates24h = await this.repository.findAggregatesByUserIdInRange(
-      userId,
-      since24h,
-      now,
-    );
-    const last24hEmotionDistribution =
-      this.compute24hDistribution(aggregates24h);
+    const emotionMomentum = this.toSafeNumber(profile?.emotionMomentum);
 
-    const features: EmotionRankingFeaturesDto = {
+    // ===== FINAL DTO =====
+    return {
       userEmotionPreference,
       last24hEmotionDistribution,
-      negativeRatio7d: this.toSafeNumber(snapshot7d?.negativeRatio),
-      emotionVolatility7d: this.toSafeNumber(snapshot7d?.emotionVolatility),
-      riskScore: this.toSafeNumber(snapshot7d?.riskScore),
+      negativeRatio7d,
+      emotionVolatility7d,
+      riskScore,
       recentNegativityScore,
       emotionMomentum,
     };
-
-    return features;
-  }
-
-  private compute24hDistribution(
-    aggregates: Aggregate24hProjection[],
-  ): Record<string, number> {
-    if (aggregates.length === 0) {
-      return { ...NEUTRAL_DISTRIBUTION };
-    }
-
-    const totals: Record<string, number> = {};
-
-    for (const aggregate of aggregates) {
-      const scores = aggregate.finalScores ?? {};
-      for (const [emotion, scoreValue] of Object.entries(scores)) {
-        const score = Number(scoreValue);
-        if (!Number.isFinite(score)) {
-          continue;
-        }
-        totals[emotion] = (totals[emotion] ?? 0) + score;
-      }
-    }
-
-    const grandTotal = Object.values(totals).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
-
-    if (grandTotal === 0) {
-      return { ...NEUTRAL_DISTRIBUTION };
-    }
-
-    const distribution: Record<string, number> = {};
-    for (const [emotion, total] of Object.entries(totals)) {
-      distribution[emotion] = total / grandTotal;
-    }
-
-    return distribution;
   }
 }
