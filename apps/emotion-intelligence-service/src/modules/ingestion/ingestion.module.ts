@@ -30,5 +30,6 @@ import { RedisModule } from '@nestjs-modules/ioredis';
   ],
   controllers: [IngestionController],
   providers: [IngestionService],
+  exports: [IngestionService],
 })
 export class IngestionModule {}

@@ -17,12 +17,12 @@ export enum EmotionTimeWindow {
 }
 
 export enum LowCaseEmotion {
-  HAPPY = 'happy',
-  SAD = 'sad',
-  ANGRY = 'angry',
-  FEARFUL = 'fearful',
-  DISGUSTED = 'disgusted',
-  SURPRISED = 'surprised',
+  JOY = 'joy',
+  SADNESS = 'sadness',
+  ANGER = 'anger',
+  FEAR = 'fear',
+  DISGUST = 'disgust',
+  SURPRISE = 'surprise',
   NEUTRAL = 'neutral',
 }
 
@@ -38,4 +38,24 @@ export enum RiskHintLevel {
   LOW = 'low',
   MEDIUM = 'medium',
   HIGH = 'high',
+}
+
+export enum InsightType {
+  ABOVE_BASELINE = 'ABOVE_BASELINE',
+  DETERIORATING_TREND = 'DETERIORATING_TREND',
+  HIGH_NEGATIVITY = 'HIGH_NEGATIVITY',
+  HIGH_RISK = 'HIGH_RISK',
+  HIGH_VOLATILITY = 'HIGH_VOLATILITY',
+  NEGATIVE_STREAK = 'NEGATIVE_STREAK',
+  NORMALIZING = 'NORMALIZING',
+  POSITIVE_STATE = 'POSITIVE_STATE',
+  RECOVERING_TREND = 'RECOVERING_TREND',
+  STABLE_STATE = 'STABLE_STATE',
+}
+
+export enum InsightTone {
+  POSITIVE = 'positive',
+  NEUTRAL = 'neutral',
+  WARNING = 'warning',
+  CRITICAL = 'critical',
 }

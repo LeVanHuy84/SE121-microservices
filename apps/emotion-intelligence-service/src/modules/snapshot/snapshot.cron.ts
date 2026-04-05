@@ -3,9 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import Redis from 'ioredis';
 import { SnapshotProcessor } from './snapshot.processor';
-import { SnapshotRepository } from './snapshot.repository';
-
-const SNAPSHOT_LAST_RUN_AT_KEY = 'emotion:snapshot:last_run_at';
+import { SNAPSHOT_DIRTY_USERS_KEY } from 'src/common/constants';
 
 @Injectable()
 export class SnapshotCron {
@@ -15,7 +13,6 @@ export class SnapshotCron {
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly snapshotProcessor: SnapshotProcessor,
-    private readonly snapshotRepository: SnapshotRepository,
   ) {
     const configuredBatch = Number(process.env.SNAPSHOT_BATCH_SIZE ?? 100);
     this.batchSize = Number.isFinite(configuredBatch)
@@ -23,65 +20,48 @@ export class SnapshotCron {
       : 100;
   }
 
-  // @Cron('5 * * * *', { timeZone: 'UTC' })
-  @Cron('44 20 * * *', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-  })
-  async runPeriodicAggregation(): Promise<void> {
-    const startedAt = new Date();
-    const fallbackSince = new Date(startedAt.getTime() - 25 * 60 * 60 * 1000);
-    const lastRunRaw = await this.redis.get(SNAPSHOT_LAST_RUN_AT_KEY);
-    const since = lastRunRaw ? new Date(lastRunRaw) : fallbackSince;
+  @Cron('0 * * * *') // Chạy mỗi giờ một lần
+  async runDirtyAggregation(): Promise<void> {
+    const users = await this.redis.smembers(SNAPSHOT_DIRTY_USERS_KEY);
 
-    const candidateUsers =
-      await this.snapshotRepository.getUsersWithAggregatesBetween(
-        since,
-        startedAt,
-      );
-
-    if (candidateUsers.length === 0) {
-      await this.redis.set(SNAPSHOT_LAST_RUN_AT_KEY, startedAt.toISOString());
-      this.logger.log('No new analytics events for snapshot aggregation');
+    if (users.length === 0) {
+      this.logger.log('No dirty users for snapshot');
       return;
     }
+
+    this.logger.log(`Processing ${users.length} dirty users`);
 
     let processed = 0;
     let errors = 0;
 
-    this.logger.log(
-      `Starting periodic snapshot aggregation users=${candidateUsers.length}, batchSize=${this.batchSize}`,
-    );
-
-    for (let i = 0; i < candidateUsers.length; i += this.batchSize) {
-      const batch = candidateUsers.slice(i, i + this.batchSize);
+    for (let i = 0; i < users.length; i += this.batchSize) {
+      const batch = users.slice(i, i + this.batchSize);
 
       for (const userId of batch) {
         try {
-          const snapshotResult =
-            await this.snapshotProcessor.recomputeUserSnapshots(
-              userId,
-              startedAt,
-            );
+          const result =
+            await this.snapshotProcessor.recomputeUserSnapshots(userId);
 
-          if (snapshotResult.success) {
-            processed += 1;
+          if (result.success) {
+            processed++;
+
+            // remove khỏi dirty set
+            await this.redis.srem(SNAPSHOT_DIRTY_USERS_KEY, userId);
           } else {
-            errors += 1;
+            errors++;
           }
         } catch (error) {
-          errors += 1;
+          errors++;
           this.logger.error(
-            `Failed daily processing for user=${userId}`,
+            `Failed snapshot for user=${userId}`,
             error instanceof Error ? error.stack : String(error),
           );
         }
       }
     }
 
-    await this.redis.set(SNAPSHOT_LAST_RUN_AT_KEY, startedAt.toISOString());
-
     this.logger.log(
-      `Periodic snapshot aggregation completed: processed=${processed}, errors=${errors}`,
+      `Dirty snapshot done: processed=${processed}, errors=${errors}`,
     );
   }
 }

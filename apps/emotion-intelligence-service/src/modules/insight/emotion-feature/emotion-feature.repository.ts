@@ -9,23 +9,23 @@ import {
   UserEmotionProfile,
   UserEmotionProfileDocument,
 } from 'src/mongo/schema/emotion-profile.schema';
+import {
+  UserEmotionSnapshot,
+  UserEmotionSnapshotDocument,
+} from 'src/mongo/schema/emotion-snapshot.schema';
+import { EmotionTimeWindow } from '@repo/dtos';
 
-interface SnapshotProjection {
-  window?: string;
-  negativeRatio?: number;
-  emotionVolatility?: number;
-  riskScore?: number;
-}
-
-export interface ProfileWithSnapshotsProjection {
+export interface ProfileProjection {
   emotionVectorEMA?: Record<string, number>;
   recentNegativityScore?: number;
   emotionMomentum?: number;
-  snapshot7d?: SnapshotProjection;
 }
 
-export interface Aggregate24hProjection {
-  finalScores?: Record<string, number>;
+export interface SnapshotProjection {
+  negativeRatio?: number;
+  emotionVolatility?: number;
+  riskScore?: number;
+  emotionDistribution?: Record<string, number>;
 }
 
 @Injectable()
@@ -33,74 +33,72 @@ export class EmotionFeatureRepository {
   constructor(
     @InjectModel(UserEmotionProfile.name)
     private readonly profileModel: Model<UserEmotionProfileDocument>,
+
+    @InjectModel(UserEmotionSnapshot.name)
+    private readonly snapshotModel: Model<UserEmotionSnapshotDocument>,
+
     @InjectModel(EmotionAnalyticsSnapshot.name)
-    private readonly aggregateModel: Model<EmotionAnalyticsSnapshotDocument>,
+    private readonly aggregateModel: Model<EmotionAnalyticsSnapshotDocument>, // giữ lại nếu cần future
   ) {}
 
-  async findProfileWithSnapshotsByUserId(
-    userId: string,
-  ): Promise<ProfileWithSnapshotsProjection | null> {
-    const pipeline: Record<string, unknown>[] = [
-      { $match: { userId } },
-      {
-        $lookup: {
-          from: 'user_emotion_snapshots',
-          let: { userId: '$userId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$userId', '$$userId'] },
-                    { $eq: ['$window', '7d'] },
-                  ],
-                },
-              },
-            },
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
-            {
-              $project: {
-                _id: 0,
-                window: 1,
-                negativeRatio: 1,
-                emotionVolatility: 1,
-                riskScore: 1,
-              },
-            },
-          ],
-          as: 'snapshot7dCandidates',
-        },
-      },
-      {
-        $addFields: {
-          snapshot7d: { $arrayElemAt: ['$snapshot7dCandidates', 0] },
-        },
-      },
-      {
-        $project: {
+  // ===== PROFILE =====
+  async findProfileByUserId(userId: string): Promise<ProfileProjection | null> {
+    return this.profileModel
+      .findOne(
+        { userId },
+        {
           _id: 0,
           emotionVectorEMA: 1,
           recentNegativityScore: 1,
           emotionMomentum: 1,
-          snapshot7d: 1,
         },
-      },
-      { $limit: 1 },
-    ];
-
-    const rows = await this.profileModel
-      .aggregate<ProfileWithSnapshotsProjection>(pipeline as any)
+      )
+      .lean<ProfileProjection>()
       .exec();
-
-    return rows[0] ?? null;
   }
 
+  // ===== SNAPSHOT =====
+  async getLatestSnapshot(
+    userId: string,
+    window: EmotionTimeWindow,
+  ): Promise<SnapshotProjection | null> {
+    return this.snapshotModel
+      .findOne(
+        { userId, window },
+        {
+          _id: 0,
+          negativeRatio: 1,
+          emotionVolatility: 1,
+          riskScore: 1,
+          emotionDistribution: 1,
+        },
+      )
+      .sort({ createdAt: -1 }) // ⚠️ critical
+      .lean<SnapshotProjection>()
+      .exec();
+  }
+
+  async getLatestSnapshots(userId: string): Promise<{
+    snapshot1d: SnapshotProjection | null;
+    snapshot7d: SnapshotProjection | null;
+  }> {
+    const [snapshot1d, snapshot7d] = await Promise.all([
+      this.getLatestSnapshot(userId, EmotionTimeWindow.ONE_DAY),
+      this.getLatestSnapshot(userId, EmotionTimeWindow.SEVEN_DAYS),
+    ]);
+
+    return {
+      snapshot1d,
+      snapshot7d,
+    };
+  }
+
+  // ===== (OPTIONAL) RAW AGGREGATES – giữ lại nếu cần debug/realtime =====
   async findAggregatesByUserIdInRange(
     userId: string,
     startTime: Date,
     endTime: Date,
-  ): Promise<Aggregate24hProjection[]> {
+  ) {
     return this.aggregateModel
       .find(
         {
@@ -115,7 +113,7 @@ export class EmotionFeatureRepository {
           finalScores: 1,
         },
       )
-      .lean<Aggregate24hProjection[]>()
+      .lean()
       .exec();
   }
 }

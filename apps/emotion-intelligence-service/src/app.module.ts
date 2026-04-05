@@ -8,9 +8,12 @@ import { InsightModule } from './modules/insight/insight.module';
 import { WarningModule } from './modules/warning/warning.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SeedModule } from './modules/seed/seed.module';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -28,6 +31,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       },
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     MongoModule,
     SnapshotModule,
     ProfileModule,
@@ -35,6 +39,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     WarningModule,
     FeedbackModule,
     DashboardModule,
+    SeedModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

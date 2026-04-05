@@ -29,6 +29,10 @@ export class IngestionService {
     await this.processEvent(payload);
   }
 
+  async handleAnalysisResult(payload: AnalysisResultEventPayload) {
+    await this.processEvent(payload);
+  }
+
   private async processEvent(payload: AnalysisResultEventPayload) {
     await this.upsertSnapshot(payload);
     await this.markUserDirty(payload.userId);

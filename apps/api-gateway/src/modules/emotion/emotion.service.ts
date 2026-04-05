@@ -4,8 +4,6 @@ import {
   AnalysisHistoryDTO,
   DashboardQueryDTO,
   EmotionAnalysisDto,
-  EmotionByHourDTO,
-  EmotionDailyTrendDTO,
 } from '@repo/dtos';
 import axios from 'axios';
 
@@ -22,7 +20,7 @@ export class EmotionService {
       'ANALYSIS_INTERNAL_KEY',
       {
         infer: true,
-      }
+      },
     );
 
     if (!baseUrl || !internalKey) {
@@ -37,6 +35,17 @@ export class EmotionService {
     return {
       'x-internal-key': this.internalKey,
     };
+  }
+
+  private toHttpException(error: unknown): HttpException {
+    if (axios.isAxiosError(error)) {
+      return new HttpException(
+        error.response?.data || 'Emotion service error',
+        error.response?.status || 500,
+      );
+    }
+
+    return new HttpException('Emotion service error', 500);
   }
 
   async getEmotionDashboard(filter: DashboardQueryDTO) {
@@ -57,11 +66,8 @@ export class EmotionService {
       });
 
       return res.data;
-    } catch (e) {
-      throw new HttpException(
-        e.response?.data || 'Emotion service error',
-        e.response?.status || 500
-      );
+    } catch (e: unknown) {
+      throw this.toHttpException(e);
     }
   }
 
@@ -92,11 +98,8 @@ export class EmotionService {
         errorReason: data.errorReason,
         createdAt: new Date(data.createdAt),
       };
-    } catch (e) {
-      throw new HttpException(
-        e.response?.data || 'Emotion service error',
-        e.response?.status || 500
-      );
+    } catch (e: unknown) {
+      throw this.toHttpException(e);
     }
   }
 
@@ -117,11 +120,8 @@ export class EmotionService {
         headers: this.headers(),
       });
       return res.data;
-    } catch (e) {
-      throw new HttpException(
-        e.response?.data || 'Emotion service error',
-        e.response?.status || 500
-      );
+    } catch (e: unknown) {
+      throw this.toHttpException(e);
     }
   }
 
@@ -139,28 +139,6 @@ export class EmotionService {
       params,
       headers: this.headers(),
     });
-    return res.data;
-  }
-
-  async getDailyTrend(params: {
-    userId: string;
-    preset?: string;
-    fromDate?: string;
-    toDate?: string;
-  }): Promise<EmotionDailyTrendDTO[]> {
-    const res = await axios.get(`${this.baseUrl}/emotion/summary/daily-trend`, {
-      params,
-      headers: this.headers(),
-    });
-    return res.data;
-  }
-
-  async getByHour(userId: string): Promise<EmotionByHourDTO[]> {
-    const res = await axios.get(`${this.baseUrl}/emotion/summary/by-hour`, {
-      params: { userId },
-      headers: this.headers(),
-    });
-
     return res.data;
   }
 }

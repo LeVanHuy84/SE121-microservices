@@ -21,6 +21,7 @@ export class ProfileCron {
   }
 
   @Cron('*/30 * * * *', { timeZone: 'UTC' })
+  //@Cron('16 * * * *') // Chạy mỗi giờ một lần
   async runProfileIncrementalUpdates(): Promise<void> {
     const startedAt = new Date();
     let cursor = '0';

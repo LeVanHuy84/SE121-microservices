@@ -30,10 +30,14 @@ export class IngestionController {
           this.logger.warn(`Unknown event type: ${type}`);
           break;
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
-        `Failed to process event ${type} for ${payload.targetId}: ${error.message}`,
-        error.stack,
+        `Failed to process event ${type} for ${payload.targetId}: ${errorMessage}`,
+        errorStack,
       );
       throw error; // để Kafka retry lại
     }

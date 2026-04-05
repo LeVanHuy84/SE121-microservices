@@ -202,8 +202,7 @@ export class SnapshotService {
       const distribution = this.buildEmptyDistribution();
       let total = 0;
 
-      for (const [emotionRaw, rawScore] of Object.entries(scores)) {
-        const emotion = this.normalizeEmotion(emotionRaw);
+      for (const [emotion, rawScore] of Object.entries(scores)) {
         if (!emotion) {
           continue;
         }
@@ -223,7 +222,7 @@ export class SnapshotService {
     }
 
     const oneHot = this.buildEmptyDistribution();
-    const finalEmotion = this.normalizeEmotion(aggregate.finalEmotion);
+    const finalEmotion = aggregate.finalEmotion;
     if (finalEmotion) {
       oneHot[finalEmotion] = 1;
     }
@@ -334,30 +333,5 @@ export class SnapshotService {
   private safeNumber(value: unknown, fallback = 0): number {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
-  }
-
-  private normalizeEmotion(value?: string): SnapshotEmotion | null {
-    if (!value) {
-      return null;
-    }
-
-    const key = value.toLowerCase();
-    const map: Record<string, SnapshotEmotion> = {
-      joy: 'joy',
-      happy: 'joy',
-      sadness: 'sadness',
-      sad: 'sadness',
-      anger: 'anger',
-      angry: 'anger',
-      fear: 'fear',
-      fearful: 'fear',
-      disgust: 'disgust',
-      disgusted: 'disgust',
-      surprise: 'surprise',
-      surprised: 'surprise',
-      neutral: 'neutral',
-    };
-
-    return map[key] ?? null;
   }
 }

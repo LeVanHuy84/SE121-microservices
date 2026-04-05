@@ -45,4 +45,7 @@ export type UserEmotionSnapshotDocument = HydratedDocument<UserEmotionSnapshot>;
 export const UserEmotionSnapshotSchema =
   SchemaFactory.createForClass(UserEmotionSnapshot);
 
-UserEmotionSnapshotSchema.index({ userId: 1, window: 1 }, { unique: true });
+UserEmotionSnapshotSchema.index(
+  { userId: 1, window: 1, createdAt: -1 },
+  { expireAfterSeconds: 30 * 60 * 24 * 60 },
+);
