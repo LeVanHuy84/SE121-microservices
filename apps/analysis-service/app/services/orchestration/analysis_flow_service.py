@@ -169,7 +169,6 @@ class AnalysisFlowService:
 
         if image_inputs:
             image_emotions = await analyze_multiple_images(image_inputs)
-            print("Image emotions:", image_emotions)
 
             retryable_errors = [
                 x for x in image_emotions

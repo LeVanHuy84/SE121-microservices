@@ -16,15 +16,7 @@ from app.database.task_repository import TaskRepository
 from app.processors.retry_worker import RetryWorker
 from app.services.ai.model_loader import ensure_models_loaded
 from app.services.orchestration.analysis_flow_service import AnalysisFlowService
-from app.database.user_emotion_profile_repository import UserEmotionProfileRepository
-from app.database.user_emotion_snapshot_repository import UserEmotionSnapshotRepository
 from app.database.emotion_aggregate_repository import EmotionAggregateRepository
-from app.services.domain.emotion.user_emotion_profile_service import UserEmotionProfileService
-from app.services.domain.emotion.user_emotion_snapshot_service import UserEmotionSnapshotService
-from app.services.orchestration.emotion.emotion_profile_orchestrator import EmotionProfileOrchestrator
-from app.services.orchestration.emotion.emotion_snapshot_orchestrator import EmotionSnapshotOrchestrator
-from app.services.orchestration.emotion.emotion_snapshot_queue_service import EmotionSnapshotQueueService
-from app.services.orchestration.emotion.emotion_daily_aggregation_job import EmotionDailyAggregationJob
 
 logger = logging.getLogger(__name__)
 
@@ -40,42 +32,6 @@ outbox_repo = OutboxRepository(collections['outbox_events'])
 emotion_aggregate_repo = EmotionAggregateRepository(collections['emotion_aggregates'])
 moderation_repo = ModerationRepository(collections['moderation_results'])
 task_repo = TaskRepository(collections['analysis_tasks'])
-
-# User Emotion repositories & services
-user_emotion_profile_repo = UserEmotionProfileRepository(collections['user_emotion_profiles'])
-user_emotion_snapshot_repo = UserEmotionSnapshotRepository(collections['user_emotion_snapshots'])
-
-# Domain services
-user_emotion_profile_service = UserEmotionProfileService(
-    alpha=settings.EMOTION_PROFILE_EMA_ALPHA
-)
-user_emotion_snapshot_service = UserEmotionSnapshotService()
-
-# Orchestrators (coordinates domain services and repositories)
-# Profile orchestrator: manages emotion profile updates only
-emotion_profile_orchestrator = EmotionProfileOrchestrator(
-    profile_service=user_emotion_profile_service,
-    profile_repository=user_emotion_profile_repo,
-)
-
-# Snapshot orchestrator: manages snapshot recomputation (called by daily cron)
-emotion_snapshot_orchestrator = EmotionSnapshotOrchestrator(
-    snapshot_service=user_emotion_snapshot_service,
-    snapshot_repository=user_emotion_snapshot_repo,
-    aggregate_repository=emotion_aggregate_repo,
-)
-
-# Queue service: Redis SET of users whose profile/snapshots are stale
-snapshot_queue_service = EmotionSnapshotQueueService()
-
-emotion_daily_aggregation_job = EmotionDailyAggregationJob(
-    snapshot_queue_service=snapshot_queue_service,
-    emotion_profile_orchestrator=emotion_profile_orchestrator,
-    emotion_snapshot_orchestrator=emotion_snapshot_orchestrator,
-    emotion_aggregate_repository=emotion_aggregate_repo,
-    run_hour=settings.EMOTION_DAILY_CRON_HOUR_UTC,
-    run_minute=settings.EMOTION_DAILY_CRON_MINUTE_UTC,
-)
 
 # Inject repositories vào analysis_flow_service
 analysis_flow_service = AnalysisFlowService(
@@ -98,7 +54,6 @@ event_service = HandleEventService(
     moderation_repo,
     task_repo,
     outbox_repo,
-    snapshot_queue_service,
 )
 dispatcher = EventDispatcher(event_service)
 
@@ -183,51 +138,40 @@ async def lifespan(app):
         logger.info("=" * 70)
 
         # 0. Database initialization (indexes)
-        logger.info("[Startup] Step 0/6: Initializing database indexes...")
+        logger.info("[Startup] Step 0/5: Initializing database indexes...")
         await init_database()
         logger.info("[Startup] ✅ Database indexes ready")
 
         # 1. Load AI Models FIRST (chặn startup để load models)
-        logger.info("[Startup] Step 1/6: Loading AI models...")
+        logger.info("[Startup] Step 1/5: Loading AI models...")
         await asyncio.to_thread(ensure_models_loaded)
         logger.info("[Startup] ✅ AI models ready")
 
         # 2. Kafka Producer
-        logger.info("[Startup] Step 2/6: Starting Kafka Producer...")
+        logger.info("[Startup] Step 2/5: Starting Kafka Producer...")
         await kafka_producer.start()
         logger.info("[Startup] ✅ Kafka Producer started")
 
         # 3. Kafka Consumer loop
-        logger.info("[Startup] Step 3/6: Starting Kafka Consumer...")
+        logger.info("[Startup] Step 3/5: Starting Kafka Consumer...")
         background_tasks.append(
             asyncio.create_task(start_kafka(settings))
         )
         logger.info("[Startup] ✅ Kafka Consumer started")
 
         # 4. Outbox processor
-        logger.info("[Startup] Step 4/6: Starting Outbox Processor...")
+        logger.info("[Startup] Step 4/5: Starting Outbox Processor...")
         background_tasks.append(
             asyncio.create_task(processor.start(interval_seconds=5))
         )
         logger.info("[Startup] ✅ Outbox Processor started")
 
         # 5. Retry worker
-        logger.info("[Startup] Step 5/6: Starting Retry Worker...")
+        logger.info("[Startup] Step 5/5: Starting Retry Worker...")
         background_tasks.append(
             asyncio.create_task(retry_worker.start())
         )
         logger.info("[Startup] ✅ Retry Worker started")
-
-        # 6. Daily profile/snapshot aggregation job
-        logger.info(
-            "[Startup] Step 6/6: Starting Emotion Daily Aggregation Job at %s:%s",
-            settings.EMOTION_DAILY_CRON_HOUR_UTC,
-            settings.EMOTION_DAILY_CRON_MINUTE_UTC
-        )
-        background_tasks.append(
-            asyncio.create_task(emotion_daily_aggregation_job.run())
-        )
-        logger.info("[Startup] ✅ Emotion Daily Aggregation Job started")
 
         logger.info("=" * 70)
         logger.info("✅ Analysis Service V2.0 - Fully operational!")
@@ -246,7 +190,6 @@ async def lifespan(app):
 
         processor.stop()
         retry_worker.stop()
-        emotion_daily_aggregation_job.stop()
 
         await kafka_producer.stop()
         logger.info("[Shutdown] Kafka Producer stopped")
