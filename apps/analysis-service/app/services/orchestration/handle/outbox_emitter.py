@@ -36,6 +36,7 @@ class OutboxEmitter:
             topic=ResultEventEnum.EMOTION_RESULT.value,
             eventType=action.value,
             payload={
+                "userId": emotion["userId"],
                 "targetId": emotion["targetId"],
                 "targetType": emotion["targetType"],
                 "finalEmotion": emotion["finalEmotion"].upper(),
@@ -44,6 +45,7 @@ class OutboxEmitter:
                 "intensityScore": emotion["intensity"]["score"],
                 "dominantSceneType": emotion.get("dominantSceneType"),
                 "riskHintLevel": emotion.get("riskHintLevel"),
+                "createdAt": emotion.get("createdAt").isoformat() if emotion.get("createdAt") else None,
             }
         )
         
