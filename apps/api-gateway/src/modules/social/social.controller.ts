@@ -21,9 +21,19 @@ export class SocialController {
   @Post('request/:targetId')
   sendFriendRequest(
     @CurrentUserId() userId: string,
-    @Param('targetId') targetId: string
+    @Param('targetId') targetId: string,
+    @Body()
+    body: {
+      recommendationId?: string;
+      recommendationRequestId?: string;
+    }
   ) {
-    return this.socialClient.send('send_friend_request', { userId, targetId });
+    return this.socialClient.send('send_friend_request', {
+      userId,
+      targetId,
+      recommendationId: body?.recommendationId,
+      recommendationRequestId: body?.recommendationRequestId,
+    });
   }
 
   @Post('cancel/:targetId')
@@ -89,6 +99,40 @@ export class SocialController {
     @Query() query: CursorPaginationDTO
   ) {
     return this.socialClient.send('suggest_friends', { userId, query });
+  }
+
+  @Get('friends/recommend/analytics')
+  async getFriendRecommendationAnalytics(
+    @CurrentUserId() userId: string,
+    @Query('days') days?: string,
+  ) {
+    const parsedDays =
+      typeof days === 'string' && days.trim().length > 0
+        ? Number.parseInt(days, 10)
+        : undefined;
+
+    return this.socialClient.send('get_friend_recommendation_analytics', {
+      userId,
+      days: parsedDays,
+    });
+  }
+
+  @Post('friends/recommend/dismiss/:targetId')
+  async dismissFriendRecommendation(
+    @CurrentUserId() userId: string,
+    @Param('targetId') targetId: string,
+    @Body()
+    body: {
+      recommendationId?: string;
+      recommendationRequestId?: string;
+    }
+  ) {
+    return this.socialClient.send('dismiss_friend_recommendation', {
+      userId,
+      targetId,
+      recommendationId: body?.recommendationId,
+      recommendationRequestId: body?.recommendationRequestId,
+    });
   }
 
   @Get('friends/:userId')

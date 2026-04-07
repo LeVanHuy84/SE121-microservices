@@ -21,6 +21,16 @@ export class UserResponseDTO {
   @Expose()
   bio: string;
   @Expose()
+  location?: string;
+  @Expose()
+  jobTitle?: string;
+  @Expose()
+  company?: string;
+  @Expose()
+  school?: string;
+  @Expose()
+  interests?: string[];
+  @Expose()
   createdAt: Date;
 }
 

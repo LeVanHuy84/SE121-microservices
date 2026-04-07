@@ -1,6 +1,10 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateConversationDTO, CursorPaginationDTO, UpdateConversationDTO } from '@repo/dtos';
+import {
+  CreateConversationDTO,
+  GetConversationsQueryDTO,
+  UpdateConversationDTO,
+} from '@repo/dtos';
 import { ConversationService } from './conversation.service';
 
 @Controller()
@@ -12,7 +16,7 @@ export class ConversationController {
     @Payload()
     data: {
       userId: string;
-      query: CursorPaginationDTO;
+      query: GetConversationsQueryDTO;
     },
   ) {
     return this.conversationService.getConversations(data.userId, data.query);

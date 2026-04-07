@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -10,17 +11,21 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4007,
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4007,
       },
     }
   );
+
   const rabbitmq_app = await NestFactory.createMicroservice<MicroserviceOptions>(
     RabbitmqModule,
     {
       transport: Transport.RMQ,
       options: {
-        urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
-        queue: 'create_notification_queue',
+        urls: [
+          `amqp://${process.env.RABBITMQ_USER || 'guest'}:${process.env.RABBITMQ_PASS || 'guest'}` +
+            `@${process.env.RABBITMQ_HOST || 'localhost'}:${process.env.RABBITMQ_PORT || '5672'}`,
+        ],
+        queue: process.env.RABBITMQ_QUEUE || 'create_notification_queue',
         queueOptions: {
           durable: true,
         },
@@ -28,10 +33,12 @@ async function bootstrap() {
       },
     }
   );
+
   tcp_app.useGlobalFilters(new ExceptionsFilter());
   rabbitmq_app.useGlobalFilters(new ExceptionsFilter());
 
   await Promise.all([tcp_app.listen(), rabbitmq_app.listen()]);
   console.log('Notification service is listening...');
 }
+
 bootstrap();
