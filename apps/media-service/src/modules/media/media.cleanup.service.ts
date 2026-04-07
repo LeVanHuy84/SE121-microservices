@@ -15,6 +15,21 @@ export class MediaCleanupService {
     private readonly cloudinary: CloudinaryService
   ) {}
 
+  private toCloudinaryResourceType(
+    type: Media['type']
+  ): 'image' | 'video' | 'raw' {
+    switch (type) {
+      case 'image':
+        return 'image';
+      case 'video':
+      case 'audio':
+        return 'video';
+      case 'file':
+      default:
+        return 'raw';
+    }
+  }
+
   @Cron(process.env.MEDIA_CLEANUP_CRON || '0 */10 * * * *')
   async cleanupOrphanedMedia() {
     const ttlMinutes = parseInt(
@@ -40,7 +55,10 @@ export class MediaCleanupService {
 
     for (const media of orphans) {
       try {
-        await this.cloudinary.deleteFile(media.publicId, media.type);
+        await this.cloudinary.deleteFile(
+          media.publicId,
+          this.toCloudinaryResourceType(media.type)
+        );
         await this.mediaRepo.delete(media.id);
         this.logger.log(`Deleted orphaned media publicId=${media.publicId}`);
       } catch (error) {

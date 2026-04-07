@@ -102,7 +102,7 @@ export class PostGroupService {
                 .map((m) => ({
                   publicId: m.publicId,
                   url: m.url,
-                  type: m.type === MediaType.IMAGE ? 'image' : 'video',
+                  type: m.type,
                 })),
             }
           : null;

@@ -18,6 +18,12 @@ export class DeviceToken {
   @Prop({ required: true, enum: ['ios', 'android', 'web'] })
   platform: string;
 
+  @Prop({ required: true, enum: ['fcm'], default: 'fcm' })
+  provider: 'fcm';
+
+  @Prop({ type: String })
+  appId?: string;
+
   @Prop({ type: String })
   deviceId?: string;
 
@@ -34,4 +40,4 @@ export class DeviceToken {
 export const DeviceTokenSchema = SchemaFactory.createForClass(DeviceToken);
 
 // Compound index để tránh duplicate token
-DeviceTokenSchema.index({ userId: 1, token: 1 }, { unique: true });
+DeviceTokenSchema.index({ userId: 1, token: 1, provider: 1 }, { unique: true });

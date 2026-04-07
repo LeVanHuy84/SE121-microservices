@@ -15,7 +15,7 @@ export class MediaConsumerService {
   ) {}
 
   async deleteMedia(
-    items: { publicId: string; resourceType?: 'image' | 'video' }[]
+    items: { publicId: string; resourceType?: 'image' | 'video' | 'raw' }[]
   ) {
     for (const item of items) {
       const resourceType = item.resourceType ?? 'image';
@@ -34,7 +34,11 @@ export class MediaConsumerService {
 
   async assignContentId(
     contentId: string,
-    items: { publicId: string; url?: string; type?: 'image' | 'video' }[]
+    items: {
+      publicId: string;
+      url?: string;
+      type?: 'image' | 'video' | 'audio' | 'file';
+    }[]
   ) {
     if (!items.length) {
       return;

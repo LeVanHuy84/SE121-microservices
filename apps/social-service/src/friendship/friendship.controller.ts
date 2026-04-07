@@ -1,8 +1,6 @@
-import { Controller, UseInterceptors } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CursorPaginationDTO } from '@repo/dtos';
-import { Transaction } from 'neo4j-driver';
-import { Neo4jTransactionInterceptor } from 'src/neo4j/neo4j-transaction.interceptor';
 import { FriendshipService } from './friendship.service';
 
 @Controller()
@@ -16,88 +14,74 @@ export class FriendshipController {
       data.targetId,
     );
   }
-  @UseInterceptors(Neo4jTransactionInterceptor)
+
   @MessagePattern('send_friend_request')
   async sendFriendRequest(
     @Payload()
     data: {
       userId: string;
       targetId: string;
-      transaction: Transaction;
+      recommendationId?: string;
+      recommendationRequestId?: string;
     },
   ) {
-    return this.friendshipService.sendFriendRequest(
-      data.transaction,
-      data.userId,
-      data.targetId,
-    );
+    return this.friendshipService.sendFriendRequest(data.userId, data.targetId, {
+      recommendationId: data.recommendationId,
+      recommendationRequestId: data.recommendationRequestId,
+    });
   }
-  @UseInterceptors(Neo4jTransactionInterceptor)
+
   @MessagePattern('cancel_friend_request')
   async cancelFriendRequest(
     @Payload()
     data: {
       userId: string;
       targetId: string;
-      transaction: Transaction;
     },
   ) {
     return this.friendshipService.cancelFriendRequest(
-      data.transaction,
       data.userId,
       data.targetId,
     );
   }
 
-  @UseInterceptors(Neo4jTransactionInterceptor)
   @MessagePattern('accept_friend_request')
   async acceptFriendRequest(
     @Payload()
     data: {
       userId: string;
       requesterId: string;
-      transaction: Transaction;
     },
   ) {
     return this.friendshipService.acceptFriendRequest(
-      data.transaction,
       data.userId,
       data.requesterId,
     );
   }
 
-  @UseInterceptors(Neo4jTransactionInterceptor)
   @MessagePattern('decline_friend_request')
   async declineFriendRequest(
     @Payload()
     data: {
       userId: string;
       requesterId: string;
-      transaction: Transaction;
     },
   ) {
     return this.friendshipService.declineFriendRequest(
-      data.transaction,
       data.userId,
       data.requesterId,
     );
   }
 
-  @UseInterceptors(Neo4jTransactionInterceptor)
   @MessagePattern('remove_friend')
   async removeFriend(
     @Payload()
     data: {
       userId: string;
       friendId: string;
-      transaction: Transaction;
     },
   ) {
-    return this.friendshipService.removeFriend(
-      data.transaction,
-      data.userId,
-      data.friendId,
-    );
+    return this.friendshipService.removeFriend(data.userId, data.friendId);
   }
 
   @MessagePattern('get_friends_request')
@@ -120,6 +104,7 @@ export class FriendshipController {
   ) {
     return this.friendshipService.getBlockedUsers(data.userId, data.query);
   }
+
   @MessagePattern('suggest_friends')
   async recommendFriends(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
@@ -127,39 +112,60 @@ export class FriendshipController {
     return this.friendshipService.recommendFriends(data.userId, data.query);
   }
 
-  // ---------- BLOCK ----------
-  @UseInterceptors(Neo4jTransactionInterceptor)
+  @MessagePattern('get_friend_recommendation_analytics')
+  async getFriendRecommendationAnalytics(
+    @Payload()
+    data: {
+      userId: string;
+      days?: number;
+    },
+  ) {
+    return this.friendshipService.getFriendRecommendationAnalytics(
+      data.userId,
+      data.days,
+    );
+  }
+
   @MessagePattern('block_user')
   async blockUser(
     @Payload()
     data: {
       userId: string;
       targetId: string;
-      transaction: Transaction;
     },
   ) {
-    return this.friendshipService.blockUser(
-      data.transaction,
+    return this.friendshipService.blockUser(data.userId, data.targetId);
+  }
+
+  @MessagePattern('dismiss_friend_recommendation')
+  async dismissFriendRecommendation(
+    @Payload()
+    data: {
+      userId: string;
+      targetId: string;
+      recommendationId?: string;
+      recommendationRequestId?: string;
+    },
+  ) {
+    return this.friendshipService.dismissFriendRecommendation(
       data.userId,
       data.targetId,
+      {
+        recommendationId: data.recommendationId,
+        recommendationRequestId: data.recommendationRequestId,
+      },
     );
   }
 
   @MessagePattern('unblock_user')
-  @UseInterceptors(Neo4jTransactionInterceptor)
   async unblockUser(
     @Payload()
     data: {
       userId: string;
       targetId: string;
-      transaction: Transaction;
     },
   ) {
-    return this.friendshipService.unblockUser(
-      data.transaction,
-      data.userId,
-      data.targetId,
-    );
+    return this.friendshipService.unblockUser(data.userId, data.targetId);
   }
 
   @MessagePattern({ cmd: 'get_friend_ids' })
