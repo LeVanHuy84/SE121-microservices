@@ -249,6 +249,67 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async sendDataOnlyToMultipleDevices(
+    tokens: string[],
+    data: Record<string, string>,
+    options?: Pick<FirebasePushOptions, 'collapseKey'>
+  ): Promise<{
+    successCount: number;
+    failureCount: number;
+    invalidTokens: string[];
+  }> {
+    if (!this.firebaseApp) {
+      return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
+    }
+
+    if (tokens.length === 0) {
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
+    try {
+      const message: admin.messaging.MulticastMessage = {
+        data,
+        tokens,
+        android: {
+          priority: 'high',
+          collapseKey: options?.collapseKey,
+        },
+      };
+
+      const response = await admin.messaging().sendEachForMulticast(message);
+      const invalidTokens: string[] = [];
+
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error) {
+          const errorCode = resp.error.code;
+          if (
+            errorCode === 'messaging/invalid-registration-token' ||
+            errorCode === 'messaging/registration-token-not-registered'
+          ) {
+            invalidTokens.push(tokens[idx]);
+          }
+        }
+      });
+
+      this.logger.log(
+        `Sent data-only push to ${response.successCount}/${tokens.length} devices`
+      );
+
+      return {
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+        invalidTokens,
+      };
+    } catch (error) {
+      this.logger.error('Error sending data-only multicast FCM message:', error);
+      return {
+        successCount: 0,
+        failureCount: tokens.length,
+        invalidTokens: [],
+      };
+    }
+  }
+
   async sendToTopic(
     topic: string,
     title: string,

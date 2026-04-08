@@ -15,6 +15,7 @@ describe('ChatPushService', () => {
 
   const firebaseService = {
     sendToMultipleDevices: jest.fn(),
+    sendDataOnlyToMultipleDevices: jest.fn(),
   };
 
   const deviceTokenService = {
@@ -37,12 +38,23 @@ describe('ChatPushService', () => {
     multi.exec.mockResolvedValue([[null, 3], [null, 'OK'], [null, 'OK'], [null, 1]]);
   });
 
-  it('increments unread state and sends grouped FCM payload for a group conversation', async () => {
+  it('increments unread state and splits Android native chat pushes to data-only delivery', async () => {
     const service = createService();
     deviceTokenService.getActiveTokensByUserId.mockResolvedValue([
-      { token: 'token-1', platform: 'ios' },
-      { token: 'token-2', platform: 'android' },
+      { token: 'token-1', platform: 'ios', provider: 'fcm' },
+      {
+        token: 'token-2',
+        platform: 'android',
+        provider: 'fcm',
+        appId: 'com.sentimeta.app',
+      },
+      { token: 'token-3', platform: 'web', provider: 'fcm' },
     ]);
+    firebaseService.sendDataOnlyToMultipleDevices.mockResolvedValue({
+      successCount: 1,
+      failureCount: 0,
+      invalidTokens: [],
+    });
     firebaseService.sendToMultipleDevices.mockResolvedValue({
       successCount: 2,
       failureCount: 0,
@@ -61,8 +73,25 @@ describe('ChatPushService', () => {
     });
 
     expect(multi.incr).toHaveBeenCalledWith('chat:push:user-2:conv-1:unread');
+    expect(firebaseService.sendDataOnlyToMultipleDevices).toHaveBeenCalledWith(
+      ['token-2'],
+      expect.objectContaining({
+        type: 'message',
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        senderName: 'An Nguyen',
+        unreadCount: '3',
+        displayTitle: '3 tin nhan moi',
+        displayBody: 'Trong SE121',
+        channelId: 'messages',
+        conversationTag: 'chat:conv-1',
+      }),
+      expect.objectContaining({
+        collapseKey: 'chat:conv-1',
+      }),
+    );
     expect(firebaseService.sendToMultipleDevices).toHaveBeenCalledWith(
-      ['token-1', 'token-2'],
+      ['token-1', 'token-3'],
       '3 tin nhan moi',
       'Trong SE121',
       expect.objectContaining({

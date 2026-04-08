@@ -5,12 +5,18 @@ import Redis from 'ioredis';
 import { DeviceTokenService } from 'src/firebase/device-token.service';
 import { FirebaseService } from 'src/firebase/firebase.service';
 
+type ActiveDeviceToken = Awaited<
+  ReturnType<DeviceTokenService['getActiveTokensByUserId']>
+>[number];
+
 @Injectable()
 export class ChatPushService {
   private readonly logger = new Logger(ChatPushService.name);
   private readonly stateTtlSeconds = Number(
     process.env.CHAT_PUSH_STATE_TTL_SECONDS ?? 7 * 24 * 60 * 60,
   );
+  private readonly nativeAndroidAppId =
+    process.env.NATIVE_ANDROID_APP_ID ?? 'com.sentimeta.app';
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
@@ -22,6 +28,7 @@ export class ChatPushService {
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
       dto.userId,
     );
+
     if (!deviceTokens.length) {
       this.logger.debug(
         `Skip chat push for user ${dto.userId}: no active device tokens`,
@@ -39,36 +46,74 @@ export class ChatPushService {
     const body = this.buildBody(dto, preview, unreadCount);
     const data = this.buildData(dto, unreadCount, preview);
     const conversationTag = `chat:${dto.conversationId}`;
-    const tokens = deviceTokens.map((item) => item.token);
 
-    const result = await this.firebaseService.sendToMultipleDevices(
-      tokens,
-      title,
-      body,
-      data,
-      {
-        collapseKey: conversationTag,
-        androidTag: conversationTag,
-        androidChannelId: 'messages',
-        apnsCollapseId: conversationTag,
-        apnsThreadId: conversationTag,
-        apnsSummaryArg: dto.isGroup
-          ? dto.conversationName || 'Nhóm chat'
-          : dto.senderName,
-        apnsSummaryArgCount: unreadCount,
-      },
-    );
+    const androidNativeTokens = deviceTokens
+      .filter((token) => this.isNativeAndroidTarget(token))
+      .map((token) => token.token);
+    const fallbackTokens = deviceTokens
+      .filter((token) => !this.isNativeAndroidTarget(token))
+      .map((token) => token.token);
 
-    if (result.invalidTokens.length > 0) {
-      await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
+    const [androidNativeResult, fallbackResult] = await Promise.all([
+      this.firebaseService.sendDataOnlyToMultipleDevices(
+        androidNativeTokens,
+        {
+          ...data,
+          displayTitle: title,
+          displayBody: body,
+          channelId: 'messages',
+          conversationTag,
+        },
+        {
+          collapseKey: conversationTag,
+        },
+      ),
+      this.firebaseService.sendToMultipleDevices(
+        fallbackTokens,
+        title,
+        body,
+        data,
+        {
+          collapseKey: conversationTag,
+          androidTag: conversationTag,
+          androidChannelId: 'messages',
+          apnsCollapseId: conversationTag,
+          apnsThreadId: conversationTag,
+          apnsSummaryArg: dto.isGroup
+            ? dto.conversationName || 'Nhom chat'
+            : dto.senderName,
+          apnsSummaryArgCount: unreadCount,
+        },
+      ),
+    ]);
+
+    const invalidTokens = [
+      ...androidNativeResult.invalidTokens,
+      ...fallbackResult.invalidTokens,
+    ];
+
+    if (invalidTokens.length > 0) {
+      await this.deviceTokenService.markTokensAsInvalid(invalidTokens);
     }
 
-    return result;
+    return {
+      successCount:
+        androidNativeResult.successCount + fallbackResult.successCount,
+      failureCount:
+        androidNativeResult.failureCount + fallbackResult.failureCount,
+      invalidTokens,
+    };
   }
 
   async clearChatPushState(dto: ClearChatPushStateDto) {
     const keys = this.getStateKeys(dto.userId, dto.conversationId);
     await this.redis.del(keys.unread, keys.lastSender, keys.lastPreview);
+  }
+
+  private isNativeAndroidTarget(token: ActiveDeviceToken) {
+    return (
+      token.platform === 'android' && token.appId === this.nativeAndroidAppId
+    );
   }
 
   private async incrementUnreadState(dto: SendChatPushDto): Promise<number> {
@@ -92,14 +137,14 @@ export class ChatPushService {
   private buildTitle(dto: SendChatPushDto, unreadCount: number): string {
     if (dto.isGroup) {
       if (unreadCount > 1) {
-        return `${unreadCount} tin nhan moi`;
+        return `${unreadCount} tin nhắn mới`;
       }
 
-      return dto.conversationName || 'Tin nhan nhom moi';
+      return dto.conversationName || 'Tin nhắn nhóm mới';
     }
 
     if (unreadCount > 1) {
-      return `${unreadCount} tin nhan moi`;
+      return `${unreadCount} tin nhắn mới`;
     }
 
     return dto.senderName;

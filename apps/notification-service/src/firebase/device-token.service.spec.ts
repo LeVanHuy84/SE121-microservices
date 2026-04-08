@@ -76,7 +76,14 @@ describe('DeviceTokenService', () => {
   it('returns only active fcm tokens for delivery', async () => {
     const service = createService();
     const lean = jest.fn().mockResolvedValue([
-      { token: 'token-1', platform: 'android', provider: 'fcm' },
+      {
+        token: 'token-1',
+        platform: 'android',
+        provider: 'fcm',
+        appId: 'com.sentimeta.app',
+        deviceId: 'device-1',
+        deviceName: 'Pixel',
+      },
     ]);
     const select = jest.fn().mockReturnValue({ lean });
     deviceTokenModel.find.mockReturnValue({ select });
@@ -89,7 +96,14 @@ describe('DeviceTokenService', () => {
       provider: 'fcm',
     });
     expect(result).toEqual([
-      { token: 'token-1', platform: 'android', provider: 'fcm' },
+      {
+        token: 'token-1',
+        platform: 'android',
+        provider: 'fcm',
+        appId: 'com.sentimeta.app',
+        deviceId: 'device-1',
+        deviceName: 'Pixel',
+      },
     ]);
   });
 });
