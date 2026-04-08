@@ -20,6 +20,10 @@ import { UserPreferenceService } from 'src/user-preference/user-preference.servi
 import { TemplateService } from './template.service';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { DeviceTokenService } from 'src/firebase/device-token.service';
+import {
+  NOTIFICATION_QUEUE,
+  REGULAR_NOTIFICATION_DELIVERY_JOB,
+} from './notification.jobs';
 
 @Injectable()
 export class NotificationService {
@@ -31,7 +35,7 @@ export class NotificationService {
     private notificationModel: Model<Notification>,
     private readonly templateService: TemplateService,
     private readonly userPreferenceService: UserPreferenceService,
-    @InjectQueue('notifications') private notificationQueue: Queue,
+    @InjectQueue(NOTIFICATION_QUEUE) private notificationQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
     private readonly firebaseService: FirebaseService,
     private readonly deviceTokenService: DeviceTokenService
@@ -135,6 +139,108 @@ export class NotificationService {
           err
         );
       }
+    }
+
+    return doc;
+  }
+
+  async createAndEnqueue(dto: CreateNotificationDto) {
+    if (dto.requestId) {
+      const exists = await this.notificationModel
+        .findOne({ requestId: dto.requestId })
+        .lean();
+      if (exists) return plainToInstance(NotificationResponseDto, exists, {});
+    }
+
+    const prefs = await this.userPreferenceService.getUserPreferences(
+      dto.userId,
+    );
+    const allowedChannels =
+      dto.channels && dto.channels.length
+        ? dto.channels.filter((ch) => prefs.allowedChannels.includes(ch))
+        : prefs.allowedChannels;
+
+    if (!allowedChannels || allowedChannels.length === 0) {
+      this.logger.warn(`User ${dto.userId} has no allowed channels - skipping`);
+      const suppressed = await this.notificationModel.create({
+        requestId: dto.requestId,
+        userId: dto.userId,
+        type: dto.type,
+        payload: dto.payload,
+        message: null,
+        channels: [],
+        status: 'unread',
+        meta: { suppressed: true },
+      });
+      return suppressed;
+    }
+
+    const limit = prefs.limits?.dailyLimit ?? 100;
+    const allowed =
+      await this.userPreferenceService.checkAndIncrementDailyLimit(
+        dto.userId,
+        limit,
+      );
+
+    if (!allowed) {
+      this.logger.warn(`User ${dto.userId} exceeded daily limit`);
+      const blocked = await this.notificationModel.create({
+        requestId: dto.requestId,
+        userId: dto.userId,
+        type: dto.type,
+        payload: dto.payload,
+        message: null,
+        channels: [],
+        status: 'unread',
+        meta: { rateLimited: true },
+      });
+      return blocked;
+    }
+
+    const renderedMessage = this.templateService.render(dto.type, dto.payload);
+    const sendAt = dto.sendAt ? new Date(dto.sendAt) : undefined;
+
+    const doc = await this.notificationModel.create({
+      requestId: dto.requestId,
+      userId: dto.userId,
+      type: dto.type,
+      payload: dto.payload,
+      message: renderedMessage,
+      channels: allowedChannels,
+      sendAt,
+      status: 'unread',
+      meta: dto.meta || {},
+    });
+
+    try {
+      await this.cacheNotifications(doc.userId, [doc]);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to update notification cache for ${doc._id}: ${err.message}`,
+      );
+    }
+
+    const delay =
+      sendAt && sendAt.getTime() > Date.now()
+        ? Math.max(0, sendAt.getTime() - Date.now())
+        : 0;
+
+    await this.notificationQueue.add(
+      REGULAR_NOTIFICATION_DELIVERY_JOB,
+      { id: doc._id.toString() },
+      {
+        jobId: `regular:${doc._id.toString()}`,
+        delay,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+      },
+    );
+
+    if (delay > 0) {
+      this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
+    } else {
+      this.logger.log(`Notification ${doc._id} enqueued for delivery`);
     }
 
     return doc;

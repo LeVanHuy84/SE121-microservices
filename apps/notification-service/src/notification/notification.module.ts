@@ -9,6 +9,7 @@ import { UserPreferenceModule } from 'src/user-preference/user-preference.module
 import { NotificationController } from './notification.controller';
 import { ChatPushService } from './chat-push.service';
 import { NotificationProcessor } from './notification.proccessor';
+import { NOTIFICATION_QUEUE } from './notification.jobs';
 import { NotificationService } from './notification.service';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
@@ -37,7 +38,7 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
       },
     }),
     BullModule.registerQueue({
-      name: 'notifications',
+      name: NOTIFICATION_QUEUE,
     }),
   ],
   controllers: [NotificationController],

@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
-import { NotificationService } from './notification.service';
+import { Controller } from '@nestjs/common';
 import {
   Ctx,
   EventPattern,
@@ -15,8 +6,10 @@ import {
   Payload,
   RmqContext,
 } from '@nestjs/microservices';
-import { CursorPaginationDTO, PaginationDTO } from '@repo/dtos';
+import { CursorPaginationDTO } from '@repo/dtos';
+
 import { ChatPushService } from './chat-push.service';
+import { NotificationService } from './notification.service';
 
 @Controller('notification')
 export class NotificationController {
@@ -31,12 +24,13 @@ export class NotificationController {
     const originalMsg = context.getMessage();
 
     try {
-      await this.notificationService.create(data.createNotificationDto);
-      console.log('✅ Done processing — should ACK now');
-      channel.ack(originalMsg); // <-- phải nằm ở đây
+      await this.notificationService.createAndEnqueue(
+        data.createNotificationDto,
+      );
+      channel.ack(originalMsg);
     } catch (err) {
-      console.error('❌ Error processing message:', err);
-      channel.nack(originalMsg, false, false); // bỏ hoặc requeue tùy ý
+      console.error('Error processing notification message:', err);
+      channel.nack(originalMsg, false, false);
     }
   }
 
@@ -46,7 +40,7 @@ export class NotificationController {
     const originalMsg = context.getMessage();
 
     try {
-      await this.chatPushService.sendChatPush(data.sendChatPushDto);
+      await this.chatPushService.enqueueChatPush(data.sendChatPushDto);
       channel.ack(originalMsg);
     } catch (err) {
       console.error('Error processing chat push message:', err);

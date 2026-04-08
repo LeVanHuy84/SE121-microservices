@@ -1,9 +1,15 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
+import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { ClearChatPushStateDto, SendChatPushDto } from '@repo/dtos';
+import type { Queue } from 'bull';
 import Redis from 'ioredis';
 import { DeviceTokenService } from 'src/firebase/device-token.service';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import {
+  CHAT_PUSH_DELIVERY_JOB,
+  NOTIFICATION_QUEUE,
+} from './notification.jobs';
 
 type ActiveDeviceToken = Awaited<
   ReturnType<DeviceTokenService['getActiveTokensByUserId']>
@@ -19,10 +25,24 @@ export class ChatPushService {
     process.env.NATIVE_ANDROID_APP_ID ?? 'com.sentimeta.app';
 
   constructor(
+    @InjectQueue(NOTIFICATION_QUEUE) private readonly notificationQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
     private readonly firebaseService: FirebaseService,
     private readonly deviceTokenService: DeviceTokenService,
   ) {}
+
+  async enqueueChatPush(dto: SendChatPushDto) {
+    await this.notificationQueue.add(
+      CHAT_PUSH_DELIVERY_JOB,
+      { sendChatPushDto: dto },
+      {
+        jobId: `chat:${dto.userId}:${dto.messageId}`,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 3000 },
+        removeOnComplete: true,
+      },
+    );
+  }
 
   async sendChatPush(dto: SendChatPushDto) {
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
