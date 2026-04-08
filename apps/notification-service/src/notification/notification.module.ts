@@ -24,14 +24,16 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        redis: {
-          host: configService.get('REDIS_HOST') || 'localhost',
-          port: configService.get('REDIS_PORT')
-            ? parseInt(configService.get('REDIS_PORT'), 10)
-            : 6379,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const redisPort = configService.get<string>('REDIS_PORT');
+
+        return {
+          redis: {
+            host: configService.get('REDIS_HOST') || 'localhost',
+            port: redisPort ? parseInt(redisPort, 10) : 6379,
+          },
+        };
+      },
     }),
     BullModule.registerQueue({
       name: 'notifications',

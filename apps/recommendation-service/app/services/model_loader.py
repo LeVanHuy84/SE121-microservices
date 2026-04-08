@@ -16,6 +16,8 @@ class ModelLoader:
         self._tokenizer = None
         self._model = None
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._ready = False
+        self._last_error: str | None = None
         logger.info("[RecommendationModelLoader] Using device: %s", self._device)
 
     @property
@@ -34,18 +36,27 @@ class ModelLoader:
         if self._model is not None:
             return
 
-        logger.info(
-            "[RecommendationModelLoader] Loading embedding model %s to %s",
-            settings.RECOMMENDATION_MODEL_NAME,
-            self._device,
-        )
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            settings.RECOMMENDATION_MODEL_NAME
-        )
-        self._model = AutoModel.from_pretrained(settings.RECOMMENDATION_MODEL_NAME)
-        self._model.to(self._device)
-        self._model.eval()
-        logger.info("[RecommendationModelLoader] Model loaded")
+        try:
+            logger.info(
+                "[RecommendationModelLoader] Loading embedding model %s to %s",
+                settings.RECOMMENDATION_MODEL_NAME,
+                self._device,
+            )
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                settings.RECOMMENDATION_MODEL_NAME
+            )
+            self._model = AutoModel.from_pretrained(settings.RECOMMENDATION_MODEL_NAME)
+            self._model.to(self._device)
+            self._model.eval()
+            self._last_error = None
+            logger.info("[RecommendationModelLoader] Model loaded")
+        except Exception as exc:
+            self._ready = False
+            self._last_error = str(exc)
+            self._tokenizer = None
+            self._model = None
+            logger.exception("[RecommendationModelLoader] Model load failed: %s", exc)
+            raise
 
     def warmup(self):
         logger.info("[RecommendationModelLoader] Warming up model")
@@ -56,9 +67,25 @@ class ModelLoader:
                     "name: candidate example\nbio: builds mobile apps and joins football groups"
                 ],
             )
+            self._ready = True
+            self._last_error = None
             logger.info("[RecommendationModelLoader] Warmup completed")
         except Exception as exc:
+            self._ready = False
+            self._last_error = str(exc)
             logger.exception("[RecommendationModelLoader] Warmup failed: %s", exc)
+            raise
+
+    def is_ready(self) -> bool:
+        return self._ready and self._model is not None and self._tokenizer is not None
+
+    def get_readiness_status(self) -> dict[str, str | bool | None]:
+        return {
+            "ready": self.is_ready(),
+            "modelName": settings.RECOMMENDATION_MODEL_NAME,
+            "device": self._device,
+            "lastError": self._last_error,
+        }
 
     def predict_similarity_scores(
         self, viewer_profile_text: str, candidate_texts: List[str]

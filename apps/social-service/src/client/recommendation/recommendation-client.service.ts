@@ -40,6 +40,13 @@ export class RecommendationClientService {
     );
 
     if (!baseUrl || !internalKey) {
+      const missingConfig = [
+        !baseUrl ? 'RECOMMENDATION_SERVICE_URL' : null,
+        !internalKey ? 'RECOMMENDATION_INTERNAL_KEY' : null,
+      ].filter(Boolean);
+      this.logger.warn(
+        `RECOMMENDATION_SERVICE rerank skipped: missing config ${missingConfig.join(', ')}`,
+      );
       return {};
     }
 
@@ -67,6 +74,12 @@ export class RecommendationClientService {
         ? res.data.data.scores
         : [];
 
+      if (res.data?.success !== true) {
+        this.logger.warn(
+          `RECOMMENDATION_SERVICE rerank returned unsuccessful payload: viewerId=${viewerId} requested=${candidates.length}`,
+        );
+      }
+
       const parsedScores = scores.reduce((acc: Record<string, number>, item) => {
         const candidateId = String(item?.candidateId ?? '');
         const modelScore = Number(item?.modelScore);
@@ -82,10 +95,31 @@ export class RecommendationClientService {
 
       return parsedScores;
     } catch (error) {
+      const failureReason = this.describeFailure(error);
       this.logger.error(
-        `RECOMMENDATION_SERVICE rerank failed: ${error instanceof Error ? error.message : String(error)}`,
+        `RECOMMENDATION_SERVICE rerank failed: viewerId=${viewerId} requested=${candidates.length} reason=${failureReason}`,
       );
       return {};
     }
+  }
+
+  private describeFailure(error: unknown): string {
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        return `http_${error.response.status}`;
+      }
+
+      if (error.code === 'ECONNABORTED') {
+        return 'timeout';
+      }
+
+      if (error.code) {
+        return error.code;
+      }
+
+      return error.message;
+    }
+
+    return error instanceof Error ? error.message : String(error);
   }
 }
