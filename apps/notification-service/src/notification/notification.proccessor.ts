@@ -4,7 +4,7 @@ import type { Job } from 'bull';
 import { NotificationService } from './notification.service';
 import { Injectable } from '@nestjs/common';
 
-@Processor('notification')
+@Processor('notifications')
 @Injectable()
 export class NotificationProcessor {
   constructor(private readonly notificationService: NotificationService) {}

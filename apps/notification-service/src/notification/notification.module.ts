@@ -8,6 +8,7 @@ import {
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
 import { ChatPushService } from './chat-push.service';
+import { NotificationProcessor } from './notification.proccessor';
 import { NotificationService } from './notification.service';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
@@ -40,6 +41,11 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     }),
   ],
   controllers: [NotificationController],
-  providers: [NotificationService, ChatPushService, TemplateService],
+  providers: [
+    NotificationService,
+    ChatPushService,
+    NotificationProcessor,
+    TemplateService,
+  ],
 })
 export class NotificationModule {}
