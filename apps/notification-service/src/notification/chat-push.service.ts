@@ -21,9 +21,6 @@ export class ChatPushService {
   private readonly stateTtlSeconds = Number(
     process.env.CHAT_PUSH_STATE_TTL_SECONDS ?? 7 * 24 * 60 * 60,
   );
-  private readonly dispatchThrottleSeconds = Number(
-    process.env.CHAT_PUSH_DISPATCH_THROTTLE_SECONDS ?? 8,
-  );
   private readonly nativeAndroidAppId =
     process.env.NATIVE_ANDROID_APP_ID ?? 'com.sentimeta.app';
 
@@ -69,18 +66,6 @@ export class ChatPushService {
     const body = this.buildBody(dto, preview, unreadCount);
     const data = this.buildData(dto, unreadCount, preview);
     const conversationTag = `chat:${dto.conversationId}`;
-    const shouldDispatch = await this.claimDispatchWindow(dto);
-
-    if (!shouldDispatch) {
-      this.logger.debug(
-        `Throttle chat push for user ${dto.userId} conversation ${dto.conversationId}`,
-      );
-      return {
-        successCount: 0,
-        failureCount: 0,
-        invalidTokens: [] as string[],
-      };
-    }
 
     const androidNativeTokens = deviceTokens
       .filter((token) => this.isNativeAndroidTarget(token))
@@ -142,12 +127,7 @@ export class ChatPushService {
 
   async clearChatPushState(dto: ClearChatPushStateDto) {
     const keys = this.getStateKeys(dto.userId, dto.conversationId);
-    await this.redis.del(
-      keys.unread,
-      keys.lastSender,
-      keys.lastPreview,
-      keys.lastDispatch,
-    );
+    await this.redis.del(keys.unread, keys.lastSender, keys.lastPreview);
   }
 
   private isNativeAndroidTarget(token: ActiveDeviceToken) {
@@ -236,25 +216,7 @@ export class ChatPushService {
       unread: `${prefix}:unread`,
       lastSender: `${prefix}:lastSender`,
       lastPreview: `${prefix}:lastPreview`,
-      lastDispatch: `${prefix}:lastDispatch`,
     };
-  }
-
-  private async claimDispatchWindow(dto: SendChatPushDto) {
-    if (this.dispatchThrottleSeconds <= 0) {
-      return true;
-    }
-
-    const keys = this.getStateKeys(dto.userId, dto.conversationId);
-    const result = await this.redis.set(
-      keys.lastDispatch,
-      dto.messageId,
-      'EX',
-      this.dispatchThrottleSeconds,
-      'NX',
-    );
-
-    return result === 'OK';
   }
 
   private sanitizePreview(value?: string) {

@@ -58,6 +58,7 @@ describe('NotificationService (unit)', () => {
               dailyCount: 1,
               burstCount: 1,
             }),
+            releaseNotificationSlot: jest.fn().mockResolvedValue(undefined),
             checkAndIncrementDailyLimit: jest.fn().mockResolvedValue(true),
           },
         },
@@ -162,6 +163,29 @@ describe('NotificationService (unit)', () => {
       expect.objectContaining({
         rateLimited: true,
         rateLimitReason: 'burst',
+      }),
+    );
+  });
+
+  it('should rollback reserved rate-limit slot when enqueue fails', async () => {
+    jest.spyOn(notificationQueue, 'add').mockRejectedValue(new Error('queue down'));
+
+    await expect(
+      service.createAndEnqueue({
+        userId: 'user1',
+        type: 'comment',
+        payload: { content: 'hello' } as any,
+        channels: ['push'],
+      }),
+    ).rejects.toThrow('queue down');
+
+    expect(userPreferenceService.releaseNotificationSlot).toHaveBeenCalledWith(
+      'user1',
+      'comment',
+      expect.objectContaining({
+        dailyLimit: 10,
+        burstLimit: 3,
+        burstWindowSeconds: 60,
       }),
     );
   });

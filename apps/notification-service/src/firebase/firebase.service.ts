@@ -26,6 +26,7 @@ type MessagingErrorLike = Error & {
 @Injectable()
 export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FirebaseService.name);
+  private readonly partialRetryAttempts = 2;
   private readonly invalidTokenCodes = new Set([
     'messaging/invalid-registration-token',
     'messaging/registration-token-not-registered',
@@ -135,13 +136,13 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const response = await admin.messaging().sendEachForMulticast({
+      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
         notification: {
           title,
           body,
         },
         data: data || {},
-        tokens,
+        tokens: batch,
         android: {
           priority: 'high',
           collapseKey: options?.collapseKey,
@@ -171,11 +172,9 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
             },
           },
         },
-      });
-
-      const deliveryResult = this.buildMulticastResult(tokens, response);
+      }));
       this.logger.log(
-        `Sent to ${response.successCount}/${tokens.length} devices`,
+        `Sent to ${deliveryResult.successCount}/${tokens.length} devices`,
       );
 
       return deliveryResult;
@@ -204,18 +203,16 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const response = await admin.messaging().sendEachForMulticast({
+      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
         data,
-        tokens,
+        tokens: batch,
         android: {
           priority: 'high',
           collapseKey: options?.collapseKey,
         },
-      });
-
-      const deliveryResult = this.buildMulticastResult(tokens, response);
+      }));
       this.logger.log(
-        `Sent data-only push to ${response.successCount}/${tokens.length} devices`,
+        `Sent data-only push to ${deliveryResult.successCount}/${tokens.length} devices`,
       );
 
       return deliveryResult;
@@ -366,6 +363,8 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   ) {
     const invalidTokens: string[] = [];
     let retryableFailureCount = 0;
+    const retryableTokens: string[] = [];
+    let nonRetryableFailureCount = 0;
 
     response.responses.forEach((result, index) => {
       if (!result.success && result.error) {
@@ -378,24 +377,76 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
 
         if (classification.retryable) {
           retryableFailureCount += 1;
+          retryableTokens.push(tokens[index]);
+          return;
         }
+
+        nonRetryableFailureCount += 1;
       }
     });
 
-    if (response.successCount === 0 && retryableFailureCount > 0) {
-      throw new NotificationDeliveryError(
-        `FCM multicast failed for all ${tokens.length} devices`,
-        {
-          code: 'messaging/multicast-retryable-failure',
-          retryable: true,
-          invalidTokens,
-        },
+    return {
+      successCount: response.successCount,
+      failureCount: invalidTokens.length + retryableFailureCount + nonRetryableFailureCount,
+      invalidTokens,
+      retryableTokens,
+    };
+  }
+
+  private async sendMulticastWithRetry(
+    tokens: string[],
+    buildMessage: (tokens: string[]) => admin.messaging.MulticastMessage,
+  ) {
+    const invalidTokens: string[] = [];
+    let successCount = 0;
+    let failureCount = 0;
+    let pendingTokens = [...tokens];
+
+    for (let attempt = 0; attempt <= this.partialRetryAttempts; attempt += 1) {
+      const response = await admin.messaging().sendEachForMulticast(
+        buildMessage(pendingTokens),
       );
+      const result = this.buildMulticastResult(pendingTokens, response);
+
+      successCount += result.successCount;
+      failureCount += result.failureCount - result.retryableTokens.length;
+      invalidTokens.push(...result.invalidTokens);
+
+      if (result.retryableTokens.length === 0) {
+        return {
+          successCount,
+          failureCount,
+          invalidTokens,
+        };
+      }
+
+      if (attempt === this.partialRetryAttempts) {
+        if (successCount === 0) {
+          throw new NotificationDeliveryError(
+            `FCM multicast failed for all ${tokens.length} devices`,
+            {
+              code: 'messaging/multicast-retryable-failure',
+              retryable: true,
+              invalidTokens,
+            },
+          );
+        }
+
+        failureCount += result.retryableTokens.length;
+        return {
+          successCount,
+          failureCount,
+          invalidTokens,
+        };
+      }
+
+      pendingTokens = result.retryableTokens;
+      await this.delay((attempt + 1) * 1000);
     }
 
     return {
-      successCount: response.successCount,
-      failureCount: response.failureCount,
+      successCount,
+      failureCount,
       invalidTokens,
     };
   }
@@ -436,5 +487,9 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       retryable: classification.retryable,
       cause,
     });
+  }
+
+  private delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

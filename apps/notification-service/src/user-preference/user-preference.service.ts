@@ -82,14 +82,8 @@ export class UserPreferenceService {
     type: string,
     limits?: NotificationLimitConfig,
   ): Promise<ReserveNotificationSlotResult> {
-    const dailyLimit = limits?.dailyLimit ?? 100;
-    const burstLimit = limits?.burstLimit ?? 10;
-    const burstWindowSeconds = limits?.burstWindowSeconds ?? 300;
-
-    const ymd = new Date().toISOString().slice(0, 10);
-    const dailyKey = `rl:daily:${userId}:${type}:${ymd}`;
-    const burstBucket = Math.floor(Date.now() / (burstWindowSeconds * 1000));
-    const burstKey = `rl:burst:${userId}:${type}:${burstBucket}`;
+    const { dailyLimit, burstLimit, burstWindowSeconds, dailyKey, burstKey } =
+      this.buildRateLimitContext(userId, type, limits);
 
     const multi = this.redis.multi();
     multi.incr(dailyKey);
@@ -132,6 +126,33 @@ export class UserPreferenceService {
     };
   }
 
+  async releaseNotificationSlot(
+    userId: string,
+    type: string,
+    limits?: NotificationLimitConfig,
+  ) {
+    const { dailyKey, burstKey } = this.buildRateLimitContext(
+      userId,
+      type,
+      limits,
+    );
+    const multi = this.redis.multi();
+    multi.decr(dailyKey);
+    multi.decr(burstKey);
+    const [dailyResult, burstResult] = (await multi.exec()) ?? [];
+    const dailyCount = Number(dailyResult?.[1] ?? 0);
+    const burstCount = Number(burstResult?.[1] ?? 0);
+
+    const cleanup = this.redis.multi();
+    if (dailyCount <= 0) {
+      cleanup.del(dailyKey);
+    }
+    if (burstCount <= 0) {
+      cleanup.del(burstKey);
+    }
+    await cleanup.exec();
+  }
+
   private getSecondsUntilTomorrow() {
     const now = new Date();
     const tomorrow = new Date(
@@ -140,5 +161,27 @@ export class UserPreferenceService {
       now.getDate() + 1,
     );
     return Math.floor((tomorrow.getTime() - now.getTime()) / 1000);
+  }
+
+  private buildRateLimitContext(
+    userId: string,
+    type: string,
+    limits?: NotificationLimitConfig,
+  ) {
+    const dailyLimit = limits?.dailyLimit ?? 100;
+    const burstLimit = limits?.burstLimit ?? 10;
+    const burstWindowSeconds = limits?.burstWindowSeconds ?? 300;
+    const ymd = new Date().toISOString().slice(0, 10);
+    const dailyKey = `rl:daily:${userId}:${type}:${ymd}`;
+    const burstBucket = Math.floor(Date.now() / (burstWindowSeconds * 1000));
+    const burstKey = `rl:burst:${userId}:${type}:${burstBucket}`;
+
+    return {
+      dailyLimit,
+      burstLimit,
+      burstWindowSeconds,
+      dailyKey,
+      burstKey,
+    };
   }
 }

@@ -105,56 +105,65 @@ export class NotificationService {
       });
     }
 
-    const renderedTemplate = this.templateService.renderTemplate(
-      dto.type,
-      dto.payload,
-    );
-    const sendAt = dto.sendAt ? new Date(dto.sendAt) : undefined;
-
-    const doc = await this.notificationModel.create({
-      requestId: dto.requestId,
-      userId: dto.userId,
-      type: dto.type,
-      payload: dto.payload,
-      message: renderedTemplate.body,
-      channels: allowedChannels,
-      sendAt,
-      status: 'unread',
-      meta: dto.meta || {},
-    });
-
     try {
-      await this.cacheNotifications(doc.userId, [doc]);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to update notification cache for ${doc._id}: ${error.message}`,
+      const renderedTemplate = this.templateService.renderTemplate(
+        dto.type,
+        dto.payload,
       );
+      const sendAt = dto.sendAt ? new Date(dto.sendAt) : undefined;
+
+      const doc = await this.notificationModel.create({
+        requestId: dto.requestId,
+        userId: dto.userId,
+        type: dto.type,
+        payload: dto.payload,
+        message: renderedTemplate.body,
+        channels: allowedChannels,
+        sendAt,
+        status: 'unread',
+        meta: dto.meta || {},
+      });
+
+      try {
+        await this.cacheNotifications(doc.userId, [doc]);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to update notification cache for ${doc._id}: ${error.message}`,
+        );
+      }
+
+      const delay =
+        sendAt && sendAt.getTime() > Date.now()
+          ? Math.max(0, sendAt.getTime() - Date.now())
+          : 0;
+
+      await this.notificationQueue.add(
+        REGULAR_NOTIFICATION_DELIVERY_JOB,
+        { id: doc._id.toString() },
+        {
+          jobId: `regular:${doc._id.toString()}`,
+          delay,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: true,
+        },
+      );
+
+      if (delay > 0) {
+        this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
+      } else {
+        this.logger.log(`Notification ${doc._id} enqueued for delivery`);
+      }
+
+      return doc;
+    } catch (error) {
+      await this.userPreferenceService.releaseNotificationSlot(
+        dto.userId,
+        dto.type,
+        prefs.limits,
+      );
+      throw error;
     }
-
-    const delay =
-      sendAt && sendAt.getTime() > Date.now()
-        ? Math.max(0, sendAt.getTime() - Date.now())
-        : 0;
-
-    await this.notificationQueue.add(
-      REGULAR_NOTIFICATION_DELIVERY_JOB,
-      { id: doc._id.toString() },
-      {
-        jobId: `regular:${doc._id.toString()}`,
-        delay,
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: true,
-      },
-    );
-
-    if (delay > 0) {
-      this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
-    } else {
-      this.logger.log(`Notification ${doc._id} enqueued for delivery`);
-    }
-
-    return doc;
   }
 
   async publishToChannels(doc: NotificationDocument) {
