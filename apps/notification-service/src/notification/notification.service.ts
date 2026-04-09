@@ -78,15 +78,16 @@ export class NotificationService {
       });
     }
 
-    const limit = prefs.limits?.dailyLimit ?? 100;
-    const allowed =
-      await this.userPreferenceService.checkAndIncrementDailyLimit(
-        dto.userId,
-        limit,
-      );
+    const limitResult = await this.userPreferenceService.reserveNotificationSlot(
+      dto.userId,
+      dto.type,
+      prefs.limits,
+    );
 
-    if (!allowed) {
-      this.logger.warn(`User ${dto.userId} exceeded daily limit`);
+    if (!limitResult.allowed) {
+      this.logger.warn(
+        `User ${dto.userId} exceeded ${limitResult.reason} limit for notification type ${dto.type}`,
+      );
       return this.notificationModel.create({
         requestId: dto.requestId,
         userId: dto.userId,
@@ -95,7 +96,12 @@ export class NotificationService {
         message: null,
         channels: [],
         status: 'unread',
-        meta: { rateLimited: true },
+        meta: {
+          rateLimited: true,
+          rateLimitReason: limitResult.reason,
+          dailyCount: limitResult.dailyCount,
+          burstCount: limitResult.burstCount,
+        },
       });
     }
 

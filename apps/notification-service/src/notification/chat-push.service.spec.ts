@@ -11,6 +11,7 @@ describe('ChatPushService', () => {
   const redis = {
     multi: jest.fn(() => multi),
     del: jest.fn().mockResolvedValue(1),
+    set: jest.fn().mockResolvedValue('OK'),
   };
 
   const firebaseService = {
@@ -40,6 +41,7 @@ describe('ChatPushService', () => {
     multi.set.mockReturnThis();
     multi.expire.mockReturnThis();
     multi.exec.mockResolvedValue([[null, 3], [null, 'OK'], [null, 'OK'], [null, 1]]);
+    redis.set.mockResolvedValue('OK');
   });
 
   it('increments unread state and splits Android native chat pushes to data-only delivery', async () => {
@@ -126,6 +128,38 @@ describe('ChatPushService', () => {
       'chat:push:user-2:conv-1:unread',
       'chat:push:user-2:conv-1:lastSender',
       'chat:push:user-2:conv-1:lastPreview',
+      'chat:push:user-2:conv-1:lastDispatch',
     );
+  });
+
+  it('throttles repeated chat push dispatches for the same conversation', async () => {
+    const service = createService();
+    deviceTokenService.getActiveTokensByUserId.mockResolvedValue([
+      {
+        token: 'token-2',
+        platform: 'android',
+        provider: 'fcm',
+        appId: 'com.sentimeta.app',
+      },
+    ]);
+    redis.set.mockResolvedValue(null);
+
+    const result = await service.sendChatPush({
+      userId: 'user-2',
+      conversationId: 'conv-1',
+      isGroup: false,
+      senderId: 'user-1',
+      senderName: 'An Nguyen',
+      preview: 'hello team',
+      messageId: 'msg-2',
+    });
+
+    expect(result).toEqual({
+      successCount: 0,
+      failureCount: 0,
+      invalidTokens: [],
+    });
+    expect(firebaseService.sendDataOnlyToMultipleDevices).not.toHaveBeenCalled();
+    expect(firebaseService.sendToMultipleDevices).not.toHaveBeenCalled();
   });
 });

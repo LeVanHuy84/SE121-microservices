@@ -11,6 +11,7 @@ import { DeviceTokenService } from 'src/firebase/device-token.service';
 describe('NotificationService (unit)', () => {
   let service: NotificationService;
   let notificationQueue: { add: jest.Mock };
+  let userPreferenceService: UserPreferenceService;
 
   beforeEach(async () => {
     notificationQueue = { add: jest.fn() };
@@ -50,8 +51,13 @@ describe('NotificationService (unit)', () => {
               .fn()
               .mockResolvedValue({
                 allowedChannels: ['push'],
-                limits: { dailyLimit: 10 },
+                limits: { dailyLimit: 10, burstLimit: 3, burstWindowSeconds: 60 },
               }),
+            reserveNotificationSlot: jest.fn().mockResolvedValue({
+              allowed: true,
+              dailyCount: 1,
+              burstCount: 1,
+            }),
             checkAndIncrementDailyLimit: jest.fn().mockResolvedValue(true),
           },
         },
@@ -95,6 +101,7 @@ describe('NotificationService (unit)', () => {
     }).compile();
 
     service = module.get<NotificationService>(NotificationService);
+    userPreferenceService = module.get<UserPreferenceService>(UserPreferenceService);
   });
 
   it('should create notification and enqueue delivery job', async () => {
@@ -131,6 +138,32 @@ describe('NotificationService (unit)', () => {
 
     expect(service['notificationQueue'].add).toHaveBeenCalled();
     expect(result._id).toBeDefined();
+  });
+
+  it('should persist a rate-limited notification when burst limit is exceeded', async () => {
+    jest
+      .spyOn(userPreferenceService, 'reserveNotificationSlot')
+      .mockResolvedValue({
+        allowed: false,
+        reason: 'burst',
+        dailyCount: 4,
+        burstCount: 4,
+      });
+
+    const result = await service.createAndEnqueue({
+      userId: 'user1',
+      type: 'comment',
+      payload: { content: 'hello' } as any,
+      channels: ['push'],
+    });
+
+    expect(notificationQueue.add).not.toHaveBeenCalled();
+    expect(result.meta).toEqual(
+      expect.objectContaining({
+        rateLimited: true,
+        rateLimitReason: 'burst',
+      }),
+    );
   });
 });
 
