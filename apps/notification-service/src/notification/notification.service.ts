@@ -12,13 +12,12 @@ import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
 import { Model, ObjectId, Types } from 'mongoose';
-
+import { DeviceTokenService } from 'src/firebase/device-token.service';
+import { FirebaseService } from 'src/firebase/firebase.service';
 import {
   Notification,
   NotificationDocument,
 } from 'src/mongo/schema/notification.schema';
-import { DeviceTokenService } from 'src/firebase/device-token.service';
-import { FirebaseService } from 'src/firebase/firebase.service';
 import { UserPreferenceService } from 'src/user-preference/user-preference.service';
 import {
   NOTIFICATION_QUEUE,
@@ -29,16 +28,18 @@ import { TemplateService } from './template.service';
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  private readonly NOTIF_CACHE_TTL = 2 * 60 * 60;
-  private readonly EMPTY_CACHE_TTL = 60;
+  private readonly notifCacheTtl = 2 * 60 * 60;
+  private readonly emptyCacheTtl = 60;
 
   constructor(
     @InjectModel(Notification.name)
-    private notificationModel: Model<Notification>,
+    private readonly notificationModel: Model<Notification>,
     private readonly templateService: TemplateService,
     private readonly userPreferenceService: UserPreferenceService,
-    @InjectQueue(NOTIFICATION_QUEUE) private notificationQueue: Queue,
-    @InjectRedis() private readonly redis: Redis,
+    @InjectQueue(NOTIFICATION_QUEUE)
+    private readonly notificationQueue: Queue,
+    @InjectRedis()
+    private readonly redis: Redis,
     private readonly firebaseService: FirebaseService,
     private readonly deviceTokenService: DeviceTokenService,
   ) {}
@@ -48,7 +49,9 @@ export class NotificationService {
       const exists = await this.notificationModel
         .findOne({ requestId: dto.requestId })
         .lean();
-      if (exists) return plainToInstance(NotificationResponseDto, exists, {});
+      if (exists) {
+        return plainToInstance(NotificationResponseDto, exists, {});
+      }
     }
 
     const prefs = await this.userPreferenceService.getUserPreferences(
@@ -56,12 +59,14 @@ export class NotificationService {
     );
     const allowedChannels =
       dto.channels && dto.channels.length
-        ? dto.channels.filter((ch) => prefs.allowedChannels.includes(ch))
+        ? dto.channels.filter((channel) =>
+            prefs.allowedChannels.includes(channel),
+          )
         : prefs.allowedChannels;
 
     if (!allowedChannels || allowedChannels.length === 0) {
       this.logger.warn(`User ${dto.userId} has no allowed channels - skipping`);
-      const suppressed = await this.notificationModel.create({
+      return this.notificationModel.create({
         requestId: dto.requestId,
         userId: dto.userId,
         type: dto.type,
@@ -71,7 +76,6 @@ export class NotificationService {
         status: 'unread',
         meta: { suppressed: true },
       });
-      return suppressed;
     }
 
     const limit = prefs.limits?.dailyLimit ?? 100;
@@ -83,7 +87,7 @@ export class NotificationService {
 
     if (!allowed) {
       this.logger.warn(`User ${dto.userId} exceeded daily limit`);
-      const blocked = await this.notificationModel.create({
+      return this.notificationModel.create({
         requestId: dto.requestId,
         userId: dto.userId,
         type: dto.type,
@@ -93,14 +97,12 @@ export class NotificationService {
         status: 'unread',
         meta: { rateLimited: true },
       });
-      return blocked;
     }
 
     const renderedTemplate = this.templateService.renderTemplate(
       dto.type,
       dto.payload,
     );
-    const renderedMessage = renderedTemplate.body;
     const sendAt = dto.sendAt ? new Date(dto.sendAt) : undefined;
 
     const doc = await this.notificationModel.create({
@@ -108,7 +110,7 @@ export class NotificationService {
       userId: dto.userId,
       type: dto.type,
       payload: dto.payload,
-      message: renderedMessage,
+      message: renderedTemplate.body,
       channels: allowedChannels,
       sendAt,
       status: 'unread',
@@ -117,9 +119,9 @@ export class NotificationService {
 
     try {
       await this.cacheNotifications(doc.userId, [doc]);
-    } catch (err) {
+    } catch (error) {
       this.logger.warn(
-        `Failed to update notification cache for ${doc._id}: ${err.message}`,
+        `Failed to update notification cache for ${doc._id}: ${error.message}`,
       );
     }
 
@@ -150,72 +152,10 @@ export class NotificationService {
   }
 
   async publishToChannels(doc: NotificationDocument) {
-    try {
-      await this.sendPushNotification(doc);
-      this.logger.log(
-        `Sent push notification ${doc._id} via FCM to user ${doc.userId}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to send push notification for ${doc._id}`,
-        error,
-      );
-    }
-  }
-
-  private async sendPushNotification(doc: NotificationDocument) {
-    try {
-      const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
-        doc.userId,
-      );
-
-      if (deviceTokens.length === 0) {
-        this.logger.warn(`No device tokens found for user ${doc.userId}`);
-        return;
-      }
-
-      const tokens = deviceTokens.map((dt) => dt.token);
-
-      const renderedTemplate = this.templateService.renderTemplate(
-        doc.type,
-        doc.payload as any,
-      );
-      const title = renderedTemplate.title;
-      const body =
-        renderedTemplate.body || doc.message || 'Bạn có thông báo mới';
-      const data = {
-        notificationId: (doc._id as Types.ObjectId).toString(),
-        type: doc.type,
-        userId: doc.userId,
-        ...renderedTemplate.data,
-      };
-
-      const result = await this.firebaseService.sendToMultipleDevices(
-        tokens,
-        title,
-        body,
-        data,
-        {
-          androidChannelId: renderedTemplate.delivery.androidChannelId,
-        },
-      );
-
-      this.logger.log(
-        `FCM sent to ${result.successCount}/${tokens.length} devices for user ${doc.userId}`,
-      );
-
-      if (result.invalidTokens.length > 0) {
-        await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
-        this.logger.warn(
-          `Marked ${result.invalidTokens.length} invalid tokens as inactive`,
-        );
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to send push notification for ${doc._id}`,
-        error,
-      );
-    }
+    await this.sendPushNotification(doc);
+    this.logger.log(
+      `Sent push notification ${doc._id} via FCM to user ${doc.userId}`,
+    );
   }
 
   async findById(id: string) {
@@ -236,7 +176,9 @@ export class NotificationService {
     }
 
     let maxScore = '+inf';
-    if (query.cursor) maxScore = `(${query.cursor}`;
+    if (query.cursor) {
+      maxScore = `(${query.cursor}`;
+    }
 
     try {
       const ids = await this.redis.zrevrangebyscore(
@@ -254,13 +196,15 @@ export class NotificationService {
 
         const cached = await this.redis.hmget(dataKey, ...selectedIds);
         const cachedItems = cached
-          .filter((c): c is string => c !== null)
-          .map((c) => JSON.parse(c));
+          .filter((item): item is string => item !== null)
+          .map((item) => JSON.parse(item));
 
         const itemMap = new Map<string, any>();
         for (const item of cachedItems) {
           const id = item?._id?.toString() ?? item?.id;
-          if (id) itemMap.set(id, item);
+          if (id) {
+            itemMap.set(id, item);
+          }
         }
 
         const missingIds = selectedIds.filter((id) => !itemMap.has(id));
@@ -270,16 +214,16 @@ export class NotificationService {
 
         const lastItem = items.length > 0 ? items[items.length - 1] : null;
         const nextCursor =
-          hasNext && lastItem?.createdAt
-            ? new Date(lastItem.createdAt).getTime().toString()
+          hasNext && (lastItem as any)?.createdAt
+            ? new Date((lastItem as any).createdAt).getTime().toString()
             : null;
 
         if (missingIds.length > 0) {
           if (items.length > 0) {
             this.refreshNotificationsCache(userId, query.cursor ?? null, limit)
-              .catch((err) =>
+              .catch((error) =>
                 this.logger.warn(
-                  `Failed to refresh notifications cache for userId=${userId}: ${err.message}`,
+                  `Failed to refresh notifications cache for userId=${userId}: ${error.message}`,
                 ),
               );
             return new CursorPageResponse(
@@ -296,14 +240,14 @@ export class NotificationService {
           );
         }
       }
-    } catch (err) {
+    } catch (error) {
       this.logger.warn(
-        `Notification cache read failed for userId=${userId}: ${err.message}`,
+        `Notification cache read failed for userId=${userId}: ${error.message}`,
       );
     }
 
     const scoreFilter = query.cursor
-      ? { $lt: new Date(parseInt(query.cursor)) }
+      ? { $lt: new Date(parseInt(query.cursor, 10)) }
       : {};
 
     const dbItems = await this.notificationModel
@@ -330,7 +274,7 @@ export class NotificationService {
       );
     }
 
-    await this.redis.set(emptyKey, '1', 'EX', this.EMPTY_CACHE_TTL);
+    await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
     return new CursorPageResponse([], null, false);
   }
 
@@ -340,7 +284,9 @@ export class NotificationService {
       { status: 'read' },
       { new: true },
     );
-    if (doc) await this.updateNotificationCache(doc);
+    if (doc) {
+      await this.updateNotificationCache(doc);
+    }
     return plainToInstance(NotificationResponseDto, doc, {});
   }
 
@@ -355,7 +301,10 @@ export class NotificationService {
 
   async removeById(id: string) {
     const doc = await this.notificationModel.findByIdAndDelete(id);
-    if (!doc) return;
+    if (!doc) {
+      return;
+    }
+
     const { key, dataKey, emptyKey } = this.getCacheKeys(doc.userId);
     const multi = this.redis.multi();
     multi.zrem(key, id);
@@ -372,6 +321,48 @@ export class NotificationService {
     await multi.exec();
   }
 
+  private async sendPushNotification(doc: NotificationDocument) {
+    const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
+      doc.userId,
+    );
+
+    if (deviceTokens.length === 0) {
+      this.logger.warn(`No device tokens found for user ${doc.userId}`);
+      return;
+    }
+
+    const tokens = deviceTokens.map((deviceToken) => deviceToken.token);
+    const renderedTemplate = this.templateService.renderTemplate(
+      doc.type,
+      doc.payload as any,
+    );
+    const result = await this.firebaseService.sendToMultipleDevices(
+      tokens,
+      renderedTemplate.title,
+      renderedTemplate.body || doc.message || 'Bạn có thông báo mới',
+      {
+        notificationId: (doc._id as Types.ObjectId).toString(),
+        type: doc.type,
+        userId: doc.userId,
+        ...renderedTemplate.data,
+      },
+      {
+        androidChannelId: renderedTemplate.delivery.androidChannelId,
+      },
+    );
+
+    this.logger.log(
+      `FCM sent to ${result.successCount}/${tokens.length} devices for user ${doc.userId}`,
+    );
+
+    if (result.invalidTokens.length > 0) {
+      await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
+      this.logger.warn(
+        `Marked ${result.invalidTokens.length} invalid tokens as inactive`,
+      );
+    }
+  }
+
   private async cacheNotifications(userId: string, items: any[]) {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
     const multi = this.redis.multi();
@@ -379,8 +370,8 @@ export class NotificationService {
 
     for (const item of items) {
       const member = item._id.toString();
-      const score = item.createdAt
-        ? new Date(item.createdAt).getTime()
+      const score = (item as any).createdAt
+        ? new Date((item as any).createdAt).getTime()
         : Date.now();
       multi.zadd(key, score, member);
       multi.hset(dataKey, member, JSON.stringify(item));
@@ -442,7 +433,7 @@ export class NotificationService {
       multi.del(emptyKey);
     } else {
       multi.del(key, dataKey);
-      multi.set(emptyKey, '1', 'EX', this.EMPTY_CACHE_TTL);
+      multi.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
     }
 
     await multi.exec();
@@ -452,8 +443,10 @@ export class NotificationService {
     userId: string,
     cursor: string | null,
     limit: number,
-  ): Promise<void> {
-    const scoreFilter = cursor ? { $lt: new Date(parseInt(cursor)) } : {};
+  ) {
+    const scoreFilter = cursor
+      ? { $lt: new Date(parseInt(cursor, 10)) }
+      : {};
 
     const dbItems = await this.notificationModel
       .find({ userId, ...(cursor ? { createdAt: scoreFilter } : {}) })
@@ -461,7 +454,10 @@ export class NotificationService {
       .limit(limit + 1)
       .lean();
 
-    if (!dbItems.length) return;
+    if (!dbItems.length) {
+      return;
+    }
+
     await this.cacheNotifications(userId, dbItems);
   }
 
@@ -475,6 +471,6 @@ export class NotificationService {
   }
 
   private cacheTtlSeconds() {
-    return this.NOTIF_CACHE_TTL + Math.floor(Math.random() * 300);
+    return this.notifCacheTtl + Math.floor(Math.random() * 300);
   }
 }

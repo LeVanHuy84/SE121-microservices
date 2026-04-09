@@ -22,9 +22,13 @@ describe('ChatPushService', () => {
     getActiveTokensByUserId: jest.fn(),
     markTokensAsInvalid: jest.fn().mockResolvedValue(undefined),
   };
+  const notificationQueue = {
+    add: jest.fn().mockResolvedValue(undefined),
+  };
 
   const createService = () =>
     new ChatPushService(
+      notificationQueue as any,
       redis as any,
       firebaseService as any,
       deviceTokenService as any,
@@ -81,7 +85,7 @@ describe('ChatPushService', () => {
         senderId: 'user-1',
         senderName: 'An Nguyen',
         unreadCount: '3',
-        displayTitle: '3 tin nhan moi',
+        displayTitle: '3 tin nhắn mới',
         displayBody: 'Trong SE121',
         channelId: 'messages',
         conversationTag: 'chat:conv-1',
@@ -92,7 +96,7 @@ describe('ChatPushService', () => {
     );
     expect(firebaseService.sendToMultipleDevices).toHaveBeenCalledWith(
       ['token-1', 'token-3'],
-      '3 tin nhan moi',
+      '3 tin nhắn mới',
       'Trong SE121',
       expect.objectContaining({
         conversationId: 'conv-1',

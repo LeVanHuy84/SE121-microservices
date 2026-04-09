@@ -2,7 +2,7 @@
 import { Processor, Process } from '@nestjs/bull';
 import type { Job } from 'bull';
 import { NotificationService } from './notification.service';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ChatPushService } from './chat-push.service';
 import {
   CHAT_PUSH_DELIVERY_JOB,
@@ -10,10 +10,16 @@ import {
   NOTIFICATION_QUEUE,
   REGULAR_NOTIFICATION_DELIVERY_JOB,
 } from './notification.jobs';
+import {
+  isRetryableDeliveryError,
+  NotificationDeliveryError,
+} from './notification-delivery.error';
 
 @Processor(NOTIFICATION_QUEUE)
 @Injectable()
 export class NotificationProcessor {
+  private readonly logger = new Logger(NotificationProcessor.name);
+
   constructor(
     private readonly notificationService: NotificationService,
     private readonly chatPushService: ChatPushService,
@@ -31,13 +37,36 @@ export class NotificationProcessor {
 
   @Process(CHAT_PUSH_DELIVERY_JOB)
   async handleChatPush(job: Job<{ sendChatPushDto: Parameters<ChatPushService['sendChatPush']>[0] }>) {
-    await this.chatPushService.sendChatPush(job.data.sendChatPushDto);
+    try {
+      await this.chatPushService.sendChatPush(job.data.sendChatPushDto);
+    } catch (error) {
+      this.handleDeliveryError(job, error);
+    }
   }
 
   private async handleRegularNotificationJob(job: Job<{ id: string }>) {
-    const id = job.data.id;
-    const notification = await this.notificationService.findById(id);
-    if (!notification) return;
-    await this.notificationService.publishToChannels(notification as any);
+    try {
+      const id = job.data.id;
+      const notification = await this.notificationService.findById(id);
+      if (!notification) return;
+      await this.notificationService.publishToChannels(notification as any);
+    } catch (error) {
+      this.handleDeliveryError(job, error);
+    }
+  }
+
+  private handleDeliveryError(job: Job, error: unknown): never | void {
+    if (isRetryableDeliveryError(error)) {
+      throw error;
+    }
+
+    if (error instanceof NotificationDeliveryError) {
+      this.logger.warn(
+        `Skip retry for job ${job.name} (${job.id ?? 'unknown'}): ${error.message}`,
+      );
+      return;
+    }
+
+    throw error;
   }
 }
