@@ -64,7 +64,10 @@ class ModelLoader:
             _ = self.predict_similarity_scores(
                 "name: viewer example\nbio: likes technology and football",
                 [
-                    "name: candidate example\nbio: builds mobile apps and joins football groups"
+                    (
+                        "name: candidate example\nbio: builds mobile apps "
+                        "and joins football groups"
+                    )
                 ],
             )
             self._ready = True
@@ -113,7 +116,9 @@ class ModelLoader:
         if query_embedding.shape[0] == 0 or candidate_embeddings.shape[0] == 0:
             return [0.0 for _ in candidate_texts]
 
-        cosine_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(-1)
+        cosine_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(
+            -1
+        )
         calibrated_scores = [
             self._calibrate_cosine_score(float(score))
             for score in cosine_scores.detach().cpu().tolist()
@@ -132,7 +137,9 @@ class ModelLoader:
         return resolved_scores
 
     def encode_profile_texts(self, profile_texts: Sequence[str]) -> List[List[float]]:
-        normalized_profile_texts = [self._normalize_text(text) for text in profile_texts]
+        normalized_profile_texts = [
+            self._normalize_text(text) for text in profile_texts
+        ]
         valid_profile_texts = [text for text in normalized_profile_texts if text]
 
         if not valid_profile_texts:
@@ -187,7 +194,9 @@ class ModelLoader:
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
-            pooled = self._mean_pool(outputs.last_hidden_state, inputs["attention_mask"])
+            pooled = self._mean_pool(
+                outputs.last_hidden_state, inputs["attention_mask"]
+            )
             normalized = F.normalize(pooled, p=2, dim=1)
             batches.append(normalized.detach().cpu())
 

@@ -23,7 +23,9 @@ class ProfileEmbeddingEventHandler:
         payload = message.get("payload") or {}
 
         if event_type != self.REQUESTED_EVENT_TYPE:
-            logger.warning("Skipping unsupported recommendation event type=%s", event_type)
+            logger.warning(
+                "Skipping unsupported recommendation event type=%s", event_type
+            )
             return
 
         user_id = str(payload.get("userId") or "").strip()
@@ -43,7 +45,9 @@ class ProfileEmbeddingEventHandler:
         try:
             embedding = []
             if normalized_profile_text:
-                embeddings = model_loader.encode_profile_texts([normalized_profile_text])
+                embeddings = model_loader.encode_profile_texts(
+                    [normalized_profile_text]
+                )
                 embedding = embeddings[0] if embeddings else []
 
             generated_at = self._now_iso()
@@ -68,7 +72,10 @@ class ProfileEmbeddingEventHandler:
             )
             precompute_queue.mark_stale(user_id)
             logger.info(
-                "Recommendation profile embedding completed and enqueued: userId=%s requestId=%s dimensions=%s",
+                (
+                    "Recommendation profile embedding completed and enqueued: "
+                    "userId=%s requestId=%s dimensions=%s"
+                ),
                 user_id,
                 request_id,
                 len(embedding),
@@ -88,7 +95,10 @@ class ProfileEmbeddingEventHandler:
                 },
             )
             logger.exception(
-                "Recommendation profile embedding failed and enqueued: userId=%s requestId=%s",
+                (
+                    "Recommendation profile embedding failed and enqueued: "
+                    "userId=%s requestId=%s"
+                ),
                 user_id,
                 request_id,
             )

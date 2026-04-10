@@ -1,4 +1,7 @@
 /.venv/
 /logs/
+.ruff_cache/
+.turbo/
+.pytest_cache/
 __pycache__/
 *.pyc

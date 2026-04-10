@@ -91,7 +91,7 @@ class RecommendationGraphStateStore:
         with self._lock:
             active_dismissals = 0
             now = datetime.now(timezone.utc)
-            for user_id, candidates in self._dismissals.items():
+            for _user_id, candidates in self._dismissals.items():
                 expired_candidates = [
                     candidate_id
                     for candidate_id, expires_at in candidates.items()
@@ -105,7 +105,9 @@ class RecommendationGraphStateStore:
                 "usersWithFriendships": sum(
                     1 for friends in self._friendships.values() if friends
                 ),
-                "friendshipEdges": sum(len(friends) for friends in self._friendships.values()),
+                "friendshipEdges": sum(
+                    len(friends) for friends in self._friendships.values()
+                ),
                 "usersWithPendingRequests": sum(
                     1
                     for pending_targets in self._outgoing_requests.values()
@@ -115,7 +117,9 @@ class RecommendationGraphStateStore:
                     len(pending_targets)
                     for pending_targets in self._outgoing_requests.values()
                 ),
-                "usersWithBlocks": sum(1 for blocked in self._blocks.values() if blocked),
+                "usersWithBlocks": sum(
+                    1 for blocked in self._blocks.values() if blocked
+                ),
                 "blockEdges": sum(len(blocked) for blocked in self._blocks.values()),
                 "activeDismissals": active_dismissals,
                 "lastEventAt": self._last_event_at,

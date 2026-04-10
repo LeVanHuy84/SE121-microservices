@@ -2,61 +2,39 @@ import asyncio
 import logging
 
 from app.core.config import settings
-from app.messaging.event_dispatcher import RecommendationEventDispatcher
-from app.messaging.init_kafka import register_consumer, start_kafka
 from app.messaging.kafka_consumer import KafkaConsumerService
 from app.messaging.kafka_producer import KafkaProducerService
-from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
-from app.messaging.recommendation_graph_event_handler import (
-    RecommendationGraphEventHandler,
-)
 from app.processors.recommendation_outbox_processor import (
     RecommendationOutboxProcessor,
 )
-from app.processors.recommendation_state_processor import (
-    recommendation_state_processor,
-    state_repository,
-)
+from app.processors.recommendation_state_processor import RecommendationStateProcessor
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationMessagingRuntime:
-    def __init__(self):
-        self.producer = KafkaProducerService(settings.KAFKA_BROKERS)
-        self.profile_handler = ProfileEmbeddingEventHandler(state_repository)
-        self.graph_handler = RecommendationGraphEventHandler()
-        self.outbox_processor = RecommendationOutboxProcessor(
-            state_repository,
-            self.producer,
-        )
-        self.dispatcher = RecommendationEventDispatcher(
-            self.profile_handler,
-            self.graph_handler,
-        )
-        self.profile_consumer = KafkaConsumerService(
-            brokers=settings.KAFKA_BROKERS,
-            topic=settings.RECOMMENDATION_PROFILE_TOPIC,
-            group_id=settings.KAFKA_GROUP_ID,
-            handler=self.dispatcher.dispatch,
-        )
-        self.graph_consumer = KafkaConsumerService(
-            brokers=settings.KAFKA_BROKERS,
-            topic=settings.RECOMMENDATION_GRAPH_TOPIC,
-            group_id=settings.KAFKA_GROUP_ID,
-            handler=self.dispatcher.dispatch,
-        )
-        register_consumer(self.profile_consumer)
-        register_consumer(self.graph_consumer)
+    def __init__(
+        self,
+        producer: KafkaProducerService,
+        consumers: list[KafkaConsumerService],
+        state_processor: RecommendationStateProcessor,
+        outbox_processor: RecommendationOutboxProcessor,
+    ):
+        self.producer = producer
+        self.consumers = list(consumers)
+        self.state_processor = state_processor
+        self.outbox_processor = outbox_processor
         self._consumer_tasks: list[asyncio.Task] = []
         self._processor_task: asyncio.Task | None = None
         self._outbox_task: asyncio.Task | None = None
 
     async def start(self):
         await self.producer.start()
-        self._consumer_tasks = await start_kafka()
+        self._consumer_tasks = [
+            asyncio.create_task(consumer.start()) for consumer in self.consumers
+        ]
         self._processor_task = asyncio.create_task(
-            recommendation_state_processor.start(
+            self.state_processor.start(
                 interval_seconds=settings.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS
             )
         )
@@ -66,7 +44,11 @@ class RecommendationMessagingRuntime:
             )
         )
         logger.info(
-            "Recommendation messaging runtime started: profileTopic=%s graphTopic=%s resultTopic=%s groupId=%s processorInterval=%s outboxInterval=%s",
+            (
+                "Recommendation messaging runtime started: profileTopic=%s "
+                "graphTopic=%s resultTopic=%s groupId=%s "
+                "processorInterval=%s outboxInterval=%s"
+            ),
             settings.RECOMMENDATION_PROFILE_TOPIC,
             settings.RECOMMENDATION_GRAPH_TOPIC,
             settings.RECOMMENDATION_RESULT_TOPIC,
@@ -76,9 +58,10 @@ class RecommendationMessagingRuntime:
         )
 
     async def stop(self):
-        await self.profile_consumer.stop()
-        await self.graph_consumer.stop()
-        recommendation_state_processor.stop()
+        for consumer in self.consumers:
+            await consumer.stop()
+
+        self.state_processor.stop()
         self.outbox_processor.stop()
 
         if self._consumer_tasks:
@@ -99,6 +82,3 @@ class RecommendationMessagingRuntime:
 
         await self.producer.stop()
         logger.info("Recommendation messaging runtime stopped")
-
-
-messaging_runtime = RecommendationMessagingRuntime()

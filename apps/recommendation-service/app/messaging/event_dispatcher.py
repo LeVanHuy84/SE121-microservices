@@ -28,7 +28,9 @@ class RecommendationEventDispatcher:
         payload = event.get("payload")
 
         if not raw_type or payload is None:
-            logger.warning("Skipping invalid recommendation event format event=%s", event)
+            logger.warning(
+                "Skipping invalid recommendation event format event=%s", event
+            )
             return
 
         if raw_type in self.profile_event_types:
@@ -39,4 +41,6 @@ class RecommendationEventDispatcher:
             await self.graph_handler.handle(event)
             return
 
-        logger.warning("No recommendation dispatcher handler for event type=%s", raw_type)
+        logger.warning(
+            "No recommendation dispatcher handler for event type=%s", raw_type
+        )

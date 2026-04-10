@@ -1,70 +1,61 @@
 from __future__ import annotations
 
-import json
-import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
-from threading import RLock
-from typing import Any
+from typing import Any, Iterator
 from uuid import uuid4
+
+from sqlalchemy import delete, inspect, select, text, update
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.database.models import (
+    Base,
+    OutboxEvent,
+    PrecomputedSnapshotCandidate,
+    PrecomputedSnapshotRun,
+    ProfileEmbedding,
+)
+from app.database.session import create_engine_for_url, create_session_factory
 
 
 class RecommendationStateRepository:
-    def __init__(self, db_path: str):
-        self._db_path = db_path
-        self._lock = RLock()
+    def __init__(self, database_url: str | None = None):
+        self.database_url = database_url or settings.DATABASE_URL
+        self.engine: Engine = create_engine_for_url(self.database_url)
+        self.session_factory = create_session_factory(self.engine)
 
-    def ensure_schema(self):
-        with self._lock:
-            if self._db_path != ":memory:":
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
+    def create_schema(self):
+        Base.metadata.create_all(self.engine)
 
-            with self._connect() as connection:
-                connection.executescript(
-                    """
-                    CREATE TABLE IF NOT EXISTS profile_embeddings (
-                        user_id TEXT PRIMARY KEY,
-                        semantic_profile_text TEXT,
-                        embedding_json TEXT NOT NULL,
-                        dimensions INTEGER NOT NULL,
-                        model_name TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
+    def validate_connection(self):
+        with self.engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
 
-                    CREATE TABLE IF NOT EXISTS precomputed_snapshot_runs (
-                        viewer_id TEXT PRIMARY KEY,
-                        generated_at TEXT NOT NULL,
-                        generation_reason TEXT NOT NULL,
-                        model_name TEXT NOT NULL,
-                        candidate_count INTEGER NOT NULL
-                    );
+    def validate_schema(self):
+        inspector = inspect(self.engine)
+        required_tables = {
+            "profile_embeddings",
+            "precomputed_snapshot_runs",
+            "precomputed_snapshot_candidates",
+            "outbox_events",
+        }
+        missing_tables = sorted(
+            table_name
+            for table_name in required_tables
+            if not inspector.has_table(table_name)
+        )
+        if missing_tables:
+            raise RuntimeError(
+                "Recommendation database schema is missing required tables: "
+                + ", ".join(missing_tables)
+            )
 
-                    CREATE TABLE IF NOT EXISTS precomputed_snapshot_candidates (
-                        viewer_id TEXT NOT NULL,
-                        candidate_id TEXT NOT NULL,
-                        semantic_score REAL NOT NULL,
-                        rank INTEGER NOT NULL,
-                        generated_at TEXT NOT NULL,
-                        PRIMARY KEY (viewer_id, candidate_id)
-                    );
-
-                    CREATE INDEX IF NOT EXISTS idx_precomputed_snapshot_rank
-                    ON precomputed_snapshot_candidates(viewer_id, rank);
-
-                    CREATE TABLE IF NOT EXISTS outbox_events (
-                        id TEXT PRIMARY KEY,
-                        topic TEXT NOT NULL,
-                        event_type TEXT NOT NULL,
-                        payload_json TEXT NOT NULL,
-                        processed INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL
-                    );
-
-                    CREATE INDEX IF NOT EXISTS idx_outbox_events_processed_created_at
-                    ON outbox_events(processed, created_at);
-                    """
-                )
-                connection.commit()
+    def close(self):
+        self.engine.dispose()
 
     def upsert_profile_embedding(
         self,
@@ -74,34 +65,15 @@ class RecommendationStateRepository:
         model_name: str,
         updated_at: str,
     ):
-        with self._lock, self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO profile_embeddings (
-                    user_id,
-                    semantic_profile_text,
-                    embedding_json,
-                    dimensions,
-                    model_name,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    semantic_profile_text = excluded.semantic_profile_text,
-                    embedding_json = excluded.embedding_json,
-                    dimensions = excluded.dimensions,
-                    model_name = excluded.model_name,
-                    updated_at = excluded.updated_at
-                """,
-                (
-                    user_id,
-                    semantic_profile_text,
-                    json.dumps([float(value) for value in embedding]),
-                    len(embedding),
-                    model_name,
-                    updated_at,
-                ),
+        with self.session_scope() as session:
+            self._upsert_profile_embedding(
+                session,
+                user_id,
+                semantic_profile_text,
+                embedding,
+                model_name,
+                updated_at,
             )
-            connection.commit()
 
     def save_embedding_and_enqueue_result(
         self,
@@ -114,115 +86,32 @@ class RecommendationStateRepository:
         event_type: str,
         payload: dict[str, Any],
     ) -> str:
-        with self._lock, self._connect() as connection:
-            connection.execute("BEGIN")
-            try:
-                connection.execute(
-                    """
-                    INSERT INTO profile_embeddings (
-                        user_id,
-                        semantic_profile_text,
-                        embedding_json,
-                        dimensions,
-                        model_name,
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(user_id) DO UPDATE SET
-                        semantic_profile_text = excluded.semantic_profile_text,
-                        embedding_json = excluded.embedding_json,
-                        dimensions = excluded.dimensions,
-                        model_name = excluded.model_name,
-                        updated_at = excluded.updated_at
-                    """,
-                    (
-                        user_id,
-                        semantic_profile_text,
-                        json.dumps([float(value) for value in embedding]),
-                        len(embedding),
-                        model_name,
-                        updated_at,
-                    ),
-                )
-                outbox_id = self._insert_outbox_event(
-                    connection,
-                    topic,
-                    event_type,
-                    payload,
-                )
-                connection.commit()
-                return outbox_id
-            except Exception:
-                connection.rollback()
-                raise
-
-    def enqueue_outbox_event(
-        self,
-        topic: str,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> str:
-        with self._lock, self._connect() as connection:
-            outbox_id = self._insert_outbox_event(connection, topic, event_type, payload)
-            connection.commit()
-            return outbox_id
+        with self.session_scope() as session:
+            self._upsert_profile_embedding(
+                session,
+                user_id,
+                semantic_profile_text,
+                embedding,
+                model_name,
+                updated_at,
+            )
+            return self._insert_outbox_event(session, topic, event_type, payload)
 
     def get_profile_embedding(self, user_id: str) -> dict[str, Any] | None:
-        with self._lock, self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT
-                    user_id,
-                    semantic_profile_text,
-                    embedding_json,
-                    dimensions,
-                    model_name,
-                    updated_at
-                FROM profile_embeddings
-                WHERE user_id = ?
-                """,
-                (user_id,),
-            ).fetchone()
-
-        if row is None:
-            return None
-
-        return {
-            "userId": row["user_id"],
-            "semanticProfileText": row["semantic_profile_text"],
-            "embedding": json.loads(row["embedding_json"]),
-            "dimensions": int(row["dimensions"]),
-            "modelName": row["model_name"],
-            "updatedAt": row["updated_at"],
-        }
+        with self.session_scope() as session:
+            row = session.get(ProfileEmbedding, user_id)
+            if row is None:
+                return None
+            return self._serialize_profile_embedding(row)
 
     def list_profile_embeddings(self) -> list[dict[str, Any]]:
-        with self._lock, self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT
-                    user_id,
-                    semantic_profile_text,
-                    embedding_json,
-                    dimensions,
-                    model_name,
-                    updated_at
-                FROM profile_embeddings
-                WHERE dimensions > 0
-                ORDER BY user_id ASC
-                """
-            ).fetchall()
-
-        return [
-            {
-                "userId": row["user_id"],
-                "semanticProfileText": row["semantic_profile_text"],
-                "embedding": json.loads(row["embedding_json"]),
-                "dimensions": int(row["dimensions"]),
-                "modelName": row["model_name"],
-                "updatedAt": row["updated_at"],
-            }
-            for row in rows
-        ]
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(ProfileEmbedding)
+                .where(ProfileEmbedding.dimensions > 0)
+                .order_by(ProfileEmbedding.user_id.asc())
+            ).all()
+            return [self._serialize_profile_embedding(row) for row in rows]
 
     def replace_precomputed_snapshot(
         self,
@@ -232,62 +121,36 @@ class RecommendationStateRepository:
         generation_reason: str,
         model_name: str,
     ):
-        with self._lock, self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO precomputed_snapshot_runs (
-                    viewer_id,
-                    generated_at,
-                    generation_reason,
-                    model_name,
-                    candidate_count
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(viewer_id) DO UPDATE SET
-                    generated_at = excluded.generated_at,
-                    generation_reason = excluded.generation_reason,
-                    model_name = excluded.model_name,
-                    candidate_count = excluded.candidate_count
-                """,
-                (
-                    viewer_id,
-                    generated_at,
-                    generation_reason,
-                    model_name,
-                    len(candidates),
-                ),
+        generated_at_dt = self._parse_datetime(generated_at)
+
+        with self.session_scope() as session:
+            self._upsert_snapshot_run(
+                session,
+                viewer_id,
+                generated_at_dt,
+                generation_reason,
+                model_name,
+                len(candidates),
             )
-            connection.execute(
-                """
-                DELETE FROM precomputed_snapshot_candidates
-                WHERE viewer_id = ?
-                """,
-                (viewer_id,),
+            session.execute(
+                delete(PrecomputedSnapshotCandidate).where(
+                    PrecomputedSnapshotCandidate.viewer_id == viewer_id
+                )
             )
 
             if candidates:
-                connection.executemany(
-                    """
-                    INSERT INTO precomputed_snapshot_candidates (
-                        viewer_id,
-                        candidate_id,
-                        semantic_score,
-                        rank,
-                        generated_at
-                    ) VALUES (?, ?, ?, ?, ?)
-                    """,
+                session.add_all(
                     [
-                        (
-                            viewer_id,
-                            str(candidate["candidateId"]),
-                            float(candidate["semanticScore"]),
-                            int(candidate["rank"]),
-                            generated_at,
+                        PrecomputedSnapshotCandidate(
+                            viewer_id=viewer_id,
+                            candidate_id=str(candidate["candidateId"]),
+                            semantic_score=float(candidate["semanticScore"]),
+                            rank=int(candidate["rank"]),
+                            generated_at=generated_at_dt,
                         )
                         for candidate in candidates
-                    ],
+                    ]
                 )
-
-            connection.commit()
 
     def clear_precomputed_snapshot(
         self,
@@ -307,161 +170,249 @@ class RecommendationStateRepository:
     def get_precomputed_snapshot(
         self, viewer_id: str, limit: int
     ) -> dict[str, Any] | None:
-        with self._lock, self._connect() as connection:
-            run = connection.execute(
-                """
-                SELECT
-                    viewer_id,
-                    generated_at,
-                    generation_reason,
-                    model_name,
-                    candidate_count
-                FROM precomputed_snapshot_runs
-                WHERE viewer_id = ?
-                """,
-                (viewer_id,),
-            ).fetchone()
+        with self.session_scope() as session:
+            run = session.get(PrecomputedSnapshotRun, viewer_id)
             if run is None:
                 return None
 
-            rows = connection.execute(
-                """
-                SELECT
-                    candidate_id,
-                    semantic_score,
-                    rank,
-                    generated_at
-                FROM precomputed_snapshot_candidates
-                WHERE viewer_id = ?
-                ORDER BY rank ASC
-                LIMIT ?
-                """,
-                (viewer_id, limit),
-            ).fetchall()
+            rows = session.scalars(
+                select(PrecomputedSnapshotCandidate)
+                .where(PrecomputedSnapshotCandidate.viewer_id == viewer_id)
+                .order_by(PrecomputedSnapshotCandidate.rank.asc())
+                .limit(max(1, int(limit)))
+            ).all()
 
-        return {
-            "viewerId": run["viewer_id"],
-            "generatedAt": run["generated_at"],
-            "generationReason": run["generation_reason"],
-            "modelName": run["model_name"],
-            "candidateCount": int(run["candidate_count"]),
-            "candidates": [
-                {
-                    "candidateId": row["candidate_id"],
-                    "semanticScore": float(row["semantic_score"]),
-                    "rank": int(row["rank"]),
-                    "generatedAt": row["generated_at"],
-                }
-                for row in rows
-            ],
-        }
+            return {
+                "viewerId": run.viewer_id,
+                "generatedAt": run.generated_at.isoformat(),
+                "generationReason": run.generation_reason,
+                "modelName": run.model_name,
+                "candidateCount": int(run.candidate_count),
+                "candidates": [
+                    {
+                        "candidateId": row.candidate_id,
+                        "semanticScore": float(row.semantic_score),
+                        "rank": int(row.rank),
+                        "generatedAt": row.generated_at.isoformat(),
+                    }
+                    for row in rows
+                ],
+            }
+
+    def enqueue_outbox_event(
+        self,
+        topic: str,
+        event_type: str,
+        payload: dict[str, Any],
+    ) -> str:
+        with self.session_scope() as session:
+            return self._insert_outbox_event(session, topic, event_type, payload)
 
     def list_pending_outbox_events(self, limit: int = 100) -> list[dict[str, Any]]:
-        resolved_limit = max(1, int(limit))
-        with self._lock, self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, topic, event_type, payload_json, created_at
-                FROM outbox_events
-                WHERE processed = 0
-                ORDER BY created_at ASC
-                LIMIT ?
-                """,
-                (resolved_limit,),
-            ).fetchall()
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(OutboxEvent)
+                .where(OutboxEvent.processed.is_(False))
+                .order_by(OutboxEvent.created_at.asc())
+                .limit(max(1, int(limit)))
+            ).all()
 
-        return [
-            {
-                "id": row["id"],
-                "topic": row["topic"],
-                "eventType": row["event_type"],
-                "payload": json.loads(row["payload_json"]),
-                "createdAt": row["created_at"],
-            }
-            for row in rows
-        ]
+            return [
+                {
+                    "id": row.id,
+                    "topic": row.topic,
+                    "eventType": row.event_type,
+                    "payload": row.payload_json,
+                    "createdAt": row.created_at.isoformat(),
+                    "attemptCount": int(row.attempt_count),
+                    "lastError": row.last_error,
+                }
+                for row in rows
+            ]
 
     def lock_outbox_event(self, event_id: str) -> bool:
-        with self._lock, self._connect() as connection:
-            result = connection.execute(
-                """
-                UPDATE outbox_events
-                SET processed = 1
-                WHERE id = ? AND processed = 0
-                """,
-                (event_id,),
+        with self.session_scope() as session:
+            result = session.execute(
+                update(OutboxEvent)
+                .where(OutboxEvent.id == event_id, OutboxEvent.processed.is_(False))
+                .values(
+                    processed=True,
+                    processed_at=self._now(),
+                    attempt_count=OutboxEvent.attempt_count + 1,
+                    last_error=None,
+                )
             )
-            connection.commit()
             return result.rowcount == 1
 
-    def reset_outbox_event(self, event_id: str):
-        with self._lock, self._connect() as connection:
-            connection.execute(
-                """
-                UPDATE outbox_events
-                SET processed = 0
-                WHERE id = ?
-                """,
-                (event_id,),
+    def reset_outbox_event(self, event_id: str, last_error: str | None = None):
+        with self.session_scope() as session:
+            session.execute(
+                update(OutboxEvent)
+                .where(OutboxEvent.id == event_id)
+                .values(
+                    processed=False,
+                    processed_at=None,
+                    last_error=last_error,
+                )
             )
-            connection.commit()
 
     def get_outbox_event(self, event_id: str) -> dict[str, Any] | None:
-        with self._lock, self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT id, topic, event_type, payload_json, processed, created_at
-                FROM outbox_events
-                WHERE id = ?
-                """,
-                (event_id,),
-            ).fetchone()
+        with self.session_scope() as session:
+            row = session.get(OutboxEvent, event_id)
+            if row is None:
+                return None
+            return {
+                "id": row.id,
+                "topic": row.topic,
+                "eventType": row.event_type,
+                "payload": row.payload_json,
+                "processed": bool(row.processed),
+                "processedAt": row.processed_at.isoformat()
+                if row.processed_at
+                else None,
+                "attemptCount": int(row.attempt_count),
+                "lastError": row.last_error,
+                "createdAt": row.created_at.isoformat(),
+            }
 
-        if row is None:
-            return None
+    @contextmanager
+    def session_scope(self) -> Iterator[Session]:
+        session: Session = self.session_factory()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
-        return {
-            "id": row["id"],
-            "topic": row["topic"],
-            "eventType": row["event_type"],
-            "payload": json.loads(row["payload_json"]),
-            "processed": bool(row["processed"]),
-            "createdAt": row["created_at"],
+    def _upsert_profile_embedding(
+        self,
+        session: Session,
+        user_id: str,
+        semantic_profile_text: str | None,
+        embedding: list[float],
+        model_name: str,
+        updated_at: str,
+    ):
+        values = {
+            "user_id": user_id,
+            "semantic_profile_text": semantic_profile_text,
+            "embedding_json": [float(value) for value in embedding],
+            "dimensions": len(embedding),
+            "model_name": model_name,
+            "updated_at": self._parse_datetime(updated_at),
         }
+        stmt = self._build_upsert_statement(
+            ProfileEmbedding.__table__,
+            values,
+            conflict_columns=["user_id"],
+            update_columns=[
+                "semantic_profile_text",
+                "embedding_json",
+                "dimensions",
+                "model_name",
+                "updated_at",
+            ],
+        )
+        session.execute(stmt)
+
+    def _upsert_snapshot_run(
+        self,
+        session: Session,
+        viewer_id: str,
+        generated_at: datetime,
+        generation_reason: str,
+        model_name: str,
+        candidate_count: int,
+    ):
+        values = {
+            "viewer_id": viewer_id,
+            "generated_at": generated_at,
+            "generation_reason": generation_reason,
+            "model_name": model_name,
+            "candidate_count": candidate_count,
+        }
+        stmt = self._build_upsert_statement(
+            PrecomputedSnapshotRun.__table__,
+            values,
+            conflict_columns=["viewer_id"],
+            update_columns=[
+                "generated_at",
+                "generation_reason",
+                "model_name",
+                "candidate_count",
+            ],
+        )
+        session.execute(stmt)
 
     def _insert_outbox_event(
         self,
-        connection: sqlite3.Connection,
+        session: Session,
         topic: str,
         event_type: str,
         payload: dict[str, Any],
     ) -> str:
         outbox_id = str(uuid4())
-        connection.execute(
-            """
-            INSERT INTO outbox_events (
-                id,
-                topic,
-                event_type,
-                payload_json,
-                processed,
-                created_at
-            ) VALUES (?, ?, ?, ?, 0, ?)
-            """,
-            (
-                outbox_id,
-                topic,
-                event_type,
-                json.dumps(payload),
-                self._now_iso(),
-            ),
+        session.add(
+            OutboxEvent(
+                id=outbox_id,
+                topic=topic,
+                event_type=event_type,
+                payload_json=payload,
+                processed=False,
+                processed_at=None,
+                attempt_count=0,
+                last_error=None,
+                created_at=self._now(),
+            )
         )
         return outbox_id
 
-    def _connect(self):
-        connection = sqlite3.connect(self._db_path, check_same_thread=False)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def _build_upsert_statement(
+        self,
+        table,
+        values: dict[str, Any],
+        conflict_columns: list[str],
+        update_columns: list[str],
+    ):
+        if self.engine.dialect.name == "postgresql":
+            stmt = postgresql_insert(table).values(**values)
+        elif self.engine.dialect.name == "sqlite":
+            stmt = sqlite_insert(table).values(**values)
+        else:
+            raise RuntimeError(
+                "Unsupported SQL dialect for recommendation repository: "
+                f"{self.engine.dialect.name}"
+            )
 
-    def _now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return stmt.on_conflict_do_update(
+            index_elements=conflict_columns,
+            set_={column: values[column] for column in update_columns},
+        )
+
+    def _serialize_profile_embedding(self, row: ProfileEmbedding) -> dict[str, Any]:
+        return {
+            "userId": row.user_id,
+            "semanticProfileText": row.semantic_profile_text,
+            "embedding": [float(value) for value in row.embedding_json or []],
+            "dimensions": int(row.dimensions),
+            "modelName": row.model_name,
+            "updatedAt": row.updated_at.isoformat(),
+        }
+
+    def _parse_datetime(self, value: str | datetime) -> datetime:
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        normalized = str(value).strip().replace("Z", "+00:00")
+        resolved = datetime.fromisoformat(normalized)
+        if resolved.tzinfo is None:
+            return resolved.replace(tzinfo=timezone.utc)
+        return resolved
+
+    def _now(self) -> datetime:
+        return datetime.now(timezone.utc)

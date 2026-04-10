@@ -65,7 +65,10 @@ class RerankService:
 
         if len(deduped_candidates) > settings.RECOMMENDATION_MAX_CANDIDATES:
             logger.warning(
-                "Recommendation rerank truncated candidate batch: requested=%s limit=%s",
+                (
+                    "Recommendation rerank truncated candidate batch: "
+                    "requested=%s limit=%s"
+                ),
                 len(deduped_candidates),
                 settings.RECOMMENDATION_MAX_CANDIDATES,
             )
@@ -92,11 +95,20 @@ class RerankService:
 
         predicted_scores = model_loader.predict_similarity_scores(
             viewer_profile_text,
-            [candidate.candidateProfileText or "" for candidate in candidates_to_predict],
+            [
+                candidate.candidateProfileText or ""
+                for candidate in candidates_to_predict
+            ],
         )
 
-        for candidate, predicted_score in zip(candidates_to_predict, predicted_scores):
-            resolved_scores[candidate.candidateId] = self._clamp_score(predicted_score)
+        for candidate, predicted_score in zip(
+            candidates_to_predict,
+            predicted_scores,
+            strict=False,
+        ):
+            resolved_scores[candidate.candidateId] = self._clamp_score(
+                predicted_score
+            )
 
         for candidate in candidates_to_predict[len(predicted_scores) :]:
             resolved_scores[candidate.candidateId] = 0.0

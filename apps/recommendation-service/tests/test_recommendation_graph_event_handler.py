@@ -22,7 +22,9 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         handler_module.graph_state_store = self.original_store
 
-    async def test_handle_friend_request_and_accept_updates_bidirectional_friendship(self):
+    async def test_handle_friend_request_and_accept_updates_bidirectional_friendship(
+        self,
+    ):
         await self.handler.handle(
             {
                 "type": "recommendation.graph.friend-request-sent",
@@ -99,9 +101,7 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        self.assertTrue(
-            self.store.has_active_dismissal("viewer-1", "candidate-1")
-        )
+        self.assertTrue(self.store.has_active_dismissal("viewer-1", "candidate-1"))
 
 
 if __name__ == "__main__":

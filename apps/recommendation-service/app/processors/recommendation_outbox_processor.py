@@ -52,10 +52,13 @@ class RecommendationOutboxProcessor:
                     event["topic"],
                     event["eventType"],
                 )
-            except Exception:
-                self.repository.reset_outbox_event(event["id"])
+            except Exception as exc:
+                self.repository.reset_outbox_event(event["id"], last_error=str(exc))
                 logger.exception(
-                    "Recommendation outbox event publish failed: id=%s topic=%s type=%s",
+                    (
+                        "Recommendation outbox event publish failed: "
+                        "id=%s topic=%s type=%s"
+                    ),
                     event["id"],
                     event["topic"],
                     event["eventType"],

@@ -7,14 +7,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app):
+    from app.bootstrap import messaging_runtime, state_repository
+    from app.services.model_loader import model_loader
+
     try:
         logger.info("Starting recommendation-service")
-        from app.services.model_loader import model_loader
-        from app.messaging.runtime import messaging_runtime
-        from app.processors.recommendation_state_processor import state_repository
 
-        state_repository.ensure_schema()
-        logger.info("Recommendation state repository ready")
+        state_repository.validate_connection()
+        state_repository.validate_schema()
+        logger.info("Recommendation state repository connected and schema validated")
         await asyncio.get_running_loop().run_in_executor(None, model_loader.warmup)
         logger.info("Recommendation model warmed up")
         await messaging_runtime.start()
@@ -24,7 +25,5 @@ async def lifespan(app):
         logger.exception("Recommendation service startup failed: %s", exc)
         raise
     finally:
-        from app.messaging.runtime import messaging_runtime
-
         await messaging_runtime.stop()
         logger.info("Stopping recommendation-service")

@@ -72,7 +72,11 @@ class LiveRecommendationServiceTestCase(unittest.TestCase):
                 body = json.loads(response.read().decode("utf-8"))
         except HTTPError as error:
             self.fail(
-                f"Live recommendation service returned HTTP {error.code}: {error.read().decode('utf-8', errors='ignore')}"
+                (
+                    "Live recommendation service returned HTTP "
+                    f"{error.code}: "
+                    f"{error.read().decode('utf-8', errors='ignore')}"
+                )
             )
         except URLError as error:
             self.fail(

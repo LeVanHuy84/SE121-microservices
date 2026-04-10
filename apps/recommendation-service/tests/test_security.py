@@ -2,8 +2,8 @@ import unittest
 
 from fastapi import HTTPException
 
-from app.core.security import verify_internal_key
 from app.core.config import settings
+from app.core.security import verify_internal_key
 
 
 class RecommendationSecurityTestCase(unittest.TestCase):

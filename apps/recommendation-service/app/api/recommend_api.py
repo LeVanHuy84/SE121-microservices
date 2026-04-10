@@ -1,8 +1,8 @@
 import logging
 
-from fastapi import APIRouter, Depends
-from fastapi import Query
+from fastapi import APIRouter, Depends, Query
 
+from app.bootstrap import state_repository
 from app.core.security import verify_internal_key
 from app.models.rerank_request import (
     PrecomputedRecommendationCandidateOutput,
@@ -10,7 +10,6 @@ from app.models.rerank_request import (
     RecommendationEmbeddingRequest,
     RecommendationRerankRequest,
 )
-from app.processors.recommendation_state_processor import state_repository
 from app.services.model_loader import model_loader
 from app.services.rerank_service import rerank_service
 
@@ -25,7 +24,10 @@ def rerank_candidates(req: RecommendationRerankRequest):
         f"{score.candidateId}:{score.modelScore:.4f}" for score in scores[:5]
     )
     logger.info(
-        "Recommendation rerank completed: viewerId=%s requested=%s returned=%s topScores=[%s]",
+        (
+            "Recommendation rerank completed: viewerId=%s requested=%s "
+            "returned=%s topScores=[%s]"
+        ),
         req.viewerId,
         len(req.candidates),
         len(scores),
@@ -48,7 +50,7 @@ def embed_profile_texts(req: RecommendationEmbeddingRequest):
     )
     rows = [
         RecommendationEmbeddingOutput(entityId=entity_id, embedding=embedding)
-        for entity_id, embedding in zip(entity_ids, embeddings)
+        for entity_id, embedding in zip(entity_ids, embeddings, strict=False)
     ]
 
     logger.info(

@@ -130,7 +130,7 @@ class RecommendationPrecomputeService:
         if len(left) == 0 or len(right) == 0 or len(left) != len(right):
             return 0.0
 
-        return sum(float(a) * float(b) for a, b in zip(left, right))
+        return sum(float(a) * float(b) for a, b in zip(left, right, strict=False))
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()

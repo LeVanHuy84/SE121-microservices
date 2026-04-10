@@ -25,7 +25,9 @@ class RecommendationGraphEventHandler:
         payload = message.get("payload") or {}
 
         if event_type not in self.SUPPORTED_EVENT_TYPES:
-            logger.warning("Skipping unsupported recommendation graph event type=%s", event_type)
+            logger.warning(
+                "Skipping unsupported recommendation graph event type=%s", event_type
+            )
             return
 
         user_id = str(payload.get("userId") or "").strip()
@@ -55,7 +57,10 @@ class RecommendationGraphEventHandler:
             expires_at = self._parse_expires_at(payload.get("expiresAt"))
             if expires_at is None:
                 logger.warning(
-                    "Skipping recommendation dismissal event with invalid expiresAt payload=%s",
+                    (
+                        "Skipping recommendation dismissal event with invalid "
+                        "expiresAt payload=%s"
+                    ),
                     payload,
                 )
                 return

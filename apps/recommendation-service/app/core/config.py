@@ -27,7 +27,10 @@ class Settings:
         )
         self.RECOMMENDATION_QUERY_INSTRUCTION: str = os.getenv(
             "RECOMMENDATION_QUERY_INSTRUCTION",
-            "Find candidate profiles that are likely to become meaningful social connections for this viewer.",
+            (
+                "Find candidate profiles that are likely to become meaningful "
+                "social connections for this viewer."
+            ),
         ).strip()
         self.RECOMMENDATION_SCORE_FLOOR: float = float(
             os.getenv("RECOMMENDATION_SCORE_FLOOR", 0.55)
@@ -35,8 +38,9 @@ class Settings:
         self.RECOMMENDATION_SCORE_CEILING: float = float(
             os.getenv("RECOMMENDATION_SCORE_CEILING", 0.9)
         )
-        self.RECOMMENDATION_STATE_DB_PATH: str = os.getenv(
-            "RECOMMENDATION_STATE_DB_PATH", "data/recommendation-state.sqlite3"
+        self.DATABASE_URL: str = os.getenv(
+            "DATABASE_URL",
+            "postgresql+psycopg://postgres:postgres@localhost:5432/recommendation_service",
         ).strip()
         self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS: int = int(
             os.getenv("RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS", 30)
@@ -102,15 +106,13 @@ class Settings:
             raise RuntimeError("RECOMMENDATION_PRECOMPUTE_TOP_K must be positive")
 
         if self.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE <= 0:
-            raise RuntimeError(
-                "RECOMMENDATION_PRECOMPUTE_BATCH_SIZE must be positive"
-            )
+            raise RuntimeError("RECOMMENDATION_PRECOMPUTE_BATCH_SIZE must be positive")
 
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:
             raise RuntimeError("RECOMMENDATION_QUERY_INSTRUCTION must not be empty")
 
-        if not self.RECOMMENDATION_STATE_DB_PATH:
-            raise RuntimeError("RECOMMENDATION_STATE_DB_PATH must not be empty")
+        if not self.DATABASE_URL:
+            raise RuntimeError("DATABASE_URL must not be empty")
 
         if not self.KAFKA_BROKERS:
             raise RuntimeError("KAFKA_BROKERS must not be empty")

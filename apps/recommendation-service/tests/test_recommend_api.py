@@ -20,12 +20,15 @@ class RecommendationApiTestCase(unittest.TestCase):
             ]
         )
 
-        with patch(
-            "app.api.recommend_api.model_loader.encode_profile_texts",
-            return_value=[[0.1, 0.2], []],
-        ) as encode_profile_texts, patch(
-            "app.api.recommend_api.rerank_service.get_runtime_metadata",
-            return_value={"modelName": "demo-model", "device": "cpu"},
+        with (
+            patch(
+                "app.api.recommend_api.model_loader.encode_profile_texts",
+                return_value=[[0.1, 0.2], []],
+            ) as encode_profile_texts,
+            patch(
+                "app.api.recommend_api.rerank_service.get_runtime_metadata",
+                return_value={"modelName": "demo-model", "device": "cpu"},
+            ),
         ):
             response = embed_profile_texts(request)
 

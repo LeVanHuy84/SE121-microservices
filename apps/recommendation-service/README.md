@@ -138,6 +138,7 @@ Response:
 ## Cau hinh
 
 - `INTERNAL_SERVICE_KEY`
+- `DATABASE_URL`
 - `RECOMMENDATION_MODEL_NAME`
 - `RECOMMENDATION_MAX_LENGTH`
 - `RECOMMENDATION_BATCH_SIZE`
@@ -145,6 +146,10 @@ Response:
 - `RECOMMENDATION_QUERY_INSTRUCTION`
 - `RECOMMENDATION_SCORE_FLOOR`
 - `RECOMMENDATION_SCORE_CEILING`
+- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
+- `RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS`
+- `RECOMMENDATION_PRECOMPUTE_TOP_K`
+- `RECOMMENDATION_PRECOMPUTE_BATCH_SIZE`
 - `HOST`
 - `PORT`
 - `RELOAD`
@@ -154,3 +159,6 @@ Response:
 - Warmup model tai startup de giam request lan dau
 - Batch score candidate trong mot request de giam chi phi inference
 - Service nay phu hop nhat khi `social-service` da cat top K candidate truoc khi goi sang Python
+- State persistence va outbox cua service dung PostgreSQL thong qua SQLAlchemy
+- Schema migration duoc quan ly bang Alembic (`python -m alembic upgrade head`)
+- Lint/format Python duoc chuan hoa bang Ruff
