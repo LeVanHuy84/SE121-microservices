@@ -35,6 +35,9 @@ class Settings:
         self.RECOMMENDATION_SCORE_CEILING: float = float(
             os.getenv("RECOMMENDATION_SCORE_CEILING", 0.9)
         )
+        self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS: int = int(
+            os.getenv("RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS", 30)
+        )
         self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
         self.KAFKA_CLIENT_ID: str = os.getenv(
             "KAFKA_CLIENT_ID", "recommendation-service"
@@ -44,6 +47,9 @@ class Settings:
         ).strip()
         self.RECOMMENDATION_PROFILE_TOPIC: str = os.getenv(
             "RECOMMENDATION_PROFILE_TOPIC", "recommendation-profile-events"
+        ).strip()
+        self.RECOMMENDATION_GRAPH_TOPIC: str = os.getenv(
+            "RECOMMENDATION_GRAPH_TOPIC", "recommendation-graph-events"
         ).strip()
         self.RECOMMENDATION_RESULT_TOPIC: str = os.getenv(
             "RECOMMENDATION_RESULT_TOPIC", "recommendation-result-events"
@@ -70,6 +76,11 @@ class Settings:
         if self.RECOMMENDATION_MAX_CANDIDATES <= 0:
             raise RuntimeError("RECOMMENDATION_MAX_CANDIDATES must be positive")
 
+        if self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS must be positive"
+            )
+
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:
             raise RuntimeError("RECOMMENDATION_QUERY_INSTRUCTION must not be empty")
 
@@ -84,6 +95,9 @@ class Settings:
 
         if not self.RECOMMENDATION_PROFILE_TOPIC:
             raise RuntimeError("RECOMMENDATION_PROFILE_TOPIC must not be empty")
+
+        if not self.RECOMMENDATION_GRAPH_TOPIC:
+            raise RuntimeError("RECOMMENDATION_GRAPH_TOPIC must not be empty")
 
         if not self.RECOMMENDATION_RESULT_TOPIC:
             raise RuntimeError("RECOMMENDATION_RESULT_TOPIC must not be empty")

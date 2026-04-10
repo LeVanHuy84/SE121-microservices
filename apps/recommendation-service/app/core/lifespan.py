@@ -15,6 +15,7 @@ async def lifespan(app):
         await asyncio.get_running_loop().run_in_executor(None, model_loader.warmup)
         logger.info("Recommendation model warmed up")
         await messaging_runtime.start()
+        logger.info("Recommendation messaging and processor started")
         yield
     except Exception as exc:
         logger.exception("Recommendation service startup failed: %s", exc)

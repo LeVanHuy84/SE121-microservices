@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
+import {
+  CursorPaginationDTO,
+  CursorPageResponse,
+  RecommendationGraphEventType,
+} from '@repo/dtos';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import { FriendRecommendationEventEntity } from 'src/postgres/entities/friend-recommendation-event.entity';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
 import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
+import { OutboxService } from 'src/event/outbox.service';
 import {
   AcceptedFriendRequestAttribution,
   FriendRecommendationAnalyticsSource,
@@ -30,6 +35,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     private readonly userBlockRepo: Repository<UserBlockEntity>,
     @InjectRepository(FriendRecommendationDismissalEntity)
     private readonly recommendationDismissalRepo: Repository<FriendRecommendationDismissalEntity>,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async getRelationshipStatus(userId: string, targetId: string) {
@@ -60,24 +66,44 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     targetId: string,
     attribution?: FriendRecommendationAttribution,
   ) {
-    await this.friendRequestRepo
-      .createQueryBuilder()
-      .insert()
-      .into(FriendRequestEntity)
-      .values({
-        requesterId: userId,
-        receiverId: targetId,
-        recommendationId: attribution?.recommendationId ?? null,
-        recommendationRequestId: attribution?.recommendationRequestId ?? null,
-      })
-      .orIgnore()
-      .execute();
+    await this.dataSource.transaction(async (manager) => {
+      const insertResult = await manager
+        .createQueryBuilder()
+        .insert()
+        .into(FriendRequestEntity)
+        .values({
+          requesterId: userId,
+          receiverId: targetId,
+          recommendationId: attribution?.recommendationId ?? null,
+          recommendationRequestId: attribution?.recommendationRequestId ?? null,
+        })
+        .orIgnore()
+        .execute();
+
+      if ((insertResult.identifiers?.length ?? 0) === 0) {
+        return;
+      }
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.FRIEND_REQUEST_SENT,
+        this.buildGraphEventPayload(userId, targetId),
+      );
+    });
   }
 
   async cancelFriendRequest(userId: string, targetId: string) {
-    await this.friendRequestRepo.delete({
-      requesterId: userId,
-      receiverId: targetId,
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(FriendRequestEntity, {
+        requesterId: userId,
+        receiverId: targetId,
+      });
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.FRIEND_REQUEST_CANCELED,
+        this.buildGraphEventPayload(userId, targetId),
+      );
     });
   }
 
@@ -109,6 +135,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         .orIgnore()
         .execute();
 
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.FRIEND_REQUEST_ACCEPTED,
+        this.buildGraphEventPayload(userId, requesterId),
+      );
+
       return pendingRequest
         ? {
             recommendationId: pendingRequest.recommendationId ?? null,
@@ -120,9 +152,17 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
   }
 
   async declineFriendRequest(userId: string, requesterId: string) {
-    await this.friendRequestRepo.delete({
-      requesterId,
-      receiverId: userId,
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(FriendRequestEntity, {
+        requesterId,
+        receiverId: userId,
+      });
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.FRIEND_REQUEST_DECLINED,
+        this.buildGraphEventPayload(userId, requesterId),
+      );
     });
   }
 
@@ -132,6 +172,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         { userId, friendId },
         { userId: friendId, friendId: userId },
       ]);
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.FRIENDSHIP_REMOVED,
+        this.buildGraphEventPayload(userId, friendId),
+      );
     });
   }
 
@@ -154,13 +200,27 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         .values({ blockerId: userId, blockedId: targetId })
         .orIgnore()
         .execute();
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.USER_BLOCKED,
+        this.buildGraphEventPayload(userId, targetId),
+      );
     });
   }
 
   async unblockUser(userId: string, targetId: string) {
-    await this.userBlockRepo.delete({
-      blockerId: userId,
-      blockedId: targetId,
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(UserBlockEntity, {
+        blockerId: userId,
+        blockedId: targetId,
+      });
+
+      await this.outboxService.createRecommendationGraphEvent(
+        manager,
+        RecommendationGraphEventType.USER_UNBLOCKED,
+        this.buildGraphEventPayload(userId, targetId),
+      );
     });
   }
 
@@ -169,14 +229,23 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     candidateId: string,
     expiresAt: Date,
   ) {
-    await this.recommendationDismissalRepo.upsert(
-      {
-        userId,
-        candidateId,
-        expiresAt,
-      },
-      ['userId', 'candidateId'],
-    );
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .getRepository(FriendRecommendationDismissalEntity)
+        .upsert(
+          {
+            userId,
+            candidateId,
+            expiresAt,
+          },
+          ['userId', 'candidateId'],
+        );
+
+      await this.outboxService.createRecommendationGraphDismissedEvent(manager, {
+        ...this.buildGraphEventPayload(userId, candidateId),
+        expiresAt: expiresAt.toISOString(),
+      });
+    });
   }
 
   async getFriends(
@@ -578,6 +647,16 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       data,
       nextCursor: hasNextPage ? data[data.length - 1] : null,
       hasNextPage,
+    };
+  }
+
+  private buildGraphEventPayload(userId: string, targetUserId: string) {
+    return {
+      userId,
+      targetUserId,
+      schemaVersion: 1,
+      occurredAt: new Date().toISOString(),
+      source: 'social-service' as const,
     };
   }
 }

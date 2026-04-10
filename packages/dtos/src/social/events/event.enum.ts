@@ -13,5 +13,6 @@ export enum EventTopic {
   LOGGING = 'logging-events',
   MEDIA = 'media-events',
   RECOMMENDATION_PROFILE = 'recommendation-profile-events',
+  RECOMMENDATION_GRAPH = 'recommendation-graph-events',
   RECOMMENDATION_RESULT = 'recommendation-result-events',
 }
