@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any
 
 from app.services.graph_state_store import graph_state_store
+from app.services.precompute_queue import precompute_queue
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class RecommendationGraphEventHandler:
             user_id,
             target_user_id,
         )
+        precompute_queue.mark_many([user_id, target_user_id])
 
     def _parse_expires_at(self, expires_at: Any) -> datetime | None:
         if not isinstance(expires_at, str) or not expires_at.strip():

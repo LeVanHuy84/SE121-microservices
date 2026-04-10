@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import settings
+from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.services.model_loader import model_loader
+from app.services.precompute_queue import precompute_queue
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +15,8 @@ class ProfileEmbeddingEventHandler:
     COMPLETED_EVENT_TYPE = "recommendation.profile.embedding.completed"
     FAILED_EVENT_TYPE = "recommendation.profile.embedding.failed"
 
-    def __init__(self, producer):
-        self.producer = producer
+    def __init__(self, repository: RecommendationStateRepository):
+        self.repository = repository
 
     async def handle(self, message: dict[str, Any]):
         event_type = str(message.get("type") or "")
@@ -44,46 +46,49 @@ class ProfileEmbeddingEventHandler:
                 embeddings = model_loader.encode_profile_texts([normalized_profile_text])
                 embedding = embeddings[0] if embeddings else []
 
-            await self.producer.send(
+            generated_at = self._now_iso()
+            self.repository.save_embedding_and_enqueue_result(
+                user_id,
+                normalized_profile_text,
+                embedding,
+                settings.RECOMMENDATION_MODEL_NAME,
+                generated_at,
                 settings.RECOMMENDATION_RESULT_TOPIC,
+                self.COMPLETED_EVENT_TYPE,
                 {
-                    "type": self.COMPLETED_EVENT_TYPE,
-                    "payload": {
-                        "userId": user_id,
-                        "semanticProfileText": normalized_profile_text,
-                        "requestId": request_id,
-                        "schemaVersion": schema_version,
-                        "modelName": settings.RECOMMENDATION_MODEL_NAME,
-                        "embedding": embedding,
-                        "dimensions": len(embedding),
-                        "generatedAt": self._now_iso(),
-                    },
+                    "userId": user_id,
+                    "semanticProfileText": normalized_profile_text,
+                    "requestId": request_id,
+                    "schemaVersion": schema_version,
+                    "modelName": settings.RECOMMENDATION_MODEL_NAME,
+                    "embedding": embedding,
+                    "dimensions": len(embedding),
+                    "generatedAt": generated_at,
                 },
             )
+            precompute_queue.mark_stale(user_id)
             logger.info(
-                "Recommendation profile embedding completed: userId=%s requestId=%s dimensions=%s",
+                "Recommendation profile embedding completed and enqueued: userId=%s requestId=%s dimensions=%s",
                 user_id,
                 request_id,
                 len(embedding),
             )
         except Exception as exc:
-            await self.producer.send(
+            self.repository.enqueue_outbox_event(
                 settings.RECOMMENDATION_RESULT_TOPIC,
+                self.FAILED_EVENT_TYPE,
                 {
-                    "type": self.FAILED_EVENT_TYPE,
-                    "payload": {
-                        "userId": user_id,
-                        "semanticProfileText": normalized_profile_text,
-                        "requestId": request_id,
-                        "schemaVersion": schema_version,
-                        "modelName": settings.RECOMMENDATION_MODEL_NAME,
-                        "error": str(exc),
-                        "failedAt": self._now_iso(),
-                    },
+                    "userId": user_id,
+                    "semanticProfileText": normalized_profile_text,
+                    "requestId": request_id,
+                    "schemaVersion": schema_version,
+                    "modelName": settings.RECOMMENDATION_MODEL_NAME,
+                    "error": str(exc),
+                    "failedAt": self._now_iso(),
                 },
             )
             logger.exception(
-                "Recommendation profile embedding failed: userId=%s requestId=%s",
+                "Recommendation profile embedding failed and enqueued: userId=%s requestId=%s",
                 user_id,
                 request_id,
             )

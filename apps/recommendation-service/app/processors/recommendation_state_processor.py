@@ -2,15 +2,25 @@ import asyncio
 import logging
 from typing import Any
 
+from app.core.config import settings
+from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.services.graph_state_store import graph_state_store
+from app.services.precompute_queue import RecommendationPrecomputeQueue, precompute_queue
+from app.services.precompute_service import RecommendationPrecomputeService
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationStateProcessor:
-    def __init__(self):
+    def __init__(
+        self,
+        precompute_queue_service: RecommendationPrecomputeQueue,
+        precompute_service: RecommendationPrecomputeService,
+    ):
         self._running = False
         self._last_summary: dict[str, Any] | None = None
+        self.precompute_queue = precompute_queue_service
+        self.precompute_service = precompute_service
 
     async def start(self, interval_seconds: int = 30):
         self._running = True
@@ -25,12 +35,30 @@ class RecommendationStateProcessor:
 
     async def run_once(self):
         summary = graph_state_store.get_summary()
+        pending_viewer_ids = self.precompute_queue.drain(
+            settings.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE
+        )
+
+        for viewer_id in pending_viewer_ids:
+            self.precompute_service.compute_for_viewer(
+                viewer_id,
+                generation_reason="state-processor",
+            )
 
         if summary != self._last_summary:
-            logger.info("Recommendation graph state summary updated: %s", summary)
-            self._last_summary = dict(summary)
+            resolved_summary = {
+                **summary,
+                "precomputeQueueSize": self.precompute_queue.size(),
+                "processedViewers": len(pending_viewer_ids),
+            }
+            logger.info("Recommendation graph state summary updated: %s", resolved_summary)
+            self._last_summary = dict(resolved_summary)
         else:
-            logger.debug("Recommendation graph state summary unchanged")
+            logger.debug(
+                "Recommendation graph state summary unchanged processedViewers=%s queueSize=%s",
+                len(pending_viewer_ids),
+                self.precompute_queue.size(),
+            )
 
     def stop(self):
         self._running = False
@@ -39,4 +67,9 @@ class RecommendationStateProcessor:
         return dict(self._last_summary) if self._last_summary else None
 
 
-recommendation_state_processor = RecommendationStateProcessor()
+state_repository = RecommendationStateRepository(settings.RECOMMENDATION_STATE_DB_PATH)
+recommendation_precompute_service = RecommendationPrecomputeService(state_repository)
+recommendation_state_processor = RecommendationStateProcessor(
+    precompute_queue,
+    recommendation_precompute_service,
+)

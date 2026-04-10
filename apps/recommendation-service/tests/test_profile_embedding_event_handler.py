@@ -1,13 +1,13 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock, patch
 
 from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
 
 
 class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
-    async def test_handle_requested_event_publishes_completed_result(self):
-        producer = AsyncMock()
-        handler = ProfileEmbeddingEventHandler(producer)
+    async def test_handle_requested_event_enqueues_completed_result(self):
+        repository = Mock()
+        handler = ProfileEmbeddingEventHandler(repository)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",
@@ -25,18 +25,17 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
-        producer.send.assert_awaited_once()
-        topic, message = producer.send.await_args.args
-        self.assertEqual(topic, "recommendation-result-events")
-        self.assertEqual(
-            message["type"], "recommendation.profile.embedding.completed"
-        )
-        self.assertEqual(message["payload"]["userId"], "user-1")
-        self.assertEqual(message["payload"]["dimensions"], 3)
+        repository.save_embedding_and_enqueue_result.assert_called_once()
+        args = repository.save_embedding_and_enqueue_result.call_args.args
+        self.assertEqual(args[0], "user-1")
+        self.assertEqual(args[5], "recommendation-result-events")
+        self.assertEqual(args[6], "recommendation.profile.embedding.completed")
+        self.assertEqual(args[7]["userId"], "user-1")
+        self.assertEqual(args[7]["dimensions"], 3)
 
-    async def test_handle_requested_event_publishes_failed_result_on_error(self):
-        producer = AsyncMock()
-        handler = ProfileEmbeddingEventHandler(producer)
+    async def test_handle_requested_event_enqueues_failed_result_on_error(self):
+        repository = Mock()
+        handler = ProfileEmbeddingEventHandler(repository)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",
@@ -54,10 +53,12 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
-        topic, message = producer.send.await_args.args
-        self.assertEqual(topic, "recommendation-result-events")
-        self.assertEqual(message["type"], "recommendation.profile.embedding.failed")
-        self.assertEqual(message["payload"]["requestId"], "req-2")
+        repository.save_embedding_and_enqueue_result.assert_not_called()
+        repository.enqueue_outbox_event.assert_called_once()
+        args = repository.enqueue_outbox_event.call_args.args
+        self.assertEqual(args[0], "recommendation-result-events")
+        self.assertEqual(args[1], "recommendation.profile.embedding.failed")
+        self.assertEqual(args[2]["requestId"], "req-2")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,10 @@ async def lifespan(app):
         logger.info("Starting recommendation-service")
         from app.services.model_loader import model_loader
         from app.messaging.runtime import messaging_runtime
+        from app.processors.recommendation_state_processor import state_repository
 
+        state_repository.ensure_schema()
+        logger.info("Recommendation state repository ready")
         await asyncio.get_running_loop().run_in_executor(None, model_loader.warmup)
         logger.info("Recommendation model warmed up")
         await messaging_runtime.start()

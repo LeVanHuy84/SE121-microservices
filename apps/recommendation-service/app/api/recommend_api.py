@@ -1,13 +1,16 @@
 import logging
 
 from fastapi import APIRouter, Depends
+from fastapi import Query
 
 from app.core.security import verify_internal_key
 from app.models.rerank_request import (
+    PrecomputedRecommendationCandidateOutput,
     RecommendationEmbeddingOutput,
     RecommendationEmbeddingRequest,
     RecommendationRerankRequest,
 )
+from app.processors.recommendation_state_processor import state_repository
 from app.services.model_loader import model_loader
 from app.services.rerank_service import rerank_service
 
@@ -58,5 +61,39 @@ def embed_profile_texts(req: RecommendationEmbeddingRequest):
         "data": {
             "model": rerank_service.get_runtime_metadata(),
             "embeddings": rows,
+        },
+    }
+
+
+@recommend_router.get(
+    "/precomputed/{viewer_id}",
+    dependencies=[Depends(verify_internal_key)],
+)
+def get_precomputed_candidates(
+    viewer_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    snapshot = state_repository.get_precomputed_snapshot(viewer_id, limit)
+    if snapshot is None:
+        return {
+            "success": True,
+            "data": {
+                "viewerId": viewer_id,
+                "generatedAt": None,
+                "generationReason": None,
+                "modelName": None,
+                "candidateCount": 0,
+                "candidates": [],
+            },
+        }
+
+    return {
+        "success": True,
+        "data": {
+            **snapshot,
+            "candidates": [
+                PrecomputedRecommendationCandidateOutput(**candidate)
+                for candidate in snapshot["candidates"]
+            ],
         },
     }

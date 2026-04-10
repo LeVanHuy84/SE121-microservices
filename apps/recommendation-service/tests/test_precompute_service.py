@@ -1,0 +1,69 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from app.database.recommendation_state_repository import RecommendationStateRepository
+from app.services.graph_state_store import RecommendationGraphStateStore
+from app.services.precompute_service import RecommendationPrecomputeService
+
+
+class RecommendationPrecomputeServiceTestCase(unittest.TestCase):
+    def test_compute_for_viewer_writes_sorted_snapshot_and_filters_blocked(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = RecommendationStateRepository(
+                str(Path(temp_dir) / "recommendation-state.sqlite3")
+            )
+            repository.ensure_schema()
+            service = RecommendationPrecomputeService(repository)
+
+            repository.upsert_profile_embedding(
+                "viewer-1",
+                "viewer",
+                [1.0, 0.0],
+                "demo-model",
+                "2026-04-10T00:00:00+00:00",
+            )
+            repository.upsert_profile_embedding(
+                "candidate-a",
+                "a",
+                [0.9, 0.0],
+                "demo-model",
+                "2026-04-10T00:00:00+00:00",
+            )
+            repository.upsert_profile_embedding(
+                "candidate-b",
+                "b",
+                [0.7, 0.0],
+                "demo-model",
+                "2026-04-10T00:00:00+00:00",
+            )
+            repository.upsert_profile_embedding(
+                "candidate-c",
+                "c",
+                [0.8, 0.0],
+                "demo-model",
+                "2026-04-10T00:00:00+00:00",
+            )
+
+            import app.services.precompute_service as precompute_module
+
+            original_graph_state_store = precompute_module.graph_state_store
+            local_graph_state_store = RecommendationGraphStateStore()
+            local_graph_state_store.apply_user_blocked("viewer-1", "candidate-c")
+            precompute_module.graph_state_store = local_graph_state_store
+
+            try:
+                result = service.compute_for_viewer(
+                    "viewer-1",
+                    generation_reason="unit-test",
+                )
+            finally:
+                precompute_module.graph_state_store = original_graph_state_store
+
+            snapshot = repository.get_precomputed_snapshot("viewer-1", 10)
+
+            self.assertEqual(result["candidateCount"], 2)
+            self.assertEqual(
+                [candidate["candidateId"] for candidate in snapshot["candidates"]],
+                ["candidate-a", "candidate-b"],
+            )

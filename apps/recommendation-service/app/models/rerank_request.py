@@ -37,3 +37,10 @@ class RecommendationCandidateScore(BaseModel):
 class RecommendationEmbeddingOutput(BaseModel):
     entityId: str
     embedding: List[float]
+
+
+class PrecomputedRecommendationCandidateOutput(BaseModel):
+    candidateId: str
+    semanticScore: float
+    rank: int
+    generatedAt: str
