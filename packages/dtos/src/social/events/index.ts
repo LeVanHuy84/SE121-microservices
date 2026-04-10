@@ -6,3 +6,4 @@ export * from './post-group.event';
 export * from './analysis.event';
 export * from './media.event';
 export * from './interaction.event';
+export * from './recommendation-profile.event';

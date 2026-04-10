@@ -12,6 +12,8 @@ import {
   InferUserPayload,
   MediaEventType,
   ProfileRecommendationCandidateDTO,
+  RecommendationProfileEmbeddingCompletedPayload,
+  RecommendationProfileEmbeddingRequestedPayload,
   SemanticRecommendationCandidateDTO,
   UpdateUserDTO,
   UserEventType,
@@ -26,6 +28,7 @@ import Redis from 'ioredis';
 import { OutboxService } from './event/outbox.service';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { USER_STATUS } from 'src/constants';
+import { randomUUID } from 'crypto';
 
 const CACHE_TTL = {
   USER: 300,
@@ -46,6 +49,12 @@ export class UserService {
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
     const normalizedProfile = this.resolveProfileInput(dto);
     const semanticProfileText = this.buildSemanticProfileText(normalizedProfile);
+    const recommendationProfilePayload =
+      this.buildRecommendationProfileEmbeddingRequestedPayload(
+        dto.id,
+        semanticProfileText,
+        'user.created',
+      );
     const user = await this.db.transaction(async (tx) => {
       const [user] = await tx
         .insert(users)
@@ -97,7 +106,6 @@ export class UserService {
     });
 
     await this.redis.del('users:all');
-    await this.syncSemanticEmbedding(user.id, semanticProfileText);
 
     const payload: InferUserPayload<UserEventType.CREATED> = {
       userId: user.id,
@@ -119,6 +127,10 @@ export class UserService {
       this.db,
       UserEventType.CREATED,
       payload
+    );
+    await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
+      this.db,
+      recommendationProfilePayload,
     );
 
     return plainToInstance(
@@ -344,7 +356,6 @@ export class UserService {
     // 🧹 Invalidate cache
     await this.redis.del(`user:${id}`);
     await this.redis.del('users:all');
-    await this.syncSemanticEmbedding(id, finalProfile.semanticProfileText ?? null);
 
     // ✅ FULL SNAPSHOT payload
     const payload: InferUserPayload<UserEventType.UPDATED> = {
@@ -365,6 +376,14 @@ export class UserService {
       this.db,
       UserEventType.UPDATED,
       payload
+    );
+    await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
+      this.db,
+      this.buildRecommendationProfileEmbeddingRequestedPayload(
+        id,
+        finalProfile.semanticProfileText ?? null,
+        'user.updated',
+      ),
     );
 
     return this.findOne(id);
@@ -586,6 +605,53 @@ export class UserService {
     });
   }
 
+  async applyRecommendationProfileEmbedding(
+    payload: RecommendationProfileEmbeddingCompletedPayload,
+  ): Promise<boolean> {
+    const currentProfile = await this.db
+      .select({
+        semanticProfileText: profiles.semanticProfileText,
+      })
+      .from(profiles)
+      .where(eq(profiles.userId, payload.userId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!currentProfile) {
+      this.logger.warn(
+        `Ignoring recommendation embedding result for missing userId=${payload.userId}`,
+      );
+      return false;
+    }
+
+    const currentText =
+      this.normalizeOptionalText(currentProfile.semanticProfileText) ?? null;
+    const incomingText = this.normalizeOptionalText(payload.semanticProfileText) ?? null;
+
+    if (currentText !== incomingText) {
+      this.logger.warn(
+        `Ignoring stale recommendation embedding result for userId=${payload.userId} requestId=${payload.requestId}`,
+      );
+      return false;
+    }
+
+    await this.db
+      .update(profiles)
+      .set({
+        semanticEmbedding:
+          payload.embedding.length > 0 ? payload.embedding : null,
+        semanticEmbeddingUpdatedAt:
+          payload.embedding.length > 0 ? new Date(payload.generatedAt) : null,
+      })
+      .where(eq(profiles.userId, payload.userId));
+
+    this.logger.debug(
+      `Applied recommendation embedding result for userId=${payload.userId} requestId=${payload.requestId} dimensions=${payload.dimensions}`,
+    );
+
+    return true;
+  }
+
   private resolveProfileInput(
     dto: Partial<CreateUserDTO>,
   ): Partial<{
@@ -736,6 +802,21 @@ export class UserService {
     ].filter(Boolean);
 
     return segments.length > 0 ? segments.join('\n') : null;
+  }
+
+  private buildRecommendationProfileEmbeddingRequestedPayload(
+    userId: string,
+    semanticProfileText: string | null,
+    triggeredBy: 'user.created' | 'user.updated',
+  ): RecommendationProfileEmbeddingRequestedPayload {
+    return {
+      userId,
+      semanticProfileText,
+      requestId: randomUUID(),
+      triggeredBy,
+      schemaVersion: 1,
+      requestedAt: new Date().toISOString(),
+    };
   }
 
   private async syncSemanticEmbedding(

@@ -35,6 +35,19 @@ class Settings:
         self.RECOMMENDATION_SCORE_CEILING: float = float(
             os.getenv("RECOMMENDATION_SCORE_CEILING", 0.9)
         )
+        self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
+        self.KAFKA_CLIENT_ID: str = os.getenv(
+            "KAFKA_CLIENT_ID", "recommendation-service"
+        ).strip()
+        self.KAFKA_GROUP_ID: str = os.getenv(
+            "KAFKA_GROUP_ID", "recommendation-service-group"
+        ).strip()
+        self.RECOMMENDATION_PROFILE_TOPIC: str = os.getenv(
+            "RECOMMENDATION_PROFILE_TOPIC", "recommendation-profile-events"
+        ).strip()
+        self.RECOMMENDATION_RESULT_TOPIC: str = os.getenv(
+            "RECOMMENDATION_RESULT_TOPIC", "recommendation-result-events"
+        ).strip()
 
         self._validate()
 
@@ -59,6 +72,21 @@ class Settings:
 
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:
             raise RuntimeError("RECOMMENDATION_QUERY_INSTRUCTION must not be empty")
+
+        if not self.KAFKA_BROKERS:
+            raise RuntimeError("KAFKA_BROKERS must not be empty")
+
+        if not self.KAFKA_CLIENT_ID:
+            raise RuntimeError("KAFKA_CLIENT_ID must not be empty")
+
+        if not self.KAFKA_GROUP_ID:
+            raise RuntimeError("KAFKA_GROUP_ID must not be empty")
+
+        if not self.RECOMMENDATION_PROFILE_TOPIC:
+            raise RuntimeError("RECOMMENDATION_PROFILE_TOPIC must not be empty")
+
+        if not self.RECOMMENDATION_RESULT_TOPIC:
+            raise RuntimeError("RECOMMENDATION_RESULT_TOPIC must not be empty")
 
         if not (-1.0 <= self.RECOMMENDATION_SCORE_FLOOR <= 1.0):
             raise RuntimeError("RECOMMENDATION_SCORE_FLOOR must be within [-1, 1]")

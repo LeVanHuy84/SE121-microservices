@@ -5,3 +5,4 @@ transformers==4.41.2
 torch==2.2.2
 pydantic==2.8.2
 numpy<2
+aiokafka==0.10.0
