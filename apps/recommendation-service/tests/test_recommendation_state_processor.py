@@ -37,7 +37,7 @@ class RecommendationStateProcessorTestCase(unittest.IsolatedAsyncioTestCase):
                 store = RecommendationGraphStateStore()
                 processor = RecommendationStateProcessor(
                     queue,
-                    RecommendationPrecomputeService(repository),
+                    RecommendationPrecomputeService(repository, store),
                     store,
                 )
                 await processor.run_once()

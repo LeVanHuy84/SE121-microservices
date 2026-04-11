@@ -147,4 +147,57 @@ describe('RecommendationClientService', () => {
       }),
     );
   });
+
+  it('should parse successful precomputed responses', async () => {
+    mockedAxios.isAxiosError.mockReturnValue(false);
+    mockedAxios.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          viewerId: 'viewer-1',
+          generatedAt: '2026-04-10T10:00:00.000Z',
+          generationReason: 'state-processor',
+          modelName: 'demo-model',
+          candidateCount: 1,
+          candidates: [
+            {
+              candidateId: 'candidate-1',
+              semanticScore: 0.91,
+              rank: 1,
+              generatedAt: '2026-04-10T10:00:00.000Z',
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await service.getPrecomputedCandidates('viewer-1', 5);
+
+    expect(result).toEqual({
+      viewerId: 'viewer-1',
+      generatedAt: '2026-04-10T10:00:00.000Z',
+      generationReason: 'state-processor',
+      modelName: 'demo-model',
+      candidateCount: 1,
+      candidates: [
+        {
+          candidateId: 'candidate-1',
+          semanticScore: 0.91,
+          rank: 1,
+          generatedAt: '2026-04-10T10:00:00.000Z',
+        },
+      ],
+    });
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'http://127.0.0.1:4011/recommend/precomputed/viewer-1',
+      expect.objectContaining({
+        headers: {
+          'x-internal-key': 'internal-key',
+        },
+        params: {
+          limit: 5,
+        },
+      }),
+    );
+  });
 });

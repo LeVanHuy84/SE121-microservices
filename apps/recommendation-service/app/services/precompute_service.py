@@ -9,14 +9,19 @@ from app.core.config import settings
 from app.database.recommendation_state_repository import (
     RecommendationStateRepository,
 )
-from app.services.graph_state_store import graph_state_store
+from app.services.graph_state_store import RecommendationGraphStateStore
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationPrecomputeService:
-    def __init__(self, repository: RecommendationStateRepository):
+    def __init__(
+        self,
+        repository: RecommendationStateRepository,
+        graph_state_store: RecommendationGraphStateStore,
+    ):
         self.repository = repository
+        self.graph_state_store = graph_state_store
 
     def compute_for_viewer(
         self, viewer_id: str, generation_reason: str = "state-processor"
@@ -103,25 +108,25 @@ class RecommendationPrecomputeService:
         if not viewer_id or not candidate_id or viewer_id == candidate_id:
             return False
 
-        if graph_state_store.has_friendship(viewer_id, candidate_id):
+        if self.graph_state_store.has_friendship(viewer_id, candidate_id):
             return False
 
-        if graph_state_store.has_friendship(candidate_id, viewer_id):
+        if self.graph_state_store.has_friendship(candidate_id, viewer_id):
             return False
 
-        if graph_state_store.has_pending_request(viewer_id, candidate_id):
+        if self.graph_state_store.has_pending_request(viewer_id, candidate_id):
             return False
 
-        if graph_state_store.has_pending_request(candidate_id, viewer_id):
+        if self.graph_state_store.has_pending_request(candidate_id, viewer_id):
             return False
 
-        if graph_state_store.is_blocked(viewer_id, candidate_id):
+        if self.graph_state_store.is_blocked(viewer_id, candidate_id):
             return False
 
-        if graph_state_store.is_blocked(candidate_id, viewer_id):
+        if self.graph_state_store.is_blocked(candidate_id, viewer_id):
             return False
 
-        if graph_state_store.has_active_dismissal(viewer_id, candidate_id):
+        if self.graph_state_store.has_active_dismissal(viewer_id, candidate_id):
             return False
 
         return True

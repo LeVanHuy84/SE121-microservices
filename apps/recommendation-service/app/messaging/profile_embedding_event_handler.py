@@ -5,7 +5,7 @@ from typing import Any
 from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.services.model_loader import model_loader
-from app.services.precompute_queue import precompute_queue
+from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +15,13 @@ class ProfileEmbeddingEventHandler:
     COMPLETED_EVENT_TYPE = "recommendation.profile.embedding.completed"
     FAILED_EVENT_TYPE = "recommendation.profile.embedding.failed"
 
-    def __init__(self, repository: RecommendationStateRepository):
+    def __init__(
+        self,
+        repository: RecommendationStateRepository,
+        precompute_queue: RecommendationPrecomputeQueue,
+    ):
         self.repository = repository
+        self.precompute_queue = precompute_queue
 
     async def handle(self, message: dict[str, Any]):
         event_type = str(message.get("type") or "")
@@ -70,7 +75,7 @@ class ProfileEmbeddingEventHandler:
                     "generatedAt": generated_at,
                 },
             )
-            precompute_queue.mark_stale(user_id)
+            self.precompute_queue.mark_stale(user_id)
             logger.info(
                 (
                     "Recommendation profile embedding completed and enqueued: "

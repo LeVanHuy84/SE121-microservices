@@ -21,6 +21,7 @@ import { RecommendationHydrationService } from './recommendation-hydration.servi
 import { RecommendationSnapshotService } from './recommendation-snapshot.service';
 import { RecommendationTrackingService } from './recommendation-tracking.service';
 import type { FeatureScoredRecommendation } from './recommendation.types';
+import type { RecommendationCandidateBundle } from './recommendation.types';
 
 @Injectable()
 export class RecommendationQueryService {
@@ -28,6 +29,8 @@ export class RecommendationQueryService {
   private readonly overscanMultiplier = 5;
   private readonly maxOverscan = 100;
   private readonly scoringConfig: FriendRecommendationScoringConfig;
+  private readonly precomputedEnabled: boolean;
+  private readonly precomputedMaxAgeSeconds: number;
 
   constructor(
     private readonly candidateSourceService: CandidateSourceService,
@@ -42,6 +45,14 @@ export class RecommendationQueryService {
     configService: ConfigService,
   ) {
     this.scoringConfig = loadFriendRecommendationScoringConfig(configService);
+    this.precomputedEnabled = this.parseBoolean(
+      configService.get<string>('RECOMMENDATION_PRECOMPUTED_ENABLED'),
+      true,
+    );
+    this.precomputedMaxAgeSeconds = this.parsePositiveInt(
+      configService.get<string>('RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS'),
+      300,
+    );
   }
 
   async recommendFriends(
@@ -95,14 +106,16 @@ export class RecommendationQueryService {
     );
 
     const candidateLoadStartedAt = Date.now();
-    const candidateBundle = await this.candidateSourceService.loadCandidateBundle(
-      userId,
-      candidateLimit,
-      {
-        graphCursor,
-        includeGroupCandidates,
-      },
-    );
+    const candidateBundle = graphCursor
+      ? await this.candidateSourceService.loadCandidateBundle(
+          userId,
+          candidateLimit,
+          {
+            graphCursor,
+            includeGroupCandidates,
+          },
+        )
+      : await this.resolveCandidateBundle(userId, candidateLimit);
     const candidateLoadMs = Date.now() - candidateLoadStartedAt;
 
     if (candidateBundle.mergedCandidates.length === 0) {
@@ -158,6 +171,78 @@ export class RecommendationQueryService {
       snapshotPage.nextCursor,
       snapshotPage.hasNextPage,
     );
+  }
+
+  private async resolveCandidateBundle(
+    userId: string,
+    candidateLimit: number,
+  ): Promise<RecommendationCandidateBundle> {
+    const precomputedSnapshot = await this.getFreshPrecomputedSnapshot(
+      userId,
+      candidateLimit,
+    );
+    if (precomputedSnapshot?.candidates.length) {
+      const precomputedBundle =
+        await this.candidateSourceService.loadPrecomputedCandidateBundle(
+          userId,
+          precomputedSnapshot.candidates,
+        );
+      if (precomputedBundle.mergedCandidates.length > 0) {
+        this.logger.debug(
+          `Recommendation using precomputed snapshot: userId=${userId} requested=${candidateLimit} returned=${precomputedBundle.mergedCandidates.length} generatedAt=${precomputedSnapshot.generatedAt}`,
+        );
+        return precomputedBundle;
+      }
+
+      this.logger.warn(
+        `Recommendation precomputed snapshot dropped after summarization: userId=${userId} requested=${candidateLimit}`,
+      );
+    }
+
+    return this.candidateSourceService.loadCandidateBundle(userId, candidateLimit, {
+      includeGroupCandidates: true,
+    });
+  }
+
+  private async getFreshPrecomputedSnapshot(
+    userId: string,
+    candidateLimit: number,
+  ) {
+    if (!this.precomputedEnabled) {
+      return null;
+    }
+
+    if (
+      typeof this.recommendationClient.getPrecomputedCandidates !== 'function'
+    ) {
+      return null;
+    }
+
+    const snapshot = await this.recommendationClient.getPrecomputedCandidates(
+      userId,
+      candidateLimit,
+    );
+    if (!snapshot?.generatedAt || snapshot.candidates.length === 0) {
+      return null;
+    }
+
+    const generatedAtMs = Date.parse(snapshot.generatedAt);
+    if (!Number.isFinite(generatedAtMs)) {
+      this.logger.warn(
+        `Recommendation precomputed snapshot ignored: userId=${userId} reason=invalid_generated_at value=${snapshot.generatedAt}`,
+      );
+      return null;
+    }
+
+    const ageMs = Date.now() - generatedAtMs;
+    if (ageMs > this.precomputedMaxAgeSeconds * 1000) {
+      this.logger.debug(
+        `Recommendation precomputed snapshot stale: userId=${userId} ageMs=${ageMs} maxAgeSeconds=${this.precomputedMaxAgeSeconds}`,
+      );
+      return null;
+    }
+
+    return snapshot;
   }
 
   private async applyAiModelScores(
@@ -239,6 +324,37 @@ export class RecommendationQueryService {
     return Math.max(1, Math.floor(limit));
   }
 
+  private parseBoolean(
+    value: string | undefined,
+    fallback: boolean,
+  ): boolean {
+    if (typeof value !== 'string') {
+      return fallback;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+
+    return fallback;
+  }
+
+  private parsePositiveInt(
+    value: string | undefined,
+    fallback: number,
+  ): number {
+    if (typeof value !== 'string') {
+      return fallback;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
   private async buildRecommendationResponse(
     userId: string,
     visibleData: FeatureScoredRecommendation[],
@@ -254,7 +370,11 @@ export class RecommendationQueryService {
         visibleRecommendations,
       );
     const responseData: FriendRecommendation[] = hydratedVisibleData.map(
-      ({ featureVector: _featureVector, ...recommendation }) => recommendation,
+      ({
+        featureVector: _featureVector,
+        candidateSourceMode: _candidateSourceMode,
+        ...recommendation
+      }) => recommendation,
     );
 
     await this.trackingService.recordServedEvents(

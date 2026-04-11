@@ -70,6 +70,7 @@ export class RecommendationFeatureService {
       groupAffinityScore,
       profileAffinityScore,
       semanticAffinityScore,
+      candidateSourceMode: candidate.candidateSourceMode ?? 'online',
       source: getRecommendationSource(
         candidate.mutualFriends,
         commonGroups,

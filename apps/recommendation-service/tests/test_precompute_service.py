@@ -15,7 +15,12 @@ class RecommendationPrecomputeServiceTestCase(unittest.TestCase):
             )
             try:
                 repository.create_schema()
-                service = RecommendationPrecomputeService(repository)
+                local_graph_state_store = RecommendationGraphStateStore()
+                local_graph_state_store.apply_user_blocked("viewer-1", "candidate-c")
+                service = RecommendationPrecomputeService(
+                    repository,
+                    local_graph_state_store,
+                )
 
                 repository.upsert_profile_embedding(
                     "viewer-1",
@@ -46,20 +51,10 @@ class RecommendationPrecomputeServiceTestCase(unittest.TestCase):
                     "2026-04-10T00:00:00+00:00",
                 )
 
-                import app.services.precompute_service as precompute_module
-
-                original_graph_state_store = precompute_module.graph_state_store
-                local_graph_state_store = RecommendationGraphStateStore()
-                local_graph_state_store.apply_user_blocked("viewer-1", "candidate-c")
-                precompute_module.graph_state_store = local_graph_state_store
-
-                try:
-                    result = service.compute_for_viewer(
-                        "viewer-1",
-                        generation_reason="unit-test",
-                    )
-                finally:
-                    precompute_module.graph_state_store = original_graph_state_store
+                result = service.compute_for_viewer(
+                    "viewer-1",
+                    generation_reason="unit-test",
+                )
 
                 snapshot = repository.get_precomputed_snapshot("viewer-1", 10)
 

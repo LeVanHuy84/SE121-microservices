@@ -62,6 +62,10 @@ export class RecommendationTrackingService {
             recommendation.featureVector?.semanticAffinityScore ??
             recommendation.semanticMatchScore ??
             null,
+          candidateSourceMode:
+            recommendation.featureVector?.candidateSourceMode ??
+            recommendation.candidateSourceMode ??
+            'online',
           profileMatchedSignals: recommendation.profileMatchedSignals ?? [],
           sharedInterestsCount: recommendation.sharedInterestsCount ?? 0,
           baseScore: recommendation.baseScore ?? recommendation.score ?? 0,

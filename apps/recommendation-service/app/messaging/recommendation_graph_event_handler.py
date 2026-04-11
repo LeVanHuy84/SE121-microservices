@@ -2,8 +2,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from app.services.graph_state_store import graph_state_store
-from app.services.precompute_queue import precompute_queue
+from app.services.graph_state_store import RecommendationGraphStateStore
+from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,14 @@ class RecommendationGraphEventHandler:
         "recommendation.graph.user-unblocked",
         "recommendation.graph.recommendation-dismissed",
     }
+
+    def __init__(
+        self,
+        graph_state_store: RecommendationGraphStateStore,
+        precompute_queue: RecommendationPrecomputeQueue,
+    ):
+        self.graph_state_store = graph_state_store
+        self.precompute_queue = precompute_queue
 
     async def handle(self, message: dict[str, Any]):
         event_type = str(message.get("type") or "").strip()
@@ -40,19 +48,28 @@ class RecommendationGraphEventHandler:
             return
 
         if event_type == "recommendation.graph.friend-request-sent":
-            graph_state_store.apply_friend_request_sent(user_id, target_user_id)
+            self.graph_state_store.apply_friend_request_sent(user_id, target_user_id)
         elif event_type == "recommendation.graph.friend-request-canceled":
-            graph_state_store.apply_friend_request_canceled(user_id, target_user_id)
+            self.graph_state_store.apply_friend_request_canceled(
+                user_id,
+                target_user_id,
+            )
         elif event_type == "recommendation.graph.friend-request-accepted":
-            graph_state_store.apply_friend_request_accepted(user_id, target_user_id)
+            self.graph_state_store.apply_friend_request_accepted(
+                user_id,
+                target_user_id,
+            )
         elif event_type == "recommendation.graph.friend-request-declined":
-            graph_state_store.apply_friend_request_declined(user_id, target_user_id)
+            self.graph_state_store.apply_friend_request_declined(
+                user_id,
+                target_user_id,
+            )
         elif event_type == "recommendation.graph.friendship-removed":
-            graph_state_store.apply_friendship_removed(user_id, target_user_id)
+            self.graph_state_store.apply_friendship_removed(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-blocked":
-            graph_state_store.apply_user_blocked(user_id, target_user_id)
+            self.graph_state_store.apply_user_blocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-unblocked":
-            graph_state_store.apply_user_unblocked(user_id, target_user_id)
+            self.graph_state_store.apply_user_unblocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.recommendation-dismissed":
             expires_at = self._parse_expires_at(payload.get("expiresAt"))
             if expires_at is None:
@@ -65,7 +82,7 @@ class RecommendationGraphEventHandler:
                 )
                 return
 
-            graph_state_store.apply_recommendation_dismissed(
+            self.graph_state_store.apply_recommendation_dismissed(
                 user_id, target_user_id, expires_at
             )
 
@@ -75,7 +92,7 @@ class RecommendationGraphEventHandler:
             user_id,
             target_user_id,
         )
-        precompute_queue.mark_many([user_id, target_user_id])
+        self.precompute_queue.mark_many([user_id, target_user_id])
 
     def _parse_expires_at(self, expires_at: Any) -> datetime | None:
         if not isinstance(expires_at, str) or not expires_at.strip():

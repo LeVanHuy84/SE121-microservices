@@ -7,10 +7,16 @@ import type {
 export interface RecommendationCandidateBundle {
   graphNextCursor: string | null;
   candidateLimit: number;
+  sourceMode: RecommendationCandidateSourceMode;
   mergedCandidates: FriendRecommendation[];
   groupCandidates: GroupRecommendationCandidate[];
   commonGroupCountsByUser: Record<string, number>;
 }
+
+export type RecommendationCandidateSourceMode =
+  | 'precomputed'
+  | 'online'
+  | 'graph_continuation';
 
 export interface RecommendationFeatureVector {
   candidateId: string;
@@ -21,6 +27,7 @@ export interface RecommendationFeatureVector {
   groupAffinityScore: number;
   profileAffinityScore: number;
   semanticAffinityScore: number;
+  candidateSourceMode: RecommendationCandidateSourceMode;
   source: FriendRecommendationAnalyticsSource;
   reasons: string[];
 }

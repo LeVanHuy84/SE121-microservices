@@ -2,12 +2,14 @@ import unittest
 from unittest.mock import Mock, patch
 
 from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
+from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 
 class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_handle_requested_event_enqueues_completed_result(self):
         repository = Mock()
-        handler = ProfileEmbeddingEventHandler(repository)
+        queue = RecommendationPrecomputeQueue()
+        handler = ProfileEmbeddingEventHandler(repository, queue)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",
@@ -32,10 +34,14 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[6], "recommendation.profile.embedding.completed")
         self.assertEqual(args[7]["userId"], "user-1")
         self.assertEqual(args[7]["dimensions"], 3)
+        self.assertEqual(queue.drain(10), ["user-1"])
 
     async def test_handle_requested_event_enqueues_failed_result_on_error(self):
         repository = Mock()
-        handler = ProfileEmbeddingEventHandler(repository)
+        handler = ProfileEmbeddingEventHandler(
+            repository,
+            RecommendationPrecomputeQueue(),
+        )
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",

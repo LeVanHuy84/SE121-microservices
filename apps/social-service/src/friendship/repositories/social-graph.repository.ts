@@ -29,6 +29,7 @@ export interface FriendRecommendation {
   reasons?: string[];
   recommendationId?: string;
   recommendationRequestId?: string;
+  candidateSourceMode?: 'precomputed' | 'online' | 'graph_continuation';
 }
 
 export type FriendRecommendationEventType =

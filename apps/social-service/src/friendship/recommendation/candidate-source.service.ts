@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { GroupClientService } from '../../client/group/group-client.service';
+import { RecommendationPrecomputedCandidate } from '../../client/recommendation/recommendation-client.service';
 import { UserClientService } from '../../client/user/user-client.service';
 import {
   SOCIAL_GRAPH_REPOSITORY,
@@ -27,6 +28,7 @@ export class CandidateSourceService {
     },
   ): Promise<RecommendationCandidateBundle> {
     const graphCursor = options?.graphCursor ?? undefined;
+    const sourceMode = graphCursor ? 'graph_continuation' : 'online';
     const includeGroupCandidates = options?.includeGroupCandidates ?? !graphCursor;
     const includeProfileCandidates =
       options?.includeProfileCandidates ?? !graphCursor;
@@ -98,6 +100,7 @@ export class CandidateSourceService {
           candidate,
           profileCandidatesById.get(candidate.id),
           semanticCandidatesById.get(candidate.id),
+          sourceMode,
         ),
       ),
       ...groupOnlyCandidates.map((candidate) =>
@@ -105,6 +108,7 @@ export class CandidateSourceService {
           candidate,
           profileCandidatesById.get(candidate.id),
           semanticCandidatesById.get(candidate.id),
+          sourceMode,
         ),
       ),
       ...profileOnlyCandidates.map((candidate) =>
@@ -112,6 +116,7 @@ export class CandidateSourceService {
           candidate,
           profileCandidatesById.get(candidate.id),
           semanticCandidatesById.get(candidate.id),
+          sourceMode,
         ),
       ),
       ...semanticOnlyCandidates.map((candidate) =>
@@ -119,6 +124,7 @@ export class CandidateSourceService {
           candidate,
           profileCandidatesById.get(candidate.id),
           semanticCandidatesById.get(candidate.id),
+          sourceMode,
         ),
       ),
     ];
@@ -139,8 +145,71 @@ export class CandidateSourceService {
         ? graphCandidatePage.nextCursor
         : null,
       candidateLimit,
+      sourceMode,
       mergedCandidates,
       groupCandidates,
+      commonGroupCountsByUser,
+    };
+  }
+
+  async loadPrecomputedCandidateBundle(
+    userId: string,
+    precomputedCandidates: RecommendationPrecomputedCandidate[],
+  ): Promise<RecommendationCandidateBundle> {
+    const dedupedCandidates = Array.from(
+      new Map(
+        precomputedCandidates
+          .filter((candidate) => candidate?.candidateId)
+          .map((candidate) => [candidate.candidateId, candidate]),
+      ).values(),
+    );
+    if (dedupedCandidates.length === 0) {
+      return {
+        graphNextCursor: null,
+        candidateLimit: 0,
+        sourceMode: 'precomputed',
+        mergedCandidates: [],
+        groupCandidates: [],
+        commonGroupCountsByUser: {},
+      };
+    }
+
+    const candidateIds = dedupedCandidates.map((candidate) => candidate.candidateId);
+    const [summarizedCandidates, commonGroupCountsByUser] = await Promise.all([
+      this.socialGraphRepo.summarizeCandidates(userId, candidateIds),
+      this.groupClient.getCommonGroupCounts(userId, candidateIds),
+    ]);
+    const summarizedCandidatesById = new Map(
+      summarizedCandidates.map((candidate) => [candidate.id, candidate]),
+    );
+    const semanticCandidatesById = new Map(
+      dedupedCandidates.map((candidate) => [candidate.candidateId, candidate]),
+    );
+
+    return {
+      graphNextCursor: null,
+      candidateLimit: dedupedCandidates.length,
+      sourceMode: 'precomputed',
+      mergedCandidates: dedupedCandidates
+        .map((candidate) => summarizedCandidatesById.get(candidate.candidateId))
+        .filter(
+          (
+            candidate,
+          ): candidate is RecommendationCandidateBundle['mergedCandidates'][number] =>
+            Boolean(candidate),
+        )
+        .map((candidate) =>
+          this.applySourceScores(
+            candidate,
+            undefined,
+            {
+              semanticMatchScore:
+                semanticCandidatesById.get(candidate.id)?.semanticScore ?? 0,
+            },
+            'precomputed',
+          ),
+        ),
+      groupCandidates: [],
       commonGroupCountsByUser,
     };
   }
@@ -159,13 +228,18 @@ export class CandidateSourceService {
           semanticMatchScore: number;
         }
       | undefined,
+    sourceMode: RecommendationCandidateBundle['sourceMode'],
   ) {
     if (!profileCandidate && !semanticCandidate) {
-      return candidate;
+      return {
+        ...candidate,
+        candidateSourceMode: sourceMode,
+      };
     }
 
     return {
       ...candidate,
+      candidateSourceMode: sourceMode,
       profileMatchScore: profileCandidate?.profileMatchScore,
       profileMatchedSignals: profileCandidate?.matchedSignals ?? [],
       sharedInterestsCount: profileCandidate?.sharedInterestsCount ?? 0,

@@ -23,6 +23,7 @@ describe('RecommendationQueryService', () => {
   const getCommonGroupNames = jest.fn();
   const getGroupRecommendationCandidates = jest.fn();
   const rerankCandidates = jest.fn();
+  const getPrecomputedCandidates = jest.fn();
   const createSnapshotPage = jest.fn();
   const getSnapshotPage = jest.fn();
   const getGraphContinuationCursor = jest.fn();
@@ -41,6 +42,7 @@ describe('RecommendationQueryService', () => {
     getCommonGroupNames.mockReset();
     getGroupRecommendationCandidates.mockReset();
     rerankCandidates.mockReset();
+    getPrecomputedCandidates.mockReset();
     createSnapshotPage.mockReset();
     getSnapshotPage.mockReset();
     getGraphContinuationCursor.mockReset();
@@ -55,6 +57,7 @@ describe('RecommendationQueryService', () => {
     getSemanticRecommendationCandidates.mockResolvedValue([]);
     getCommonGroupNames.mockResolvedValue({});
     rerankCandidates.mockResolvedValue({});
+    getPrecomputedCandidates.mockResolvedValue(null);
     configGet.mockImplementation(() => undefined);
     createSnapshotPage.mockImplementation(
       async (
@@ -151,6 +154,7 @@ describe('RecommendationQueryService', () => {
           provide: RecommendationClientService,
           useValue: {
             rerankCandidates,
+            getPrecomputedCandidates,
           },
         },
         {
@@ -557,6 +561,7 @@ describe('RecommendationQueryService', () => {
           provide: RecommendationClientService,
           useValue: {
             rerankCandidates,
+            getPrecomputedCandidates,
           },
         },
         {
@@ -700,6 +705,118 @@ describe('RecommendationQueryService', () => {
       baseScore: 0.1,
       modelScore: 0.9,
       score: 0.55,
+    });
+  });
+
+  it('should prefer fresh precomputed candidates before loading online candidate sources', async () => {
+    const generatedAt = new Date().toISOString();
+    getPrecomputedCandidates.mockResolvedValue({
+      viewerId: 'self',
+      generatedAt,
+      generationReason: 'state-processor',
+      modelName: 'demo-model',
+      candidateCount: 2,
+      candidates: [
+        {
+          candidateId: 's1',
+          semanticScore: 0.84,
+          rank: 1,
+          generatedAt,
+        },
+        {
+          candidateId: 's2',
+          semanticScore: 0.52,
+          rank: 2,
+          generatedAt,
+        },
+      ],
+    });
+    summarizeCandidates.mockImplementation(
+      async (_userId: string, candidateIds: string[]) =>
+        candidateIds.map((candidateId) => ({
+          id: candidateId,
+          mutualFriends: 0,
+          mutualFriendIds: [],
+        })),
+    );
+    getCommonGroupCounts.mockResolvedValue({
+      s1: 0,
+      s2: 0,
+    });
+
+    const result = await service.recommendFriends('self', { limit: 2 });
+
+    expect(result.data.map((candidate) => candidate.id)).toEqual(['s1', 's2']);
+    expect(result.data[0]).toMatchObject({
+      id: 's1',
+      baseScore: 0.168,
+      score: 0.168,
+      reasons: ['Strong semantic profile match'],
+    });
+    expect(recordRecommendationEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        candidateId: 's1',
+        metadata: expect.objectContaining({
+          candidateSourceMode: 'precomputed',
+          source: 'semantic_only',
+        }),
+      }),
+      expect.objectContaining({
+        candidateId: 's2',
+        metadata: expect.objectContaining({
+          candidateSourceMode: 'precomputed',
+          source: 'semantic_only',
+        }),
+      }),
+    ]);
+    expect(getPrecomputedCandidates).toHaveBeenCalledWith('self', 10);
+    expect(recommendFriends).not.toHaveBeenCalled();
+    expect(getGroupRecommendationCandidates).not.toHaveBeenCalled();
+    expect(getProfileRecommendationCandidates).not.toHaveBeenCalled();
+    expect(getSemanticRecommendationCandidates).not.toHaveBeenCalled();
+  });
+
+  it('should fall back to online candidate sources when precomputed snapshot is stale', async () => {
+    getPrecomputedCandidates.mockResolvedValue({
+      viewerId: 'self',
+      generatedAt: '2020-01-01T00:00:00.000Z',
+      generationReason: 'state-processor',
+      modelName: 'demo-model',
+      candidateCount: 1,
+      candidates: [
+        {
+          candidateId: 'stale-1',
+          semanticScore: 0.9,
+          rank: 1,
+          generatedAt: '2020-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    recommendFriends.mockResolvedValue({
+      data: [{ id: 'a', mutualFriends: 1, mutualFriendIds: ['u1'] }],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    summarizeCandidates.mockResolvedValue([]);
+    getGroupRecommendationCandidates.mockResolvedValue([]);
+    getCommonGroupCounts.mockResolvedValue({
+      a: 0,
+    });
+
+    const result = await service.recommendFriends('self', { limit: 1 });
+
+    expect(result.data.map((candidate) => candidate.id)).toEqual(['a']);
+    expect(recordRecommendationEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        candidateId: 'a',
+        metadata: expect.objectContaining({
+          candidateSourceMode: 'online',
+        }),
+      }),
+    ]);
+    expect(recommendFriends).toHaveBeenCalledWith('self', {
+      cursor: undefined,
+      limit: 5,
     });
   });
 
