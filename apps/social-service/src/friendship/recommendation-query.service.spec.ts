@@ -94,7 +94,10 @@ describe('RecommendationQueryService', () => {
           return null;
         }
 
-        const data = snapshotRecommendations.slice(startIndex, startIndex + limit);
+        const data = snapshotRecommendations.slice(
+          startIndex,
+          startIndex + limit,
+        );
         const nextIndex = startIndex + data.length;
         const hasNextPage =
           nextIndex < snapshotRecommendations.length ||
@@ -603,72 +606,74 @@ describe('RecommendationQueryService', () => {
       a: 0.1,
       b: 0.9,
     });
-    getUsers.mockImplementation((ids: string[], projection: 'base' | 'full') => {
-      if (projection === 'full') {
+    getUsers.mockImplementation(
+      (ids: string[], projection: 'base' | 'full') => {
+        if (projection === 'full') {
+          return Promise.resolve({
+            self: {
+              id: 'self',
+              email: 'self@example.com',
+              isActive: true,
+              firstName: 'Self',
+              lastName: 'User',
+              avatarUrl: '',
+              bio: 'I build social apps',
+              location: 'Ho Chi Minh City',
+              jobTitle: 'Platform Engineer',
+              company: 'Acme Social',
+              school: 'HCMUT',
+              interests: ['backend', 'running'],
+              createdAt: new Date('2026-03-01T00:00:00.000Z'),
+            },
+            a: {
+              id: 'a',
+              email: 'a@example.com',
+              isActive: true,
+              firstName: 'Anh',
+              lastName: 'Tran',
+              avatarUrl: '',
+              bio: 'Mobile developer and runner',
+              location: 'Da Nang',
+              jobTitle: 'Mobile Developer',
+              company: 'Pixel Labs',
+              school: 'DUT',
+              interests: ['react native', 'running'],
+              createdAt: new Date('2026-03-01T00:00:00.000Z'),
+            },
+            b: {
+              id: 'b',
+              email: 'b@example.com',
+              isActive: true,
+              firstName: 'Binh',
+              lastName: 'Le',
+              avatarUrl: '',
+              bio: 'Mobile developer and designer',
+              location: 'Ho Chi Minh City',
+              jobTitle: 'Product Designer',
+              company: 'Studio Nine',
+              school: 'UEH',
+              interests: ['design systems', 'mobile apps'],
+              createdAt: new Date('2026-03-01T00:00:00.000Z'),
+            },
+          });
+        }
+
         return Promise.resolve({
-          self: {
-            id: 'self',
-            email: 'self@example.com',
-            isActive: true,
-            firstName: 'Self',
-            lastName: 'User',
-            avatarUrl: '',
-            bio: 'I build social apps',
-            location: 'Ho Chi Minh City',
-            jobTitle: 'Platform Engineer',
-            company: 'Acme Social',
-            school: 'HCMUT',
-            interests: ['backend', 'running'],
-            createdAt: new Date('2026-03-01T00:00:00.000Z'),
-          },
-          a: {
-            id: 'a',
-            email: 'a@example.com',
-            isActive: true,
-            firstName: 'Anh',
-            lastName: 'Tran',
-            avatarUrl: '',
-            bio: 'Mobile developer and runner',
-            location: 'Da Nang',
-            jobTitle: 'Mobile Developer',
-            company: 'Pixel Labs',
-            school: 'DUT',
-            interests: ['react native', 'running'],
-            createdAt: new Date('2026-03-01T00:00:00.000Z'),
-          },
-          b: {
-            id: 'b',
-            email: 'b@example.com',
-            isActive: true,
-            firstName: 'Binh',
+          u1: {
+            id: 'u1',
+            firstName: 'Minh',
             lastName: 'Le',
             avatarUrl: '',
-            bio: 'Mobile developer and designer',
-            location: 'Ho Chi Minh City',
-            jobTitle: 'Product Designer',
-            company: 'Studio Nine',
-            school: 'UEH',
-            interests: ['design systems', 'mobile apps'],
-            createdAt: new Date('2026-03-01T00:00:00.000Z'),
+          },
+          u2: {
+            id: 'u2',
+            firstName: 'Bao',
+            lastName: 'Tran',
+            avatarUrl: '',
           },
         });
-      }
-
-      return Promise.resolve({
-        u1: {
-          id: 'u1',
-          firstName: 'Minh',
-          lastName: 'Le',
-          avatarUrl: '',
-        },
-        u2: {
-          id: 'u2',
-          firstName: 'Bao',
-          lastName: 'Tran',
-          avatarUrl: '',
-        },
-      });
-    });
+      },
+    );
     getCommonGroupNames.mockResolvedValue({
       a: ['React Builders'],
       b: ['Mobile Dev VN'],
@@ -715,16 +720,19 @@ describe('RecommendationQueryService', () => {
       generatedAt,
       generationReason: 'state-processor',
       modelName: 'demo-model',
+      scoreVersion: 'retrieval-dot-product-v1',
       candidateCount: 2,
       candidates: [
         {
           candidateId: 's1',
+          retrievalScore: 0.84,
           semanticScore: 0.84,
           rank: 1,
           generatedAt,
         },
         {
           candidateId: 's2',
+          retrievalScore: 0.52,
           semanticScore: 0.52,
           rank: 2,
           generatedAt,
@@ -758,6 +766,8 @@ describe('RecommendationQueryService', () => {
         candidateId: 's1',
         metadata: expect.objectContaining({
           candidateSourceMode: 'precomputed',
+          retrievalScore: 0.84,
+          retrievalScoreVersion: 'retrieval-dot-product-v1',
           source: 'semantic_only',
         }),
       }),
@@ -782,10 +792,12 @@ describe('RecommendationQueryService', () => {
       generatedAt: '2020-01-01T00:00:00.000Z',
       generationReason: 'state-processor',
       modelName: 'demo-model',
+      scoreVersion: 'retrieval-dot-product-v1',
       candidateCount: 1,
       candidates: [
         {
           candidateId: 'stale-1',
+          retrievalScore: 0.9,
           semanticScore: 0.9,
           rank: 1,
           generatedAt: '2020-01-01T00:00:00.000Z',
@@ -819,5 +831,4 @@ describe('RecommendationQueryService', () => {
       limit: 5,
     });
   });
-
 });

@@ -69,6 +69,17 @@ export class RecommendationTrackingService {
           profileMatchedSignals: recommendation.profileMatchedSignals ?? [],
           sharedInterestsCount: recommendation.sharedInterestsCount ?? 0,
           baseScore: recommendation.baseScore ?? recommendation.score ?? 0,
+          retrievalScore:
+            recommendation.retrievalScore ??
+            recommendation.precomputeScore ??
+            null,
+          retrievalScoreVersion: recommendation.retrievalScoreVersion ?? null,
+          precomputeScore:
+            recommendation.precomputeScore ??
+            recommendation.retrievalScore ??
+            null,
+          rerankScore:
+            recommendation.rerankScore ?? recommendation.modelScore ?? null,
           modelScore: recommendation.modelScore ?? null,
           score: recommendation.score ?? 0,
           source:

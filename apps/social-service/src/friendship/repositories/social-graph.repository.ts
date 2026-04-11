@@ -19,11 +19,15 @@ export interface FriendRecommendation {
   profileMatchedSignals?: string[];
   sharedInterestsCount?: number;
   semanticMatchScore?: number;
+  retrievalScore?: number;
+  precomputeScore?: number;
+  retrievalScoreVersion?: string | null;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;
   commonGroupIds?: string[];
   baseScore?: number;
+  rerankScore?: number;
   modelScore?: number;
   score?: number;
   reasons?: string[];
@@ -81,13 +85,11 @@ export interface FriendRecommendationAnalyticsTotals {
   accepted: number;
 }
 
-export interface FriendRecommendationAnalyticsSourceBreakdown
-  extends FriendRecommendationAnalyticsTotals {
+export interface FriendRecommendationAnalyticsSourceBreakdown extends FriendRecommendationAnalyticsTotals {
   source: FriendRecommendationAnalyticsSource;
 }
 
-export interface FriendRecommendationAnalyticsCandidateSourceModeBreakdown
-  extends FriendRecommendationAnalyticsTotals {
+export interface FriendRecommendationAnalyticsCandidateSourceModeBreakdown extends FriendRecommendationAnalyticsTotals {
   candidateSourceMode: FriendRecommendationAnalyticsCandidateSourceMode;
 }
 

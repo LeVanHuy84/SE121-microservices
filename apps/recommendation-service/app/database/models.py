@@ -32,6 +32,7 @@ class PrecomputedSnapshotRun(Base):
     )
     generation_reason: Mapped[str] = mapped_column(String(255), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    score_version: Mapped[str] = mapped_column(String(255), nullable=False)
     candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
 

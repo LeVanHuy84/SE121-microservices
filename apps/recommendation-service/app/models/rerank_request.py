@@ -41,6 +41,8 @@ class RecommendationEmbeddingOutput(BaseModel):
 
 class PrecomputedRecommendationCandidateOutput(BaseModel):
     candidateId: str
+    retrievalScore: float
+    precomputeScore: float
     semanticScore: float
     rank: int
     generatedAt: str

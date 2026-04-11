@@ -34,22 +34,21 @@ describe('RecommendationClientService', () => {
   });
 
   it('should warn and skip rerank when recommendation config is missing', async () => {
-    configService.get.mockImplementation((key: string, defaultValue?: unknown) => {
-      switch (key) {
-        case 'RECOMMENDATION_SERVICE_URL':
-          return undefined;
-        case 'RECOMMENDATION_INTERNAL_KEY':
-          return 'internal-key';
-        case 'RECOMMENDATION_SERVICE_TIMEOUT_MS':
-          return defaultValue ?? 2000;
-        default:
-          return defaultValue;
-      }
-    });
-    const warnSpy = jest.spyOn(
-      service['logger'],
-      'warn',
+    configService.get.mockImplementation(
+      (key: string, defaultValue?: unknown) => {
+        switch (key) {
+          case 'RECOMMENDATION_SERVICE_URL':
+            return undefined;
+          case 'RECOMMENDATION_INTERNAL_KEY':
+            return 'internal-key';
+          case 'RECOMMENDATION_SERVICE_TIMEOUT_MS':
+            return defaultValue ?? 2000;
+          default:
+            return defaultValue;
+        }
+      },
     );
+    const warnSpy = jest.spyOn(service['logger'], 'warn');
 
     const result = await service.rerankCandidates('viewer-1', [
       {
@@ -74,10 +73,7 @@ describe('RecommendationClientService', () => {
     });
     mockedAxios.isAxiosError.mockReturnValue(true);
     mockedAxios.post.mockRejectedValue(error);
-    const errorSpy = jest.spyOn(
-      service['logger'],
-      'error',
-    );
+    const errorSpy = jest.spyOn(service['logger'], 'error');
 
     const result = await service.rerankCandidates('viewer-1', [
       {
@@ -158,10 +154,13 @@ describe('RecommendationClientService', () => {
           generatedAt: '2026-04-10T10:00:00.000Z',
           generationReason: 'state-processor',
           modelName: 'demo-model',
+          scoreVersion: 'retrieval-dot-product-v1',
           candidateCount: 1,
           candidates: [
             {
               candidateId: 'candidate-1',
+              retrievalScore: 0.91,
+              precomputeScore: 0.91,
               semanticScore: 0.91,
               rank: 1,
               generatedAt: '2026-04-10T10:00:00.000Z',
@@ -178,10 +177,13 @@ describe('RecommendationClientService', () => {
       generatedAt: '2026-04-10T10:00:00.000Z',
       generationReason: 'state-processor',
       modelName: 'demo-model',
+      scoreVersion: 'retrieval-dot-product-v1',
       candidateCount: 1,
       candidates: [
         {
           candidateId: 'candidate-1',
+          retrievalScore: 0.91,
+          precomputeScore: 0.91,
           semanticScore: 0.91,
           rank: 1,
           generatedAt: '2026-04-10T10:00:00.000Z',

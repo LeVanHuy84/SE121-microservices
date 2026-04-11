@@ -86,7 +86,9 @@ export class RecommendationQueryService {
         );
       }
 
-      graphCursor = this.snapshotService.getGraphContinuationCursor(query.cursor);
+      graphCursor = this.snapshotService.getGraphContinuationCursor(
+        query.cursor,
+      );
       includeGroupCandidates = false;
 
       if (!graphCursor) {
@@ -153,11 +155,11 @@ export class RecommendationQueryService {
     const snapshotWriteStartedAt = Date.now();
     const snapshotPage =
       await this.snapshotService.createSnapshotPage<FeatureScoredRecommendation>(
-      userId,
-      rankedCandidates,
-      requestedLimit,
-      candidateBundle.graphNextCursor,
-    );
+        userId,
+        rankedCandidates,
+        requestedLimit,
+        candidateBundle.graphNextCursor,
+      );
     const snapshotWriteMs = Date.now() - snapshotWriteStartedAt;
 
     this.logger.debug(
@@ -186,6 +188,9 @@ export class RecommendationQueryService {
         await this.candidateSourceService.loadPrecomputedCandidateBundle(
           userId,
           precomputedSnapshot.candidates,
+          {
+            scoreVersion: precomputedSnapshot.scoreVersion,
+          },
         );
       if (precomputedBundle.mergedCandidates.length > 0) {
         this.logger.debug(
@@ -199,9 +204,13 @@ export class RecommendationQueryService {
       );
     }
 
-    return this.candidateSourceService.loadCandidateBundle(userId, candidateLimit, {
-      includeGroupCandidates: true,
-    });
+    return this.candidateSourceService.loadCandidateBundle(
+      userId,
+      candidateLimit,
+      {
+        includeGroupCandidates: true,
+      },
+    );
   }
 
   private async getFreshPrecomputedSnapshot(
@@ -264,23 +273,23 @@ export class RecommendationQueryService {
         ),
       ),
     ];
-    const [userProfiles, mutualFriendProfiles, commonGroupNames] = await Promise.all([
-      this.userClient.getUsers(
-        [
+    const [userProfiles, mutualFriendProfiles, commonGroupNames] =
+      await Promise.all([
+        this.userClient.getUsers(
+          [userId, ...rerankCandidates.map((candidate) => candidate.id)],
+          'full',
+        ),
+        this.userClient.getUsers(mutualFriendIds, 'base'),
+        this.groupClient.getCommonGroupNames(
           userId,
-          ...rerankCandidates.map((candidate) => candidate.id),
-        ],
-        'full',
-      ),
-      this.userClient.getUsers(mutualFriendIds, 'base'),
-      this.groupClient.getCommonGroupNames(
-        userId,
-        rerankCandidates.map((candidate) => candidate.id),
-        3,
-      ),
-    ]);
-    const viewerProfileText = this.buildSemanticProfileText(userProfiles[userId]);
-    const modelScores = await this.recommendationClient.rerankCandidates(
+          rerankCandidates.map((candidate) => candidate.id),
+          3,
+        ),
+      ]);
+    const viewerProfileText = this.buildSemanticProfileText(
+      userProfiles[userId],
+    );
+    const rerankScores = await this.recommendationClient.rerankCandidates(
       userId,
       rerankCandidates.map((candidate) => ({
         candidateId: candidate.id,
@@ -296,22 +305,23 @@ export class RecommendationQueryService {
       viewerProfileText,
     );
 
-    if (Object.keys(modelScores).length === 0) {
+    if (Object.keys(rerankScores).length === 0) {
       return recommendations;
     }
 
     return recommendations.map((candidate) => {
-      const modelScore = modelScores[candidate.id];
-      if (!Number.isFinite(modelScore)) {
+      const rerankScore = rerankScores[candidate.id];
+      if (!Number.isFinite(rerankScore)) {
         return candidate;
       }
 
       return {
         ...candidate,
-        modelScore,
+        rerankScore,
+        modelScore: rerankScore,
         score:
           (candidate.baseScore ?? candidate.score ?? 0) +
-          modelScore * this.scoringConfig.aiWeight,
+          rerankScore * this.scoringConfig.aiWeight,
       };
     });
   }
@@ -324,10 +334,7 @@ export class RecommendationQueryService {
     return Math.max(1, Math.floor(limit));
   }
 
-  private parseBoolean(
-    value: string | undefined,
-    fallback: boolean,
-  ): boolean {
+  private parseBoolean(value: string | undefined, fallback: boolean): boolean {
     if (typeof value !== 'string') {
       return fallback;
     }
@@ -373,6 +380,10 @@ export class RecommendationQueryService {
       ({
         featureVector: _featureVector,
         candidateSourceMode: _candidateSourceMode,
+        retrievalScore: _retrievalScore,
+        precomputeScore: _precomputeScore,
+        retrievalScoreVersion: _retrievalScoreVersion,
+        rerankScore: _rerankScore,
         ...recommendation
       }) => recommendation,
     );
@@ -461,7 +472,9 @@ export class RecommendationQueryService {
         }
 
         return [user.firstName, user.lastName]
-          .filter((value) => typeof value === 'string' && value.trim().length > 0)
+          .filter(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+          )
           .join(' ')
           .trim();
       })

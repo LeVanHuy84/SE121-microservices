@@ -120,6 +120,7 @@ class RecommendationStateRepository:
         generated_at: str,
         generation_reason: str,
         model_name: str,
+        score_version: str = "retrieval-dot-product-v1",
     ):
         generated_at_dt = self._parse_datetime(generated_at)
 
@@ -130,6 +131,7 @@ class RecommendationStateRepository:
                 generated_at_dt,
                 generation_reason,
                 model_name,
+                score_version,
                 len(candidates),
             )
             session.execute(
@@ -144,7 +146,9 @@ class RecommendationStateRepository:
                         PrecomputedSnapshotCandidate(
                             viewer_id=viewer_id,
                             candidate_id=str(candidate["candidateId"]),
-                            semantic_score=float(candidate["semanticScore"]),
+                            semantic_score=self._resolve_precomputed_candidate_score(
+                                candidate
+                            ),
                             rank=int(candidate["rank"]),
                             generated_at=generated_at_dt,
                         )
@@ -158,6 +162,7 @@ class RecommendationStateRepository:
         generated_at: str,
         generation_reason: str,
         model_name: str,
+        score_version: str = "retrieval-dot-product-v1",
     ):
         self.replace_precomputed_snapshot(
             viewer_id,
@@ -165,6 +170,7 @@ class RecommendationStateRepository:
             generated_at,
             generation_reason,
             model_name,
+            score_version,
         )
 
     def get_precomputed_snapshot(
@@ -187,10 +193,13 @@ class RecommendationStateRepository:
                 "generatedAt": run.generated_at.isoformat(),
                 "generationReason": run.generation_reason,
                 "modelName": run.model_name,
+                "scoreVersion": run.score_version,
                 "candidateCount": int(run.candidate_count),
                 "candidates": [
                     {
                         "candidateId": row.candidate_id,
+                        "retrievalScore": float(row.semantic_score),
+                        "precomputeScore": float(row.semantic_score),
                         "semanticScore": float(row.semantic_score),
                         "rank": int(row.rank),
                         "generatedAt": row.generated_at.isoformat(),
@@ -325,6 +334,7 @@ class RecommendationStateRepository:
         generated_at: datetime,
         generation_reason: str,
         model_name: str,
+        score_version: str,
         candidate_count: int,
     ):
         values = {
@@ -332,6 +342,7 @@ class RecommendationStateRepository:
             "generated_at": generated_at,
             "generation_reason": generation_reason,
             "model_name": model_name,
+            "score_version": score_version,
             "candidate_count": candidate_count,
         }
         stmt = self._build_upsert_statement(
@@ -342,6 +353,7 @@ class RecommendationStateRepository:
                 "generated_at",
                 "generation_reason",
                 "model_name",
+                "score_version",
                 "candidate_count",
             ],
         )
@@ -401,6 +413,13 @@ class RecommendationStateRepository:
             "modelName": row.model_name,
             "updatedAt": row.updated_at.isoformat(),
         }
+
+    def _resolve_precomputed_candidate_score(self, candidate: dict[str, Any]) -> float:
+        for score_field in ("retrievalScore", "precomputeScore", "semanticScore"):
+            if score_field in candidate:
+                return float(candidate[score_field])
+
+        raise KeyError("retrievalScore")
 
     def _parse_datetime(self, value: str | datetime) -> datetime:
         if isinstance(value, datetime):

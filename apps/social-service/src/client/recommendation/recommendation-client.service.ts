@@ -11,6 +11,10 @@ export interface RecommendationRerankCandidate {
 
 export interface RecommendationPrecomputedCandidate {
   candidateId: string;
+  retrievalScore: number;
+  /** @deprecated Use retrievalScore for precomputed retrieval scoring. */
+  precomputeScore: number;
+  /** @deprecated Use retrievalScore for precomputed retrieval scoring. */
   semanticScore: number;
   rank: number;
   generatedAt: string;
@@ -21,6 +25,7 @@ export interface RecommendationPrecomputedSnapshot {
   generatedAt: string | null;
   generationReason: string | null;
   modelName: string | null;
+  scoreVersion: string | null;
   candidateCount: number;
   candidates: RecommendationPrecomputedCandidate[];
 }
@@ -42,9 +47,12 @@ interface RecommendationPrecomputedSnapshotResponse {
     generatedAt?: unknown;
     generationReason?: unknown;
     modelName?: unknown;
+    scoreVersion?: unknown;
     candidateCount?: unknown;
     candidates?: Array<{
       candidateId?: unknown;
+      retrievalScore?: unknown;
+      precomputeScore?: unknown;
       semanticScore?: unknown;
       rank?: unknown;
       generatedAt?: unknown;
@@ -97,6 +105,10 @@ export class RecommendationClientService {
             : null,
         modelName:
           typeof payload?.modelName === 'string' ? payload.modelName : null,
+        scoreVersion:
+          typeof payload?.scoreVersion === 'string'
+            ? payload.scoreVersion
+            : null,
         candidateCount: Number.isFinite(Number(payload?.candidateCount))
           ? Number(payload?.candidateCount)
           : 0,
@@ -104,19 +116,25 @@ export class RecommendationClientService {
           ? payload.candidates.reduce<RecommendationPrecomputedCandidate[]>(
               (acc, item) => {
                 const candidateId = String(item?.candidateId ?? '').trim();
-                const semanticScore = Number(item?.semanticScore);
+                const retrievalScore = Number(
+                  item?.retrievalScore ??
+                    item?.precomputeScore ??
+                    item?.semanticScore,
+                );
                 const rank = Number(item?.rank);
                 const generatedAt =
                   typeof item?.generatedAt === 'string' ? item.generatedAt : '';
 
                 if (
                   candidateId &&
-                  Number.isFinite(semanticScore) &&
+                  Number.isFinite(retrievalScore) &&
                   Number.isFinite(rank)
                 ) {
                   acc.push({
                     candidateId,
-                    semanticScore,
+                    retrievalScore,
+                    precomputeScore: retrievalScore,
+                    semanticScore: retrievalScore,
                     rank,
                     generatedAt,
                   });
@@ -190,14 +208,17 @@ export class RecommendationClientService {
         );
       }
 
-      const parsedScores = scores.reduce((acc: Record<string, number>, item) => {
-        const candidateId = String(item?.candidateId ?? '');
-        const modelScore = Number(item?.modelScore);
-        if (candidateId && Number.isFinite(modelScore)) {
-          acc[candidateId] = modelScore;
-        }
-        return acc;
-      }, {});
+      const parsedScores = scores.reduce(
+        (acc: Record<string, number>, item) => {
+          const candidateId = String(item?.candidateId ?? '');
+          const modelScore = Number(item?.modelScore);
+          if (candidateId && Number.isFinite(modelScore)) {
+            acc[candidateId] = modelScore;
+          }
+          return acc;
+        },
+        {},
+      );
 
       this.logger.debug(
         `RECOMMENDATION_SERVICE rerank resolved: viewerId=${viewerId} requested=${candidates.length} scored=${Object.keys(parsedScores).length} durationMs=${Date.now() - startedAt}`,
@@ -233,10 +254,14 @@ export class RecommendationClientService {
     return error instanceof Error ? error.message : String(error);
   }
 
-  private resolveServiceConfig():
-    | { baseUrl: string; internalKey: string; timeoutMs: number }
-    | null {
-    const baseUrl = this.configService.get<string>('RECOMMENDATION_SERVICE_URL');
+  private resolveServiceConfig(): {
+    baseUrl: string;
+    internalKey: string;
+    timeoutMs: number;
+  } | null {
+    const baseUrl = this.configService.get<string>(
+      'RECOMMENDATION_SERVICE_URL',
+    );
     const internalKey = this.configService.get<string>(
       'RECOMMENDATION_INTERNAL_KEY',
     );

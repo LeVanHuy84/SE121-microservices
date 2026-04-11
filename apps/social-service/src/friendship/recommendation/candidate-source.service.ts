@@ -102,6 +102,9 @@ export class CandidateSourceService {
   async loadPrecomputedCandidateBundle(
     userId: string,
     precomputedCandidates: RecommendationPrecomputedCandidate[],
+    options?: {
+      scoreVersion?: string | null;
+    },
   ): Promise<RecommendationCandidateBundle> {
     const dedupedCandidates = this.dedupePrecomputedCandidates(
       precomputedCandidates,
@@ -118,10 +121,12 @@ export class CandidateSourceService {
       this.groupClient.getCommonGroupCounts(userId, candidateIds),
     ]);
     const summarizedCandidatesById = this.toCandidateMap(summarizedCandidates);
-    const semanticScoresById = new Map(
+    const retrievalScoresById = new Map(
       dedupedCandidates.map((candidate) => [
         candidate.candidateId,
-        candidate.semanticScore,
+        candidate.retrievalScore ??
+          candidate.precomputeScore ??
+          candidate.semanticScore,
       ]),
     );
 
@@ -134,16 +139,19 @@ export class CandidateSourceService {
         .filter((candidate): candidate is CandidateBundleItem =>
           Boolean(candidate),
         )
-        .map((candidate) =>
-          this.applySourceScores(
+        .map((candidate) => ({
+          ...this.applySourceScores(
             candidate,
             undefined,
             {
-              semanticMatchScore: semanticScoresById.get(candidate.id) ?? 0,
+              semanticMatchScore: retrievalScoresById.get(candidate.id) ?? 0,
             },
             'precomputed',
           ),
-        ),
+          retrievalScore: retrievalScoresById.get(candidate.id) ?? 0,
+          precomputeScore: retrievalScoresById.get(candidate.id) ?? 0,
+          retrievalScoreVersion: options?.scoreVersion ?? null,
+        })),
       groupCandidates: [],
       commonGroupCountsByUser,
     };

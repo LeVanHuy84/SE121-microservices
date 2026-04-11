@@ -53,10 +53,13 @@ class RecommendationApiTestCase(unittest.TestCase):
                 "generatedAt": "2026-04-10T00:01:00+00:00",
                 "generationReason": "unit-test",
                 "modelName": "demo-model",
+                "scoreVersion": "retrieval-dot-product-v1",
                 "candidateCount": 1,
                 "candidates": [
                     {
                         "candidateId": "candidate-1",
+                        "retrievalScore": 0.95,
+                        "precomputeScore": 0.95,
                         "semanticScore": 0.95,
                         "rank": 1,
                         "generatedAt": "2026-04-10T00:01:00+00:00",
@@ -70,6 +73,9 @@ class RecommendationApiTestCase(unittest.TestCase):
         self.assertEqual(response["data"]["viewerId"], "viewer-1")
         self.assertEqual(response["data"]["candidateCount"], 1)
         self.assertEqual(response["data"]["candidates"][0].candidateId, "candidate-1")
+        self.assertEqual(response["data"]["scoreVersion"], "retrieval-dot-product-v1")
+        self.assertEqual(response["data"]["candidates"][0].retrievalScore, 0.95)
+        self.assertEqual(response["data"]["candidates"][0].precomputeScore, 0.95)
 
 
 if __name__ == "__main__":

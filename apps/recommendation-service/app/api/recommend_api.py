@@ -84,6 +84,7 @@ def get_precomputed_candidates(
                 "generatedAt": None,
                 "generationReason": None,
                 "modelName": None,
+                "scoreVersion": None,
                 "candidateCount": 0,
                 "candidates": [],
             },

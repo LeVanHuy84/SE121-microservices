@@ -12,6 +12,7 @@ from app.database.recommendation_state_repository import (
 from app.services.graph_state_store import RecommendationGraphStateStore
 
 logger = logging.getLogger(__name__)
+PRECOMPUTE_SCORE_VERSION = "retrieval-dot-product-v1"
 
 
 class RecommendationPrecomputeService:
@@ -35,6 +36,7 @@ class RecommendationPrecomputeService:
                 generated_at,
                 generation_reason,
                 settings.RECOMMENDATION_MODEL_NAME,
+                PRECOMPUTE_SCORE_VERSION,
             )
             return {
                 "viewerId": viewer_id,
@@ -56,20 +58,22 @@ class RecommendationPrecomputeService:
             if not candidate_embedding:
                 continue
 
-            semantic_score = self._dot_product(viewer_embedding, candidate_embedding)
-            if not math.isfinite(semantic_score):
+            retrieval_score = self._dot_product(viewer_embedding, candidate_embedding)
+            if not math.isfinite(retrieval_score):
                 continue
 
+            clamped_retrieval_score = max(0.0, min(1.0, retrieval_score))
             candidates.append(
                 {
                     "candidateId": candidate_id,
-                    "semanticScore": max(0.0, min(1.0, semantic_score)),
+                    "retrievalScore": clamped_retrieval_score,
+                    "semanticScore": clamped_retrieval_score,
                 }
             )
 
         candidates.sort(
             key=lambda candidate: (
-                -float(candidate["semanticScore"]),
+                -float(candidate["retrievalScore"]),
                 str(candidate["candidateId"]),
             )
         )
@@ -89,6 +93,7 @@ class RecommendationPrecomputeService:
             generated_at,
             generation_reason,
             settings.RECOMMENDATION_MODEL_NAME,
+            PRECOMPUTE_SCORE_VERSION,
         )
         logger.info(
             "Recommendation precompute completed: viewerId=%s candidates=%s reason=%s",
