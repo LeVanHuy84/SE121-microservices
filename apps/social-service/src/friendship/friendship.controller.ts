@@ -126,6 +126,18 @@ export class FriendshipController {
     );
   }
 
+  @MessagePattern('get_global_friend_recommendation_analytics')
+  async getGlobalFriendRecommendationAnalytics(
+    @Payload()
+    data: {
+      days?: number;
+    },
+  ) {
+    return this.friendshipService.getGlobalFriendRecommendationAnalytics(
+      data.days,
+    );
+  }
+
   @MessagePattern('block_user')
   async blockUser(
     @Payload()

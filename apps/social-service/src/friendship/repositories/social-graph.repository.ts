@@ -29,7 +29,7 @@ export interface FriendRecommendation {
   reasons?: string[];
   recommendationId?: string;
   recommendationRequestId?: string;
-  candidateSourceMode?: 'precomputed' | 'online' | 'graph_continuation';
+  candidateSourceMode?: FriendRecommendationCandidateSourceMode;
 }
 
 export type FriendRecommendationEventType =
@@ -65,6 +65,15 @@ export type FriendRecommendationAnalyticsSource =
   | 'mixed'
   | 'fallback';
 
+export type FriendRecommendationCandidateSourceMode =
+  | 'precomputed'
+  | 'online'
+  | 'graph_continuation';
+
+export type FriendRecommendationAnalyticsCandidateSourceMode =
+  | FriendRecommendationCandidateSourceMode
+  | 'unknown';
+
 export interface FriendRecommendationAnalyticsTotals {
   served: number;
   dismissed: number;
@@ -75,6 +84,11 @@ export interface FriendRecommendationAnalyticsTotals {
 export interface FriendRecommendationAnalyticsSourceBreakdown
   extends FriendRecommendationAnalyticsTotals {
   source: FriendRecommendationAnalyticsSource;
+}
+
+export interface FriendRecommendationAnalyticsCandidateSourceModeBreakdown
+  extends FriendRecommendationAnalyticsTotals {
+  candidateSourceMode: FriendRecommendationAnalyticsCandidateSourceMode;
 }
 
 export interface FriendRecommendationAnalyticsRates {
@@ -91,6 +105,7 @@ export interface FriendRecommendationAnalytics {
   totals: FriendRecommendationAnalyticsTotals;
   rates: FriendRecommendationAnalyticsRates;
   sources: FriendRecommendationAnalyticsSourceBreakdown[];
+  candidateSourceModes: FriendRecommendationAnalyticsCandidateSourceModeBreakdown[];
 }
 
 export interface SocialGraphRepository {
@@ -140,6 +155,9 @@ export interface SocialGraphRepository {
   ): Promise<CursorPageResponse<string>>;
   getFriendRecommendationAnalytics(
     userId: string,
+    since: Date,
+  ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
+  getGlobalFriendRecommendationAnalytics(
     since: Date,
   ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
   recordRecommendationEvents(

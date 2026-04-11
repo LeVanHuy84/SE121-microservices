@@ -275,6 +275,22 @@ export class FriendshipService {
     };
   }
 
+  async getGlobalFriendRecommendationAnalytics(
+    days?: number,
+  ): Promise<FriendRecommendationAnalytics> {
+    const windowDays = this.normalizeAnalyticsWindowDays(days);
+    const since = new Date(
+      Date.now() - windowDays * 24 * 60 * 60 * 1000,
+    );
+    const analytics =
+      await this.socialGraphRepo.getGlobalFriendRecommendationAnalytics(since);
+
+    return {
+      ...analytics,
+      windowDays,
+    };
+  }
+
   async getFriendIds(userId: string, limit?: number) {
     return this.socialGraphRepo.getFriendIds(userId, limit);
   }

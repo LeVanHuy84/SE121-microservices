@@ -14,6 +14,7 @@ import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import { OutboxService } from 'src/event/outbox.service';
 import {
   AcceptedFriendRequestAttribution,
+  FriendRecommendationAnalyticsCandidateSourceMode,
   FriendRecommendationAnalyticsSource,
   FriendRecommendationAttribution,
   FriendRecommendationEvent,
@@ -507,13 +508,24 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
   }
 
   async getFriendRecommendationAnalytics(userId: string, since: Date) {
+    return this.getFriendRecommendationAnalyticsForScope(userId, since);
+  }
+
+  async getGlobalFriendRecommendationAnalytics(since: Date) {
+    return this.getFriendRecommendationAnalyticsForScope(null, since);
+  }
+
+  private async getFriendRecommendationAnalyticsForScope(
+    userId: string | null,
+    since: Date,
+  ) {
     const totalRows = await this.dataSource.query(
       `
       SELECT
         event_type AS "eventType",
         COUNT(*)::int AS count
       FROM friend_recommendation_events
-      WHERE user_id = $1
+      WHERE ($1::varchar IS NULL OR user_id = $1)
         AND created_at >= $2
       GROUP BY event_type
       `,
@@ -526,9 +538,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         SELECT
           recommendation_id,
           COALESCE((metadata->>'mutualFriends')::int, 0) AS mutual_friends,
-          COALESCE((metadata->>'commonGroups')::int, 0) AS common_groups
+          COALESCE((metadata->>'commonGroups')::int, 0) AS common_groups,
+          COALESCE((metadata->>'profileAffinityScore')::float, 0) AS profile_affinity_score,
+          COALESCE((metadata->>'semanticAffinityScore')::float, 0) AS semantic_affinity_score,
+          metadata->>'source' AS recorded_source
         FROM friend_recommendation_events
-        WHERE user_id = $1
+        WHERE ($1::varchar IS NULL OR user_id = $1)
           AND event_type = 'served'
           AND created_at >= $2
           AND recommendation_id IS NOT NULL
@@ -536,7 +551,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       dismissed AS (
         SELECT DISTINCT recommendation_id
         FROM friend_recommendation_events
-        WHERE user_id = $1
+        WHERE ($1::varchar IS NULL OR user_id = $1)
           AND event_type = 'dismissed'
           AND created_at >= $2
           AND recommendation_id IS NOT NULL
@@ -544,7 +559,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       request_sent AS (
         SELECT DISTINCT recommendation_id
         FROM friend_recommendation_events
-        WHERE user_id = $1
+        WHERE ($1::varchar IS NULL OR user_id = $1)
           AND event_type = 'request_sent'
           AND created_at >= $2
           AND recommendation_id IS NOT NULL
@@ -552,7 +567,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       accepted AS (
         SELECT DISTINCT recommendation_id
         FROM friend_recommendation_events
-        WHERE user_id = $1
+        WHERE ($1::varchar IS NULL OR user_id = $1)
           AND event_type = 'accepted'
           AND created_at >= $2
           AND recommendation_id IS NOT NULL
@@ -561,9 +576,19 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         SELECT
           recommendation_id,
           CASE
+            WHEN recorded_source IN (
+              'mutual_only',
+              'group_only',
+              'profile_only',
+              'semantic_only',
+              'mixed',
+              'fallback'
+            ) THEN recorded_source
             WHEN mutual_friends > 0 AND common_groups > 0 THEN 'mixed'
             WHEN mutual_friends > 0 THEN 'mutual_only'
             WHEN common_groups > 0 THEN 'group_only'
+            WHEN semantic_affinity_score > 0 THEN 'semantic_only'
+            WHEN profile_affinity_score > 0 THEN 'profile_only'
             ELSE 'fallback'
           END AS source
         FROM served
@@ -583,6 +608,68 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         ON accepted.recommendation_id = served.recommendation_id
       GROUP BY source
       ORDER BY source ASC
+      `,
+      [userId, since],
+    );
+
+    const candidateSourceModeRows = await this.dataSource.query(
+      `
+      WITH served AS (
+        SELECT
+          recommendation_id,
+          CASE
+            WHEN metadata->>'candidateSourceMode' IN (
+              'precomputed',
+              'online',
+              'graph_continuation'
+            ) THEN metadata->>'candidateSourceMode'
+            ELSE 'unknown'
+          END AS candidate_source_mode
+        FROM friend_recommendation_events
+        WHERE ($1::varchar IS NULL OR user_id = $1)
+          AND event_type = 'served'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      dismissed AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE ($1::varchar IS NULL OR user_id = $1)
+          AND event_type = 'dismissed'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      request_sent AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE ($1::varchar IS NULL OR user_id = $1)
+          AND event_type = 'request_sent'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      ),
+      accepted AS (
+        SELECT DISTINCT recommendation_id
+        FROM friend_recommendation_events
+        WHERE ($1::varchar IS NULL OR user_id = $1)
+          AND event_type = 'accepted'
+          AND created_at >= $2
+          AND recommendation_id IS NOT NULL
+      )
+      SELECT
+        candidate_source_mode AS "candidateSourceMode",
+        COUNT(*)::int AS served,
+        COUNT(dismissed.recommendation_id)::int AS dismissed,
+        COUNT(request_sent.recommendation_id)::int AS "requestSent",
+        COUNT(accepted.recommendation_id)::int AS accepted
+      FROM served
+      LEFT JOIN dismissed
+        ON dismissed.recommendation_id = served.recommendation_id
+      LEFT JOIN request_sent
+        ON request_sent.recommendation_id = served.recommendation_id
+      LEFT JOIN accepted
+        ON accepted.recommendation_id = served.recommendation_id
+      GROUP BY candidate_source_mode
+      ORDER BY candidate_source_mode ASC
       `,
       [userId, since],
     );
@@ -633,6 +720,17 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         requestSent: Number(row.requestSent),
         accepted: Number(row.accepted),
       })),
+      candidateSourceModes: candidateSourceModeRows.map(
+        (row: Record<string, unknown>) => ({
+          candidateSourceMode: String(
+            row.candidateSourceMode,
+          ) as FriendRecommendationAnalyticsCandidateSourceMode,
+          served: Number(row.served),
+          dismissed: Number(row.dismissed),
+          requestSent: Number(row.requestSent),
+          accepted: Number(row.accepted),
+        }),
+      ),
     };
   }
 
