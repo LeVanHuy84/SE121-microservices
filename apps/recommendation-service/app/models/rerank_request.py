@@ -19,15 +19,6 @@ class RecommendationRerankRequest(BaseModel):
     candidates: List[RecommendationCandidateInput] = Field(default_factory=list)
 
 
-class RecommendationEmbeddingItemInput(BaseModel):
-    entityId: str
-    profileText: Optional[str] = None
-
-
-class RecommendationEmbeddingRequest(BaseModel):
-    items: List[RecommendationEmbeddingItemInput] = Field(default_factory=list)
-
-
 class RecommendationCandidateScore(BaseModel):
     candidateId: str
     modelScore: float
@@ -63,17 +54,3 @@ class RecommendationQueryOutput(BaseModel):
     candidates: List[RecommendationQueryCandidateOutput] = Field(
         default_factory=list
     )
-
-
-class RecommendationEmbeddingOutput(BaseModel):
-    entityId: str
-    embedding: List[float]
-
-
-class PrecomputedRecommendationCandidateOutput(BaseModel):
-    candidateId: str
-    retrievalScore: float
-    precomputeScore: float
-    semanticScore: float
-    rank: int
-    generatedAt: str

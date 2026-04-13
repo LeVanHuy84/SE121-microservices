@@ -33,7 +33,7 @@ describe('RecommendationClientService', () => {
     );
   });
 
-  it('should warn and skip rerank when recommendation config is missing', async () => {
+  it('should warn and skip query when recommendation config is missing', async () => {
     configService.get.mockImplementation(
       (key: string, defaultValue?: unknown) => {
         switch (key) {
@@ -50,23 +50,16 @@ describe('RecommendationClientService', () => {
     );
     const warnSpy = jest.spyOn(service['logger'], 'warn');
 
-    const result = await service.rerankCandidates('viewer-1', [
-      {
-        candidateId: 'candidate-1',
-        mutualFriends: 1,
-        commonGroups: 0,
-        candidateProfileText: 'name: Candidate',
-      },
-    ]);
+    const result = await service.queryCandidates('viewer-1', 10, null);
 
-    expect(result).toEqual({});
+    expect(result).toBeNull();
     expect(mockedAxios.post).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('missing config RECOMMENDATION_SERVICE_URL'),
     );
   });
 
-  it('should log classified timeout failures and fall back to baseline', async () => {
+  it('should log classified timeout failures and return null', async () => {
     const error = Object.assign(new Error('timeout exceeded'), {
       isAxiosError: true,
       code: 'ECONNABORTED',
@@ -75,131 +68,11 @@ describe('RecommendationClientService', () => {
     mockedAxios.post.mockRejectedValue(error);
     const errorSpy = jest.spyOn(service['logger'], 'error');
 
-    const result = await service.rerankCandidates('viewer-1', [
-      {
-        candidateId: 'candidate-1',
-        mutualFriends: 2,
-        commonGroups: 1,
-        candidateProfileText: 'name: Candidate',
-      },
-    ]);
+    const result = await service.queryCandidates('viewer-1', 10, null);
 
-    expect(result).toEqual({});
+    expect(result).toBeNull();
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('reason=timeout'),
-    );
-  });
-
-  it('should parse successful rerank responses', async () => {
-    mockedAxios.isAxiosError.mockReturnValue(false);
-    mockedAxios.post.mockResolvedValue({
-      data: {
-        success: true,
-        data: {
-          scores: [
-            {
-              candidateId: 'candidate-1',
-              modelScore: 0.82,
-            },
-          ],
-        },
-      },
-    });
-
-    const result = await service.rerankCandidates(
-      'viewer-1',
-      [
-        {
-          candidateId: 'candidate-1',
-          mutualFriends: 2,
-          commonGroups: 1,
-          candidateProfileText: 'name: Candidate',
-        },
-      ],
-      'name: Viewer',
-    );
-
-    expect(result).toEqual({
-      'candidate-1': 0.82,
-    });
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      'http://127.0.0.1:4011/recommend/rerank',
-      {
-        viewerId: 'viewer-1',
-        viewerProfileText: 'name: Viewer',
-        candidates: [
-          {
-            candidateId: 'candidate-1',
-            mutualFriends: 2,
-            commonGroups: 1,
-            candidateProfileText: 'name: Candidate',
-          },
-        ],
-      },
-      expect.objectContaining({
-        headers: {
-          'x-internal-key': 'internal-key',
-        },
-      }),
-    );
-  });
-
-  it('should parse successful precomputed responses', async () => {
-    mockedAxios.isAxiosError.mockReturnValue(false);
-    mockedAxios.get.mockResolvedValue({
-      data: {
-        success: true,
-        data: {
-          viewerId: 'viewer-1',
-          generatedAt: '2026-04-10T10:00:00.000Z',
-          generationReason: 'state-processor',
-          modelName: 'demo-model',
-          scoreVersion: 'retrieval-dot-product-v1',
-          candidateCount: 1,
-          candidates: [
-            {
-              candidateId: 'candidate-1',
-              retrievalScore: 0.91,
-              precomputeScore: 0.91,
-              semanticScore: 0.91,
-              rank: 1,
-              generatedAt: '2026-04-10T10:00:00.000Z',
-            },
-          ],
-        },
-      },
-    });
-
-    const result = await service.getPrecomputedCandidates('viewer-1', 5);
-
-    expect(result).toEqual({
-      viewerId: 'viewer-1',
-      generatedAt: '2026-04-10T10:00:00.000Z',
-      generationReason: 'state-processor',
-      modelName: 'demo-model',
-      scoreVersion: 'retrieval-dot-product-v1',
-      candidateCount: 1,
-      candidates: [
-        {
-          candidateId: 'candidate-1',
-          retrievalScore: 0.91,
-          precomputeScore: 0.91,
-          semanticScore: 0.91,
-          rank: 1,
-          generatedAt: '2026-04-10T10:00:00.000Z',
-        },
-      ],
-    });
-    expect(mockedAxios.get).toHaveBeenCalledWith(
-      'http://127.0.0.1:4011/recommend/precomputed/viewer-1',
-      expect.objectContaining({
-        headers: {
-          'x-internal-key': 'internal-key',
-        },
-        params: {
-          limit: 5,
-        },
-      }),
     );
   });
 

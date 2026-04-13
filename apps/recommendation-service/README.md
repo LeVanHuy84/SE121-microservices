@@ -52,17 +52,15 @@ Response contains:
 - ordered `candidates` with `retrievalScore`, `modelScore`, `finalScore`, `reasonCodes`, `rank`
 - `nextCursor`, `hasNextPage`
 
-### POST /recommend/rerank
+### GET /ready
 
-Utility endpoint for semantic rerank/scoring over an explicit candidate set.
+Readiness endpoint for model/runtime health.
 
-### POST /recommend/embed
+Current recommendation API surface is query-first:
 
-Utility endpoint to embed profile text batches.
-
-### GET /recommend/precomputed/{viewer_id}
-
-Debug/inspection endpoint for current precomputed snapshot.
+- `POST /recommend/query`
+- `GET /health`
+- `GET /ready`
 
 ## Storage and Migrations
 

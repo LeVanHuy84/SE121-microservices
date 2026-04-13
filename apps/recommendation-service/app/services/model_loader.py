@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 from typing import List, Sequence
 
 import torch
@@ -15,6 +16,7 @@ class ModelLoader:
     def __init__(self):
         self._tokenizer = None
         self._model = None
+        self._load_lock = threading.Lock()
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._ready = False
         self._last_error: str | None = None
@@ -36,27 +38,40 @@ class ModelLoader:
         if self._model is not None:
             return
 
-        try:
-            logger.info(
-                "[RecommendationModelLoader] Loading embedding model %s to %s",
-                settings.RECOMMENDATION_MODEL_NAME,
-                self._device,
-            )
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                settings.RECOMMENDATION_MODEL_NAME
-            )
-            self._model = AutoModel.from_pretrained(settings.RECOMMENDATION_MODEL_NAME)
-            self._model.to(self._device)
-            self._model.eval()
-            self._last_error = None
-            logger.info("[RecommendationModelLoader] Model loaded")
-        except Exception as exc:
-            self._ready = False
-            self._last_error = str(exc)
-            self._tokenizer = None
-            self._model = None
-            logger.exception("[RecommendationModelLoader] Model load failed: %s", exc)
-            raise
+        with self._load_lock:
+            if self._model is not None:
+                return
+
+            try:
+                logger.info(
+                    "[RecommendationModelLoader] Loading embedding model %s to %s",
+                    settings.RECOMMENDATION_MODEL_NAME,
+                    self._device,
+                )
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    settings.RECOMMENDATION_MODEL_NAME
+                )
+                load_kwargs = {}
+                if self._device == "cuda":
+                    load_kwargs["torch_dtype"] = torch.float16
+
+                self._model = AutoModel.from_pretrained(
+                    settings.RECOMMENDATION_MODEL_NAME,
+                    **load_kwargs,
+                )
+                self._model.to(self._device)
+                self._model.eval()
+                self._last_error = None
+                logger.info("[RecommendationModelLoader] Model loaded")
+            except Exception as exc:
+                self._ready = False
+                self._last_error = str(exc)
+                self._tokenizer = None
+                self._model = None
+                logger.exception(
+                    "[RecommendationModelLoader] Model load failed: %s", exc
+                )
+                raise
 
     def warmup(self):
         logger.info("[RecommendationModelLoader] Warming up model")
@@ -97,9 +112,19 @@ class ModelLoader:
         normalized_candidate_texts = [
             self._normalize_text(text) for text in candidate_texts
         ]
-        valid_candidate_texts = [text for text in normalized_candidate_texts if text]
 
-        if not normalized_viewer_text or not valid_candidate_texts:
+        if not normalized_viewer_text:
+            return [0.0 for _ in candidate_texts]
+
+        candidate_index_by_text: dict[str, int] = {}
+        unique_candidate_texts: list[str] = []
+        for text in normalized_candidate_texts:
+            if not text or text in candidate_index_by_text:
+                continue
+            candidate_index_by_text[text] = len(unique_candidate_texts)
+            unique_candidate_texts.append(text)
+
+        if not unique_candidate_texts:
             return [0.0 for _ in candidate_texts]
 
         query_embedding = self._encode_texts(
@@ -108,8 +133,7 @@ class ModelLoader:
         candidate_embeddings = self._encode_texts(
             [
                 self._format_candidate_text(text)
-                for text in normalized_candidate_texts
-                if text
+                for text in unique_candidate_texts
             ]
         )
 
@@ -119,20 +143,19 @@ class ModelLoader:
         cosine_scores = torch.matmul(candidate_embeddings, query_embedding.T).squeeze(
             -1
         )
-        calibrated_scores = [
+        calibrated_unique_scores = [
             self._calibrate_cosine_score(float(score))
             for score in cosine_scores.detach().cpu().tolist()
         ]
 
         resolved_scores: List[float] = []
-        score_index = 0
         for text in normalized_candidate_texts:
             if not text:
                 resolved_scores.append(0.0)
                 continue
 
-            resolved_scores.append(calibrated_scores[score_index])
-            score_index += 1
+            score_index = candidate_index_by_text[text]
+            resolved_scores.append(calibrated_unique_scores[score_index])
 
         return resolved_scores
 
@@ -140,28 +163,35 @@ class ModelLoader:
         normalized_profile_texts = [
             self._normalize_text(text) for text in profile_texts
         ]
-        valid_profile_texts = [text for text in normalized_profile_texts if text]
 
-        if not valid_profile_texts:
+        text_index_by_value: dict[str, int] = {}
+        unique_profile_texts: list[str] = []
+        for text in normalized_profile_texts:
+            if not text or text in text_index_by_value:
+                continue
+            text_index_by_value[text] = len(unique_profile_texts)
+            unique_profile_texts.append(text)
+
+        if not unique_profile_texts:
             return [[] for _ in profile_texts]
 
-        embeddings = self._encode_texts(valid_profile_texts)
+        embeddings = self._encode_texts(unique_profile_texts)
         if embeddings.shape[0] == 0:
             return [[] for _ in profile_texts]
 
-        embedding_values = embeddings.detach().cpu().tolist()
+        embedding_values = [
+            [float(value) for value in row]
+            for row in embeddings.detach().cpu().tolist()
+        ]
         resolved_embeddings: List[List[float]] = []
-        embedding_index = 0
 
         for text in normalized_profile_texts:
             if not text:
                 resolved_embeddings.append([])
                 continue
 
-            resolved_embeddings.append(
-                [float(value) for value in embedding_values[embedding_index]]
-            )
-            embedding_index += 1
+            embedding_index = text_index_by_value[text]
+            resolved_embeddings.append(embedding_values[embedding_index])
 
         return resolved_embeddings
 
@@ -191,7 +221,7 @@ class ModelLoader:
             )
             inputs = {key: value.to(self._device) for key, value in inputs.items()}
 
-            with torch.no_grad():
+            with torch.inference_mode():
                 outputs = self.model(**inputs)
 
             pooled = self._mean_pool(

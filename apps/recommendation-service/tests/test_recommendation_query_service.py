@@ -9,7 +9,7 @@ from app.models.rerank_request import (
     RecommendationCandidateScore,
     RecommendationQueryRequest,
 )
-from app.services.recommendation_query_service import RecommendationQueryService
+from app.services.query_service import QueryService
 
 
 class RecommendationQueryServiceTestCase(unittest.TestCase):
@@ -35,7 +35,7 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                 )
                 rerank_service = Mock()
                 rerank_service.rerank.return_value = []
-                service = RecommendationQueryService(repository, rerank_service)
+                service = QueryService(repository, rerank_service)
 
                 response = service.query(
                     RecommendationQueryRequest(viewerId="viewer-1", limit=5)
@@ -89,7 +89,7 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                         reason="strong",
                     ),
                 ]
-                service = RecommendationQueryService(repository, rerank_service)
+                service = QueryService(repository, rerank_service)
 
                 response = service.query(
                     RecommendationQueryRequest(viewerId="viewer-1", limit=2)

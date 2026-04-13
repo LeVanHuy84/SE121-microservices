@@ -58,6 +58,23 @@ class ProfileEmbeddingEventHandler:
                 )
                 return
 
+            existing_embedding = self.repository.get_profile_embedding(user_id)
+            if (
+                existing_embedding
+                and existing_embedding.get("semanticProfileText")
+                == normalized_profile_text
+                and int(existing_embedding.get("dimensions") or 0) > 0
+            ):
+                logger.debug(
+                    (
+                        "Skipping unchanged recommendation embedding event: "
+                        "userId=%s requestId=%s"
+                    ),
+                    user_id,
+                    request_id,
+                )
+                return
+
             embedding = []
             embeddings = model_loader.encode_profile_texts([normalized_profile_text])
             embedding = embeddings[0] if embeddings else []

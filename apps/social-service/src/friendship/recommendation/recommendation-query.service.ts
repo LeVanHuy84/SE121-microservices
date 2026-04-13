@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import {
   RecommendationClientService,
@@ -20,6 +20,7 @@ export class RecommendationQueryService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>> {
+    const startIndex = this.resolveCursorOffset(query.cursor);
     const limit = this.normalizeLimit(query.limit);
     const resolved = await this.recommendationClient.queryCandidates(
       userId,
@@ -45,7 +46,6 @@ export class RecommendationQueryService {
         trackedRecommendations,
       );
 
-    const startIndex = this.resolveCursorOffset(query.cursor);
     await this.trackingService.recordServedEvents(
       userId,
       hydratedRecommendations,
@@ -132,9 +132,13 @@ export class RecommendationQueryService {
       const decodedPayload = Buffer.from(cursor, 'base64url').toString('utf8');
       const parsedPayload = JSON.parse(decodedPayload) as { offset?: unknown };
       const offset = Number(parsedPayload.offset);
-      return Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
+      if (!Number.isFinite(offset)) {
+        throw new BadRequestException('Invalid recommendation cursor');
+      }
+
+      return Math.max(0, Math.floor(offset));
     } catch {
-      return 0;
+      throw new BadRequestException('Invalid recommendation cursor');
     }
   }
 }

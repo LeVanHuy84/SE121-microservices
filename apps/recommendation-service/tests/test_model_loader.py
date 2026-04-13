@@ -59,6 +59,23 @@ class ModelLoaderTestCase(unittest.TestCase):
         self.assertAlmostEqual(result[2][1], 0.4, places=6)
         encode_texts.assert_called_once_with(["name: An", "name: Binh"])
 
+    def test_encode_profile_texts_deduplicates_identical_texts(self):
+        loader = ModelLoader()
+
+        with patch.object(
+            loader,
+            "_encode_texts",
+            return_value=torch.tensor([[0.1, 0.2]], dtype=torch.float32),
+        ) as encode_texts:
+            result = loader.encode_profile_texts(["name: A", "name: A", ""])
+
+        encode_texts.assert_called_once_with(["name: A"])
+        self.assertEqual(result[2], [])
+        self.assertAlmostEqual(result[0][0], 0.1, places=6)
+        self.assertAlmostEqual(result[0][1], 0.2, places=6)
+        self.assertAlmostEqual(result[1][0], 0.1, places=6)
+        self.assertAlmostEqual(result[1][1], 0.2, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

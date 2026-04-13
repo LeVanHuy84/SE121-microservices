@@ -79,6 +79,39 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         repository.upsert_profile_embedding.assert_not_called()
         self.assertEqual(queue.drain(10), ["user-2"])
 
+    async def test_handle_requested_event_skips_when_profile_unchanged(self):
+        repository = Mock()
+        repository.get_profile_embedding.return_value = {
+            "userId": "user-3",
+            "semanticProfileText": "name: Lan",
+            "embedding": [0.2, 0.3],
+            "dimensions": 2,
+            "modelName": "demo-model",
+            "updatedAt": "2026-04-13T10:00:00+00:00",
+        }
+        queue = RecommendationPrecomputeQueue()
+        handler = ProfileEmbeddingEventHandler(repository, queue)
+
+        with patch(
+            "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts"
+        ) as encode:
+            await handler.handle(
+                {
+                    "type": "recommendation.profile.embedding.requested",
+                    "payload": {
+                        "userId": "user-3",
+                        "semanticProfileText": "name: Lan",
+                        "requestId": "req-4",
+                        "schemaVersion": 1,
+                    },
+                }
+            )
+
+        encode.assert_not_called()
+        repository.upsert_profile_embedding.assert_not_called()
+        repository.delete_profile_embedding.assert_not_called()
+        self.assertEqual(queue.drain(10), [])
+
 
 if __name__ == "__main__":
     unittest.main()
