@@ -96,7 +96,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                 "viewerId": "viewer-1",
                 "generatedAt": "2026-04-13T10:00:00+00:00",
                 "source": "semantic_online",
-                "scoreVersion": "recommendation-query-pgvector-v1",
+                "scoreVersion": "recommendation-query-pipeline-v1",
                 "candidateCount": 1,
                 "nextCursor": None,
                 "hasNextPage": False,
@@ -107,7 +107,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                         "retrievalScore": 0.82,
                         "modelScore": 0.64,
                         "finalScore": 0.694,
-                        "scoreVersion": "recommendation-query-pgvector-v1",
+                        "scoreVersion": "recommendation-query-pipeline-v1",
                         "reasonCodes": ["semantic_retrieval", "semantic_rerank"],
                         "rank": 1,
                     }

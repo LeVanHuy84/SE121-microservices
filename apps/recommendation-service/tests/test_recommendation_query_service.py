@@ -43,7 +43,7 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                 self.assertEqual(response.source, "precomputed")
                 self.assertEqual(response.candidateCount, 1)
                 self.assertEqual(response.candidates[0].candidateId, "candidate-1")
-                rerank_service.rerank.assert_not_called()
+                rerank_service.rerank.assert_called_once()
             finally:
                 repository.close()
 
