@@ -73,7 +73,11 @@ export class DistributionService {
         `✅ Distributed snapshot ${snapshotId} to ${receiver.length} friends`,
       );
     } catch (error) {
-      throw new RpcException(error);
+      if (error instanceof Error) {
+        throw new RpcException(error.message);
+      }
+
+      throw new RpcException('Unknown error');
     }
   }
 
@@ -90,7 +94,11 @@ export class DistributionService {
 
       this.logger.log(`✅ Removed snapshot ${snapshotId} and its feed items`);
     } catch (error) {
-      throw new RpcException(error);
+      if (error instanceof Error) {
+        throw new RpcException(error.message);
+      }
+
+      throw new RpcException('Unknown error');
     }
   }
 }

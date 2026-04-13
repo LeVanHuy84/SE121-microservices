@@ -3,7 +3,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { EmotionRankingFeaturesDto } from '@repo/dtos';
+import { EmotionRankingFeaturesDto, RiskHintLevel } from '@repo/dtos';
 
 const CACHE_TTL_SECONDS = 900; // 15 min
 
@@ -18,7 +18,7 @@ export class EmotionFeatureService {
   ) {}
 
   // =========================
-  // 🚀 PUBLIC API
+  // PUBLIC API
   // =========================
 
   async getEmotionFeatures(
@@ -32,6 +32,12 @@ export class EmotionFeatureService {
       if (!fetched) return null;
 
       const normalized = this.normalizeFeatures(fetched);
+
+      this.logger.debug(
+        `Normalized emotion features for user ${userId}: ${JSON.stringify(
+          normalized,
+        )}`,
+      );
 
       await this.cacheFeatures(userId, normalized);
       return normalized;
@@ -50,7 +56,7 @@ export class EmotionFeatureService {
   }
 
   // =========================
-  // 🧠 RANKING CORE
+  // RANKING CORE
   // =========================
 
   calcEmotionScore(
@@ -59,7 +65,7 @@ export class EmotionFeatureService {
       scores: Record<string, number>;
       intensity?: number;
       confidence?: number;
-      riskHintLevel?: string;
+      riskHintLevel?: RiskHintLevel;
     },
   ): number {
     const pref = this.calcPreferenceMatch(
@@ -76,27 +82,22 @@ export class EmotionFeatureService {
 
     const risk = this.calcRiskPenalty(features, post.scores);
 
-    // 🔥 intensity boost
+    // intensity boost
     const intensityBoost = 0.8 + (post.intensity || 0) * 0.4;
 
-    // 🔥 confidence weight
+    // confidence weight
     const confidenceWeight = 0.7 + (post.confidence || 0) * 0.3;
-
-    // 🔥 risk hint
-    const riskHintPenalty = post.riskHintLevel === 'HIGH' ? 0.2 : 0;
 
     let score =
       (0.5 * pref + 0.4 * mood - 0.2 * risk) *
       intensityBoost *
       confidenceWeight;
 
-    score -= riskHintPenalty;
-
     return this.clamp(score);
   }
 
   // =========================
-  // 📦 CACHE
+  // CACHE
   // =========================
 
   private getCacheKey(userId: string): string {
@@ -128,7 +129,7 @@ export class EmotionFeatureService {
   }
 
   // =========================
-  // 🌐 FETCH
+  // FETCH
   // =========================
 
   private async fetchFromAnalysisService(
@@ -155,7 +156,7 @@ export class EmotionFeatureService {
   }
 
   // =========================
-  // 🧼 NORMALIZATION
+  // NORMALIZATION
   // =========================
 
   private normalizeFeatures(
