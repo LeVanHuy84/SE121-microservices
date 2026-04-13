@@ -11,7 +11,6 @@ import { ProfileProcessor } from '../profile/profile.processor';
 import { WarningProcessor } from '../warning/warning.processor';
 import {
   GeneratedEmotionEvent,
-  EmotionBehaviorProfile,
   EmotionGenerator,
 } from './generators/emotion.generator';
 import {
@@ -19,18 +18,13 @@ import {
   TimelinePoint,
   createSeededRandom,
 } from './generators/timeline.generator';
+import { loadUsersFromJSON, SeedUserProfile } from './generators/loadUser';
 
 export interface SeedAllOptions {
   deterministicSeed?: string | number;
   recomputeAfterSeed?: boolean;
-
   days?: number;
   batchSize?: number;
-}
-
-interface SeedUserProfile {
-  userId: string;
-  behavior: EmotionBehaviorProfile;
 }
 
 interface SeedRunResult {
@@ -42,21 +36,6 @@ interface SeedRunResult {
 export interface SeedAllResult {
   users: SeedRunResult[];
 }
-
-const SEED_USERS: SeedUserProfile[] = [
-  {
-    userId: 'user_34yLamYI2RSWUhErS00oYpC9t50',
-    behavior: 'positive',
-  },
-  {
-    userId: 'user_34yMq1jl7bHiXM3YK6MtL6EO3sQ',
-    behavior: 'downward',
-  },
-  {
-    userId: 'user_37IIIyKObcAY2hLP15gwMnFryph',
-    behavior: 'negative',
-  },
-];
 
 @Injectable()
 export class SeedService {
@@ -81,45 +60,86 @@ export class SeedService {
 
     this.logger.log(`🌱 Start seeding (days=${days}, batch=${batchSize})`);
 
-    // 🚀 chạy song song các user
+    // 🔥 LOAD JSON
+    const seedUsers = await await loadUsersFromJSON(
+      'src/modules/seed/users.json',
+    );
+
+    this.logger.log(`👥 Loaded ${seedUsers.length} users from JSON`);
+
+    // 📊 distribution
+    const stats = { positive: 0, downward: 0, negative: 0 };
+    seedUsers.forEach((u) => stats[u.behavior]++);
+    this.logger.log(`📊 Behavior distribution: ${JSON.stringify(stats)}`);
+
+    const totalUsers = seedUsers.length;
+    let processedUsers = 0;
+    let failedUsers = 0;
+    const start = Date.now();
+
     const results = await Promise.all(
-      SEED_USERS.map(async (seedUser) => {
-        const userRandom = createSeededRandom(
-          `${options.deterministicSeed ?? now.getTime()}:${seedUser.userId}`,
-        );
+      seedUsers.map(async (seedUser) => {
+        const userStart = Date.now();
 
-        const eventCount = userRandom.nextInt(20, 40);
+        try {
+          const userRandom = createSeededRandom(
+            `${options.deterministicSeed ?? now.getTime()}:${seedUser.userId}`,
+          );
 
-        const timeline = this.timelineGenerator.buildTimeline({
-          userId: seedUser.userId,
-          startTime,
-          endTime: now,
-          eventCount,
-          random: userRandom,
-        });
+          const eventCount = userRandom.nextInt(20, 40);
 
-        await this.seedUserEvents(seedUser, timeline, batchSize);
+          const timeline = this.timelineGenerator.buildTimeline({
+            userId: seedUser.userId,
+            startTime,
+            endTime: now,
+            eventCount,
+            random: userRandom,
+          });
 
-        if (recomputeAfterSeed) {
-          await Promise.all([
-            await this.snapshotProcessor.backfillUserSnapshots(seedUser.userId),
-            this.profileProcessor.upsertUserProfile(seedUser.userId),
-            this.warningProcessor.evaluateUsers([seedUser.userId]),
-          ]);
+          await this.seedUserEvents(seedUser, timeline, batchSize);
+
+          if (recomputeAfterSeed) {
+            await Promise.all([
+              this.snapshotProcessor.backfillUserSnapshots(seedUser.userId),
+              this.profileProcessor.upsertUserProfile(seedUser.userId),
+              this.warningProcessor.evaluateUsers([seedUser.userId]),
+            ]);
+          }
+
+          processedUsers++;
+
+          const elapsed = (Date.now() - start) / 1000;
+          const avg = elapsed / processedUsers;
+          const remaining = totalUsers - processedUsers;
+          const eta = (remaining * avg).toFixed(1);
+
+          const duration = ((Date.now() - userStart) / 1000).toFixed(2);
+
+          this.logger.log(
+            `✅ [${processedUsers}/${totalUsers}] user=${seedUser.userId} (${eventCount} events, ${duration}s) | ETA: ${eta}s`,
+          );
+
+          return {
+            userId: seedUser.userId,
+            eventCount,
+            recomputed: recomputeAfterSeed,
+          };
+        } catch (err) {
+          failedUsers++;
+
+          const errorMessage = err instanceof Error ? err.message : String(err);
+
+          this.logger.error(
+            `❌ user=${seedUser.userId} failed: ${errorMessage}`,
+          );
+
+          throw err; // giữ nguyên behavior Promise.all
         }
-
-        return {
-          userId: seedUser.userId,
-          eventCount,
-          recomputed: recomputeAfterSeed,
-        };
       }),
     );
 
     this.logger.log(
-      `✅ Seed completed for ${results.length} users (seed=${String(
-        options.deterministicSeed ?? 'runtime',
-      )})`,
+      `🎯 DONE: success=${processedUsers}, failed=${failedUsers}, total=${totalUsers}`,
     );
 
     return { users: results };
@@ -132,7 +152,10 @@ export class SeedService {
     timeline: TimelinePoint[],
     batchSize: number,
   ): Promise<void> {
-    for (let i = 0; i < timeline.length; i += batchSize) {
+    const total = timeline.length;
+    let processed = 0;
+
+    for (let i = 0; i < total; i += batchSize) {
       const batch = timeline.slice(i, i + batchSize);
 
       await Promise.all(
@@ -142,7 +165,7 @@ export class SeedService {
             behavior: seedUser.behavior,
             createdAt: point.createdAt,
             index,
-            totalEvents: timeline.length,
+            totalEvents: total,
             random: point.random,
           });
 
@@ -150,6 +173,15 @@ export class SeedService {
           return this.ingestionService.handleAnalysisResult(payload);
         }),
       );
+
+      processed += batch.length;
+
+      // log nhẹ, không spam
+      if (processed === total || processed >= total / 2) {
+        this.logger.debug(
+          `   ↳ ${seedUser.userId}: ${processed}/${total} events`,
+        );
+      }
     }
   }
 

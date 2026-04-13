@@ -1,11 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Audience } from '@repo/dtos';
+import { Audience, MediaType, RiskHintLevel } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ _id: false })
 export class MediaPreview {
-  @Prop({ required: true })
-  type: string;
+  @Prop({ enum: MediaType, required: true })
+  type: MediaType;
 
   @Prop({ required: true })
   url: string;
@@ -47,8 +47,8 @@ export class EmotionFeature {
   @Prop({ type: Map, of: Number })
   scores?: Record<string, number>;
 
-  @Prop()
-  riskHintLevel?: string;
+  @Prop({ enum: RiskHintLevel, default: RiskHintLevel.NONE })
+  riskHintLevel?: RiskHintLevel;
 }
 
 @Schema({ collection: 'post_snapshots', timestamps: true })
