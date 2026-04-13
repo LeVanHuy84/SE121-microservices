@@ -6,7 +6,7 @@ from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 
 class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
-    async def test_handle_requested_event_enqueues_completed_result(self):
+    async def test_handle_requested_event_persists_embedding(self):
         repository = Mock()
         queue = RecommendationPrecomputeQueue()
         handler = ProfileEmbeddingEventHandler(repository, queue)
@@ -27,16 +27,13 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
-        repository.save_embedding_and_enqueue_result.assert_called_once()
-        args = repository.save_embedding_and_enqueue_result.call_args.args
+        repository.upsert_profile_embedding.assert_called_once()
+        args = repository.upsert_profile_embedding.call_args.args
         self.assertEqual(args[0], "user-1")
-        self.assertEqual(args[5], "recommendation-result-events")
-        self.assertEqual(args[6], "recommendation.profile.embedding.completed")
-        self.assertEqual(args[7]["userId"], "user-1")
-        self.assertEqual(args[7]["dimensions"], 3)
+        self.assertEqual(args[2], [0.1, 0.2, 0.3])
         self.assertEqual(queue.drain(10), ["user-1"])
 
-    async def test_handle_requested_event_enqueues_failed_result_on_error(self):
+    async def test_handle_requested_event_logs_failure_on_error(self):
         repository = Mock()
         handler = ProfileEmbeddingEventHandler(
             repository,
@@ -59,12 +56,28 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
-        repository.save_embedding_and_enqueue_result.assert_not_called()
-        repository.enqueue_outbox_event.assert_called_once()
-        args = repository.enqueue_outbox_event.call_args.args
-        self.assertEqual(args[0], "recommendation-result-events")
-        self.assertEqual(args[1], "recommendation.profile.embedding.failed")
-        self.assertEqual(args[2]["requestId"], "req-2")
+        repository.upsert_profile_embedding.assert_not_called()
+
+    async def test_handle_requested_event_with_null_profile_clears_embedding(self):
+        repository = Mock()
+        queue = RecommendationPrecomputeQueue()
+        handler = ProfileEmbeddingEventHandler(repository, queue)
+
+        await handler.handle(
+            {
+                "type": "recommendation.profile.embedding.requested",
+                "payload": {
+                    "userId": "user-2",
+                    "semanticProfileText": None,
+                    "requestId": "req-3",
+                    "schemaVersion": 1,
+                },
+            }
+        )
+
+        repository.delete_profile_embedding.assert_called_once_with("user-2")
+        repository.upsert_profile_embedding.assert_not_called()
+        self.assertEqual(queue.drain(10), ["user-2"])
 
 
 if __name__ == "__main__":

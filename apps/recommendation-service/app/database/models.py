@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 try:
@@ -135,32 +135,6 @@ class RecommendationDismissal(Base):
         Index(
             "idx_recommendation_dismissals_expires_at",
             "expires_at",
-        ),
-    )
-
-
-class OutboxEvent(Base):
-    __tablename__ = "outbox_events"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    topic: Mapped[str] = mapped_column(String(255), nullable=False)
-    event_type: Mapped[str] = mapped_column(String(255), nullable=False)
-    payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
-    processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-
-    __table_args__ = (
-        Index(
-            "idx_outbox_events_processed_created_at",
-            "processed",
-            "created_at",
         ),
     )
 

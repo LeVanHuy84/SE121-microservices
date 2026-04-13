@@ -71,14 +71,4 @@ export class UserController {
       data.limit,
     );
   }
-
-  @MessagePattern('getSemanticRecommendationCandidates')
-  async getSemanticRecommendationCandidates(
-    @Payload() data: { userId: string; limit?: number },
-  ) {
-    return this.userService.getSemanticRecommendationCandidates(
-      data.userId,
-      data.limit,
-    );
-  }
 }

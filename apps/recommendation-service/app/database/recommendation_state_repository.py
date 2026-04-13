@@ -4,9 +4,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import math
 from typing import Any, Iterator
-from uuid import uuid4
 
-from sqlalchemy import delete, func, inspect, select, text, update
+from sqlalchemy import delete, func, inspect, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -15,7 +14,6 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database.models import (
     Base,
-    OutboxEvent,
     PrecomputedSnapshotCandidate,
     PrecomputedSnapshotRun,
     ProfileEmbedding,
@@ -52,7 +50,6 @@ class RecommendationStateRepository:
             "recommendation_pending_requests",
             "recommendation_blocks",
             "recommendation_dismissals",
-            "outbox_events",
         }
         missing_tables = sorted(
             table_name
@@ -86,27 +83,11 @@ class RecommendationStateRepository:
                 updated_at,
             )
 
-    def save_embedding_and_enqueue_result(
-        self,
-        user_id: str,
-        semantic_profile_text: str | None,
-        embedding: list[float],
-        model_name: str,
-        updated_at: str,
-        topic: str,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> str:
+    def delete_profile_embedding(self, user_id: str):
         with self.session_scope() as session:
-            self._upsert_profile_embedding(
-                session,
-                user_id,
-                semantic_profile_text,
-                embedding,
-                model_name,
-                updated_at,
+            session.execute(
+                delete(ProfileEmbedding).where(ProfileEmbedding.user_id == user_id)
             )
-            return self._insert_outbox_event(session, topic, event_type, payload)
 
     def get_profile_embedding(self, user_id: str) -> dict[str, Any] | None:
         with self.session_scope() as session:
@@ -558,81 +539,6 @@ class RecommendationStateRepository:
 
         return signal_counts
 
-    def enqueue_outbox_event(
-        self,
-        topic: str,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> str:
-        with self.session_scope() as session:
-            return self._insert_outbox_event(session, topic, event_type, payload)
-
-    def list_pending_outbox_events(self, limit: int = 100) -> list[dict[str, Any]]:
-        with self.session_scope() as session:
-            rows = session.scalars(
-                select(OutboxEvent)
-                .where(OutboxEvent.processed.is_(False))
-                .order_by(OutboxEvent.created_at.asc())
-                .limit(max(1, int(limit)))
-            ).all()
-
-            return [
-                {
-                    "id": row.id,
-                    "topic": row.topic,
-                    "eventType": row.event_type,
-                    "payload": row.payload_json,
-                    "createdAt": row.created_at.isoformat(),
-                    "attemptCount": int(row.attempt_count),
-                    "lastError": row.last_error,
-                }
-                for row in rows
-            ]
-
-    def lock_outbox_event(self, event_id: str) -> bool:
-        with self.session_scope() as session:
-            result = session.execute(
-                update(OutboxEvent)
-                .where(OutboxEvent.id == event_id, OutboxEvent.processed.is_(False))
-                .values(
-                    processed=True,
-                    processed_at=self._now(),
-                    attempt_count=OutboxEvent.attempt_count + 1,
-                    last_error=None,
-                )
-            )
-            return result.rowcount == 1
-
-    def reset_outbox_event(self, event_id: str, last_error: str | None = None):
-        with self.session_scope() as session:
-            session.execute(
-                update(OutboxEvent)
-                .where(OutboxEvent.id == event_id)
-                .values(
-                    processed=False,
-                    processed_at=None,
-                    last_error=last_error,
-                )
-            )
-
-    def get_outbox_event(self, event_id: str) -> dict[str, Any] | None:
-        with self.session_scope() as session:
-            row = session.get(OutboxEvent, event_id)
-            if row is None:
-                return None
-            return {
-                "id": row.id,
-                "topic": row.topic,
-                "eventType": row.event_type,
-                "payload": row.payload_json,
-                "processed": bool(row.processed),
-                "processedAt": row.processed_at.isoformat()
-                if row.processed_at
-                else None,
-                "attemptCount": int(row.attempt_count),
-                "lastError": row.last_error,
-                "createdAt": row.created_at.isoformat(),
-            }
 
     @contextmanager
     def session_scope(self) -> Iterator[Session]:
@@ -874,29 +780,6 @@ class RecommendationStateRepository:
             )
             is not None
         )
-
-    def _insert_outbox_event(
-        self,
-        session: Session,
-        topic: str,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> str:
-        outbox_id = str(uuid4())
-        session.add(
-            OutboxEvent(
-                id=outbox_id,
-                topic=topic,
-                event_type=event_type,
-                payload_json=payload,
-                processed=False,
-                processed_at=None,
-                attempt_count=0,
-                last_error=None,
-                created_at=self._now(),
-            )
-        )
-        return outbox_id
 
     def _build_upsert_statement(
         self,

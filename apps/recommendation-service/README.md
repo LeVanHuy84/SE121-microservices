@@ -1,144 +1,94 @@
 # Recommendation Service
 
-`recommendation-service` la microservice Python/FastAPI dung de cham `semantic similarity` cho bai toan goi y ket ban.
+Python/FastAPI microservice that owns friend recommendation retrieval and semantic ranking.
 
-Service nay khong con giu business logic ranking tong hop. `social-service` van la noi:
+Current architecture is centralized in this service:
 
-- sinh candidate
-- enforce hard constraints
-- nhan semantic profile text va cham semantic similarity score
-- diversity rerank
-- paginate theo snapshot
+- build candidates from precomputed snapshots or online ANN retrieval (pgvector)
+- apply graph projection filtering (exclude self, blocked, existing friend edges)
+- rerank with semantic model scores
+- apply global fallback when primary retrieval is empty or insufficient
+- return cursor-based paginated result
 
-`recommendation-service` chi lam 3 viec:
+`social-service` is now a thin orchestrator that calls `/recommend/query` and hydrates profile cards.
 
-- nhan `viewerProfileText`
-- nhan `candidateProfileText` cua top K candidate
-- tra ve `modelScore` trong khoang `[0, 1]`
+## Data Flow
 
-## Quyết định kiến trúc
+1. User/social changes publish profile and graph events.
+2. `recommendation-service` consumes events and updates projection + embeddings.
+3. Processor refreshes precomputed snapshots and global fallback materialization.
+4. Query pipeline serves online recommendation requests.
 
-### 1. Chi giu mot vai tro: semantic scorer
+## Retrieval Strategy
 
-Service nay khong con route `/recommend/friends`.
+Primary path:
 
-Ly do:
+- precomputed snapshot (`source=precomputed`) if fresh
+- semantic online retrieval from pgvector (`source=semantic_online`) if no fresh snapshot
 
-- neu ca Python service va NestJS service cung giu cong thuc ranking rieng, he thong se bi split-brain
-- score cuoi cung can duoc tune tai mot cho duy nhat
-- bai toan friend recommendation can graph constraints va attribution event o `social-service`
+Fallback path:
 
-### 2. Dung embedding model da ngon ngu thay vi cross-encoder
-
-Default model:
-
-- `intfloat/multilingual-e5-base`
-
-Ly do:
-
-- phu hop hon voi bai toan so khop profile text viewer-candidate
-- ho tro da ngon ngu, phu hop voi profile tieng Viet + tieng Anh
-- latency va memory hop ly hon cac model large
-- dung truc tiep voi `transformers`, khong can remote code
-
-### 3. Dung asymmetric formatting
-
-Viewer va candidate khong doi xung:
-
-- viewer dong vai tro `query`
-- candidate dong vai tro `document`
-
-Vi vay service format input theo huong retrieval:
-
-- viewer: `query: ...`
-- candidate: `passage: ...`
-
-Neu sau nay doi sang `multilingual-e5-large-instruct`, query se duoc format thanh:
-
-- `Instruct: ...`
-- `Query: ...`
-
-### 4. Khong map cosine similarity bang `(x + 1) / 2`
-
-Embedding cosine thuong nam trong mot dai rat hep. Neu map truc tiep bang `(x + 1) / 2`, score se bi nen va kho phan tach candidate.
-
-Vi vay service dung calibration:
-
-```text
-normalized = clamp((cosine - floor) / (ceiling - floor), 0, 1)
-```
-
-Mac dinh:
-
-- `RECOMMENDATION_SCORE_FLOOR=0.55`
-- `RECOMMENDATION_SCORE_CEILING=0.9`
-
-Day la gia tri khoi dau de quan sat phan bo score trong production va tune tiep.
-
-### 5. Service tu cham diem semantic
-
-`recommendation-service` khong nhan heuristic score de override ket qua model nua.
-
-No chi nhan:
-
-- `viewerProfileText`
-- `candidateProfileText`
-- social context toi thieu de sinh reason
-
-Va tu sinh `modelScore` tu embedding model.
+- global fallback table (`source=global_fallback`)
+- hybrid response when semantic online provides only partial page (`source=hybrid`)
 
 ## API
 
-Tat ca endpoint deu yeu cau header:
+All endpoints require header `x-internal-key`.
 
-- `x-internal-key`
+### POST /recommend/query
 
-### POST `/recommend/rerank`
+Main recommendation endpoint.
 
-Body:
+Request fields:
 
-```json
-{
-  "viewerId": "user-1",
-  "viewerProfileText": "name: Linh Nguyen\nbio: mobile engineer, photography, football",
-  "candidates": [
-    {
-      "candidateId": "user-2",
-      "mutualFriends": 3,
-      "commonGroups": 2,
-      "candidateProfileText": "name: Bao Tran\nbio: builds mobile apps and joins football groups"
-    }
-  ]
-}
-```
+- `viewerId` (required)
+- `limit` (default 20)
+- `cursor` (optional)
+- `viewerProfileText` (optional fallback when viewer embedding text is missing)
 
-Response:
+Response contains:
 
-```json
-{
-  "success": true,
-  "data": {
-    "model": {
-      "modelName": "intfloat/multilingual-e5-base",
-      "device": "cpu",
-      "scoreFloor": "0.55",
-      "scoreCeiling": "0.9"
-    },
-    "scores": [
-      {
-        "candidateId": "user-2",
-        "modelScore": 0.71,
-        "reason": "Ho so ngu nghia kha phu hop"
-      }
-    ]
-  }
-}
-```
+- `source`, `scoreVersion`, `candidateCount`
+- ordered `candidates` with `retrievalScore`, `modelScore`, `finalScore`, `reasonCodes`, `rank`
+- `nextCursor`, `hasNextPage`
 
-## Cau hinh
+### POST /recommend/rerank
+
+Utility endpoint for semantic rerank/scoring over an explicit candidate set.
+
+### POST /recommend/embed
+
+Utility endpoint to embed profile text batches.
+
+### GET /recommend/precomputed/{viewer_id}
+
+Debug/inspection endpoint for current precomputed snapshot.
+
+## Storage and Migrations
+
+- PostgreSQL + SQLAlchemy + Alembic
+- pgvector extension for vector search
+- HNSW index over `profile_embeddings.embedding_vector`
+
+Migrations:
+
+- `20260410_0001_initial_recommendation_state.py`
+- `20260413_0004_add_pgvector_profile_embeddings.py`
+- `20260413_0005_add_global_fallback_candidates.py`
+- `20260413_0006_segment_global_fallback_candidates.py`
+
+## Environment Variables
+
+Core:
 
 - `INTERNAL_SERVICE_KEY`
+- `HOST`
+- `PORT`
+- `RELOAD`
 - `DATABASE_URL`
+
+Model:
+
 - `RECOMMENDATION_MODEL_NAME`
 - `RECOMMENDATION_MAX_LENGTH`
 - `RECOMMENDATION_BATCH_SIZE`
@@ -146,19 +96,38 @@ Response:
 - `RECOMMENDATION_QUERY_INSTRUCTION`
 - `RECOMMENDATION_SCORE_FLOOR`
 - `RECOMMENDATION_SCORE_CEILING`
-- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
-- `RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS`
+
+Pipeline:
+
 - `RECOMMENDATION_PRECOMPUTE_TOP_K`
 - `RECOMMENDATION_PRECOMPUTE_BATCH_SIZE`
-- `HOST`
-- `PORT`
-- `RELOAD`
+- `RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS`
+- `RECOMMENDATION_QUERY_RERANK_TOP_K`
+- `RECOMMENDATION_QUERY_MODEL_WEIGHT`
+- `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT`
+- `RECOMMENDATION_GLOBAL_FALLBACK_TOP_K`
+- `RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS`
 
-## Ghi chu van hanh
+Messaging:
 
-- Warmup model tai startup de giam request lan dau
-- Batch score candidate trong mot request de giam chi phi inference
-- Service nay phu hop nhat khi `social-service` da cat top K candidate truoc khi goi sang Python
-- State persistence va outbox cua service dung PostgreSQL thong qua SQLAlchemy
-- Schema migration duoc quan ly bang Alembic (`python -m alembic upgrade head`)
-- Lint/format Python duoc chuan hoa bang Ruff
+- `KAFKA_BROKERS`
+- `KAFKA_CLIENT_ID`
+- `KAFKA_GROUP_ID`
+- `RECOMMENDATION_PROFILE_TOPIC`
+- `RECOMMENDATION_GRAPH_TOPIC`
+- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
+
+## Dev Commands
+
+- `npm run install`
+- `npm run db:upgrade`
+- `npm run start:dev`
+- `npm run test`
+- `npm run lint`
+- `npm run format`
+
+## Operational Notes
+
+- Service warms model at startup to avoid first-request latency spikes.
+- Query pipeline is deterministic and score-versioned for easier rollout tracking.
+- Fallback materialization is segment-aware (`locale::language`) for future targeting.

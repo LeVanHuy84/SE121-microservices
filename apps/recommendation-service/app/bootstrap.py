@@ -2,15 +2,11 @@ from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.messaging.event_dispatcher import RecommendationEventDispatcher
 from app.messaging.kafka_consumer import KafkaConsumerService
-from app.messaging.kafka_producer import KafkaProducerService
 from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
 from app.messaging.recommendation_graph_event_handler import (
     RecommendationGraphEventHandler,
 )
 from app.messaging.runtime import RecommendationMessagingRuntime
-from app.processors.recommendation_outbox_processor import (
-    RecommendationOutboxProcessor,
-)
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
 from app.services.global_fallback_batch_service import GlobalFallbackBatchService
 from app.services.precompute_queue import precompute_queue
@@ -33,7 +29,6 @@ recommendation_state_processor = RecommendationStateProcessor(
     global_fallback_batch_service,
 )
 
-producer = KafkaProducerService(settings.KAFKA_BROKERS)
 profile_handler = ProfileEmbeddingEventHandler(state_repository, precompute_queue)
 graph_handler = RecommendationGraphEventHandler(
     state_repository,
@@ -52,10 +47,7 @@ graph_consumer = KafkaConsumerService(
     group_id=settings.KAFKA_GROUP_ID,
     handler=dispatcher.dispatch,
 )
-outbox_processor = RecommendationOutboxProcessor(state_repository, producer)
 messaging_runtime = RecommendationMessagingRuntime(
-    producer=producer,
     consumers=[profile_consumer, graph_consumer],
     state_processor=recommendation_state_processor,
-    outbox_processor=outbox_processor,
 )

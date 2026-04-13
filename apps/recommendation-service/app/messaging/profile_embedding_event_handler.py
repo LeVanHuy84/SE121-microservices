@@ -12,8 +12,6 @@ logger = logging.getLogger(__name__)
 
 class ProfileEmbeddingEventHandler:
     REQUESTED_EVENT_TYPE = "recommendation.profile.embedding.requested"
-    COMPLETED_EVENT_TYPE = "recommendation.profile.embedding.completed"
-    FAILED_EVENT_TYPE = "recommendation.profile.embedding.failed"
 
     def __init__(
         self,
@@ -35,7 +33,6 @@ class ProfileEmbeddingEventHandler:
 
         user_id = str(payload.get("userId") or "").strip()
         request_id = str(payload.get("requestId") or "").strip()
-        schema_version = int(payload.get("schemaVersion") or 1)
         profile_text = payload.get("semanticProfileText")
         normalized_profile_text = (
             profile_text.strip() if isinstance(profile_text, str) else None
@@ -48,62 +45,41 @@ class ProfileEmbeddingEventHandler:
             return
 
         try:
-            embedding = []
-            if normalized_profile_text:
-                embeddings = model_loader.encode_profile_texts(
-                    [normalized_profile_text]
+            if normalized_profile_text is None:
+                self.repository.delete_profile_embedding(user_id)
+                self.precompute_queue.mark_stale(user_id)
+                logger.info(
+                    (
+                        "Recommendation profile embedding cleared: "
+                        "userId=%s requestId=%s"
+                    ),
+                    user_id,
+                    request_id,
                 )
-                embedding = embeddings[0] if embeddings else []
+                return
+
+            embedding = []
+            embeddings = model_loader.encode_profile_texts([normalized_profile_text])
+            embedding = embeddings[0] if embeddings else []
 
             generated_at = self._now_iso()
-            self.repository.save_embedding_and_enqueue_result(
+            self.repository.upsert_profile_embedding(
                 user_id,
                 normalized_profile_text,
                 embedding,
                 settings.RECOMMENDATION_MODEL_NAME,
                 generated_at,
-                settings.RECOMMENDATION_RESULT_TOPIC,
-                self.COMPLETED_EVENT_TYPE,
-                {
-                    "userId": user_id,
-                    "semanticProfileText": normalized_profile_text,
-                    "requestId": request_id,
-                    "schemaVersion": schema_version,
-                    "modelName": settings.RECOMMENDATION_MODEL_NAME,
-                    "embedding": embedding,
-                    "dimensions": len(embedding),
-                    "generatedAt": generated_at,
-                },
             )
             self.precompute_queue.mark_stale(user_id)
             logger.info(
-                (
-                    "Recommendation profile embedding completed and enqueued: "
-                    "userId=%s requestId=%s dimensions=%s"
-                ),
+                "Recommendation profile embedding updated: userId=%s requestId=%s dimensions=%s",
                 user_id,
                 request_id,
                 len(embedding),
             )
-        except Exception as exc:
-            self.repository.enqueue_outbox_event(
-                settings.RECOMMENDATION_RESULT_TOPIC,
-                self.FAILED_EVENT_TYPE,
-                {
-                    "userId": user_id,
-                    "semanticProfileText": normalized_profile_text,
-                    "requestId": request_id,
-                    "schemaVersion": schema_version,
-                    "modelName": settings.RECOMMENDATION_MODEL_NAME,
-                    "error": str(exc),
-                    "failedAt": self._now_iso(),
-                },
-            )
+        except Exception:
             logger.exception(
-                (
-                    "Recommendation profile embedding failed and enqueued: "
-                    "userId=%s requestId=%s"
-                ),
+                "Recommendation profile embedding failed: userId=%s requestId=%s",
                 user_id,
                 request_id,
             )

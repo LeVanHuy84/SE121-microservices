@@ -45,9 +45,6 @@ class Settings:
         self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS: int = int(
             os.getenv("RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS", 30)
         )
-        self.RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS: int = int(
-            os.getenv("RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS", 5)
-        )
         self.RECOMMENDATION_PRECOMPUTE_TOP_K: int = int(
             os.getenv("RECOMMENDATION_PRECOMPUTE_TOP_K", 50)
         )
@@ -85,9 +82,6 @@ class Settings:
         self.RECOMMENDATION_GRAPH_TOPIC: str = os.getenv(
             "RECOMMENDATION_GRAPH_TOPIC", "recommendation-graph-events"
         ).strip()
-        self.RECOMMENDATION_RESULT_TOPIC: str = os.getenv(
-            "RECOMMENDATION_RESULT_TOPIC", "recommendation-result-events"
-        ).strip()
 
         self._validate()
 
@@ -113,11 +107,6 @@ class Settings:
         if self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS <= 0:
             raise RuntimeError(
                 "RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS must be positive"
-            )
-
-        if self.RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS <= 0:
-            raise RuntimeError(
-                "RECOMMENDATION_OUTBOX_PROCESSOR_INTERVAL_SECONDS must be positive"
             )
 
         if self.RECOMMENDATION_PRECOMPUTE_TOP_K <= 0:
@@ -162,9 +151,6 @@ class Settings:
 
         if not self.RECOMMENDATION_GRAPH_TOPIC:
             raise RuntimeError("RECOMMENDATION_GRAPH_TOPIC must not be empty")
-
-        if not self.RECOMMENDATION_RESULT_TOPIC:
-            raise RuntimeError("RECOMMENDATION_RESULT_TOPIC must not be empty")
 
         if not (-1.0 <= self.RECOMMENDATION_SCORE_FLOOR <= 1.0):
             raise RuntimeError("RECOMMENDATION_SCORE_FLOOR must be within [-1, 1]")
