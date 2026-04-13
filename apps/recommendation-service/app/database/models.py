@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+try:
+    from pgvector.sqlalchemy import Vector
+
+    EMBEDDING_VECTOR_COLUMN_TYPE: Any = Vector(768)
+except ImportError:
+    EMBEDDING_VECTOR_COLUMN_TYPE = Text()
 
 
 class Base(DeclarativeBase):
@@ -16,6 +24,10 @@ class ProfileEmbedding(Base):
     user_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     semantic_profile_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding_json: Mapped[list[float]] = mapped_column(JSON, nullable=False)
+    embedding_vector: Mapped[Any | None] = mapped_column(
+        EMBEDDING_VECTOR_COLUMN_TYPE,
+        nullable=True,
+    )
     dimensions: Mapped[int] = mapped_column(Integer, nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

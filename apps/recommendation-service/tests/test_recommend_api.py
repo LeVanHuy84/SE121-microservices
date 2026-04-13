@@ -60,7 +60,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                 "generatedAt": "2026-04-10T00:01:00+00:00",
                 "generationReason": "unit-test",
                 "modelName": "demo-model",
-                "scoreVersion": "retrieval-dot-product-v1",
+                "scoreVersion": "retrieval-pgvector-v1",
                 "candidateCount": 1,
                 "candidates": [
                     {
@@ -80,7 +80,7 @@ class RecommendationApiTestCase(unittest.TestCase):
         self.assertEqual(response["data"]["viewerId"], "viewer-1")
         self.assertEqual(response["data"]["candidateCount"], 1)
         self.assertEqual(response["data"]["candidates"][0].candidateId, "candidate-1")
-        self.assertEqual(response["data"]["scoreVersion"], "retrieval-dot-product-v1")
+        self.assertEqual(response["data"]["scoreVersion"], "retrieval-pgvector-v1")
         self.assertEqual(response["data"]["candidates"][0].retrievalScore, 0.95)
         self.assertEqual(response["data"]["candidates"][0].precomputeScore, 0.95)
 
@@ -96,7 +96,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                 "viewerId": "viewer-1",
                 "generatedAt": "2026-04-13T10:00:00+00:00",
                 "source": "semantic_online",
-                "scoreVersion": "recommendation-query-v1",
+                "scoreVersion": "recommendation-query-pgvector-v1",
                 "candidateCount": 1,
                 "nextCursor": None,
                 "hasNextPage": False,
@@ -107,7 +107,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                         "retrievalScore": 0.82,
                         "modelScore": 0.64,
                         "finalScore": 0.694,
-                        "scoreVersion": "recommendation-query-v1",
+                        "scoreVersion": "recommendation-query-pgvector-v1",
                         "reasonCodes": ["semantic_retrieval", "semantic_rerank"],
                         "rank": 1,
                     }

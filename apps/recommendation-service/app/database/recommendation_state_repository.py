@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import math
 from typing import Any, Iterator
 from uuid import uuid4
 
@@ -120,6 +121,42 @@ class RecommendationStateRepository:
                 .order_by(ProfileEmbedding.user_id.asc())
             ).all()
             return [self._serialize_profile_embedding(row) for row in rows]
+
+    def search_semantic_candidates(
+        self,
+        viewer_id: str,
+        limit: int,
+        overscan: int,
+    ) -> list[dict[str, Any]]:
+        normalized_viewer_id = str(viewer_id or "").strip()
+        if not normalized_viewer_id:
+            return []
+
+        safe_limit = max(1, int(limit))
+        safe_overscan = max(safe_limit, int(overscan))
+
+        viewer_row = self.get_profile_embedding(normalized_viewer_id)
+        if viewer_row is None:
+            return []
+
+        viewer_embedding = [float(value) for value in viewer_row.get("embedding", [])]
+        if not viewer_embedding:
+            return []
+
+        if self.engine.dialect.name == "postgresql":
+            return self._search_semantic_candidates_postgresql(
+                normalized_viewer_id,
+                viewer_embedding,
+                safe_limit,
+                safe_overscan,
+            )
+
+        return self._search_semantic_candidates_fallback(
+            normalized_viewer_id,
+            viewer_embedding,
+            safe_limit,
+            safe_overscan,
+        )
 
     def apply_graph_friend_request_sent(self, user_id: str, target_user_id: str):
         with self.session_scope() as session:
@@ -294,7 +331,7 @@ class RecommendationStateRepository:
         generated_at: str,
         generation_reason: str,
         model_name: str,
-        score_version: str = "retrieval-dot-product-v1",
+        score_version: str = "retrieval-pgvector-v1",
     ):
         generated_at_dt = self._parse_datetime(generated_at)
 
@@ -336,7 +373,7 @@ class RecommendationStateRepository:
         generated_at: str,
         generation_reason: str,
         model_name: str,
-        score_version: str = "retrieval-dot-product-v1",
+        score_version: str = "retrieval-pgvector-v1",
     ):
         self.replace_precomputed_snapshot(
             viewer_id,
@@ -500,6 +537,22 @@ class RecommendationStateRepository:
             ],
         )
         session.execute(stmt)
+
+        # PostgreSQL vector columns require explicit cast to vector for writes.
+        if self.engine.dialect.name == "postgresql":
+            session.execute(
+                text(
+                    """
+                    UPDATE profile_embeddings
+                    SET embedding_vector = CAST(:embedding_vector AS vector)
+                    WHERE user_id = :user_id
+                    """
+                ),
+                {
+                    "user_id": user_id,
+                    "embedding_vector": self._to_pgvector_literal(embedding),
+                },
+            )
 
     def _upsert_snapshot_run(
         self,
@@ -737,6 +790,125 @@ class RecommendationStateRepository:
             "modelName": row.model_name,
             "updatedAt": row.updated_at.isoformat(),
         }
+
+    def _search_semantic_candidates_postgresql(
+        self,
+        viewer_id: str,
+        viewer_embedding: list[float],
+        limit: int,
+        overscan: int,
+    ) -> list[dict[str, Any]]:
+        with self.session_scope() as session:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT
+                        pe.user_id,
+                        pe.semantic_profile_text,
+                        1 - (
+                            pe.embedding_vector <=> CAST(:viewer_embedding AS vector)
+                        ) AS retrieval_score
+                    FROM profile_embeddings pe
+                    WHERE pe.user_id <> :viewer_id
+                      AND pe.embedding_vector IS NOT NULL
+                      AND pe.dimensions = :viewer_dimensions
+                    ORDER BY pe.embedding_vector <=> CAST(:viewer_embedding AS vector)
+                    LIMIT :overscan
+                    """
+                ),
+                {
+                    "viewer_id": viewer_id,
+                    "viewer_embedding": self._to_pgvector_literal(viewer_embedding),
+                    "viewer_dimensions": len(viewer_embedding),
+                    "overscan": overscan,
+                },
+            ).all()
+
+        ranked_rows = [
+            {
+                "candidateId": str(row.user_id),
+                "candidateProfileText": row.semantic_profile_text,
+                "retrievalScore": float(row.retrieval_score),
+            }
+            for row in rows
+            if row.retrieval_score is not None and math.isfinite(float(row.retrieval_score))
+        ]
+        return self._post_filter_semantic_candidates(viewer_id, ranked_rows, limit)
+
+    def _search_semantic_candidates_fallback(
+        self,
+        viewer_id: str,
+        viewer_embedding: list[float],
+        limit: int,
+        overscan: int,
+    ) -> list[dict[str, Any]]:
+        candidate_rows = self.list_profile_embeddings()
+        ranked_rows: list[dict[str, Any]] = []
+
+        for candidate_row in candidate_rows:
+            candidate_id = str(candidate_row["userId"])
+            if candidate_id == viewer_id:
+                continue
+
+            candidate_embedding = [
+                float(value) for value in candidate_row.get("embedding", [])
+            ]
+            if (
+                not candidate_embedding
+                or len(candidate_embedding) != len(viewer_embedding)
+            ):
+                continue
+
+            retrieval_score = sum(
+                float(a) * float(b)
+                for a, b in zip(viewer_embedding, candidate_embedding, strict=False)
+            )
+            if not math.isfinite(retrieval_score):
+                continue
+
+            ranked_rows.append(
+                {
+                    "candidateId": candidate_id,
+                    "candidateProfileText": candidate_row.get("semanticProfileText"),
+                    "retrievalScore": float(retrieval_score),
+                }
+            )
+
+        ranked_rows.sort(
+            key=lambda candidate: (
+                -float(candidate["retrievalScore"]),
+                str(candidate["candidateId"]),
+            )
+        )
+        return self._post_filter_semantic_candidates(
+            viewer_id,
+            ranked_rows[:overscan],
+            limit,
+        )
+
+    def _post_filter_semantic_candidates(
+        self,
+        viewer_id: str,
+        ranked_candidates: list[dict[str, Any]],
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        if not ranked_candidates:
+            return []
+
+        excluded_ids = self.get_graph_excluded_candidate_ids(
+            viewer_id,
+            [str(candidate["candidateId"]) for candidate in ranked_candidates],
+        )
+
+        filtered_candidates = [
+            candidate
+            for candidate in ranked_candidates
+            if str(candidate["candidateId"]) not in excluded_ids
+        ]
+        return filtered_candidates[:limit]
+
+    def _to_pgvector_literal(self, embedding: list[float]) -> str:
+        return "[" + ",".join(str(float(value)) for value in embedding) + "]"
 
     def _resolve_precomputed_candidate_score(self, candidate: dict[str, Any]) -> float:
         for score_field in ("retrievalScore", "precomputeScore", "semanticScore"):

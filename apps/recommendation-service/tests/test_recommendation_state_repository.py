@@ -39,7 +39,7 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                     "2026-04-10T00:01:00+00:00",
                     "unit-test",
                     "demo-model",
-                    "retrieval-dot-product-v1",
+                    "retrieval-pgvector-v1",
                 )
 
                 embedding = repository.get_profile_embedding("viewer-1")
@@ -47,7 +47,7 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
 
                 self.assertEqual(embedding["userId"], "viewer-1")
                 self.assertEqual(snapshot["viewerId"], "viewer-1")
-                self.assertEqual(snapshot["scoreVersion"], "retrieval-dot-product-v1")
+                self.assertEqual(snapshot["scoreVersion"], "retrieval-pgvector-v1")
                 self.assertEqual(snapshot["candidateCount"], 2)
                 self.assertEqual(
                     snapshot["candidates"][0]["candidateId"], "candidate-1"

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,7 +10,7 @@ from app.database.recommendation_state_repository import (
 )
 
 logger = logging.getLogger(__name__)
-PRECOMPUTE_SCORE_VERSION = "retrieval-dot-product-v1"
+PRECOMPUTE_SCORE_VERSION = "retrieval-pgvector-v1"
 
 
 class RecommendationPrecomputeService:
@@ -42,51 +41,22 @@ class RecommendationPrecomputeService:
                 "reason": "viewer-missing-embedding",
             }
 
-        candidates: list[dict[str, Any]] = []
-        viewer_embedding = [float(value) for value in viewer_row["embedding"]]
-        candidate_rows = self.repository.list_profile_embeddings()
-        graph_excluded_candidate_ids = self.repository.get_graph_excluded_candidate_ids(
-            viewer_id,
-            [str(candidate_row["userId"]) for candidate_row in candidate_rows],
-        )
-
-        for candidate_row in candidate_rows:
-            candidate_id = str(candidate_row["userId"])
-            candidate_embedding = [float(value) for value in candidate_row["embedding"]]
-
-            if candidate_id in graph_excluded_candidate_ids:
-                continue
-
-            if not candidate_embedding:
-                continue
-
-            retrieval_score = self._dot_product(viewer_embedding, candidate_embedding)
-            if not math.isfinite(retrieval_score):
-                continue
-
-            clamped_retrieval_score = max(0.0, min(1.0, retrieval_score))
-            candidates.append(
-                {
-                    "candidateId": candidate_id,
-                    "retrievalScore": clamped_retrieval_score,
-                    "semanticScore": clamped_retrieval_score,
-                }
-            )
-
-        candidates.sort(
-            key=lambda candidate: (
-                -float(candidate["retrievalScore"]),
-                str(candidate["candidateId"]),
-            )
+        candidates = self.repository.search_semantic_candidates(
+            viewer_id=viewer_id,
+            limit=settings.RECOMMENDATION_PRECOMPUTE_TOP_K,
+            overscan=max(
+                settings.RECOMMENDATION_PRECOMPUTE_TOP_K,
+                settings.RECOMMENDATION_PRECOMPUTE_TOP_K * 3,
+            ),
         )
         top_candidates = [
             {
-                **candidate,
+                "candidateId": str(candidate["candidateId"]),
+                "retrievalScore": self._clamp_score(candidate["retrievalScore"]),
+                "semanticScore": self._clamp_score(candidate["retrievalScore"]),
                 "rank": index + 1,
             }
-            for index, candidate in enumerate(
-                candidates[: settings.RECOMMENDATION_PRECOMPUTE_TOP_K]
-            )
+            for index, candidate in enumerate(candidates)
         ]
 
         self.repository.replace_precomputed_snapshot(
@@ -111,11 +81,10 @@ class RecommendationPrecomputeService:
             "reason": generation_reason,
         }
 
-    def _dot_product(self, left: list[float], right: list[float]) -> float:
-        if len(left) == 0 or len(right) == 0 or len(left) != len(right):
+    def _clamp_score(self, value: float | None) -> float:
+        if value is None:
             return 0.0
-
-        return sum(float(a) * float(b) for a, b in zip(left, right, strict=False))
+        return max(0.0, min(1.0, float(value)))
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
