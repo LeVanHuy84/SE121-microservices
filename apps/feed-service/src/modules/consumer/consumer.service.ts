@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   AnalysisResultEventPayload,
   InteractionEventPayload,
+  RiskHintLevel,
   RootType,
   TargetType,
 } from '@repo/dtos';
@@ -173,7 +174,7 @@ export class ConsumerService {
       intensityLevel: payload.intensityLevel,
       dominantScene: payload.dominantSceneType,
       scores: normalizedScores,
-      riskHintLevel: payload.riskHintLevel,
+      riskHintLevel: payload.riskHintLevel as RiskHintLevel,
     };
   }
 

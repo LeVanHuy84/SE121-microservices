@@ -90,4 +90,13 @@ export class SnapshotRepository {
       .lean<PostSnapshot[]>()
       .exec();
   }
+
+  async findTrendingCandidatesBatch(limit: number, offset: number) {
+    return this.postModel
+      .find({ audience: 'PUBLIC' })
+      .sort({ 'stats.reactions': -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
+  }
 }
