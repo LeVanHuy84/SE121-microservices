@@ -15,10 +15,16 @@ from app.processors.recommendation_state_processor import RecommendationStatePro
 from app.services.graph_state_store import graph_state_store
 from app.services.precompute_queue import precompute_queue
 from app.services.precompute_service import RecommendationPrecomputeService
+from app.services.recommendation_query_service import RecommendationQueryService
+from app.services.rerank_service import rerank_service
 
 state_repository = RecommendationStateRepository(settings.DATABASE_URL)
 recommendation_precompute_service = RecommendationPrecomputeService(
     state_repository,
+)
+recommendation_query_service = RecommendationQueryService(
+    state_repository,
+    rerank_service,
 )
 recommendation_state_processor = RecommendationStateProcessor(
     precompute_queue,

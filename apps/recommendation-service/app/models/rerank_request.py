@@ -34,6 +34,37 @@ class RecommendationCandidateScore(BaseModel):
     reason: str
 
 
+class RecommendationQueryRequest(BaseModel):
+    viewerId: str
+    limit: int = Field(default=20, ge=1, le=100)
+    cursor: Optional[str] = None
+    viewerProfileText: Optional[str] = None
+
+
+class RecommendationQueryCandidateOutput(BaseModel):
+    candidateId: str
+    source: str
+    retrievalScore: float
+    modelScore: float
+    finalScore: float
+    scoreVersion: str
+    reasonCodes: List[str] = Field(default_factory=list)
+    rank: int
+
+
+class RecommendationQueryOutput(BaseModel):
+    viewerId: str
+    generatedAt: str
+    source: str
+    scoreVersion: str
+    candidateCount: int
+    nextCursor: Optional[str] = None
+    hasNextPage: bool = False
+    candidates: List[RecommendationQueryCandidateOutput] = Field(
+        default_factory=list
+    )
+
+
 class RecommendationEmbeddingOutput(BaseModel):
     entityId: str
     embedding: List[float]

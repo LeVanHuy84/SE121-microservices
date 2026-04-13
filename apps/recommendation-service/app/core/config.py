@@ -54,6 +54,18 @@ class Settings:
         self.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE: int = int(
             os.getenv("RECOMMENDATION_PRECOMPUTE_BATCH_SIZE", 20)
         )
+        self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS: int = int(
+            os.getenv("RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS", 300)
+        )
+        self.RECOMMENDATION_QUERY_RERANK_TOP_K: int = int(
+            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
+        )
+        self.RECOMMENDATION_QUERY_MODEL_WEIGHT: float = float(
+            os.getenv("RECOMMENDATION_QUERY_MODEL_WEIGHT", 0.7)
+        )
+        self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT: float = float(
+            os.getenv("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT", 0.3)
+        )
         self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
         self.KAFKA_CLIENT_ID: str = os.getenv(
             "KAFKA_CLIENT_ID", "recommendation-service"
@@ -108,6 +120,14 @@ class Settings:
         if self.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE <= 0:
             raise RuntimeError("RECOMMENDATION_PRECOMPUTE_BATCH_SIZE must be positive")
 
+        if self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS must be positive"
+            )
+
+        if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_RERANK_TOP_K must be positive")
+
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:
             raise RuntimeError("RECOMMENDATION_QUERY_INSTRUCTION must not be empty")
 
@@ -137,6 +157,22 @@ class Settings:
 
         if not (-1.0 <= self.RECOMMENDATION_SCORE_CEILING <= 1.0):
             raise RuntimeError("RECOMMENDATION_SCORE_CEILING must be within [-1, 1]")
+
+        if self.RECOMMENDATION_QUERY_MODEL_WEIGHT < 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_MODEL_WEIGHT must be >= 0")
+
+        if self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT < 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT must be >= 0")
+
+        if (
+            self.RECOMMENDATION_QUERY_MODEL_WEIGHT
+            + self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
+            <= 0
+        ):
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_MODEL_WEIGHT + "
+                "RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT must be > 0"
+            )
 
 
 settings = Settings()

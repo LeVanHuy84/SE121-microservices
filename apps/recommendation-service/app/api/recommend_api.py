@@ -2,12 +2,14 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 
-from app.bootstrap import state_repository
+from app.bootstrap import recommendation_query_service, state_repository
 from app.core.security import verify_internal_key
 from app.models.rerank_request import (
     PrecomputedRecommendationCandidateOutput,
     RecommendationEmbeddingOutput,
     RecommendationEmbeddingRequest,
+    RecommendationQueryOutput,
+    RecommendationQueryRequest,
     RecommendationRerankRequest,
 )
 from app.services.model_loader import model_loader
@@ -39,6 +41,27 @@ def rerank_candidates(req: RecommendationRerankRequest):
             "model": rerank_service.get_runtime_metadata(),
             "scores": scores,
         },
+    }
+
+
+@recommend_router.post("/query", dependencies=[Depends(verify_internal_key)])
+def query_candidates(req: RecommendationQueryRequest):
+    response = RecommendationQueryOutput.model_validate(
+        recommendation_query_service.query(req)
+    )
+    logger.info(
+        (
+            "Recommendation query completed: viewerId=%s limit=%s source=%s "
+            "returned=%s"
+        ),
+        req.viewerId,
+        req.limit,
+        response.source,
+        response.candidateCount,
+    )
+    return {
+        "success": True,
+        "data": response,
     }
 
 
