@@ -12,6 +12,7 @@ from app.processors.recommendation_outbox_processor import (
     RecommendationOutboxProcessor,
 )
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
+from app.services.global_fallback_batch_service import GlobalFallbackBatchService
 from app.services.precompute_queue import precompute_queue
 from app.services.precompute_service import RecommendationPrecomputeService
 from app.services.recommendation_query_service import RecommendationQueryService
@@ -21,6 +22,7 @@ state_repository = RecommendationStateRepository(settings.DATABASE_URL)
 recommendation_precompute_service = RecommendationPrecomputeService(
     state_repository,
 )
+global_fallback_batch_service = GlobalFallbackBatchService(state_repository)
 recommendation_query_service = RecommendationQueryService(
     state_repository,
     rerank_service,
@@ -28,6 +30,7 @@ recommendation_query_service = RecommendationQueryService(
 recommendation_state_processor = RecommendationStateProcessor(
     precompute_queue,
     recommendation_precompute_service,
+    global_fallback_batch_service,
 )
 
 producer = KafkaProducerService(settings.KAFKA_BROKERS)

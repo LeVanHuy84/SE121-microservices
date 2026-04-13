@@ -34,6 +34,7 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                     "demo-model",
                 )
                 rerank_service = Mock()
+                rerank_service.rerank.return_value = []
                 service = RecommendationQueryService(repository, rerank_service)
 
                 response = service.query(

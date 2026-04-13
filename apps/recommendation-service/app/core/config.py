@@ -57,6 +57,12 @@ class Settings:
         self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS: int = int(
             os.getenv("RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS", 300)
         )
+        self.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K: int = int(
+            os.getenv("RECOMMENDATION_GLOBAL_FALLBACK_TOP_K", 500)
+        )
+        self.RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS: int = int(
+            os.getenv("RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS", 900)
+        )
         self.RECOMMENDATION_QUERY_RERANK_TOP_K: int = int(
             os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
         )
@@ -123,6 +129,14 @@ class Settings:
         if self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS <= 0:
             raise RuntimeError(
                 "RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS must be positive"
+            )
+
+        if self.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K <= 0:
+            raise RuntimeError("RECOMMENDATION_GLOBAL_FALLBACK_TOP_K must be positive")
+
+        if self.RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS must be positive"
             )
 
         if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:

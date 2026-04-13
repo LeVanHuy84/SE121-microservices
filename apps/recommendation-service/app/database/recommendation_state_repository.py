@@ -6,7 +6,7 @@ import math
 from typing import Any, Iterator
 from uuid import uuid4
 
-from sqlalchemy import delete, inspect, select, text, update
+from sqlalchemy import delete, func, inspect, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -22,6 +22,7 @@ from app.database.models import (
     RecommendationBlock,
     RecommendationDismissal,
     RecommendationFriendship,
+    RecommendationGlobalFallbackCandidate,
     RecommendationPendingRequest,
 )
 from app.database.session import create_engine_for_url, create_session_factory
@@ -46,6 +47,7 @@ class RecommendationStateRepository:
             "profile_embeddings",
             "precomputed_snapshot_runs",
             "precomputed_snapshot_candidates",
+            "recommendation_global_fallback_candidates",
             "recommendation_friendships",
             "recommendation_pending_requests",
             "recommendation_blocks",
@@ -418,6 +420,143 @@ class RecommendationStateRepository:
                     for row in rows
                 ],
             }
+
+    def replace_global_fallback_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+        generated_at: str | datetime,
+        score_version: str = "global-fallback-v1",
+        locale: str | None = None,
+        language: str | None = None,
+    ):
+        generated_at_dt = self._parse_datetime(generated_at)
+        normalized_locale = str(locale or "").strip() or None
+        normalized_language = str(language or "").strip() or None
+        segment_key = self._resolve_fallback_segment_key(
+            normalized_locale,
+            normalized_language,
+        )
+
+        with self.session_scope() as session:
+            session.execute(
+                delete(RecommendationGlobalFallbackCandidate).where(
+                    RecommendationGlobalFallbackCandidate.segment_key == segment_key
+                )
+            )
+
+            if candidates:
+                session.add_all(
+                    [
+                        RecommendationGlobalFallbackCandidate(
+                            segment_key=segment_key,
+                            candidate_id=str(candidate["candidateId"]),
+                            fallback_score=float(candidate["fallbackScore"]),
+                            rank=int(candidate["rank"]),
+                            locale=normalized_locale,
+                            language=normalized_language,
+                            score_version=score_version,
+                            generated_at=generated_at_dt,
+                        )
+                        for candidate in candidates
+                    ]
+                )
+
+    def list_global_fallback_candidates(
+        self,
+        offset: int,
+        limit: int,
+        locale: str | None = None,
+        language: str | None = None,
+    ) -> list[dict[str, Any]]:
+        safe_offset = max(0, int(offset))
+        safe_limit = max(1, int(limit))
+        normalized_locale = str(locale or "").strip() or None
+        normalized_language = str(language or "").strip() or None
+        segment_key = self._resolve_fallback_segment_key(
+            normalized_locale,
+            normalized_language,
+        )
+
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(RecommendationGlobalFallbackCandidate)
+                .where(RecommendationGlobalFallbackCandidate.segment_key == segment_key)
+                .order_by(RecommendationGlobalFallbackCandidate.rank.asc())
+                .offset(safe_offset)
+                .limit(safe_limit)
+            ).all()
+
+            return [
+                {
+                    "candidateId": row.candidate_id,
+                    "fallbackScore": float(row.fallback_score),
+                    "rank": int(row.rank),
+                    "locale": row.locale,
+                    "language": row.language,
+                    "scoreVersion": row.score_version,
+                    "generatedAt": row.generated_at.isoformat(),
+                }
+                for row in rows
+            ]
+
+    def _resolve_fallback_segment_key(
+        self,
+        locale: str | None,
+        language: str | None,
+    ) -> str:
+        return f"{locale or 'global'}::{language or 'global'}"
+
+    def get_candidate_negative_signal_counts(
+        self,
+        candidate_ids: list[str],
+    ) -> dict[str, dict[str, int]]:
+        normalized_candidate_ids = [
+            str(candidate_id or "").strip()
+            for candidate_id in candidate_ids
+            if str(candidate_id or "").strip()
+        ]
+        if not normalized_candidate_ids:
+            return {}
+
+        with self.session_scope() as session:
+            block_rows = session.execute(
+                select(
+                    RecommendationBlock.blocked_id,
+                    func.count().label("signal_count"),
+                )
+                .where(RecommendationBlock.blocked_id.in_(normalized_candidate_ids))
+                .group_by(RecommendationBlock.blocked_id)
+            ).all()
+
+            dismissal_rows = session.execute(
+                select(
+                    RecommendationDismissal.candidate_id,
+                    func.count().label("signal_count"),
+                )
+                .where(
+                    RecommendationDismissal.candidate_id.in_(
+                        normalized_candidate_ids
+                    ),
+                    RecommendationDismissal.expires_at > self._now(),
+                )
+                .group_by(RecommendationDismissal.candidate_id)
+            ).all()
+
+        signal_counts: dict[str, dict[str, int]] = {
+            candidate_id: {
+                "blockCount": 0,
+                "dismissalCount": 0,
+            }
+            for candidate_id in normalized_candidate_ids
+        }
+
+        for row in block_rows:
+            signal_counts[str(row.blocked_id)]["blockCount"] = int(row.signal_count)
+
+        for row in dismissal_rows:
+            signal_counts[str(row.candidate_id)]["dismissalCount"] = int(row.signal_count)
+
+        return signal_counts
 
     def enqueue_outbox_event(
         self,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
@@ -16,47 +15,73 @@ class GlobalFallbackService:
         offset: int,
         size: int,
         excluded_candidate_ids: set[str] | None = None,
+        locale: str | None = None,
+        language: str | None = None,
     ) -> tuple[list[dict[str, Any]], bool]:
         safe_offset = max(0, int(offset))
         safe_size = max(1, int(size))
-        excluded_ids = {str(candidate_id) for candidate_id in (excluded_candidate_ids or set())}
+        target_size = safe_size + 1
+        excluded_ids = {
+            str(candidate_id) for candidate_id in (excluded_candidate_ids or set())
+        }
         excluded_ids.add(str(viewer_id))
 
-        rows = self.repository.list_profile_embeddings()
-        candidate_ids = [str(row["userId"]) for row in rows if str(row["userId"]) not in excluded_ids]
-        graph_excluded_ids = self.repository.get_graph_excluded_candidate_ids(
-            viewer_id,
-            candidate_ids,
-        )
+        collected_candidates: list[dict[str, Any]] = []
+        cursor = safe_offset
+        chunk_size = max(20, safe_size * 4)
+        max_scan_rows = max(200, safe_size * 40)
+        scanned_rows = 0
+        source_exhausted = False
 
-        fallback_rows = [
-            row
-            for row in rows
-            if str(row["userId"]) not in excluded_ids
-            and str(row["userId"]) not in graph_excluded_ids
-        ]
+        while scanned_rows < max_scan_rows:
+            rows = self.repository.list_global_fallback_candidates(
+                offset=cursor,
+                limit=chunk_size,
+                locale=locale,
+                language=language,
+            )
+            if not rows:
+                source_exhausted = True
+                break
 
-        fallback_rows.sort(
-            key=lambda row: self._parse_iso_datetime(str(row.get("updatedAt") or "")),
-            reverse=True,
-        )
+            scanned_rows += len(rows)
+            cursor += len(rows)
+            source_exhausted = len(rows) < chunk_size
+            candidate_ids = [
+                str(row["candidateId"])
+                for row in rows
+                if str(row["candidateId"]) not in excluded_ids
+            ]
+            graph_excluded_ids = self.repository.get_graph_excluded_candidate_ids(
+                viewer_id,
+                candidate_ids,
+            )
 
-        page_rows = fallback_rows[safe_offset : safe_offset + safe_size + 1]
-        candidates = [
-            {
-                "candidateId": str(row["userId"]),
-                "candidateProfileText": row.get("semanticProfileText"),
-                "retrievalScore": 0.0,
-                "source": "global_fallback",
-            }
-            for row in page_rows[:safe_size]
-        ]
+            for row in rows:
+                candidate_id = str(row["candidateId"])
+                if candidate_id in excluded_ids or candidate_id in graph_excluded_ids:
+                    continue
 
-        return candidates, len(page_rows) > safe_size
+                collected_candidates.append(
+                    {
+                        "candidateId": candidate_id,
+                        "candidateProfileText": None,
+                        "retrievalScore": float(row["fallbackScore"]),
+                        "source": "global_fallback",
+                    }
+                )
 
-    def _parse_iso_datetime(self, value: str) -> datetime:
-        normalized = value.strip().replace("Z", "+00:00")
-        try:
-            return datetime.fromisoformat(normalized)
-        except ValueError:
-            return datetime.min
+                if len(collected_candidates) >= target_size:
+                    break
+
+            if len(collected_candidates) >= target_size:
+                break
+
+            if source_exhausted:
+                break
+
+        has_next = len(collected_candidates) > safe_size
+        if not has_next and not source_exhausted and scanned_rows >= max_scan_rows:
+            has_next = True
+
+        return collected_candidates[:safe_size], has_next

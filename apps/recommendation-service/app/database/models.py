@@ -163,3 +163,36 @@ class OutboxEvent(Base):
             "created_at",
         ),
     )
+
+
+class RecommendationGlobalFallbackCandidate(Base):
+    __tablename__ = "recommendation_global_fallback_candidates"
+
+    segment_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    candidate_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    fallback_score: Mapped[float] = mapped_column(Float, nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    locale: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    score_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_global_fallback_segment_rank",
+            "segment_key",
+            "rank",
+        ),
+        Index(
+            "idx_recommendation_global_fallback_locale_language_rank",
+            "locale",
+            "language",
+            "rank",
+        ),
+        Index(
+            "idx_recommendation_global_fallback_rank",
+            "rank",
+        ),
+    )
