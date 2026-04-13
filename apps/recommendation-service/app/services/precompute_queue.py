@@ -7,6 +7,7 @@ class RecommendationPrecomputeQueue:
     def __init__(self):
         self._lock = RLock()
         self._pending_viewer_ids: set[str] = set()
+        self._projection_rows_changed = 0
 
     def mark_stale(self, viewer_id: str):
         normalized_viewer_id = str(viewer_id or "").strip()
@@ -33,6 +34,20 @@ class RecommendationPrecomputeQueue:
     def size(self) -> int:
         with self._lock:
             return len(self._pending_viewer_ids)
+
+    def record_projection_rows_changed(self, rows_changed: int):
+        resolved_rows_changed = max(0, int(rows_changed))
+        if resolved_rows_changed <= 0:
+            return
+
+        with self._lock:
+            self._projection_rows_changed += resolved_rows_changed
+
+    def consume_projection_rows_changed(self) -> int:
+        with self._lock:
+            rows_changed = self._projection_rows_changed
+            self._projection_rows_changed = 0
+            return rows_changed
 
 
 precompute_queue = RecommendationPrecomputeQueue()

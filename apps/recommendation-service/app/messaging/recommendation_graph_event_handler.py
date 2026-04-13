@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Any
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
-from app.services.graph_state_store import RecommendationGraphStateStore
 from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 logger = logging.getLogger(__name__)
@@ -24,11 +23,9 @@ class RecommendationGraphEventHandler:
     def __init__(
         self,
         repository: RecommendationStateRepository,
-        graph_state_store: RecommendationGraphStateStore,
         precompute_queue: RecommendationPrecomputeQueue,
     ):
         self.repository = repository
-        self.graph_state_store = graph_state_store
         self.precompute_queue = precompute_queue
 
     async def handle(self, message: dict[str, Any]):
@@ -52,13 +49,8 @@ class RecommendationGraphEventHandler:
 
         if event_type == "recommendation.graph.friend-request-sent":
             self.repository.apply_graph_friend_request_sent(user_id, target_user_id)
-            self.graph_state_store.apply_friend_request_sent(user_id, target_user_id)
         elif event_type == "recommendation.graph.friend-request-canceled":
             self.repository.apply_graph_friend_request_canceled(
-                user_id,
-                target_user_id,
-            )
-            self.graph_state_store.apply_friend_request_canceled(
                 user_id,
                 target_user_id,
             )
@@ -67,28 +59,17 @@ class RecommendationGraphEventHandler:
                 user_id,
                 target_user_id,
             )
-            self.graph_state_store.apply_friend_request_accepted(
-                user_id,
-                target_user_id,
-            )
         elif event_type == "recommendation.graph.friend-request-declined":
             self.repository.apply_graph_friend_request_declined(
                 user_id,
                 target_user_id,
             )
-            self.graph_state_store.apply_friend_request_declined(
-                user_id,
-                target_user_id,
-            )
         elif event_type == "recommendation.graph.friendship-removed":
             self.repository.apply_graph_friendship_removed(user_id, target_user_id)
-            self.graph_state_store.apply_friendship_removed(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-blocked":
             self.repository.apply_graph_user_blocked(user_id, target_user_id)
-            self.graph_state_store.apply_user_blocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-unblocked":
             self.repository.apply_graph_user_unblocked(user_id, target_user_id)
-            self.graph_state_store.apply_user_unblocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.recommendation-dismissed":
             expires_at = self._parse_expires_at(payload.get("expiresAt"))
             if expires_at is None:
@@ -104,15 +85,18 @@ class RecommendationGraphEventHandler:
             self.repository.apply_graph_recommendation_dismissed(
                 user_id, target_user_id, expires_at
             )
-            self.graph_state_store.apply_recommendation_dismissed(
-                user_id, target_user_id, expires_at
-            )
 
+        rows_changed = self._resolve_projection_rows_changed(event_type)
+        self.precompute_queue.record_projection_rows_changed(rows_changed)
         logger.info(
-            "Applied recommendation graph event type=%s userId=%s targetUserId=%s",
+            (
+                "Applied recommendation graph event type=%s userId=%s "
+                "targetUserId=%s projectionRowsChanged=%s"
+            ),
             event_type,
             user_id,
             target_user_id,
+            rows_changed,
         )
         self.precompute_queue.mark_many([user_id, target_user_id])
 
@@ -125,3 +109,24 @@ class RecommendationGraphEventHandler:
             return datetime.fromisoformat(normalized_value)
         except ValueError:
             return None
+
+    def _resolve_projection_rows_changed(self, event_type: str) -> int:
+        if event_type in {
+            "recommendation.graph.friend-request-sent",
+            "recommendation.graph.friend-request-canceled",
+            "recommendation.graph.friend-request-declined",
+            "recommendation.graph.user-unblocked",
+            "recommendation.graph.recommendation-dismissed",
+        }:
+            return 1
+
+        if event_type in {
+            "recommendation.graph.friend-request-accepted",
+            "recommendation.graph.friendship-removed",
+        }:
+            return 2
+
+        if event_type == "recommendation.graph.user-blocked":
+            return 5
+
+        return 0

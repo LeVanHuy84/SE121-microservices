@@ -2,7 +2,6 @@ import unittest
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
-from app.services.graph_state_store import RecommendationGraphStateStore
 from app.services.precompute_queue import RecommendationPrecomputeQueue
 from app.services.precompute_service import RecommendationPrecomputeService
 
@@ -34,11 +33,9 @@ class RecommendationStateProcessorTestCase(unittest.IsolatedAsyncioTestCase):
                 )
                 queue = RecommendationPrecomputeQueue()
                 queue.mark_stale("user-1")
-                store = RecommendationGraphStateStore()
                 processor = RecommendationStateProcessor(
                     queue,
                     RecommendationPrecomputeService(repository),
-                    store,
                 )
                 await processor.run_once()
 
@@ -46,6 +43,8 @@ class RecommendationStateProcessorTestCase(unittest.IsolatedAsyncioTestCase):
                 snapshot = repository.get_precomputed_snapshot("user-1", 10)
                 self.assertIsNotNone(summary)
                 self.assertEqual(summary["processedViewers"], 1)
+                self.assertEqual(summary["snapshotRefreshCount"], 1)
+                self.assertEqual(summary["projectionRowsChanged"], 0)
                 self.assertEqual(snapshot["candidateCount"], 1)
             finally:
                 repository.close()

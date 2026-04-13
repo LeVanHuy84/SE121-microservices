@@ -12,7 +12,6 @@ from app.processors.recommendation_outbox_processor import (
     RecommendationOutboxProcessor,
 )
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
-from app.services.graph_state_store import graph_state_store
 from app.services.precompute_queue import precompute_queue
 from app.services.precompute_service import RecommendationPrecomputeService
 from app.services.recommendation_query_service import RecommendationQueryService
@@ -29,14 +28,12 @@ recommendation_query_service = RecommendationQueryService(
 recommendation_state_processor = RecommendationStateProcessor(
     precompute_queue,
     recommendation_precompute_service,
-    graph_state_store,
 )
 
 producer = KafkaProducerService(settings.KAFKA_BROKERS)
 profile_handler = ProfileEmbeddingEventHandler(state_repository, precompute_queue)
 graph_handler = RecommendationGraphEventHandler(
     state_repository,
-    graph_state_store,
     precompute_queue,
 )
 dispatcher = RecommendationEventDispatcher(profile_handler, graph_handler)
