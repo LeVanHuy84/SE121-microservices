@@ -74,6 +74,8 @@ Migrations:
 - `20260413_0004_add_pgvector_profile_embeddings.py`
 - `20260413_0005_add_global_fallback_candidates.py`
 - `20260413_0006_segment_global_fallback_candidates.py`
+- `20260413_0007_drop_recommendation_outbox.py`
+- `20260413_0008_add_graph_event_journal_and_pair_features.py`
 
 ## Environment Variables
 
@@ -111,6 +113,9 @@ Messaging:
 - `KAFKA_BROKERS`
 - `KAFKA_CLIENT_ID`
 - `KAFKA_GROUP_ID`
+- `KAFKA_TOPIC_INIT_RETRIES`
+- `KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS`
+- `KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS`
 - `RECOMMENDATION_PROFILE_TOPIC`
 - `RECOMMENDATION_GRAPH_TOPIC`
 - `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
@@ -118,7 +123,9 @@ Messaging:
 ## Dev Commands
 
 - `npm run install`
+- `npm run model:warmup`
 - `npm run db:upgrade`
+- `npm run db:backfill-pair-features`
 - `npm run start:dev`
 - `npm run test`
 - `npm run lint`

@@ -131,6 +131,24 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.queue.consume_projection_rows_changed(), 1)
         self.assertEqual(self.queue.drain(10), ["candidate-1", "viewer-1"])
 
+        journal_rows = self.repository.list_graph_event_journal(limit=10)
+        self.assertEqual(len(journal_rows), 1)
+        self.assertEqual(
+            journal_rows[0]["eventType"],
+            "recommendation.graph.recommendation-dismissed",
+        )
+
+        pair_features = self.repository.get_graph_pair_features(
+            "viewer-1",
+            ["candidate-1"],
+        )
+        self.assertIn("candidate-1", pair_features)
+        self.assertTrue(pair_features["candidate-1"]["hasActiveDismissal"])
+        self.assertEqual(
+            pair_features["candidate-1"]["lastEventType"],
+            "recommendation.graph.recommendation-dismissed",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

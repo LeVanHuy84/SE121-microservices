@@ -234,6 +234,10 @@ class QueryService:
             viewer_profile_text,
             rerank_input,
         )
+        pair_features = self.repository.get_graph_pair_features(
+            viewer_id,
+            [str(candidate["candidateId"]) for candidate in candidates],
+        )
 
         scored = [
             {
@@ -244,7 +248,8 @@ class QueryService:
                     model_scores.get(str(candidate["candidateId"]), 0.0),
                 ),
                 "reasonCodes": self._build_reason_codes(
-                    model_scores.get(str(candidate["candidateId"]), 0.0)
+                    model_scores.get(str(candidate["candidateId"]), 0.0),
+                    pair_features.get(str(candidate["candidateId"])),
                 ),
             }
             for candidate in candidates
@@ -321,10 +326,29 @@ class QueryService:
             6,
         )
 
-    def _build_reason_codes(self, model_score: float) -> list[str]:
+    def _build_reason_codes(
+        self,
+        model_score: float,
+        pair_feature: dict[str, Any] | None = None,
+    ) -> list[str]:
         reasons = ["semantic_retrieval"]
         if float(model_score) > 0:
             reasons.append("semantic_rerank")
+
+        if pair_feature:
+            if int(pair_feature.get("mutualFriendCount", 0)) > 0:
+                reasons.append("graph_mutual_friend")
+            if int(pair_feature.get("commonGroupCount", 0)) > 0:
+                reasons.append("graph_common_group")
+
+            last_event_type = str(pair_feature.get("lastEventType") or "").strip()
+            if last_event_type == "recommendation.graph.user-unblocked":
+                reasons.append("graph_recent_unblock")
+            elif last_event_type == "recommendation.graph.friend-request-canceled":
+                reasons.append("graph_recent_request_canceled")
+            elif last_event_type == "recommendation.graph.friendship-removed":
+                reasons.append("graph_recent_friendship_removed")
+
         return reasons
 
     def _decode_cursor(self, cursor: str | None) -> dict[str, Any]:

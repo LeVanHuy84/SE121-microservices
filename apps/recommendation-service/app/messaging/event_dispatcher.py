@@ -34,13 +34,37 @@ class RecommendationEventDispatcher:
             return
 
         if raw_type in self.profile_event_types:
+            logger.info(
+                (
+                    "Dispatching recommendation profile event: type=%s "
+                    "userId=%s requestId=%s"
+                ),
+                raw_type,
+                self._payload_value(payload, "userId"),
+                self._payload_value(payload, "requestId"),
+            )
             await self.profile_handler.handle(event)
             return
 
         if raw_type in self.graph_event_types:
+            logger.info(
+                (
+                    "Dispatching recommendation graph event: type=%s "
+                    "userId=%s targetUserId=%s"
+                ),
+                raw_type,
+                self._payload_value(payload, "userId"),
+                self._payload_value(payload, "targetUserId"),
+            )
             await self.graph_handler.handle(event)
             return
 
         logger.warning(
             "No recommendation dispatcher handler for event type=%s", raw_type
         )
+
+    def _payload_value(self, payload: Any, key: str) -> str:
+        if not isinstance(payload, dict):
+            return ""
+
+        return str(payload.get(key) or "").strip()

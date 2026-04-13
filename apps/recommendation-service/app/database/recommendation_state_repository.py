@@ -20,7 +20,9 @@ from app.database.models import (
     RecommendationBlock,
     RecommendationDismissal,
     RecommendationFriendship,
+    RecommendationGraphEventJournal,
     RecommendationGlobalFallbackCandidate,
+    RecommendationPairFeature,
     RecommendationPendingRequest,
 )
 from app.database.session import create_engine_for_url, create_session_factory
@@ -50,6 +52,8 @@ class RecommendationStateRepository:
             "recommendation_pending_requests",
             "recommendation_blocks",
             "recommendation_dismissals",
+            "recommendation_graph_event_journal",
+            "recommendation_pair_features",
         }
         missing_tables = sorted(
             table_name
@@ -196,6 +200,307 @@ class RecommendationStateRepository:
                 self._parse_datetime(expires_at),
                 self._now(),
             )
+
+    def record_graph_event(
+        self,
+        event_type: str,
+        user_id: str,
+        target_user_id: str,
+        occurred_at: str | datetime,
+        source: str,
+        payload: dict[str, Any],
+    ):
+        with self.session_scope() as session:
+            session.add(
+                RecommendationGraphEventJournal(
+                    event_type=str(event_type).strip(),
+                    user_id=str(user_id).strip(),
+                    target_user_id=str(target_user_id).strip(),
+                    occurred_at=self._parse_datetime(occurred_at),
+                    source=str(source).strip() or "unknown",
+                    payload_json=dict(payload),
+                    ingested_at=self._now(),
+                )
+            )
+
+    def list_graph_event_journal(self, limit: int = 100) -> list[dict[str, Any]]:
+        safe_limit = max(1, int(limit))
+
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(RecommendationGraphEventJournal)
+                .order_by(RecommendationGraphEventJournal.id.desc())
+                .limit(safe_limit)
+            ).all()
+            return [
+                {
+                    "id": int(row.id),
+                    "eventType": row.event_type,
+                    "userId": row.user_id,
+                    "targetUserId": row.target_user_id,
+                    "occurredAt": row.occurred_at.isoformat(),
+                    "source": row.source,
+                    "payload": dict(row.payload_json or {}),
+                    "ingestedAt": row.ingested_at.isoformat(),
+                }
+                for row in rows
+            ]
+
+    def refresh_graph_pair_features_for_event(
+        self,
+        user_id: str,
+        target_user_id: str,
+        event_type: str,
+        event_at: str | datetime,
+    ):
+        event_at_dt = self._parse_datetime(event_at)
+
+        with self.session_scope() as session:
+            self._refresh_graph_pair_feature(
+                session,
+                viewer_id=user_id,
+                candidate_id=target_user_id,
+                last_event_type=event_type,
+                last_event_at=event_at_dt,
+            )
+            self._refresh_graph_pair_feature(
+                session,
+                viewer_id=target_user_id,
+                candidate_id=user_id,
+                last_event_type=event_type,
+                last_event_at=event_at_dt,
+            )
+
+    def upsert_graph_pair_feature(
+        self,
+        viewer_id: str,
+        candidate_id: str,
+        *,
+        mutual_friend_count: int = 0,
+        common_group_count: int = 0,
+        last_event_type: str | None = None,
+        last_event_at: str | datetime | None = None,
+    ):
+        normalized_viewer_id = str(viewer_id or "").strip()
+        normalized_candidate_id = str(candidate_id or "").strip()
+        if not normalized_viewer_id or not normalized_candidate_id:
+            return
+
+        with self.session_scope() as session:
+            self._upsert_graph_pair_feature(
+                session,
+                viewer_id=normalized_viewer_id,
+                candidate_id=normalized_candidate_id,
+                has_friendship=self._has_friendship(
+                    session,
+                    normalized_viewer_id,
+                    normalized_candidate_id,
+                )
+                or self._has_friendship(
+                    session,
+                    normalized_candidate_id,
+                    normalized_viewer_id,
+                ),
+                has_pending_request=self._has_pending_request(
+                    session,
+                    normalized_viewer_id,
+                    normalized_candidate_id,
+                )
+                or self._has_pending_request(
+                    session,
+                    normalized_candidate_id,
+                    normalized_viewer_id,
+                ),
+                is_blocked_either_way=self._has_block(
+                    session,
+                    normalized_viewer_id,
+                    normalized_candidate_id,
+                )
+                or self._has_block(
+                    session,
+                    normalized_candidate_id,
+                    normalized_viewer_id,
+                ),
+                has_active_dismissal=self._has_active_dismissal(
+                    session,
+                    normalized_viewer_id,
+                    normalized_candidate_id,
+                ),
+                mutual_friend_count=max(0, int(mutual_friend_count)),
+                common_group_count=max(0, int(common_group_count)),
+                last_event_type=str(last_event_type).strip()
+                if isinstance(last_event_type, str) and last_event_type.strip()
+                else None,
+                last_event_at=self._parse_datetime(last_event_at)
+                if last_event_at is not None
+                else None,
+            )
+
+    def get_graph_pair_features(
+        self,
+        viewer_id: str,
+        candidate_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        normalized_viewer_id = str(viewer_id or "").strip()
+        normalized_candidate_ids = sorted(
+            {
+                str(candidate_id or "").strip()
+                for candidate_id in candidate_ids
+                if str(candidate_id or "").strip()
+            }
+        )
+        if not normalized_viewer_id or not normalized_candidate_ids:
+            return {}
+
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(RecommendationPairFeature).where(
+                    RecommendationPairFeature.viewer_id == normalized_viewer_id,
+                    RecommendationPairFeature.candidate_id.in_(normalized_candidate_ids),
+                )
+            ).all()
+            return {
+                row.candidate_id: {
+                    "viewerId": row.viewer_id,
+                    "candidateId": row.candidate_id,
+                    "hasFriendship": bool(row.has_friendship),
+                    "hasPendingRequest": bool(row.has_pending_request),
+                    "isBlockedEitherWay": bool(row.is_blocked_either_way),
+                    "hasActiveDismissal": bool(row.has_active_dismissal),
+                    "mutualFriendCount": int(row.mutual_friend_count),
+                    "commonGroupCount": int(row.common_group_count),
+                    "lastEventType": row.last_event_type,
+                    "lastEventAt": row.last_event_at.isoformat()
+                    if row.last_event_at is not None
+                    else None,
+                    "updatedAt": row.updated_at.isoformat(),
+                }
+                for row in rows
+            }
+
+    def backfill_graph_pair_features(self) -> int:
+        recent_event_reason_types = {
+            "recommendation.graph.user-unblocked",
+            "recommendation.graph.friend-request-canceled",
+            "recommendation.graph.friendship-removed",
+        }
+
+        with self.session_scope() as session:
+            now = self._now()
+
+            friendship_pairs = {
+                (str(row.user_id), str(row.friend_id))
+                for row in session.execute(
+                    select(
+                        RecommendationFriendship.user_id,
+                        RecommendationFriendship.friend_id,
+                    )
+                ).all()
+            }
+            pending_pairs = {
+                (str(row.requester_id), str(row.receiver_id))
+                for row in session.execute(
+                    select(
+                        RecommendationPendingRequest.requester_id,
+                        RecommendationPendingRequest.receiver_id,
+                    )
+                ).all()
+            }
+            block_pairs = {
+                (str(row.blocker_id), str(row.blocked_id))
+                for row in session.execute(
+                    select(
+                        RecommendationBlock.blocker_id,
+                        RecommendationBlock.blocked_id,
+                    )
+                ).all()
+            }
+            dismissal_pairs = {
+                (str(row.user_id), str(row.candidate_id))
+                for row in session.execute(
+                    select(
+                        RecommendationDismissal.user_id,
+                        RecommendationDismissal.candidate_id,
+                    ).where(RecommendationDismissal.expires_at > now)
+                ).all()
+            }
+
+            latest_event_by_pair: dict[tuple[str, str], tuple[str, datetime]] = {}
+            for row in session.execute(
+                select(
+                    RecommendationGraphEventJournal.user_id,
+                    RecommendationGraphEventJournal.target_user_id,
+                    RecommendationGraphEventJournal.event_type,
+                    RecommendationGraphEventJournal.occurred_at,
+                ).order_by(RecommendationGraphEventJournal.id.desc())
+            ).all():
+                key = (str(row.user_id), str(row.target_user_id))
+                if key not in latest_event_by_pair:
+                    latest_event_by_pair[key] = (
+                        str(row.event_type),
+                        self._parse_datetime(row.occurred_at),
+                    )
+
+            candidate_pairs: set[tuple[str, str]] = set()
+            for user_id, friend_id in friendship_pairs:
+                candidate_pairs.add((user_id, friend_id))
+                candidate_pairs.add((friend_id, user_id))
+            for requester_id, receiver_id in pending_pairs:
+                candidate_pairs.add((requester_id, receiver_id))
+                candidate_pairs.add((receiver_id, requester_id))
+            for blocker_id, blocked_id in block_pairs:
+                candidate_pairs.add((blocker_id, blocked_id))
+                candidate_pairs.add((blocked_id, blocker_id))
+            for user_id, candidate_id in dismissal_pairs:
+                candidate_pairs.add((user_id, candidate_id))
+            candidate_pairs.update(latest_event_by_pair.keys())
+
+            session.execute(delete(RecommendationPairFeature))
+
+            backfilled_count = 0
+            for viewer_id, candidate_id in sorted(candidate_pairs):
+                has_friendship = (viewer_id, candidate_id) in friendship_pairs or (
+                    candidate_id,
+                    viewer_id,
+                ) in friendship_pairs
+                has_pending_request = (viewer_id, candidate_id) in pending_pairs or (
+                    candidate_id,
+                    viewer_id,
+                ) in pending_pairs
+                is_blocked_either_way = (viewer_id, candidate_id) in block_pairs or (
+                    candidate_id,
+                    viewer_id,
+                ) in block_pairs
+                has_active_dismissal = (viewer_id, candidate_id) in dismissal_pairs
+                last_event = latest_event_by_pair.get((viewer_id, candidate_id))
+                last_event_type = last_event[0] if last_event else None
+                last_event_at = last_event[1] if last_event else None
+
+                if (
+                    not has_friendship
+                    and not has_pending_request
+                    and not is_blocked_either_way
+                    and not has_active_dismissal
+                    and last_event_type not in recent_event_reason_types
+                ):
+                    continue
+
+                self._upsert_graph_pair_feature(
+                    session,
+                    viewer_id=viewer_id,
+                    candidate_id=candidate_id,
+                    has_friendship=has_friendship,
+                    has_pending_request=has_pending_request,
+                    is_blocked_either_way=is_blocked_either_way,
+                    has_active_dismissal=has_active_dismissal,
+                    mutual_friend_count=0,
+                    common_group_count=0,
+                    last_event_type=last_event_type,
+                    last_event_at=last_event_at,
+                )
+                backfilled_count += 1
+
+            return backfilled_count
 
     def is_candidate_excluded_by_graph_projection(
         self,
@@ -739,6 +1044,102 @@ class RecommendationStateRepository:
             values,
             conflict_columns=["user_id", "candidate_id"],
             update_columns=["expires_at", "updated_at"],
+        )
+        session.execute(stmt)
+
+    def _refresh_graph_pair_feature(
+        self,
+        session: Session,
+        viewer_id: str,
+        candidate_id: str,
+        last_event_type: str,
+        last_event_at: datetime,
+    ):
+        has_friendship = self._has_friendship(session, viewer_id, candidate_id) or self._has_friendship(
+            session,
+            candidate_id,
+            viewer_id,
+        )
+        has_pending_request = self._has_pending_request(
+            session,
+            viewer_id,
+            candidate_id,
+        ) or self._has_pending_request(
+            session,
+            candidate_id,
+            viewer_id,
+        )
+        is_blocked_either_way = self._has_block(
+            session,
+            viewer_id,
+            candidate_id,
+        ) or self._has_block(
+            session,
+            candidate_id,
+            viewer_id,
+        )
+        has_active_dismissal = self._has_active_dismissal(
+            session,
+            viewer_id,
+            candidate_id,
+        )
+
+        self._upsert_graph_pair_feature(
+            session,
+            viewer_id=viewer_id,
+            candidate_id=candidate_id,
+            has_friendship=has_friendship,
+            has_pending_request=has_pending_request,
+            is_blocked_either_way=is_blocked_either_way,
+            has_active_dismissal=has_active_dismissal,
+            mutual_friend_count=0,
+            common_group_count=0,
+            last_event_type=last_event_type,
+            last_event_at=last_event_at,
+        )
+
+    def _upsert_graph_pair_feature(
+        self,
+        session: Session,
+        viewer_id: str,
+        candidate_id: str,
+        has_friendship: bool,
+        has_pending_request: bool,
+        is_blocked_either_way: bool,
+        has_active_dismissal: bool,
+        mutual_friend_count: int,
+        common_group_count: int,
+        last_event_type: str | None,
+        last_event_at: datetime | None,
+    ):
+        values = {
+            "viewer_id": viewer_id,
+            "candidate_id": candidate_id,
+            "has_friendship": has_friendship,
+            "has_pending_request": has_pending_request,
+            "is_blocked_either_way": is_blocked_either_way,
+            "has_active_dismissal": has_active_dismissal,
+            "mutual_friend_count": mutual_friend_count,
+            "common_group_count": common_group_count,
+            "last_event_type": last_event_type,
+            "last_event_at": last_event_at,
+            "updated_at": self._now(),
+        }
+        stmt = self._build_upsert_statement(
+            RecommendationPairFeature.__table__,
+            values,
+            conflict_columns=["viewer_id", "candidate_id"],
+            update_columns=[
+                "has_friendship",
+                "has_pending_request",
+                "is_blocked_either_way",
+                "has_active_dismissal",
+                "mutual_friend_count",
+                "common_group_count",
+                "last_event_type",
+                "last_event_at",
+                "updated_at",
+            ],
         )
         session.execute(stmt)
 

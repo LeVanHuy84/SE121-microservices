@@ -76,6 +76,15 @@ class Settings:
         self.KAFKA_GROUP_ID: str = os.getenv(
             "KAFKA_GROUP_ID", "recommendation-service-group"
         ).strip()
+        self.KAFKA_TOPIC_INIT_RETRIES: int = int(
+            os.getenv("KAFKA_TOPIC_INIT_RETRIES", 5)
+        )
+        self.KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS: float = float(
+            os.getenv("KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS", 2)
+        )
+        self.KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS: float = float(
+            os.getenv("KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS", 15)
+        )
         self.RECOMMENDATION_PROFILE_TOPIC: str = os.getenv(
             "RECOMMENDATION_PROFILE_TOPIC", "recommendation-profile-events"
         ).strip()
@@ -145,6 +154,19 @@ class Settings:
 
         if not self.KAFKA_GROUP_ID:
             raise RuntimeError("KAFKA_GROUP_ID must not be empty")
+
+        if self.KAFKA_TOPIC_INIT_RETRIES <= 0:
+            raise RuntimeError("KAFKA_TOPIC_INIT_RETRIES must be positive")
+
+        if self.KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS <= 0:
+            raise RuntimeError(
+                "KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS must be positive"
+            )
+
+        if self.KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError(
+                "KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS must be positive"
+            )
 
         if not self.RECOMMENDATION_PROFILE_TOPIC:
             raise RuntimeError("RECOMMENDATION_PROFILE_TOPIC must not be empty")

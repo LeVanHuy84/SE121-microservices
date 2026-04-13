@@ -50,6 +50,9 @@ export class ClerkWebhookController {
 
       // Handle different event types
       switch (type) {
+        case 'user.created':
+          await this.webhookService.handleUserCreated(data);
+          break;
         case 'session.ended':
           await this.webhookService.handleSessionEnded(data);
           break;

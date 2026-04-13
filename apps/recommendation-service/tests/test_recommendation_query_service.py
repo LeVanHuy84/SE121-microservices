@@ -108,6 +108,63 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
             finally:
                 repository.close()
 
+    def test_query_appends_graph_pair_feature_reason_codes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = RecommendationStateRepository(
+                f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
+            )
+            try:
+                repository.create_schema()
+                repository.replace_precomputed_snapshot(
+                    "viewer-2",
+                    [
+                        {
+                            "candidateId": "candidate-z",
+                            "retrievalScore": 0.88,
+                            "rank": 1,
+                        }
+                    ],
+                    datetime.now(timezone.utc).isoformat(),
+                    "unit-test",
+                    "demo-model",
+                )
+                repository.upsert_graph_pair_feature(
+                    "viewer-2",
+                    "candidate-z",
+                    mutual_friend_count=3,
+                    common_group_count=1,
+                    last_event_type="recommendation.graph.user-unblocked",
+                    last_event_at=datetime.now(timezone.utc),
+                )
+
+                rerank_service = Mock()
+                rerank_service.rerank.return_value = [
+                    RecommendationCandidateScore(
+                        candidateId="candidate-z",
+                        modelScore=0.7,
+                        reason="strong",
+                    )
+                ]
+                service = QueryService(repository, rerank_service)
+
+                response = service.query(
+                    RecommendationQueryRequest(viewerId="viewer-2", limit=5)
+                )
+
+                self.assertEqual(response.candidateCount, 1)
+                self.assertEqual(
+                    response.candidates[0].reasonCodes,
+                    [
+                        "semantic_retrieval",
+                        "semantic_rerank",
+                        "graph_mutual_friend",
+                        "graph_common_group",
+                        "graph_recent_unblock",
+                    ],
+                )
+            finally:
+                repository.close()
+
 
 if __name__ == "__main__":
     unittest.main()

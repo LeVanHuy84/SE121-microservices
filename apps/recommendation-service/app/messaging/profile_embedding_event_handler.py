@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -75,8 +76,10 @@ class ProfileEmbeddingEventHandler:
                 )
                 return
 
-            embedding = []
-            embeddings = model_loader.encode_profile_texts([normalized_profile_text])
+            embeddings = await asyncio.to_thread(
+                model_loader.encode_profile_texts,
+                [normalized_profile_text],
+            )
             embedding = embeddings[0] if embeddings else []
 
             generated_at = self._now_iso()

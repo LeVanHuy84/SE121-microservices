@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
@@ -47,6 +47,17 @@ class RecommendationGraphEventHandler:
             )
             return
 
+        event_at = self._parse_occurred_at(payload.get("occurredAt"))
+        source = str(payload.get("source") or "").strip() or "unknown"
+        self.repository.record_graph_event(
+            event_type=event_type,
+            user_id=user_id,
+            target_user_id=target_user_id,
+            occurred_at=event_at,
+            source=source,
+            payload=payload,
+        )
+
         if event_type == "recommendation.graph.friend-request-sent":
             self.repository.apply_graph_friend_request_sent(user_id, target_user_id)
         elif event_type == "recommendation.graph.friend-request-canceled":
@@ -86,6 +97,13 @@ class RecommendationGraphEventHandler:
                 user_id, target_user_id, expires_at
             )
 
+        self.repository.refresh_graph_pair_features_for_event(
+            user_id=user_id,
+            target_user_id=target_user_id,
+            event_type=event_type,
+            event_at=event_at,
+        )
+
         rows_changed = self._resolve_projection_rows_changed(event_type)
         self.precompute_queue.record_projection_rows_changed(rows_changed)
         logger.info(
@@ -109,6 +127,19 @@ class RecommendationGraphEventHandler:
             return datetime.fromisoformat(normalized_value)
         except ValueError:
             return None
+
+    def _parse_occurred_at(self, occurred_at: Any) -> datetime:
+        if not isinstance(occurred_at, str) or not occurred_at.strip():
+            return datetime.now(timezone.utc)
+
+        normalized_value = occurred_at.strip().replace("Z", "+00:00")
+        try:
+            parsed_value = datetime.fromisoformat(normalized_value)
+            if parsed_value.tzinfo is None:
+                return parsed_value.replace(tzinfo=timezone.utc)
+            return parsed_value
+        except ValueError:
+            return datetime.now(timezone.utc)
 
     def _resolve_projection_rows_changed(self, event_type: str) -> int:
         if event_type in {
