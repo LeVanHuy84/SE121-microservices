@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
-from app.services.graph_state_store import RecommendationGraphStateStore
 from app.services.precompute_service import RecommendationPrecomputeService
 
 
@@ -15,12 +14,8 @@ class RecommendationPrecomputeServiceTestCase(unittest.TestCase):
             )
             try:
                 repository.create_schema()
-                local_graph_state_store = RecommendationGraphStateStore()
-                local_graph_state_store.apply_user_blocked("viewer-1", "candidate-c")
-                service = RecommendationPrecomputeService(
-                    repository,
-                    local_graph_state_store,
-                )
+                repository.apply_graph_user_blocked("viewer-1", "candidate-c")
+                service = RecommendationPrecomputeService(repository)
 
                 repository.upsert_profile_embedding(
                     "viewer-1",

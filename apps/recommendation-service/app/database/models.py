@@ -56,6 +56,77 @@ class PrecomputedSnapshotCandidate(Base):
     )
 
 
+class RecommendationFriendship(Base):
+    __tablename__ = "recommendation_friendships"
+
+    user_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    friend_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_friendships_friend_id",
+            "friend_id",
+        ),
+    )
+
+
+class RecommendationPendingRequest(Base):
+    __tablename__ = "recommendation_pending_requests"
+
+    requester_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    receiver_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_pending_requests_receiver_id",
+            "receiver_id",
+        ),
+    )
+
+
+class RecommendationBlock(Base):
+    __tablename__ = "recommendation_blocks"
+
+    blocker_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    blocked_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_blocks_blocked_id",
+            "blocked_id",
+        ),
+    )
+
+
+class RecommendationDismissal(Base):
+    __tablename__ = "recommendation_dismissals"
+
+    user_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    candidate_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_dismissals_expires_at",
+            "expires_at",
+        ),
+    )
+
+
 class OutboxEvent(Base):
     __tablename__ = "outbox_events"
 

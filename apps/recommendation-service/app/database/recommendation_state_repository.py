@@ -18,6 +18,10 @@ from app.database.models import (
     PrecomputedSnapshotCandidate,
     PrecomputedSnapshotRun,
     ProfileEmbedding,
+    RecommendationBlock,
+    RecommendationDismissal,
+    RecommendationFriendship,
+    RecommendationPendingRequest,
 )
 from app.database.session import create_engine_for_url, create_session_factory
 
@@ -41,6 +45,10 @@ class RecommendationStateRepository:
             "profile_embeddings",
             "precomputed_snapshot_runs",
             "precomputed_snapshot_candidates",
+            "recommendation_friendships",
+            "recommendation_pending_requests",
+            "recommendation_blocks",
+            "recommendation_dismissals",
             "outbox_events",
         }
         missing_tables = sorted(
@@ -112,6 +120,172 @@ class RecommendationStateRepository:
                 .order_by(ProfileEmbedding.user_id.asc())
             ).all()
             return [self._serialize_profile_embedding(row) for row in rows]
+
+    def apply_graph_friend_request_sent(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._upsert_pending_request(
+                session,
+                user_id,
+                target_user_id,
+                self._now(),
+            )
+
+    def apply_graph_friend_request_canceled(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._delete_pending_request(session, user_id, target_user_id)
+
+    def apply_graph_friend_request_accepted(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            now = self._now()
+            self._delete_pending_request(session, target_user_id, user_id)
+            self._upsert_friendship(session, user_id, target_user_id, now)
+            self._upsert_friendship(session, target_user_id, user_id, now)
+
+    def apply_graph_friend_request_declined(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._delete_pending_request(session, target_user_id, user_id)
+
+    def apply_graph_friendship_removed(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._delete_friendship(session, user_id, target_user_id)
+            self._delete_friendship(session, target_user_id, user_id)
+
+    def apply_graph_user_blocked(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._upsert_block(session, user_id, target_user_id, self._now())
+            self._delete_friendship(session, user_id, target_user_id)
+            self._delete_friendship(session, target_user_id, user_id)
+            self._delete_pending_request(session, user_id, target_user_id)
+            self._delete_pending_request(session, target_user_id, user_id)
+
+    def apply_graph_user_unblocked(self, user_id: str, target_user_id: str):
+        with self.session_scope() as session:
+            self._delete_block(session, user_id, target_user_id)
+
+    def apply_graph_recommendation_dismissed(
+        self,
+        user_id: str,
+        target_user_id: str,
+        expires_at: str | datetime,
+    ):
+        with self.session_scope() as session:
+            self._upsert_dismissal(
+                session,
+                user_id,
+                target_user_id,
+                self._parse_datetime(expires_at),
+                self._now(),
+            )
+
+    def is_candidate_excluded_by_graph_projection(
+        self,
+        viewer_id: str,
+        candidate_id: str,
+    ) -> bool:
+        if not viewer_id or not candidate_id or viewer_id == candidate_id:
+            return True
+
+        with self.session_scope() as session:
+            return (
+                self._has_friendship(session, viewer_id, candidate_id)
+                or self._has_friendship(session, candidate_id, viewer_id)
+                or self._has_pending_request(session, viewer_id, candidate_id)
+                or self._has_pending_request(session, candidate_id, viewer_id)
+                or self._has_block(session, viewer_id, candidate_id)
+                or self._has_block(session, candidate_id, viewer_id)
+                or self._has_active_dismissal(session, viewer_id, candidate_id)
+            )
+
+    def get_graph_excluded_candidate_ids(
+        self,
+        viewer_id: str,
+        candidate_ids: list[str],
+    ) -> set[str]:
+        normalized_viewer_id = str(viewer_id or "").strip()
+        normalized_candidate_ids = {
+            str(candidate_id or "").strip()
+            for candidate_id in candidate_ids
+            if str(candidate_id or "").strip()
+        }
+
+        if not normalized_viewer_id:
+            return normalized_candidate_ids
+
+        excluded_ids = set()
+        if normalized_viewer_id in normalized_candidate_ids:
+            excluded_ids.add(normalized_viewer_id)
+            normalized_candidate_ids.remove(normalized_viewer_id)
+
+        if not normalized_candidate_ids:
+            return excluded_ids
+
+        candidate_id_list = sorted(normalized_candidate_ids)
+        with self.session_scope() as session:
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationFriendship.friend_id).where(
+                        RecommendationFriendship.user_id == normalized_viewer_id,
+                        RecommendationFriendship.friend_id.in_(candidate_id_list),
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationFriendship.user_id).where(
+                        RecommendationFriendship.user_id.in_(candidate_id_list),
+                        RecommendationFriendship.friend_id == normalized_viewer_id,
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationPendingRequest.receiver_id).where(
+                        RecommendationPendingRequest.requester_id
+                        == normalized_viewer_id,
+                        RecommendationPendingRequest.receiver_id.in_(
+                            candidate_id_list
+                        ),
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationPendingRequest.requester_id).where(
+                        RecommendationPendingRequest.requester_id.in_(
+                            candidate_id_list
+                        ),
+                        RecommendationPendingRequest.receiver_id
+                        == normalized_viewer_id,
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationBlock.blocked_id).where(
+                        RecommendationBlock.blocker_id == normalized_viewer_id,
+                        RecommendationBlock.blocked_id.in_(candidate_id_list),
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationBlock.blocker_id).where(
+                        RecommendationBlock.blocker_id.in_(candidate_id_list),
+                        RecommendationBlock.blocked_id == normalized_viewer_id,
+                    )
+                ).all()
+            )
+            excluded_ids.update(
+                session.scalars(
+                    select(RecommendationDismissal.candidate_id).where(
+                        RecommendationDismissal.user_id == normalized_viewer_id,
+                        RecommendationDismissal.candidate_id.in_(candidate_id_list),
+                        RecommendationDismissal.expires_at > self._now(),
+                    )
+                ).all()
+            )
+
+        return {str(candidate_id) for candidate_id in excluded_ids}
 
     def replace_precomputed_snapshot(
         self,
@@ -358,6 +532,156 @@ class RecommendationStateRepository:
             ],
         )
         session.execute(stmt)
+
+    def _upsert_friendship(
+        self,
+        session: Session,
+        user_id: str,
+        friend_id: str,
+        updated_at: datetime,
+    ):
+        values = {
+            "user_id": user_id,
+            "friend_id": friend_id,
+            "updated_at": updated_at,
+        }
+        stmt = self._build_upsert_statement(
+            RecommendationFriendship.__table__,
+            values,
+            conflict_columns=["user_id", "friend_id"],
+            update_columns=["updated_at"],
+        )
+        session.execute(stmt)
+
+    def _delete_friendship(self, session: Session, user_id: str, friend_id: str):
+        session.execute(
+            delete(RecommendationFriendship).where(
+                RecommendationFriendship.user_id == user_id,
+                RecommendationFriendship.friend_id == friend_id,
+            )
+        )
+
+    def _upsert_pending_request(
+        self,
+        session: Session,
+        requester_id: str,
+        receiver_id: str,
+        updated_at: datetime,
+    ):
+        values = {
+            "requester_id": requester_id,
+            "receiver_id": receiver_id,
+            "updated_at": updated_at,
+        }
+        stmt = self._build_upsert_statement(
+            RecommendationPendingRequest.__table__,
+            values,
+            conflict_columns=["requester_id", "receiver_id"],
+            update_columns=["updated_at"],
+        )
+        session.execute(stmt)
+
+    def _delete_pending_request(
+        self,
+        session: Session,
+        requester_id: str,
+        receiver_id: str,
+    ):
+        session.execute(
+            delete(RecommendationPendingRequest).where(
+                RecommendationPendingRequest.requester_id == requester_id,
+                RecommendationPendingRequest.receiver_id == receiver_id,
+            )
+        )
+
+    def _upsert_block(
+        self,
+        session: Session,
+        blocker_id: str,
+        blocked_id: str,
+        updated_at: datetime,
+    ):
+        values = {
+            "blocker_id": blocker_id,
+            "blocked_id": blocked_id,
+            "updated_at": updated_at,
+        }
+        stmt = self._build_upsert_statement(
+            RecommendationBlock.__table__,
+            values,
+            conflict_columns=["blocker_id", "blocked_id"],
+            update_columns=["updated_at"],
+        )
+        session.execute(stmt)
+
+    def _delete_block(self, session: Session, blocker_id: str, blocked_id: str):
+        session.execute(
+            delete(RecommendationBlock).where(
+                RecommendationBlock.blocker_id == blocker_id,
+                RecommendationBlock.blocked_id == blocked_id,
+            )
+        )
+
+    def _upsert_dismissal(
+        self,
+        session: Session,
+        user_id: str,
+        candidate_id: str,
+        expires_at: datetime,
+        updated_at: datetime,
+    ):
+        values = {
+            "user_id": user_id,
+            "candidate_id": candidate_id,
+            "expires_at": expires_at,
+            "updated_at": updated_at,
+        }
+        stmt = self._build_upsert_statement(
+            RecommendationDismissal.__table__,
+            values,
+            conflict_columns=["user_id", "candidate_id"],
+            update_columns=["expires_at", "updated_at"],
+        )
+        session.execute(stmt)
+
+    def _has_friendship(self, session: Session, user_id: str, friend_id: str) -> bool:
+        return session.get(RecommendationFriendship, (user_id, friend_id)) is not None
+
+    def _has_pending_request(
+        self,
+        session: Session,
+        requester_id: str,
+        receiver_id: str,
+    ) -> bool:
+        return (
+            session.get(
+                RecommendationPendingRequest,
+                (requester_id, receiver_id),
+            )
+            is not None
+        )
+
+    def _has_block(self, session: Session, blocker_id: str, blocked_id: str) -> bool:
+        return session.get(RecommendationBlock, (blocker_id, blocked_id)) is not None
+
+    def _has_active_dismissal(
+        self,
+        session: Session,
+        user_id: str,
+        candidate_id: str,
+    ) -> bool:
+        return (
+            session.scalar(
+                select(RecommendationDismissal)
+                .where(
+                    RecommendationDismissal.user_id == user_id,
+                    RecommendationDismissal.candidate_id == candidate_id,
+                    RecommendationDismissal.expires_at > self._now(),
+                )
+                .limit(1)
+            )
+            is not None
+        )
 
     def _insert_outbox_event(
         self,

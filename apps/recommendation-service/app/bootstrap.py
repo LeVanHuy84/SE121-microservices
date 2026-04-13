@@ -19,7 +19,6 @@ from app.services.precompute_service import RecommendationPrecomputeService
 state_repository = RecommendationStateRepository(settings.DATABASE_URL)
 recommendation_precompute_service = RecommendationPrecomputeService(
     state_repository,
-    graph_state_store,
 )
 recommendation_state_processor = RecommendationStateProcessor(
     precompute_queue,
@@ -29,7 +28,11 @@ recommendation_state_processor = RecommendationStateProcessor(
 
 producer = KafkaProducerService(settings.KAFKA_BROKERS)
 profile_handler = ProfileEmbeddingEventHandler(state_repository, precompute_queue)
-graph_handler = RecommendationGraphEventHandler(graph_state_store, precompute_queue)
+graph_handler = RecommendationGraphEventHandler(
+    state_repository,
+    graph_state_store,
+    precompute_queue,
+)
 dispatcher = RecommendationEventDispatcher(profile_handler, graph_handler)
 profile_consumer = KafkaConsumerService(
     brokers=settings.KAFKA_BROKERS,

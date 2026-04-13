@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
@@ -86,6 +87,77 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                 self.assertEqual(
                     outbox_event["eventType"],
                     "recommendation.profile.embedding.completed",
+                )
+            finally:
+                repository.close()
+
+    def test_graph_projection_filters_relationship_state(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = RecommendationStateRepository(
+                f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
+            )
+            try:
+                repository.create_schema()
+
+                repository.apply_graph_friend_request_sent("user-a", "user-b")
+                self.assertTrue(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_friend_request_canceled("user-a", "user-b")
+                self.assertFalse(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_friend_request_sent("user-a", "user-b")
+                repository.apply_graph_friend_request_accepted("user-b", "user-a")
+                self.assertTrue(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_friendship_removed("user-a", "user-b")
+                self.assertFalse(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_user_blocked("user-a", "user-b")
+                self.assertTrue(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_user_unblocked("user-a", "user-b")
+                self.assertFalse(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
+                )
+
+                repository.apply_graph_recommendation_dismissed(
+                    "user-a",
+                    "user-b",
+                    datetime.now(timezone.utc) + timedelta(days=1),
+                )
+                self.assertTrue(
+                    repository.is_candidate_excluded_by_graph_projection(
+                        "user-a",
+                        "user-b",
+                    )
                 )
             finally:
                 repository.close()

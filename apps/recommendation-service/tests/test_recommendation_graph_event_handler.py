@@ -1,6 +1,9 @@
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.messaging.recommendation_graph_event_handler import (
     RecommendationGraphEventHandler,
 )
@@ -10,9 +13,22 @@ from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repository = RecommendationStateRepository(
+            f"sqlite+pysqlite:///{Path(self.temp_dir.name) / 'state.sqlite3'}"
+        )
+        self.repository.create_schema()
         self.store = RecommendationGraphStateStore()
         self.queue = RecommendationPrecomputeQueue()
-        self.handler = RecommendationGraphEventHandler(self.store, self.queue)
+        self.handler = RecommendationGraphEventHandler(
+            self.repository,
+            self.store,
+            self.queue,
+        )
+
+    async def asyncTearDown(self):
+        self.repository.close()
+        self.temp_dir.cleanup()
 
     async def test_handle_friend_request_and_accept_updates_bidirectional_friendship(
         self,
@@ -30,6 +46,12 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             }
         )
         self.assertTrue(self.store.has_pending_request("user-a", "user-b"))
+        self.assertTrue(
+            self.repository.is_candidate_excluded_by_graph_projection(
+                "user-a",
+                "user-b",
+            )
+        )
 
         await self.handler.handle(
             {
@@ -46,6 +68,12 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.store.has_pending_request("user-a", "user-b"))
         self.assertTrue(self.store.has_friendship("user-a", "user-b"))
         self.assertTrue(self.store.has_friendship("user-b", "user-a"))
+        self.assertTrue(
+            self.repository.is_candidate_excluded_by_graph_projection(
+                "user-a",
+                "user-b",
+            )
+        )
         self.assertEqual(self.queue.drain(10), ["user-a", "user-b"])
 
     async def test_handle_block_clears_friendship_and_pending_request(self):
@@ -76,6 +104,12 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(self.store.has_pending_request("user-a", "user-b"))
         self.assertTrue(self.store.is_blocked("user-b", "user-a"))
+        self.assertTrue(
+            self.repository.is_candidate_excluded_by_graph_projection(
+                "user-a",
+                "user-b",
+            )
+        )
         self.assertEqual(self.queue.drain(10), ["user-a", "user-b"])
 
     async def test_handle_dismissed_event_tracks_active_dismissal(self):
@@ -96,6 +130,12 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(self.store.has_active_dismissal("viewer-1", "candidate-1"))
+        self.assertTrue(
+            self.repository.is_candidate_excluded_by_graph_projection(
+                "viewer-1",
+                "candidate-1",
+            )
+        )
         self.assertEqual(self.queue.drain(10), ["candidate-1", "viewer-1"])
 
 

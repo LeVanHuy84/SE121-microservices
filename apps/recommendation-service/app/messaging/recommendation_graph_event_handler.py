@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.services.graph_state_store import RecommendationGraphStateStore
 from app.services.precompute_queue import RecommendationPrecomputeQueue
 
@@ -22,9 +23,11 @@ class RecommendationGraphEventHandler:
 
     def __init__(
         self,
+        repository: RecommendationStateRepository,
         graph_state_store: RecommendationGraphStateStore,
         precompute_queue: RecommendationPrecomputeQueue,
     ):
+        self.repository = repository
         self.graph_state_store = graph_state_store
         self.precompute_queue = precompute_queue
 
@@ -48,27 +51,43 @@ class RecommendationGraphEventHandler:
             return
 
         if event_type == "recommendation.graph.friend-request-sent":
+            self.repository.apply_graph_friend_request_sent(user_id, target_user_id)
             self.graph_state_store.apply_friend_request_sent(user_id, target_user_id)
         elif event_type == "recommendation.graph.friend-request-canceled":
+            self.repository.apply_graph_friend_request_canceled(
+                user_id,
+                target_user_id,
+            )
             self.graph_state_store.apply_friend_request_canceled(
                 user_id,
                 target_user_id,
             )
         elif event_type == "recommendation.graph.friend-request-accepted":
+            self.repository.apply_graph_friend_request_accepted(
+                user_id,
+                target_user_id,
+            )
             self.graph_state_store.apply_friend_request_accepted(
                 user_id,
                 target_user_id,
             )
         elif event_type == "recommendation.graph.friend-request-declined":
+            self.repository.apply_graph_friend_request_declined(
+                user_id,
+                target_user_id,
+            )
             self.graph_state_store.apply_friend_request_declined(
                 user_id,
                 target_user_id,
             )
         elif event_type == "recommendation.graph.friendship-removed":
+            self.repository.apply_graph_friendship_removed(user_id, target_user_id)
             self.graph_state_store.apply_friendship_removed(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-blocked":
+            self.repository.apply_graph_user_blocked(user_id, target_user_id)
             self.graph_state_store.apply_user_blocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.user-unblocked":
+            self.repository.apply_graph_user_unblocked(user_id, target_user_id)
             self.graph_state_store.apply_user_unblocked(user_id, target_user_id)
         elif event_type == "recommendation.graph.recommendation-dismissed":
             expires_at = self._parse_expires_at(payload.get("expiresAt"))
@@ -82,6 +101,9 @@ class RecommendationGraphEventHandler:
                 )
                 return
 
+            self.repository.apply_graph_recommendation_dismissed(
+                user_id, target_user_id, expires_at
+            )
             self.graph_state_store.apply_recommendation_dismissed(
                 user_id, target_user_id, expires_at
             )

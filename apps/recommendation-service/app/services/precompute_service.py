@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.database.recommendation_state_repository import (
     RecommendationStateRepository,
 )
-from app.services.graph_state_store import RecommendationGraphStateStore
 
 logger = logging.getLogger(__name__)
 PRECOMPUTE_SCORE_VERSION = "retrieval-dot-product-v1"
@@ -19,10 +18,8 @@ class RecommendationPrecomputeService:
     def __init__(
         self,
         repository: RecommendationStateRepository,
-        graph_state_store: RecommendationGraphStateStore,
     ):
         self.repository = repository
-        self.graph_state_store = graph_state_store
 
     def compute_for_viewer(
         self, viewer_id: str, generation_reason: str = "state-processor"
@@ -47,12 +44,17 @@ class RecommendationPrecomputeService:
 
         candidates: list[dict[str, Any]] = []
         viewer_embedding = [float(value) for value in viewer_row["embedding"]]
+        candidate_rows = self.repository.list_profile_embeddings()
+        graph_excluded_candidate_ids = self.repository.get_graph_excluded_candidate_ids(
+            viewer_id,
+            [str(candidate_row["userId"]) for candidate_row in candidate_rows],
+        )
 
-        for candidate_row in self.repository.list_profile_embeddings():
+        for candidate_row in candidate_rows:
             candidate_id = str(candidate_row["userId"])
             candidate_embedding = [float(value) for value in candidate_row["embedding"]]
 
-            if not self._is_candidate_eligible(viewer_id, candidate_id):
+            if candidate_id in graph_excluded_candidate_ids:
                 continue
 
             if not candidate_embedding:
@@ -108,33 +110,6 @@ class RecommendationPrecomputeService:
             "candidateCount": len(top_candidates),
             "reason": generation_reason,
         }
-
-    def _is_candidate_eligible(self, viewer_id: str, candidate_id: str) -> bool:
-        if not viewer_id or not candidate_id or viewer_id == candidate_id:
-            return False
-
-        if self.graph_state_store.has_friendship(viewer_id, candidate_id):
-            return False
-
-        if self.graph_state_store.has_friendship(candidate_id, viewer_id):
-            return False
-
-        if self.graph_state_store.has_pending_request(viewer_id, candidate_id):
-            return False
-
-        if self.graph_state_store.has_pending_request(candidate_id, viewer_id):
-            return False
-
-        if self.graph_state_store.is_blocked(viewer_id, candidate_id):
-            return False
-
-        if self.graph_state_store.is_blocked(candidate_id, viewer_id):
-            return False
-
-        if self.graph_state_store.has_active_dismissal(viewer_id, candidate_id):
-            return False
-
-        return True
 
     def _dot_product(self, left: list[float], right: list[float]) -> float:
         if len(left) == 0 or len(right) == 0 or len(left) != len(right):
