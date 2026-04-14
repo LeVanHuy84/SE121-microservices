@@ -44,15 +44,16 @@ class Settings:
         self.RAG_CHUNK_SIZE: int = int(os.getenv("RAG_CHUNK_SIZE", 900))
         self.RAG_CHUNK_OVERLAP: int = int(os.getenv("RAG_CHUNK_OVERLAP", 120))
         self.RAG_DOC_TOP_K: int = int(os.getenv("RAG_DOC_TOP_K", 5))
+        self.RAG_WARMUP_ON_STARTUP: bool = (
+            os.getenv("RAG_WARMUP_ON_STARTUP", "true").lower() == "true"
+        )
         self.ES_NODE: str = os.getenv("ES_NODE", "http://localhost:9200").strip()
 
         self.GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
         self.GROQ_MODEL: str = os.getenv(
             "GROQ_MODEL", "llama-3.3-70b-versatile"
         ).strip()
-        self.GROQ_BASE_URL: str = os.getenv(
-            "GROQ_BASE_URL", "https://api.groq.com/openai/v1"
-        ).rstrip("/")
+        os.environ.pop("GROQ_BASE_URL", None)
         self.GROQ_TIMEOUT_SECONDS: float = float(
             os.getenv("GROQ_TIMEOUT_SECONDS", 45)
         )
@@ -117,9 +118,6 @@ class Settings:
 
         if not self.GROQ_MODEL:
             raise RuntimeError("GROQ_MODEL must not be empty")
-
-        if not self.GROQ_BASE_URL:
-            raise RuntimeError("GROQ_BASE_URL must not be empty")
 
         if self.GROQ_TIMEOUT_SECONDS <= 0:
             raise RuntimeError("GROQ_TIMEOUT_SECONDS must be positive")

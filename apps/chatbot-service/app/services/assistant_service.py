@@ -16,6 +16,7 @@ from app.services.context_resolver import (
     assistant_context_resolver,
 )
 from app.services.prompt_builder import PromptBuilder
+from app.services.scope_guard import AssistantScopeGuard, assistant_scope_guard
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -26,12 +27,17 @@ class AssistantService:
         prompt_builder: PromptBuilder | None = None,
         provider: LlmProvider | None = None,
         context_resolver: AssistantContextResolver | None = None,
+        scope_guard: AssistantScopeGuard | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or self._resolve_provider()
         self.context_resolver = context_resolver or assistant_context_resolver
+        self.scope_guard = scope_guard or assistant_scope_guard
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:
+        if not self.scope_guard.is_in_scope(request):
+            return self._out_of_scope_response()
+
         history = self._resolve_history(request)
         contexts = self.context_resolver.resolve(request)
         resolved_request = request.model_copy(update={"contexts": contexts})
@@ -81,6 +87,19 @@ class AssistantService:
 
     def _resolve_provider(self) -> LlmProvider:
         return GroqProvider()
+
+    def _out_of_scope_response(self) -> AssistantRespondData:
+        return AssistantRespondData(
+            reply=(
+                "Mình chỉ hỗ trợ các câu hỏi liên quan đến hệ thống Sentimeta "
+                "như bài viết, nhóm, tìm kiếm, chat, hồ sơ, quyền riêng tư "
+                "và gợi ý bạn bè."
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="scope-guard",
+            provider="chatbot-service",
+        )
 
 
 assistant_service = AssistantService()

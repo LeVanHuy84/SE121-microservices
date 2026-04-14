@@ -12,7 +12,11 @@ from app.services.assistant_service import AssistantService
 
 
 class FakeProvider:
+    def __init__(self):
+        self.calls = 0
+
     async def generate(self, prompt: str, request: AssistantRespondRequest):
+        self.calls += 1
         return LlmGeneration(
             content=f"fake reply for: {request.message}",
             model="test-model",
@@ -44,6 +48,20 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertIn("How do I use the app?", res.reply)
         self.assertEqual(res.provider, "fake")
         self.assertEqual(len(res.sources), 1)
+
+    def test_out_of_scope_question_skips_provider(self):
+        provider = FakeProvider()
+        service = AssistantService(provider=provider)
+        req = AssistantRespondRequest(
+            userId="user-1",
+            message="Hôm nay thời tiết ở Tokyo thế nào?",
+        )
+
+        res = asyncio.run(service.respond(req))
+
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(res.model, "scope-guard")
+        self.assertIn("Sentimeta", res.reply)
 
 
 if __name__ == "__main__":

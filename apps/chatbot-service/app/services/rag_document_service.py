@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,8 @@ from elasticsearch import Elasticsearch
 from app.core.config import settings
 from app.services.embedding_service import embedding_service
 from app.schemas.assistant_schema import AssistantContextItem
+
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass(frozen=True)
@@ -125,6 +128,23 @@ class RagDocumentService:
                 )
             )
         return contexts
+
+    def warm_up(self):
+        if not settings.RAG_DOCS_ENABLED:
+            return
+
+        try:
+            if not self.es.indices.exists(index=settings.RAG_INDEX_NAME):
+                logger.info(
+                    "Assistant docs RAG warmup skipped: index %s does not exist",
+                    settings.RAG_INDEX_NAME,
+                )
+                return
+
+            embedding_service.encode_query("Sentimeta assistant")
+            logger.info("Assistant docs RAG warmup completed")
+        except Exception as exc:
+            logger.warning("Assistant docs RAG warmup skipped: %s", exc)
 
     @property
     def es(self) -> Elasticsearch:

@@ -11,6 +11,30 @@ import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 
+type RetrievalTarget = 'post' | 'group' | 'user';
+
+const POST_RETRIEVAL_KEYWORDS = [
+  'post',
+  'bai',
+  'noi dung',
+  'content',
+  'caption',
+];
+
+const GROUP_RETRIEVAL_KEYWORDS = ['group', 'nhom', 'cong dong'];
+
+const USER_RETRIEVAL_KEYWORDS = [
+  'user',
+  'nguoi',
+  'ban be',
+  'ket ban',
+  'goi y',
+  'friend',
+  'recommend',
+];
+
+const DEFAULT_RETRIEVAL_TARGETS: RetrievalTarget[] = ['post', 'group'];
+
 @Injectable()
 export class ChatbotService {
   private readonly logger = new Logger(ChatbotService.name);
@@ -43,19 +67,14 @@ export class ChatbotService {
 
     try {
       const startedAt = Date.now();
-      const contexts = dto.contexts?.length
-        ? dto.contexts
-        : await this.retrieveContexts(userId, dto);
+      const contexts = await this.retrieveContexts(userId, dto.message);
 
       const res = await axios.post<AssistantRespondResponseDto>(
         `${baseUrl}/assistant/respond`,
         {
           userId,
-          conversationId: dto.conversationId,
           message: dto.message,
-          history: dto.history ?? [],
           contexts,
-          intent: dto.intent,
         },
         {
           headers: {
@@ -80,9 +99,9 @@ export class ChatbotService {
 
   private async retrieveContexts(
     userId: string,
-    dto: AssistantMessageDto,
+    message: string,
   ): Promise<AssistantContextItemDto[]> {
-    const query = dto.message?.trim();
+    const query = message?.trim();
     if (!query) {
       return [];
     }
@@ -91,7 +110,7 @@ export class ChatbotService {
       'CHATBOT_RAG_CONTEXT_LIMIT',
       3,
     );
-    const targets = this.resolveRetrievalTargets(dto);
+    const targets = this.resolveRetrievalTargets(query);
     const contexts: AssistantContextItemDto[] = [];
 
     const tasks: Array<Promise<AssistantContextItemDto[]>> = [];
@@ -119,46 +138,50 @@ export class ChatbotService {
     return contexts.slice(0, limit * Math.max(1, targets.size));
   }
 
-  private resolveRetrievalTargets(dto: AssistantMessageDto) {
-    const value = `${dto.intent ?? ''} ${dto.message ?? ''}`.toLowerCase();
-    const targets = new Set<'post' | 'group' | 'user'>();
+  private resolveRetrievalTargets(message: string) {
+    const value = this.normalizeSearchText(message);
+    const targets = new Set<RetrievalTarget>();
 
-    if (
-      value.includes('post') ||
-      value.includes('bài') ||
-      value.includes('bai') ||
-      value.includes('nội dung') ||
-      value.includes('noi dung')
-    ) {
+    if (this.hasAnyKeyword(value, POST_RETRIEVAL_KEYWORDS)) {
       targets.add('post');
     }
 
-    if (
-      value.includes('group') ||
-      value.includes('nhóm') ||
-      value.includes('nhom')
-    ) {
+    if (this.hasAnyKeyword(value, GROUP_RETRIEVAL_KEYWORDS)) {
       targets.add('group');
     }
 
-    if (
-      value.includes('user') ||
-      value.includes('người') ||
-      value.includes('nguoi') ||
-      value.includes('bạn bè') ||
-      value.includes('ban be') ||
-      value.includes('kết bạn') ||
-      value.includes('ket ban')
-    ) {
+    if (this.hasAnyKeyword(value, USER_RETRIEVAL_KEYWORDS)) {
       targets.add('user');
     }
 
     if (!targets.size) {
-      targets.add('post');
-      targets.add('group');
+      for (const target of DEFAULT_RETRIEVAL_TARGETS) {
+        targets.add(target);
+      }
     }
 
     return targets;
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  private hasAnyKeyword(value: string, keywords: readonly string[]): boolean {
+    return keywords.some((keyword) =>
+      new RegExp(`(^|\\s)${this.escapeRegExp(keyword)}($|\\s)`).test(value),
+    );
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private async retrievePostContexts(

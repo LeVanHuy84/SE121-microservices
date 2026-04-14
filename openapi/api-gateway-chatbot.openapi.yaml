@@ -1,0 +1,199 @@
+openapi: 3.0.3
+info:
+  title: SE121 API Gateway - Chatbot
+  version: 1.0.0
+  description: Public API Gateway endpoint for the AI Assistant chatbot.
+
+servers:
+  - url: http://localhost:4000
+    description: Local API Gateway
+
+tags:
+  - name: Assistant
+    description: AI Assistant chatbot endpoints exposed by the API Gateway.
+
+paths:
+  /api/v1/assistant/messages:
+    post:
+      tags:
+        - Assistant
+      summary: Send a message to the AI Assistant
+      description: >
+        Sends a user message to the chatbot through the API Gateway. The gateway
+        resolves the authenticated user id from the Clerk bearer token, retrieves
+        any server-side context needed for RAG, and forwards the internal request
+        to chatbot-service.
+      operationId: sendAssistantMessage
+      security:
+        - clerkBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantMessageRequest"
+            examples:
+              basic:
+                summary: Basic assistant question
+                value:
+                  message: How does friend recommendation work?
+      responses:
+        "200":
+          description: Assistant response generated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantRespondResponse"
+              examples:
+                success:
+                  summary: Assistant response
+                  value:
+                    success: true
+                    data:
+                      reply: Friend recommendation suggests users that may be relevant based on allowed profile and relationship signals.
+                      sources:
+                        - type: help_doc
+                          id: feature-friend-recommendation
+                          title: Friend recommendation feature
+                          source: assistant_docs
+                          score: 0.89
+                      suggestedActions: []
+                      model: llama-3.3-70b-versatile
+                      provider: groq
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid Clerk bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Chatbot service returned an error or is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Chatbot service request timed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    clerkBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk session JWT. Use the Authorization header as `Bearer <token>`.
+
+  schemas:
+    AssistantMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          minLength: 1
+          example: How does friend recommendation work?
+
+    AssistantRespondResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/AssistantRespondData"
+
+    AssistantRespondData:
+      type: object
+      required:
+        - reply
+        - sources
+        - suggestedActions
+        - model
+        - provider
+      properties:
+        reply:
+          type: string
+          example: Friend recommendation suggests users that may be relevant based on allowed profile and relationship signals.
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssistantSource"
+        suggestedActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssistantSuggestedAction"
+        model:
+          type: string
+          example: llama-3.3-70b-versatile
+        provider:
+          type: string
+          example: groq
+
+    AssistantSource:
+      type: object
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          example: help_doc
+        id:
+          type: string
+          example: feature-friend-recommendation
+        title:
+          type: string
+          nullable: true
+          example: Friend recommendation feature
+        source:
+          type: string
+          nullable: true
+          example: assistant_docs
+        score:
+          type: number
+          format: float
+          nullable: true
+          example: 0.89
+
+    AssistantSuggestedAction:
+      type: object
+      required:
+        - type
+        - label
+        - payload
+      properties:
+        type:
+          type: string
+          example: open_search
+        label:
+          type: string
+          example: Open search
+        payload:
+          type: object
+          additionalProperties: true
+          example:
+            query: friend recommendation
+
+    ErrorResponse:
+      oneOf:
+        - type: string
+          example: Chatbot service unavailable
+        - type: object
+          additionalProperties: true
+          example:
+            message: Unauthorized
+            statusCode: 401

@@ -3,8 +3,10 @@ from fastapi import FastAPI, HTTPException
 
 from app.api.assistant_api import assistant_router
 from app.core.config import settings
+from app.core.lifespan import lifespan
 
-app = FastAPI(title="Chatbot Service")
+
+app = FastAPI(title="Chatbot Service", lifespan=lifespan)
 
 app.include_router(assistant_router)
 

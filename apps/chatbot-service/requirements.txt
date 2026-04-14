@@ -4,6 +4,7 @@ python-dotenv==1.0.1
 pydantic==2.8.2
 langchain-core>=0.3.0,<1.0.0
 langchain-groq>=0.3.0,<1.0.0
+groq>=0.37.0,<1.0.0
 transformers==4.41.2
 torch==2.2.2
 numpy<2

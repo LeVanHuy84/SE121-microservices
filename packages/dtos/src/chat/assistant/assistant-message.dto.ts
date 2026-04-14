@@ -1,21 +1,10 @@
-import { Type } from 'class-transformer';
 import {
-  IsArray,
-  IsIn,
   IsNumber,
   IsObject,
+  IsNotEmpty,
   IsOptional,
   IsString,
-  ValidateNested,
 } from 'class-validator';
-
-export class AssistantHistoryItemDto {
-  @IsIn(['system', 'user', 'assistant'])
-  role: 'system' | 'user' | 'assistant';
-
-  @IsString()
-  content: string;
-}
 
 export class AssistantContextItemDto {
   @IsString()
@@ -45,26 +34,7 @@ export class AssistantContextItemDto {
 }
 
 export class AssistantMessageDto {
-  @IsOptional()
-  @IsString()
-  conversationId?: string;
-
+  @IsNotEmpty()
   @IsString()
   message: string;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AssistantHistoryItemDto)
-  history?: AssistantHistoryItemDto[];
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AssistantContextItemDto)
-  contexts?: AssistantContextItemDto[];
-
-  @IsOptional()
-  @IsString()
-  intent?: string;
 }
