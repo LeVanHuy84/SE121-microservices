@@ -7,7 +7,7 @@ from app.database.recommendation_state_repository import RecommendationStateRepo
 
 
 class RecommendationStateRepositoryTestCase(unittest.TestCase):
-    def test_upsert_embedding_and_read_precomputed_snapshot(self):
+    def test_upsert_embedding_and_read_global_fallback_candidates(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             repository = RecommendationStateRepository(
                 f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
@@ -22,38 +22,30 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                     "demo-model",
                     "2026-04-10T00:00:00+00:00",
                 )
-                repository.replace_precomputed_snapshot(
-                    "viewer-1",
+                repository.replace_global_fallback_candidates(
                     [
                         {
                             "candidateId": "candidate-1",
-                            "semanticScore": 0.91,
+                            "fallbackScore": 0.91,
                             "rank": 1,
                         },
                         {
                             "candidateId": "candidate-2",
-                            "semanticScore": 0.82,
+                            "fallbackScore": 0.82,
                             "rank": 2,
                         },
                     ],
                     "2026-04-10T00:01:00+00:00",
-                    "unit-test",
-                    "demo-model",
-                    "retrieval-pgvector-v1",
+                    "global-fallback-v1",
                 )
 
                 embedding = repository.get_profile_embedding("viewer-1")
-                snapshot = repository.get_precomputed_snapshot("viewer-1", 10)
+                candidates = repository.list_global_fallback_candidates(0, 10)
 
                 self.assertEqual(embedding["userId"], "viewer-1")
-                self.assertEqual(snapshot["viewerId"], "viewer-1")
-                self.assertEqual(snapshot["scoreVersion"], "retrieval-pgvector-v1")
-                self.assertEqual(snapshot["candidateCount"], 2)
-                self.assertEqual(
-                    snapshot["candidates"][0]["candidateId"], "candidate-1"
-                )
-                self.assertEqual(snapshot["candidates"][0]["retrievalScore"], 0.91)
-                self.assertEqual(snapshot["candidates"][0]["precomputeScore"], 0.91)
+                self.assertEqual(len(candidates), 2)
+                self.assertEqual(candidates[0]["candidateId"], "candidate-1")
+                self.assertEqual(candidates[0]["fallbackScore"], 0.91)
             finally:
                 repository.close()
 
@@ -179,7 +171,7 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
             finally:
                 repository.close()
 
-    def test_backfill_graph_pair_features_from_projection_state(self):
+    def test_graph_pair_features_computes_mutual_friend_count(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             repository = RecommendationStateRepository(
                 f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
@@ -187,55 +179,38 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
             try:
                 repository.create_schema()
 
-                repository.record_graph_event(
-                    event_type="recommendation.graph.user-unblocked",
-                    user_id="event-user",
-                    target_user_id="event-target",
-                    occurred_at=datetime.now(timezone.utc),
-                    source="social-service",
-                    payload={
-                        "userId": "event-user",
-                        "targetUserId": "event-target",
-                        "schemaVersion": 1,
-                    },
+                repository.apply_graph_friend_request_accepted(
+                    "viewer-1",
+                    "mutual-1",
                 )
-                repository.apply_graph_friend_request_sent("pending-a", "pending-b")
-                repository.apply_graph_user_blocked("block-a", "block-b")
-                repository.apply_graph_recommendation_dismissed(
-                    "dismiss-a",
-                    "dismiss-b",
-                    datetime.now(timezone.utc) + timedelta(days=1),
+                repository.apply_graph_friend_request_accepted(
+                    "candidate-1",
+                    "mutual-1",
                 )
 
-                backfilled_count = repository.backfill_graph_pair_features()
-                self.assertEqual(backfilled_count, 6)
+                pair_features = repository.get_graph_pair_features(
+                    "viewer-1",
+                    ["candidate-1"],
+                )
 
-                event_pair = repository.get_graph_pair_features(
-                    "event-user",
-                    ["event-target"],
+                self.assertEqual(
+                    pair_features["candidate-1"]["mutualFriendCount"],
+                    1,
+                )
+                self.assertFalse(pair_features["candidate-1"]["hasFriendship"])
+
+                repository.upsert_graph_pair_feature(
+                    "viewer-1",
+                    "candidate-2",
+                    mutual_friend_count=5,
+                )
+                refreshed_pair_features = repository.get_graph_pair_features(
+                    "viewer-1",
+                    ["candidate-2"],
                 )
                 self.assertEqual(
-                    event_pair["event-target"]["lastEventType"],
-                    "recommendation.graph.user-unblocked",
+                    refreshed_pair_features["candidate-2"]["mutualFriendCount"],
+                    0,
                 )
-                self.assertFalse(event_pair["event-target"]["hasFriendship"])
-
-                pending_pair = repository.get_graph_pair_features(
-                    "pending-a",
-                    ["pending-b"],
-                )
-                self.assertTrue(pending_pair["pending-b"]["hasPendingRequest"])
-
-                blocked_pair = repository.get_graph_pair_features(
-                    "block-a",
-                    ["block-b"],
-                )
-                self.assertTrue(blocked_pair["block-b"]["isBlockedEitherWay"])
-
-                dismissed_pair = repository.get_graph_pair_features(
-                    "dismiss-a",
-                    ["dismiss-b"],
-                )
-                self.assertTrue(dismissed_pair["dismiss-b"]["hasActiveDismissal"])
             finally:
                 repository.close()

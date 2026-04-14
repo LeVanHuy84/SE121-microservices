@@ -2,14 +2,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
-from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 
 class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_handle_requested_event_persists_embedding(self):
         repository = Mock()
-        queue = RecommendationPrecomputeQueue()
-        handler = ProfileEmbeddingEventHandler(repository, queue)
+        handler = ProfileEmbeddingEventHandler(repository)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",
@@ -31,14 +29,10 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         args = repository.upsert_profile_embedding.call_args.args
         self.assertEqual(args[0], "user-1")
         self.assertEqual(args[2], [0.1, 0.2, 0.3])
-        self.assertEqual(queue.drain(10), ["user-1"])
 
     async def test_handle_requested_event_logs_failure_on_error(self):
         repository = Mock()
-        handler = ProfileEmbeddingEventHandler(
-            repository,
-            RecommendationPrecomputeQueue(),
-        )
+        handler = ProfileEmbeddingEventHandler(repository)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts",
@@ -60,8 +54,7 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_requested_event_with_null_profile_clears_embedding(self):
         repository = Mock()
-        queue = RecommendationPrecomputeQueue()
-        handler = ProfileEmbeddingEventHandler(repository, queue)
+        handler = ProfileEmbeddingEventHandler(repository)
 
         await handler.handle(
             {
@@ -77,7 +70,6 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         repository.delete_profile_embedding.assert_called_once_with("user-2")
         repository.upsert_profile_embedding.assert_not_called()
-        self.assertEqual(queue.drain(10), ["user-2"])
 
     async def test_handle_requested_event_skips_when_profile_unchanged(self):
         repository = Mock()
@@ -89,8 +81,7 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             "modelName": "demo-model",
             "updatedAt": "2026-04-13T10:00:00+00:00",
         }
-        queue = RecommendationPrecomputeQueue()
-        handler = ProfileEmbeddingEventHandler(repository, queue)
+        handler = ProfileEmbeddingEventHandler(repository)
 
         with patch(
             "app.messaging.profile_embedding_event_handler.model_loader.encode_profile_texts"
@@ -110,7 +101,6 @@ class ProfileEmbeddingEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         encode.assert_not_called()
         repository.upsert_profile_embedding.assert_not_called()
         repository.delete_profile_embedding.assert_not_called()
-        self.assertEqual(queue.drain(10), [])
 
 
 if __name__ == "__main__":

@@ -4,9 +4,9 @@ Python/FastAPI microservice that owns friend recommendation retrieval and semant
 
 Current architecture is centralized in this service:
 
-- build candidates from precomputed snapshots or online ANN retrieval (pgvector)
+- build candidates from online ANN retrieval (pgvector)
 - apply graph projection filtering (exclude self, blocked, existing friend edges)
-- rerank with semantic model scores
+- rerank with semantic model scores and graph feature boosts
 - apply global fallback when primary retrieval is empty or insufficient
 - return cursor-based paginated result
 
@@ -16,19 +16,21 @@ Current architecture is centralized in this service:
 
 1. User/social changes publish profile and graph events.
 2. `recommendation-service` consumes events and updates projection + embeddings.
-3. Processor refreshes precomputed snapshots and global fallback materialization.
-4. Query pipeline serves online recommendation requests.
+3. Processor refreshes global fallback materialization.
+4. Query pipeline serves online-first recommendation requests.
 
 ## Retrieval Strategy
 
 Primary path:
 
-- precomputed snapshot (`source=precomputed`) if fresh
-- semantic online retrieval from pgvector (`source=semantic_online`) if no fresh snapshot
+- semantic online retrieval from pgvector (`source=semantic_online`)
+- graph feature rerank from pair features such as mutual friends and common groups
+- short in-memory query cache with event-driven invalidation
 
 Fallback path:
 
-- global fallback table (`source=global_fallback`)
+- global fallback table (`recommendation_global_fallback_candidates`) for cold start
+  and degraded online retrieval (`source=global_fallback`)
 - hybrid response when semantic online provides only partial page (`source=hybrid`)
 
 ## API
@@ -99,12 +101,14 @@ Model:
 
 Pipeline:
 
-- `RECOMMENDATION_PRECOMPUTE_TOP_K`
-- `RECOMMENDATION_PRECOMPUTE_BATCH_SIZE`
-- `RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS`
 - `RECOMMENDATION_QUERY_RERANK_TOP_K`
+- `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS`
+- `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES`
 - `RECOMMENDATION_QUERY_MODEL_WEIGHT`
 - `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT`
+- `RECOMMENDATION_QUERY_GRAPH_WEIGHT`
+- `RECOMMENDATION_MUTUAL_FRIEND_CAP`
+- `RECOMMENDATION_COMMON_GROUP_CAP`
 - `RECOMMENDATION_GLOBAL_FALLBACK_TOP_K`
 - `RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS`
 
@@ -125,7 +129,6 @@ Messaging:
 - `npm run install`
 - `npm run model:warmup`
 - `npm run db:upgrade`
-- `npm run db:backfill-pair-features`
 - `npm run start:dev`
 - `npm run test`
 - `npm run lint`

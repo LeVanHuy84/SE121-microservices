@@ -45,15 +45,6 @@ class Settings:
         self.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS: int = int(
             os.getenv("RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS", 30)
         )
-        self.RECOMMENDATION_PRECOMPUTE_TOP_K: int = int(
-            os.getenv("RECOMMENDATION_PRECOMPUTE_TOP_K", 50)
-        )
-        self.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE: int = int(
-            os.getenv("RECOMMENDATION_PRECOMPUTE_BATCH_SIZE", 20)
-        )
-        self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS: int = int(
-            os.getenv("RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS", 300)
-        )
         self.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K: int = int(
             os.getenv("RECOMMENDATION_GLOBAL_FALLBACK_TOP_K", 500)
         )
@@ -63,11 +54,26 @@ class Settings:
         self.RECOMMENDATION_QUERY_RERANK_TOP_K: int = int(
             os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
         )
+        self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS: float = float(
+            os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 30)
+        )
+        self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES: int = int(
+            os.getenv("RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES", 1000)
+        )
         self.RECOMMENDATION_QUERY_MODEL_WEIGHT: float = float(
             os.getenv("RECOMMENDATION_QUERY_MODEL_WEIGHT", 0.7)
         )
         self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT: float = float(
             os.getenv("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT", 0.3)
+        )
+        self.RECOMMENDATION_QUERY_GRAPH_WEIGHT: float = float(
+            os.getenv("RECOMMENDATION_QUERY_GRAPH_WEIGHT", 0.15)
+        )
+        self.RECOMMENDATION_MUTUAL_FRIEND_CAP: int = int(
+            os.getenv("RECOMMENDATION_MUTUAL_FRIEND_CAP", 10)
+        )
+        self.RECOMMENDATION_COMMON_GROUP_CAP: int = int(
+            os.getenv("RECOMMENDATION_COMMON_GROUP_CAP", 5)
         )
         self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
         self.KAFKA_CLIENT_ID: str = os.getenv(
@@ -118,27 +124,27 @@ class Settings:
                 "RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS must be positive"
             )
 
-        if self.RECOMMENDATION_PRECOMPUTE_TOP_K <= 0:
-            raise RuntimeError("RECOMMENDATION_PRECOMPUTE_TOP_K must be positive")
-
-        if self.RECOMMENDATION_PRECOMPUTE_BATCH_SIZE <= 0:
-            raise RuntimeError("RECOMMENDATION_PRECOMPUTE_BATCH_SIZE must be positive")
-
-        if self.RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS <= 0:
-            raise RuntimeError(
-                "RECOMMENDATION_PRECOMPUTED_MAX_AGE_SECONDS must be positive"
-            )
-
         if self.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K <= 0:
             raise RuntimeError("RECOMMENDATION_GLOBAL_FALLBACK_TOP_K must be positive")
 
         if self.RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS <= 0:
             raise RuntimeError(
-                "RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS must be positive"
+                "RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS "
+                "must be positive"
             )
 
         if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:
             raise RuntimeError("RECOMMENDATION_QUERY_RERANK_TOP_K must be positive")
+
+        if self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS < 0:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_CACHE_TTL_SECONDS must be >= 0"
+            )
+
+        if self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES must be positive"
+            )
 
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:
             raise RuntimeError("RECOMMENDATION_QUERY_INSTRUCTION must not be empty")
@@ -186,14 +192,25 @@ class Settings:
         if self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT < 0:
             raise RuntimeError("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT must be >= 0")
 
+        if self.RECOMMENDATION_QUERY_GRAPH_WEIGHT < 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_GRAPH_WEIGHT must be >= 0")
+
+        if self.RECOMMENDATION_MUTUAL_FRIEND_CAP <= 0:
+            raise RuntimeError("RECOMMENDATION_MUTUAL_FRIEND_CAP must be positive")
+
+        if self.RECOMMENDATION_COMMON_GROUP_CAP <= 0:
+            raise RuntimeError("RECOMMENDATION_COMMON_GROUP_CAP must be positive")
+
         if (
             self.RECOMMENDATION_QUERY_MODEL_WEIGHT
             + self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
+            + self.RECOMMENDATION_QUERY_GRAPH_WEIGHT
             <= 0
         ):
             raise RuntimeError(
                 "RECOMMENDATION_QUERY_MODEL_WEIGHT + "
-                "RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT must be > 0"
+                "RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT + "
+                "RECOMMENDATION_QUERY_GRAPH_WEIGHT must be > 0"
             )
 
 

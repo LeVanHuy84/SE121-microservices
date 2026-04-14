@@ -38,6 +38,8 @@ class RecommendationQueryCandidateOutput(BaseModel):
     retrievalScore: float
     modelScore: float
     finalScore: float
+    mutualFriendCount: int = 0
+    commonGroupCount: int = 0
     scoreVersion: str
     reasonCodes: List[str] = Field(default_factory=list)
     rank: int

@@ -49,7 +49,9 @@ class KafkaTopicsTestCase(unittest.IsolatedAsyncioTestCase):
         admin_client.create_topics.assert_not_called()
         admin_client.close.assert_awaited_once()
 
-    async def test_ensure_kafka_topics_raises_when_topics_not_available_after_wait(self):
+    async def test_ensure_kafka_topics_raises_when_topics_unavailable_after_wait(
+        self,
+    ):
         admin_client = Mock()
         admin_client.start = AsyncMock()
         admin_client.close = AsyncMock()

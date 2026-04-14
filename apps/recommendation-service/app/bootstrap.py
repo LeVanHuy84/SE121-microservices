@@ -9,30 +9,22 @@ from app.messaging.recommendation_graph_event_handler import (
 from app.messaging.runtime import RecommendationMessagingRuntime
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
 from app.services.global_fallback_batch_service import GlobalFallbackBatchService
-from app.services.precompute_queue import precompute_queue
-from app.services.precompute_service import RecommendationPrecomputeService
 from app.services.query_service import QueryService
 from app.services.rerank_service import rerank_service
 
 state_repository = RecommendationStateRepository(settings.DATABASE_URL)
-recommendation_precompute_service = RecommendationPrecomputeService(
-    state_repository,
-)
 global_fallback_batch_service = GlobalFallbackBatchService(state_repository)
 recommendation_query_service = QueryService(
     state_repository,
     rerank_service,
 )
 recommendation_state_processor = RecommendationStateProcessor(
-    precompute_queue,
-    recommendation_precompute_service,
     global_fallback_batch_service,
 )
 
-profile_handler = ProfileEmbeddingEventHandler(state_repository, precompute_queue)
+profile_handler = ProfileEmbeddingEventHandler(state_repository)
 graph_handler = RecommendationGraphEventHandler(
     state_repository,
-    precompute_queue,
 )
 dispatcher = RecommendationEventDispatcher(profile_handler, graph_handler)
 profile_consumer = KafkaConsumerService(

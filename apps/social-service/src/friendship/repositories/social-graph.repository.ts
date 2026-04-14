@@ -15,19 +15,12 @@ export interface FriendRecommendation {
   id: string;
   mutualFriends: number;
   mutualFriendIds: string[];
-  profileMatchScore?: number;
-  profileMatchedSignals?: string[];
-  sharedInterestsCount?: number;
-  semanticMatchScore?: number;
   retrievalScore?: number;
-  precomputeScore?: number;
   retrievalScoreVersion?: string | null;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;
   commonGroupIds?: string[];
-  baseScore?: number;
-  rerankScore?: number;
   modelScore?: number;
   score?: number;
   reasons?: string[];
@@ -62,21 +55,15 @@ export interface AcceptedFriendRequestAttribution {
 }
 
 export type FriendRecommendationAnalyticsSource =
-  | 'mutual_only'
-  | 'group_only'
-  | 'profile_only'
-  | 'semantic_only'
-  | 'mixed'
-  | 'fallback';
+  FriendRecommendationCandidateSourceMode;
 
 export type FriendRecommendationCandidateSourceMode =
-  | 'precomputed'
   | 'online'
-  | 'graph_continuation';
+  | 'hybrid'
+  | 'fallback';
 
 export type FriendRecommendationAnalyticsCandidateSourceMode =
-  | FriendRecommendationCandidateSourceMode
-  | 'unknown';
+  FriendRecommendationCandidateSourceMode;
 
 export interface FriendRecommendationAnalyticsTotals {
   served: number;
@@ -142,10 +129,6 @@ export interface SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>>;
-  recommendFriends(
-    userId: string,
-    query: CursorPaginationDTO,
-  ): Promise<CursorPageResponse<FriendRecommendation>>;
   summarizeCandidates(
     userId: string,
     candidateIds: string[],

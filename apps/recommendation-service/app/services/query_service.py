@@ -15,7 +15,7 @@ from app.models.rerank_request import (
 )
 from app.services.candidate_retrieval_service import CandidateRetrievalService
 from app.services.global_fallback_service import GlobalFallbackService
-from app.services.precompute_service import PRECOMPUTE_SCORE_VERSION
+from app.services.query_cache import RecommendationQueryCache, query_cache
 from app.services.rerank_service import RerankService
 
 QUERY_SCORE_VERSION = "recommendation-query-pipeline-v1"
@@ -28,9 +28,11 @@ class QueryService:
         rerank_service: RerankService,
         candidate_retrieval_service: CandidateRetrievalService | None = None,
         global_fallback_service: GlobalFallbackService | None = None,
+        cache: RecommendationQueryCache | None = query_cache,
     ):
         self.repository = repository
         self.rerank_service = rerank_service
+        self.cache = cache
         self.candidate_retrieval_service = (
             candidate_retrieval_service or CandidateRetrievalService(repository)
         )
@@ -54,6 +56,11 @@ class QueryService:
                 hasNextPage=False,
             )
 
+        if self.cache is not None:
+            cached_response = self.cache.get(request)
+            if cached_response is not None:
+                return cached_response
+
         viewer_row = self.repository.get_profile_embedding(viewer_id)
         viewer_profile_text = (
             request.viewerProfileText
@@ -68,25 +75,22 @@ class QueryService:
         cursor_offset = max(0, int(cursor.get("offset") or 0))
         page_span = max(limit * 3, settings.RECOMMENDATION_QUERY_RERANK_TOP_K)
 
-        primary_batch = None
-        if cursor_source in ("", "precomputed"):
-            precomputed_batch = self.candidate_retrieval_service.get_precomputed_batch(
-                viewer_id,
-                cursor_offset,
-                page_span,
-            )
-            if precomputed_batch.candidates:
-                primary_batch = precomputed_batch
-
-        if primary_batch is None and cursor_source in ("", "semantic_online"):
+        if cursor_source in ("", "semantic_online"):
             primary_batch = self.candidate_retrieval_service.get_semantic_online_batch(
                 viewer_id,
                 cursor_offset,
                 page_span,
             )
+            if not primary_batch.candidates:
+                primary_batch = None
+        else:
+            primary_batch = None
 
         if primary_batch is None:
-            fallback_candidates, fallback_has_next = self.global_fallback_service.get_batch(
+            (
+                fallback_candidates,
+                fallback_has_next,
+            ) = self.global_fallback_service.get_batch(
                 viewer_id=viewer_id,
                 offset=cursor_offset,
                 size=limit,
@@ -103,6 +107,7 @@ class QueryService:
                 next_source="global_fallback",
                 next_offset=cursor_offset + len(fallback_candidates),
                 viewer_profile_text=viewer_profile_text,
+                cache_request=request,
             )
 
         filtered_primary = self.candidate_retrieval_service.filter_graph_projection(
@@ -122,9 +127,17 @@ class QueryService:
         next_source = primary_batch.source
         next_offset = cursor_offset + len(response_candidates)
 
-        if len(response_candidates) < limit and primary_batch.source == "semantic_online":
-            excluded_ids = {str(candidate["candidateId"]) for candidate in filtered_primary}
-            fallback_candidates, fallback_has_next = self.global_fallback_service.get_batch(
+        if (
+            len(response_candidates) < limit
+            and primary_batch.source == "semantic_online"
+        ):
+            excluded_ids = {
+                str(candidate["candidateId"]) for candidate in filtered_primary
+            }
+            (
+                fallback_candidates,
+                fallback_has_next,
+            ) = self.global_fallback_service.get_batch(
                 viewer_id=viewer_id,
                 offset=0,
                 size=limit - len(response_candidates),
@@ -142,22 +155,20 @@ class QueryService:
                 next_offset = len(fallback_candidates)
                 has_next = has_next or fallback_has_next
 
-        response_score_version = (
-            primary_batch.score_version
-            if primary_batch.source == "precomputed"
-            else QUERY_SCORE_VERSION
-        )
-        return self._build_output(
+        response = self._build_output(
             viewer_id=viewer_id,
             generated_at=generated_at,
             source=response_source,
-            score_version=response_score_version,
+            score_version=QUERY_SCORE_VERSION,
             candidates=response_candidates,
             has_next=has_next,
             next_cursor=self._encode_cursor(next_source, next_offset)
             if has_next
             else None,
         )
+        if self.cache is not None:
+            return self.cache.set(request, response)
+        return response
 
     def _build_response(
         self,
@@ -171,10 +182,11 @@ class QueryService:
         next_source: str,
         next_offset: int,
         viewer_profile_text: str | None,
+        cache_request: RecommendationQueryRequest | None = None,
     ) -> RecommendationQueryOutput:
         scored = self._rerank_and_rank(viewer_id, viewer_profile_text, candidates)
         selected = scored[:limit]
-        return self._build_output(
+        response = self._build_output(
             viewer_id=viewer_id,
             generated_at=generated_at,
             source=source,
@@ -185,6 +197,9 @@ class QueryService:
             if (has_next or len(scored) > limit)
             else None,
         )
+        if self.cache is not None and cache_request is not None:
+            return self.cache.set(cache_request, response)
+        return response
 
     def _build_output(
         self,
@@ -211,6 +226,10 @@ class QueryService:
                     "retrievalScore": float(candidate.get("retrievalScore", 0.0)),
                     "modelScore": float(candidate.get("modelScore", 0.0)),
                     "finalScore": float(candidate.get("finalScore", 0.0)),
+                    "mutualFriendCount": int(
+                        candidate.get("mutualFriendCount", 0)
+                    ),
+                    "commonGroupCount": int(candidate.get("commonGroupCount", 0)),
                     "scoreVersion": score_version,
                     "reasonCodes": list(candidate.get("reasonCodes", [])),
                     "rank": int(candidate.get("rank", index + 1)),
@@ -228,24 +247,38 @@ class QueryService:
         if not candidates:
             return []
 
+        pair_features = self.repository.get_graph_pair_features(
+            viewer_id,
+            [str(candidate["candidateId"]) for candidate in candidates],
+        )
         rerank_input = candidates[: settings.RECOMMENDATION_QUERY_RERANK_TOP_K]
         model_scores = self._resolve_model_scores(
             viewer_id,
             viewer_profile_text,
             rerank_input,
-        )
-        pair_features = self.repository.get_graph_pair_features(
-            viewer_id,
-            [str(candidate["candidateId"]) for candidate in candidates],
+            pair_features,
         )
 
         scored = [
             {
                 **candidate,
                 "modelScore": model_scores.get(str(candidate["candidateId"]), 0.0),
+                "mutualFriendCount": int(
+                    pair_features.get(str(candidate["candidateId"]), {}).get(
+                        "mutualFriendCount", 0
+                    )
+                ),
+                "commonGroupCount": int(
+                    pair_features.get(str(candidate["candidateId"]), {}).get(
+                        "commonGroupCount", 0
+                    )
+                ),
                 "finalScore": self._resolve_final_score(
                     float(candidate.get("retrievalScore", 0.0)),
                     model_scores.get(str(candidate["candidateId"]), 0.0),
+                    self._resolve_graph_score(
+                        pair_features.get(str(candidate["candidateId"]))
+                    ),
                 ),
                 "reasonCodes": self._build_reason_codes(
                     model_scores.get(str(candidate["candidateId"]), 0.0),
@@ -291,10 +324,12 @@ class QueryService:
         viewer_id: str,
         viewer_profile_text: str | None,
         candidates: list[dict[str, Any]],
+        pair_features: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, float]:
         if not candidates:
             return {}
 
+        resolved_pair_features = pair_features or {}
         scores = self.rerank_service.rerank(
             RecommendationRerankRequest(
                 viewerId=viewer_id,
@@ -303,6 +338,16 @@ class QueryService:
                     RecommendationCandidateInput(
                         candidateId=str(candidate["candidateId"]),
                         candidateProfileText=candidate.get("candidateProfileText"),
+                        mutualFriends=int(
+                            resolved_pair_features.get(
+                                str(candidate["candidateId"]), {}
+                            ).get("mutualFriendCount", 0)
+                        ),
+                        commonGroups=int(
+                            resolved_pair_features.get(
+                                str(candidate["candidateId"]), {}
+                            ).get("commonGroupCount", 0)
+                        ),
                     )
                     for candidate in candidates
                 ],
@@ -310,10 +355,16 @@ class QueryService:
         )
         return {score.candidateId: float(score.modelScore) for score in scores}
 
-    def _resolve_final_score(self, retrieval_score: float, model_score: float) -> float:
+    def _resolve_final_score(
+        self,
+        retrieval_score: float,
+        model_score: float,
+        graph_score: float = 0.0,
+    ) -> float:
         total_weight = (
             settings.RECOMMENDATION_QUERY_MODEL_WEIGHT
             + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
+            + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
         )
         return round(
             (
@@ -321,9 +372,38 @@ class QueryService:
                 * self._clamp_score(model_score)
                 + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
                 * self._clamp_score(retrieval_score)
+                + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
+                * self._clamp_score(graph_score)
             )
             / total_weight,
             6,
+        )
+
+    def _resolve_graph_score(self, pair_feature: dict[str, Any] | None) -> float:
+        if not pair_feature:
+            return 0.0
+
+        mutual_friend_score = min(
+            int(pair_feature.get("mutualFriendCount", 0)),
+            settings.RECOMMENDATION_MUTUAL_FRIEND_CAP,
+        ) / settings.RECOMMENDATION_MUTUAL_FRIEND_CAP
+        common_group_score = min(
+            int(pair_feature.get("commonGroupCount", 0)),
+            settings.RECOMMENDATION_COMMON_GROUP_CAP,
+        ) / settings.RECOMMENDATION_COMMON_GROUP_CAP
+
+        recent_event_score = 0.0
+        last_event_type = str(pair_feature.get("lastEventType") or "").strip()
+        if last_event_type in {
+            "recommendation.graph.user-unblocked",
+            "recommendation.graph.friend-request-canceled",
+        }:
+            recent_event_score = 0.1
+
+        return self._clamp_score(
+            0.7 * mutual_friend_score
+            + 0.2 * common_group_score
+            + recent_event_score
         )
 
     def _build_reason_codes(
@@ -340,6 +420,8 @@ class QueryService:
                 reasons.append("graph_mutual_friend")
             if int(pair_feature.get("commonGroupCount", 0)) > 0:
                 reasons.append("graph_common_group")
+            if self._resolve_graph_score(pair_feature) > 0:
+                reasons.append("graph_rerank")
 
             last_event_type = str(pair_feature.get("lastEventType") or "").strip()
             if last_event_type == "recommendation.graph.user-unblocked":

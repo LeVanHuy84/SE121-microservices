@@ -33,7 +33,9 @@ class GlobalFallbackBatchService:
             return 0
 
         candidate_ids = [str(row["userId"]) for row in rows]
-        signal_counts = self.repository.get_candidate_negative_signal_counts(candidate_ids)
+        signal_counts = self.repository.get_candidate_negative_signal_counts(
+            candidate_ids
+        )
         now = datetime.now(timezone.utc)
 
         scored_candidates: list[dict[str, float | int | str | None]] = []
@@ -43,7 +45,10 @@ class GlobalFallbackBatchService:
             if completeness_score < 0.25:
                 continue
 
-            activity_score = self._resolve_activity_score(str(row.get("updatedAt") or ""), now)
+            activity_score = self._resolve_activity_score(
+                str(row.get("updatedAt") or ""),
+                now,
+            )
             candidate_signals = signal_counts.get(candidate_id, {})
             block_count = int(candidate_signals.get("blockCount", 0))
             dismissal_count = int(candidate_signals.get("dismissalCount", 0))

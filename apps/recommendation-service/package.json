@@ -15,7 +15,6 @@
     "format": "python -m ruff format app tests",
     "db:upgrade": "python -m alembic upgrade head",
     "db:revision": "python -m alembic revision --autogenerate -m",
-    "db:backfill-pair-features": "python -m app.tools.backfill_graph_pair_features",
     "test": "python -m unittest discover -s tests -p \"test_*.py\""
   }
 }

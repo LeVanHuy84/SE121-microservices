@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
-from app.services.precompute_queue import RecommendationPrecomputeQueue
+from app.services.query_cache import query_cache
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,8 @@ class RecommendationGraphEventHandler:
     def __init__(
         self,
         repository: RecommendationStateRepository,
-        precompute_queue: RecommendationPrecomputeQueue,
     ):
         self.repository = repository
-        self.precompute_queue = precompute_queue
 
     async def handle(self, message: dict[str, Any]):
         event_type = str(message.get("type") or "").strip()
@@ -105,7 +103,6 @@ class RecommendationGraphEventHandler:
         )
 
         rows_changed = self._resolve_projection_rows_changed(event_type)
-        self.precompute_queue.record_projection_rows_changed(rows_changed)
         logger.info(
             (
                 "Applied recommendation graph event type=%s userId=%s "
@@ -116,7 +113,7 @@ class RecommendationGraphEventHandler:
             target_user_id,
             rows_changed,
         )
-        self.precompute_queue.mark_many([user_id, target_user_id])
+        query_cache.invalidate_many([user_id, target_user_id])
 
     def _parse_expires_at(self, expires_at: Any) -> datetime | None:
         if not isinstance(expires_at, str) or not expires_at.strip():

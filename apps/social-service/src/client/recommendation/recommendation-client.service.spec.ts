@@ -122,6 +122,8 @@ describe('RecommendationClientService', () => {
           retrievalScore: 0.81,
           modelScore: 0.62,
           finalScore: 0.7,
+          mutualFriendCount: 0,
+          commonGroupCount: 0,
           scoreVersion: 'recommendation-query-pipeline-v1',
           reasonCodes: ['semantic_retrieval'],
           rank: 1,

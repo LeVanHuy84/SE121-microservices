@@ -231,21 +231,22 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     expiresAt: Date,
   ) {
     await this.dataSource.transaction(async (manager) => {
-      await manager
-        .getRepository(FriendRecommendationDismissalEntity)
-        .upsert(
-          {
-            userId,
-            candidateId,
-            expiresAt,
-          },
-          ['userId', 'candidateId'],
-        );
+      await manager.getRepository(FriendRecommendationDismissalEntity).upsert(
+        {
+          userId,
+          candidateId,
+          expiresAt,
+        },
+        ['userId', 'candidateId'],
+      );
 
-      await this.outboxService.createRecommendationGraphDismissedEvent(manager, {
-        ...this.buildGraphEventPayload(userId, candidateId),
-        expiresAt: expiresAt.toISOString(),
-      });
+      await this.outboxService.createRecommendationGraphDismissedEvent(
+        manager,
+        {
+          ...this.buildGraphEventPayload(userId, candidateId),
+          expiresAt: expiresAt.toISOString(),
+        },
+      );
     });
   }
 
@@ -291,89 +292,6 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       rows.map((row) => row.requesterId),
       query.limit,
     );
-  }
-
-  async recommendFriends(
-    userId: string,
-    query: CursorPaginationDTO,
-  ): Promise<CursorPageResponse<FriendRecommendation>> {
-    const cursorClause = query.cursor ? 'AND candidate_id > $2' : '';
-    const limitParamIndex = query.cursor ? 3 : 2;
-    const params = query.cursor
-      ? [userId, query.cursor, query.limit + 1]
-      : [userId, query.limit + 1];
-
-    const rows = await this.dataSource.query(
-      `
-      WITH candidate_mutuals AS (
-        SELECT
-          f2.user_id AS candidate_id,
-          COUNT(DISTINCT f1.friend_id)::int AS mutual_friends,
-          ARRAY_AGG(DISTINCT f1.friend_id ORDER BY f1.friend_id) AS mutual_friend_ids
-        FROM friendships f1
-        INNER JOIN friendships f2
-          ON f1.friend_id = f2.friend_id
-        WHERE f1.user_id = $1
-          AND f2.user_id <> $1
-        GROUP BY f2.user_id
-      )
-      SELECT
-        candidate_id AS id,
-        mutual_friends AS "mutualFriends",
-        mutual_friend_ids AS "mutualFriendIds"
-      FROM candidate_mutuals cm
-      WHERE NOT EXISTS (
-          SELECT 1 FROM friendships direct_friend
-          WHERE direct_friend.user_id = $1
-            AND direct_friend.friend_id = cm.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_requests outgoing_req
-          WHERE outgoing_req.requester_id = $1
-            AND outgoing_req.receiver_id = cm.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_requests incoming_req
-          WHERE incoming_req.requester_id = cm.candidate_id
-            AND incoming_req.receiver_id = $1
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM user_blocks block_out
-          WHERE block_out.blocker_id = $1
-            AND block_out.blocked_id = cm.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM user_blocks block_in
-          WHERE block_in.blocker_id = cm.candidate_id
-            AND block_in.blocked_id = $1
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_recommendation_dismissals dismissal
-          WHERE dismissal.user_id = $1
-            AND dismissal.candidate_id = cm.candidate_id
-            AND dismissal.expires_at > NOW()
-      )
-        ${cursorClause}
-      ORDER BY "mutualFriends" DESC, id ASC
-      LIMIT $${limitParamIndex}
-      `,
-      params,
-    );
-
-    const hasNextPage = rows.length > query.limit;
-    const data = hasNextPage ? rows.slice(0, query.limit) : rows;
-
-    return {
-      data: data.map((row) => ({
-        id: String(row.id),
-        mutualFriends: Number(row.mutualFriends),
-        mutualFriendIds: (row.mutualFriendIds ?? []).map((value: unknown) =>
-          String(value),
-        ),
-      })),
-      nextCursor: hasNextPage ? String(data[data.length - 1].id) : null,
-      hasNextPage,
-    };
   }
 
   async summarizeCandidates(
@@ -493,14 +411,14 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     }
 
     const insertValues = events.map((event) => ({
-        userId: event.userId,
-        candidateId: event.candidateId,
-        eventType: event.eventType,
-        recommendationId: event.recommendationId ?? null,
-        recommendationRequestId: event.recommendationRequestId ?? null,
-        metadata:
-          (event.metadata ?? null) as FriendRecommendationEventEntity['metadata'],
-      }));
+      userId: event.userId,
+      candidateId: event.candidateId,
+      eventType: event.eventType,
+      recommendationId: event.recommendationId ?? null,
+      recommendationRequestId: event.recommendationRequestId ?? null,
+      metadata: (event.metadata ??
+        null) as FriendRecommendationEventEntity['metadata'],
+    }));
 
     await this.recommendationEventRepo.insert(
       insertValues as Parameters<typeof this.recommendationEventRepo.insert>[0],
@@ -537,11 +455,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       WITH served AS (
         SELECT
           recommendation_id,
-          COALESCE((metadata->>'mutualFriends')::int, 0) AS mutual_friends,
-          COALESCE((metadata->>'commonGroups')::int, 0) AS common_groups,
-          COALESCE((metadata->>'profileAffinityScore')::float, 0) AS profile_affinity_score,
-          COALESCE((metadata->>'semanticAffinityScore')::float, 0) AS semantic_affinity_score,
-          metadata->>'source' AS recorded_source
+          COALESCE(metadata->>'source', metadata->>'candidateSourceMode') AS recorded_source
         FROM friend_recommendation_events
         WHERE ($1::varchar IS NULL OR user_id = $1)
           AND event_type = 'served'
@@ -577,18 +491,10 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           recommendation_id,
           CASE
             WHEN recorded_source IN (
-              'mutual_only',
-              'group_only',
-              'profile_only',
-              'semantic_only',
-              'mixed',
+              'online',
+              'hybrid',
               'fallback'
             ) THEN recorded_source
-            WHEN mutual_friends > 0 AND common_groups > 0 THEN 'mixed'
-            WHEN mutual_friends > 0 THEN 'mutual_only'
-            WHEN common_groups > 0 THEN 'group_only'
-            WHEN semantic_affinity_score > 0 THEN 'semantic_only'
-            WHEN profile_affinity_score > 0 THEN 'profile_only'
             ELSE 'fallback'
           END AS source
         FROM served
@@ -619,11 +525,11 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           recommendation_id,
           CASE
             WHEN metadata->>'candidateSourceMode' IN (
-              'precomputed',
               'online',
-              'graph_continuation'
+              'hybrid',
+              'fallback'
             ) THEN metadata->>'candidateSourceMode'
-            ELSE 'unknown'
+            ELSE 'fallback'
           END AS candidate_source_mode
         FROM friend_recommendation_events
         WHERE ($1::varchar IS NULL OR user_id = $1)
@@ -712,9 +618,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         acceptFromRequests: totals.accepted / denominatorFromRequests,
       },
       sources: sourceRows.map((row: Record<string, unknown>) => ({
-        source: String(
-          row.source,
-        ) as FriendRecommendationAnalyticsSource,
+        source: String(row.source) as FriendRecommendationAnalyticsSource,
         served: Number(row.served),
         dismissed: Number(row.dismissed),
         requestSent: Number(row.requestSent),

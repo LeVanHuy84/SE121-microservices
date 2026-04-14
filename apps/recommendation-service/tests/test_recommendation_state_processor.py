@@ -2,12 +2,11 @@ import unittest
 
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.processors.recommendation_state_processor import RecommendationStateProcessor
-from app.services.precompute_queue import RecommendationPrecomputeQueue
-from app.services.precompute_service import RecommendationPrecomputeService
+from app.services.global_fallback_batch_service import GlobalFallbackBatchService
 
 
 class RecommendationStateProcessorTestCase(unittest.IsolatedAsyncioTestCase):
-    async def test_run_once_updates_last_summary(self):
+    async def test_run_once_refreshes_global_fallback_summary(self):
         import tempfile
         from pathlib import Path
 
@@ -31,21 +30,20 @@ class RecommendationStateProcessorTestCase(unittest.IsolatedAsyncioTestCase):
                     "demo-model",
                     "2026-04-10T00:00:00+00:00",
                 )
-                queue = RecommendationPrecomputeQueue()
-                queue.mark_stale("user-1")
                 processor = RecommendationStateProcessor(
-                    queue,
-                    RecommendationPrecomputeService(repository),
+                    GlobalFallbackBatchService(repository),
                 )
                 await processor.run_once()
 
                 summary = processor.get_last_summary()
-                snapshot = repository.get_precomputed_snapshot("user-1", 10)
+                fallback_candidates = repository.list_global_fallback_candidates(
+                    offset=0,
+                    limit=10,
+                )
                 self.assertIsNotNone(summary)
-                self.assertEqual(summary["processedViewers"], 1)
-                self.assertEqual(summary["snapshotRefreshCount"], 1)
-                self.assertEqual(summary["projectionRowsChanged"], 0)
-                self.assertEqual(snapshot["candidateCount"], 1)
+                self.assertTrue(summary["globalFallbackRefreshed"])
+                self.assertEqual(summary["globalFallbackRefreshCount"], 2)
+                self.assertEqual(len(fallback_candidates), 2)
             finally:
                 repository.close()
 

@@ -8,6 +8,8 @@ export interface RecommendationQueryCandidate {
   retrievalScore: number;
   modelScore: number;
   finalScore: number;
+  mutualFriendCount: number;
+  commonGroupCount: number;
   scoreVersion: string;
   reasonCodes: string[];
   rank: number;
@@ -40,6 +42,8 @@ interface RecommendationQueryResponse {
       retrievalScore?: unknown;
       modelScore?: unknown;
       finalScore?: unknown;
+      mutualFriendCount?: unknown;
+      commonGroupCount?: unknown;
       scoreVersion?: unknown;
       reasonCodes?: unknown;
       rank?: unknown;
@@ -110,6 +114,8 @@ export class RecommendationClientService {
                 const retrievalScore = Number(item?.retrievalScore);
                 const modelScore = Number(item?.modelScore);
                 const finalScore = Number(item?.finalScore);
+                const mutualFriendCount = Number(item?.mutualFriendCount);
+                const commonGroupCount = Number(item?.commonGroupCount);
                 const rank = Number(item?.rank);
 
                 if (
@@ -126,6 +132,12 @@ export class RecommendationClientService {
                     retrievalScore,
                     modelScore,
                     finalScore,
+                    mutualFriendCount: Number.isFinite(mutualFriendCount)
+                      ? Math.max(0, Math.floor(mutualFriendCount))
+                      : 0,
+                    commonGroupCount: Number.isFinite(commonGroupCount)
+                      ? Math.max(0, Math.floor(commonGroupCount))
+                      : 0,
                     scoreVersion:
                       typeof item?.scoreVersion === 'string'
                         ? item.scoreVersion

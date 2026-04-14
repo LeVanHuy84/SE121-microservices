@@ -2,6 +2,7 @@ import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FriendshipController } from '../src/friendship/friendship.controller';
 import { FriendshipService } from '../src/friendship/friendship.service';
+import { GroupClientService } from '../src/client/group/group-client.service';
 import { RecommendationClientService } from '../src/client/recommendation/recommendation-client.service';
 import { UserClientService } from '../src/client/user/user-client.service';
 import { RecentActivityBufferService } from '../src/event/recent-activity.buffer.service';
@@ -17,9 +18,13 @@ describe('Recommendation query report', () => {
   const queryCandidates = jest.fn();
   const getUsers = jest.fn();
   const recordRecommendationEvents = jest.fn();
+  const summarizeCandidates = jest.fn();
+  const getCommonGroupCounts = jest.fn();
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    summarizeCandidates.mockResolvedValue([]);
+    getCommonGroupCounts.mockResolvedValue({});
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [FriendshipController],
@@ -51,6 +56,13 @@ describe('Recommendation query report', () => {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
             recordRecommendationEvents,
+            summarizeCandidates,
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts,
           },
         },
         {
@@ -85,12 +97,12 @@ describe('Recommendation query report', () => {
         },
         {
           candidateId: 'community-host',
-          source: 'precomputed',
+          source: 'global_fallback',
           retrievalScore: 0.76,
           modelScore: 0.71,
           finalScore: 0.74,
           scoreVersion: 'recommendation-query-pipeline-v1',
-          reasonCodes: ['precomputed_snapshot'],
+          reasonCodes: ['global_fallback'],
           rank: 2,
         },
         {

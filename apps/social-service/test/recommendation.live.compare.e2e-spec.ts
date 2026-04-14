@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { FriendshipController } from '../src/friendship/friendship.controller';
 import { FriendshipService } from '../src/friendship/friendship.service';
+import { GroupClientService } from '../src/client/group/group-client.service';
 import { RecommendationClientService } from '../src/client/recommendation/recommendation-client.service';
 import { UserClientService } from '../src/client/user/user-client.service';
 import { RecentActivityBufferService } from '../src/event/recent-activity.buffer.service';
@@ -42,12 +43,12 @@ liveDescribe('Recommendation live baseline vs live query comparison', () => {
         },
         {
           candidateId: 'community-host',
-          source: 'precomputed',
+          source: 'global_fallback',
           retrievalScore: 0.76,
           modelScore: 0.15,
           finalScore: 0.46,
           scoreVersion: 'recommendation-query-pipeline-v1',
-          reasonCodes: ['precomputed_snapshot'],
+          reasonCodes: ['global_fallback'],
           rank: 2,
         },
         {
@@ -124,6 +125,13 @@ liveDescribe('Recommendation live baseline vs live query comparison', () => {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
             recordRecommendationEvents: jest.fn(),
+            summarizeCandidates: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts: jest.fn().mockResolvedValue({}),
           },
         },
         {

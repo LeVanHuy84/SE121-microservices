@@ -35,39 +35,6 @@ class ProfileEmbedding(Base):
     )
 
 
-class PrecomputedSnapshotRun(Base):
-    __tablename__ = "precomputed_snapshot_runs"
-
-    viewer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    generation_reason: Mapped[str] = mapped_column(String(255), nullable=False)
-    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    score_version: Mapped[str] = mapped_column(String(255), nullable=False)
-    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
-
-
-class PrecomputedSnapshotCandidate(Base):
-    __tablename__ = "precomputed_snapshot_candidates"
-
-    viewer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    candidate_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    semantic_score: Mapped[float] = mapped_column(Float, nullable=False)
-    rank: Mapped[int] = mapped_column(Integer, nullable=False)
-    generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-
-    __table_args__ = (
-        Index(
-            "idx_precomputed_snapshot_rank",
-            "viewer_id",
-            "rank",
-        ),
-    )
-
-
 class RecommendationFriendship(Base):
     __tablename__ = "recommendation_friendships"
 
@@ -146,10 +113,14 @@ class RecommendationGraphEventJournal(Base):
     event_type: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     target_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     source: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     __table_args__ = (
         Index(
@@ -194,7 +165,9 @@ class RecommendationPairFeature(Base):
         DateTime(timezone=True),
         nullable=True,
     )
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     __table_args__ = (
         Index(

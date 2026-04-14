@@ -1,27 +1,25 @@
 from __future__ import annotations
 
+import math
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import math
 from typing import Any, Iterator
 
 from sqlalchemy import delete, func, inspect, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import settings
 from app.database.models import (
     Base,
-    PrecomputedSnapshotCandidate,
-    PrecomputedSnapshotRun,
     ProfileEmbedding,
     RecommendationBlock,
     RecommendationDismissal,
     RecommendationFriendship,
-    RecommendationGraphEventJournal,
     RecommendationGlobalFallbackCandidate,
+    RecommendationGraphEventJournal,
     RecommendationPairFeature,
     RecommendationPendingRequest,
 )
@@ -45,8 +43,6 @@ class RecommendationStateRepository:
         inspector = inspect(self.engine)
         required_tables = {
             "profile_embeddings",
-            "precomputed_snapshot_runs",
-            "precomputed_snapshot_candidates",
             "recommendation_global_fallback_candidates",
             "recommendation_friendships",
             "recommendation_pending_requests",
@@ -359,7 +355,7 @@ class RecommendationStateRepository:
                     RecommendationPairFeature.candidate_id.in_(normalized_candidate_ids),
                 )
             ).all()
-            return {
+            features = {
                 row.candidate_id: {
                     "viewerId": row.viewer_id,
                     "candidateId": row.candidate_id,
@@ -377,130 +373,36 @@ class RecommendationStateRepository:
                 }
                 for row in rows
             }
+            mutual_friend_counts = self._get_mutual_friend_counts(
+                session,
+                normalized_viewer_id,
+                normalized_candidate_ids,
+            )
 
-    def backfill_graph_pair_features(self) -> int:
-        recent_event_reason_types = {
-            "recommendation.graph.user-unblocked",
-            "recommendation.graph.friend-request-canceled",
-            "recommendation.graph.friendship-removed",
-        }
-
-        with self.session_scope() as session:
-            now = self._now()
-
-            friendship_pairs = {
-                (str(row.user_id), str(row.friend_id))
-                for row in session.execute(
-                    select(
-                        RecommendationFriendship.user_id,
-                        RecommendationFriendship.friend_id,
-                    )
-                ).all()
-            }
-            pending_pairs = {
-                (str(row.requester_id), str(row.receiver_id))
-                for row in session.execute(
-                    select(
-                        RecommendationPendingRequest.requester_id,
-                        RecommendationPendingRequest.receiver_id,
-                    )
-                ).all()
-            }
-            block_pairs = {
-                (str(row.blocker_id), str(row.blocked_id))
-                for row in session.execute(
-                    select(
-                        RecommendationBlock.blocker_id,
-                        RecommendationBlock.blocked_id,
-                    )
-                ).all()
-            }
-            dismissal_pairs = {
-                (str(row.user_id), str(row.candidate_id))
-                for row in session.execute(
-                    select(
-                        RecommendationDismissal.user_id,
-                        RecommendationDismissal.candidate_id,
-                    ).where(RecommendationDismissal.expires_at > now)
-                ).all()
-            }
-
-            latest_event_by_pair: dict[tuple[str, str], tuple[str, datetime]] = {}
-            for row in session.execute(
-                select(
-                    RecommendationGraphEventJournal.user_id,
-                    RecommendationGraphEventJournal.target_user_id,
-                    RecommendationGraphEventJournal.event_type,
-                    RecommendationGraphEventJournal.occurred_at,
-                ).order_by(RecommendationGraphEventJournal.id.desc())
-            ).all():
-                key = (str(row.user_id), str(row.target_user_id))
-                if key not in latest_event_by_pair:
-                    latest_event_by_pair[key] = (
-                        str(row.event_type),
-                        self._parse_datetime(row.occurred_at),
-                    )
-
-            candidate_pairs: set[tuple[str, str]] = set()
-            for user_id, friend_id in friendship_pairs:
-                candidate_pairs.add((user_id, friend_id))
-                candidate_pairs.add((friend_id, user_id))
-            for requester_id, receiver_id in pending_pairs:
-                candidate_pairs.add((requester_id, receiver_id))
-                candidate_pairs.add((receiver_id, requester_id))
-            for blocker_id, blocked_id in block_pairs:
-                candidate_pairs.add((blocker_id, blocked_id))
-                candidate_pairs.add((blocked_id, blocker_id))
-            for user_id, candidate_id in dismissal_pairs:
-                candidate_pairs.add((user_id, candidate_id))
-            candidate_pairs.update(latest_event_by_pair.keys())
-
-            session.execute(delete(RecommendationPairFeature))
-
-            backfilled_count = 0
-            for viewer_id, candidate_id in sorted(candidate_pairs):
-                has_friendship = (viewer_id, candidate_id) in friendship_pairs or (
-                    candidate_id,
-                    viewer_id,
-                ) in friendship_pairs
-                has_pending_request = (viewer_id, candidate_id) in pending_pairs or (
-                    candidate_id,
-                    viewer_id,
-                ) in pending_pairs
-                is_blocked_either_way = (viewer_id, candidate_id) in block_pairs or (
-                    candidate_id,
-                    viewer_id,
-                ) in block_pairs
-                has_active_dismissal = (viewer_id, candidate_id) in dismissal_pairs
-                last_event = latest_event_by_pair.get((viewer_id, candidate_id))
-                last_event_type = last_event[0] if last_event else None
-                last_event_at = last_event[1] if last_event else None
-
-                if (
-                    not has_friendship
-                    and not has_pending_request
-                    and not is_blocked_either_way
-                    and not has_active_dismissal
-                    and last_event_type not in recent_event_reason_types
-                ):
+            for candidate_id in normalized_candidate_ids:
+                mutual_friend_count = mutual_friend_counts.get(candidate_id, 0)
+                if candidate_id in features:
+                    features[candidate_id]["mutualFriendCount"] = mutual_friend_count
                     continue
 
-                self._upsert_graph_pair_feature(
-                    session,
-                    viewer_id=viewer_id,
-                    candidate_id=candidate_id,
-                    has_friendship=has_friendship,
-                    has_pending_request=has_pending_request,
-                    is_blocked_either_way=is_blocked_either_way,
-                    has_active_dismissal=has_active_dismissal,
-                    mutual_friend_count=0,
-                    common_group_count=0,
-                    last_event_type=last_event_type,
-                    last_event_at=last_event_at,
-                )
-                backfilled_count += 1
+                if mutual_friend_count <= 0:
+                    continue
 
-            return backfilled_count
+                features[candidate_id] = {
+                    "viewerId": normalized_viewer_id,
+                    "candidateId": candidate_id,
+                    "hasFriendship": False,
+                    "hasPendingRequest": False,
+                    "isBlockedEitherWay": False,
+                    "hasActiveDismissal": False,
+                    "mutualFriendCount": mutual_friend_count,
+                    "commonGroupCount": 0,
+                    "lastEventType": None,
+                    "lastEventAt": None,
+                    "updatedAt": self._now().isoformat(),
+                }
+
+            return features
 
     def is_candidate_excluded_by_graph_projection(
         self,
@@ -611,101 +513,6 @@ class RecommendationStateRepository:
             )
 
         return {str(candidate_id) for candidate_id in excluded_ids}
-
-    def replace_precomputed_snapshot(
-        self,
-        viewer_id: str,
-        candidates: list[dict[str, Any]],
-        generated_at: str,
-        generation_reason: str,
-        model_name: str,
-        score_version: str = "retrieval-pgvector-v1",
-    ):
-        generated_at_dt = self._parse_datetime(generated_at)
-
-        with self.session_scope() as session:
-            self._upsert_snapshot_run(
-                session,
-                viewer_id,
-                generated_at_dt,
-                generation_reason,
-                model_name,
-                score_version,
-                len(candidates),
-            )
-            session.execute(
-                delete(PrecomputedSnapshotCandidate).where(
-                    PrecomputedSnapshotCandidate.viewer_id == viewer_id
-                )
-            )
-
-            if candidates:
-                session.add_all(
-                    [
-                        PrecomputedSnapshotCandidate(
-                            viewer_id=viewer_id,
-                            candidate_id=str(candidate["candidateId"]),
-                            semantic_score=self._resolve_precomputed_candidate_score(
-                                candidate
-                            ),
-                            rank=int(candidate["rank"]),
-                            generated_at=generated_at_dt,
-                        )
-                        for candidate in candidates
-                    ]
-                )
-
-    def clear_precomputed_snapshot(
-        self,
-        viewer_id: str,
-        generated_at: str,
-        generation_reason: str,
-        model_name: str,
-        score_version: str = "retrieval-pgvector-v1",
-    ):
-        self.replace_precomputed_snapshot(
-            viewer_id,
-            [],
-            generated_at,
-            generation_reason,
-            model_name,
-            score_version,
-        )
-
-    def get_precomputed_snapshot(
-        self, viewer_id: str, limit: int
-    ) -> dict[str, Any] | None:
-        with self.session_scope() as session:
-            run = session.get(PrecomputedSnapshotRun, viewer_id)
-            if run is None:
-                return None
-
-            rows = session.scalars(
-                select(PrecomputedSnapshotCandidate)
-                .where(PrecomputedSnapshotCandidate.viewer_id == viewer_id)
-                .order_by(PrecomputedSnapshotCandidate.rank.asc())
-                .limit(max(1, int(limit)))
-            ).all()
-
-            return {
-                "viewerId": run.viewer_id,
-                "generatedAt": run.generated_at.isoformat(),
-                "generationReason": run.generation_reason,
-                "modelName": run.model_name,
-                "scoreVersion": run.score_version,
-                "candidateCount": int(run.candidate_count),
-                "candidates": [
-                    {
-                        "candidateId": row.candidate_id,
-                        "retrievalScore": float(row.semantic_score),
-                        "precomputeScore": float(row.semantic_score),
-                        "semanticScore": float(row.semantic_score),
-                        "rank": int(row.rank),
-                        "generatedAt": row.generated_at.isoformat(),
-                    }
-                    for row in rows
-                ],
-            }
 
     def replace_global_fallback_candidates(
         self,
@@ -840,7 +647,9 @@ class RecommendationStateRepository:
             signal_counts[str(row.blocked_id)]["blockCount"] = int(row.signal_count)
 
         for row in dismissal_rows:
-            signal_counts[str(row.candidate_id)]["dismissalCount"] = int(row.signal_count)
+            signal_counts[str(row.candidate_id)]["dismissalCount"] = int(
+                row.signal_count
+            )
 
         return signal_counts
 
@@ -903,38 +712,6 @@ class RecommendationStateRepository:
                     "embedding_vector": self._to_pgvector_literal(embedding),
                 },
             )
-
-    def _upsert_snapshot_run(
-        self,
-        session: Session,
-        viewer_id: str,
-        generated_at: datetime,
-        generation_reason: str,
-        model_name: str,
-        score_version: str,
-        candidate_count: int,
-    ):
-        values = {
-            "viewer_id": viewer_id,
-            "generated_at": generated_at,
-            "generation_reason": generation_reason,
-            "model_name": model_name,
-            "score_version": score_version,
-            "candidate_count": candidate_count,
-        }
-        stmt = self._build_upsert_statement(
-            PrecomputedSnapshotRun.__table__,
-            values,
-            conflict_columns=["viewer_id"],
-            update_columns=[
-                "generated_at",
-                "generation_reason",
-                "model_name",
-                "score_version",
-                "candidate_count",
-            ],
-        )
-        session.execute(stmt)
 
     def _upsert_friendship(
         self,
@@ -1055,11 +832,11 @@ class RecommendationStateRepository:
         last_event_type: str,
         last_event_at: datetime,
     ):
-        has_friendship = self._has_friendship(session, viewer_id, candidate_id) or self._has_friendship(
+        has_friendship = self._has_friendship(
             session,
-            candidate_id,
             viewer_id,
-        )
+            candidate_id,
+        ) or self._has_friendship(session, candidate_id, viewer_id)
         has_pending_request = self._has_pending_request(
             session,
             viewer_id,
@@ -1092,7 +869,11 @@ class RecommendationStateRepository:
             has_pending_request=has_pending_request,
             is_blocked_either_way=is_blocked_either_way,
             has_active_dismissal=has_active_dismissal,
-            mutual_friend_count=0,
+            mutual_friend_count=self._count_mutual_friends(
+                session,
+                viewer_id,
+                candidate_id,
+            ),
             common_group_count=0,
             last_event_type=last_event_type,
             last_event_at=last_event_at,
@@ -1182,6 +963,62 @@ class RecommendationStateRepository:
             is not None
         )
 
+    def _count_mutual_friends(
+        self,
+        session: Session,
+        viewer_id: str,
+        candidate_id: str,
+    ) -> int:
+        return self._get_mutual_friend_counts(
+            session,
+            viewer_id,
+            [candidate_id],
+        ).get(candidate_id, 0)
+
+    def _get_mutual_friend_counts(
+        self,
+        session: Session,
+        viewer_id: str,
+        candidate_ids: list[str],
+    ) -> dict[str, int]:
+        normalized_viewer_id = str(viewer_id or "").strip()
+        normalized_candidate_ids = sorted(
+            {
+                str(candidate_id or "").strip()
+                for candidate_id in candidate_ids
+                if str(candidate_id or "").strip()
+                and str(candidate_id or "").strip() != normalized_viewer_id
+            }
+        )
+        if not normalized_viewer_id or not normalized_candidate_ids:
+            return {}
+
+        viewer_friend = aliased(RecommendationFriendship)
+        candidate_friend = aliased(RecommendationFriendship)
+        rows = session.execute(
+            select(
+                candidate_friend.user_id.label("candidate_id"),
+                func.count(func.distinct(viewer_friend.friend_id)).label(
+                    "mutual_friend_count"
+                ),
+            )
+            .join(
+                candidate_friend,
+                viewer_friend.friend_id == candidate_friend.friend_id,
+            )
+            .where(
+                viewer_friend.user_id == normalized_viewer_id,
+                candidate_friend.user_id.in_(normalized_candidate_ids),
+            )
+            .group_by(candidate_friend.user_id)
+        ).all()
+
+        return {
+            str(row.candidate_id): int(row.mutual_friend_count)
+            for row in rows
+            if int(row.mutual_friend_count) > 0
+        }
+
     def _build_upsert_statement(
         self,
         table,
@@ -1254,7 +1091,8 @@ class RecommendationStateRepository:
                 "retrievalScore": float(row.retrieval_score),
             }
             for row in rows
-            if row.retrieval_score is not None and math.isfinite(float(row.retrieval_score))
+            if row.retrieval_score is not None
+            and math.isfinite(float(row.retrieval_score))
         ]
         return self._post_filter_semantic_candidates(viewer_id, ranked_rows, limit)
 
@@ -1332,13 +1170,6 @@ class RecommendationStateRepository:
 
     def _to_pgvector_literal(self, embedding: list[float]) -> str:
         return "[" + ",".join(str(float(value)) for value in embedding) + "]"
-
-    def _resolve_precomputed_candidate_score(self, candidate: dict[str, Any]) -> float:
-        for score_field in ("retrievalScore", "precomputeScore", "semanticScore"):
-            if score_field in candidate:
-                return float(candidate[score_field])
-
-        raise KeyError("retrievalScore")
 
     def _parse_datetime(self, value: str | datetime) -> datetime:
         if isinstance(value, datetime):

@@ -6,7 +6,7 @@ from typing import Any
 from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.services.model_loader import model_loader
-from app.services.precompute_queue import RecommendationPrecomputeQueue
+from app.services.query_cache import query_cache
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,8 @@ class ProfileEmbeddingEventHandler:
     def __init__(
         self,
         repository: RecommendationStateRepository,
-        precompute_queue: RecommendationPrecomputeQueue,
     ):
         self.repository = repository
-        self.precompute_queue = precompute_queue
 
     async def handle(self, message: dict[str, Any]):
         event_type = str(message.get("type") or "")
@@ -48,7 +46,7 @@ class ProfileEmbeddingEventHandler:
         try:
             if normalized_profile_text is None:
                 self.repository.delete_profile_embedding(user_id)
-                self.precompute_queue.mark_stale(user_id)
+                query_cache.clear()
                 logger.info(
                     (
                         "Recommendation profile embedding cleared: "
@@ -90,9 +88,12 @@ class ProfileEmbeddingEventHandler:
                 settings.RECOMMENDATION_MODEL_NAME,
                 generated_at,
             )
-            self.precompute_queue.mark_stale(user_id)
+            query_cache.clear()
             logger.info(
-                "Recommendation profile embedding updated: userId=%s requestId=%s dimensions=%s",
+                (
+                    "Recommendation profile embedding updated: "
+                    "userId=%s requestId=%s dimensions=%s"
+                ),
                 user_id,
                 request_id,
                 len(embedding),

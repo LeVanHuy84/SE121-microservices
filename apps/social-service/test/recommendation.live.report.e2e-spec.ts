@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { FriendshipController } from '../src/friendship/friendship.controller';
 import { FriendshipService } from '../src/friendship/friendship.service';
+import { GroupClientService } from '../src/client/group/group-client.service';
 import { RecommendationClientService } from '../src/client/recommendation/recommendation-client.service';
 import { UserClientService } from '../src/client/user/user-client.service';
 import { RecentActivityBufferService } from '../src/event/recent-activity.buffer.service';
@@ -85,6 +86,13 @@ liveDescribe('Recommendation live query report', () => {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
             recordRecommendationEvents: jest.fn(),
+            summarizeCandidates: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts: jest.fn().mockResolvedValue({}),
           },
         },
         {

@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GroupClientService } from '../client/group/group-client.service';
 import { RecommendationClientService } from '../client/recommendation/recommendation-client.service';
+import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
@@ -11,12 +13,16 @@ describe('RecommendationQueryService', () => {
   const hydrateRecommendationUsers = jest.fn();
   const attachRecommendationTrackingIds = jest.fn();
   const recordServedEvents = jest.fn();
+  const summarizeCandidates = jest.fn();
+  const getCommonGroupCounts = jest.fn();
 
   beforeEach(async () => {
     queryCandidates.mockReset();
     hydrateRecommendationUsers.mockReset();
     attachRecommendationTrackingIds.mockReset();
     recordServedEvents.mockReset();
+    summarizeCandidates.mockReset();
+    getCommonGroupCounts.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,6 +44,18 @@ describe('RecommendationQueryService', () => {
           useValue: {
             attachRecommendationTrackingIds,
             recordServedEvents,
+          },
+        },
+        {
+          provide: SOCIAL_GRAPH_REPOSITORY,
+          useValue: {
+            summarizeCandidates,
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts,
           },
         },
       ],
@@ -64,11 +82,23 @@ describe('RecommendationQueryService', () => {
           retrievalScore: 0.8,
           modelScore: 0.6,
           finalScore: 0.7,
+          mutualFriendCount: 1,
+          commonGroupCount: 0,
           scoreVersion: 'recommendation-query-pipeline-v1',
           reasonCodes: ['semantic_retrieval', 'semantic_rerank'],
           rank: 1,
         },
       ],
+    });
+    summarizeCandidates.mockResolvedValue([
+      {
+        id: 'candidate-1',
+        mutualFriends: 2,
+        mutualFriendIds: ['mutual-1', 'mutual-2'],
+      },
+    ]);
+    getCommonGroupCounts.mockResolvedValue({
+      'candidate-1': 3,
     });
     attachRecommendationTrackingIds.mockImplementation((rows) => rows);
     hydrateRecommendationUsers.mockImplementation(async (rows) => rows);
@@ -80,6 +110,12 @@ describe('RecommendationQueryService', () => {
     });
 
     expect(queryCandidates).toHaveBeenCalledWith('viewer-1', 10, undefined);
+    expect(summarizeCandidates).toHaveBeenCalledWith('viewer-1', [
+      'candidate-1',
+    ]);
+    expect(getCommonGroupCounts).toHaveBeenCalledWith('viewer-1', [
+      'candidate-1',
+    ]);
     expect(attachRecommendationTrackingIds).toHaveBeenCalledTimes(1);
     expect(hydrateRecommendationUsers).toHaveBeenCalledTimes(1);
     expect(recordServedEvents).toHaveBeenCalledWith(
@@ -94,6 +130,9 @@ describe('RecommendationQueryService', () => {
           score: 0.7,
           modelScore: 0.6,
           retrievalScore: 0.8,
+          mutualFriends: 2,
+          mutualFriendIds: ['mutual-1', 'mutual-2'],
+          commonGroups: 3,
           candidateSourceMode: 'online',
         }),
       ],

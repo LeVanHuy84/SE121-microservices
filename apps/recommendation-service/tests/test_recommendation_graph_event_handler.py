@@ -7,7 +7,6 @@ from app.database.recommendation_state_repository import RecommendationStateRepo
 from app.messaging.recommendation_graph_event_handler import (
     RecommendationGraphEventHandler,
 )
-from app.services.precompute_queue import RecommendationPrecomputeQueue
 
 
 class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
@@ -17,11 +16,7 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             f"sqlite+pysqlite:///{Path(self.temp_dir.name) / 'state.sqlite3'}"
         )
         self.repository.create_schema()
-        self.queue = RecommendationPrecomputeQueue()
-        self.handler = RecommendationGraphEventHandler(
-            self.repository,
-            self.queue,
-        )
+        self.handler = RecommendationGraphEventHandler(self.repository)
 
     async def asyncTearDown(self):
         self.repository.close()
@@ -67,9 +62,6 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 "user-b",
             )
         )
-        self.assertEqual(self.queue.consume_projection_rows_changed(), 3)
-        self.assertEqual(self.queue.drain(10), ["user-a", "user-b"])
-
     async def test_handle_block_clears_friendship_and_pending_request(self):
         await self.handler.handle(
             {
@@ -102,9 +94,6 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 "user-b",
             )
         )
-        self.assertEqual(self.queue.consume_projection_rows_changed(), 6)
-        self.assertEqual(self.queue.drain(10), ["user-a", "user-b"])
-
     async def test_handle_dismissed_event_tracks_active_dismissal(self):
         await self.handler.handle(
             {
@@ -128,9 +117,6 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 "candidate-1",
             )
         )
-        self.assertEqual(self.queue.consume_projection_rows_changed(), 1)
-        self.assertEqual(self.queue.drain(10), ["candidate-1", "viewer-1"])
-
         journal_rows = self.repository.list_graph_event_journal(limit=10)
         self.assertEqual(len(journal_rows), 1)
         self.assertEqual(
