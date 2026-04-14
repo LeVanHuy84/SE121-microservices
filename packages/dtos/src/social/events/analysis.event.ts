@@ -23,6 +23,7 @@ export class UpdatedAnalysisEventPayload {
 }
 
 export class AnalysisResultEventPayload {
+  userId: string;
   targetId: string;
   targetType: TargetType;
 
@@ -33,9 +34,9 @@ export class AnalysisResultEventPayload {
   intensityScore: number; // ✅ intensity.score
   intensityLevel?: IntensityLevel; // ✅ intensity.level (optional)
 
-  dominantModality: DominantModality;
   dominantSceneType?: string;
   riskHintLevel?: string;
+  createdAt?: Date;
 }
 
 export class ModerationEventPayload {

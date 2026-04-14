@@ -4,6 +4,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import {
   CursorPageResponse,
   ReactionType,
+  RiskHintLevel,
   TargetType,
   TrendingQuery,
 } from '@repo/dtos';
@@ -21,7 +22,7 @@ type RankFeature = {
   intensity: number;
   confidence: number;
   dominantScene?: string;
-  riskHintLevel?: string;
+  riskHintLevel?: RiskHintLevel;
   authorId?: string;
 };
 
@@ -120,7 +121,7 @@ export class TrendingService {
             intensity: Number(rank.intensity || 0),
             confidence: Number(rank.confidence || 0),
             dominantScene: rank.dominantScene,
-            riskHintLevel: rank.riskHintLevel,
+            riskHintLevel: rank.riskHintLevel as RiskHintLevel,
             authorId: rank.authorId,
           },
         });
@@ -140,6 +141,12 @@ export class TrendingService {
       userId ? this.emotionService.getEmotionFeatures(userId) : null,
       userId ? this.affinityService.getAffinity(userId) : null,
     ]);
+
+    this.logger.debug(
+      `User ${userId} - Emotion features: ${JSON.stringify(
+        emotionFeatures,
+      )}, Affinity: ${JSON.stringify(affinity)}`,
+    );
 
     // ==============================
     // 5️⃣ Re-rank (ONLY FOR DISPLAY)
@@ -186,35 +193,6 @@ export class TrendingService {
     scored.sort((a, b) => {
       if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
       return b.baseScore - a.baseScore;
-    });
-
-    const topDebug = scored.slice(0, 10).map((item) => {
-      const candidate = candidates.find((c) => c.postId === item.postId)!;
-
-      const base = this.normalize(candidate.baseScore);
-
-      const emotion = emotionFeatures
-        ? this.emotionService.calcEmotionScore(
-            emotionFeatures,
-            candidate.feature,
-          )
-        : 0;
-
-      const affinityScore =
-        affinity && candidate.feature.authorId
-          ? this.affinityService.calcAffinityScore(affinity, {
-              category: candidate.feature.dominantScene || '',
-              authorId: candidate.feature.authorId,
-            })
-          : 0;
-
-      return {
-        postId: item.postId,
-        base: Number(base.toFixed(3)),
-        emotion: Number(emotion.toFixed(3)),
-        affinity: Number(affinityScore.toFixed(3)),
-        final: Number(item.finalScore.toFixed(3)),
-      };
     });
 
     // ==============================

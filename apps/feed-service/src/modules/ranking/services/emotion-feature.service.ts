@@ -1,53 +1,51 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import {
-  EmotionFeatures,
-  EmotionFeaturesResponse,
-} from '../interfaces/emotion-features.interface';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import { EmotionRankingFeaturesDto, RiskHintLevel } from '@repo/dtos';
 
-const CACHE_TTL_SECONDS = 900; // 15 minute
+const CACHE_TTL_SECONDS = 900; // 15 min
 
 @Injectable()
 export class EmotionFeatureService {
   private readonly logger = new Logger(EmotionFeatureService.name);
-  private readonly baseUrl: string;
-  private readonly internalKey?: string;
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly configService: ConfigService,
-  ) {
-    const baseUrl = this.configService.get<string>('ANALYSIS_SERVICE_URL');
+    @Inject('EMOTION_INTELLIGENCE_SERVICE')
+    private readonly emotionIntelligenceClient: ClientProxy,
+  ) {}
 
-    if (!baseUrl) {
-      throw new Error('ANALYSIS_SERVICE_URL is not configured');
-    }
+  // =========================
+  // PUBLIC API
+  // =========================
 
-    this.baseUrl = baseUrl.replace(/\/$/, '');
-
-    this.internalKey = this.configService.get<string>('ANALYSIS_INTERNAL_KEY');
-  }
-
-  async getEmotionFeatures(userId: string): Promise<EmotionFeatures | null> {
+  async getEmotionFeatures(
+    userId: string,
+  ): Promise<EmotionRankingFeaturesDto | null> {
     try {
       const cached = await this.getCachedFeatures(userId);
-      if (cached) {
-        return cached;
-      }
+      if (cached) return cached;
 
       const fetched = await this.fetchFromAnalysisService(userId);
-      if (!fetched) {
-        return null;
-      }
+      if (!fetched) return null;
 
       const normalized = this.normalizeFeatures(fetched);
+
+      this.logger.debug(
+        `Normalized emotion features for user ${userId}: ${JSON.stringify(
+          normalized,
+        )}`,
+      );
+
       await this.cacheFeatures(userId, normalized);
       return normalized;
     } catch (error) {
       this.logger.warn(
-        `Failed to get emotion features for user ${userId}: ${error.message}`,
+        `Failed to get emotion features for user ${userId}: ${
+          (error as Error).message
+        }`,
       );
       return null;
     }
@@ -57,13 +55,17 @@ export class EmotionFeatureService {
     await this.redis.del(this.getCacheKey(userId));
   }
 
+  // =========================
+  // RANKING CORE
+  // =========================
+
   calcEmotionScore(
-    features: EmotionFeatures,
+    features: EmotionRankingFeaturesDto,
     post: {
       scores: Record<string, number>;
       intensity?: number;
       confidence?: number;
-      riskHintLevel?: string;
+      riskHintLevel?: RiskHintLevel;
     },
   ): number {
     const pref = this.calcPreferenceMatch(
@@ -78,34 +80,25 @@ export class EmotionFeatureService {
 
     const mood = this.applyMoodBoost(moodRaw, post.scores, features);
 
-    const risk = this.calcRiskPenalty(features.riskScore, post.scores);
+    const risk = this.calcRiskPenalty(features, post.scores);
 
-    // ------------------------------
-    // 🔥 NEW: intensity boost
-    // ------------------------------
+    // intensity boost
     const intensityBoost = 0.8 + (post.intensity || 0) * 0.4;
-    // range: 0.8 → 1.2
 
-    // ------------------------------
-    // 🔥 NEW: confidence weight
-    // ------------------------------
+    // confidence weight
     const confidenceWeight = 0.7 + (post.confidence || 0) * 0.3;
-    // range: 0.7 → 1
-
-    // ------------------------------
-    // 🔥 NEW: risk hint penalty
-    // ------------------------------
-    const riskHintPenalty = post.riskHintLevel === 'HIGH' ? 0.2 : 0;
 
     let score =
       (0.5 * pref + 0.4 * mood - 0.2 * risk) *
       intensityBoost *
       confidenceWeight;
 
-    score -= riskHintPenalty;
-
-    return Math.max(0, Math.min(1, score));
+    return this.clamp(score);
   }
+
+  // =========================
+  // CACHE
+  // =========================
 
   private getCacheKey(userId: string): string {
     return `cache:emotion:features:${userId}`;
@@ -113,7 +106,7 @@ export class EmotionFeatureService {
 
   private async getCachedFeatures(
     userId: string,
-  ): Promise<EmotionFeatures | null> {
+  ): Promise<EmotionRankingFeaturesDto | null> {
     const cached = await this.redis.get(this.getCacheKey(userId));
     if (!cached) return null;
 
@@ -126,7 +119,7 @@ export class EmotionFeatureService {
 
   private async cacheFeatures(
     userId: string,
-    features: EmotionFeatures,
+    features: EmotionRankingFeaturesDto,
   ): Promise<void> {
     await this.redis.setex(
       this.getCacheKey(userId),
@@ -135,44 +128,40 @@ export class EmotionFeatureService {
     );
   }
 
+  // =========================
+  // FETCH
+  // =========================
+
   private async fetchFromAnalysisService(
     userId: string,
-  ): Promise<EmotionFeatures | null> {
+  ): Promise<EmotionRankingFeaturesDto | null> {
     try {
-      const headers: Record<string, string> = {
-        'content-type': 'application/json',
-      };
-
-      if (this.internalKey) {
-        headers['x-internal-key'] = this.internalKey;
-      }
-
-      const response = await fetch(
-        `${this.baseUrl}/emotion/features/${userId}`,
-        {
-          method: 'GET',
-          headers,
-        },
+      const response = await firstValueFrom(
+        this.emotionIntelligenceClient.send('get_emotion_ranking_features', {
+          userId,
+        }),
       );
 
-      if (!response.ok) {
-        this.logger.warn(
-          `Analysis-service request failed (${response.status}) for user ${userId}`,
-        );
-        return null;
-      }
+      this.logger.debug(
+        `Received response from emotion intelligence service for user ${userId}: ${JSON.stringify(response)}`,
+      );
 
-      const payload = (await response.json()) as EmotionFeaturesResponse;
-      return payload?.features ?? null;
+      return response ?? null;
     } catch (error) {
       this.logger.warn(
-        `Failed request for user ${userId}: ${(error as Error).message}`,
+        `TCP request failed for user ${userId}: ${(error as Error).message}`,
       );
       return null;
     }
   }
 
-  private normalizeFeatures(input: Partial<EmotionFeatures>): EmotionFeatures {
+  // =========================
+  // NORMALIZATION
+  // =========================
+
+  private normalizeFeatures(
+    input: Partial<EmotionRankingFeaturesDto>,
+  ): EmotionRankingFeaturesDto {
     return {
       userEmotionPreference: this.normalizeProbabilityMap(
         input.userEmotionPreference,
@@ -183,7 +172,12 @@ export class EmotionFeatureService {
       negativeRatio7d: this.clamp(input.negativeRatio7d ?? 0),
       emotionVolatility7d: this.clamp(input.emotionVolatility7d ?? 0),
       riskScore: this.clamp(input.riskScore ?? 0),
-      negativeStreak: Math.max(0, Math.floor(input.negativeStreak ?? 0)),
+
+      // (replace negativeStreak)
+      recentNegativityScore: this.clamp(input.recentNegativityScore ?? 0),
+
+      // (optional but important)
+      emotionMomentum: this.clampSigned(input.emotionMomentum ?? 0),
     };
   }
 
@@ -217,6 +211,14 @@ export class EmotionFeatureService {
     return Math.max(0, Math.min(1, value));
   }
 
+  private clampSigned(value: number): number {
+    return Math.max(-1, Math.min(1, value));
+  }
+
+  // =========================
+  // SCORING LOGIC
+  // =========================
+
   private calcPreferenceMatch(
     userPref: Record<string, number>,
     postScores: Record<string, number>,
@@ -227,7 +229,7 @@ export class EmotionFeatureService {
       score += (userPref[key] || 0) * (postScores[key] || 0);
     }
 
-    return score; // ~0 → 1
+    return score;
   }
 
   private calcMoodMatch(
@@ -246,28 +248,27 @@ export class EmotionFeatureService {
   private applyMoodBoost(
     moodMatch: number,
     postScores: Record<string, number>,
-    features: EmotionFeatures,
+    features: EmotionRankingFeaturesDto,
   ): number {
     let score = moodMatch;
 
     const sadness = features.last24hEmotionDistribution.sadness || 0;
+    const recent = features.recentNegativityScore || 0;
 
-    // user đang buồn → ưu tiên joy
-    if (sadness > 0.6) {
+    const sadnessSignal = 0.7 * sadness + 0.3 * recent;
+
+    if (sadnessSignal > 0.5) {
       const joy = postScores.joy || 0;
+      const boost = 1 + sadnessSignal * 0.5;
 
-      if (joy > 0.3) {
-        score *= 1.3;
-      } else {
-        score *= 0.8;
-      }
+      score *= joy > 0.3 ? boost : 1 - sadnessSignal * 0.4;
     }
 
     return score;
   }
 
   private calcRiskPenalty(
-    riskScore: number,
+    features: EmotionRankingFeaturesDto,
     postScores: Record<string, number>,
   ): number {
     const negative =
@@ -275,6 +276,13 @@ export class EmotionFeatureService {
       (postScores.anger || 0) +
       (postScores.fear || 0);
 
-    return riskScore * negative; // 0 → 1
+    const baseRisk = features.riskScore;
+    const recent = features.recentNegativityScore || 0;
+    const momentum = features.emotionMomentum || 0;
+
+    const dynamicRisk =
+      baseRisk * 0.6 + recent * 0.3 + Math.max(0, momentum) * 0.1;
+
+    return dynamicRisk * negative;
   }
 }

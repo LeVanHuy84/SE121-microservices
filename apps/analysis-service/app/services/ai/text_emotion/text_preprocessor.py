@@ -11,24 +11,94 @@ from typing import Dict
 
 
 # Emoji to Vietnamese meaning
-EMOJI_MAP: Dict[str, str] = {
+EMOJI_MAP = {
+    # 😂 Vui / tích cực
     "😂": "vui",
     "🤣": "vui",
+    "😄": "vui",
+    "😁": "vui",
+    "😆": "vui",
+    "😊": "vui",
+    "🙂": "bình thường",
+    "😋": "vui",
+    "😌": "dễ chịu",
+
+    # 😍 Yêu thích / tình cảm
+    "😍": "yêu thích",
+    "🥰": "yêu thích",
+    "😘": "yêu thích",
+    "😗": "yêu thích",
+    "😙": "yêu thích",
+    "💖": "yêu thích",
+    "❤️": "yêu thích",
+    "💕": "yêu thích",
+
+    # 🤩 Phấn khích / hype
+    "🤩": "phấn khích",
+    "🥳": "phấn khích",
+    "🎉": "phấn khích",
+
+    # 😎 Tự tin / cool
+    "😎": "tự tin",
+    "😏": "mỉa mai",
+
+    # 😢 Buồn
     "😭": "buồn",
     "😢": "buồn",
+    "😔": "buồn",
+    "😞": "buồn",
+    "🙁": "buồn",
+    "☹️": "buồn",
+    "😣": "buồn",
+    "😖": "buồn",
+    "🥲": "buồn nhẹ",
+
+    # 😩 Mệt mỏi / stress
+    "😫": "mệt mỏi",
+    "😩": "mệt mỏi",
+    "😓": "mệt mỏi",
+    "😪": "buồn ngủ",
+
+    # 😡 Tức giận
     "😡": "tức giận",
     "😠": "tức giận",
+    "🤬": "tức giận",
+    "👿": "tức giận",
+    "😤": "khó chịu",
+
+    # 😲 Ngạc nhiên / sốc  (CỰC KỲ QUAN TRỌNG)
+    "😲": "ngạc nhiên",
+    "😮": "ngạc nhiên",
+    "😯": "ngạc nhiên",
+    "😳": "bất ngờ",
+    "🤯": "sốc",
+
+    # 😨 Sợ hãi / lo lắng
     "😱": "sợ hãi",
-    "😐": "bình thường",
+    "😨": "lo lắng",
+    "😰": "lo lắng",
+    "😥": "lo lắng",
+
+    # 😒 Thái độ tiêu cực nhẹ
     "😒": "không hài lòng",
-    "🙂": "bình thường",
-    "🙁": "buồn",
+    "🙄": "chán nản",
+    "😑": "bất lực",
+    "🤨": "nghi ngờ",
+
+    # 😐 Trung tính
+    "😐": "bình thường",
+    "😶": "bình thường",
+    "🫥": "bình thường",
+
+    # 🤔 Suy nghĩ / unsure
+    "🤔": "suy nghĩ",
+    "🧐": "suy xét",
 }
 
 # Slang dạng từ (dùng word boundary)
 WORD_SLANG_MAP: Dict[str, str] = {
-    "vcl": "rất",
-    "vl": "rất",
+    # "vcl": "rất",
+    # "vl": "rất",
     "kk": "haha",
     "haha": "vui",
     "huhu": "buồn",
