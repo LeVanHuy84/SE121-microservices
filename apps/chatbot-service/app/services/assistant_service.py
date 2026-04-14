@@ -11,6 +11,10 @@ from app.schemas.assistant_schema import (
     AssistantRespondRequest,
     AssistantSource,
 )
+from app.services.context_resolver import (
+    AssistantContextResolver,
+    assistant_context_resolver,
+)
 from app.services.prompt_builder import PromptBuilder
 
 logger = logging.getLogger("uvicorn.error")
@@ -21,14 +25,18 @@ class AssistantService:
         self,
         prompt_builder: PromptBuilder | None = None,
         provider: LlmProvider | None = None,
+        context_resolver: AssistantContextResolver | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or self._resolve_provider()
+        self.context_resolver = context_resolver or assistant_context_resolver
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:
         history = self._resolve_history(request)
-        prompt = self.prompt_builder.build(request, history)
-        generation = await self.provider.generate(prompt, request)
+        contexts = self.context_resolver.resolve(request)
+        resolved_request = request.model_copy(update={"contexts": contexts})
+        prompt = self.prompt_builder.build(resolved_request, history)
+        generation = await self.provider.generate(prompt, resolved_request)
         session_memory.append_exchange(
             self._session_key(request),
             request.message,
@@ -42,14 +50,14 @@ class AssistantService:
                 source=item.source,
                 score=item.score,
             )
-            for item in request.contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
+            for item in contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
         ]
         logger.info(
             "Assistant response generated: userId=%s provider=%s model=%s contexts=%s",
             request.userId,
             generation.provider,
             generation.model,
-            len(request.contexts),
+            len(contexts),
         )
         return AssistantRespondData(
             reply=generation.content,

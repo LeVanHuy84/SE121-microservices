@@ -26,6 +26,25 @@ class Settings:
         self.CHATBOT_SESSION_TTL_SECONDS: int = int(
             os.getenv("CHATBOT_SESSION_TTL_SECONDS", 3600)
         )
+        self.ASSISTANT_DOCS_DIR: str = os.getenv(
+            "ASSISTANT_DOCS_DIR", "docs/assistant"
+        ).strip()
+
+        self.EMBEDDING_MODEL_NAME: str = os.getenv(
+            "EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-base"
+        ).strip()
+        self.EMBEDDING_MAX_LENGTH: int = int(os.getenv("EMBEDDING_MAX_LENGTH", 512))
+        self.EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", 8))
+        self.RAG_INDEX_NAME: str = os.getenv(
+            "RAG_INDEX_NAME", "assistant_rag_documents"
+        ).strip()
+        self.RAG_DOCS_ENABLED: bool = (
+            os.getenv("RAG_DOCS_ENABLED", "true").lower() == "true"
+        )
+        self.RAG_CHUNK_SIZE: int = int(os.getenv("RAG_CHUNK_SIZE", 900))
+        self.RAG_CHUNK_OVERLAP: int = int(os.getenv("RAG_CHUNK_OVERLAP", 120))
+        self.RAG_DOC_TOP_K: int = int(os.getenv("RAG_DOC_TOP_K", 5))
+        self.ES_NODE: str = os.getenv("ES_NODE", "http://localhost:9200").strip()
 
         self.GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
         self.GROQ_MODEL: str = os.getenv(
@@ -65,6 +84,36 @@ class Settings:
 
         if self.CHATBOT_SESSION_TTL_SECONDS <= 0:
             raise RuntimeError("CHATBOT_SESSION_TTL_SECONDS must be positive")
+
+        if not self.ASSISTANT_DOCS_DIR:
+            raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")
+
+        if not self.EMBEDDING_MODEL_NAME:
+            raise RuntimeError("EMBEDDING_MODEL_NAME must not be empty")
+
+        if self.EMBEDDING_MAX_LENGTH <= 0:
+            raise RuntimeError("EMBEDDING_MAX_LENGTH must be positive")
+
+        if self.EMBEDDING_BATCH_SIZE <= 0:
+            raise RuntimeError("EMBEDDING_BATCH_SIZE must be positive")
+
+        if not self.RAG_INDEX_NAME:
+            raise RuntimeError("RAG_INDEX_NAME must not be empty")
+
+        if self.RAG_CHUNK_SIZE <= 0:
+            raise RuntimeError("RAG_CHUNK_SIZE must be positive")
+
+        if self.RAG_CHUNK_OVERLAP < 0:
+            raise RuntimeError("RAG_CHUNK_OVERLAP must be >= 0")
+
+        if self.RAG_CHUNK_OVERLAP >= self.RAG_CHUNK_SIZE:
+            raise RuntimeError("RAG_CHUNK_OVERLAP must be smaller than RAG_CHUNK_SIZE")
+
+        if self.RAG_DOC_TOP_K <= 0:
+            raise RuntimeError("RAG_DOC_TOP_K must be positive")
+
+        if not self.ES_NODE:
+            raise RuntimeError("ES_NODE must not be empty")
 
         if not self.GROQ_MODEL:
             raise RuntimeError("GROQ_MODEL must not be empty")

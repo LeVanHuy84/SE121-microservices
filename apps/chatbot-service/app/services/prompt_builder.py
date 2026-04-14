@@ -23,7 +23,7 @@ class PromptBuilder:
 
     def _build_system_prompt(self) -> str:
         return (
-            "Bạn là AI Assistant của mạng xã hội SE121.\n"
+            "Bạn là AI Assistant của mạng xã hội Sentimeta.\n"
             "Trả lời bằng tiếng Việt, ngắn gọn, tự nhiên và hữu ích.\n"
             "Khi câu hỏi liên quan dữ liệu hệ thống, chỉ dùng thông tin trong CONTEXT.\n"
             "Nếu CONTEXT không đủ, hãy nói rõ là chưa tìm thấy dữ liệu phù hợp.\n"
@@ -41,7 +41,7 @@ class PromptBuilder:
     def _build_context_block(self, contexts: list[AssistantContextItem]) -> str:
         selected_contexts = contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
         if not selected_contexts:
-            return "CONTEXT:\nKhông có context RAG."
+            return "CONTEXT:\nKhông có context."
 
         lines = ["CONTEXT:"]
         for index, item in enumerate(selected_contexts, start=1):
