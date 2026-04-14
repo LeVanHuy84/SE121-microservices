@@ -9,6 +9,7 @@ from app.models.rerank_request import (
     RecommendationQueryRequest,
 )
 from app.services.model_loader import model_loader
+from app.services.query_cache import query_cache
 
 recommend_router = APIRouter(prefix="/recommend")
 logger = logging.getLogger("uvicorn.error")
@@ -41,4 +42,15 @@ def query_candidates(req: RecommendationQueryRequest):
     return {
         "success": True,
         "data": response,
+    }
+
+
+@recommend_router.get(
+    "/query-cache",
+    dependencies=[Depends(verify_internal_key)],
+)
+def get_query_cache_stats():
+    return {
+        "success": True,
+        "data": query_cache.get_stats(),
     }

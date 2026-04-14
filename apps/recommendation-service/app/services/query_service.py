@@ -15,7 +15,7 @@ from app.models.rerank_request import (
 )
 from app.services.candidate_retrieval_service import CandidateRetrievalService
 from app.services.global_fallback_service import GlobalFallbackService
-from app.services.query_cache import RecommendationQueryCache, query_cache
+from app.services.query_cache import QueryCache, query_cache
 from app.services.rerank_service import RerankService
 
 QUERY_SCORE_VERSION = "recommendation-query-pipeline-v1"
@@ -28,7 +28,7 @@ class QueryService:
         rerank_service: RerankService,
         candidate_retrieval_service: CandidateRetrievalService | None = None,
         global_fallback_service: GlobalFallbackService | None = None,
-        cache: RecommendationQueryCache | None = query_cache,
+        cache: QueryCache | None = query_cache,
     ):
         self.repository = repository
         self.rerank_service = rerank_service

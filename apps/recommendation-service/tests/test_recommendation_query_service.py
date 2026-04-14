@@ -9,8 +9,114 @@ from app.models.rerank_request import (
     RecommendationCandidateScore,
     RecommendationQueryRequest,
 )
-from app.services.query_cache import RecommendationQueryCache
+from app.services.query_cache import (
+    RedisRecommendationQueryCache,
+)
 from app.services.query_service import QueryService
+
+
+class FakeRedisPipeline:
+    def __init__(self, client):
+        self.client = client
+
+    def set(self, *args, **kwargs):
+        self.client.set(*args, **kwargs)
+        return self
+
+    def sadd(self, *args, **kwargs):
+        self.client.sadd(*args, **kwargs)
+        return self
+
+    def pexpire(self, *args, **kwargs):
+        self.client.pexpire(*args, **kwargs)
+        return self
+
+    def zadd(self, *args, **kwargs):
+        self.client.zadd(*args, **kwargs)
+        return self
+
+    def hincrby(self, *args, **kwargs):
+        self.client.hincrby(*args, **kwargs)
+        return self
+
+    def delete(self, *args, **kwargs):
+        self.client.delete(*args, **kwargs)
+        return self
+
+    def zrem(self, *args, **kwargs):
+        self.client.zrem(*args, **kwargs)
+        return self
+
+    def execute(self):
+        return []
+
+
+class FakeRedis:
+    def __init__(self):
+        self.values = {}
+        self.sets = {}
+        self.zsets = {}
+        self.hashes = {}
+
+    def pipeline(self):
+        return FakeRedisPipeline(self)
+
+    def get(self, key):
+        return self.values.get(key)
+
+    def set(self, key, value, px=None):
+        self.values[key] = value
+        return True
+
+    def sadd(self, key, value):
+        self.sets.setdefault(key, set()).add(value)
+        return 1
+
+    def pexpire(self, key, ttl_ms):
+        return True
+
+    def zadd(self, key, mapping):
+        self.zsets.setdefault(key, {}).update(mapping)
+        return len(mapping)
+
+    def zrem(self, key, value):
+        self.zsets.setdefault(key, {}).pop(value, None)
+        return 1
+
+    def zcard(self, key):
+        return len(self.zsets.get(key, {}))
+
+    def zrange(self, key, start, stop):
+        items = sorted(self.zsets.get(key, {}).items(), key=lambda item: item[1])
+        if stop == -1:
+            return [item[0] for item in items[start:]]
+        return [item[0] for item in items[start : stop + 1]]
+
+    def smembers(self, key):
+        return set(self.sets.get(key, set()))
+
+    def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            deleted += int(key in self.values or key in self.sets or key in self.hashes)
+            self.values.pop(key, None)
+            self.sets.pop(key, None)
+            self.hashes.pop(key, None)
+            self.zsets.pop(key, None)
+        return deleted
+
+    def hincrby(self, key, field, amount):
+        self.hashes.setdefault(key, {})
+        self.hashes[key][field] = int(self.hashes[key].get(field, 0)) + int(amount)
+        return self.hashes[key][field]
+
+    def hgetall(self, key):
+        return dict(self.hashes.get(key, {}))
+
+    def scan_iter(self, pattern):
+        prefix = pattern.removesuffix("*")
+        keys = set(self.values) | set(self.sets) | set(self.hashes) | set(self.zsets)
+        return (key for key in keys if key.startswith(prefix))
 
 
 class RecommendationQueryServiceTestCase(unittest.TestCase):
@@ -320,7 +426,15 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                         reason="strong",
                     )
                 ]
-                cache = RecommendationQueryCache(ttl_seconds=30, max_entries=10)
+                cache = RedisRecommendationQueryCache(
+                    redis_host="localhost",
+                    redis_port=6379,
+                    redis_db=0,
+                    ttl_seconds=30,
+                    max_entries=10,
+                    key_prefix="test:recommendation-cache",
+                    client=FakeRedis(),
+                )
                 service = QueryService(repository, rerank_service, cache=cache)
                 request = RecommendationQueryRequest(
                     viewerId="viewer-cache",
@@ -340,6 +454,95 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                 self.assertEqual(rerank_service.rerank.call_count, 2)
             finally:
                 repository.close()
+
+    def test_redis_query_cache_round_trips_and_invalidates_viewer(self):
+        redis = FakeRedis()
+        cache = RedisRecommendationQueryCache(
+            redis_host="localhost",
+            redis_port=6379,
+            redis_db=0,
+            ttl_seconds=30,
+            max_entries=10,
+            key_prefix="test:recommendation-cache",
+            client=redis,
+        )
+        request = RecommendationQueryRequest(viewerId="viewer-redis", limit=5)
+        output = QueryService(
+            Mock(),
+            Mock(),
+            cache=None,
+        )._build_output(
+            viewer_id="viewer-redis",
+            generated_at="2026-04-13T00:00:00+00:00",
+            source="global_fallback",
+            score_version="recommendation-query-pipeline-v1",
+            candidates=[
+                {
+                    "candidateId": "candidate-redis",
+                    "source": "global_fallback",
+                    "retrievalScore": 0.7,
+                    "modelScore": 0.0,
+                    "finalScore": 0.7,
+                    "rank": 1,
+                    "reasonCodes": ["global_fallback"],
+                }
+            ],
+            has_next=False,
+            next_cursor=None,
+        )
+
+        self.assertIsNone(cache.get(request))
+        cache.set(request, output)
+        cached_output = cache.get(request)
+
+        self.assertIsNotNone(cached_output)
+        self.assertEqual(cached_output.viewerId, "viewer-redis")
+        self.assertEqual(cached_output.candidates[0].candidateId, "candidate-redis")
+        stats_after_hit = cache.get_stats()
+        self.assertEqual(stats_after_hit["backend"], "redis")
+        self.assertEqual(stats_after_hit["misses"], 1)
+        self.assertEqual(stats_after_hit["hits"], 1)
+        self.assertEqual(stats_after_hit["sets"], 1)
+
+        cache.invalidate_viewer("viewer-redis")
+
+        self.assertIsNone(cache.get(request))
+        stats_after_invalidation = cache.get_stats()
+        self.assertEqual(stats_after_invalidation["invalidations"], 1)
+
+    def test_redis_query_cache_evicts_over_limit(self):
+        redis = FakeRedis()
+        cache = RedisRecommendationQueryCache(
+            redis_host="localhost",
+            redis_port=6379,
+            redis_db=0,
+            ttl_seconds=30,
+            max_entries=1,
+            key_prefix="test:recommendation-cache",
+            client=redis,
+        )
+        service = QueryService(Mock(), Mock(), cache=None)
+        first_request = RecommendationQueryRequest(viewerId="viewer-1", limit=5)
+        second_request = RecommendationQueryRequest(viewerId="viewer-2", limit=5)
+        first_output = service._build_output(
+            viewer_id="viewer-1",
+            generated_at="2026-04-13T00:00:00+00:00",
+            source="global_fallback",
+            score_version="recommendation-query-pipeline-v1",
+            candidates=[],
+            has_next=False,
+            next_cursor=None,
+        )
+        second_output = first_output.model_copy(update={"viewerId": "viewer-2"})
+
+        cache.set(first_request, first_output)
+        cache.set(second_request, second_output)
+
+        self.assertIsNone(cache.get(first_request))
+        self.assertEqual(cache.get(second_request).viewerId, "viewer-2")
+        stats = cache.get_stats()
+        self.assertEqual(stats["evictions"], 1)
+        self.assertEqual(stats["entryCount"], 1)
 
 
 if __name__ == "__main__":

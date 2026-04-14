@@ -60,6 +60,19 @@ class Settings:
         self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES", 1000)
         )
+        self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST: str = os.getenv(
+            "RECOMMENDATION_QUERY_CACHE_REDIS_HOST", "localhost"
+        ).strip()
+        self.RECOMMENDATION_QUERY_CACHE_REDIS_PORT: int = int(
+            os.getenv("RECOMMENDATION_QUERY_CACHE_REDIS_PORT", 6379)
+        )
+        self.RECOMMENDATION_QUERY_CACHE_REDIS_DB: int = int(
+            os.getenv("RECOMMENDATION_QUERY_CACHE_REDIS_DB", 0)
+        )
+        self.RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX: str = os.getenv(
+            "RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX",
+            "recommendation:query-cache",
+        ).strip()
         self.RECOMMENDATION_QUERY_MODEL_WEIGHT: float = float(
             os.getenv("RECOMMENDATION_QUERY_MODEL_WEIGHT", 0.7)
         )
@@ -144,6 +157,24 @@ class Settings:
         if self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES <= 0:
             raise RuntimeError(
                 "RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES must be positive"
+            )
+
+        if not self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_CACHE_REDIS_HOST must not be empty"
+            )
+
+        if not (1 <= self.RECOMMENDATION_QUERY_CACHE_REDIS_PORT <= 65535):
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_CACHE_REDIS_PORT must be between 1 and 65535"
+            )
+
+        if self.RECOMMENDATION_QUERY_CACHE_REDIS_DB < 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_CACHE_REDIS_DB must be >= 0")
+
+        if not self.RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX must not be empty"
             )
 
         if not self.RECOMMENDATION_QUERY_INSTRUCTION:

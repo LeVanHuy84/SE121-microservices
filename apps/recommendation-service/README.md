@@ -25,7 +25,7 @@ Primary path:
 
 - semantic online retrieval from pgvector (`source=semantic_online`)
 - graph feature rerank from pair features such as mutual friends and common groups
-- short in-memory query cache with event-driven invalidation
+- Redis query cache with event-driven invalidation
 
 Fallback path:
 
@@ -58,9 +58,16 @@ Response contains:
 
 Readiness endpoint for model/runtime health.
 
+### GET /recommend/query-cache
+
+Internal cache diagnostics endpoint. Returns cache backend, TTL, max entries,
+entry count, viewer count, hits, misses, sets, evictions, invalidations, clears,
+and Redis errors when Redis is enabled.
+
 Current recommendation API surface is query-first:
 
 - `POST /recommend/query`
+- `GET /recommend/query-cache`
 - `GET /health`
 - `GET /ready`
 
@@ -78,6 +85,7 @@ Migrations:
 - `20260413_0006_segment_global_fallback_candidates.py`
 - `20260413_0007_drop_recommendation_outbox.py`
 - `20260413_0008_add_graph_event_journal_and_pair_features.py`
+- `20260414_0009_drop_precomputed_snapshots.py`
 
 ## Environment Variables
 
@@ -104,6 +112,10 @@ Pipeline:
 - `RECOMMENDATION_QUERY_RERANK_TOP_K`
 - `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS`
 - `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_HOST`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_PORT`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_DB`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX`
 - `RECOMMENDATION_QUERY_MODEL_WEIGHT`
 - `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT`
 - `RECOMMENDATION_QUERY_GRAPH_WEIGHT`
