@@ -14,7 +14,6 @@ class Settings:
             "INTERNAL_SERVICE_KEY", ""
         ).strip()
 
-        self.CHATBOT_MODEL: str = os.getenv("CHATBOT_MODEL", "qwen3:4b").strip()
         self.CHATBOT_MAX_HISTORY_ITEMS: int = int(
             os.getenv("CHATBOT_MAX_HISTORY_ITEMS", 10)
         )
@@ -28,11 +27,19 @@ class Settings:
             os.getenv("CHATBOT_SESSION_TTL_SECONDS", 3600)
         )
 
-        self.OLLAMA_BASE_URL: str = os.getenv(
-            "OLLAMA_BASE_URL", "http://localhost:11434"
+        self.GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
+        self.GROQ_MODEL: str = os.getenv(
+            "GROQ_MODEL", "llama-3.3-70b-versatile"
+        ).strip()
+        self.GROQ_BASE_URL: str = os.getenv(
+            "GROQ_BASE_URL", "https://api.groq.com/openai/v1"
         ).rstrip("/")
-        self.OLLAMA_TIMEOUT_SECONDS: float = float(
-            os.getenv("OLLAMA_TIMEOUT_SECONDS", 45)
+        self.GROQ_TIMEOUT_SECONDS: float = float(
+            os.getenv("GROQ_TIMEOUT_SECONDS", 45)
+        )
+        self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", 1024))
+        self.GROQ_TEMPERATURE: float = float(
+            os.getenv("GROQ_TEMPERATURE", 0.2)
         )
 
         self._validate()
@@ -47,9 +54,6 @@ class Settings:
         if not self.INTERNAL_SERVICE_KEY:
             raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
 
-        if not self.CHATBOT_MODEL:
-            raise RuntimeError("CHATBOT_MODEL must not be empty")
-
         if self.CHATBOT_MAX_HISTORY_ITEMS <= 0:
             raise RuntimeError("CHATBOT_MAX_HISTORY_ITEMS must be positive")
 
@@ -62,11 +66,20 @@ class Settings:
         if self.CHATBOT_SESSION_TTL_SECONDS <= 0:
             raise RuntimeError("CHATBOT_SESSION_TTL_SECONDS must be positive")
 
-        if self.OLLAMA_TIMEOUT_SECONDS <= 0:
-            raise RuntimeError("OLLAMA_TIMEOUT_SECONDS must be positive")
+        if not self.GROQ_MODEL:
+            raise RuntimeError("GROQ_MODEL must not be empty")
 
-        if not self.OLLAMA_BASE_URL:
-            raise RuntimeError("OLLAMA_BASE_URL must not be empty")
+        if not self.GROQ_BASE_URL:
+            raise RuntimeError("GROQ_BASE_URL must not be empty")
+
+        if self.GROQ_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("GROQ_TIMEOUT_SECONDS must be positive")
+
+        if self.GROQ_MAX_TOKENS <= 0:
+            raise RuntimeError("GROQ_MAX_TOKENS must be positive")
+
+        if not (0 <= self.GROQ_TEMPERATURE <= 2):
+            raise RuntimeError("GROQ_TEMPERATURE must be between 0 and 2")
 
 
 settings = Settings()

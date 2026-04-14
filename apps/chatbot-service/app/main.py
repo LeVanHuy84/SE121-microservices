@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.api.assistant_api import assistant_router
 from app.core.config import settings
@@ -19,11 +19,22 @@ def get_health_status():
 
 @app.get("/ready")
 def get_readiness_status():
+    if not settings.GROQ_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "service": "chatbot-service",
+                "provider": "groq",
+                "reason": "GROQ_API_KEY is not set",
+            },
+        )
+
     return {
         "status": "ready",
         "service": "chatbot-service",
-        "provider": "ollama",
-        "model": settings.CHATBOT_MODEL,
+        "provider": "groq",
+        "model": settings.GROQ_MODEL,
     }
 
 

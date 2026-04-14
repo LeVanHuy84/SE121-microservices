@@ -3,6 +3,7 @@ import os
 import unittest
 
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
+os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 
 from app.providers.base import LlmGeneration
 from app.schemas.assistant_schema import AssistantContextItem, AssistantRespondRequest

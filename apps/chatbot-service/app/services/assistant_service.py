@@ -5,7 +5,7 @@ import logging
 from app.core.config import settings
 from app.memory.session_memory import session_memory
 from app.providers.base import LlmProvider
-from app.providers.ollama_provider import OllamaProvider
+from app.providers.groq_provider import GroqProvider
 from app.schemas.assistant_schema import (
     AssistantRespondData,
     AssistantRespondRequest,
@@ -72,7 +72,7 @@ class AssistantService:
         return f"{request.userId}:{conversation_id}"
 
     def _resolve_provider(self) -> LlmProvider:
-        return OllamaProvider()
+        return GroqProvider()
 
 
 assistant_service = AssistantService()
