@@ -26,6 +26,8 @@ Primary path:
 - semantic online retrieval from pgvector (`source=semantic_online`)
 - graph feature rerank from pair features such as mutual friends and common groups
 - Redis query cache with event-driven invalidation
+- Redis query session window for pagination so follow-up pages reuse the first
+  page's candidate window instead of re-running semantic retrieval
 
 Fallback path:
 
@@ -52,7 +54,8 @@ Response contains:
 
 - `source`, `scoreVersion`, `candidateCount`
 - ordered `candidates` with `retrievalScore`, `modelScore`, `finalScore`, `reasonCodes`, `rank`
-- `nextCursor`, `hasNextPage`
+- `nextCursor`, `hasNextPage`; semantic pages may return a Redis-backed
+  session cursor (`source=semantic_session`)
 
 ### GET /ready
 
@@ -112,6 +115,8 @@ Pipeline:
 - `RECOMMENDATION_QUERY_RERANK_TOP_K`
 - `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS`
 - `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES`
+- `RECOMMENDATION_QUERY_SESSION_TTL_SECONDS`
+- `RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE`
 - `RECOMMENDATION_QUERY_CACHE_REDIS_HOST`
 - `RECOMMENDATION_QUERY_CACHE_REDIS_PORT`
 - `RECOMMENDATION_QUERY_CACHE_REDIS_DB`

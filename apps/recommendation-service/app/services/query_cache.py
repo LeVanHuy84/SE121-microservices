@@ -5,6 +5,7 @@ import json
 import logging
 from time import monotonic
 from typing import Any, Protocol
+from uuid import uuid4
 
 from app.core.config import settings
 from app.models.rerank_request import (
@@ -35,6 +36,16 @@ class QueryCache(Protocol):
 
     def get_stats(self) -> dict[str, int | float | str | bool]: ...
 
+    def store_candidate_session(
+        self,
+        viewer_id: str,
+        source: str,
+        score_version: str,
+        candidates: list[dict[str, Any]],
+    ) -> str | None: ...
+
+    def get_candidate_session(self, session_id: str) -> dict[str, Any] | None: ...
+
 
 class RedisRecommendationQueryCache:
     def __init__(
@@ -54,6 +65,10 @@ class RedisRecommendationQueryCache:
         self.max_entries = max(1, int(max_entries))
         self.key_prefix = str(key_prefix or "recommendation:query-cache").strip()
         self._ttl_ms = max(1, int(self.ttl_seconds * 1000))
+        self._session_ttl_ms = max(
+            1,
+            int(settings.RECOMMENDATION_QUERY_SESSION_TTL_SECONDS * 1000),
+        )
         self._client = client or self._create_client()
         self._unavailable_until = 0.0
 
@@ -171,6 +186,9 @@ class RedisRecommendationQueryCache:
                 "ttlSeconds": self.ttl_seconds,
                 "maxEntries": self.max_entries,
                 "entryCount": int(self._client.zcard(self._index_key) or 0),
+                "sessionCount": len(
+                    list(self._client.scan_iter(f"{self.key_prefix}:session:*"))
+                ),
                 "viewerCount": len(
                     list(self._client.scan_iter(f"{self.key_prefix}:viewer:*"))
                 ),
@@ -180,6 +198,9 @@ class RedisRecommendationQueryCache:
                 "evictions": int(raw_stats.get("evictions", 0)),
                 "invalidations": int(raw_stats.get("invalidations", 0)),
                 "clears": int(raw_stats.get("clears", 0)),
+                "sessions": int(raw_stats.get("sessions", 0)),
+                "sessionHits": int(raw_stats.get("sessionHits", 0)),
+                "sessionMisses": int(raw_stats.get("sessionMisses", 0)),
                 "errors": int(raw_stats.get("errors", 0)),
             }
         except Exception as exc:
@@ -221,6 +242,69 @@ class RedisRecommendationQueryCache:
             logger.debug("Failed to increment Redis cache stat=%s", name)
             self._mark_unavailable()
 
+    def store_candidate_session(
+        self,
+        viewer_id: str,
+        source: str,
+        score_version: str,
+        candidates: list[dict[str, Any]],
+    ) -> str | None:
+        normalized_viewer_id = str(viewer_id or "").strip()
+        if not normalized_viewer_id or not candidates or self._is_unavailable():
+            return None
+
+        session_id = uuid4().hex
+        session_key = self._session_key(session_id)
+        viewer_key = self._viewer_key(normalized_viewer_id)
+        payload = {
+            "viewerId": normalized_viewer_id,
+            "source": str(source or "").strip() or "semantic_online",
+            "scoreVersion": str(score_version or "").strip(),
+            "candidates": candidates,
+        }
+        try:
+            pipe = self._client.pipeline()
+            pipe.set(
+                session_key,
+                json.dumps(payload, separators=(",", ":")),
+                px=self._session_ttl_ms,
+            )
+            pipe.sadd(viewer_key, session_key)
+            pipe.pexpire(
+                viewer_key,
+                max(self._ttl_ms, self._session_ttl_ms),
+            )
+            pipe.hincrby(self._stats_key, "sessions", 1)
+            pipe.execute()
+            return session_id
+        except Exception as exc:
+            logger.warning("Redis recommendation query session set failed: %s", exc)
+            self._mark_unavailable()
+            return None
+
+    def get_candidate_session(self, session_id: str) -> dict[str, Any] | None:
+        normalized_session_id = str(session_id or "").strip()
+        if not normalized_session_id or self._is_unavailable():
+            return None
+
+        try:
+            payload = self._client.get(self._session_key(normalized_session_id))
+            if payload is None:
+                self._increment_stat("sessionMisses")
+                return None
+
+            decoded_payload = json.loads(payload)
+            if not isinstance(decoded_payload, dict):
+                self._increment_stat("sessionMisses")
+                return None
+
+            self._increment_stat("sessionHits")
+            return decoded_payload
+        except Exception as exc:
+            logger.warning("Redis recommendation query session get failed: %s", exc)
+            self._mark_unavailable()
+            return None
+
     def _is_unavailable(self) -> bool:
         return monotonic() < self._unavailable_until
 
@@ -238,6 +322,7 @@ class RedisRecommendationQueryCache:
             "ttlSeconds": self.ttl_seconds,
             "maxEntries": self.max_entries,
             "entryCount": 0,
+            "sessionCount": 0,
             "viewerCount": 0,
             "hits": 0,
             "misses": 0,
@@ -245,8 +330,14 @@ class RedisRecommendationQueryCache:
             "evictions": 0,
             "invalidations": 0,
             "clears": 0,
+            "sessions": 0,
+            "sessionHits": 0,
+            "sessionMisses": 0,
             "errors": 1,
         }
+
+    def _session_key(self, session_id: str) -> str:
+        return f"{self.key_prefix}:session:{session_id}"
 
     def _make_entry_key(self, request: RecommendationQueryRequest) -> str:
         payload = {

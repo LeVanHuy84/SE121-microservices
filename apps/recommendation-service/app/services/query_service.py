@@ -19,6 +19,7 @@ from app.services.query_cache import QueryCache, query_cache
 from app.services.rerank_service import RerankService
 
 QUERY_SCORE_VERSION = "recommendation-query-pipeline-v1"
+SESSION_CURSOR_SOURCE = "semantic_session"
 
 
 class QueryService:
@@ -61,6 +62,24 @@ class QueryService:
             if cached_response is not None:
                 return cached_response
 
+        limit = max(1, int(request.limit))
+        cursor = self._decode_cursor(request.cursor)
+        cursor_source = str(cursor.get("source") or "").strip()
+        cursor_offset = max(0, int(cursor.get("offset") or 0))
+
+        if cursor_source == SESSION_CURSOR_SOURCE:
+            session_response = self._build_session_response(
+                request=request,
+                viewer_id=viewer_id,
+                generated_at=generated_at,
+                cursor=cursor,
+                limit=limit,
+            )
+            if session_response is not None:
+                return session_response
+
+            cursor_source = "semantic_online"
+
         viewer_row = self.repository.get_profile_embedding(viewer_id)
         viewer_profile_text = (
             request.viewerProfileText
@@ -69,11 +88,8 @@ class QueryService:
             else (viewer_row or {}).get("semanticProfileText")
         )
 
-        limit = max(1, int(request.limit))
-        cursor = self._decode_cursor(request.cursor)
-        cursor_source = str(cursor.get("source") or "").strip()
-        cursor_offset = max(0, int(cursor.get("offset") or 0))
-        page_span = max(limit * 3, settings.RECOMMENDATION_QUERY_RERANK_TOP_K)
+        window_size = self._resolve_session_window_size(limit)
+        page_span = max(window_size, settings.RECOMMENDATION_QUERY_RERANK_TOP_K)
 
         if cursor_source in ("", "semantic_online"):
             primary_batch = self.candidate_retrieval_service.get_semantic_online_batch(
@@ -122,13 +138,14 @@ class QueryService:
         )
 
         response_source = primary_batch.source
-        response_candidates = scored_primary[:limit]
-        has_next = primary_batch.has_next or len(scored_primary) > limit
+        session_source = primary_batch.source
+        session_candidates = list(scored_primary)
+        has_more_source = primary_batch.has_next
         next_source = primary_batch.source
-        next_offset = cursor_offset + len(response_candidates)
+        next_offset = cursor_offset + min(limit, len(session_candidates))
 
         if (
-            len(response_candidates) < limit
+            len(session_candidates) < window_size
             and primary_batch.source == "semantic_online"
         ):
             excluded_ids = {
@@ -140,20 +157,45 @@ class QueryService:
             ) = self.global_fallback_service.get_batch(
                 viewer_id=viewer_id,
                 offset=0,
-                size=limit - len(response_candidates),
+                size=window_size - len(session_candidates),
                 excluded_candidate_ids=excluded_ids,
             )
-            response_candidates.extend(
-                self._rank_with_passthrough_scores(
-                    fallback_candidates,
-                    start_rank=len(response_candidates) + 1,
-                )
+            ranked_fallback_candidates = self._rank_with_passthrough_scores(
+                fallback_candidates,
+                start_rank=len(session_candidates) + 1,
+            )
+            session_candidates.extend(
+                ranked_fallback_candidates
             )
             if fallback_candidates:
-                response_source = "hybrid"
-                next_source = "global_fallback"
-                next_offset = len(fallback_candidates)
-                has_next = has_next or fallback_has_next
+                session_source = "hybrid"
+                has_more_source = has_more_source or fallback_has_next
+
+        response_candidates = session_candidates[:limit]
+        if any(
+            str(candidate.get("source") or "") == "global_fallback"
+            for candidate in response_candidates
+        ):
+            response_source = "hybrid"
+        has_next = len(session_candidates) > limit or has_more_source
+        next_cursor = None
+        if has_next:
+            session_id = self.cache.store_candidate_session(
+                viewer_id=viewer_id,
+                source=session_source,
+                score_version=QUERY_SCORE_VERSION,
+                candidates=session_candidates,
+            ) if self.cache is not None and session_candidates else None
+            if session_id:
+                next_cursor = self._encode_session_cursor(
+                    session_id,
+                    len(response_candidates),
+                )
+            else:
+                next_cursor = self._encode_cursor(
+                    next_source,
+                    next_offset,
+                )
 
         response = self._build_output(
             viewer_id=viewer_id,
@@ -162,13 +204,62 @@ class QueryService:
             score_version=QUERY_SCORE_VERSION,
             candidates=response_candidates,
             has_next=has_next,
-            next_cursor=self._encode_cursor(next_source, next_offset)
-            if has_next
-            else None,
+            next_cursor=next_cursor,
         )
         if self.cache is not None:
             return self.cache.set(request, response)
         return response
+
+    def _build_session_response(
+        self,
+        request: RecommendationQueryRequest,
+        viewer_id: str,
+        generated_at: str,
+        cursor: dict[str, Any],
+        limit: int,
+    ) -> RecommendationQueryOutput | None:
+        if self.cache is None:
+            return None
+
+        session_id = str(cursor.get("sessionId") or "").strip()
+        if not session_id:
+            return None
+
+        session = self.cache.get_candidate_session(session_id)
+        if not session or str(session.get("viewerId") or "").strip() != viewer_id:
+            return None
+
+        candidates = session.get("candidates")
+        if not isinstance(candidates, list):
+            return None
+
+        offset = max(0, int(cursor.get("offset") or 0))
+        selected = [
+            candidate
+            for candidate in candidates[offset : offset + limit]
+            if isinstance(candidate, dict)
+        ]
+        next_offset = offset + len(selected)
+        has_next = next_offset < len(candidates)
+        response = self._build_output(
+            viewer_id=viewer_id,
+            generated_at=generated_at,
+            source=str(session.get("source") or "semantic_online"),
+            score_version=str(session.get("scoreVersion") or QUERY_SCORE_VERSION),
+            candidates=selected,
+            has_next=has_next,
+            next_cursor=self._encode_session_cursor(session_id, next_offset)
+            if has_next
+            else None,
+        )
+
+        return self.cache.set(request, response)
+
+    def _resolve_session_window_size(self, limit: int) -> int:
+        return max(
+            max(1, int(limit)),
+            int(settings.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE),
+        )
 
     def _build_response(
         self,
@@ -450,6 +541,17 @@ class QueryService:
         payload = json.dumps(
             {
                 "source": str(source),
+                "offset": max(0, int(offset)),
+            },
+            separators=(",", ":"),
+        )
+        return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
+
+    def _encode_session_cursor(self, session_id: str, offset: int) -> str:
+        payload = json.dumps(
+            {
+                "source": SESSION_CURSOR_SOURCE,
+                "sessionId": str(session_id),
                 "offset": max(0, int(offset)),
             },
             separators=(",", ":"),

@@ -455,6 +455,75 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
             finally:
                 repository.close()
 
+    def test_query_uses_redis_session_cursor_for_next_semantic_page(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = RecommendationStateRepository(
+                f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
+            )
+            try:
+                repository.create_schema()
+                repository.upsert_profile_embedding(
+                    "viewer-session",
+                    "name: Viewer",
+                    [1.0, 0.0],
+                    "demo-model",
+                    "2026-04-13T00:00:00+00:00",
+                )
+                for index, score in enumerate([0.95, 0.9, 0.85], start=1):
+                    repository.upsert_profile_embedding(
+                        f"candidate-session-{index}",
+                        f"name: Candidate {index}",
+                        [score, 0.0],
+                        "demo-model",
+                        "2026-04-13T00:00:00+00:00",
+                    )
+
+                rerank_service = Mock()
+                rerank_service.rerank.return_value = [
+                    RecommendationCandidateScore(
+                        candidateId=f"candidate-session-{index}",
+                        modelScore=0.0,
+                        reason="semantic",
+                    )
+                    for index in range(1, 4)
+                ]
+                cache = RedisRecommendationQueryCache(
+                    redis_host="localhost",
+                    redis_port=6379,
+                    redis_db=0,
+                    ttl_seconds=30,
+                    max_entries=10,
+                    key_prefix="test:recommendation-cache",
+                    client=FakeRedis(),
+                )
+                service = QueryService(repository, rerank_service, cache=cache)
+
+                first_response = service.query(
+                    RecommendationQueryRequest(viewerId="viewer-session", limit=1)
+                )
+                first_cursor = service._decode_cursor(first_response.nextCursor)
+                second_response = service.query(
+                    RecommendationQueryRequest(
+                        viewerId="viewer-session",
+                        limit=1,
+                        cursor=first_response.nextCursor,
+                    )
+                )
+
+                self.assertEqual(first_cursor["source"], "semantic_session")
+                self.assertIn("sessionId", first_cursor)
+                self.assertEqual(
+                    first_response.candidates[0].candidateId,
+                    "candidate-session-1",
+                )
+                self.assertEqual(
+                    second_response.candidates[0].candidateId,
+                    "candidate-session-2",
+                )
+                rerank_service.rerank.assert_called_once()
+            finally:
+                repository.close()
+
     def test_redis_query_cache_round_trips_and_invalidates_viewer(self):
         redis = FakeRedis()
         cache = RedisRecommendationQueryCache(

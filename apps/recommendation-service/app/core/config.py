@@ -60,6 +60,12 @@ class Settings:
         self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES", 1000)
         )
+        self.RECOMMENDATION_QUERY_SESSION_TTL_SECONDS: float = float(
+            os.getenv("RECOMMENDATION_QUERY_SESSION_TTL_SECONDS", 120)
+        )
+        self.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE: int = int(
+            os.getenv("RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE", 200)
+        )
         self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST: str = os.getenv(
             "RECOMMENDATION_QUERY_CACHE_REDIS_HOST", "localhost"
         ).strip()
@@ -157,6 +163,25 @@ class Settings:
         if self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES <= 0:
             raise RuntimeError(
                 "RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES must be positive"
+            )
+
+        if self.RECOMMENDATION_QUERY_SESSION_TTL_SECONDS <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_SESSION_TTL_SECONDS must be positive"
+            )
+
+        if (
+            self.RECOMMENDATION_QUERY_SESSION_TTL_SECONDS
+            < self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS
+        ):
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_SESSION_TTL_SECONDS must be >= "
+                "RECOMMENDATION_QUERY_CACHE_TTL_SECONDS"
+            )
+
+        if self.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE must be positive"
             )
 
         if not self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST:
