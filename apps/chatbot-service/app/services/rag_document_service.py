@@ -233,19 +233,33 @@ class RagDocumentService:
         return metadata, match.group(2).strip()
 
     def _chunk_text(self, text: str) -> list[str]:
-        normalized = "\n".join(line.strip() for line in text.splitlines()).strip()
+        normalized = "\n".join(line.rstrip() for line in text.splitlines()).strip()
         if not normalized:
             return []
 
-        chunks: list[str] = []
-        start = 0
-        while start < len(normalized):
-            end = min(len(normalized), start + settings.RAG_CHUNK_SIZE)
-            chunks.append(normalized[start:end].strip())
-            if end == len(normalized):
-                break
-            start = end - settings.RAG_CHUNK_OVERLAP
-        return [chunk for chunk in chunks if chunk]
+        try:
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+        except ImportError as exc:
+            raise RuntimeError(
+                "LangChain text splitters are not installed. "
+                "Run: pip install -r requirements.txt"
+            ) from exc
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=settings.RAG_CHUNK_SIZE,
+            chunk_overlap=settings.RAG_CHUNK_OVERLAP,
+            separators=[
+                "\n## ",
+                "\n### ",
+                "\n#### ",
+                "\n\n",
+                "\n",
+                ". ",
+                " ",
+                "",
+            ],
+        )
+        return [chunk.strip() for chunk in splitter.split_text(normalized) if chunk.strip()]
 
 
 rag_document_service = RagDocumentService()

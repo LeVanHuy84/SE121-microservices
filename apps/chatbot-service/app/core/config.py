@@ -14,9 +14,17 @@ class Settings:
             "INTERNAL_SERVICE_KEY", ""
         ).strip()
 
-        self.CHATBOT_MAX_HISTORY_ITEMS: int = int(
-            os.getenv("CHATBOT_MAX_HISTORY_ITEMS", 10)
+        self.CHATBOT_MEMORY_RECENT_TURNS: int = int(
+            os.getenv("CHATBOT_MEMORY_RECENT_TURNS", 8)
         )
+        self.CHATBOT_MEMORY_STORED_TURNS: int = int(
+            os.getenv("CHATBOT_MEMORY_STORED_TURNS", 16)
+        )
+        self.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT: int = int(
+            os.getenv("CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT", 2500)
+        )
+        self.CHATBOT_MEMORY_RECENT_ITEMS: int = self.CHATBOT_MEMORY_RECENT_TURNS * 2
+        self.CHATBOT_MEMORY_STORED_ITEMS: int = self.CHATBOT_MEMORY_STORED_TURNS * 2
         self.CHATBOT_MAX_CONTEXT_ITEMS: int = int(
             os.getenv("CHATBOT_MAX_CONTEXT_ITEMS", 8)
         )
@@ -26,6 +34,12 @@ class Settings:
         self.CHATBOT_SESSION_TTL_SECONDS: int = int(
             os.getenv("CHATBOT_SESSION_TTL_SECONDS", 3600)
         )
+        self.CHATBOT_REDIS_URL: str = os.getenv(
+            "CHATBOT_REDIS_URL", "redis://localhost:6379/0"
+        ).strip()
+        self.CHATBOT_MEMORY_KEY_PREFIX: str = os.getenv(
+            "CHATBOT_MEMORY_KEY_PREFIX", "chatbot:assistant"
+        ).strip()
         self.ASSISTANT_DOCS_DIR: str = os.getenv(
             "ASSISTANT_DOCS_DIR", "docs/assistant"
         ).strip()
@@ -74,8 +88,19 @@ class Settings:
         if not self.INTERNAL_SERVICE_KEY:
             raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
 
-        if self.CHATBOT_MAX_HISTORY_ITEMS <= 0:
-            raise RuntimeError("CHATBOT_MAX_HISTORY_ITEMS must be positive")
+        if self.CHATBOT_MEMORY_RECENT_TURNS <= 0:
+            raise RuntimeError("CHATBOT_MEMORY_RECENT_TURNS must be positive")
+
+        if self.CHATBOT_MEMORY_STORED_TURNS <= 0:
+            raise RuntimeError("CHATBOT_MEMORY_STORED_TURNS must be positive")
+
+        if self.CHATBOT_MEMORY_STORED_TURNS < self.CHATBOT_MEMORY_RECENT_TURNS:
+            raise RuntimeError(
+                "CHATBOT_MEMORY_STORED_TURNS must be >= CHATBOT_MEMORY_RECENT_TURNS"
+            )
+
+        if self.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT <= 0:
+            raise RuntimeError("CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT must be positive")
 
         if self.CHATBOT_MAX_CONTEXT_ITEMS < 0:
             raise RuntimeError("CHATBOT_MAX_CONTEXT_ITEMS must be >= 0")
@@ -85,6 +110,12 @@ class Settings:
 
         if self.CHATBOT_SESSION_TTL_SECONDS <= 0:
             raise RuntimeError("CHATBOT_SESSION_TTL_SECONDS must be positive")
+
+        if not self.CHATBOT_REDIS_URL:
+            raise RuntimeError("CHATBOT_REDIS_URL must not be empty")
+
+        if not self.CHATBOT_MEMORY_KEY_PREFIX:
+            raise RuntimeError("CHATBOT_MEMORY_KEY_PREFIX must not be empty")
 
         if not self.ASSISTANT_DOCS_DIR:
             raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")

@@ -38,16 +38,13 @@ class AssistantService:
         if not self.scope_guard.is_in_scope(request):
             return self._out_of_scope_response()
 
+        session_key = self._session_key(request)
         history = self._resolve_history(request)
+        memory_summary = session_memory.get_summary(session_key)
         contexts = self.context_resolver.resolve(request)
         resolved_request = request.model_copy(update={"contexts": contexts})
-        prompt = self.prompt_builder.build(resolved_request, history)
+        prompt = self.prompt_builder.build(resolved_request, history, memory_summary)
         generation = await self.provider.generate(prompt, resolved_request)
-        session_memory.append_exchange(
-            self._session_key(request),
-            request.message,
-            generation.content,
-        )
         sources = [
             AssistantSource(
                 type=item.type,
@@ -58,6 +55,21 @@ class AssistantService:
             )
             for item in contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
         ]
+        session_memory.append_exchange(
+            session_key,
+            request.message,
+            generation.content,
+        )
+        session_memory.set_summary(
+            session_key,
+            self._build_updated_summary(
+                memory_summary,
+                request.message,
+                generation.content,
+            ),
+        )
+        session_memory.set_last_intent(session_key, request.intent or self._infer_intent(contexts))
+        session_memory.set_last_sources(session_key, sources)
         logger.info(
             "Assistant response generated: userId=%s provider=%s model=%s contexts=%s",
             request.userId,
@@ -75,10 +87,10 @@ class AssistantService:
 
     def _resolve_history(self, request: AssistantRespondRequest):
         if request.history:
-            return request.history[-settings.CHATBOT_MAX_HISTORY_ITEMS :]
+            return request.history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]
         return session_memory.get_recent(
             self._session_key(request),
-            settings.CHATBOT_MAX_HISTORY_ITEMS,
+            settings.CHATBOT_MEMORY_RECENT_ITEMS,
         )
 
     def _session_key(self, request: AssistantRespondRequest) -> str:
@@ -87,6 +99,34 @@ class AssistantService:
 
     def _resolve_provider(self) -> LlmProvider:
         return GroqProvider()
+
+    def _build_updated_summary(
+        self,
+        current_summary: str,
+        user_message: str,
+        assistant_reply: str,
+    ) -> str:
+        latest = (
+            "Lượt gần nhất: "
+            f"Người dùng hỏi '{self._truncate_text(user_message, 180)}'. "
+            f"Assistant trả lời '{self._truncate_text(assistant_reply, 260)}'."
+        )
+        combined = " ".join(part for part in [current_summary, latest] if part)
+        return self._truncate_text(combined, settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT)
+
+    def _infer_intent(self, contexts) -> str | None:
+        if not contexts:
+            return None
+        first_type = contexts[0].type
+        if first_type in {"post", "group", "user", "help_doc"}:
+            return first_type
+        return None
+
+    def _truncate_text(self, value: str, limit: int) -> str:
+        normalized = " ".join(str(value or "").split())
+        if len(normalized) <= limit:
+            return normalized
+        return f"{normalized[:limit].rstrip()}..."
 
     def _out_of_scope_response(self) -> AssistantRespondData:
         return AssistantRespondData(

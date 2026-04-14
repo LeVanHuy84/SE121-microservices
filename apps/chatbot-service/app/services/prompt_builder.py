@@ -11,10 +11,12 @@ class PromptBuilder:
         self,
         request: AssistantRespondRequest,
         history: list[AssistantHistoryItem],
+        memory_summary: str = "",
     ) -> str:
         parts = [
             self._build_system_prompt(),
             self._build_user_profile(request),
+            self._build_memory_summary_block(memory_summary),
             self._build_context_block(request.contexts),
             self._build_history_block(history),
             self._build_current_message(request.message),
@@ -40,6 +42,15 @@ class PromptBuilder:
             lines.append(f"INTENT: {request.intent}")
         return "\n".join(lines)
 
+    def _build_memory_summary_block(self, memory_summary: str) -> str:
+        summary = self._truncate(
+            memory_summary,
+            settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT,
+        )
+        if not summary:
+            return "MEMORY_SUMMARY:\nKhông có tóm tắt trước đó."
+        return f"MEMORY_SUMMARY:\n{summary}"
+
     def _build_context_block(self, contexts: list[AssistantContextItem]) -> str:
         selected_contexts = contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
         if not selected_contexts:
@@ -62,7 +73,7 @@ class PromptBuilder:
             return "HISTORY:\nKhông có lịch sử hội thoại."
 
         lines = ["HISTORY:"]
-        for item in history[-settings.CHATBOT_MAX_HISTORY_ITEMS :]:
+        for item in history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]:
             content = self._truncate(item.content, 1000)
             lines.append(f"{item.role}: {content}")
         return "\n".join(lines)
