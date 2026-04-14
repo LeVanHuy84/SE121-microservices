@@ -21,6 +21,7 @@ import { SearchModule } from './modules/search/search.module';
 import { EmotionModule } from './modules/emotion/emotion.module';
 import { LogModule } from './modules/log/log.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AdminModule } from './modules/admin/admin.module';
     ChatModule,
 
     EmotionModule,
+    ChatbotModule,
     LogModule,
     AdminModule,
   ],

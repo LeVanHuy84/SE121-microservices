@@ -1,0 +1,17 @@
+{
+  "name": "chatbot-service",
+  "version": "0.0.1",
+  "description": "AI assistant service for SE121 social network",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "venv": "powershell.exe -NoExit -Command .\\.venv\\Scripts\\Activate.ps1",
+    "install": "pip install -r requirements.txt",
+    "start:dev": ".venv\\Scripts\\python.exe -m app.main",
+    "build": "python -m compileall app",
+    "lint": "python -m ruff check app tests",
+    "format": "python -m ruff format app tests",
+    "test": "python -m unittest discover -s tests -p \"test_*.py\""
+  }
+}
