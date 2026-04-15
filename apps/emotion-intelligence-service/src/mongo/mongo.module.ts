@@ -26,6 +26,9 @@ import {
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
         dbName: 'emotion_intelligence_service',
+
+        retryWrites: true,
+        w: 'majority',
       }),
       inject: [ConfigService],
     }),

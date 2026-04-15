@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { ReactionService } from './reaction.service';
-import { EventPattern, MessagePattern } from '@nestjs/microservices';
+import { MessagePattern } from '@nestjs/microservices';
 import { DisReactDTO, GetReactionsDTO, ReactDTO, TargetType } from '@repo/dtos';
 
 @Controller('react')
@@ -31,7 +31,7 @@ export class ReactionController {
     return this.reactionService.getReactedTypesBatch(
       data.userId,
       data.targetType,
-      data.targetIds
+      data.targetIds,
     );
   }
 }

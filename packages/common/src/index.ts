@@ -17,3 +17,6 @@ export * from './rabbimq/rabbitmq.module';
 export * from './notification';
 
 export * from './kafka-producer';
+
+// event module
+export * from './event';

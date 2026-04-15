@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { PersonalFeedService } from '../services/personal-feed.service';
-import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { PersonalFeedQuery } from '@repo/dtos';
 
 @Controller('personal-feed')
