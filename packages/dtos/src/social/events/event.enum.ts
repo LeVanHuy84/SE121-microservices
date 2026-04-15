@@ -12,4 +12,5 @@ export enum EventTopic {
   MODERATION_REJECTED = 'moderation-rejected-events',
   LOGGING = 'logging-events',
   MEDIA = 'media-events',
+  TEST_FAULT = 'test-fault',
 }

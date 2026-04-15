@@ -8,6 +8,12 @@ import {
 } from 'src/mongo/schema/analytic-snapshot.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import {
+  IdempotencyModule,
+  KafkaConsumerHelper,
+  KafkaDLQService,
+  KafkaProducerModule,
+} from '@repo/common';
 
 @Module({
   imports: [
@@ -27,9 +33,11 @@ import { RedisModule } from '@nestjs-modules/ioredis';
           : 6379,
       },
     }),
+    IdempotencyModule.forMongo(),
+    KafkaProducerModule.registerAsync(), // để dùng DLQ
   ],
   controllers: [IngestionController],
-  providers: [IngestionService],
+  providers: [IngestionService, KafkaDLQService, KafkaConsumerHelper],
   exports: [IngestionService],
 })
 export class IngestionModule {}
