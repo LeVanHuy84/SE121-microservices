@@ -13,6 +13,12 @@ import {
   ShareSnapshot,
   ShareSnapshotSchema,
 } from 'src/mongo/schema/share-snapshot.schema';
+import {
+  IdempotencyModule,
+  KafkaConsumerHelper,
+  KafkaDLQService,
+  KafkaProducerModule,
+} from '@repo/common';
 
 @Module({
   imports: [
@@ -22,8 +28,10 @@ import {
       { name: FeedItem.name, schema: FeedItemSchema },
     ]),
     AffinityModule,
+    IdempotencyModule.forMongo(),
+    KafkaProducerModule.registerAsync(), // để dùng DLQ
   ],
   controllers: [ConsumerController],
-  providers: [ConsumerService],
+  providers: [ConsumerService, KafkaDLQService, KafkaConsumerHelper],
 })
 export class ConsumerModule {}

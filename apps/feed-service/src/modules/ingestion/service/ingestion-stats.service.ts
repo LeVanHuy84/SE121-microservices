@@ -10,7 +10,7 @@ import {
   StatsShareDelta,
 } from '@repo/dtos';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import {
   PostSnapshot,
   PostSnapshotDocument,
@@ -35,7 +35,7 @@ export class StatsIngestionService {
   /**
    * Xử lý batch thống kê từ Kafka (StatsPayload)
    */
-  async processStatsBatch(message: StatsPayload) {
+  async processStatsBatch(message: StatsPayload, session?: ClientSession) {
     const { timestamp, stats } = message;
     const pipeline = this.redis.pipeline();
 
@@ -65,7 +65,7 @@ export class StatsIngestionService {
       }
 
       // --- Cập nhật snapshot trong MongoDB ---
-      await this.updateSnapshotStats(targetType, targetId, deltas);
+      await this.updateSnapshotStats(targetType, targetId, deltas, session);
     }
 
     await pipeline.exec();
@@ -79,6 +79,7 @@ export class StatsIngestionService {
     targetType: TargetType,
     targetId: string,
     deltas: (StatsReactionDelta | StatsCommentDelta | StatsShareDelta)[],
+    session?: ClientSession,
   ) {
     const updates: Record<string, number> = {};
 
@@ -107,11 +108,13 @@ export class StatsIngestionService {
       await this.postSnapshotModel.updateOne(
         { postId: targetId },
         { $inc: updates },
+        { session },
       );
     } else if (targetType === TargetType.SHARE) {
       await this.shareSnapshotModel.updateOne(
         { shareId: targetId },
         { $inc: updates },
+        { session },
       );
     }
   }
