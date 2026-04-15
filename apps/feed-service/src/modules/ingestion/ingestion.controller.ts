@@ -4,6 +4,9 @@ import * as dtos from '@repo/dtos';
 import { IngestionPostService } from './service/ingestion-post.service';
 import { IngestionShareService } from './service/ingestion-share.service';
 import { StatsIngestionService } from './service/ingestion-stats.service';
+import { KafkaConsumerHelper } from '@repo/common';
+import { Ctx, KafkaContext } from '@nestjs/microservices';
+import { ClientSession } from 'mongoose';
 
 @Controller('ingestion')
 export class IngestionController {
@@ -13,96 +16,163 @@ export class IngestionController {
     private readonly ingestionPost: IngestionPostService,
     private readonly ingestionShare: IngestionShareService,
     private readonly ingestionStats: StatsIngestionService,
+    private readonly consumerHelper: KafkaConsumerHelper,
   ) {}
 
   // ----------------------------
-  // 🧩 POST TOPIC HANDLER
+  // POST TOPIC HANDLER
   // ----------------------------
   @EventPattern(dtos.EventTopic.POST)
-  async handlePostEvents(@Payload() message: dtos.PostEventMessage) {
-    const { type, payload } = message;
+  async handlePostEvents(
+    @Payload() message: dtos.PostEventMessage,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
 
-    try {
-      switch (type) {
-        case dtos.PostEventType.CREATED:
-          this.logger.log(`Post created: ${payload.postId}`);
-          await this.ingestionPost.handleCreated(payload);
-          break;
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
 
-        case dtos.PostEventType.UPDATED:
-          this.logger.log(`Post updated: ${payload.postId}`);
-          await this.ingestionPost.handleUpdated(payload);
-          break;
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (session: ClientSession) => {
+        const { type, payload } = message;
 
-        case dtos.PostEventType.REMOVED:
-          this.logger.log(`Post removed: ${payload.postId}`);
-          await this.ingestionPost.handleRemoved(payload);
-          break;
+        switch (type) {
+          case dtos.PostEventType.CREATED:
+            this.logger.log(`Post created: ${payload.postId}`);
+            await this.ingestionPost.handleCreated(payload, session);
+            break;
 
-        default:
-          this.logger.warn(`Unknown POST event type: ${type}`);
-          break;
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to process POST event ${type} for ${payload.postId}: ${error.message}`,
-        error.stack,
-      );
-      throw error; // để Kafka retry lại
-    }
+          case dtos.PostEventType.UPDATED:
+            await this.ingestionPost.handleUpdated(payload, session);
+            break;
+
+          case dtos.PostEventType.REMOVED:
+            await this.ingestionPost.handleRemoved(payload, session);
+            break;
+        }
+      },
+    });
   }
 
   // ----------------------------
-  // 🔁 SHARE TOPIC HANDLER
+  // SHARE TOPIC HANDLER
   // ----------------------------
   @EventPattern(dtos.EventTopic.SHARE)
-  async handleShareEvents(@Payload() message: dtos.ShareEventMessage) {
-    const { type, payload } = message;
+  async handleShareEvents(
+    @Payload() message: dtos.ShareEventMessage,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
 
-    try {
-      switch (type) {
-        case dtos.ShareEventType.CREATED:
-          this.logger.log(`Share created: ${payload.shareId}`);
-          await this.ingestionShare.handleCreated(payload);
-          break;
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
 
-        case dtos.ShareEventType.UPDATED:
-          this.logger.log(`Share updated: ${payload.shareId}`);
-          await this.ingestionShare.handleUpdated(payload);
-          break;
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (session: ClientSession) => {
+        const { type, payload } = message;
 
-        case dtos.ShareEventType.REMOVED:
-          this.logger.log(`Share removed: ${payload.shareId}`);
-          await this.ingestionShare.handleRemoved(payload);
-          break;
+        switch (type) {
+          case dtos.ShareEventType.CREATED:
+            await this.ingestionShare.handleCreated(payload, session);
+            break;
 
-        default:
-          this.logger.warn(`Unknown SHARE event type: ${type}`);
-          break;
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to process SHARE event ${type} for ${payload.shareId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+          case dtos.ShareEventType.UPDATED:
+            await this.ingestionShare.handleUpdated(payload, session);
+            break;
+
+          case dtos.ShareEventType.REMOVED:
+            await this.ingestionShare.handleRemoved(payload, session);
+            break;
+        }
+      },
+    });
   }
 
   // ----------------------------
-  // 📊 STATS TOPIC HANDLER
+  // STATS TOPIC HANDLER
   // ----------------------------
   @EventPattern(dtos.EventTopic.STATS)
-  async handleStatsEvents(@Payload() message: dtos.StatsEvent) {
-    try {
-      await this.ingestionStats.processStatsBatch(message.payload);
-      this.logger.log(`Processed stats batch at ${message.payload.timestamp}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to process STATS batch at ${message.payload.timestamp}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+  async handleStatsEvents(
+    @Payload() message: dtos.StatsEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
+
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (session: ClientSession) => {
+        await this.ingestionStats.processStatsBatch(message.payload, session);
+      },
+    });
+  }
+
+  @EventPattern(dtos.EventTopic.TEST_FAULT)
+  async handleTestFault(
+    @Payload() message: dtos.TestEventMessage,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const raw = context.getMessage();
+
+    const eventId =
+      message.eventId ||
+      raw.key?.toString() ||
+      `${topic}-${context.getPartition()}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      metadata: {
+        crashAfterCommit: message.type === dtos.TestEventType.CRASH_AFTER,
+      },
+      handler: async (_session: ClientSession) => {
+        this.logger.log(`🧪 Running test case: ${message.type}`);
+
+        switch (message.type) {
+          case dtos.TestEventType.CRASH_BEFORE:
+            console.log('CASE 1: Crash BEFORE transaction');
+            // process.exit(1);
+            console.log('Resuming processing after simulated crash...');
+            break;
+
+          case dtos.TestEventType.CRASH_DURING:
+            console.log('Processing...');
+            await new Promise((res) => setTimeout(res, 500));
+
+            console.log('CASE 2:Crash DURING transaction');
+            // process.exit(1);
+            break;
+
+          case dtos.TestEventType.FAIL:
+            console.log('CASE 4: Simulate failure');
+            throw new Error('Simulated failure for retry + DLQ');
+
+          default:
+            console.log('Normal processing');
+        }
+      },
+    });
   }
 }

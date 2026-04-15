@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 import { FeedItem, FeedItemDocument } from 'src/mongo/schema/feed-item.schema';
@@ -29,6 +29,7 @@ export class DistributionService {
     postId: string,
     actorId: string,
     groupId?: string,
+    session?: ClientSession,
   ) {
     this.logger.log(`Distributing snapshot ${snapshotId} from ${actorId}`);
 
@@ -67,7 +68,7 @@ export class DistributionService {
       }));
 
       // 3. Bulk insert
-      await this.feedItemModel.insertMany(feedItems);
+      await this.feedItemModel.insertMany(feedItems, { session });
 
       this.logger.log(
         `✅ Distributed snapshot ${snapshotId} to ${receiver.length} friends`,
@@ -84,13 +85,18 @@ export class DistributionService {
   /**
    * Xoá snapshot và feedItems liên quan
    */
-  async distributeRemoved(snapshotId: string) {
+  async distributeRemoved(snapshotId: string, session?: ClientSession) {
     this.logger.log(`Removing snapshot ${snapshotId} and related feed items`);
 
     try {
-      await this.feedItemModel.deleteMany({
-        snapshotId: new Types.ObjectId(snapshotId),
-      });
+      await this.feedItemModel.deleteMany(
+        {
+          snapshotId: new Types.ObjectId(snapshotId),
+        },
+        {
+          session,
+        },
+      );
 
       this.logger.log(`✅ Removed snapshot ${snapshotId} and its feed items`);
     } catch (error) {

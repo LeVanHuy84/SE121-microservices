@@ -3,15 +3,24 @@ import { ConsumerController } from './consumer.controller';
 import { ConsumerService } from './consumer.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditLog, AuditLogSchema } from 'src/mongo/schema/audit-log.schema';
+import {
+  IdempotencyModule,
+  KafkaConsumerHelper,
+  KafkaDLQService,
+  KafkaProducerModule,
+} from '@repo/common';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AuditLog.name, schema: AuditLogSchema },
     ]),
+
+    IdempotencyModule.forMongo(),
+    KafkaProducerModule.registerAsync(), // để dùng DLQ
   ],
   controllers: [ConsumerController],
-  providers: [ConsumerService],
+  providers: [ConsumerService, KafkaDLQService, KafkaConsumerHelper],
   exports: [],
 })
 export class ConsumerModule {}
