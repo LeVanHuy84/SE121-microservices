@@ -83,6 +83,15 @@ class ModelLoader:
         except Exception as e:
             logger.warning(f"[ModelLoader] ⚠ Text moderation models failed: {e}")
             # Non-critical - will use keyword fallback
+
+        # Load Music Emotion models
+        try:
+            from app.services.ai.music import ensure_music_model_loaded
+            ensure_music_model_loaded()
+            logger.info("[ModelLoader] ✓ Music emotion models loaded")
+        except Exception as e:
+            logger.warning(f"[ModelLoader] ⚠ Music models failed: {e}")
+            # Non-critical
         
         self._instance_initialized = True
         logger.info("[ModelLoader] ✓ All model initialization complete")
@@ -104,7 +113,8 @@ class ModelLoader:
             "text_emotion": False,
             "image_emotion": False,
             "text_moderation": False,
-            "image_moderation": False
+            "image_moderation": False,
+            "music": False,
         }
         
         if not self._instance_initialized:
@@ -139,6 +149,12 @@ class ModelLoader:
             status["image_moderation"] = (
                 unsafe_scene_detector._instance_initialized
             )
+        except Exception:
+            pass
+
+        try:
+            from app.services.ai.music import music_model_loader
+            status["music"] = music_model_loader.is_loaded()
         except Exception:
             pass
         
