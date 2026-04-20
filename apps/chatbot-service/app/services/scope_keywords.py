@@ -7,6 +7,8 @@ SYSTEM_KEYWORDS = {
     "tinh nang",
     "mang xa hoi",
     "social",
+    "social network",
+    "platform",
     "assistant",
     "chatbot",
     "rag",
@@ -21,6 +23,9 @@ CHAT_KEYWORDS = {
     "inbox",
     "conversation",
     "message",
+    "messages",
+    "direct message",
+    "dm",
 }
 
 POST_KEYWORDS = {
@@ -34,6 +39,7 @@ POST_KEYWORDS = {
     "newfeed",
     "viet bai",
     "post",
+    "posts",
     "noi dung",
     "caption",
 }
@@ -47,6 +53,7 @@ GROUP_KEYWORDS = {
     "tham gia nhom",
     "nhom cong khai",
     "nhom kin",
+    "groups",
 }
 
 SEARCH_KEYWORDS = {
@@ -54,6 +61,8 @@ SEARCH_KEYWORDS = {
     "tra cuu",
     "tim",
     "tim kiem",
+    "find",
+    "lookup",
 }
 
 USER_KEYWORDS = {
@@ -72,6 +81,11 @@ USER_KEYWORDS = {
     "goi y",
     "recommend",
     "recommendation",
+    "friend",
+    "friends",
+    "friend request",
+    "add friend",
+    "suggest",
 }
 
 PRIVACY_KEYWORDS = {
@@ -82,6 +96,8 @@ PRIVACY_KEYWORDS = {
     "chan nguoi dung",
     "mo chan",
     "privacy",
+    "privacy settings",
+    "private account",
 }
 
 NOTIFICATION_KEYWORDS = {
@@ -89,6 +105,7 @@ NOTIFICATION_KEYWORDS = {
     "nhac nho",
     "bao tin",
     "notification",
+    "notifications",
 }
 
 EMOTION_KEYWORDS = {

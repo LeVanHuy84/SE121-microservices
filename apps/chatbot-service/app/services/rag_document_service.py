@@ -91,17 +91,26 @@ class RagDocumentService:
             return []
 
         resolved_top_k = top_k or settings.RAG_DOC_TOP_K
+        per_doc_limit = settings.RAG_DOC_MAX_CHUNKS_PER_DOC
+        visibility = settings.RAG_DOC_SEARCH_VISIBILITY
+
         result = self.es.search(
             index=settings.RAG_INDEX_NAME,
-            size=resolved_top_k,
+            size=max(resolved_top_k * 3, resolved_top_k),
             knn={
                 "field": "embedding",
                 "query_vector": query_embedding,
-                "k": resolved_top_k,
+                "k": max(resolved_top_k * 3, resolved_top_k),
                 "num_candidates": max(50, resolved_top_k * 10),
+                "filter": {
+                    "term": {
+                        "visibility": visibility,
+                    }
+                },
             },
             _source=[
                 "docId",
+                "chunkIndex",
                 "title",
                 "type",
                 "visibility",
@@ -109,24 +118,46 @@ class RagDocumentService:
                 "sourcePath",
             ],
         )
+
         hits = result.get("hits", {}).get("hits", [])
         contexts: list[AssistantContextItem] = []
+        chunk_count_by_doc: dict[str, int] = {}
+
         for hit in hits:
             source = hit.get("_source") or {}
+            doc_id = str(source.get("docId") or "")
+            if not doc_id:
+                continue
+
+            used_chunks = chunk_count_by_doc.get(doc_id, 0)
+            if used_chunks >= per_doc_limit:
+                continue
+
+            chunk_id = str(hit.get("_id") or "")
+            if not chunk_id:
+                continue
+
             contexts.append(
                 AssistantContextItem(
                     type=str(source.get("type") or "help_doc"),
-                    id=str(source.get("docId") or hit.get("_id")),
+                    id=chunk_id,
                     title=source.get("title"),
                     content=str(source.get("text") or ""),
                     score=float(hit.get("_score") or 0),
                     source="assistant_docs",
                     metadata={
+                        "docId": doc_id,
+                        "chunkIndex": source.get("chunkIndex"),
                         "visibility": source.get("visibility"),
                         "sourcePath": source.get("sourcePath"),
                     },
                 )
             )
+            chunk_count_by_doc[doc_id] = used_chunks + 1
+
+            if len(contexts) >= resolved_top_k:
+                break
+
         return contexts
 
     def warm_up(self):
@@ -136,10 +167,15 @@ class RagDocumentService:
         try:
             if not self.es.indices.exists(index=settings.RAG_INDEX_NAME):
                 logger.info(
-                    "Assistant docs RAG warmup skipped: index %s does not exist",
+                    "Assistant docs RAG index %s does not exist, indexing startup docs",
                     settings.RAG_INDEX_NAME,
                 )
-                return
+                indexed = self.index_assistant_docs()
+                logger.info(
+                    "Assistant docs RAG index bootstrap completed: documents=%s chunks=%s",
+                    indexed.get("documents", 0),
+                    indexed.get("chunks", 0),
+                )
 
             embedding_service.encode_query("Sentimeta assistant")
             logger.info("Assistant docs RAG warmup completed")
@@ -183,12 +219,13 @@ class RagDocumentService:
             return []
 
         chunks: list[RagDocumentChunk] = []
-        for path in sorted(docs_dir.glob("*.md")):
+        for path in sorted(docs_dir.rglob("*.md")):
             metadata, body = self._parse_markdown(path)
             doc_id = str(metadata.get("id") or path.stem)
             title = str(metadata.get("title") or path.stem)
             doc_type = str(metadata.get("type") or "help_doc")
             visibility = str(metadata.get("visibility") or "public")
+
             for index, text in enumerate(self._chunk_text(body)):
                 chunk_id = hashlib.sha256(
                     f"{doc_id}:{index}:{text}".encode("utf-8")
@@ -230,6 +267,7 @@ class RagDocumentService:
                 continue
             key, value = line.split(":", 1)
             metadata[key.strip()] = value.strip()
+
         return metadata, match.group(2).strip()
 
     def _chunk_text(self, text: str) -> list[str]:
@@ -259,7 +297,11 @@ class RagDocumentService:
                 "",
             ],
         )
-        return [chunk.strip() for chunk in splitter.split_text(normalized) if chunk.strip()]
+        return [
+            chunk.strip()
+            for chunk in splitter.split_text(normalized)
+            if chunk.strip()
+        ]
 
 
 rag_document_service = RagDocumentService()

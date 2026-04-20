@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from app.core.config import settings
 from app.memory.session_memory import session_memory
@@ -39,14 +40,33 @@ class AssistantService:
         if not self.scope_guard.is_in_scope(request):
             return self._out_of_scope_response()
 
+        started_at = time.perf_counter()
         session_key = self._session_key(request)
         history = self._resolve_history(request)
         memory_summary = session_memory.get_summary(session_key)
-        contexts = self.context_resolver.resolve(request)
+
+        candidate_contexts = self.context_resolver.resolve(request)
         prompt_limits = resolve_prompt_limits(request.userId)
-        resolved_request = request.model_copy(update={"contexts": contexts})
-        prompt = self.prompt_builder.build(resolved_request, history, memory_summary)
-        generation = await self.provider.generate(prompt, resolved_request)
+        final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+
+        resolved_request = request.model_copy(update={"contexts": final_contexts})
+        prompt = self.prompt_builder.build(
+            resolved_request,
+            history,
+            memory_summary,
+        )
+
+        try:
+            generation = await self.provider.generate(prompt, resolved_request)
+        except Exception:
+            logger.exception(
+                "Assistant generation failed: userId=%s conversationId=%s contexts=%s",
+                request.userId,
+                request.conversationId,
+                len(final_contexts),
+            )
+            raise
+
         sources = [
             AssistantSource(
                 type=item.type,
@@ -55,8 +75,9 @@ class AssistantService:
                 source=item.source,
                 score=item.score,
             )
-            for item in contexts[: prompt_limits.max_context_items]
+            for item in final_contexts
         ]
+
         session_memory.append_exchange(
             session_key,
             request.message,
@@ -70,16 +91,23 @@ class AssistantService:
                 generation.content,
             ),
         )
-        session_memory.set_last_intent(session_key, request.intent or self._infer_intent(contexts))
+        session_memory.set_last_intent(
+            session_key,
+            request.intent or self._infer_intent(final_contexts),
+        )
         session_memory.set_last_sources(session_key, sources)
+
         logger.info(
-            "Assistant response generated: userId=%s provider=%s model=%s contexts=%s promptVariant=%s",
+            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s durationMs=%s",
             request.userId,
             generation.provider,
             generation.model,
-            len(contexts),
+            len(candidate_contexts),
+            len(final_contexts),
             prompt_limits.variant,
+            round((time.perf_counter() - started_at) * 1000, 2),
         )
+
         return AssistantRespondData(
             reply=generation.content,
             sources=sources,
@@ -115,7 +143,10 @@ class AssistantService:
             f"Assistant trả lời '{self._truncate_text(assistant_reply, 260)}'."
         )
         combined = " ".join(part for part in [current_summary, latest] if part)
-        return self._truncate_text(combined, settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT)
+        return self._truncate_text(
+            combined,
+            settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT,
+        )
 
     def _infer_intent(self, contexts) -> str | None:
         if not contexts:

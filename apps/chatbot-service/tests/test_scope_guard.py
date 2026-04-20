@@ -24,6 +24,9 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             "Tra cuu profile cua ban toi",
             "Goi y ket ban theo so thich",
             "Cach tham gia nhom kin",
+            "How can I search posts in Sentimeta?",
+            "How do I update my profile privacy settings?",
+            "Why are chat messages not real-time?",
         ]
         for message in samples:
             with self.subTest(message=message):

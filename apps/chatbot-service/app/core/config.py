@@ -32,6 +32,12 @@ class Settings:
         self.CHATBOT_CONTEXT_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT", 1200)
         )
+        self.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE: int = int(
+            os.getenv(
+                "CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE",
+                max(self.CHATBOT_MAX_CONTEXT_ITEMS * 2, self.CHATBOT_MAX_CONTEXT_ITEMS),
+            )
+        )
         self.CHATBOT_PROMPT_AB_TEST_ENABLED: bool = (
             os.getenv("CHATBOT_PROMPT_AB_TEST_ENABLED", "false").lower() == "true"
         )
@@ -68,6 +74,9 @@ class Settings:
         ).strip()
         self.EMBEDDING_MAX_LENGTH: int = int(os.getenv("EMBEDDING_MAX_LENGTH", 512))
         self.EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", 8))
+        self.EMBEDDING_QUERY_CACHE_SIZE: int = int(
+            os.getenv("EMBEDDING_QUERY_CACHE_SIZE", 256)
+        )
         self.RAG_INDEX_NAME: str = os.getenv(
             "RAG_INDEX_NAME", "assistant_rag_documents"
         ).strip()
@@ -77,6 +86,12 @@ class Settings:
         self.RAG_CHUNK_SIZE: int = int(os.getenv("RAG_CHUNK_SIZE", 900))
         self.RAG_CHUNK_OVERLAP: int = int(os.getenv("RAG_CHUNK_OVERLAP", 120))
         self.RAG_DOC_TOP_K: int = int(os.getenv("RAG_DOC_TOP_K", 5))
+        self.RAG_DOC_MAX_CHUNKS_PER_DOC: int = int(
+            os.getenv("RAG_DOC_MAX_CHUNKS_PER_DOC", 2)
+        )
+        self.RAG_DOC_SEARCH_VISIBILITY: str = os.getenv(
+            "RAG_DOC_SEARCH_VISIBILITY", "public"
+        ).strip()
         self.RAG_WARMUP_ON_STARTUP: bool = (
             os.getenv("RAG_WARMUP_ON_STARTUP", "true").lower() == "true"
         )
@@ -127,6 +142,9 @@ class Settings:
         if self.CHATBOT_CONTEXT_CHAR_LIMIT <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_CHAR_LIMIT must be positive")
 
+        if self.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE <= 0:
+            raise RuntimeError("CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE must be positive")
+
         if not isfinite(self.CHATBOT_PROMPT_AB_BUCKET_RATIO):
             raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be finite")
 
@@ -166,6 +184,9 @@ class Settings:
         if self.EMBEDDING_BATCH_SIZE <= 0:
             raise RuntimeError("EMBEDDING_BATCH_SIZE must be positive")
 
+        if self.EMBEDDING_QUERY_CACHE_SIZE <= 0:
+            raise RuntimeError("EMBEDDING_QUERY_CACHE_SIZE must be positive")
+
         if not self.RAG_INDEX_NAME:
             raise RuntimeError("RAG_INDEX_NAME must not be empty")
 
@@ -180,6 +201,12 @@ class Settings:
 
         if self.RAG_DOC_TOP_K <= 0:
             raise RuntimeError("RAG_DOC_TOP_K must be positive")
+
+        if self.RAG_DOC_MAX_CHUNKS_PER_DOC <= 0:
+            raise RuntimeError("RAG_DOC_MAX_CHUNKS_PER_DOC must be positive")
+
+        if not self.RAG_DOC_SEARCH_VISIBILITY:
+            raise RuntimeError("RAG_DOC_SEARCH_VISIBILITY must not be empty")
 
         if not self.ES_NODE:
             raise RuntimeError("ES_NODE must not be empty")

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HttpModule } from '@nestjs/axios';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ChatbotController } from './chatbot.controller';
@@ -9,6 +10,7 @@ import { ChatbotService } from './chatbot.service';
 
 @Module({
   imports: [
+    HttpModule,
     ClientsModule.registerAsync([
       {
         name: MICROSERVICES_CLIENTS.SEARCH_SERVICE,
