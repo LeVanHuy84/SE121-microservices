@@ -8,6 +8,10 @@ async function bootstrap() {
     AppModule,
     {
       transport: Transport.TCP,
+      options: {
+        host: process.env.MUSIC_SERVICE_HOST || 'localhost',
+        port: parseInt(process.env.MUSIC_SERVICE_PORT || '4014', 10),
+      },
     },
   );
 

@@ -37,16 +37,8 @@ class MusicFlowService:
 
             result = self._analyze_service.analyze_music(file_path)
             return {
-                "emotion": {
-                    "valence": float(result["valence"]),
-                    "arousal": float(result["arousal"]),
-                },
-                "audio_features": {
-                    "tempo": float(result["tempo"]),
-                    "rms": float(result["rms"]),
-                    "spectral_centroid": float(result["spectral_centroid"]),
-                    "zcr": float(result["zcr"]),
-                }
+                "valence": float(result["valence"]),
+                "arousal": float(result["arousal"]),
             }
 
         except Exception as e:

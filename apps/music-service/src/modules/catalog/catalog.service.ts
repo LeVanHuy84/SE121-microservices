@@ -6,6 +6,7 @@ import { ILike, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import {
   CreateMusicFeatureDTO,
+  InternalMusicQueryDto,
   MusicFeatureQueryDTO,
   MusicFeatureResponse,
   PageResponse,
@@ -87,6 +88,83 @@ export class CatalogService {
       total,
       page,
       limit,
+    );
+  }
+
+  async queryForRecommendation(
+    dto: InternalMusicQueryDto,
+  ): Promise<MusicFeatureResponse[]> {
+    const limit = dto.limit ?? 50;
+    const offset = dto.offset ?? 0;
+
+    const queryBuilder = this.musicFeatureRepo
+      .createQueryBuilder('musicFeature')
+      .select([
+        'musicFeature.id',
+        'musicFeature.audio',
+        'musicFeature.coverImage',
+        'musicFeature.artist',
+        'musicFeature.title',
+        'musicFeature.genre',
+        'musicFeature.valence',
+        'musicFeature.arousal',
+        'musicFeature.createdAt',
+      ])
+      .take(limit)
+      .skip(offset);
+
+    // ===== FILTER (bounding box) =====
+    if (dto.valenceMin !== undefined) {
+      queryBuilder.andWhere('musicFeature.valence >= :valenceMin', {
+        valenceMin: dto.valenceMin,
+      });
+    }
+
+    if (dto.valenceMax !== undefined) {
+      queryBuilder.andWhere('musicFeature.valence <= :valenceMax', {
+        valenceMax: dto.valenceMax,
+      });
+    }
+
+    if (dto.arousalMin !== undefined) {
+      queryBuilder.andWhere('musicFeature.arousal >= :arousalMin', {
+        arousalMin: dto.arousalMin,
+      });
+    }
+
+    if (dto.arousalMax !== undefined) {
+      queryBuilder.andWhere('musicFeature.arousal <= :arousalMax', {
+        arousalMax: dto.arousalMax,
+      });
+    }
+
+    // ===== SORT =====
+    if (dto.sortByDistanceTo) {
+      const wV = dto.sortByDistanceTo.weightValence ?? 0.5;
+      const wA = dto.sortByDistanceTo.weightArousal ?? 0.5;
+
+      queryBuilder.orderBy(
+        `
+      (${wV} * POWER(musicFeature.valence - :v, 2)) +
+      (${wA} * POWER(musicFeature.arousal - :a, 2))
+      `,
+        'ASC',
+      );
+
+      queryBuilder.addOrderBy('RANDOM()', 'ASC'); // diversity nhẹ
+
+      queryBuilder.setParameters({
+        v: dto.sortByDistanceTo.valence,
+        a: dto.sortByDistanceTo.arousal,
+      });
+    } else {
+      queryBuilder.orderBy('musicFeature.createdAt', 'DESC');
+    }
+
+    const features = await queryBuilder.getMany();
+
+    return features.map((feature) =>
+      plainToInstance(MusicFeatureResponse, feature),
     );
   }
 }

@@ -46,17 +46,4 @@ export class CreateMusicFeatureDTO {
 
   @IsNumber()
   arousal: number;
-
-  // ===== AUDIO FEATURES =====
-  @IsNumber()
-  tempo: number;
-
-  @IsNumber()
-  rms: number;
-
-  @IsNumber()
-  spectralCentroid: number;
-
-  @IsNumber()
-  zcr: number;
 }

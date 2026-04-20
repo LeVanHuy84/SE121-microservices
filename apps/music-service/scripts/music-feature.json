@@ -6,11 +6,7 @@
     "artist": "The_Mountain",
     "genre": "lofi",
     "valence": 0.36335979723371786,
-    "arousal": 0.45986396058802315,
-    "tempo": 172.265625,
-    "rms": 0.21488048136234283,
-    "spectral_centroid": 1052.568213908144,
-    "zcr": 0.03770728549129667
+    "arousal": 0.4598639605880232
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/02/10/audio_9382bf9966.mp3",
@@ -18,12 +14,8 @@
     "title": "Lofi - Lofi Chill - Lofi Girl",
     "artist": "PaulYudin",
     "genre": "lofi",
-    "valence": 0.52633272012998,
-    "arousal": 0.5465945801063634,
-    "tempo": 143.5546875,
-    "rms": 0.27022790908813477,
-    "spectral_centroid": 1567.9556081064366,
-    "zcr": 0.06899077316810345
+    "valence": 0.5263327201299801,
+    "arousal": 0.5465945801063634
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/03/06/audio_6a35f8f476.mp3",
@@ -31,12 +23,8 @@
     "title": "LoFi - LoFi Music",
     "artist": "The_Mountain",
     "genre": "lofi",
-    "valence": 0.5102957003150264,
-    "arousal": 0.5406026282567261,
-    "tempo": 117.45383522727273,
-    "rms": 0.23003430664539337,
-    "spectral_centroid": 1468.356588691748,
-    "zcr": 0.03688496962988193
+    "valence": 0.5102957003150265,
+    "arousal": 0.540602628256726
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/03/05/audio_a65f7fa52e.mp3",
@@ -44,12 +32,8 @@
     "title": "Lofi Chill Music",
     "artist": "FreeMusicForVideo",
     "genre": "lofi",
-    "valence": 0.39534892045019376,
-    "arousal": 0.34932757281774685,
-    "tempo": 80.74951171875,
-    "rms": 0.08042211830615997,
-    "spectral_centroid": 1943.9638652016945,
-    "zcr": 0.07578376813053989
+    "valence": 0.3953489204501938,
+    "arousal": 0.3493275728177469
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/03/10/audio_37f15c64fb.mp3",
@@ -57,12 +41,8 @@
     "title": "Lofi Beats",
     "artist": "The_Mountain",
     "genre": "lofi",
-    "valence": 0.3543799983863718,
-    "arousal": 0.3167272046344167,
-    "tempo": 92.28515625,
-    "rms": 0.0754966288805008,
-    "spectral_centroid": 1278.5772654976645,
-    "zcr": 0.0645185177024577
+    "valence": 0.35437999838637196,
+    "arousal": 0.3167272046344167
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/30/audio_c6c6e726a9.mp3",
@@ -70,12 +50,8 @@
     "title": "Coffee Lofi - Chill Lofi Ambient",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.3969381223697008,
-    "arousal": 0.36160663459951065,
-    "tempo": 151.99908088235293,
-    "rms": 0.12881484627723694,
-    "spectral_centroid": 1253.146388323267,
-    "zcr": 0.042540419839223985
+    "valence": 0.3969381223697006,
+    "arousal": 0.36160663459951065
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/09/10/audio_92f2eca48f.mp3",
@@ -84,24 +60,16 @@
     "artist": "FASSounds",
     "genre": "lofi",
     "valence": 0.36742831720514657,
-    "arousal": 0.3629721538335317,
-    "tempo": 86.1328125,
-    "rms": 0.18790395557880402,
-    "spectral_centroid": 1078.4924432293951,
-    "zcr": 0.051291311700284344
+    "arousal": 0.36297215383353176
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/30/audio_6477e71e4c.mp3",
     "coverUrl": "https://cdn.pixabay.com/audio/2025/12/30/09-56-00-656_200x200.png",
-    "title": "Nhạc chill lofi",
-    "artist": "MusicFree",
+    "title": "",
+    "artist": "",
     "genre": "lofi",
     "valence": 0.39425235469187664,
-    "arousal": 0.4162682305194806,
-    "tempo": 151.99908088235293,
-    "rms": 0.16687960922718048,
-    "spectral_centroid": 1335.315788036387,
-    "zcr": 0.0463131555911702
+    "arousal": 0.4162682305194806
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/30/audio_97e5dca380.mp3",
@@ -109,12 +77,8 @@
     "title": "Coffee Lofi - Lofi Music Chill Ambient",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.3769350675070973,
-    "arousal": 0.40909682629870153,
-    "tempo": 172.265625,
-    "rms": 0.1510048359632492,
-    "spectral_centroid": 975.9097361188983,
-    "zcr": 0.04135186072434293
+    "valence": 0.3769350675070972,
+    "arousal": 0.40909682629870153
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/01/06/audio_2e752c8e21.mp3",
@@ -122,12 +86,8 @@
     "title": "Lofi Background Music",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.35630332520915675,
-    "arousal": 0.32823211970899474,
-    "tempo": 80.74951171875,
-    "rms": 0.13454902172088623,
-    "spectral_centroid": 909.8490331838359,
-    "zcr": 0.03648157594342624
+    "valence": 0.3563033252091568,
+    "arousal": 0.3282321197089948
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/01/06/audio_2e752c8e21.mp3",
@@ -135,12 +95,8 @@
     "title": "Lofi girl chill lofi beats - lofi ambient",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.35630332520915675,
-    "arousal": 0.32823211970899485,
-    "tempo": 80.74951171875,
-    "rms": 0.13454902172088623,
-    "spectral_centroid": 909.8490331838359,
-    "zcr": 0.03648157594342624
+    "valence": 0.3563033252091568,
+    "arousal": 0.3282321197089948
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/22/audio_8944e9e504.mp3",
@@ -148,12 +104,8 @@
     "title": "lofi ambient study - lofi music",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.3700907443094215,
-    "arousal": 0.4487245455322932,
-    "tempo": 151.99908088235293,
-    "rms": 0.1554386019706726,
-    "spectral_centroid": 1111.1918100148519,
-    "zcr": 0.03591198459325624
+    "valence": 0.3700907443094214,
+    "arousal": 0.44872454553229324
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/03/04/audio_519f90a870.mp3",
@@ -161,12 +113,8 @@
     "title": "Lofi Chill Music",
     "artist": "MusicForPeople",
     "genre": "lofi",
-    "valence": 0.39438513204623116,
-    "arousal": 0.39846079652255634,
-    "tempo": 151.99908088235293,
-    "rms": 0.2091289609670639,
-    "spectral_centroid": 703.3225819880425,
-    "zcr": 0.03107410252179197
+    "valence": 0.39438513204623127,
+    "arousal": 0.3984607965225564
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/22/audio_9f6d5ef5ee.mp3",
@@ -175,11 +123,7 @@
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
     "valence": 0.4858347547495368,
-    "arousal": 0.47986753046599545,
-    "tempo": 151.99908088235293,
-    "rms": 0.14713655412197113,
-    "spectral_centroid": 1653.413714059104,
-    "zcr": 0.05245969420799408
+    "arousal": 0.4798675304659954
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/03/06/audio_2cce6cca87.mp3",
@@ -187,12 +131,8 @@
     "title": "Hip-Hop Lofi Modern",
     "artist": "The_Mountain",
     "genre": "lofi",
-    "valence": 0.4029607052669551,
-    "arousal": 0.40193273552955666,
-    "tempo": 89.10290948275862,
-    "rms": 0.2071564644575119,
-    "spectral_centroid": 1124.0881178823122,
-    "zcr": 0.030239698806447224
+    "valence": 0.40296070526695515,
+    "arousal": 0.40193273552955683
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/28/audio_738b7c2f2e.mp3",
@@ -200,24 +140,17 @@
     "title": "Lofi Rain - Lofi Music",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.49918231056854195,
-    "arousal": 0.5044081038495778,
-    "tempo": 143.5546875,
-    "rms": 0.14525778591632843,
-    "spectral_centroid": 1726.38902181609,
-    "zcr": 0.056705880844276184
+    "valence": 0.4991823105685419,
+    "arousal": 0.5044081038495779
   },
   {
     "url": "https://cdn.pixabay.com/audio/2026/02/14/audio_d6473d11a2.mp3",
     "coverUrl": "https://cdn.pixabay.com/audio/2026/02/14/19-38-46-901_200x200.png",
     "title": "Lofi Chill Music",
     "artist": "SoundGalleryByDmitryTaras",
-    "valence": 0.5416778332302958,
-    "arousal": 0.534706703742451,
-    "tempo": 92.28515625,
-    "rms": 0.17592734098434448,
-    "spectral_centroid": 1824.1827942019,
-    "zcr": 0.07214942867342297
+    "genre": "lofi",
+    "valence": 0.541677833230296,
+    "arousal": 0.534706703742451
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/26/audio_a668cf74d4.mp3",
@@ -226,11 +159,7 @@
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
     "valence": 0.3791468010772752,
-    "arousal": 0.46674317956349204,
-    "tempo": 151.99908088235293,
-    "rms": 0.1517914980649948,
-    "spectral_centroid": 1230.7179609384273,
-    "zcr": 0.03781467013888889
+    "arousal": 0.46674317956349193
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/28/audio_e4592138fd.mp3",
@@ -238,12 +167,8 @@
     "title": "Lofi Girl - LoFi Ambient Music",
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
-    "valence": 0.3708070890423263,
-    "arousal": 0.31829586249398745,
-    "tempo": 80.74951171875,
-    "rms": 0.12624195218086243,
-    "spectral_centroid": 981.7233032557953,
-    "zcr": 0.03938563698448641
+    "valence": 0.37080708904232623,
+    "arousal": 0.3182958624939875
   },
   {
     "url": "https://cdn.pixabay.com/audio/2025/12/22/audio_e09dbbd3cf.mp3",
@@ -252,10 +177,24 @@
     "artist": "Lofi_Music_Library",
     "genre": "lofi",
     "valence": 0.3948148467690411,
-    "arousal": 0.32754581085391704,
-    "tempo": 143.5546875,
-    "rms": 0.102029949426651,
-    "spectral_centroid": 1053.119944866883,
-    "zcr": 0.04740181343876372
+    "arousal": 0.32754581085391715
+  },
+  {
+    "url": "https://a01.nct.vn/Believe_Audio135/MotivationMusicInspirational-AmbientRelax-8069751.mp3?st=_GmnXMTp-6qDLiBzLOKUgQ&e=1777118525&a=6&p=0&r=e4c35f9c3ae3ab1050a6aebfa6607f77",
+    "coverUrl": "https://image-cdn.nct.vn/song/2022/10/16/5/e/5/8/1665917074535_300.jpg",
+    "title": "Healing music sound",
+    "artist": "Ambient Relax",
+    "genre": "lofi",
+    "valence": 0.38621559117965387,
+    "arousal": 0.42018489583333335
+  },
+  {
+    "url": "https://stream.nct.vn/Believe_Audio135/MusicForFocusMeditationMusic-AmbientRelax-8069753.mp3?st=VKlBwvO8lFuFHLQ9F9ZHoQ&e=1777118525&a=6&p=0&r=8cdd144fac74b2f025e2b4b2ed05c6c1",
+    "coverUrl": "https://image-cdn.nct.vn/song/2022/10/16/5/e/5/8/1665917074535_300.jpg",
+    "title": "Music For Focus Meditation Music",
+    "artist": "Ambient Relax",
+    "genre": "lofi",
+    "valence": 0.39151481874946975,
+    "arousal": 0.4422138988095237
   }
 ]

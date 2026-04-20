@@ -33,10 +33,6 @@ class MusicAnalyzeService:
         return {
             "valence": float(result["valence"]),
             "arousal": float(result["arousal"]),
-            "tempo": float(result["tempo"]),
-            "rms": float(result["rms"]),
-            "spectral_centroid": float(result["spectral_centroid"]),
-            "zcr": float(result["zcr"]),
         }
 
 

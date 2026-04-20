@@ -5,7 +5,7 @@ import * as path from 'path';
 
 import { MusicFeature } from '../src/entities/music-feature.entity';
 import dbConfig from '../src/config/db.config';
-import { MediaType } from '@repo/dtos';
+import { MediaType, MusicGenre } from '@repo/dtos';
 
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -25,38 +25,38 @@ async function seed() {
 
   const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
 
-  const batchSize = 50; // insert theo batch cho đỡ lag
+  const batchSize = 50;
 
   for (let i = 0; i < data.length; i += batchSize) {
     const chunk = data.slice(i, i + batchSize);
 
-    const entities = chunk.map((item: any) => {
+    const entities = chunk.map((item: any, index: number) => {
+      const uniqueId = `${i + index}`.padStart(6, '0');
+
       return repo.create({
         audio: {
           url: item.url,
-          publicId: 'music-features/000000000' + i,
+          publicId: `music-features/audio-${uniqueId}`,
         },
         coverImage: {
           type: MediaType.IMAGE,
           url: item.coverUrl,
-          publicId: 'music-features/000000000' + i,
+          publicId: `music-features/cover-${uniqueId}`,
         },
+
         title: item.title,
         artist: item.artist,
 
+        genre: item.genre as MusicGenre,
+
         valence: item.valence,
         arousal: item.arousal,
-
-        tempo: item.tempo,
-        rms: item.rms,
-        spectralCentroid: item.spectral_centroid,
-        zcr: item.zcr,
       });
     });
 
     await repo.save(entities);
 
-    console.log(` [SUCCESS] Inserted ${i + chunk.length}/${data.length}`);
+    console.log(`[SUCCESS] Inserted ${i + chunk.length}/${data.length}`);
   }
 
   console.log('Seeding done!');

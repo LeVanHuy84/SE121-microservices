@@ -1,29 +1,27 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { EmotionSignalService } from './emotion-signal.service';
+import { MusicController } from './music.controller';
+import { MusicAnalyzeService } from './music-analyze.service';
 
 @Module({
   imports: [
     ClientsModule.registerAsync([
       {
-        name: 'EMOTION_INTELLIGENCE_SERVICE',
+        name: MICROSERVICES_CLIENTS.MUSIC_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host:
-              config.get<string>('EMOTION_INTELLIGENCE_SERVICE_HOST') ||
-              'localhost',
-            port: config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT'),
+            port: config.get<number>('MUSIC_SERVICE_PORT'),
           },
         }),
       },
     ]),
   ],
-  controllers: [],
-  providers: [EmotionSignalService],
-  exports: [EmotionSignalService],
+  controllers: [MusicController],
+  providers: [MusicAnalyzeService],
 })
-export class DiscoveryModule {}
+export class MusicModule {}

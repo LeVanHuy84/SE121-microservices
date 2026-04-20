@@ -17,10 +17,10 @@ export class MusicFeature {
   @Column({ type: 'jsonb' })
   coverImage: MediaItemDTO;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   artist: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   title: string;
 
   @Column({ type: 'enum', enum: MusicGenre, nullable: true })
@@ -32,19 +32,6 @@ export class MusicFeature {
 
   @Column('float')
   arousal: number;
-
-  // ===== AUDIO FEATURES =====
-  @Column('float')
-  tempo: number;
-
-  @Column('float')
-  rms: number;
-
-  @Column('float')
-  spectralCentroid: number;
-
-  @Column('float')
-  zcr: number;
 
   @CreateDateColumn()
   createdAt: Date;

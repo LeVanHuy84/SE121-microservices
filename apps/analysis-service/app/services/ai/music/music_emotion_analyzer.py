@@ -70,13 +70,7 @@ class MusicEmotionAnalyzer:
             if np.any(np.isnan(feature_array)) or np.any(np.isinf(feature_array)):
                 raise ValueError("Feature extraction produced NaN/Inf")
 
-            return {
-                "tempo": features[0],
-                "rms": features[1],
-                "centroid": features[2],
-                "zcr": features[3],
-                "raw": features
-            }
+            return features
 
         except Exception as e:
             logger.error(f"[MusicEmotionAnalyzer] feature extraction failed: {e}")
@@ -93,8 +87,8 @@ class MusicEmotionAnalyzer:
         feature_data = self._extract_features(file_path)
 
         try:
-            valence_pred = float(model_valence.predict([feature_data["raw"]])[0])
-            arousal_pred = float(model_arousal.predict([feature_data["raw"]])[0])
+            valence_pred = float(model_valence.predict([feature_data])[0])
+            arousal_pred = float(model_arousal.predict([feature_data])[0])
         except Exception as e:
             logger.error(f"[MusicEmotionAnalyzer] prediction failed: {e}")
             raise RuntimeError(f"Music prediction failed: {e}") from e
@@ -102,10 +96,6 @@ class MusicEmotionAnalyzer:
         return {
             "valence": valence_pred,
             "arousal": arousal_pred,
-            "tempo": feature_data["tempo"],
-            "rms": feature_data["rms"],
-            "spectral_centroid": feature_data["centroid"],
-            "zcr": feature_data["zcr"],
         }
 
 

@@ -8,5 +8,6 @@ import { MusicFeature } from 'src/entities/music-feature.entity';
   imports: [TypeOrmModule.forFeature([MusicFeature])],
   controllers: [CatalogController],
   providers: [CatalogService],
+  exports: [CatalogService],
 })
 export class CatalogModule {}

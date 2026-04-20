@@ -1,31 +1,40 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CatalogService } from './catalog.service';
-import { CreateMusicFeatureDTO, UpdateMusicFeatureDTO } from '@repo/dtos';
+import {
+  CreateMusicFeatureDTO,
+  MusicFeatureQueryDTO,
+  UpdateMusicFeatureDTO,
+} from '@repo/dtos';
 
 @Controller('catalog')
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
-  @MessagePattern('create-music-feature')
+  @MessagePattern('create_music_feature')
   createMusicFeature(@Payload() payload: CreateMusicFeatureDTO) {
-    this.catalogService.createMusicFeature(payload);
+    return this.catalogService.createMusicFeature(payload);
   }
 
-  @MessagePattern('update-music-feature')
+  @MessagePattern('update_music_feature')
   updateMusicFeature(
     @Payload() payload: { id: string; dto: UpdateMusicFeatureDTO },
   ) {
-    this.catalogService.updateMusicFeature(payload.id, payload.dto);
+    return this.catalogService.updateMusicFeature(payload.id, payload.dto);
   }
 
-  @MessagePattern('delete-music-feature')
+  @MessagePattern('delete_music_feature')
   deleteMusicFeature(@Payload() id: string) {
-    this.catalogService.deleteMusicFeature(id);
+    return this.catalogService.deleteMusicFeature(id);
   }
 
-  @MessagePattern('get-music-feature')
+  @MessagePattern('get_music_feature')
   getMusicFeature(@Payload() id: string) {
     return this.catalogService.getMusicFeature(id);
+  }
+
+  @MessagePattern('list_music_features')
+  listMusicFeatures(@Payload() query: MusicFeatureQueryDTO) {
+    return this.catalogService.getMusicFeatures(query);
   }
 }
