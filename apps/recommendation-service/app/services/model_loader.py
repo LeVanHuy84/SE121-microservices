@@ -1,6 +1,7 @@
 import logging
 import re
 import threading
+from collections import OrderedDict
 from typing import List, Sequence
 
 import torch
@@ -20,6 +21,12 @@ class ModelLoader:
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._ready = False
         self._last_error: str | None = None
+        self._embedding_cache_max_entries = max(
+            1, int(settings.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES)
+        )
+        self._cache_lock = threading.Lock()
+        self._query_embedding_cache: OrderedDict[str, torch.Tensor] = OrderedDict()
+        self._candidate_embedding_cache: OrderedDict[str, torch.Tensor] = OrderedDict()
         logger.info("[RecommendationModelLoader] Using device: %s", self._device)
 
     @property
@@ -127,14 +134,13 @@ class ModelLoader:
         if not unique_candidate_texts:
             return [0.0 for _ in candidate_texts]
 
-        query_embedding = self._encode_texts(
-            [self._format_query_text(normalized_viewer_text)]
+        query_embedding = self._encode_texts_with_cache(
+            [self._format_query_text(normalized_viewer_text)],
+            cache_scope="query",
         )
-        candidate_embeddings = self._encode_texts(
-            [
-                self._format_candidate_text(text)
-                for text in unique_candidate_texts
-            ]
+        candidate_embeddings = self._encode_texts_with_cache(
+            [self._format_candidate_text(text) for text in unique_candidate_texts],
+            cache_scope="candidate",
         )
 
         if query_embedding.shape[0] == 0 or candidate_embeddings.shape[0] == 0:
@@ -158,6 +164,8 @@ class ModelLoader:
             resolved_scores.append(calibrated_unique_scores[score_index])
 
         return resolved_scores
+
+
 
     def encode_profile_texts(self, profile_texts: Sequence[str]) -> List[List[float]]:
         normalized_profile_texts = [
@@ -231,6 +239,70 @@ class ModelLoader:
             batches.append(normalized.detach().cpu())
 
         return torch.cat(batches, dim=0)
+
+    def _encode_texts_with_cache(
+        self,
+        texts: Sequence[str],
+        cache_scope: str,
+    ) -> torch.Tensor:
+        if not texts:
+            return torch.empty((0, 1), dtype=torch.float32)
+
+        cached_embeddings: list[torch.Tensor | None] = [None] * len(texts)
+        missing_texts: list[str] = []
+        missing_indices_by_text: dict[str, list[int]] = {}
+
+        for index, text in enumerate(texts):
+            cached = self._cache_get(cache_scope, text)
+            if cached is not None:
+                cached_embeddings[index] = cached
+                continue
+
+            if text not in missing_indices_by_text:
+                missing_indices_by_text[text] = []
+                missing_texts.append(text)
+            missing_indices_by_text[text].append(index)
+
+        if missing_texts:
+            encoded_missing = self._encode_texts(missing_texts)
+            for text_index, text in enumerate(missing_texts):
+                embedding = encoded_missing[text_index].detach().cpu()
+                self._cache_set(cache_scope, text, embedding)
+                for index in missing_indices_by_text[text]:
+                    cached_embeddings[index] = embedding
+
+        if any(embedding is None for embedding in cached_embeddings):
+            return torch.empty((0, 1), dtype=torch.float32)
+
+        return torch.stack(
+            [embedding for embedding in cached_embeddings if embedding is not None],
+            dim=0,
+        )
+
+    def _cache_get(self, cache_scope: str, key: str) -> torch.Tensor | None:
+        cache = (
+            self._query_embedding_cache
+            if cache_scope == "query"
+            else self._candidate_embedding_cache
+        )
+        with self._cache_lock:
+            value = cache.get(key)
+            if value is None:
+                return None
+            cache.move_to_end(key)
+            return value
+
+    def _cache_set(self, cache_scope: str, key: str, value: torch.Tensor):
+        cache = (
+            self._query_embedding_cache
+            if cache_scope == "query"
+            else self._candidate_embedding_cache
+        )
+        with self._cache_lock:
+            cache[key] = value
+            cache.move_to_end(key)
+            while len(cache) > self._embedding_cache_max_entries:
+                cache.popitem(last=False)
 
     def _mean_pool(
         self, last_hidden_state: torch.Tensor, attention_mask: torch.Tensor

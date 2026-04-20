@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import List
 
@@ -32,11 +34,9 @@ class RerankService:
                 modelScore=self._clamp_score(
                     resolved_similarity_scores.get(candidate.candidateId, 0.0)
                 ),
-                reason=self._build_reason(
+                reason=self._build_reason_code(
                     candidate,
-                    self._clamp_score(
-                        resolved_similarity_scores.get(candidate.candidateId, 0.0)
-                    ),
+                    resolved_similarity_scores.get(candidate.candidateId, 0.0),
                 ),
             )
             for candidate in valid_candidates
@@ -53,10 +53,11 @@ class RerankService:
         seen_candidate_ids: set[str] = set()
 
         for candidate in candidates:
-            if candidate.candidateId in seen_candidate_ids:
+            candidate_id = str(candidate.candidateId).strip()
+            if not candidate_id or candidate_id in seen_candidate_ids:
                 continue
 
-            seen_candidate_ids.add(candidate.candidateId)
+            seen_candidate_ids.add(candidate_id)
 
             if candidate.alreadyFriend or candidate.isBlocked or candidate.isReported:
                 continue
@@ -65,10 +66,7 @@ class RerankService:
 
         if len(deduped_candidates) > settings.RECOMMENDATION_MAX_CANDIDATES:
             logger.warning(
-                (
-                    "Recommendation rerank truncated candidate batch: "
-                    "requested=%s limit=%s"
-                ),
+                "Recommendation rerank truncated candidate batch: requested=%s limit=%s",
                 len(deduped_candidates),
                 settings.RECOMMENDATION_MAX_CANDIDATES,
             )
@@ -93,49 +91,50 @@ class RerankService:
         if not candidates_to_predict:
             return resolved_scores
 
-        predicted_scores = model_loader.predict_similarity_scores(
-            viewer_profile_text,
-            [
-                candidate.candidateProfileText or ""
-                for candidate in candidates_to_predict
-            ],
-        )
+        try:
+            predicted_scores = model_loader.predict_similarity_scores(
+                viewer_profile_text,
+                [candidate.candidateProfileText or "" for candidate in candidates_to_predict],
+            )
+        except Exception:
+            logger.exception("Recommendation rerank inference failed")
+            for candidate in candidates_to_predict:
+                resolved_scores[candidate.candidateId] = 0.0
+            return resolved_scores
 
         for candidate, predicted_score in zip(
             candidates_to_predict,
             predicted_scores,
             strict=False,
         ):
-            resolved_scores[candidate.candidateId] = self._clamp_score(
-                predicted_score
-            )
+            resolved_scores[candidate.candidateId] = self._clamp_score(predicted_score)
 
-        for candidate in candidates_to_predict[len(predicted_scores) :]:
+        for candidate in candidates_to_predict[len(predicted_scores):]:
             resolved_scores[candidate.candidateId] = 0.0
 
         return resolved_scores
 
-    def _build_reason(
+    def _build_reason_code(
         self,
         candidate: RecommendationCandidateInput,
         similarity_score: float,
     ) -> str:
         if candidate.commonGroups > 0:
-            return f"Ho so co lien quan den {candidate.commonGroups} nhom chung"
+            return "graph_common_group"
 
         if candidate.mutualFriends > 0 and similarity_score >= 0.6:
-            return f"Ho so phu hop voi mang luoi {candidate.mutualFriends} ban chung"
+            return "graph_mutual_friend_semantic_match"
 
         if similarity_score >= 0.75:
-            return "Ho so ngu nghia rat gan"
+            return "semantic_strong_match"
 
         if similarity_score >= 0.5:
-            return "Ho so ngu nghia kha phu hop"
+            return "semantic_match"
 
         if candidate.mutualFriends > 0:
-            return f"Co {candidate.mutualFriends} ban chung"
+            return "graph_mutual_friend"
 
-        return "Co mot so tin hieu phu hop"
+        return "weak_match"
 
     def _clamp_score(self, value: float | None) -> float:
         if value is None:

@@ -332,7 +332,26 @@ async function readDemoUsers(csvPath) {
   return parseCsv(csvContent);
 }
 
-async function ensureUserInAppDatabase(createPayload) {
+async function checkUserExistsInAppDatabase(authToken, userId) {
+  const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+  });
+
+  if (response.ok) {
+    return { exists: true, detail: '' };
+  }
+
+  const bodyText = await response.text();
+  return {
+    exists: false,
+    detail: `http_${response.status} ${bodyText.slice(0, 200)}`,
+  };
+}
+
+async function ensureUserInAppDatabase(createPayload, authToken) {
   const response = await fetch(`${API_BASE_URL}/users`, {
     method: 'POST',
     headers: {
@@ -350,6 +369,18 @@ async function ensureUserInAppDatabase(createPayload) {
 
   if (response.status === 409 || response.status === 422 || duplicateHint) {
     return { status: 'exists', detail: bodyText.slice(0, 200) };
+  }
+
+  // Some environments return HTTP 500 for duplicate inserts. Verify by reading
+  // the user back via authenticated endpoint before classifying as hard failure.
+  if (authToken && createPayload?.id) {
+    const existenceCheck = await checkUserExistsInAppDatabase(authToken, createPayload.id);
+    if (existenceCheck.exists) {
+      return {
+        status: 'exists',
+        detail: `fallback-exists from createError=http_${response.status}`,
+      };
+    }
   }
 
   return {
@@ -435,7 +466,8 @@ async function run() {
       }
 
       const createPayload = buildCreateUserPayload(clerkUser, profilePayload);
-      const syncResult = await ensureUserInAppDatabase(createPayload);
+      const jwt = await tokenPool.getTokenForUser(clerkUser.id);
+      const syncResult = await ensureUserInAppDatabase(createPayload, jwt);
       if (syncResult.status === 'failed') {
         failed += 1;
         console.log(`THẤT BẠI ${record.email} | đồng bộ user lỗi: ${syncResult.detail}`);
@@ -448,7 +480,6 @@ async function run() {
         existed += 1;
       }
 
-      const jwt = await tokenPool.getTokenForUser(clerkUser.id);
       const updateResult = await updateProfile(jwt, profilePayload);
 
       processed += 1;

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
 import { GroupClientService } from '../../client/group/group-client.service';
 import {
@@ -15,6 +15,8 @@ import { RecommendationTrackingService } from './recommendation-tracking.service
 
 @Injectable()
 export class RecommendationQueryService {
+  private readonly logger = new Logger(RecommendationQueryService.name);
+
   constructor(
     private readonly recommendationClient: RecommendationClientService,
     private readonly hydrationService: RecommendationHydrationService,
@@ -28,12 +30,16 @@ export class RecommendationQueryService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>> {
-    const startIndex = this.resolveCursorOffset(query.cursor);
+    const normalizedCursor = this.normalizeCursor(query.cursor);
+    const startIndex = this.resolveCursorOffset(normalizedCursor);
     const limit = this.normalizeLimit(query.limit);
+    this.logger.debug(
+      `Recommendation query request: userId=${userId} limit=${limit} cursor=${normalizedCursor ?? 'none'} startIndex=${startIndex}`,
+    );
     const resolved = await this.recommendationClient.queryCandidates(
       userId,
       limit,
-      query.cursor,
+      normalizedCursor,
     );
 
     if (!resolved || resolved.candidates.length === 0) {
@@ -60,11 +66,11 @@ export class RecommendationQueryService {
         trackedRecommendations,
       );
 
-    await this.trackingService.recordServedEvents(
-      userId,
-      hydratedRecommendations,
-      startIndex,
-    );
+    void this.trackingService
+      .recordServedEvents(userId, recommendations, startIndex)
+      .catch((error) => {
+        this.logger.warn(`recordServedEvents failed: ${error.message}`);
+      });
 
     return {
       data: hydratedRecommendations,
@@ -202,22 +208,49 @@ export class RecommendationQueryService {
     return Math.max(1, Math.floor(limit));
   }
 
-  private resolveCursorOffset(cursor: string | null | undefined): number {
+  private normalizeCursor(cursor: string | null | undefined): string | undefined {
+    if (typeof cursor !== 'string') {
+      return undefined;
+    }
+
+    const normalized = cursor.trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private resolveCursorOffset(cursor: string | undefined): number {
     if (!cursor) {
       return 0;
     }
 
+    const parsedFromBase64Url = this.tryResolveOffsetFromCursor(cursor, 'base64url');
+    if (parsedFromBase64Url !== null) {
+      return parsedFromBase64Url;
+    }
+
+    const parsedFromBase64 = this.tryResolveOffsetFromCursor(cursor, 'base64');
+    if (parsedFromBase64 !== null) {
+      return parsedFromBase64;
+    }
+
+    this.logger.warn(`Ignoring invalid recommendation cursor for tracking: ${cursor}`);
+    return 0;
+  }
+
+  private tryResolveOffsetFromCursor(
+    cursor: string,
+    encoding: BufferEncoding,
+  ): number | null {
     try {
-      const decodedPayload = Buffer.from(cursor, 'base64url').toString('utf8');
+      const decodedPayload = Buffer.from(cursor, encoding).toString('utf8');
       const parsedPayload = JSON.parse(decodedPayload) as { offset?: unknown };
       const offset = Number(parsedPayload.offset);
       if (!Number.isFinite(offset)) {
-        throw new BadRequestException('Invalid recommendation cursor');
+        return null;
       }
 
       return Math.max(0, Math.floor(offset));
     } catch {
-      throw new BadRequestException('Invalid recommendation cursor');
+      return null;
     }
   }
 }

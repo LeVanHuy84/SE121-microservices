@@ -18,8 +18,7 @@ import { RecommendationQueryService } from './recommendation/recommendation-quer
 @Injectable()
 export class FriendshipService {
   private readonly logger = new Logger(FriendshipService.name);
-  private readonly recommendationDismissDurationMs =
-    30 * 24 * 60 * 60 * 1000;
+  private readonly recommendationDismissDurationMs = 30 * 24 * 60 * 60 * 1000;
   private readonly defaultAnalyticsWindowDays = 30;
   private readonly maxAnalyticsWindowDays = 365;
 
@@ -63,8 +62,7 @@ export class FriendshipService {
           candidateId: targetId,
           eventType: 'request_sent',
           recommendationId: attribution?.recommendationId ?? null,
-          recommendationRequestId:
-            attribution?.recommendationRequestId ?? null,
+          recommendationRequestId: attribution?.recommendationRequestId ?? null,
         },
       ]);
     }
@@ -105,10 +103,7 @@ export class FriendshipService {
       requesterId,
     );
 
-    if (
-      attribution?.recommendationId ||
-      attribution?.recommendationRequestId
-    ) {
+    if (attribution?.recommendationId || attribution?.recommendationRequestId) {
       await this.socialGraphRepo.recordRecommendationEvents([
         {
           userId: requesterId,
@@ -253,7 +248,19 @@ export class FriendshipService {
     this.logger.debug(
       `Recommending friends for userId: ${userId} with query: ${JSON.stringify(query)}`,
     );
-    return this.recommendationQueryService.recommendFriends(userId, query);
+    try {
+      return await this.recommendationQueryService.recommendFriends(
+        userId,
+        query,
+      );
+    } catch (error) {
+      this.logger.error('Recommendation unavailable', error);
+      return {
+        data: [],
+        nextCursor: null,
+        hasNextPage: false,
+      };
+    }
   }
 
   async getFriendRecommendationAnalytics(
@@ -261,13 +268,12 @@ export class FriendshipService {
     days?: number,
   ): Promise<FriendRecommendationAnalytics> {
     const windowDays = this.normalizeAnalyticsWindowDays(days);
-    const since = new Date(
-      Date.now() - windowDays * 24 * 60 * 60 * 1000,
-    );
-    const analytics = await this.socialGraphRepo.getFriendRecommendationAnalytics(
-      userId,
-      since,
-    );
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const analytics =
+      await this.socialGraphRepo.getFriendRecommendationAnalytics(
+        userId,
+        since,
+      );
 
     return {
       ...analytics,
@@ -279,9 +285,7 @@ export class FriendshipService {
     days?: number,
   ): Promise<FriendRecommendationAnalytics> {
     const windowDays = this.normalizeAnalyticsWindowDays(days);
-    const since = new Date(
-      Date.now() - windowDays * 24 * 60 * 60 * 1000,
-    );
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
     const analytics =
       await this.socialGraphRepo.getGlobalFriendRecommendationAnalytics(since);
 
@@ -307,9 +311,6 @@ export class FriendshipService {
       return this.defaultAnalyticsWindowDays;
     }
 
-    return Math.min(
-      this.maxAnalyticsWindowDays,
-      Math.max(1, Math.floor(days)),
-    );
+    return Math.min(this.maxAnalyticsWindowDays, Math.max(1, Math.floor(days)));
   }
 }

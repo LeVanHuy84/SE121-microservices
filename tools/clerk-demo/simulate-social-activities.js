@@ -8,47 +8,98 @@ const {
   getClerkUserByEmail,
 } = require('./lib/clerk-session-pool');
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api/v1';
-const DRY_RUN = process.env.DRY_RUN === '1';
-const DEFAULT_LIMIT = Number.parseInt(process.env.MAX_USERS || '70', 10);
-const DEFAULT_ROUNDS = Number.parseInt(process.env.SOCIAL_ROUNDS || '2', 10);
+const DEFAULT_API_BASE_URL = 'http://localhost:4000/api/v1';
+const DEFAULT_CSV = 'tools/clerk-demo/demo-clerk-users.csv';
+const DEFAULT_LIMIT = positiveIntOrFallback(process.env.MAX_USERS, 70);
+const DEFAULT_ROUNDS = positiveIntOrFallback(process.env.SOCIAL_ROUNDS, 2);
 const DEFAULT_SEED = process.env.SEED || `${Date.now()}`;
+
+function positiveIntOrFallback(value, fallback) {
+  const parsed = Number.parseInt(`${value ?? ''}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBooleanFlag(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
 
 function parseCliOptions() {
   const args = process.argv.slice(2);
-  let csvArg = 'tools/clerk-demo/demo-clerk-users.csv';
-  let limit = Number.isFinite(DEFAULT_LIMIT) && DEFAULT_LIMIT > 0 ? DEFAULT_LIMIT : 70;
-  let rounds = Number.isFinite(DEFAULT_ROUNDS) && DEFAULT_ROUNDS > 0 ? DEFAULT_ROUNDS : 2;
-  let seed = DEFAULT_SEED;
+  const options = {
+    csvArg: DEFAULT_CSV,
+    limit: DEFAULT_LIMIT,
+    rounds: DEFAULT_ROUNDS,
+    seed: DEFAULT_SEED,
+    dryRun: parseBooleanFlag(process.env.DRY_RUN),
+    apiBaseUrl: process.env.API_BASE_URL || DEFAULT_API_BASE_URL,
+  };
 
   for (const arg of args) {
     if (arg.startsWith('--limit=')) {
-      const rawLimit = Number.parseInt(arg.slice('--limit='.length), 10);
-      if (Number.isFinite(rawLimit) && rawLimit > 0) {
-        limit = rawLimit;
-      }
+      options.limit = positiveIntOrFallback(arg.slice('--limit='.length), options.limit);
       continue;
     }
 
     if (arg.startsWith('--rounds=')) {
-      const rawRounds = Number.parseInt(arg.slice('--rounds='.length), 10);
-      if (Number.isFinite(rawRounds) && rawRounds > 0) {
-        rounds = rawRounds;
-      }
+      options.rounds = positiveIntOrFallback(arg.slice('--rounds='.length), options.rounds);
       continue;
     }
 
     if (arg.startsWith('--seed=')) {
-      seed = arg.slice('--seed='.length) || seed;
+      const value = arg.slice('--seed='.length).trim();
+      options.seed = value || options.seed;
+      continue;
+    }
+
+    if (arg.startsWith('--api-base=')) {
+      const value = arg.slice('--api-base='.length).trim();
+      options.apiBaseUrl = value || options.apiBaseUrl;
+      continue;
+    }
+
+    if (arg === '--dry-run') {
+      options.dryRun = true;
       continue;
     }
 
     if (!arg.startsWith('--')) {
-      csvArg = arg;
+      options.csvArg = arg;
     }
   }
 
-  return { csvArg, limit, rounds, seed };
+  return options;
+}
+
+async function resolveCsvPath(csvArg) {
+  const candidates = [];
+
+  if (path.isAbsolute(csvArg)) {
+    candidates.push(csvArg);
+  } else {
+    candidates.push(path.resolve(process.cwd(), csvArg));
+    candidates.push(path.resolve(__dirname, csvArg));
+  }
+
+  candidates.push(path.resolve(__dirname, path.basename(csvArg)));
+  candidates.push(path.resolve(__dirname, 'demo-clerk-users.csv'));
+
+  const uniqueCandidates = Array.from(new Set(candidates));
+
+  for (const candidate of uniqueCandidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // try next
+    }
+  }
+
+  throw new Error(`CSV file not found. Checked paths: ${uniqueCandidates.join(', ')}`);
 }
 
 function parseCsv(content) {
@@ -62,41 +113,38 @@ function parseCsv(content) {
   }
 
   const headers = lines[0].split(',').map((header) => header.trim());
-  const rows = [];
-
-  for (let index = 1; index < lines.length; index += 1) {
-    const values = lines[index].split(',').map((value) => value.trim());
+  return lines.slice(1).map((line) => {
+    const values = line.split(',').map((value) => value.trim());
     const row = {};
 
-    headers.forEach((header, headerIndex) => {
-      row[header] = values[headerIndex] || '';
+    headers.forEach((header, index) => {
+      row[header] = values[index] || '';
     });
 
-    rows.push(row);
-  }
-
-  return rows;
+    return row;
+  });
 }
 
 function createSeededRandom(seedInput) {
   const source = `${seedInput}`;
   let hash = 2166136261;
-  for (let i = 0; i < source.length; i += 1) {
-    hash ^= source.charCodeAt(i);
+
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
 
   let state = hash >>> 0;
   return () => {
     state += 0x6d2b79f5;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-function pickRandom(array, random) {
-  return array[Math.floor(random() * array.length)];
+function pickRandom(items, random) {
+  return items[Math.floor(random() * items.length)];
 }
 
 function pickDistinctPair(users, random) {
@@ -106,14 +154,14 @@ function pickDistinctPair(users, random) {
 
   const actor = pickRandom(users, random);
   let target = pickRandom(users, random);
-  let attempts = 0;
+  let retries = 0;
 
-  while (target.userId === actor.userId && attempts < 10) {
+  while (target.userId === actor.userId && retries < 10) {
     target = pickRandom(users, random);
-    attempts += 1;
+    retries += 1;
   }
 
-  if (target.userId === actor.userId) {
+  if (actor.userId === target.userId) {
     return null;
   }
 
@@ -124,14 +172,70 @@ function extractArrayData(payload) {
   if (Array.isArray(payload)) {
     return payload;
   }
+
   if (payload && Array.isArray(payload.data)) {
     return payload.data;
   }
+
   return [];
 }
 
-async function apiRequest(authToken, method, endpoint, body) {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+function createCounters() {
+  return {
+    requestSent: 0,
+    requestSkipped: 0,
+    requestAccepted: 0,
+    requestDeclined: 0,
+    friendRemoved: 0,
+    userBlocked: 0,
+    userUnblocked: 0,
+    errors: 0,
+  };
+}
+
+function printBanner({ csvPath, recordsCount, usersCount, rounds, seed, dryRun, apiBaseUrl }) {
+  console.log(`Using CSV: ${csvPath}`);
+  console.log(`Users loaded: ${usersCount}/${recordsCount}`);
+  console.log(`Rounds: ${rounds}`);
+  console.log(`Seed: ${seed}`);
+  console.log(`API base: ${apiBaseUrl}`);
+  console.log(`Dry run: ${dryRun ? 'yes' : 'no'}`);
+  console.log('');
+}
+
+function printDryRunPlan({ usersCount, rounds }) {
+  console.log('DRYRUN plan:');
+  console.log(`- Random request actions: ${usersCount * rounds * 2}`);
+  console.log('- Process incoming requests for each user per round');
+  console.log('- Remove/block/unblock random relationships');
+}
+
+function printSummary(counters) {
+  console.log('');
+  console.log('Social Activity Summary');
+  console.log(`- Friend requests sent:        ${counters.requestSent}`);
+  console.log(`- Friend requests skipped:     ${counters.requestSkipped}`);
+  console.log(`- Requests accepted:           ${counters.requestAccepted}`);
+  console.log(`- Requests declined:           ${counters.requestDeclined}`);
+  console.log(`- Friends removed:             ${counters.friendRemoved}`);
+  console.log(`- Users blocked:               ${counters.userBlocked}`);
+  console.log(`- Users unblocked:             ${counters.userUnblocked}`);
+  console.log(`- Errors:                      ${counters.errors}`);
+}
+
+function logApiSuccess(method, endpoint, status, context = '') {
+  const suffix = context ? ` | ${context}` : '';
+  console.log(`[OK] ${method} ${endpoint} -> ${status}${suffix}`);
+}
+
+function logApiFailure(method, endpoint, status, payload, context = '') {
+  const suffix = context ? ` | ${context}` : '';
+  const detail = payload ? ` | payload=${JSON.stringify(payload)}` : '';
+  console.warn(`[FAIL] ${method} ${endpoint} -> ${status}${suffix}${detail}`);
+}
+
+async function apiRequest(apiBaseUrl, authToken, method, endpoint, body) {
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
     method,
     headers: {
       Authorization: `Bearer ${authToken}`,
@@ -141,7 +245,7 @@ async function apiRequest(authToken, method, endpoint, body) {
   });
 
   const text = await response.text();
-  let payload = null;
+  let payload;
 
   try {
     payload = text ? JSON.parse(text) : null;
@@ -156,21 +260,27 @@ async function apiRequest(authToken, method, endpoint, body) {
   };
 }
 
-async function resolveUsers(clerkClient, records) {
+async function apiRequestForUser(tokenPool, apiBaseUrl, userId, method, endpoint, body) {
+  const authToken = await tokenPool.getTokenForUser(userId);
+  return apiRequest(apiBaseUrl, authToken, method, endpoint, body);
+}
+
+async function resolveUsersFromCsv(clerkClient, records) {
   const users = [];
 
   for (const record of records) {
-    if (!record.email) {
+    const email = typeof record.email === 'string' ? record.email.trim() : '';
+    if (!email) {
       continue;
     }
 
-    const user = await getClerkUserByEmail(clerkClient, record.email);
+    const user = await getClerkUserByEmail(clerkClient, email);
     if (!user?.id) {
       continue;
     }
 
     users.push({
-      email: record.email,
+      email,
       userId: user.id,
     });
   }
@@ -178,252 +288,295 @@ async function resolveUsers(clerkClient, records) {
   return users;
 }
 
-async function run() {
-  const { csvArg, limit, rounds, seed } = parseCliOptions();
-  const csvPath = path.resolve(process.cwd(), csvArg);
-  const csvContent = await fs.readFile(csvPath, 'utf8');
-  const allRecords = parseCsv(csvContent);
-  const records = allRecords.slice(0, limit);
+async function simulateFriendRequestRound({ users, tokenPool, random, counters, apiBaseUrl }) {
+  const requestActions = users.length * 2;
 
-  if (allRecords.length === 0) {
-    console.error(`No records found in CSV: ${csvPath}`);
-    process.exit(1);
-  }
-
-  const clerkClient = createClerkClientFromEnv();
-  const tokenPool = new ClerkSessionTokenPool(clerkClient);
-  const random = createSeededRandom(seed);
-
-  const users = await resolveUsers(clerkClient, records);
-  if (users.length < 2) {
-    console.error('Need at least 2 valid users from CSV to simulate social activity.');
-    process.exit(1);
-  }
-
-  console.log(`Using CSV: ${csvPath}`);
-  console.log(`Users loaded: ${users.length}/${records.length}`);
-  console.log(`Rounds: ${rounds}`);
-  console.log(`Seed: ${seed}`);
-  console.log(`Dry run: ${DRY_RUN ? 'yes' : 'no'}`);
-  console.log('');
-
-  const counters = {
-    requestSent: 0,
-    requestSkipped: 0,
-    requestAccepted: 0,
-    requestDeclined: 0,
-    recommendationDismissed: 0,
-    friendRemoved: 0,
-    userBlocked: 0,
-    userUnblocked: 0,
-    errors: 0,
-  };
-
-  if (DRY_RUN) {
-    console.log('DRYRUN plan:');
-    console.log(`- Random request actions: ${users.length * rounds * 2}`);
-    console.log(`- Process incoming requests for each user per round`);
-    console.log(`- Dismiss recommendation candidates with random probability`);
-    console.log(`- Remove/block/unblock random relationships`);
-    return;
-  }
-
-  try {
-    const tokenByUserId = new Map();
-    for (const user of users) {
-      const token = await tokenPool.getTokenForUser(user.userId);
-      tokenByUserId.set(user.userId, token);
+  for (let index = 0; index < requestActions; index += 1) {
+    const pair = pickDistinctPair(users, random);
+    if (!pair) {
+      counters.requestSkipped += 1;
+      continue;
     }
 
-    for (let round = 0; round < rounds; round += 1) {
-      const requestActions = users.length * 2;
+    const endpoint = `/social/request/${pair.target.userId}`;
 
-      for (let i = 0; i < requestActions; i += 1) {
-        const pair = pickDistinctPair(users, random);
-        if (!pair) {
-          counters.requestSkipped += 1;
-          continue;
-        }
+    try {
+      const result = await apiRequestForUser(
+        tokenPool,
+        apiBaseUrl,
+        pair.actor.userId,
+        'POST',
+        endpoint,
+        {},
+      );
 
-        const actorToken = tokenByUserId.get(pair.actor.userId);
-        const requestResult = await apiRequest(
-          actorToken,
+      if (result.ok) {
+        counters.requestSent += 1;
+        logApiSuccess('POST', endpoint, result.status, `actor=${pair.actor.email} target=${pair.target.email}`);
+      } else {
+        counters.requestSkipped += 1;
+        logApiFailure('POST', endpoint, result.status, result.payload, `actor=${pair.actor.email} target=${pair.target.email}`);
+      }
+    } catch (error) {
+      counters.errors += 1;
+      console.error(`[ERROR] POST ${endpoint} | actor=${pair.actor.email} target=${pair.target.email}`, error);
+    }
+  }
+}
+
+async function processIncomingRequestsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
+  for (const user of users) {
+    const listEndpoint = '/social/requests?limit=20';
+    let listResult;
+
+    try {
+      listResult = await apiRequestForUser(
+        tokenPool,
+        apiBaseUrl,
+        user.userId,
+        'GET',
+        listEndpoint,
+      );
+    } catch (error) {
+      counters.errors += 1;
+      console.error(`[ERROR] GET ${listEndpoint} | actor=${user.email}`, error);
+      continue;
+    }
+
+    if (!listResult.ok) {
+      counters.errors += 1;
+      logApiFailure('GET', listEndpoint, listResult.status, listResult.payload, `actor=${user.email}`);
+      continue;
+    }
+
+    logApiSuccess('GET', listEndpoint, listResult.status, `actor=${user.email}`);
+
+    const requesterIds = extractArrayData(listResult.payload).filter(
+      (item) => typeof item === 'string' && item.trim().length > 0,
+    );
+
+    for (const requesterId of requesterIds) {
+      const shouldAccept = random() < 0.75;
+      const endpoint = shouldAccept
+        ? `/social/accept/${requesterId}`
+        : `/social/decline/${requesterId}`;
+
+      try {
+        const decisionResult = await apiRequestForUser(
+          tokenPool,
+          apiBaseUrl,
+          user.userId,
           'POST',
-          `/social/request/${pair.target.userId}`,
+          endpoint,
           {},
         );
 
-        if (requestResult.ok) {
-          counters.requestSent += 1;
+        if (!decisionResult.ok) {
+          counters.errors += 1;
+          logApiFailure('POST', endpoint, decisionResult.status, decisionResult.payload, `actor=${user.email}`);
+          continue;
+        }
+
+        logApiSuccess('POST', endpoint, decisionResult.status, `actor=${user.email}`);
+
+        if (shouldAccept) {
+          counters.requestAccepted += 1;
         } else {
-          counters.requestSkipped += 1;
+          counters.requestDeclined += 1;
         }
+      } catch (error) {
+        counters.errors += 1;
+        console.error(`[ERROR] POST ${endpoint} | actor=${user.email}`, error);
       }
+    }
+  }
+}
 
-      for (const user of users) {
-        const actorToken = tokenByUserId.get(user.userId);
-        const requestResult = await apiRequest(
-          actorToken,
-          'GET',
-          '/social/requests?limit=20',
-        );
+async function mutateRelationshipsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
+  for (const user of users) {
+    if (random() < 0.2) {
+      const pair = pickDistinctPair(users, random);
+      if (pair) {
+        const blockEndpoint = `/social/block/${pair.target.userId}`;
 
-        if (!requestResult.ok) {
-          counters.errors += 1;
-          continue;
-        }
-
-        const requesterIds = extractArrayData(requestResult.payload).filter(
-          (item) => typeof item === 'string' && item.trim().length > 0,
-        );
-
-        for (const requesterId of requesterIds) {
-          const shouldAccept = random() < 0.75;
-          const endpoint = shouldAccept
-            ? `/social/accept/${requesterId}`
-            : `/social/decline/${requesterId}`;
-
-          const decisionResult = await apiRequest(actorToken, 'POST', endpoint, {});
-          if (!decisionResult.ok) {
-            counters.errors += 1;
-            continue;
-          }
-
-          if (shouldAccept) {
-            counters.requestAccepted += 1;
-          } else {
-            counters.requestDeclined += 1;
-          }
-        }
-      }
-
-      for (const user of users) {
-        if (random() >= 0.55) {
-          continue;
-        }
-
-        const actorToken = tokenByUserId.get(user.userId);
-        const recommendResult = await apiRequest(
-          actorToken,
-          'GET',
-          '/social/friends/recommend?limit=10',
-        );
-
-        if (!recommendResult.ok) {
-          counters.errors += 1;
-          continue;
-        }
-
-        const candidates = extractArrayData(recommendResult.payload).filter(
-          (item) => item && typeof item.id === 'string',
-        );
-
-        const dismissCount = Math.min(candidates.length, 1 + Math.floor(random() * 2));
-        for (let i = 0; i < dismissCount; i += 1) {
-          const candidate = candidates[i];
-          const dismissResult = await apiRequest(
-            actorToken,
+        try {
+          const blockResult = await apiRequestForUser(
+            tokenPool,
+            apiBaseUrl,
+            user.userId,
             'POST',
-            `/social/friends/recommend/dismiss/${candidate.id}`,
-            {
-              recommendationId: candidate.recommendationId,
-              recommendationRequestId: candidate.recommendationRequestId,
-            },
+            blockEndpoint,
+            {},
           );
 
-          if (dismissResult.ok) {
-            counters.recommendationDismissed += 1;
+          if (blockResult.ok) {
+            counters.userBlocked += 1;
+            logApiSuccess('POST', blockEndpoint, blockResult.status, `actor=${user.email} target=${pair.target.email}`);
+
+            if (random() < 0.5) {
+              const unblockEndpoint = `/social/unblock/${pair.target.userId}`;
+              const unblockResult = await apiRequestForUser(
+                tokenPool,
+                apiBaseUrl,
+                user.userId,
+                'POST',
+                unblockEndpoint,
+                {},
+              );
+
+              if (unblockResult.ok) {
+                counters.userUnblocked += 1;
+                logApiSuccess('POST', unblockEndpoint, unblockResult.status, `actor=${user.email} target=${pair.target.email}`);
+              } else {
+                counters.errors += 1;
+                logApiFailure('POST', unblockEndpoint, unblockResult.status, unblockResult.payload, `actor=${user.email} target=${pair.target.email}`);
+              }
+            }
           } else {
             counters.errors += 1;
+            logApiFailure('POST', blockEndpoint, blockResult.status, blockResult.payload, `actor=${user.email} target=${pair.target.email}`);
           }
+        } catch (error) {
+          counters.errors += 1;
+          console.error(`[ERROR] POST ${blockEndpoint} | actor=${user.email} target=${pair.target.email}`, error);
         }
       }
+    }
 
-      for (const user of users) {
-        const actorToken = tokenByUserId.get(user.userId);
+    if (random() < 0.25) {
+      const friendsEndpoint = '/social/friends/me?limit=20';
+      let friendsResult;
 
-        if (random() < 0.2) {
-          const pair = pickDistinctPair(users, random);
-          if (pair) {
-            const blockResult = await apiRequest(
-              actorToken,
-              'POST',
-              `/social/block/${pair.target.userId}`,
-              {},
-            );
-            if (blockResult.ok) {
-              counters.userBlocked += 1;
-
-              if (random() < 0.5) {
-                const unblockResult = await apiRequest(
-                  actorToken,
-                  'POST',
-                  `/social/unblock/${pair.target.userId}`,
-                  {},
-                );
-                if (unblockResult.ok) {
-                  counters.userUnblocked += 1;
-                } else {
-                  counters.errors += 1;
-                }
-              }
-            } else {
-              counters.errors += 1;
-            }
-          }
-        }
-
-        if (random() < 0.25) {
-          const friendsResult = await apiRequest(
-            actorToken,
-            'GET',
-            '/social/friends/me?limit=20',
-          );
-
-          if (!friendsResult.ok) {
-            counters.errors += 1;
-            continue;
-          }
-
-          const friendIds = extractArrayData(friendsResult.payload).filter(
-            (item) => typeof item === 'string' && item.trim().length > 0,
-          );
-
-          if (friendIds.length > 0) {
-            const friendId = pickRandom(friendIds, random);
-            const removeResult = await apiRequest(
-              actorToken,
-              'POST',
-              `/social/remove/${friendId}`,
-              {},
-            );
-
-            if (removeResult.ok) {
-              counters.friendRemoved += 1;
-            } else {
-              counters.errors += 1;
-            }
-          }
-        }
+      try {
+        friendsResult = await apiRequestForUser(
+          tokenPool,
+          apiBaseUrl,
+          user.userId,
+          'GET',
+          friendsEndpoint,
+        );
+      } catch (error) {
+        counters.errors += 1;
+        console.error(`[ERROR] GET ${friendsEndpoint} | actor=${user.email}`, error);
+        continue;
       }
 
-      console.log(`Round ${round + 1}/${rounds} completed`);
+      if (!friendsResult.ok) {
+        counters.errors += 1;
+        logApiFailure('GET', friendsEndpoint, friendsResult.status, friendsResult.payload, `actor=${user.email}`);
+        continue;
+      }
+
+      logApiSuccess('GET', friendsEndpoint, friendsResult.status, `actor=${user.email}`);
+
+      const friendIds = extractArrayData(friendsResult.payload).filter(
+        (item) => typeof item === 'string' && item.trim().length > 0,
+      );
+
+      if (friendIds.length === 0) {
+        continue;
+      }
+
+      const friendId = pickRandom(friendIds, random);
+      const removeEndpoint = `/social/remove/${friendId}`;
+
+      try {
+        const removeResult = await apiRequestForUser(
+          tokenPool,
+          apiBaseUrl,
+          user.userId,
+          'POST',
+          removeEndpoint,
+          {},
+        );
+
+        if (removeResult.ok) {
+          counters.friendRemoved += 1;
+          logApiSuccess('POST', removeEndpoint, removeResult.status, `actor=${user.email}`);
+        } else {
+          counters.errors += 1;
+          logApiFailure('POST', removeEndpoint, removeResult.status, removeResult.payload, `actor=${user.email}`);
+        }
+      } catch (error) {
+        counters.errors += 1;
+        console.error(`[ERROR] POST ${removeEndpoint} | actor=${user.email}`, error);
+      }
+    }
+  }
+}
+
+async function run() {
+  const options = parseCliOptions();
+  const csvPath = await resolveCsvPath(options.csvArg);
+  const csvContent = await fs.readFile(csvPath, 'utf8');
+  const allRecords = parseCsv(csvContent);
+  const records = allRecords.slice(0, options.limit);
+
+  if (allRecords.length === 0) {
+    throw new Error(`No records found in CSV: ${csvPath}`);
+  }
+
+  const clerkClient = createClerkClientFromEnv();
+  const users = await resolveUsersFromCsv(clerkClient, records);
+
+  if (users.length < 2) {
+    throw new Error('Need at least 2 valid users from CSV to simulate social activity.');
+  }
+
+  printBanner({
+    csvPath,
+    recordsCount: records.length,
+    usersCount: users.length,
+    rounds: options.rounds,
+    seed: options.seed,
+    dryRun: options.dryRun,
+    apiBaseUrl: options.apiBaseUrl,
+  });
+
+  if (options.dryRun) {
+    printDryRunPlan({ usersCount: users.length, rounds: options.rounds });
+    return;
+  }
+
+  const random = createSeededRandom(options.seed);
+  const counters = createCounters();
+  const tokenPool = new ClerkSessionTokenPool(clerkClient);
+
+  try {
+    for (let round = 0; round < options.rounds; round += 1) {
+      console.log(`Starting round ${round + 1}/${options.rounds}`);
+
+      await simulateFriendRequestRound({
+        users,
+        tokenPool,
+        random,
+        counters,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+
+      await processIncomingRequestsRound({
+        users,
+        tokenPool,
+        random,
+        counters,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+
+      await mutateRelationshipsRound({
+        users,
+        tokenPool,
+        random,
+        counters,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+
+      console.log(`Round ${round + 1}/${options.rounds} completed`);
     }
   } finally {
     await tokenPool.revokeAll();
   }
 
-  console.log('');
-  console.log('Social Activity Summary');
-  console.log(`- Friend requests sent:        ${counters.requestSent}`);
-  console.log(`- Friend requests skipped:     ${counters.requestSkipped}`);
-  console.log(`- Requests accepted:           ${counters.requestAccepted}`);
-  console.log(`- Requests declined:           ${counters.requestDeclined}`);
-  console.log(`- Recommendation dismissed:    ${counters.recommendationDismissed}`);
-  console.log(`- Friends removed:             ${counters.friendRemoved}`);
-  console.log(`- Users blocked:               ${counters.userBlocked}`);
-  console.log(`- Users unblocked:             ${counters.userUnblocked}`);
-  console.log(`- Errors:                      ${counters.errors}`);
+  printSummary(counters);
 }
 
 run().catch((error) => {

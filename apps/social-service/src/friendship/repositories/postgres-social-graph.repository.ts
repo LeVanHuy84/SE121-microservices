@@ -322,37 +322,6 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       LEFT JOIN friendships candidate_friend
         ON candidate_friend.user_id = rc.candidate_id
        AND candidate_friend.friend_id = viewer_friend.friend_id
-      WHERE NOT EXISTS (
-          SELECT 1 FROM friendships direct_friend
-          WHERE direct_friend.user_id = $1
-            AND direct_friend.friend_id = rc.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_requests outgoing_req
-          WHERE outgoing_req.requester_id = $1
-            AND outgoing_req.receiver_id = rc.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_requests incoming_req
-          WHERE incoming_req.requester_id = rc.candidate_id
-            AND incoming_req.receiver_id = $1
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM user_blocks block_out
-          WHERE block_out.blocker_id = $1
-            AND block_out.blocked_id = rc.candidate_id
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM user_blocks block_in
-          WHERE block_in.blocker_id = rc.candidate_id
-            AND block_in.blocked_id = $1
-      )
-        AND NOT EXISTS (
-          SELECT 1 FROM friend_recommendation_dismissals dismissal
-          WHERE dismissal.user_id = $1
-            AND dismissal.candidate_id = rc.candidate_id
-            AND dismissal.expires_at > NOW()
-      )
       GROUP BY rc.candidate_id
       ORDER BY rc.candidate_id ASC
       `,

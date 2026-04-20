@@ -20,20 +20,19 @@ class GlobalFallbackService:
     ) -> tuple[list[dict[str, Any]], bool]:
         safe_offset = max(0, int(offset))
         safe_size = max(1, int(size))
-        target_size = safe_size + 1
-        excluded_ids = {
-            str(candidate_id) for candidate_id in (excluded_candidate_ids or set())
-        }
+        excluded_ids = {str(candidate_id) for candidate_id in (excluded_candidate_ids or set())}
         excluded_ids.add(str(viewer_id))
 
-        collected_candidates: list[dict[str, Any]] = []
+        target_count = safe_size + 1
         cursor = safe_offset
-        chunk_size = max(20, safe_size * 4)
-        max_scan_rows = max(200, safe_size * 40)
-        scanned_rows = 0
         source_exhausted = False
+        filtered_candidates: list[dict[str, Any]] = []
 
-        while scanned_rows < max_scan_rows:
+        chunk_size = max(50, safe_size * 5)
+        max_scan_rows = max(300, safe_size * 50)
+        scanned_rows = 0
+
+        while len(filtered_candidates) < target_count and scanned_rows < max_scan_rows:
             rows = self.repository.list_global_fallback_candidates(
                 offset=cursor,
                 limit=chunk_size,
@@ -47,22 +46,21 @@ class GlobalFallbackService:
             scanned_rows += len(rows)
             cursor += len(rows)
             source_exhausted = len(rows) < chunk_size
-            candidate_ids = [
-                str(row["candidateId"])
-                for row in rows
-                if str(row["candidateId"]) not in excluded_ids
-            ]
+
+            raw_candidate_ids = [str(row["candidateId"]) for row in rows]
             graph_excluded_ids = self.repository.get_graph_excluded_candidate_ids(
                 viewer_id,
-                candidate_ids,
+                raw_candidate_ids,
             )
 
             for row in rows:
                 candidate_id = str(row["candidateId"])
-                if candidate_id in excluded_ids or candidate_id in graph_excluded_ids:
+                if candidate_id in excluded_ids:
+                    continue
+                if candidate_id in graph_excluded_ids:
                     continue
 
-                collected_candidates.append(
+                filtered_candidates.append(
                     {
                         "candidateId": candidate_id,
                         "candidateProfileText": None,
@@ -71,17 +69,14 @@ class GlobalFallbackService:
                     }
                 )
 
-                if len(collected_candidates) >= target_size:
+                if len(filtered_candidates) >= target_count:
                     break
-
-            if len(collected_candidates) >= target_size:
-                break
 
             if source_exhausted:
                 break
 
-        has_next = len(collected_candidates) > safe_size
+        has_next = len(filtered_candidates) > safe_size
         if not has_next and not source_exhausted and scanned_rows >= max_scan_rows:
             has_next = True
 
-        return collected_candidates[:safe_size], has_next
+        return filtered_candidates[:safe_size], has_next

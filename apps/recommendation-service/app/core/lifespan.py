@@ -16,9 +16,11 @@ async def warmup_model_in_background(model_loader):
 @asynccontextmanager
 async def lifespan(app):
     from app.bootstrap import messaging_runtime, state_repository
+    from app.core.config import settings
     from app.services.model_loader import model_loader
 
     warmup_task = None
+    messaging_started = False
 
     try:
         logger.info("Starting recommendation-service")
@@ -26,8 +28,17 @@ async def lifespan(app):
         state_repository.validate_connection()
         state_repository.validate_schema()
         logger.info("Recommendation state repository connected and schema validated")
-        await messaging_runtime.start()
-        logger.info("Recommendation messaging and processor started")
+        try:
+            await messaging_runtime.start()
+            messaging_started = True
+            logger.info("Recommendation messaging and processor started")
+        except Exception as exc:
+            if settings.KAFKA_REQUIRED:
+                raise
+            logger.warning(
+                "Kafka unavailable at startup; recommendation API will run without messaging runtime: %s",
+                exc,
+            )
         warmup_task = asyncio.create_task(warmup_model_in_background(model_loader))
         yield
     except Exception as exc:
@@ -37,5 +48,6 @@ async def lifespan(app):
         if warmup_task:
             warmup_task.cancel()
             await asyncio.gather(warmup_task, return_exceptions=True)
-        await messaging_runtime.stop()
+        if messaging_started:
+            await messaging_runtime.stop()
         logger.info("Stopping recommendation-service")

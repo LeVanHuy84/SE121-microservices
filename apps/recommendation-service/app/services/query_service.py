@@ -8,17 +8,16 @@ from typing import Any
 from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.models.rerank_request import (
-    RecommendationCandidateInput,
     RecommendationQueryOutput,
     RecommendationQueryRequest,
-    RecommendationRerankRequest,
 )
 from app.services.candidate_retrieval_service import CandidateRetrievalService
 from app.services.global_fallback_service import GlobalFallbackService
 from app.services.query_cache import QueryCache, query_cache
+from app.services.ranking_service import RankingService
 from app.services.rerank_service import RerankService
 
-QUERY_SCORE_VERSION = "recommendation-query-pipeline-v1"
+QUERY_SCORE_VERSION = "recommendation-query-pipeline-v2"
 SESSION_CURSOR_SOURCE = "semantic_session"
 
 
@@ -30,9 +29,9 @@ class QueryService:
         candidate_retrieval_service: CandidateRetrievalService | None = None,
         global_fallback_service: GlobalFallbackService | None = None,
         cache: QueryCache | None = query_cache,
+        ranking_service: RankingService | None = None,
     ):
         self.repository = repository
-        self.rerank_service = rerank_service
         self.cache = cache
         self.candidate_retrieval_service = (
             candidate_retrieval_service or CandidateRetrievalService(repository)
@@ -40,27 +39,29 @@ class QueryService:
         self.global_fallback_service = (
             global_fallback_service or GlobalFallbackService(repository)
         )
+        self.ranking_service = ranking_service or RankingService(
+            repository=repository,
+            rerank_service=rerank_service,
+        )
 
     def query(self, request: RecommendationQueryRequest) -> RecommendationQueryOutput:
         viewer_id = str(request.viewerId or "").strip()
         generated_at = self._now_iso()
 
         if not viewer_id:
-            return RecommendationQueryOutput(
-                viewerId="",
-                generatedAt=generated_at,
+            return self._build_output(
+                viewer_id="",
+                generated_at=generated_at,
                 source="empty",
-                scoreVersion=QUERY_SCORE_VERSION,
-                candidateCount=0,
+                score_version=QUERY_SCORE_VERSION,
                 candidates=[],
-                nextCursor=None,
-                hasNextPage=False,
+                has_next=False,
+                next_cursor=None,
             )
 
-        if self.cache is not None:
-            cached_response = self.cache.get(request)
-            if cached_response is not None:
-                return cached_response
+        cached_response = self._get_cached_response(request)
+        if cached_response is not None:
+            return cached_response
 
         limit = max(1, int(request.limit))
         cursor = self._decode_cursor(request.cursor)
@@ -77,20 +78,13 @@ class QueryService:
             )
             if session_response is not None:
                 return session_response
-
             cursor_source = "semantic_online"
 
-        viewer_row = self.repository.get_profile_embedding(viewer_id)
-        viewer_profile_text = (
-            request.viewerProfileText
-            if isinstance(request.viewerProfileText, str)
-            and request.viewerProfileText.strip()
-            else (viewer_row or {}).get("semanticProfileText")
-        )
-
+        viewer_profile_text = self._resolve_viewer_profile_text(request, viewer_id)
         window_size = self._resolve_session_window_size(limit)
         page_span = max(window_size, settings.RECOMMENDATION_QUERY_RERANK_TOP_K)
 
+        primary_batch = None
         if cursor_source in ("", "semantic_online"):
             primary_batch = self.candidate_retrieval_service.get_semantic_online_batch(
                 viewer_id,
@@ -99,31 +93,15 @@ class QueryService:
             )
             if not primary_batch.candidates:
                 primary_batch = None
-        else:
-            primary_batch = None
 
         if primary_batch is None:
-            (
-                fallback_candidates,
-                fallback_has_next,
-            ) = self.global_fallback_service.get_batch(
-                viewer_id=viewer_id,
-                offset=cursor_offset,
-                size=limit,
-                excluded_candidate_ids=set(),
-            )
-            return self._build_response(
+            return self._build_fallback_only_response(
+                request=request,
                 viewer_id=viewer_id,
                 generated_at=generated_at,
-                source="global_fallback",
-                score_version=QUERY_SCORE_VERSION,
-                candidates=fallback_candidates,
-                limit=limit,
-                has_next=fallback_has_next,
-                next_source="global_fallback",
-                next_offset=cursor_offset + len(fallback_candidates),
                 viewer_profile_text=viewer_profile_text,
-                cache_request=request,
+                offset=cursor_offset,
+                limit=limit,
             )
 
         filtered_primary = self.candidate_retrieval_service.filter_graph_projection(
@@ -131,71 +109,48 @@ class QueryService:
             primary_batch.candidates,
         )
 
-        scored_primary = self._rerank_and_rank(
-            viewer_id,
-            viewer_profile_text,
-            filtered_primary,
+        ranked_primary = self.ranking_service.rank_candidates(
+            viewer_id=viewer_id,
+            viewer_profile_text=viewer_profile_text,
+            candidates=filtered_primary,
         )
 
+        session_candidates = list(ranked_primary)
         response_source = primary_batch.source
         session_source = primary_batch.source
-        session_candidates = list(scored_primary)
         has_more_source = primary_batch.has_next
-        next_source = primary_batch.source
-        next_offset = cursor_offset + min(limit, len(session_candidates))
 
-        if (
-            len(session_candidates) < window_size
-            and primary_batch.source == "semantic_online"
-        ):
-            excluded_ids = {
-                str(candidate["candidateId"]) for candidate in filtered_primary
-            }
-            (
-                fallback_candidates,
-                fallback_has_next,
-            ) = self.global_fallback_service.get_batch(
+        if len(session_candidates) < window_size and primary_batch.source == "semantic_online":
+            excluded_ids = {str(candidate["candidateId"]) for candidate in filtered_primary}
+            fallback_candidates, fallback_has_next = self.global_fallback_service.get_batch(
                 viewer_id=viewer_id,
                 offset=0,
                 size=window_size - len(session_candidates),
                 excluded_candidate_ids=excluded_ids,
             )
-            ranked_fallback_candidates = self._rank_with_passthrough_scores(
+            ranked_fallback = self.ranking_service.passthrough_fallback_candidates(
                 fallback_candidates,
                 start_rank=len(session_candidates) + 1,
             )
-            session_candidates.extend(
-                ranked_fallback_candidates
-            )
-            if fallback_candidates:
+            if ranked_fallback:
+                session_candidates.extend(ranked_fallback)
                 session_source = "hybrid"
                 has_more_source = has_more_source or fallback_has_next
 
         response_candidates = session_candidates[:limit]
-        if any(
-            str(candidate.get("source") or "") == "global_fallback"
-            for candidate in response_candidates
-        ):
+        if any(str(candidate.get("source") or "") == "global_fallback" for candidate in response_candidates):
             response_source = "hybrid"
+
         has_next = len(session_candidates) > limit or has_more_source
-        next_cursor = None
-        if has_next:
-            session_id = self.cache.store_candidate_session(
-                viewer_id=viewer_id,
-                source=session_source,
-                score_version=QUERY_SCORE_VERSION,
-                candidates=session_candidates,
-            ) if self.cache is not None and session_candidates else None
-            if session_id:
-                next_cursor = self._encode_session_cursor(
-                    session_id,
-                    len(response_candidates),
-                )
-            else:
-                next_cursor = self._encode_cursor(
-                    next_source,
-                    next_offset,
-                )
+        next_cursor = self._build_next_cursor(
+            viewer_id=viewer_id,
+            session_source=session_source,
+            candidates=session_candidates,
+            current_page_size=len(response_candidates),
+            fallback_source=primary_batch.source,
+            fallback_offset=cursor_offset + min(limit, len(session_candidates)),
+            has_next=has_next,
+        )
 
         response = self._build_output(
             viewer_id=viewer_id,
@@ -206,9 +161,102 @@ class QueryService:
             has_next=has_next,
             next_cursor=next_cursor,
         )
-        if self.cache is not None:
-            return self.cache.set(request, response)
-        return response
+        return self._cache_response(request, response)
+
+    def _build_fallback_only_response(
+        self,
+        request: RecommendationQueryRequest,
+        viewer_id: str,
+        generated_at: str,
+        viewer_profile_text: str | None,
+        offset: int,
+        limit: int,
+    ) -> RecommendationQueryOutput:
+        fallback_candidates, fallback_has_next = self.global_fallback_service.get_batch(
+            viewer_id=viewer_id,
+            offset=offset,
+            size=limit,
+            excluded_candidate_ids=set(),
+        )
+
+        ranked = self.ranking_service.rank_candidates(
+            viewer_id=viewer_id,
+            viewer_profile_text=viewer_profile_text,
+            candidates=fallback_candidates,
+        )
+
+        response = self._build_output(
+            viewer_id=viewer_id,
+            generated_at=generated_at,
+            source="global_fallback",
+            score_version=QUERY_SCORE_VERSION,
+            candidates=ranked[:limit],
+            has_next=fallback_has_next or len(ranked) > limit,
+            next_cursor=self._encode_cursor("global_fallback", offset + len(ranked))
+            if (fallback_has_next or len(ranked) > limit)
+            else None,
+        )
+        return self._cache_response(request, response)
+
+    def _resolve_viewer_profile_text(
+        self,
+        request: RecommendationQueryRequest,
+        viewer_id: str,
+    ) -> str | None:
+        if isinstance(request.viewerProfileText, str) and request.viewerProfileText.strip():
+            return request.viewerProfileText
+
+        viewer_row = self.repository.get_profile_embedding(viewer_id)
+        return (viewer_row or {}).get("semanticProfileText")
+
+    def _build_next_cursor(
+        self,
+        viewer_id: str,
+        session_source: str,
+        candidates: list[dict[str, Any]],
+        current_page_size: int,
+        fallback_source: str,
+        fallback_offset: int,
+        has_next: bool,
+    ) -> str | None:
+        if not has_next:
+            return None
+
+        # Only issue a session cursor when the in-memory session has data
+        # beyond the current page. Otherwise a session cursor can "stall"
+        # at the same offset and should fallback to source+offset cursor.
+        if (
+            self.cache is not None
+            and candidates
+            and len(candidates) > current_page_size
+        ):
+            session_id = self.cache.store_candidate_session(
+                viewer_id=viewer_id,
+                source=session_source,
+                score_version=QUERY_SCORE_VERSION,
+                candidates=candidates,
+            )
+            if session_id:
+                return self._encode_session_cursor(session_id, current_page_size)
+
+        return self._encode_cursor(fallback_source, fallback_offset)
+
+    def _get_cached_response(
+        self,
+        request: RecommendationQueryRequest,
+    ) -> RecommendationQueryOutput | None:
+        if self.cache is None:
+            return None
+        return self.cache.get(request)
+
+    def _cache_response(
+        self,
+        request: RecommendationQueryRequest,
+        response: RecommendationQueryOutput,
+    ) -> RecommendationQueryOutput:
+        if self.cache is None:
+            return response
+        return self.cache.set(request, response)
 
     def _build_session_response(
         self,
@@ -241,6 +289,7 @@ class QueryService:
         ]
         next_offset = offset + len(selected)
         has_next = next_offset < len(candidates)
+
         response = self._build_output(
             viewer_id=viewer_id,
             generated_at=generated_at,
@@ -252,45 +301,7 @@ class QueryService:
             if has_next
             else None,
         )
-
-        return self.cache.set(request, response)
-
-    def _resolve_session_window_size(self, limit: int) -> int:
-        return max(
-            max(1, int(limit)),
-            int(settings.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE),
-        )
-
-    def _build_response(
-        self,
-        viewer_id: str,
-        generated_at: str,
-        source: str,
-        score_version: str,
-        candidates: list[dict[str, Any]],
-        limit: int,
-        has_next: bool,
-        next_source: str,
-        next_offset: int,
-        viewer_profile_text: str | None,
-        cache_request: RecommendationQueryRequest | None = None,
-    ) -> RecommendationQueryOutput:
-        scored = self._rerank_and_rank(viewer_id, viewer_profile_text, candidates)
-        selected = scored[:limit]
-        response = self._build_output(
-            viewer_id=viewer_id,
-            generated_at=generated_at,
-            source=source,
-            score_version=score_version,
-            candidates=selected,
-            has_next=has_next or len(scored) > limit,
-            next_cursor=self._encode_cursor(next_source, next_offset)
-            if (has_next or len(scored) > limit)
-            else None,
-        )
-        if self.cache is not None and cache_request is not None:
-            return self.cache.set(cache_request, response)
-        return response
+        return self._cache_response(request, response)
 
     def _build_output(
         self,
@@ -317,9 +328,7 @@ class QueryService:
                     "retrievalScore": float(candidate.get("retrievalScore", 0.0)),
                     "modelScore": float(candidate.get("modelScore", 0.0)),
                     "finalScore": float(candidate.get("finalScore", 0.0)),
-                    "mutualFriendCount": int(
-                        candidate.get("mutualFriendCount", 0)
-                    ),
+                    "mutualFriendCount": int(candidate.get("mutualFriendCount", 0)),
                     "commonGroupCount": int(candidate.get("commonGroupCount", 0)),
                     "scoreVersion": score_version,
                     "reasonCodes": list(candidate.get("reasonCodes", [])),
@@ -329,200 +338,18 @@ class QueryService:
             ],
         )
 
-    def _rerank_and_rank(
-        self,
-        viewer_id: str,
-        viewer_profile_text: str | None,
-        candidates: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        if not candidates:
-            return []
-
-        pair_features = self.repository.get_graph_pair_features(
-            viewer_id,
-            [str(candidate["candidateId"]) for candidate in candidates],
+    def _resolve_session_window_size(self, limit: int) -> int:
+        safe_limit = max(1, int(limit))
+        configured_window = max(
+            safe_limit,
+            int(settings.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE),
         )
-        rerank_input = candidates[: settings.RECOMMENDATION_QUERY_RERANK_TOP_K]
-        model_scores = self._resolve_model_scores(
-            viewer_id,
-            viewer_profile_text,
-            rerank_input,
-            pair_features,
+        # Keep first-page ranking window bounded to reduce latency spikes.
+        target_window = max(
+            safe_limit * 3,
+            int(settings.RECOMMENDATION_QUERY_RERANK_TOP_K),
         )
-
-        scored = [
-            {
-                **candidate,
-                "modelScore": model_scores.get(str(candidate["candidateId"]), 0.0),
-                "mutualFriendCount": int(
-                    pair_features.get(str(candidate["candidateId"]), {}).get(
-                        "mutualFriendCount", 0
-                    )
-                ),
-                "commonGroupCount": int(
-                    pair_features.get(str(candidate["candidateId"]), {}).get(
-                        "commonGroupCount", 0
-                    )
-                ),
-                "finalScore": self._resolve_final_score(
-                    float(candidate.get("retrievalScore", 0.0)),
-                    model_scores.get(str(candidate["candidateId"]), 0.0),
-                    self._resolve_graph_score(
-                        pair_features.get(str(candidate["candidateId"]))
-                    ),
-                ),
-                "reasonCodes": self._build_reason_codes(
-                    model_scores.get(str(candidate["candidateId"]), 0.0),
-                    pair_features.get(str(candidate["candidateId"])),
-                ),
-            }
-            for candidate in candidates
-        ]
-        scored.sort(
-            key=lambda candidate: (
-                -float(candidate.get("finalScore", 0.0)),
-                -float(candidate.get("modelScore", 0.0)),
-                -float(candidate.get("retrievalScore", 0.0)),
-                str(candidate.get("candidateId", "")),
-            )
-        )
-
-        for index, candidate in enumerate(scored):
-            candidate["rank"] = index + 1
-
-        return scored
-
-    def _rank_with_passthrough_scores(
-        self,
-        candidates: list[dict[str, Any]],
-        start_rank: int,
-    ) -> list[dict[str, Any]]:
-        ranked = []
-        for index, candidate in enumerate(candidates):
-            ranked.append(
-                {
-                    **candidate,
-                    "modelScore": float(candidate.get("modelScore", 0.0)),
-                    "finalScore": float(candidate.get("retrievalScore", 0.0)),
-                    "reasonCodes": ["global_fallback"],
-                    "rank": start_rank + index,
-                }
-            )
-        return ranked
-
-    def _resolve_model_scores(
-        self,
-        viewer_id: str,
-        viewer_profile_text: str | None,
-        candidates: list[dict[str, Any]],
-        pair_features: dict[str, dict[str, Any]] | None = None,
-    ) -> dict[str, float]:
-        if not candidates:
-            return {}
-
-        resolved_pair_features = pair_features or {}
-        scores = self.rerank_service.rerank(
-            RecommendationRerankRequest(
-                viewerId=viewer_id,
-                viewerProfileText=viewer_profile_text,
-                candidates=[
-                    RecommendationCandidateInput(
-                        candidateId=str(candidate["candidateId"]),
-                        candidateProfileText=candidate.get("candidateProfileText"),
-                        mutualFriends=int(
-                            resolved_pair_features.get(
-                                str(candidate["candidateId"]), {}
-                            ).get("mutualFriendCount", 0)
-                        ),
-                        commonGroups=int(
-                            resolved_pair_features.get(
-                                str(candidate["candidateId"]), {}
-                            ).get("commonGroupCount", 0)
-                        ),
-                    )
-                    for candidate in candidates
-                ],
-            )
-        )
-        return {score.candidateId: float(score.modelScore) for score in scores}
-
-    def _resolve_final_score(
-        self,
-        retrieval_score: float,
-        model_score: float,
-        graph_score: float = 0.0,
-    ) -> float:
-        total_weight = (
-            settings.RECOMMENDATION_QUERY_MODEL_WEIGHT
-            + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
-            + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
-        )
-        return round(
-            (
-                settings.RECOMMENDATION_QUERY_MODEL_WEIGHT
-                * self._clamp_score(model_score)
-                + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
-                * self._clamp_score(retrieval_score)
-                + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
-                * self._clamp_score(graph_score)
-            )
-            / total_weight,
-            6,
-        )
-
-    def _resolve_graph_score(self, pair_feature: dict[str, Any] | None) -> float:
-        if not pair_feature:
-            return 0.0
-
-        mutual_friend_score = min(
-            int(pair_feature.get("mutualFriendCount", 0)),
-            settings.RECOMMENDATION_MUTUAL_FRIEND_CAP,
-        ) / settings.RECOMMENDATION_MUTUAL_FRIEND_CAP
-        common_group_score = min(
-            int(pair_feature.get("commonGroupCount", 0)),
-            settings.RECOMMENDATION_COMMON_GROUP_CAP,
-        ) / settings.RECOMMENDATION_COMMON_GROUP_CAP
-
-        recent_event_score = 0.0
-        last_event_type = str(pair_feature.get("lastEventType") or "").strip()
-        if last_event_type in {
-            "recommendation.graph.user-unblocked",
-            "recommendation.graph.friend-request-canceled",
-        }:
-            recent_event_score = 0.1
-
-        return self._clamp_score(
-            0.7 * mutual_friend_score
-            + 0.2 * common_group_score
-            + recent_event_score
-        )
-
-    def _build_reason_codes(
-        self,
-        model_score: float,
-        pair_feature: dict[str, Any] | None = None,
-    ) -> list[str]:
-        reasons = ["semantic_retrieval"]
-        if float(model_score) > 0:
-            reasons.append("semantic_rerank")
-
-        if pair_feature:
-            if int(pair_feature.get("mutualFriendCount", 0)) > 0:
-                reasons.append("graph_mutual_friend")
-            if int(pair_feature.get("commonGroupCount", 0)) > 0:
-                reasons.append("graph_common_group")
-            if self._resolve_graph_score(pair_feature) > 0:
-                reasons.append("graph_rerank")
-
-            last_event_type = str(pair_feature.get("lastEventType") or "").strip()
-            if last_event_type == "recommendation.graph.user-unblocked":
-                reasons.append("graph_recent_unblock")
-            elif last_event_type == "recommendation.graph.friend-request-canceled":
-                reasons.append("graph_recent_request_canceled")
-            elif last_event_type == "recommendation.graph.friendship-removed":
-                reasons.append("graph_recent_friendship_removed")
-
-        return reasons
+        return min(configured_window, target_window)
 
     def _decode_cursor(self, cursor: str | None) -> dict[str, Any]:
         if not cursor:
@@ -557,11 +384,6 @@ class QueryService:
             separators=(",", ":"),
         )
         return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
-
-    def _clamp_score(self, value: float | None) -> float:
-        if value is None:
-            return 0.0
-        return max(0.0, min(1.0, float(value)))
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()

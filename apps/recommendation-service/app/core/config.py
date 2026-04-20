@@ -54,6 +54,12 @@ class Settings:
         self.RECOMMENDATION_QUERY_RERANK_TOP_K: int = int(
             os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
         )
+        self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU: int = int(
+            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K_CPU", 10)
+        )
+        self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES: int = int(
+            os.getenv("RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES", 5000)
+        )
         self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS: float = float(
             os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 30)
         )
@@ -95,6 +101,9 @@ class Settings:
             os.getenv("RECOMMENDATION_COMMON_GROUP_CAP", 5)
         )
         self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
+        self.KAFKA_REQUIRED: bool = (
+            os.getenv("KAFKA_REQUIRED", "false").strip().lower() == "true"
+        )
         self.KAFKA_CLIENT_ID: str = os.getenv(
             "KAFKA_CLIENT_ID", "recommendation-service"
         ).strip()
@@ -154,6 +163,16 @@ class Settings:
 
         if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:
             raise RuntimeError("RECOMMENDATION_QUERY_RERANK_TOP_K must be positive")
+
+        if self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_QUERY_RERANK_TOP_K_CPU must be positive"
+            )
+
+        if self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES must be positive"
+            )
 
         if self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS < 0:
             raise RuntimeError(

@@ -30,7 +30,14 @@ function loadLocalEnv() {
     }
 
     const key = trimmed.slice(0, equalIndex).trim();
-    const value = trimmed.slice(equalIndex + 1).trim();
+    let value = trimmed.slice(equalIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
 
     if (!key || process.env[key] !== undefined) {
       continue;
@@ -73,28 +80,90 @@ async function getClerkUserByEmail(clerkClient, email) {
 class ClerkSessionTokenPool {
   constructor(clerkClient) {
     this.clerkClient = clerkClient;
-    this.tokenByUserId = new Map();
     this.sessionIdByUserId = new Map();
   }
 
-  async getTokenForUser(userId) {
-    if (this.tokenByUserId.has(userId)) {
-      return this.tokenByUserId.get(userId);
+  async createSessionForUser(userId) {
+    const session = await this.clerkClient.sessions.createSession({ userId });
+    this.sessionIdByUserId.set(userId, session.id);
+    return session.id;
+  }
+
+  async getSessionIdForUser(userId) {
+    const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+    if (!normalizedUserId) {
+      throw new Error('userId is required.');
     }
 
-    const session = await this.clerkClient.sessions.createSession({ userId });
-    const token = await this.clerkClient.sessions.getToken(session.id);
+    let sessionId = this.sessionIdByUserId.get(normalizedUserId);
 
-    this.sessionIdByUserId.set(userId, session.id);
-    this.tokenByUserId.set(userId, token.jwt);
+    if (!sessionId) {
+      sessionId = await this.createSessionForUser(normalizedUserId);
+    }
 
-    return token.jwt;
+    return sessionId;
+  }
+
+  async getTokenForUser(userId, template) {
+    const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+    if (!normalizedUserId) {
+      throw new Error('userId is required.');
+    }
+
+    let sessionId = await this.getSessionIdForUser(normalizedUserId);
+
+    try {
+      const token = template
+        ? await this.clerkClient.sessions.getToken(sessionId, template)
+        : await this.clerkClient.sessions.getToken(sessionId);
+
+      return token.jwt;
+    } catch (error) {
+      const code = error?.errors?.[0]?.code || error?.code || error?.status;
+
+      // Nếu session cũ không còn hợp lệ thì tạo lại session mới rồi lấy token lại
+      if (
+        code === 'resource_not_found' ||
+        code === 'session_not_found' ||
+        code === 404
+      ) {
+        sessionId = await this.createSessionForUser(normalizedUserId);
+
+        const token = template
+          ? await this.clerkClient.sessions.getToken(sessionId, template)
+          : await this.clerkClient.sessions.getToken(sessionId);
+
+        return token.jwt;
+      }
+
+      throw error;
+    }
+  }
+
+  async revokeUserSession(userId) {
+    const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+    if (!normalizedUserId) {
+      return;
+    }
+
+    const sessionId = this.sessionIdByUserId.get(normalizedUserId);
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      await this.clerkClient.sessions.revokeSession(sessionId);
+    } catch {
+      // Ignore revoke errors
+    }
+
+    this.sessionIdByUserId.delete(normalizedUserId);
   }
 
   async revokeAll() {
-    const sessionIds = Array.from(this.sessionIdByUserId.values());
+    const entries = Array.from(this.sessionIdByUserId.entries());
 
-    for (const sessionId of sessionIds) {
+    for (const [, sessionId] of entries) {
       try {
         await this.clerkClient.sessions.revokeSession(sessionId);
       } catch {
@@ -103,7 +172,6 @@ class ClerkSessionTokenPool {
     }
 
     this.sessionIdByUserId.clear();
-    this.tokenByUserId.clear();
   }
 }
 

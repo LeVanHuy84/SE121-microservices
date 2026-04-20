@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import heapq
 import math
 from datetime import datetime, timezone
+from typing import Any
 
 from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 
-GLOBAL_FALLBACK_SCORE_VERSION = "global-fallback-v1"
+GLOBAL_FALLBACK_SCORE_VERSION = "global-fallback-v2"
 
 
 class GlobalFallbackBatchService:
@@ -23,71 +25,94 @@ class GlobalFallbackBatchService:
             1,
             int(top_k or settings.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K),
         )
+
         rows = self.repository.list_profile_embeddings()
         if not rows:
             self.repository.replace_global_fallback_candidates(
                 candidates=[],
                 generated_at=self._now_iso(),
                 score_version=GLOBAL_FALLBACK_SCORE_VERSION,
+                locale=locale,
+                language=language,
             )
             return 0
 
         candidate_ids = [str(row["userId"]) for row in rows]
-        signal_counts = self.repository.get_candidate_negative_signal_counts(
-            candidate_ids
-        )
+        signal_counts = self.repository.get_candidate_negative_signal_counts(candidate_ids)
         now = datetime.now(timezone.utc)
 
-        scored_candidates: list[dict[str, float | int | str | None]] = []
+        top_heap: list[tuple[float, str, dict[str, Any]]] = []
+
         for row in rows:
             candidate_id = str(row["userId"])
-            completeness_score = self._resolve_profile_completeness_score(row)
-            if completeness_score < 0.25:
+            fallback_score = self._resolve_candidate_fallback_score(
+                row=row,
+                candidate_signals=signal_counts.get(candidate_id, {}),
+                now=now,
+            )
+            if fallback_score is None:
                 continue
 
-            activity_score = self._resolve_activity_score(
-                str(row.get("updatedAt") or ""),
-                now,
-            )
-            candidate_signals = signal_counts.get(candidate_id, {})
-            block_count = int(candidate_signals.get("blockCount", 0))
-            dismissal_count = int(candidate_signals.get("dismissalCount", 0))
-            safety_score = 1.0 / (1.0 + block_count + 0.5 * dismissal_count)
+            payload = {
+                "candidateId": candidate_id,
+                "fallbackScore": fallback_score,
+            }
+            item = (fallback_score, candidate_id, payload)
 
-            fallback_score = round(
-                0.45 * activity_score + 0.35 * completeness_score + 0.2 * safety_score,
-                6,
-            )
-            scored_candidates.append(
-                {
-                    "candidateId": candidate_id,
-                    "fallbackScore": fallback_score,
-                }
-            )
-
-        scored_candidates.sort(
-            key=lambda candidate: (
-                -float(candidate["fallbackScore"]),
-                str(candidate["candidateId"]),
-            )
-        )
+            if len(top_heap) < resolved_top_k:
+                heapq.heappush(top_heap, item)
+            else:
+                heapq.heappushpop(top_heap, item)
 
         top_candidates = [
+            payload
+            for _, _, payload in sorted(
+                top_heap,
+                key=lambda item: (-item[0], item[1]),
+            )
+        ]
+
+        ranked_candidates = [
             {
                 **candidate,
                 "rank": index + 1,
             }
-            for index, candidate in enumerate(scored_candidates[:resolved_top_k])
+            for index, candidate in enumerate(top_candidates)
         ]
 
         self.repository.replace_global_fallback_candidates(
-            candidates=top_candidates,
+            candidates=ranked_candidates,
             generated_at=self._now_iso(),
             score_version=GLOBAL_FALLBACK_SCORE_VERSION,
             locale=locale,
             language=language,
         )
-        return len(top_candidates)
+        return len(ranked_candidates)
+
+    def _resolve_candidate_fallback_score(
+        self,
+        row: dict[str, object],
+        candidate_signals: dict[str, object],
+        now: datetime,
+    ) -> float | None:
+        completeness_score = self._resolve_profile_completeness_score(row)
+        if completeness_score < 0.25:
+            return None
+
+        activity_score = self._resolve_activity_score(
+            str(row.get("updatedAt") or ""),
+            now,
+        )
+        block_count = int(candidate_signals.get("blockCount", 0))
+        dismissal_count = int(candidate_signals.get("dismissalCount", 0))
+        safety_score = 1.0 / (1.0 + block_count + 0.5 * dismissal_count)
+
+        return round(
+            0.45 * activity_score
+            + 0.35 * completeness_score
+            + 0.20 * safety_score,
+            6,
+        )
 
     def _resolve_profile_completeness_score(self, row: dict[str, object]) -> float:
         semantic_text = str(row.get("semanticProfileText") or "")

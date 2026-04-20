@@ -31,13 +31,16 @@ def query_candidates(req: RecommendationQueryRequest):
     )
     logger.info(
         (
-            "Recommendation query completed: viewerId=%s limit=%s source=%s "
-            "returned=%s"
+            "Recommendation query completed: viewerId=%s limit=%s cursor=%s "
+            "source=%s returned=%s nextCursor=%s hasNextPage=%s"
         ),
         req.viewerId,
         req.limit,
+        req.cursor,
         response.source,
         response.candidateCount,
+        response.nextCursor,
+        response.hasNextPage,
     )
     return {
         "success": True,
