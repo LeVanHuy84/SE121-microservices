@@ -155,6 +155,20 @@ class SessionMemory:
         entry = self._get_or_create_entry(key)
         entry.last_sources = sources
 
+    def clear_session(self, key: str):
+        if self._can_use_redis():
+            try:
+                self._redis.delete(
+                    self._redis_key(key, "history"),
+                    self._redis_key(key, "summary"),
+                    self._redis_key(key, "last_intent"),
+                    self._redis_key(key, "last_sources"),
+                )
+            except Exception as exc:
+                self._disable_redis(exc)
+
+        self._sessions.pop(key, None)
+
     def _get_or_create_entry(self, key: str) -> SessionEntry:
         now = time.time()
         entry = self._sessions.setdefault(

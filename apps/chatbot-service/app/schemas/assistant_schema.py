@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -55,3 +56,37 @@ class AssistantRespondData(BaseModel):
 class AssistantRespondResponse(BaseModel):
     success: bool
     data: AssistantRespondData
+
+
+class AssistantHistoryMessage(BaseModel):
+    id: str
+    conversation_id: str
+    user_id: str
+    role: str
+    content: str
+    intent: Optional[str] = None
+    sources: list[AssistantSource] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class AssistantHistoryPageData(BaseModel):
+    items: list[AssistantHistoryMessage] = Field(default_factory=list)
+    next_cursor_created_at: Optional[datetime] = None
+    next_cursor_id: Optional[str] = None
+    has_more: bool = False
+
+
+class AssistantHistoryPageResponse(BaseModel):
+    success: bool
+    data: AssistantHistoryPageData
+
+
+class AssistantHistoryClearData(BaseModel):
+    deleted_count: int
+    session_cleared: bool
+
+
+class AssistantHistoryClearResponse(BaseModel):
+    success: bool
+    data: AssistantHistoryClearData

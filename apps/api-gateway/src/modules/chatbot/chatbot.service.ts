@@ -10,7 +10,12 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
-import { AssistantMessageDto, AssistantRespondResponseDto } from '@repo/dtos';
+import {
+  AssistantMessageDto,
+  AssistantRespondResponseDto,
+  ChatbotClearHistoryResponseDto,
+  ChatbotHistoryResponseDto,
+} from '@repo/dtos';
 import { AssistantContextService } from './assistant-context.service';
 
 @Injectable()
@@ -25,21 +30,7 @@ export class ChatbotService {
 
   async respond(userId: string, dto: AssistantMessageDto) {
     const startedAt = Date.now();
-
-    const baseUrl = this.configService.get<string>('CHATBOT_SERVICE_URL');
-    const internalKey = this.configService.get<string>('CHATBOT_INTERNAL_KEY');
-    const timeoutMs = this.configService.get<number>(
-      'CHATBOT_SERVICE_TIMEOUT_MS',
-      12000,
-    );
-
-    if (!baseUrl) {
-      throw new ServiceUnavailableException('Chatbot service URL is missing');
-    }
-
-    if (!internalKey) {
-      throw new ServiceUnavailableException('Chatbot internal key is missing');
-    }
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
 
     try {
       const contexts = await this.contextService.buildContexts(
@@ -70,21 +61,113 @@ export class ChatbotService {
 
       return res.data;
     } catch (error) {
-      throw this.mapGatewayError(error, userId, startedAt);
+      throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
     }
+  }
+
+  async getHistory(
+    userId: string,
+    pageSize?: number,
+    beforeCreatedAt?: string,
+    beforeId?: string,
+  ) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    const params: Record<string, string | number> = {};
+    if (pageSize) params.page_size = pageSize;
+    if (beforeCreatedAt) params.before_created_at = beforeCreatedAt;
+    if (beforeId) params.before_id = beforeId;
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.get<ChatbotHistoryResponseDto>(
+          `${baseUrl}/assistant/history/${encodeURIComponent(userId)}`,
+          {
+            headers: {
+              'x-internal-key': internalKey,
+            },
+            params,
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      this.logger.log(
+        `assistant.history.get ok userId=${userId} pageSize=${pageSize ?? 'default'} durationMs=${Date.now() - startedAt}`,
+      );
+      return res.data;
+    } catch (error) {
+      throw this.mapGatewayError(error, userId, startedAt, 'assistant.history.get');
+    }
+  }
+
+  async clearHistory(userId: string) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.delete<ChatbotClearHistoryResponseDto>(
+          `${baseUrl}/assistant/history/${encodeURIComponent(userId)}`,
+          {
+            headers: {
+              'x-internal-key': internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      this.logger.log(
+        `assistant.history.clear ok userId=${userId} durationMs=${Date.now() - startedAt}`,
+      );
+      return res.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        'assistant.history.clear',
+      );
+    }
+  }
+
+  private resolveClientConfig() {
+    const baseUrl = this.configService.get<string>('CHATBOT_SERVICE_URL');
+    const internalKey = this.configService.get<string>('CHATBOT_INTERNAL_KEY');
+    const timeoutMs = this.configService.get<number>(
+      'CHATBOT_SERVICE_TIMEOUT_MS',
+      12000,
+    );
+
+    if (!baseUrl) {
+      throw new ServiceUnavailableException('Chatbot service URL is missing');
+    }
+
+    if (!internalKey) {
+      throw new ServiceUnavailableException('Chatbot internal key is missing');
+    }
+
+    return {
+      baseUrl,
+      internalKey,
+      timeoutMs,
+    };
   }
 
   private mapGatewayError(
     error: unknown,
     userId: string,
     startedAt: number,
+    action: string,
   ): HttpException {
     const durationMs = Date.now() - startedAt;
 
     if (error instanceof AxiosError) {
       if (error.response) {
         this.logger.error(
-          `assistant.respond downstream_error userId=${userId} status=${error.response.status} durationMs=${durationMs}`,
+          `${action} downstream_error userId=${userId} status=${error.response.status} durationMs=${durationMs}`,
         );
         return new HttpException(
           this.normalizeErrorBody(error.response.data, 'Chatbot service error'),
@@ -94,19 +177,19 @@ export class ChatbotService {
 
       if (error.code === 'ECONNABORTED') {
         this.logger.error(
-          `assistant.respond timeout userId=${userId} durationMs=${durationMs}`,
+          `${action} timeout userId=${userId} durationMs=${durationMs}`,
         );
         return new GatewayTimeoutException('Chatbot service timeout');
       }
 
       this.logger.error(
-        `assistant.respond unavailable userId=${userId} code=${error.code} durationMs=${durationMs}`,
+        `${action} unavailable userId=${userId} code=${error.code} durationMs=${durationMs}`,
       );
       return new ServiceUnavailableException('Chatbot service unavailable');
     }
 
     this.logger.error(
-      `assistant.respond unexpected_error userId=${userId} durationMs=${durationMs} reason=${error instanceof Error ? error.message : String(error)}`,
+      `${action} unexpected_error userId=${userId} durationMs=${durationMs} reason=${error instanceof Error ? error.message : String(error)}`,
     );
     return new HttpException('Chatbot gateway error', 500);
   }

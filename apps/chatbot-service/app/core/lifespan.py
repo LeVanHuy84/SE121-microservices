@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import settings
+from app.db.session import close_db, init_db
 
 
 def start_background_warmup():
@@ -22,4 +23,8 @@ def start_background_warmup():
 async def lifespan(app: FastAPI):
     del app
     start_background_warmup()
-    yield
+    await init_db()
+    try:
+        yield
+    finally:
+        await close_db()

@@ -12,6 +12,7 @@ from app.schemas.assistant_schema import (
     AssistantRespondRequest,
     AssistantSource,
 )
+from app.services.chat_history_service import chat_history_service
 from app.services.context_resolver import (
     AssistantContextResolver,
     assistant_context_resolver,
@@ -38,7 +39,20 @@ class AssistantService:
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:
         if not self.scope_guard.is_in_scope(request):
-            return self._out_of_scope_response()
+            out_of_scope_response = self._out_of_scope_response()
+            self._persist_session_memory(
+                request=request,
+                assistant_reply=out_of_scope_response.reply,
+                sources=[],
+                intent="out_of_scope",
+            )
+            await self._persist_history_best_effort(
+                request=request,
+                assistant_reply=out_of_scope_response.reply,
+                sources=[],
+                intent="out_of_scope",
+            )
+            return out_of_scope_response
 
         started_at = time.perf_counter()
         session_key = self._session_key(request)
@@ -78,24 +92,19 @@ class AssistantService:
             for item in final_contexts
         ]
 
-        session_memory.append_exchange(
-            session_key,
-            request.message,
-            generation.content,
+        resolved_intent = request.intent or self._infer_intent(final_contexts)
+        self._persist_session_memory(
+            request=request,
+            assistant_reply=generation.content,
+            sources=sources,
+            intent=resolved_intent,
         )
-        session_memory.set_summary(
-            session_key,
-            self._build_updated_summary(
-                memory_summary,
-                request.message,
-                generation.content,
-            ),
+        await self._persist_history_best_effort(
+            request=request,
+            assistant_reply=generation.content,
+            sources=sources,
+            intent=resolved_intent,
         )
-        session_memory.set_last_intent(
-            session_key,
-            request.intent or self._infer_intent(final_contexts),
-        )
-        session_memory.set_last_sources(session_key, sources)
 
         logger.info(
             "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s durationMs=%s",
@@ -125,11 +134,59 @@ class AssistantService:
         )
 
     def _session_key(self, request: AssistantRespondRequest) -> str:
-        conversation_id = request.conversationId or "default"
-        return f"{request.userId}:{conversation_id}"
+        return f"{request.userId}:default"
 
     def _resolve_provider(self) -> LlmProvider:
         return GroqProvider()
+
+    def _persist_session_memory(
+        self,
+        request: AssistantRespondRequest,
+        assistant_reply: str,
+        sources: list[AssistantSource],
+        intent: str | None,
+    ):
+        session_key = self._session_key(request)
+        memory_summary = session_memory.get_summary(session_key)
+        session_memory.append_exchange(
+            session_key,
+            request.message,
+            assistant_reply,
+        )
+        session_memory.set_summary(
+            session_key,
+            self._build_updated_summary(
+                memory_summary,
+                request.message,
+                assistant_reply,
+            ),
+        )
+        session_memory.set_last_intent(session_key, intent)
+        session_memory.set_last_sources(session_key, sources)
+
+    async def _persist_history_best_effort(
+        self,
+        request: AssistantRespondRequest,
+        assistant_reply: str,
+        sources: list[AssistantSource],
+        intent: str | None,
+    ):
+        if not chat_history_service.is_enabled():
+            return
+
+        try:
+            await chat_history_service.append_exchange(
+                user_id=request.userId,
+                user_message=request.message,
+                assistant_reply=assistant_reply,
+                intent=intent,
+                sources=sources,
+            )
+        except Exception:
+            logger.exception(
+                "Assistant history persistence failed: userId=%s",
+                request.userId,
+            )
 
     def _build_updated_summary(
         self,

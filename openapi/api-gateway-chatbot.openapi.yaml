@@ -85,6 +85,158 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/v1/assistant/chat-history/{userId}:
+    get:
+      tags:
+        - Assistant
+      summary: Get assistant chat history by user
+      description: >
+        Returns persisted assistant chat history for a user using cursor pagination.
+        Sorted by `created_at desc, id desc`.
+      operationId: getAssistantHistoryByUser
+      security:
+        - clerkBearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User id mapped to the single chatbot conversation.
+          schema:
+            type: string
+        - name: page_size
+          in: query
+          required: false
+          description: Number of messages per page.
+          schema:
+            type: integer
+            minimum: 1
+            example: 20
+        - name: before_created_at
+          in: query
+          required: false
+          description: Cursor timestamp (ISO-8601). Must be provided with `before_id`.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-04-20T12:30:00.000Z"
+        - name: before_id
+          in: query
+          required: false
+          description: Cursor message id. Must be provided with `before_created_at`.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Chat history page loaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatbotHistoryResponse"
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      items:
+                        - id: 3ea8ba14-67db-4edc-9f2e-a66ad91dbb8f
+                          conversation_id: 86159c45-6f8f-47c8-99ad-9ef6f4f2a644
+                          user_id: user-123
+                          role: user
+                          content: friend recommendation là gì?
+                          intent: help_doc
+                          sources: []
+                          metadata:
+                            message_kind: user
+                          created_at: "2026-04-20T12:29:40.012Z"
+                      next_cursor_created_at: "2026-04-20T12:29:40.012Z"
+                      next_cursor_id: 3ea8ba14-67db-4edc-9f2e-a66ad91dbb8f
+                      has_more: true
+        "400":
+          description: Invalid cursor parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid Clerk bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Chatbot service returned an error or is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: History feature is disabled on chatbot service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Chatbot service request timed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Assistant
+      summary: Clear assistant chat history by user
+      description: Deletes persisted chat messages and clears Redis session memory for the user.
+      operationId: clearAssistantHistoryByUser
+      security:
+        - clerkBearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User id mapped to the single chatbot conversation.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat history cleared successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatbotClearHistoryResponse"
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      deleted_count: 18
+                      session_cleared: true
+        "401":
+          description: Missing or invalid Clerk bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Chatbot service returned an error or is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: History feature is disabled on chatbot service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Chatbot service request timed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     clerkBearerAuth:
@@ -187,6 +339,106 @@ components:
           additionalProperties: true
           example:
             query: friend recommendation
+
+    ChatbotHistoryResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/ChatbotHistoryData"
+
+    ChatbotHistoryData:
+      type: object
+      required:
+        - items
+        - has_more
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatbotHistoryMessage"
+        next_cursor_created_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_cursor_id:
+          type: string
+          format: uuid
+          nullable: true
+        has_more:
+          type: boolean
+          example: false
+
+    ChatbotHistoryMessage:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - user_id
+        - role
+        - content
+        - sources
+        - metadata
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          example: user-123
+        role:
+          type: string
+          example: assistant
+        content:
+          type: string
+        intent:
+          type: string
+          nullable: true
+          example: help_doc
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssistantSource"
+        metadata:
+          type: object
+          additionalProperties: true
+          example:
+            message_kind: assistant
+        created_at:
+          type: string
+          format: date-time
+
+    ChatbotClearHistoryResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            - deleted_count
+            - session_cleared
+          properties:
+            deleted_count:
+              type: integer
+              minimum: 0
+              example: 18
+            session_cleared:
+              type: boolean
+              example: true
 
     ErrorResponse:
       oneOf:

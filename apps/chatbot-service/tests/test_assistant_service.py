@@ -5,7 +5,9 @@ import unittest
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
+os.environ["CHATBOT_DB_ENABLED"] = "false"
 
+from app.memory.session_memory import session_memory
 from app.providers.base import LlmGeneration
 from app.schemas.assistant_schema import AssistantContextItem, AssistantRespondRequest
 from app.services.assistant_service import AssistantService
@@ -49,19 +51,28 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(res.provider, "fake")
         self.assertEqual(len(res.sources), 1)
 
-    def test_out_of_scope_question_skips_provider(self):
+    def test_out_of_scope_question_skips_provider_and_is_stored(self):
         provider = FakeProvider()
         service = AssistantService(provider=provider)
+        session_key = "user-1:default"
+        session_memory.clear_session(session_key)
+
         req = AssistantRespondRequest(
             userId="user-1",
-            message="Hôm nay thời tiết ở Tokyo thế nào?",
+            message="How is the weather in Tokyo today?",
         )
 
         res = asyncio.run(service.respond(req))
+        recent = session_memory.get_recent(session_key, 2)
 
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.model, "scope-guard")
         self.assertIn("Sentimeta", res.reply)
+        self.assertEqual(len(recent), 2)
+        self.assertEqual(recent[0].role, "user")
+        self.assertEqual(recent[1].role, "assistant")
+
+        session_memory.clear_session(session_key)
 
 
 if __name__ == "__main__":

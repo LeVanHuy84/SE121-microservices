@@ -65,6 +65,19 @@ class Settings:
         self.CHATBOT_MEMORY_KEY_PREFIX: str = os.getenv(
             "CHATBOT_MEMORY_KEY_PREFIX", "chatbot:assistant"
         ).strip()
+        self.DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+        self.CHATBOT_DB_ENABLED: bool = (
+            os.getenv("CHATBOT_DB_ENABLED", "false").lower() == "true"
+        )
+        self.CHATBOT_DB_ECHO: bool = (
+            os.getenv("CHATBOT_DB_ECHO", "false").lower() == "true"
+        )
+        self.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT: int = int(
+            os.getenv("CHATBOT_HISTORY_PAGE_SIZE_DEFAULT", 20)
+        )
+        self.CHATBOT_HISTORY_PAGE_SIZE_MAX: int = int(
+            os.getenv("CHATBOT_HISTORY_PAGE_SIZE_MAX", 100)
+        )
         self.ASSISTANT_DOCS_DIR: str = os.getenv(
             "ASSISTANT_DOCS_DIR", "docs/assistant"
         ).strip()
@@ -171,6 +184,20 @@ class Settings:
 
         if not self.CHATBOT_MEMORY_KEY_PREFIX:
             raise RuntimeError("CHATBOT_MEMORY_KEY_PREFIX must not be empty")
+
+        if self.CHATBOT_DB_ENABLED and not self.DATABASE_URL:
+            raise RuntimeError("DATABASE_URL must not be empty when CHATBOT_DB_ENABLED=true")
+
+        if self.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_PAGE_SIZE_DEFAULT must be positive")
+
+        if self.CHATBOT_HISTORY_PAGE_SIZE_MAX <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_PAGE_SIZE_MAX must be positive")
+
+        if self.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT > self.CHATBOT_HISTORY_PAGE_SIZE_MAX:
+            raise RuntimeError(
+                "CHATBOT_HISTORY_PAGE_SIZE_DEFAULT must be <= CHATBOT_HISTORY_PAGE_SIZE_MAX"
+            )
 
         if not self.ASSISTANT_DOCS_DIR:
             raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")
