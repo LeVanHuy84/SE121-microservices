@@ -1,9 +1,10 @@
-from app.core.config import settings
+﻿from app.core.config import settings
 from app.schemas.assistant_schema import (
     AssistantContextItem,
     AssistantHistoryItem,
     AssistantRespondRequest,
 )
+from app.services.prompt_limits import resolve_prompt_limits
 
 
 class PromptBuilder:
@@ -13,11 +14,16 @@ class PromptBuilder:
         history: list[AssistantHistoryItem],
         memory_summary: str = "",
     ) -> str:
+        prompt_limits = resolve_prompt_limits(request.userId)
         parts = [
             self._build_system_prompt(),
             self._build_user_profile(request),
             self._build_memory_summary_block(memory_summary),
-            self._build_context_block(request.contexts),
+            self._build_context_block(
+                request.contexts,
+                max_items=prompt_limits.max_context_items,
+                char_limit=prompt_limits.context_char_limit,
+            ),
             self._build_history_block(history),
             self._build_current_message(request.message),
         ]
@@ -51,14 +57,19 @@ class PromptBuilder:
             return "MEMORY_SUMMARY:\nKhông có tóm tắt trước đó."
         return f"MEMORY_SUMMARY:\n{summary}"
 
-    def _build_context_block(self, contexts: list[AssistantContextItem]) -> str:
-        selected_contexts = contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
+    def _build_context_block(
+        self,
+        contexts: list[AssistantContextItem],
+        max_items: int,
+        char_limit: int,
+    ) -> str:
+        selected_contexts = contexts[:max_items]
         if not selected_contexts:
             return "CONTEXT:\nKhông có context."
 
         lines = ["CONTEXT:"]
         for index, item in enumerate(selected_contexts, start=1):
-            content = self._truncate(item.content, settings.CHATBOT_CONTEXT_CHAR_LIMIT)
+            content = self._truncate(item.content, char_limit)
             title = f" title={item.title}" if item.title else ""
             score = f" score={item.score}" if item.score is not None else ""
             source = f" source={item.source}" if item.source else ""

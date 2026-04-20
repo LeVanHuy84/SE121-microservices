@@ -15,6 +15,7 @@ from app.services.context_resolver import (
     AssistantContextResolver,
     assistant_context_resolver,
 )
+from app.services.prompt_limits import resolve_prompt_limits
 from app.services.prompt_builder import PromptBuilder
 from app.services.scope_guard import AssistantScopeGuard, assistant_scope_guard
 
@@ -42,6 +43,7 @@ class AssistantService:
         history = self._resolve_history(request)
         memory_summary = session_memory.get_summary(session_key)
         contexts = self.context_resolver.resolve(request)
+        prompt_limits = resolve_prompt_limits(request.userId)
         resolved_request = request.model_copy(update={"contexts": contexts})
         prompt = self.prompt_builder.build(resolved_request, history, memory_summary)
         generation = await self.provider.generate(prompt, resolved_request)
@@ -53,7 +55,7 @@ class AssistantService:
                 source=item.source,
                 score=item.score,
             )
-            for item in contexts[: settings.CHATBOT_MAX_CONTEXT_ITEMS]
+            for item in contexts[: prompt_limits.max_context_items]
         ]
         session_memory.append_exchange(
             session_key,
@@ -71,11 +73,12 @@ class AssistantService:
         session_memory.set_last_intent(session_key, request.intent or self._infer_intent(contexts))
         session_memory.set_last_sources(session_key, sources)
         logger.info(
-            "Assistant response generated: userId=%s provider=%s model=%s contexts=%s",
+            "Assistant response generated: userId=%s provider=%s model=%s contexts=%s promptVariant=%s",
             request.userId,
             generation.provider,
             generation.model,
             len(contexts),
+            prompt_limits.variant,
         )
         return AssistantRespondData(
             reply=generation.content,

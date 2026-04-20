@@ -13,6 +13,18 @@ assistant_router = APIRouter(prefix="/assistant")
 logger = logging.getLogger("uvicorn.error")
 
 
+def _stable_client_error(
+    status: int,
+    code: str,
+    message: str,
+) -> dict[str, str | int]:
+    return {
+        "statusCode": status,
+        "code": code,
+        "message": message,
+    }
+
+
 @assistant_router.post(
     "/respond",
     dependencies=[Depends(verify_internal_key)],
@@ -28,4 +40,11 @@ async def respond(req: AssistantRespondRequest):
             req.userId,
             req.conversationId,
         )
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=_stable_client_error(
+                502,
+                "ASSISTANT_GENERATION_FAILED",
+                "Assistant could not complete this request.",
+            ),
+        ) from exc

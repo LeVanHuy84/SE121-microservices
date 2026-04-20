@@ -1,4 +1,5 @@
 import os
+from math import isfinite
 
 from dotenv import load_dotenv
 
@@ -7,7 +8,7 @@ load_dotenv()
 
 class Settings:
     def __init__(self):
-        self.PORT: int = int(os.getenv("PORT", 4013))
+        self.PORT: int = int(os.getenv("PORT", 4015))
         self.HOST: str = os.getenv("HOST", "0.0.0.0").strip()
         self.RELOAD: bool = os.getenv("RELOAD", "false").lower() == "true"
         self.INTERNAL_SERVICE_KEY: str = os.getenv(
@@ -30,6 +31,24 @@ class Settings:
         )
         self.CHATBOT_CONTEXT_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT", 1200)
+        )
+        self.CHATBOT_PROMPT_AB_TEST_ENABLED: bool = (
+            os.getenv("CHATBOT_PROMPT_AB_TEST_ENABLED", "false").lower() == "true"
+        )
+        self.CHATBOT_PROMPT_AB_BUCKET_RATIO: float = float(
+            os.getenv("CHATBOT_PROMPT_AB_BUCKET_RATIO", 0.5)
+        )
+        self.CHATBOT_MAX_CONTEXT_ITEMS_A: int = int(
+            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS_A", self.CHATBOT_MAX_CONTEXT_ITEMS)
+        )
+        self.CHATBOT_MAX_CONTEXT_ITEMS_B: int = int(
+            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS_B", 6)
+        )
+        self.CHATBOT_CONTEXT_CHAR_LIMIT_A: int = int(
+            os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT_A", self.CHATBOT_CONTEXT_CHAR_LIMIT)
+        )
+        self.CHATBOT_CONTEXT_CHAR_LIMIT_B: int = int(
+            os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT_B", 900)
         )
         self.CHATBOT_SESSION_TTL_SECONDS: int = int(
             os.getenv("CHATBOT_SESSION_TTL_SECONDS", 3600)
@@ -107,6 +126,24 @@ class Settings:
 
         if self.CHATBOT_CONTEXT_CHAR_LIMIT <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_CHAR_LIMIT must be positive")
+
+        if not isfinite(self.CHATBOT_PROMPT_AB_BUCKET_RATIO):
+            raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be finite")
+
+        if not (0 <= self.CHATBOT_PROMPT_AB_BUCKET_RATIO <= 1):
+            raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be between 0 and 1")
+
+        if self.CHATBOT_MAX_CONTEXT_ITEMS_A <= 0:
+            raise RuntimeError("CHATBOT_MAX_CONTEXT_ITEMS_A must be positive")
+
+        if self.CHATBOT_MAX_CONTEXT_ITEMS_B <= 0:
+            raise RuntimeError("CHATBOT_MAX_CONTEXT_ITEMS_B must be positive")
+
+        if self.CHATBOT_CONTEXT_CHAR_LIMIT_A <= 0:
+            raise RuntimeError("CHATBOT_CONTEXT_CHAR_LIMIT_A must be positive")
+
+        if self.CHATBOT_CONTEXT_CHAR_LIMIT_B <= 0:
+            raise RuntimeError("CHATBOT_CONTEXT_CHAR_LIMIT_B must be positive")
 
         if self.CHATBOT_SESSION_TTL_SECONDS <= 0:
             raise RuntimeError("CHATBOT_SESSION_TTL_SECONDS must be positive")
