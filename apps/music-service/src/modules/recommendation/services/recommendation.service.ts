@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   InternalMusicQueryDto,
   MusicFeatureResponse,
+  PageResponse,
   PaginationDTO,
   RiskLevel,
 } from '@repo/dtos';
@@ -13,14 +14,6 @@ import { EmotionState, EmotionStateService } from './emotion-state.service';
 export interface TargetEmotion {
   valence: number;
   arousal: number;
-}
-
-export interface RecommendationResult {
-  state: EmotionState;
-  valence: number;
-  arousal: number;
-  target: TargetEmotion;
-  songs: MusicFeatureResponse[];
 }
 
 const TARGET_BY_STATE: Record<EmotionState, TargetEmotion> = {
@@ -40,45 +33,44 @@ export class RecommendationService {
     private readonly emotionStateService: EmotionStateService,
   ) {}
 
-  async getRecommendations(
-    userId: string,
-    pagination: PaginationDTO,
-  ): Promise<RecommendationResult> {
-    const offset = (pagination.page - 1) * pagination.limit;
+async getRecommendations(
+  userId: string,
+  pagination: PaginationDTO,
+): Promise<PageResponse<MusicFeatureResponse>> {
+  const offset = (pagination.page - 1) * pagination.limit;
 
-    const analysis = await this.getEmotionAnalysis(userId);
+  const analysis = await this.getEmotionAnalysis(userId);
+  const target = this.computeTarget(analysis);
 
-    const target = this.computeTarget(analysis);
+  const RANGE = 0.15;
 
-    const RANGE = 0.15; // bounding box
+  const query: InternalMusicQueryDto = {
+    valenceMin: Math.max(0, target.valence - RANGE),
+    valenceMax: Math.min(1, target.valence + RANGE),
+    arousalMin: Math.max(0, target.arousal - RANGE),
+    arousalMax: Math.min(1, target.arousal + RANGE),
 
-    const query: InternalMusicQueryDto = {
-      valenceMin: Math.max(0, target.valence - RANGE),
-      valenceMax: Math.min(1, target.valence + RANGE),
-      arousalMin: Math.max(0, target.arousal - RANGE),
-      arousalMax: Math.min(1, target.arousal + RANGE),
+    limit: pagination.limit,
+    offset,
 
-      limit: pagination.limit,
-      offset,
+    sortByDistanceTo: {
+      valence: target.valence,
+      arousal: target.arousal,
+      weightValence: this.getValenceWeight(analysis.state),
+      weightArousal: this.getArousalWeight(analysis.state),
+    },
+  };
 
-      sortByDistanceTo: {
-        valence: target.valence,
-        arousal: target.arousal,
-        weightValence: this.getValenceWeight(analysis.state),
-        weightArousal: this.getArousalWeight(analysis.state),
-      },
-    };
+  const [songs, total] =
+    await this.catalogService.queryForRecommendation(query);
 
-    const songs = await this.catalogService.queryForRecommendation(query);
-
-    return {
-      state: analysis.state,
-      valence: analysis.valence,
-      arousal: analysis.arousal,
-      target,
-      songs,
-    };
-  }
+  return new PageResponse(
+    songs,
+    total,
+    pagination.page,
+    pagination.limit,
+  );
+}
 
   // =========================
   // EMOTION
