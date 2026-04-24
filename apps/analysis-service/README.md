@@ -1,224 +1,184 @@
-# Analysis Service V2.0 🧠
+# Analysis Service
 
-`analysis-service` là microservice phân tích **cảm xúc** từ **văn bản tiếng Việt** và **hình ảnh**, với khả năng:
+An AI-powered emotion analysis microservice built with FastAPI, PyTorch, and transformers. Provides REST endpoints for emotion detection, music analysis, and community emotion dashboards.
 
-- 🎯 Phát hiện cảm xúc phức tạp (sarcasm, passive-aggressive)
-- 🖼️ Phân tích toàn bộ ngữ cảnh hình ảnh (không chỉ mặt người)
-- ⚠️ Đánh giá rủi ro tâm lý dựa trên lịch sử user
-- 💡 Đưa ra khuyến nghị nội dung phù hợp
+## Overview
 
-**Version**: 2.0.0  
-**Status**: ✅ Production Ready
+The Analysis Service processes text and audio to extract emotional insights. It leverages multiple machine learning models including arousal/valence prediction and supports internal API endpoints for integration with other microservices in the platform.
 
----
+**Key Features:**
 
-## 📚 Documentation
+- Emotion analysis with arousal and valence prediction
+- Music emotion analysis from URLs
+- Community emotion dashboard with configurable date ranges
+- Internal security with API key verification
+- MongoDB and Redis integration for caching and persistence
 
-- [🏗️ ARCHITECTURE_V2.md](ARCHITECTURE_V2.md) - Chi tiết kiến trúc AI
-- [🚀 MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Hướng dẫn nâng cấp từ V1.0
-- [📝 CHANGELOG.md](CHANGELOG.md) - Lịch sử thay đổi
+## Project Structure
 
----
+```
+analysis-service/
+├── app/
+│   ├── api/                    # FastAPI route handlers
+│   │   ├── analyze_api.py      # Emotion analysis endpoints
+│   │   ├── music_api.py        # Music analysis endpoints
+│   │   ├── health_api.py       # Health check endpoint
+│   │   ├── image_api.py        # Image analysis (available)
+│   │   ├── moderation_api.py   # Content moderation (available)
+│   │   └── test_api.py         # Testing endpoints
+│   ├── core/                   # Core configurations
+│   │   ├── lifespan.py         # FastAPI lifespan management
+│   │   └── security.py         # API key verification
+│   ├── database/               # MongoDB repositories
+│   ├── enums/                  # Enumerations (emotion types, status)
+│   ├── messaging/              # Kafka integration
+│   ├── models/                 # ML model implementations
+│   ├── processors/             # Data processing pipelines
+│   ├── redis/                  # Redis client and utilities
+│   ├── services/               # Business logic and orchestration
+│   ├── utils/                  # Helper utilities
+│   └── main.py                 # FastAPI app initialization
+├── model/                      # Model files directory (ignored in git)
+├── download_models.py          # Script to download pre-trained models
+├── requirements.txt            # Python dependencies
+├── package.json                # Node.js metadata (npm scripts)
+└── .env.example                # Environment variable template
+```
 
-## 🔹 AI Models Stack
+## Setup Instructions
 
-### Text Analysis (2-tier)
+### Prerequisites
 
-1. **PhoBERT Emotion** (Baseline - 80% coverage)
-   - Model: `visolex/phobert-emotion`
-   - Latency: ~200ms
-   - Use case: Simple posts, clear emotions
-
-2. **Qwen2.5-1.5B-Instruct** (Complex - 20% coverage)
-   - Model: `Qwen/Qwen2.5-1.5B-Instruct`
-   - Latency: ~600ms
-   - Use case: Sarcasm, passive-aggressive, hidden emotions
-   - **Auto-trigger khi:**
-     - PhoBERT confidence < 0.6
-     - Có emoji mỉa mai: 🙃 😏 🙄
-     - Có pattern passive-aggressive
-
-### Image Analysis
-
-**CLIP ViT-B-32** (Replaces FER)
-
-- Model: OpenCLIP ViT-B-32
-- Pretrained: LAION-2B
-- Latency: ~400ms
-- **Ưu điểm:**
-  - ✅ Không cần face (meme, scenery, food đều ok)
-  - ✅ Zero-shot emotion classification
-  - ✅ Scene type detection
-  - ✅ Hiểu context toàn bộ ảnh
-
-### Risk Scoring
-
-**Hybrid Algorithm**
-
-- User history patterns (30 bài gần nhất)
-- Critical keyword detection
-- Temporal patterns (late night posting)
-- Image scene analysis
-- **4 risk levels**: low, medium, high, critical
-
----
-
-## 🔹 Quick Start
+- Python 3.8 or higher
+- pip or conda package manager
+- 4GB+ RAM recommended (for model loading)
+- Approximately 3.5GB disk space for downloaded models
 
 ### Installation
 
+1. Clone the repository:
+
 ```bash
+git clone <repository-url>
 cd apps/analysis-service
-
-# Install dependencies
-pip install -r requirements.txt
-
-# First run sẽ download models (~3.5GB)
-python -c "from app.services.model_loader import model_loader; print('✅ Ready')"
 ```
 
-### Run Service
+2. Create a virtual environment:
 
 ```bash
-# Development
-uvicorn app.main:app --reload --port 8003
+python -m venv venv
+```
 
-# Production
+3. Activate the virtual environment:
+
+**Windows:**
+
+```bash
+venv\Scripts\activate
+```
+
+**macOS/Linux:**
+
+```bash
+source venv/bin/activate
+```
+
+4. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Model Setup
+
+Pre-trained model files are required but not included in the repository due to size constraints. Download them using the provided script:
+
+```bash
+python download_models.py
+```
+
+This will download two models:
+
+- `model_arousal.pkl` - Arousal prediction model
+- `model_valence.pkl` - Valence prediction model
+
+Models are saved to the `model/` directory, which is excluded from version control.
+
+## Running the Service
+
+### Development Mode
+
+```bash
 python -m app.main
 ```
 
----
+The service will start on `http://localhost:4011` by default.
 
-## 🔹 Performance
-
-### Latency Benchmarks
-
-| Scenario            | V1.0 (FER) | V2.0 (CLIP) | Notes               |
-| ------------------- | ---------- | ----------- | ------------------- |
-| Text only (simple)  | 200ms      | 250ms       | PhoBERT             |
-| Text only (complex) | N/A        | 850ms       | Triggers Qwen2.5    |
-| Text + 1 image      | 500ms      | 650ms       | CLIP faster startup |
-| Text + 3 images     | 800ms      | 1000ms      | Parallel processing |
-
-### Resource Usage
-
-| Environment    | RAM | VRAM | Latency   |
-| -------------- | --- | ---- | --------- |
-| GPU (RTX 3060) | 6GB | 4GB  | 650ms avg |
-| CPU (i7-12700) | 8GB | -    | 2.5s avg  |
-
-### Accuracy Improvements
-
-| Metric          | V1.0 | V2.0 | Gain |
-| --------------- | ---- | ---- | ---- |
-| Text (simple)   | 75%  | 82%  | +7%  |
-| Text (sarcasm)  | 45%  | 78%  | +33% |
-| Image (faces)   | 65%  | 78%  | +13% |
-| Image (no face) | 0%   | 75%  | ∞    |
-
----
-
-## 🔹 Key Features
-
-### 1. Sarcasm Detection ✅
-
-```python
-Input: "Cuộc sống tươi đẹp lắm nhỉ 🙃"
-PhoBERT: joy (0.6) ⚠️ Low confidence
-→ Trigger Qwen2.5
-Output: sadness (sarcasm detected)
-```
-
-### 2. Scene Understanding ✅
-
-```python
-Input: Dark rainy image (no faces)
-FER V1.0: ❌ No output (no faces)
-CLIP V2.0: ✅ sadness (0.75) "dark_scenery"
-```
-
-### 3. Risk Scoring ⚠️
-
-```python
-User posts 5 consecutive sad posts at 3 AM
-+ Critical keywords: "mệt mỏi", "không muốn sống"
-→ Risk: CRITICAL (0.85)
-→ Alert support team
-```
-
----
-
-## 🔹 Production Checklist
-
-- [ ] GPU available (CUDA)
-- [ ] Models downloaded (~3.5GB)
-- [ ] MongoDB connected
-- [ ] Kafka broker accessible
-- [ ] Environment variables configured
-- [ ] Health check endpoint responding
-- [ ] Monitoring dashboard setup
-
----
-
-## 🔹 Configuration
-
-### Environment Variables
-
-Create `.env`:
+### Production Mode
 
 ```bash
-# Service
+uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1
+```
+
+### Health Check
+
+```bash
+curl http://localhost:4011/health
+```
+
+## Environment Variables
+
+Create a `.env` file in the service root directory. Required variables:
+
+```
 HOST=0.0.0.0
-PORT=8003
-
-# MongoDB
+PORT=4011
 MONGO_URL=mongodb://localhost:27017
-MONGO_DB=emotion_analysis
+MONGO_DB=analysis_service
 
-# Kafka
-KAFKA_BROKER=localhost:9092
+REDIS_HOST=localhost
+REDIS_PORT=6379
 
-# Models
-DEVICE=cuda  # or "cpu"
-COMPLEX_ANALYSIS_ENABLED=true
-RISK_SCORING_ENABLED=true
-USER_HISTORY_LIMIT=30
+KAFKA_BROKERS=localhost:9092
+KAFKA_CLIENT_ID=analysis_service
+
+INTERNAL_SERVICE_KEY=emotion-internal-key-123
+
+EMOTION_DAILY_CRON_HOUR_UTC=17
+EMOTION_DAILY_CRON_MINUTE_UTC=05
 ```
 
----
+Refer to `.env.example` for a complete template.
 
-## 🐛 Troubleshooting
+## API Endpoints
 
-### CUDA Out of Memory
+All endpoints require the `X-Internal-Key` header with the value from `INTERNAL_SERVICE_KEY`.
 
-```bash
-export DEVICE=cpu
-```
+### Emotion Analysis
 
-### Models slow to load
+- `GET /emotion/dashboard` - Community emotion dashboard
+  - Query params: `from` (date), `to` (date)
+  - Default range: Last 7 days
+  - Max range: 30 days
 
-```bash
-# Use HF_HOME to cache models
-export HF_HOME=/path/to/cache
-```
+### Music Analysis
 
-### Qwen2.5 too slow
+- `POST /musics/analyze` - Analyze music emotion from URL
+  - Request body: `{"url": "music_file_url"}`
 
-```bash
-COMPLEX_ANALYSIS_ENABLED=false
-```
+### Health Check
 
-See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md#troubleshooting) for more.
+- `GET /health` - Service health status
 
----
+### Additional Endpoints
 
-## 📞 Support
+- `GET /test` - Testing endpoints
+- Image and moderation endpoints available but disabled by default
 
-- **Architecture**: [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md)
-- **Migration**: [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+## Notes
 
----
-
-**Built with ❤️ for Vietnamese Social Media**  
-**Version**: 2.0.0 | **Status**: ✅ Production Ready
+- Model files (`.pkl`) are git-ignored. Always run `python download_models.py` after cloning.
+- The service integrates with Kafka for event streaming and MongoDB for persistence.
+- Redis is used for caching and session management.
+- All internal endpoints require API key verification via the `INTERNAL_SERVICE_KEY` environment variable.
+- First startup may take longer due to model initialization.

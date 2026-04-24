@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { EmotionRankingFeaturesDto } from '@repo/dtos';
+import {
+  EmotionRankingFeaturesDto,
+  EmotionTimeWindow,
+  RiskLevel,
+  UserEmotionSignalDto,
+} from '@repo/dtos';
 import { EmotionFeatureRepository } from './emotion-feature.repository';
 
 const NEUTRAL_DISTRIBUTION: Record<string, number> = {
@@ -67,5 +72,56 @@ export class EmotionFeatureService {
       recentNegativityScore,
       emotionMomentum,
     };
+  }
+
+  async getUserEmotionSignal(userId: string): Promise<UserEmotionSignalDto> {
+    const [profile, snapshot1d, risk] = await Promise.all([
+      this.repository.findProfileByUserId(userId),
+      this.repository.getLatestSnapshot(userId, EmotionTimeWindow.ONE_DAY),
+      this.repository.findRiskState(userId),
+    ]);
+
+    // ===== FALLBACKS =====
+    const emotionVector =
+      profile?.emotionVectorEMA &&
+      Object.keys(profile.emotionVectorEMA).length > 0
+        ? profile.emotionVectorEMA
+        : { ...NEUTRAL_DISTRIBUTION };
+
+    const negativity = this.toSafeNumber(profile?.recentNegativityScore);
+
+    const momentum = this.toSafeNumber(profile?.emotionMomentum);
+
+    const volatility = this.toSafeNumber(snapshot1d?.emotionVolatility);
+
+    const trend = this.toSafeNumber(snapshot1d?.trend);
+
+    const riskScore =
+      risk?.riskScore ?? this.toSafeNumber(snapshot1d?.riskScore);
+
+    const riskLevel = risk?.riskLevel ?? this.deriveRiskLevel(riskScore);
+
+    return {
+      userId,
+      emotionVector,
+
+      negativity,
+      volatility,
+      trend,
+      momentum,
+
+      riskLevel,
+      riskScore,
+
+      window: EmotionTimeWindow.ONE_DAY,
+      computedAt: new Date(),
+    };
+  }
+
+  private deriveRiskLevel(score: number): RiskLevel {
+    if (score >= 0.85) return RiskLevel.CRITICAL;
+    if (score >= 0.7) return RiskLevel.HIGH;
+    if (score >= 0.4) return RiskLevel.WARNING;
+    return RiskLevel.NORMAL;
   }
 }

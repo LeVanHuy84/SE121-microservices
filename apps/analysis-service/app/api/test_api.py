@@ -1,9 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.services.ai.text_emotion.text_emotion_classifier import text_emotion_classifier
 from pydantic import BaseModel
 from typing import List
 from app.core.lifespan import event_service
 from app.services.orchestration.analysis_flow_service import analysis_flow_service
+from app.services.orchestration.music_flow_service import music_flow_service
 
 test_router = APIRouter(prefix="/test", tags=["Test Analysis"])
 
@@ -74,6 +75,10 @@ class TestRequest(BaseModel):
     imageUrls: List[str] = []
     targetType: str
 
+
+class MusicUrlRequest(BaseModel):
+    url: str
+
 @test_router.post("/before_save")
 async def test_before_save(req: TestRequest):
 
@@ -86,5 +91,18 @@ async def test_before_save(req: TestRequest):
     return {
         "success": True,
         "result": result
+    }
+
+
+@test_router.post("/music/from-url")
+async def test_music_from_url(req: MusicUrlRequest):
+    try:
+        result = music_flow_service.analyze_from_url(req.url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return {
+        "success": True,
+        "result": result,
     }
 
