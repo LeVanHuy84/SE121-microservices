@@ -39,19 +39,19 @@ export class MusicController {
   }
 
   @Post('analyze')
-  // @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN)
   analyzeMusic(@Body('url') url: string) {
     return this.musicAnalyzeService.analyzeMusic(url);
   }
 
   @Post()
-  // @RequireRole(SystemRole.ADMIN)
-  getAuditLog(@Body() dto: CreateMusicFeatureDTO) {
+  @RequireRole(SystemRole.ADMIN)
+  createMusicFeature(@Body() dto: CreateMusicFeatureDTO) {
     return this.client.send('create_music_feature', dto);
   }
 
   @Patch(':id')
-  // @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN)
   updateMusicFeature(
     @Param('id') id: string,
     @Body() dto: UpdateMusicFeatureDTO,
@@ -60,13 +60,12 @@ export class MusicController {
   }
 
   @Delete(':id')
-  // @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN)
   deleteMusicFeature(@Param('id') id: string) {
     return this.client.send('delete_music_feature', id);
   }
 
   @Get(':id')
-  // @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   getMusicFeature(@Param('id') id: string) {
     return this.client.send('get_music_feature', id);
   }

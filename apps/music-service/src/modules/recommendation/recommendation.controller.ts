@@ -1,10 +1,9 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import {
-  RecommendationResult,
   RecommendationService,
 } from './services/recommendation.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { PaginationDTO } from '@repo/dtos';
+import { MusicFeatureResponse, PageResponse, PaginationDTO } from '@repo/dtos';
 
 @Controller('recommendations')
 export class RecommendationController {
@@ -13,7 +12,7 @@ export class RecommendationController {
   @MessagePattern('get_music_recommendations')
   getRecommendations(
     @Payload() payload: { userId: string; query: PaginationDTO },
-  ): Promise<RecommendationResult> {
+  ): Promise<PageResponse<MusicFeatureResponse>> {
     const { userId, query } = payload;
     return this.recommendationService.getRecommendations(userId, query);
   }
