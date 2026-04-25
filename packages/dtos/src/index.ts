@@ -28,3 +28,5 @@ export * from './chat';
 export * from './emotion';
 
 export * from './log';
+
+export * from './music';
