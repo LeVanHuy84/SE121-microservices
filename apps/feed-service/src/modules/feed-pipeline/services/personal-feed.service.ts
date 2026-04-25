@@ -212,28 +212,33 @@ export class PersonalFeedService {
    * ENRICH FINAL ITEMS ONLY
    */
   private async enrichFinalItems(userId: string, items: FeedItem[]) {
-    const postIds: string[] = [];
-    const shareIds: string[] = [];
+    const postIdSet = new Set<string>();
+    const shareIdSet = new Set<string>();
 
     for (const item of items) {
-      if (item.eventType === FeedEventType.POST) {
-        postIds.push(item.refId);
-      } else {
-        shareIds.push(item.refId);
+      postIdSet.add(item.postId);
+
+      if (item.eventType === FeedEventType.SHARE) {
+        shareIdSet.add(item.refId);
       }
     }
 
+    const postIds = Array.from(postIdSet);
+    const shareIds = Array.from(shareIdSet);
+
     const [posts, shares] = await Promise.all([
-      this.snapshotRepo.findPostsByIds(postIds),
-      this.snapshotRepo.findSharesByIds(shareIds),
+      postIds.length
+        ? this.snapshotRepo.findPostsByIds(postIds)
+        : Promise.resolve([]),
+
+      shareIds.length
+        ? this.snapshotRepo.findSharesByIds(shareIds)
+        : Promise.resolve([]),
     ]);
 
     const postMap = new Map(posts.map((p) => [p.postId, p]));
     const shareMap = new Map(shares.map((s) => [s.shareId, s]));
 
-    /**
-     * LOAD REACTIONS (ONLY FINAL)
-     */
     const [postReactions, shareReactions] = await Promise.all([
       postIds.length
         ? firstValueFrom(
@@ -247,6 +252,7 @@ export class PersonalFeedService {
             ),
           )
         : Promise.resolve({}),
+
       shareIds.length
         ? firstValueFrom(
             this.postClient.send<Record<string, ReactionType>>(
@@ -261,10 +267,8 @@ export class PersonalFeedService {
         : Promise.resolve({}),
     ]);
 
-    /**
-     * LOAD GROUP
-     */
     const groupIds = new Set<string>();
+
     for (const p of posts) {
       if (p.groupId) groupIds.add(p.groupId);
     }
@@ -318,35 +322,72 @@ export class PersonalFeedService {
     const result: FeedItemDTO[] = [];
 
     for (const item of items) {
-      if (item.eventType === FeedEventType.POST) {
-        const post = postMap.get(item.refId);
-        if (!post) continue;
+      const id = item._id?.toString() ?? '';
+
+      const post = postMap.get(item.postId);
+
+      if (!post) {
+        this.logger.warn(
+          `[FEED] Missing POST postId=${item.postId} itemId=${id}`,
+        );
 
         result.push({
-          id: item._id?.toString() ?? '',
+          id,
+          type: item.eventType,
+          item: {
+            id: item.refId,
+            status: 'missing_post',
+          } as any,
+        });
+
+        continue;
+      }
+
+      // ======================
+      // POST
+      // ======================
+      if (item.eventType === FeedEventType.POST) {
+        result.push({
+          id,
           type: FeedEventType.POST,
           item: SnapshotMapper.toPostSnapshotDTO(
             post,
-            postReactions[item.refId],
+            postReactions[item.postId], // dùng postId
           ),
         });
-      } else {
-        const share = shareMap.get(item.refId);
-        if (!share) continue;
 
-        const post = postMap.get(share.postId);
-        if (!post) continue;
+        continue;
+      }
+
+      // ======================
+      // SHARE
+      // ======================
+      const share = shareMap.get(item.refId);
+
+      if (!share) {
+        this.logger.warn(`[FEED] Missing SHARE snapshot refId=${item.refId}`);
 
         result.push({
-          id: item._id?.toString() ?? '',
+          id,
           type: FeedEventType.SHARE,
-          item: SnapshotMapper.toShareSnapshotDTO(
-            share,
-            post,
-            shareReactions[item.refId],
-          ),
+          item: {
+            id: item.refId,
+            status: 'missing_share',
+          } as any,
         });
+
+        continue;
       }
+
+      result.push({
+        id,
+        type: FeedEventType.SHARE,
+        item: SnapshotMapper.toShareSnapshotDTO(
+          share,
+          post,
+          shareReactions[item.refId],
+        ),
+      });
     }
 
     return result;

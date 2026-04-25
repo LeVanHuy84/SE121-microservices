@@ -39,7 +39,7 @@ export class ConsumerController {
       handler: async (_session: ClientSession) => {
         const { type, payload } = message;
 
-        await this.consumerService.createAuditLog(type, payload);
+        await this.consumerService.createAuditLog(type, payload, _session);
 
         this.logger.log(
           `Processed LOGGING event ${type} for ${payload.postId}`,

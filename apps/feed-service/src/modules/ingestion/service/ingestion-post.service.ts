@@ -36,7 +36,7 @@ export class IngestionPostService {
   ) {}
 
   // ------------------------------------------------
-  // 🧩 HANDLE CREATED (đã fix hiển thị trending ngay)
+  // HANDLE CREATED (đã fix hiển thị trending ngay)
   // ------------------------------------------------
   async handleCreated(
     payload: InferPostPayload<PostEventType.CREATED>,
@@ -57,18 +57,18 @@ export class IngestionPostService {
     const createdAt = new Date(payload.createdAt);
 
     // Tạo snapshot trong Mongo
-    const [entity] = await this.postModel.create(
-      {
-        ...payload,
-        postCreatedAt: createdAt,
-      },
-      {
-        session,
-      },
+    const [entity] = await this.postModel.insertMany(
+      [
+        {
+          ...payload,
+          postCreatedAt: createdAt,
+        },
+      ],
+      { session },
     );
 
     // ------------------------------
-    // 🧠 Ghi meta key
+    // Ghi meta key
     // ------------------------------
     if (payload.audience === Audience.PUBLIC || !payload.groupId) {
       const metaKey = `post:meta:${payload.postId}`;
@@ -85,7 +85,7 @@ export class IngestionPostService {
     }
 
     // ------------------------------
-    // 📢 Phân phối bài mới tới feed
+    // Phân phối bài mới tới feed
     // ------------------------------
     await this.distributionService.distributeCreated(
       FeedEventType.POST,
@@ -99,7 +99,7 @@ export class IngestionPostService {
   }
 
   // ------------------------------------------------
-  // 🧩 HANDLE UPDATED
+  // HANDLE UPDATED
   // ------------------------------------------------
   async handleUpdated(
     payload: InferPostPayload<PostEventType.UPDATED>,
@@ -127,10 +127,7 @@ export class IngestionPostService {
   }
 
   // ------------------------------------------------
-  // 🧩 HANDLE REMOVED
-  // ------------------------------------------------
-  // ------------------------------------------------
-  // 🧩 HANDLE REMOVED (FIX REDIS CLEANUP - ENUM SAFE)
+  // HANDLE REMOVED
   // ------------------------------------------------
   async handleRemoved(
     payload: InferPostPayload<PostEventType.REMOVED>,
@@ -150,7 +147,7 @@ export class IngestionPostService {
     const postId = payload.postId;
 
     // ------------------------------
-    // 🧹 Dọn Redis
+    // Dọn Redis
     // ------------------------------
 
     // 1. Xóa trending score chính
@@ -169,7 +166,7 @@ export class IngestionPostService {
     }
 
     // ------------------------------
-    // 📢 Phân phối remove
+    // Phân phối remove
     // ------------------------------
     if (snapshot) {
       await this.distributionService.distributeRemoved(

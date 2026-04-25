@@ -29,14 +29,14 @@ export class IngestionShareService {
 
     if (exists) return;
 
-    const [shareSnapshot] = await this.shareModel.create(
-      {
-        ...payload,
-        shareCreatedAt: payload.createdAt,
-      },
-      {
-        session,
-      },
+    const [shareSnapshot] = await this.shareModel.insertMany(
+      [
+        {
+          ...payload,
+          shareCreatedAt: payload.createdAt,
+        },
+      ],
+      { session },
     );
 
     await this.distributionService.distributeCreated(
