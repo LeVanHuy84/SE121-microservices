@@ -75,6 +75,10 @@ class AssistantService:
             resolved_request,
             history,
             memory_summary,
+            context_char_limit=prompt_limits.context_char_limit,
+            max_history_items=prompt_limits.max_history_items,
+            history_item_char_limit=prompt_limits.history_item_char_limit,
+            context_total_char_limit=prompt_limits.context_total_char_limit,
         )
 
         llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
@@ -130,13 +134,14 @@ class AssistantService:
         )
 
         logger.info(
-            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s contextMs=%s llmMs=%s durationMs=%s",
+            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s promptChars=%s contextMs=%s llmMs=%s durationMs=%s",
             request.userId,
             generation.provider,
             generation.model,
             len(candidate_contexts),
             len(final_contexts),
             prompt_limits.variant,
+            len(prompt),
             context_duration_ms,
             generation_duration_ms,
             round((time.perf_counter() - started_at) * 1000, 2),

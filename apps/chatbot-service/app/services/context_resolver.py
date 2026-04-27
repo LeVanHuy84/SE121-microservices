@@ -12,6 +12,10 @@ class AssistantContextResolver:
     def resolve(self, request: AssistantRespondRequest) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
+        rag_top_k = min(
+            settings.RAG_DOC_TOP_K,
+            max(candidate_limit, settings.CHATBOT_MAX_CONTEXT_ITEMS),
+        )
 
         if not settings.RAG_DOCS_ENABLED:
             return self._dedupe(contexts)[:candidate_limit]
@@ -21,7 +25,7 @@ class AssistantContextResolver:
 
             doc_contexts = rag_document_service.search_assistant_docs(
                 request.message,
-                settings.RAG_DOC_TOP_K,
+                rag_top_k,
             )
         except Exception as exc:
             logger.warning("Assistant docs RAG skipped: %s", exc)

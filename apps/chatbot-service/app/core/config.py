@@ -41,6 +41,15 @@ class Settings:
         self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS", 500)
         )
+        self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX: int = int(
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 4)
+        )
+        self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT: int = int(
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 280)
+        )
+        self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT: int = int(
+            os.getenv("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT", 2200)
+        )
         self.CHATBOT_PROMPT_AB_TEST_ENABLED: bool = (
             os.getenv("CHATBOT_PROMPT_AB_TEST_ENABLED", "false").lower() == "true"
         )
@@ -58,6 +67,33 @@ class Settings:
         )
         self.CHATBOT_CONTEXT_CHAR_LIMIT_B: int = int(
             os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT_B", 900)
+        )
+        self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX_A: int = int(
+            os.getenv(
+                "CHATBOT_PROMPT_HISTORY_ITEMS_MAX_A",
+                self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX,
+            )
+        )
+        self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX_B: int = int(
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX_B", 3)
+        )
+        self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_A: int = int(
+            os.getenv(
+                "CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_A",
+                self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT,
+            )
+        )
+        self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_B: int = int(
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_B", 220)
+        )
+        self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_A: int = int(
+            os.getenv(
+                "CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_A",
+                self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT,
+            )
+        )
+        self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_B: int = int(
+            os.getenv("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_B", 1600)
         )
         self.CHATBOT_SESSION_TTL_SECONDS: int = int(
             os.getenv("CHATBOT_SESSION_TTL_SECONDS", 3600)
@@ -167,6 +203,15 @@ class Settings:
         if self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS must be positive")
 
+        if self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX <= 0:
+            raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEMS_MAX must be positive")
+
+        if self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT <= 0:
+            raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT must be positive")
+
+        if self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT <= 0:
+            raise RuntimeError("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT must be positive")
+
         if not isfinite(self.CHATBOT_PROMPT_AB_BUCKET_RATIO):
             raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be finite")
 
@@ -184,6 +229,32 @@ class Settings:
 
         if self.CHATBOT_CONTEXT_CHAR_LIMIT_B <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_CHAR_LIMIT_B must be positive")
+
+        if self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX_A <= 0:
+            raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEMS_MAX_A must be positive")
+
+        if self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX_B <= 0:
+            raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEMS_MAX_B must be positive")
+
+        if self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_A <= 0:
+            raise RuntimeError(
+                "CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_A must be positive"
+            )
+
+        if self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_B <= 0:
+            raise RuntimeError(
+                "CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT_B must be positive"
+            )
+
+        if self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_A <= 0:
+            raise RuntimeError(
+                "CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_A must be positive"
+            )
+
+        if self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_B <= 0:
+            raise RuntimeError(
+                "CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT_B must be positive"
+            )
 
         if self.CHATBOT_SESSION_TTL_SECONDS <= 0:
             raise RuntimeError("CHATBOT_SESSION_TTL_SECONDS must be positive")

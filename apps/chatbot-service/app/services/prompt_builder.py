@@ -12,16 +12,36 @@ class PromptBuilder:
         request: AssistantRespondRequest,
         history: list[AssistantHistoryItem],
         memory_summary: str = "",
+        context_char_limit: int | None = None,
+        max_history_items: int | None = None,
+        history_item_char_limit: int | None = None,
+        context_total_char_limit: int | None = None,
     ) -> str:
+        resolved_context_char_limit = context_char_limit or settings.CHATBOT_CONTEXT_CHAR_LIMIT
+        resolved_max_history_items = (
+            max_history_items or settings.CHATBOT_PROMPT_HISTORY_ITEMS_MAX
+        )
+        resolved_history_item_char_limit = (
+            history_item_char_limit or settings.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT
+        )
+        resolved_context_total_char_limit = (
+            context_total_char_limit or settings.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT
+        )
+
         parts = [
             self._build_system_prompt(),
             self._build_user_profile(request),
             self._build_memory_summary_block(memory_summary),
             self._build_context_block(
                 request.contexts,
-                char_limit=settings.CHATBOT_CONTEXT_CHAR_LIMIT,
+                char_limit=resolved_context_char_limit,
+                total_char_limit=resolved_context_total_char_limit,
             ),
-            self._build_history_block(history),
+            self._build_history_block(
+                history,
+                max_items=resolved_max_history_items,
+                item_char_limit=resolved_history_item_char_limit,
+            ),
             self._build_current_message(request.message),
         ]
         return "\n\n".join(part for part in parts if part)
@@ -59,13 +79,21 @@ class PromptBuilder:
         self,
         contexts: list[AssistantContextItem],
         char_limit: int,
+        total_char_limit: int,
     ) -> str:
         if not contexts:
             return "CONTEXT:\nKhông có context."
 
         lines = ["CONTEXT:"]
+        consumed = 0
         for index, item in enumerate(contexts, start=1):
-            content = self._smart_truncate(item.content, char_limit)
+            remaining = max(total_char_limit - consumed, 0)
+            if remaining <= 0:
+                break
+            effective_limit = min(char_limit, remaining)
+            content = self._smart_truncate(item.content, effective_limit)
+            if not content:
+                continue
             title = f" title={item.title}" if item.title else ""
             score = f" score={item.score}" if item.score is not None else ""
             source = f" source={item.source}" if item.source else ""
@@ -73,15 +101,25 @@ class PromptBuilder:
                 f"[{index}] type={item.type} id={item.id}{title}{score}{source}\n"
                 f"{content}"
             )
+            consumed += len(content)
+
+        if len(lines) == 1:
+            return "CONTEXT:\nKhông có context."
         return "\n\n".join(lines)
 
-    def _build_history_block(self, history: list[AssistantHistoryItem]) -> str:
+    def _build_history_block(
+        self,
+        history: list[AssistantHistoryItem],
+        max_items: int,
+        item_char_limit: int,
+    ) -> str:
         if not history:
             return "HISTORY:\nKhông có lịch sử hội thoại."
 
         lines = ["HISTORY:"]
-        for item in history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]:
-            content = self._smart_truncate(item.content, 1000)
+        tail_count = max(1, min(max_items, settings.CHATBOT_MEMORY_RECENT_ITEMS))
+        for item in history[-tail_count:]:
+            content = self._smart_truncate(item.content, item_char_limit)
             lines.append(f"{item.role}: {content}")
         return "\n".join(lines)
 
