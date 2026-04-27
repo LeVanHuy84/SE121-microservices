@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
 from app.core.config import settings
 from app.memory.session_memory import session_memory
-from app.providers.base import LlmProvider
+from app.providers.base import LlmGeneration, LlmProvider
 from app.providers.groq_provider import GroqProvider
 from app.schemas.assistant_schema import (
     AssistantRespondData,
@@ -36,6 +37,7 @@ class AssistantService:
         self.provider = provider or self._resolve_provider()
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:
         if not self.scope_guard.is_in_scope(request):
@@ -46,7 +48,7 @@ class AssistantService:
                 sources=[],
                 intent="out_of_scope",
             )
-            await self._persist_history_best_effort(
+            self._persist_history_in_background(
                 request=request,
                 assistant_reply=out_of_scope_response.reply,
                 sources=[],
@@ -59,7 +61,12 @@ class AssistantService:
         history = self._resolve_history(request)
         memory_summary = session_memory.get_summary(session_key)
 
-        candidate_contexts = self.context_resolver.resolve(request)
+        context_started_at = time.perf_counter()
+        candidate_contexts = await self._resolve_contexts_with_budget(
+            request,
+            settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+        )
+        context_duration_ms = round((time.perf_counter() - context_started_at) * 1000, 2)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
 
@@ -70,8 +77,21 @@ class AssistantService:
             memory_summary,
         )
 
+        llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
+        generation_started_at = time.perf_counter()
         try:
-            generation = await self.provider.generate(prompt, resolved_request)
+            generation = await asyncio.wait_for(
+                self.provider.generate(prompt, resolved_request),
+                timeout=max(llm_timeout_ms, 1) / 1000,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Assistant generation timeout: userId=%s conversationId=%s llmTimeoutMs=%s",
+                request.userId,
+                request.conversationId,
+                llm_timeout_ms,
+            )
+            generation = self._llm_timeout_generation()
         except Exception:
             logger.exception(
                 "Assistant generation failed: userId=%s conversationId=%s contexts=%s",
@@ -80,6 +100,9 @@ class AssistantService:
                 len(final_contexts),
             )
             raise
+        generation_duration_ms = round(
+            (time.perf_counter() - generation_started_at) * 1000, 2
+        )
 
         sources = [
             AssistantSource(
@@ -99,7 +122,7 @@ class AssistantService:
             sources=sources,
             intent=resolved_intent,
         )
-        await self._persist_history_best_effort(
+        self._persist_history_in_background(
             request=request,
             assistant_reply=generation.content,
             sources=sources,
@@ -107,13 +130,15 @@ class AssistantService:
         )
 
         logger.info(
-            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s durationMs=%s",
+            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s contextMs=%s llmMs=%s durationMs=%s",
             request.userId,
             generation.provider,
             generation.model,
             len(candidate_contexts),
             len(final_contexts),
             prompt_limits.variant,
+            context_duration_ms,
+            generation_duration_ms,
             round((time.perf_counter() - started_at) * 1000, 2),
         )
 
@@ -138,6 +163,32 @@ class AssistantService:
 
     def _resolve_provider(self) -> LlmProvider:
         return GroqProvider()
+
+    async def _resolve_contexts_with_budget(
+        self,
+        request: AssistantRespondRequest,
+        timeout_ms: int,
+    ):
+        timeout_seconds = max(timeout_ms, 1) / 1000
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self.context_resolver.resolve, request),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Assistant context resolver timeout: userId=%s timeoutMs=%s",
+                request.userId,
+                timeout_ms,
+            )
+            return self._dedupe_contexts(request.contexts)
+        except Exception as exc:
+            logger.warning(
+                "Assistant context resolver failed: userId=%s reason=%s",
+                request.userId,
+                exc,
+            )
+            return self._dedupe_contexts(request.contexts)
 
     def _persist_session_memory(
         self,
@@ -188,6 +239,36 @@ class AssistantService:
                 request.userId,
             )
 
+    def _persist_history_in_background(
+        self,
+        request: AssistantRespondRequest,
+        assistant_reply: str,
+        sources: list[AssistantSource],
+        intent: str | None,
+    ):
+        if not chat_history_service.is_enabled():
+            return
+
+        task = asyncio.create_task(
+            self._persist_history_best_effort(
+                request=request,
+                assistant_reply=assistant_reply,
+                sources=sources,
+                intent=intent,
+            )
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._on_background_task_done)
+
+    def _on_background_task_done(self, task: asyncio.Task[None]):
+        self._background_tasks.discard(task)
+        if task.cancelled():
+            return
+        try:
+            task.result()
+        except Exception:
+            logger.exception("Assistant background task failed")
+
     def _build_updated_summary(
         self,
         current_summary: str,
@@ -218,6 +299,27 @@ class AssistantService:
         if len(normalized) <= limit:
             return normalized
         return f"{normalized[:limit].rstrip()}..."
+
+    def _dedupe_contexts(self, contexts):
+        result = []
+        seen: set[tuple[str, str]] = set()
+        for item in contexts:
+            key = (item.type, item.id)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(item)
+        return result
+
+    def _llm_timeout_generation(self) -> LlmGeneration:
+        return LlmGeneration(
+            content=(
+                "He thong dang cham hon binh thuong. "
+                "Ban thu gui cau hoi ngan hon hoac thu lai sau vai giay."
+            ),
+            model="timeout-guard",
+            provider="chatbot-service",
+        )
 
     def _out_of_scope_response(self) -> AssistantRespondData:
         return AssistantRespondData(

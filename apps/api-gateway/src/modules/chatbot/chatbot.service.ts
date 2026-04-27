@@ -59,7 +59,7 @@ export class ChatbotService {
         `assistant.respond ok userId=${userId} contexts=${contexts.length} durationMs=${Date.now() - startedAt}`,
       );
 
-      return res.data;
+      return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
     }
@@ -96,7 +96,7 @@ export class ChatbotService {
       this.logger.log(
         `assistant.history.get ok userId=${userId} pageSize=${pageSize ?? 'default'} durationMs=${Date.now() - startedAt}`,
       );
-      return res.data;
+      return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(error, userId, startedAt, 'assistant.history.get');
     }
@@ -122,7 +122,7 @@ export class ChatbotService {
       this.logger.log(
         `assistant.history.clear ok userId=${userId} durationMs=${Date.now() - startedAt}`,
       );
-      return res.data;
+      return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(
         error,

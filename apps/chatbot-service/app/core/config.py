@@ -38,6 +38,9 @@ class Settings:
                 max(self.CHATBOT_MAX_CONTEXT_ITEMS * 2, self.CHATBOT_MAX_CONTEXT_ITEMS),
             )
         )
+        self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS: int = int(
+            os.getenv("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS", 500)
+        )
         self.CHATBOT_PROMPT_AB_TEST_ENABLED: bool = (
             os.getenv("CHATBOT_PROMPT_AB_TEST_ENABLED", "false").lower() == "true"
         )
@@ -118,6 +121,9 @@ class Settings:
         self.GROQ_TIMEOUT_SECONDS: float = float(
             os.getenv("GROQ_TIMEOUT_SECONDS", 45)
         )
+        self.CHATBOT_LLM_TIMEOUT_MS: int = int(
+            os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
+        )
         self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", 1024))
         self.GROQ_TEMPERATURE: float = float(
             os.getenv("GROQ_TEMPERATURE", 0.2)
@@ -157,6 +163,9 @@ class Settings:
 
         if self.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE must be positive")
+
+        if self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS <= 0:
+            raise RuntimeError("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS must be positive")
 
         if not isfinite(self.CHATBOT_PROMPT_AB_BUCKET_RATIO):
             raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be finite")
@@ -243,6 +252,9 @@ class Settings:
 
         if self.GROQ_TIMEOUT_SECONDS <= 0:
             raise RuntimeError("GROQ_TIMEOUT_SECONDS must be positive")
+
+        if self.CHATBOT_LLM_TIMEOUT_MS <= 0:
+            raise RuntimeError("CHATBOT_LLM_TIMEOUT_MS must be positive")
 
         if self.GROQ_MAX_TOKENS <= 0:
             raise RuntimeError("GROQ_MAX_TOKENS must be positive")
