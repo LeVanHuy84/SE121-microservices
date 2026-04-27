@@ -11,16 +11,28 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
 import {
+  AssistantContextItemDto,
   AssistantMessageDto,
+  AssistantRespondDataDto,
   AssistantRespondResponseDto,
   ChatbotClearHistoryResponseDto,
   ChatbotHistoryResponseDto,
 } from '@repo/dtos';
 import { AssistantContextService } from './assistant-context.service';
 
+type RespondCacheEntry = {
+  value: AssistantRespondDataDto;
+  expiresAt: number;
+};
+
 @Injectable()
 export class ChatbotService {
   private readonly logger = new Logger(ChatbotService.name);
+  private readonly respondCache = new Map<string, RespondCacheEntry>();
+  private readonly respondInflight = new Map<
+    string,
+    Promise<AssistantRespondDataDto>
+  >();
 
   constructor(
     private readonly configService: ConfigService,
@@ -28,38 +40,81 @@ export class ChatbotService {
     private readonly contextService: AssistantContextService,
   ) {}
 
-  async respond(userId: string, dto: AssistantMessageDto) {
+  async respond(
+    userId: string,
+    dto: AssistantMessageDto,
+  ): Promise<AssistantRespondDataDto> {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+    const normalizedMessage = this.normalizeMessage(dto.message);
+    const cacheKey = this.buildRespondCacheKey(userId, normalizedMessage);
+    const contextTimeoutMs = this.configService.get<number>(
+      'CHATBOT_CONTEXT_BUILD_TIMEOUT_MS',
+      1200,
+    );
+    const cacheEnabled = this.configService.get<boolean>(
+      'CHATBOT_RESPOND_CACHE_ENABLED',
+      true,
+    );
+    const inflightDedupEnabled = this.configService.get<boolean>(
+      'CHATBOT_RESPOND_INFLIGHT_DEDUP_ENABLED',
+      true,
+    );
+    const cacheTtlMs = this.configService.get<number>(
+      'CHATBOT_RESPOND_CACHE_TTL_MS',
+      20000,
+    );
+
+    if (cacheEnabled) {
+      const cached = this.getCachedRespond(cacheKey);
+      if (cached) {
+        this.logger.log(
+          `assistant.respond cache_hit userId=${userId} durationMs=${Date.now() - startedAt}`,
+        );
+        return cached;
+      }
+    }
+
+    if (inflightDedupEnabled) {
+      const inflight = this.respondInflight.get(cacheKey);
+      if (inflight) {
+        this.logger.log(`assistant.respond inflight_join userId=${userId}`);
+        return await inflight;
+      }
+    }
+
+    const execution = this.executeRespond({
+      userId,
+      message: dto.message,
+      normalizedMessage,
+      baseUrl,
+      internalKey,
+      timeoutMs,
+      contextTimeoutMs,
+      startedAt,
+    });
+
+    if (inflightDedupEnabled) {
+      this.respondInflight.set(cacheKey, execution);
+      try {
+        const result = await execution;
+        if (cacheEnabled) {
+          this.setCachedRespond(cacheKey, result, cacheTtlMs);
+        }
+        return result;
+      } catch (error) {
+        throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
+      } finally {
+        this.respondInflight.delete(cacheKey);
+      }
+    }
 
     try {
-      const contexts = await this.contextService.buildContexts(
-        userId,
-        dto.message,
-      );
-
-      const res = await firstValueFrom(
-        this.httpService.post<AssistantRespondResponseDto>(
-          `${baseUrl}/assistant/respond`,
-          {
-            userId,
-            message: dto.message,
-            contexts,
-          },
-          {
-            headers: {
-              'x-internal-key': internalKey,
-            },
-            timeout: timeoutMs,
-          },
-        ),
-      );
-
-      this.logger.log(
-        `assistant.respond ok userId=${userId} contexts=${contexts.length} durationMs=${Date.now() - startedAt}`,
-      );
-
-      return res.data.data;
+      const result = await execution;
+      if (cacheEnabled) {
+        this.setCachedRespond(cacheKey, result, cacheTtlMs);
+      }
+      return result;
     } catch (error) {
       throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
     }
@@ -122,6 +177,7 @@ export class ChatbotService {
       this.logger.log(
         `assistant.history.clear ok userId=${userId} durationMs=${Date.now() - startedAt}`,
       );
+      this.clearRespondCacheByUser(userId);
       return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(
@@ -130,6 +186,166 @@ export class ChatbotService {
         startedAt,
         'assistant.history.clear',
       );
+    }
+  }
+
+  private async executeRespond(params: {
+    userId: string;
+    message: string;
+    normalizedMessage: string;
+    baseUrl: string;
+    internalKey: string;
+    timeoutMs: number;
+    contextTimeoutMs: number;
+    startedAt: number;
+  }): Promise<AssistantRespondDataDto> {
+    const {
+      userId,
+      message,
+      normalizedMessage,
+      baseUrl,
+      internalKey,
+      timeoutMs,
+      contextTimeoutMs,
+      startedAt,
+    } = params;
+
+    const contextsStartedAt = Date.now();
+    const contexts = await this.resolveContextsWithinBudget(
+      userId,
+      message,
+      contextTimeoutMs,
+    );
+    const contextsDurationMs = Date.now() - contextsStartedAt;
+    const elapsedMs = Date.now() - startedAt;
+    const minDownstreamTimeoutMs = this.configService.get<number>(
+      'CHATBOT_DOWNSTREAM_MIN_TIMEOUT_MS',
+      1000,
+    );
+    const remainingBudgetMs = Math.max(
+      minDownstreamTimeoutMs,
+      timeoutMs - elapsedMs,
+    );
+
+    const res = await firstValueFrom(
+      this.httpService.post<AssistantRespondResponseDto>(
+        `${baseUrl}/assistant/respond`,
+        {
+          userId,
+          message,
+          contexts,
+        },
+        {
+          headers: {
+            'x-internal-key': internalKey,
+          },
+          timeout: remainingBudgetMs,
+        },
+      ),
+    );
+
+    this.logger.log(
+      `assistant.respond ok userId=${userId} contexts=${contexts.length} contextMs=${contextsDurationMs} downstreamTimeoutMs=${remainingBudgetMs} msgLen=${normalizedMessage.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return res.data.data;
+  }
+
+  private async resolveContextsWithinBudget(
+    userId: string,
+    message: string,
+    timeoutMs: number,
+  ): Promise<AssistantContextItemDto[]> {
+    return await new Promise<AssistantContextItemDto[]>((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.logger.warn(
+          `assistant.context timeout userId=${userId} timeoutMs=${timeoutMs}`,
+        );
+        resolve([]);
+      }, Math.max(timeoutMs, 1));
+
+      this.contextService
+        .buildContexts(userId, message)
+        .then((contexts) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(contexts);
+        })
+        .catch((error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          this.logger.warn(
+            `assistant.context fallback userId=${userId} reason=${error instanceof Error ? error.message : String(error)}`,
+          );
+          resolve([]);
+        });
+    });
+  }
+
+  private buildRespondCacheKey(userId: string, normalizedMessage: string): string {
+    return `${userId}:${normalizedMessage}`;
+  }
+
+  private normalizeMessage(message: string): string {
+    return String(message ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  }
+
+  private getCachedRespond(key: string): AssistantRespondDataDto | null {
+    const entry = this.respondCache.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.respondCache.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  private setCachedRespond(
+    key: string,
+    value: AssistantRespondDataDto,
+    ttlMs: number,
+  ) {
+    const maxEntries = this.configService.get<number>(
+      'CHATBOT_RESPOND_CACHE_MAX_ENTRIES',
+      1000,
+    );
+    this.evictExpiredRespondCache();
+    if (this.respondCache.size >= maxEntries) {
+      const oldestKey = this.respondCache.keys().next().value;
+      if (typeof oldestKey === 'string') {
+        this.respondCache.delete(oldestKey);
+      }
+    }
+
+    this.respondCache.set(key, {
+      value,
+      expiresAt: Date.now() + Math.max(1000, ttlMs),
+    });
+  }
+
+  private clearRespondCacheByUser(userId: string) {
+    const prefix = `${userId}:`;
+    for (const key of this.respondCache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.respondCache.delete(key);
+      }
+    }
+  }
+
+  private evictExpiredRespondCache() {
+    const now = Date.now();
+    for (const [key, entry] of this.respondCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.respondCache.delete(key);
+      }
     }
   }
 
