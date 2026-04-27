@@ -53,31 +53,19 @@ export class AssistantContextService {
 
     if (targets.has('post')) {
       tasks.push(
-        this.withTimeout(
-          () => this.retrievePostContexts(query, perSourceLimit),
-          retrievalTimeoutMs,
-          'post',
-        ),
+        this.retrievePostContexts(query, perSourceLimit, retrievalTimeoutMs),
       );
     }
 
     if (targets.has('group')) {
       tasks.push(
-        this.withTimeout(
-          () => this.retrieveGroupContexts(query, perSourceLimit),
-          retrievalTimeoutMs,
-          'group',
-        ),
+        this.retrieveGroupContexts(query, perSourceLimit, retrievalTimeoutMs),
       );
     }
 
     if (targets.has('user')) {
       tasks.push(
-        this.withTimeout(
-          () => this.retrieveUserContexts(query, perSourceLimit),
-          retrievalTimeoutMs,
-          'user',
-        ),
+        this.retrieveUserContexts(query, perSourceLimit, retrievalTimeoutMs),
       );
     }
 
@@ -102,29 +90,10 @@ export class AssistantContextService {
     return contexts.slice(0, globalLimit);
   }
 
-  private async withTimeout<T>(
-    fn: () => Promise<T>,
-    timeoutMs: number,
-    source: string,
-  ): Promise<T> {
-    try {
-      return await Promise.race([
-        fn(),
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error(`${source}_timeout`)), timeoutMs),
-        ),
-      ]);
-    } catch (error) {
-      this.logger.warn(
-        `assistant.context source=${source} error=${String(error)}`,
-      );
-      return [] as T;
-    }
-  }
-
   private async retrievePostContexts(
     query: string,
     limit: number,
+    timeoutMs: number,
   ): Promise<AssistantContextItemDto[]> {
     const searchResult = await this.safeSend<any>(
       this.searchClient,
@@ -135,6 +104,7 @@ export class AssistantContextService {
         order: SortOrder.DESC,
       },
       [],
+      timeoutMs,
     );
 
     const posts = Array.isArray(searchResult?.data) ? searchResult.data : [];
@@ -158,6 +128,7 @@ export class AssistantContextService {
   private async retrieveGroupContexts(
     query: string,
     limit: number,
+    timeoutMs: number,
   ): Promise<AssistantContextItemDto[]> {
     const searchResult = await this.safeSend<any>(
       this.searchClient,
@@ -168,6 +139,7 @@ export class AssistantContextService {
         order: SortOrder.DESC,
       },
       [],
+      timeoutMs,
     );
 
     const groups = Array.isArray(searchResult?.data) ? searchResult.data : [];
@@ -189,6 +161,7 @@ export class AssistantContextService {
   private async retrieveUserContexts(
     query: string,
     limit: number,
+    timeoutMs: number,
   ): Promise<AssistantContextItemDto[]> {
     const searchResult = await this.safeSend<any>(
       this.searchClient,
@@ -199,6 +172,7 @@ export class AssistantContextService {
         order: SortOrder.DESC,
       },
       [],
+      timeoutMs,
     );
 
     const users = Array.isArray(searchResult?.data) ? searchResult.data : [];
@@ -234,16 +208,12 @@ export class AssistantContextService {
     pattern: string,
     payload: unknown,
     fallback: T,
+    timeoutMs: number,
   ): Promise<T> {
     try {
       return await lastValueFrom(
         client.send<T>(pattern, payload).pipe(
-          timeout(
-            this.configService.get<number>(
-              'CHATBOT_RAG_RETRIEVAL_TIMEOUT_MS',
-              1800,
-            ),
-          ),
+          timeout(Math.max(1, timeoutMs)),
           catchError((error) => {
             this.logger.warn(
               `assistant.context pattern=${pattern} failed: ${String(error)}`,

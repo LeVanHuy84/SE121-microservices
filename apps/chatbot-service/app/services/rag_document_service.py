@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,8 @@ class RagDocumentChunk:
 class RagDocumentService:
     def __init__(self, es: Elasticsearch | None = None):
         self._es = es
+        self._index_exists_cache: bool | None = None
+        self._index_exists_cache_expires_at: float = 0.0
 
     def index_assistant_docs(self) -> dict[str, int]:
         chunks = self._load_markdown_chunks()
@@ -83,7 +86,7 @@ class RagDocumentService:
         if not normalized_query:
             return []
 
-        if not self.es.indices.exists(index=settings.RAG_INDEX_NAME):
+        if not self._index_exists_cached():
             return []
 
         query_embedding = embedding_service.encode_query(normalized_query)
@@ -165,12 +168,14 @@ class RagDocumentService:
             return
 
         try:
-            if not self.es.indices.exists(index=settings.RAG_INDEX_NAME):
+            if not self._index_exists_cached(force_refresh=True):
                 logger.info(
                     "Assistant docs RAG index %s does not exist, indexing startup docs",
                     settings.RAG_INDEX_NAME,
                 )
                 indexed = self.index_assistant_docs()
+                self._index_exists_cache = True
+                self._index_exists_cache_expires_at = time.time() + 60
                 logger.info(
                     "Assistant docs RAG index bootstrap completed: documents=%s chunks=%s",
                     indexed.get("documents", 0),
@@ -189,7 +194,7 @@ class RagDocumentService:
         return self._es
 
     def _ensure_index(self, dimensions: int):
-        if self.es.indices.exists(index=settings.RAG_INDEX_NAME):
+        if self._index_exists_cached():
             return
 
         self.es.indices.create(
@@ -212,6 +217,23 @@ class RagDocumentService:
                 }
             },
         )
+        self._index_exists_cache = True
+        self._index_exists_cache_expires_at = time.time() + 60
+
+    def _index_exists_cached(self, force_refresh: bool = False) -> bool:
+        now = time.time()
+        if (
+            not force_refresh
+            and self._index_exists_cache is not None
+            and self._index_exists_cache_expires_at > now
+        ):
+            return self._index_exists_cache
+
+        exists = self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+        self._index_exists_cache = bool(exists)
+        # Keep this short so index creation/deletion is eventually reflected.
+        self._index_exists_cache_expires_at = now + 20
+        return self._index_exists_cache
 
     def _load_markdown_chunks(self) -> list[RagDocumentChunk]:
         docs_dir = self._resolve_docs_dir()
