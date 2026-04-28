@@ -8,7 +8,6 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import {
   DEFAULT_RETRIEVAL_TARGETS,
   GROUP_RETRIEVAL_KEYWORDS,
-  POST_RETRIEVAL_KEYWORDS,
   RetrievalTarget,
   USER_RETRIEVAL_KEYWORDS,
 } from './chatbot-keywords';
@@ -51,12 +50,6 @@ export class AssistantContextService {
 
     const tasks: Array<Promise<AssistantContextItemDto[]>> = [];
 
-    if (targets.has('post')) {
-      tasks.push(
-        this.retrievePostContexts(query, perSourceLimit, retrievalTimeoutMs),
-      );
-    }
-
     if (targets.has('group')) {
       tasks.push(
         this.retrieveGroupContexts(query, perSourceLimit, retrievalTimeoutMs),
@@ -88,41 +81,6 @@ export class AssistantContextService {
     contexts = this.sortContexts(contexts);
 
     return contexts.slice(0, globalLimit);
-  }
-
-  private async retrievePostContexts(
-    query: string,
-    limit: number,
-    timeoutMs: number,
-  ): Promise<AssistantContextItemDto[]> {
-    const searchResult = await this.safeSend<any>(
-      this.searchClient,
-      'search_posts',
-      {
-        query,
-        limit,
-        order: SortOrder.DESC,
-      },
-      [],
-      timeoutMs,
-    );
-
-    const posts = Array.isArray(searchResult?.data) ? searchResult.data : [];
-    return posts.map((post: any) => ({
-      type: 'post',
-      id: String(post.id),
-      title: String(post.title ?? 'Post'),
-      content: [post.title, post.content, post.caption]
-        .filter(Boolean)
-        .join('\n'),
-      source: 'search_posts',
-      score: this.toNumericScore(post.score),
-      metadata: {
-        userId: post.userId,
-        groupId: post.groupId,
-        createdAt: post.createdAt,
-      },
-    }));
   }
 
   private async retrieveGroupContexts(
@@ -276,7 +234,6 @@ export class AssistantContextService {
     const value = this.normalizeSearchText(message);
     const targets = new Set<RetrievalTarget>();
 
-    if (this.hasAnyKeyword(value, POST_RETRIEVAL_KEYWORDS)) targets.add('post');
     if (this.hasAnyKeyword(value, GROUP_RETRIEVAL_KEYWORDS))
       targets.add('group');
     if (this.hasAnyKeyword(value, USER_RETRIEVAL_KEYWORDS)) targets.add('user');
