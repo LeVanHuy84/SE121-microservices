@@ -252,7 +252,6 @@ export class PersonalFeedService {
             ),
           )
         : Promise.resolve({}),
-
       shareIds.length
         ? firstValueFrom(
             this.postClient.send<Record<string, ReactionType>>(

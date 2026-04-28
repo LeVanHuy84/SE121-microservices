@@ -4,7 +4,6 @@ import { ClientProxy } from '@nestjs/microservices';
 import {
   BaseUserDTO,
   ProfileRecommendationCandidateDTO,
-  SemanticRecommendationCandidateDTO,
   UserResponseDTO,
 } from '@repo/dtos';
 import Redis from 'ioredis';
@@ -93,32 +92,6 @@ export class UserClientService {
 
     this.logger.debug(
       `USER_SERVICE profile recommendation candidates resolved: userId=${userId} limit=${limit} returned=${candidates?.length ?? 0} durationMs=${Date.now() - startedAt}`,
-    );
-
-    return Array.isArray(candidates) ? candidates : [];
-  }
-
-  async getSemanticRecommendationCandidates(
-    userId: string,
-    limit: number,
-  ): Promise<SemanticRecommendationCandidateDTO[]> {
-    if (!userId || !Number.isFinite(limit) || limit <= 0) {
-      return [];
-    }
-
-    const startedAt = Date.now();
-    const candidates = await lastValueFrom(
-      this.userClient.send<SemanticRecommendationCandidateDTO[]>(
-        'getSemanticRecommendationCandidates',
-        {
-          userId,
-          limit,
-        },
-      ),
-    );
-
-    this.logger.debug(
-      `USER_SERVICE semantic recommendation candidates resolved: userId=${userId} limit=${limit} returned=${candidates?.length ?? 0} durationMs=${Date.now() - startedAt}`,
     );
 
     return Array.isArray(candidates) ? candidates : [];

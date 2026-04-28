@@ -8,6 +8,8 @@ import {
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
 import { ChatPushService } from './chat-push.service';
+import { NotificationProcessor } from './notification.proccessor';
+import { NOTIFICATION_QUEUE } from './notification.jobs';
 import { NotificationService } from './notification.service';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
@@ -24,20 +26,27 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        redis: {
-          host: configService.get('REDIS_HOST') || 'localhost',
-          port: configService.get('REDIS_PORT')
-            ? parseInt(configService.get('REDIS_PORT'), 10)
-            : 6379,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const redisPort = configService.get<string>('REDIS_PORT');
+
+        return {
+          redis: {
+            host: configService.get('REDIS_HOST') || 'localhost',
+            port: redisPort ? parseInt(redisPort, 10) : 6379,
+          },
+        };
+      },
     }),
     BullModule.registerQueue({
-      name: 'notifications',
+      name: NOTIFICATION_QUEUE,
     }),
   ],
   controllers: [NotificationController],
-  providers: [NotificationService, ChatPushService, TemplateService],
+  providers: [
+    NotificationService,
+    ChatPushService,
+    NotificationProcessor,
+    TemplateService,
+  ],
 })
 export class NotificationModule {}

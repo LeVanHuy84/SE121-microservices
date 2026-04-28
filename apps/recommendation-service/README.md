@@ -1,143 +1,107 @@
 # Recommendation Service
 
-`recommendation-service` la microservice Python/FastAPI dung de cham `semantic similarity` cho bai toan goi y ket ban.
+Python/FastAPI microservice that owns friend recommendation retrieval and semantic ranking.
 
-Service nay khong con giu business logic ranking tong hop. `social-service` van la noi:
+Current architecture is centralized in this service:
 
-- sinh candidate
-- enforce hard constraints
-- nhan semantic profile text va cham semantic similarity score
-- diversity rerank
-- paginate theo snapshot
+- build candidates from online ANN retrieval (pgvector)
+- apply graph projection filtering (exclude self, blocked, existing friend edges)
+- rerank with semantic model scores and graph feature boosts
+- apply global fallback when primary retrieval is empty or insufficient
+- return cursor-based paginated result
 
-`recommendation-service` chi lam 3 viec:
+`social-service` is now a thin orchestrator that calls `/recommend/query` and hydrates profile cards.
 
-- nhan `viewerProfileText`
-- nhan `candidateProfileText` cua top K candidate
-- tra ve `modelScore` trong khoang `[0, 1]`
+## Data Flow
 
-## Quyết định kiến trúc
+1. User/social changes publish profile and graph events.
+2. `recommendation-service` consumes events and updates projection + embeddings.
+3. Processor refreshes global fallback materialization.
+4. Query pipeline serves online-first recommendation requests.
 
-### 1. Chi giu mot vai tro: semantic scorer
+## Retrieval Strategy
 
-Service nay khong con route `/recommend/friends`.
+Primary path:
 
-Ly do:
+- semantic online retrieval from pgvector (`source=semantic_online`)
+- graph feature rerank from pair features such as mutual friends and common groups
+- Redis query cache with event-driven invalidation
+- Redis query session window for pagination so follow-up pages reuse the first
+  page's candidate window instead of re-running semantic retrieval
 
-- neu ca Python service va NestJS service cung giu cong thuc ranking rieng, he thong se bi split-brain
-- score cuoi cung can duoc tune tai mot cho duy nhat
-- bai toan friend recommendation can graph constraints va attribution event o `social-service`
+Fallback path:
 
-### 2. Dung embedding model da ngon ngu thay vi cross-encoder
-
-Default model:
-
-- `intfloat/multilingual-e5-base`
-
-Ly do:
-
-- phu hop hon voi bai toan so khop profile text viewer-candidate
-- ho tro da ngon ngu, phu hop voi profile tieng Viet + tieng Anh
-- latency va memory hop ly hon cac model large
-- dung truc tiep voi `transformers`, khong can remote code
-
-### 3. Dung asymmetric formatting
-
-Viewer va candidate khong doi xung:
-
-- viewer dong vai tro `query`
-- candidate dong vai tro `document`
-
-Vi vay service format input theo huong retrieval:
-
-- viewer: `query: ...`
-- candidate: `passage: ...`
-
-Neu sau nay doi sang `multilingual-e5-large-instruct`, query se duoc format thanh:
-
-- `Instruct: ...`
-- `Query: ...`
-
-### 4. Khong map cosine similarity bang `(x + 1) / 2`
-
-Embedding cosine thuong nam trong mot dai rat hep. Neu map truc tiep bang `(x + 1) / 2`, score se bi nen va kho phan tach candidate.
-
-Vi vay service dung calibration:
-
-```text
-normalized = clamp((cosine - floor) / (ceiling - floor), 0, 1)
-```
-
-Mac dinh:
-
-- `RECOMMENDATION_SCORE_FLOOR=0.55`
-- `RECOMMENDATION_SCORE_CEILING=0.9`
-
-Day la gia tri khoi dau de quan sat phan bo score trong production va tune tiep.
-
-### 5. Service tu cham diem semantic
-
-`recommendation-service` khong nhan heuristic score de override ket qua model nua.
-
-No chi nhan:
-
-- `viewerProfileText`
-- `candidateProfileText`
-- social context toi thieu de sinh reason
-
-Va tu sinh `modelScore` tu embedding model.
+- global fallback table (`recommendation_global_fallback_candidates`) for cold start
+  and degraded online retrieval (`source=global_fallback`)
+- hybrid response when semantic online provides only partial page (`source=hybrid`)
 
 ## API
 
-Tat ca endpoint deu yeu cau header:
+All endpoints require header `x-internal-key`.
 
-- `x-internal-key`
+### POST /recommend/query
 
-### POST `/recommend/rerank`
+Main recommendation endpoint.
 
-Body:
+Request fields:
 
-```json
-{
-  "viewerId": "user-1",
-  "viewerProfileText": "name: Linh Nguyen\nbio: mobile engineer, photography, football",
-  "candidates": [
-    {
-      "candidateId": "user-2",
-      "mutualFriends": 3,
-      "commonGroups": 2,
-      "candidateProfileText": "name: Bao Tran\nbio: builds mobile apps and joins football groups"
-    }
-  ]
-}
-```
+- `viewerId` (required)
+- `limit` (default 20)
+- `cursor` (optional)
+- `viewerProfileText` (optional fallback when viewer embedding text is missing)
 
-Response:
+Response contains:
 
-```json
-{
-  "success": true,
-  "data": {
-    "model": {
-      "modelName": "intfloat/multilingual-e5-base",
-      "device": "cpu",
-      "scoreFloor": "0.55",
-      "scoreCeiling": "0.9"
-    },
-    "scores": [
-      {
-        "candidateId": "user-2",
-        "modelScore": 0.71,
-        "reason": "Ho so ngu nghia kha phu hop"
-      }
-    ]
-  }
-}
-```
+- `source`, `scoreVersion`, `candidateCount`
+- ordered `candidates` with `retrievalScore`, `modelScore`, `finalScore`, `reasonCodes`, `rank`
+- `nextCursor`, `hasNextPage`; semantic pages may return a Redis-backed
+  session cursor (`source=semantic_session`)
 
-## Cau hinh
+### GET /ready
+
+Readiness endpoint for model/runtime health.
+
+### GET /recommend/query-cache
+
+Internal cache diagnostics endpoint. Returns cache backend, TTL, max entries,
+entry count, viewer count, hits, misses, sets, evictions, invalidations, clears,
+and Redis errors when Redis is enabled.
+
+Current recommendation API surface is query-first:
+
+- `POST /recommend/query`
+- `GET /recommend/query-cache`
+- `GET /health`
+- `GET /ready`
+
+## Storage and Migrations
+
+- PostgreSQL + SQLAlchemy + Alembic
+- pgvector extension for vector search
+- HNSW index over `profile_embeddings.embedding_vector`
+
+Migrations:
+
+- `20260410_0001_initial_recommendation_state.py`
+- `20260413_0004_add_pgvector_profile_embeddings.py`
+- `20260413_0005_add_global_fallback_candidates.py`
+- `20260413_0006_segment_global_fallback_candidates.py`
+- `20260413_0007_drop_recommendation_outbox.py`
+- `20260413_0008_add_graph_event_journal_and_pair_features.py`
+- `20260414_0009_drop_precomputed_snapshots.py`
+
+## Environment Variables
+
+Core:
 
 - `INTERNAL_SERVICE_KEY`
+- `HOST`
+- `PORT`
+- `RELOAD`
+- `DATABASE_URL`
+
+Model:
+
 - `RECOMMENDATION_MODEL_NAME`
 - `RECOMMENDATION_MAX_LENGTH`
 - `RECOMMENDATION_BATCH_SIZE`
@@ -145,12 +109,53 @@ Response:
 - `RECOMMENDATION_QUERY_INSTRUCTION`
 - `RECOMMENDATION_SCORE_FLOOR`
 - `RECOMMENDATION_SCORE_CEILING`
-- `HOST`
-- `PORT`
-- `RELOAD`
 
-## Ghi chu van hanh
+Pipeline:
 
-- Warmup model tai startup de giam request lan dau
-- Batch score candidate trong mot request de giam chi phi inference
-- Service nay phu hop nhat khi `social-service` da cat top K candidate truoc khi goi sang Python
+- `RECOMMENDATION_QUERY_RERANK_TOP_K`
+- `RECOMMENDATION_QUERY_RERANK_TOP_K_CPU`
+- `RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES`
+- `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS`
+- `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES`
+- `RECOMMENDATION_QUERY_SESSION_TTL_SECONDS`
+- `RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_HOST`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_PORT`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_DB`
+- `RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX`
+- `RECOMMENDATION_QUERY_MODEL_WEIGHT`
+- `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT`
+- `RECOMMENDATION_QUERY_GRAPH_WEIGHT`
+- `RECOMMENDATION_MUTUAL_FRIEND_CAP`
+- `RECOMMENDATION_COMMON_GROUP_CAP`
+- `RECOMMENDATION_GLOBAL_FALLBACK_TOP_K`
+- `RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS`
+
+Messaging:
+
+- `KAFKA_BROKERS`
+- `KAFKA_REQUIRED` (`true` to fail startup if Kafka is unavailable, default `false`)
+- `KAFKA_CLIENT_ID`
+- `KAFKA_GROUP_ID`
+- `KAFKA_TOPIC_INIT_RETRIES`
+- `KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS`
+- `KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS`
+- `RECOMMENDATION_PROFILE_TOPIC`
+- `RECOMMENDATION_GRAPH_TOPIC`
+- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
+
+## Dev Commands
+
+- `npm run install`
+- `npm run model:warmup`
+- `npm run db:upgrade`
+- `npm run start:dev`
+- `npm run test`
+- `npm run lint`
+- `npm run format`
+
+## Operational Notes
+
+- Service warms model at startup to avoid first-request latency spikes.
+- Query pipeline is deterministic and score-versioned for easier rollout tracking.
+- Fallback materialization is segment-aware (`locale::language`) for future targeting.

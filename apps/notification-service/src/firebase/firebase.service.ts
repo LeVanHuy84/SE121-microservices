@@ -1,8 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
-import { ServiceAccount } from 'firebase-admin';
+import type { ServiceAccount } from 'firebase-admin';
 import * as path from 'path';
+import { NotificationDeliveryError } from 'src/notification/notification-delivery.error';
 
 export interface FirebasePushOptions {
   collapseKey?: string;
@@ -14,10 +15,32 @@ export interface FirebasePushOptions {
   apnsSummaryArgCount?: number;
 }
 
+type MessagingErrorLike = Error & {
+  code?: string;
+  errorInfo?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 @Injectable()
 export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FirebaseService.name);
-  private firebaseApp: admin.app.App;
+  private readonly partialRetryAttempts = 2;
+  private readonly invalidTokenCodes = new Set([
+    'messaging/invalid-registration-token',
+    'messaging/registration-token-not-registered',
+  ]);
+  private readonly retryableErrorCodes = new Set([
+    'app/network-error',
+    'messaging/internal-error',
+    'messaging/server-unavailable',
+    'messaging/unknown-error',
+    'messaging/quota-exceeded',
+    'messaging/device-message-rate-exceeded',
+    'messaging/topics-message-rate-exceeded',
+  ]);
+  private firebaseApp?: admin.app.App;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -36,67 +59,6 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private initializeFirebase() {
-    try {
-      // Check if Firebase app exists and is still valid
-      if (admin.apps.length > 0) {
-        const existingApp = admin.app();
-        // Check if app is not deleted
-        try {
-          existingApp.name; // This will throw if app is deleted
-          this.firebaseApp = existingApp;
-          this.logger.log('Using existing Firebase Admin SDK instance');
-          return;
-        } catch {
-          // App exists but is deleted, need to reinitialize
-          this.logger.warn('Existing Firebase app is deleted, reinitializing...');
-        }
-      }
-
-      const serviceAccountPath = this.configService.get<string>(
-        'FIREBASE_SERVICE_ACCOUNT_PATH'
-      );
-      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
-
-      // Option 1: Load from file path
-      if (serviceAccountPath) {
-        // Resolve path relative to project root (process.cwd())
-        const resolvedPath = path.isAbsolute(serviceAccountPath)
-          ? serviceAccountPath
-          : path.resolve(process.cwd(), serviceAccountPath);
-        const serviceAccount = require(resolvedPath) as ServiceAccount;
-        this.firebaseApp = admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-        });
-      }
-      // Option 2: Load from environment variables
-      else if (projectId) {
-        const serviceAccount: ServiceAccount = {
-          projectId: this.configService.get<string>('FIREBASE_PROJECT_ID'),
-          clientEmail: this.configService.get<string>(
-            'FIREBASE_CLIENT_EMAIL'
-          ),
-          privateKey: this.configService
-            .get<string>('FIREBASE_PRIVATE_KEY')
-            ?.replace(/\\n/g, '\n'),
-        };
-
-        this.firebaseApp = admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-        });
-      } else {
-        this.logger.warn(
-          'Firebase credentials not configured. FCM notifications will be disabled.'
-        );
-        return;
-      }
-
-      this.logger.log('Firebase Admin SDK initialized successfully');
-    } catch (error) {
-      this.logger.error('Failed to initialize Firebase Admin SDK', error);
-    }
-  }
-
   async sendToDevice(
     token: string,
     title: string,
@@ -104,12 +66,10 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     data?: Record<string, string>,
     options?: FirebasePushOptions,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.firebaseApp) {
-      return { success: false, error: 'Firebase not initialized' };
-    }
+    this.ensureInitialized();
 
     try {
-      const message: admin.messaging.Message = {
+      const response = await admin.messaging().send({
         notification: {
           title,
           body,
@@ -145,14 +105,16 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
             },
           },
         },
-      };
+      });
 
-      const response = await admin.messaging().send(message);
       this.logger.log(`Successfully sent message: ${response}`);
       return { success: true };
     } catch (error) {
-      this.logger.error('Error sending FCM message:', error);
-      return { success: false, error: error.message };
+      throw this.createDeliveryError(
+        'Error sending FCM message',
+        this.classifyMessagingError(error),
+        error,
+      );
     }
   }
 
@@ -167,22 +129,20 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     failureCount: number;
     invalidTokens: string[];
   }> {
-    if (!this.firebaseApp) {
-      return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
-    }
+    this.ensureInitialized();
 
     if (tokens.length === 0) {
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
     try {
-      const message: admin.messaging.MulticastMessage = {
+      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
         notification: {
           title,
           body,
         },
         data: data || {},
-        tokens,
+        tokens: batch,
         android: {
           priority: 'high',
           collapseKey: options?.collapseKey,
@@ -212,40 +172,56 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
             },
           },
         },
-      };
-
-      const response = await admin.messaging().sendEachForMulticast(message);
-
-      // Collect invalid tokens
-      const invalidTokens: string[] = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success && resp.error) {
-          const errorCode = resp.error.code;
-          if (
-            errorCode === 'messaging/invalid-registration-token' ||
-            errorCode === 'messaging/registration-token-not-registered'
-          ) {
-            invalidTokens.push(tokens[idx]);
-          }
-        }
-      });
-
+      }));
       this.logger.log(
-        `Sent to ${response.successCount}/${tokens.length} devices`
+        `Sent to ${deliveryResult.successCount}/${tokens.length} devices`,
       );
 
-      return {
-        successCount: response.successCount,
-        failureCount: response.failureCount,
-        invalidTokens,
-      };
+      return deliveryResult;
     } catch (error) {
-      this.logger.error('Error sending multicast FCM message:', error);
-      return {
-        successCount: 0,
-        failureCount: tokens.length,
-        invalidTokens: [],
-      };
+      throw this.createDeliveryError(
+        'Error sending multicast FCM message',
+        this.classifyMessagingError(error),
+        error,
+      );
+    }
+  }
+
+  async sendDataOnlyToMultipleDevices(
+    tokens: string[],
+    data: Record<string, string>,
+    options?: Pick<FirebasePushOptions, 'collapseKey'>,
+  ): Promise<{
+    successCount: number;
+    failureCount: number;
+    invalidTokens: string[];
+  }> {
+    this.ensureInitialized();
+
+    if (tokens.length === 0) {
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
+    try {
+      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
+        data,
+        tokens: batch,
+        android: {
+          priority: 'high',
+          collapseKey: options?.collapseKey,
+        },
+      }));
+      this.logger.log(
+        `Sent data-only push to ${deliveryResult.successCount}/${tokens.length} devices`,
+      );
+
+      return deliveryResult;
+    } catch (error) {
+      throw this.createDeliveryError(
+        'Error sending data-only multicast FCM message',
+        this.classifyMessagingError(error),
+        error,
+      );
     }
   }
 
@@ -253,66 +229,267 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     topic: string,
     title: string,
     body: string,
-    data?: Record<string, string>
+    data?: Record<string, string>,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.firebaseApp) {
-      return { success: false, error: 'Firebase not initialized' };
-    }
+    this.ensureInitialized();
 
     try {
-      const message: admin.messaging.Message = {
+      const response = await admin.messaging().send({
         notification: {
           title,
           body,
         },
         data: data || {},
         topic,
-      };
+      });
 
-      const response = await admin.messaging().send(message);
       this.logger.log(`Successfully sent topic message: ${response}`);
       return { success: true };
     } catch (error) {
-      this.logger.error('Error sending FCM topic message:', error);
-      return { success: false, error: error.message };
+      throw this.createDeliveryError(
+        'Error sending FCM topic message',
+        this.classifyMessagingError(error),
+        error,
+      );
     }
   }
 
   async subscribeToTopic(
     tokens: string[],
-    topic: string
+    topic: string,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.firebaseApp) {
-      return { success: false, error: 'Firebase not initialized' };
-    }
+    this.ensureInitialized();
 
     try {
       await admin.messaging().subscribeToTopic(tokens, topic);
       this.logger.log(`Subscribed ${tokens.length} devices to topic: ${topic}`);
       return { success: true };
     } catch (error) {
-      this.logger.error('Error subscribing to topic:', error);
-      return { success: false, error: error.message };
+      throw this.createDeliveryError(
+        'Error subscribing to topic',
+        this.classifyMessagingError(error),
+        error,
+      );
     }
   }
 
   async unsubscribeFromTopic(
     tokens: string[],
-    topic: string
+    topic: string,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.firebaseApp) {
-      return { success: false, error: 'Firebase not initialized' };
-    }
+    this.ensureInitialized();
 
     try {
       await admin.messaging().unsubscribeFromTopic(tokens, topic);
       this.logger.log(
-        `Unsubscribed ${tokens.length} devices from topic: ${topic}`
+        `Unsubscribed ${tokens.length} devices from topic: ${topic}`,
       );
       return { success: true };
     } catch (error) {
-      this.logger.error('Error unsubscribing from topic:', error);
-      return { success: false, error: error.message };
+      throw this.createDeliveryError(
+        'Error unsubscribing from topic',
+        this.classifyMessagingError(error),
+        error,
+      );
     }
+  }
+
+  private initializeFirebase() {
+    try {
+      if (admin.apps.length > 0) {
+        const existingApp = admin.app();
+
+        try {
+          existingApp.name;
+          this.firebaseApp = existingApp;
+          this.logger.log('Using existing Firebase Admin SDK instance');
+          return;
+        } catch {
+          this.logger.warn('Existing Firebase app is deleted, reinitializing...');
+        }
+      }
+
+      const serviceAccountPath = this.configService.get<string>(
+        'FIREBASE_SERVICE_ACCOUNT_PATH',
+      );
+      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
+
+      if (serviceAccountPath) {
+        const resolvedPath = path.isAbsolute(serviceAccountPath)
+          ? serviceAccountPath
+          : path.resolve(process.cwd(), serviceAccountPath);
+        const serviceAccount = require(resolvedPath) as ServiceAccount;
+        this.firebaseApp = admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+      } else if (projectId) {
+        const serviceAccount: ServiceAccount = {
+          projectId: this.configService.get<string>('FIREBASE_PROJECT_ID'),
+          clientEmail: this.configService.get<string>('FIREBASE_CLIENT_EMAIL'),
+          privateKey: this.configService
+            .get<string>('FIREBASE_PRIVATE_KEY')
+            ?.replace(/\\n/g, '\n'),
+        };
+
+        this.firebaseApp = admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+      } else {
+        this.logger.warn(
+          'Firebase credentials not configured. FCM notifications will be disabled.',
+        );
+      }
+
+      if (this.firebaseApp) {
+        this.logger.log('Firebase Admin SDK initialized successfully');
+      }
+    } catch (error) {
+      this.logger.error('Failed to initialize Firebase Admin SDK', error);
+    }
+  }
+
+  private ensureInitialized() {
+    if (!this.firebaseApp) {
+      throw new NotificationDeliveryError('Firebase not initialized', {
+        code: 'firebase/not-initialized',
+        retryable: false,
+      });
+    }
+  }
+
+  private buildMulticastResult(
+    tokens: string[],
+    response: admin.messaging.BatchResponse,
+  ) {
+    const invalidTokens: string[] = [];
+    let retryableFailureCount = 0;
+    const retryableTokens: string[] = [];
+    let nonRetryableFailureCount = 0;
+
+    response.responses.forEach((result, index) => {
+      if (!result.success && result.error) {
+        const classification = this.classifyMessagingError(result.error);
+
+        if (classification.invalidToken) {
+          invalidTokens.push(tokens[index]);
+          return;
+        }
+
+        if (classification.retryable) {
+          retryableFailureCount += 1;
+          retryableTokens.push(tokens[index]);
+          return;
+        }
+
+        nonRetryableFailureCount += 1;
+      }
+    });
+
+    return {
+      successCount: response.successCount,
+      failureCount: invalidTokens.length + retryableFailureCount + nonRetryableFailureCount,
+      invalidTokens,
+      retryableTokens,
+    };
+  }
+
+  private async sendMulticastWithRetry(
+    tokens: string[],
+    buildMessage: (tokens: string[]) => admin.messaging.MulticastMessage,
+  ) {
+    const invalidTokens: string[] = [];
+    let successCount = 0;
+    let failureCount = 0;
+    let pendingTokens = [...tokens];
+
+    for (let attempt = 0; attempt <= this.partialRetryAttempts; attempt += 1) {
+      const response = await admin.messaging().sendEachForMulticast(
+        buildMessage(pendingTokens),
+      );
+      const result = this.buildMulticastResult(pendingTokens, response);
+
+      successCount += result.successCount;
+      failureCount += result.failureCount - result.retryableTokens.length;
+      invalidTokens.push(...result.invalidTokens);
+
+      if (result.retryableTokens.length === 0) {
+        return {
+          successCount,
+          failureCount,
+          invalidTokens,
+        };
+      }
+
+      if (attempt === this.partialRetryAttempts) {
+        if (successCount === 0) {
+          throw new NotificationDeliveryError(
+            `FCM multicast failed for all ${tokens.length} devices`,
+            {
+              code: 'messaging/multicast-retryable-failure',
+              retryable: true,
+              invalidTokens,
+            },
+          );
+        }
+
+        failureCount += result.retryableTokens.length;
+        return {
+          successCount,
+          failureCount,
+          invalidTokens,
+        };
+      }
+
+      pendingTokens = result.retryableTokens;
+      await this.delay((attempt + 1) * 1000);
+    }
+
+    return {
+      successCount,
+      failureCount,
+      invalidTokens,
+    };
+  }
+
+  private classifyMessagingError(error: unknown) {
+    const firebaseError = error as MessagingErrorLike | undefined;
+    const code = firebaseError?.code ?? firebaseError?.errorInfo?.code;
+    const message =
+      firebaseError?.message ??
+      firebaseError?.errorInfo?.message ??
+      'Unknown Firebase messaging error';
+
+    return {
+      code,
+      message,
+      retryable: code ? this.retryableErrorCodes.has(code) : false,
+      invalidToken: code ? this.invalidTokenCodes.has(code) : false,
+    };
+  }
+
+  private createDeliveryError(
+    prefix: string,
+    classification: {
+      code?: string;
+      message: string;
+      retryable: boolean;
+    },
+    cause: unknown,
+  ) {
+    const message = classification.code
+      ? `${prefix}: ${classification.code}`
+      : `${prefix}: ${classification.message}`;
+
+    this.logger.error(message, cause);
+
+    return new NotificationDeliveryError(message, {
+      code: classification.code,
+      retryable: classification.retryable,
+      cause,
+    });
+  }
+
+  private delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

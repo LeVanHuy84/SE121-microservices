@@ -7,76 +7,80 @@ import { GroupClientService } from '../src/client/group/group-client.service';
 import { RecommendationClientService } from '../src/client/recommendation/recommendation-client.service';
 import { UserClientService } from '../src/client/user/user-client.service';
 import { RecentActivityBufferService } from '../src/event/recent-activity.buffer.service';
-import { CandidateSourceService } from '../src/friendship/recommendation/candidate-source.service';
-import { RecommendationBaselineRankerService } from '../src/friendship/recommendation/recommendation-baseline-ranker.service';
-import { RecommendationDiversityService } from '../src/friendship/recommendation/recommendation-diversity.service';
-import { RecommendationFeatureService } from '../src/friendship/recommendation/recommendation-feature.service';
 import { RecommendationHydrationService } from '../src/friendship/recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from '../src/friendship/recommendation/recommendation-query.service';
-import { RecommendationSnapshotService } from '../src/friendship/recommendation/recommendation-snapshot.service';
 import { RecommendationTrackingService } from '../src/friendship/recommendation/recommendation-tracking.service';
 import { SOCIAL_GRAPH_REPOSITORY } from '../src/friendship/repositories/social-graph.repository';
-import {
-  buildMultiUserRecommendationFixture,
-  InMemoryRedis,
-  resolveFixtureUsers,
-} from './recommendation-test.helpers';
-
-type RecommendationRow = {
-  rank: number;
-  candidateId: string;
-  profileScore: number;
-  semanticScore: number;
-  baseScore: number;
-  modelScore: number;
-  finalScore: number;
-};
+import { InMemoryRedis } from './recommendation-test.helpers';
 
 const liveDescribe =
   process.env.RUN_LIVE_SOCIAL_RECOMMENDATION_COMPARE === '1'
     ? describe
     : describe.skip;
 
-liveDescribe('Recommendation live baseline vs AI comparison', () => {
-  const fixture = buildMultiUserRecommendationFixture();
-
+liveDescribe('Recommendation live baseline vs live query comparison', () => {
   const createController = async (
     useLiveRecommendationClient: boolean,
   ): Promise<FriendshipController> => {
-    const recommendFriends = jest.fn().mockResolvedValue({
-      data: fixture.graphCandidates,
+    const queryCandidates = jest.fn().mockResolvedValue({
+      viewerId: 'viewer',
+      generatedAt: '2026-04-13T10:00:00.000Z',
+      source: 'hybrid',
+      scoreVersion: 'recommendation-query-pipeline-v1',
+      candidateCount: 4,
       nextCursor: null,
       hasNextPage: false,
+      candidates: [
+        {
+          candidateId: 'semantic-peer',
+          source: 'semantic_online',
+          retrievalScore: 0.82,
+          modelScore: 0.2,
+          finalScore: 0.51,
+          scoreVersion: 'recommendation-query-pipeline-v1',
+          reasonCodes: ['semantic_retrieval'],
+          rank: 1,
+        },
+        {
+          candidateId: 'community-host',
+          source: 'global_fallback',
+          retrievalScore: 0.76,
+          modelScore: 0.15,
+          finalScore: 0.46,
+          scoreVersion: 'recommendation-query-pipeline-v1',
+          reasonCodes: ['global_fallback'],
+          rank: 2,
+        },
+        {
+          candidateId: 'runner-a',
+          source: 'semantic_online',
+          retrievalScore: 0.63,
+          modelScore: 0.1,
+          finalScore: 0.38,
+          scoreVersion: 'recommendation-query-pipeline-v1',
+          reasonCodes: ['semantic_retrieval'],
+          rank: 3,
+        },
+        {
+          candidateId: 'deep-graph',
+          source: 'global_fallback',
+          retrievalScore: 0.42,
+          modelScore: 0.05,
+          finalScore: 0.23,
+          scoreVersion: 'recommendation-query-pipeline-v1',
+          reasonCodes: ['global_fallback'],
+          rank: 4,
+        },
+      ],
     });
-    const summarizeCandidates = jest
-      .fn()
-      .mockResolvedValue(fixture.summarizedGroupCandidates);
-    const recordRecommendationEvents = jest.fn();
-    const getCommonGroupCounts = jest
-      .fn()
-      .mockResolvedValue(fixture.commonGroupCounts);
-    const getCommonGroupNames = jest
-      .fn()
-      .mockResolvedValue(fixture.commonGroupNames);
-    const getGroupRecommendationCandidates = jest
-      .fn()
-      .mockResolvedValue(fixture.groupCandidates);
-    const getProfileRecommendationCandidates = jest
-      .fn()
-      .mockResolvedValue(fixture.profileCandidates);
-    const getSemanticRecommendationCandidates = jest
-      .fn()
-      .mockResolvedValue(fixture.semanticCandidates);
-    const getUsers = jest.fn().mockImplementation(
-      (ids: string[], projection: 'base' | 'full') =>
-        Promise.resolve(
-          projection === 'full'
-            ? resolveFixtureUsers(fixture.fullUsers, ids)
-            : resolveFixtureUsers(fixture.baseUsers, ids),
-        ),
-    );
-    const addRecentActivity = jest.fn().mockResolvedValue(undefined);
-    const clearActivity = jest.fn().mockResolvedValue(undefined);
+
+    const getUsers = jest.fn().mockResolvedValue({
+      'semantic-peer': { id: 'semantic-peer', firstName: 'Minh', lastName: 'Le', avatarUrl: '' },
+      'community-host': { id: 'community-host', firstName: 'Giang', lastName: 'Ngo', avatarUrl: '' },
+      'runner-a': { id: 'runner-a', firstName: 'An', lastName: 'Pham', avatarUrl: '' },
+      'deep-graph': { id: 'deep-graph', firstName: 'Hoang', lastName: 'Tran', avatarUrl: '' },
+    });
+
     const configValues = new Map<string, string | number | undefined>([
       [
         'RECOMMENDATION_SERVICE_URL',
@@ -87,61 +91,47 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
         process.env.INTERNAL_SERVICE_KEY ?? 'recommendation-internal-key-123',
       ],
       ['RECOMMENDATION_SERVICE_TIMEOUT_MS', 30000],
-      ['FRIEND_RECOMMEND_AI_WEIGHT', '0.5'],
-      ['FRIEND_RECOMMEND_AI_TOP_K', '8'],
-      ['FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT', '0.15'],
-      ['FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE', '1'],
     ]);
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [FriendshipController],
       providers: [
         FriendshipService,
-        CandidateSourceService,
-        RecommendationBaselineRankerService,
-        RecommendationDiversityService,
-        RecommendationFeatureService,
         RecommendationHydrationService,
         RecommendationQueryService,
-        RecommendationSnapshotService,
         RecommendationTrackingService,
         useLiveRecommendationClient
           ? RecommendationClientService
           : {
               provide: RecommendationClientService,
               useValue: {
-                rerankCandidates: jest.fn().mockResolvedValue({}),
+                queryCandidates,
               },
             },
-        {
-          provide: SOCIAL_GRAPH_REPOSITORY,
-          useValue: {
-            recommendFriends,
-            summarizeCandidates,
-            recordRecommendationEvents,
-          },
-        },
-        {
-          provide: GroupClientService,
-          useValue: {
-            getCommonGroupCounts,
-            getCommonGroupNames,
-            getGroupRecommendationCandidates,
-          },
-        },
         {
           provide: UserClientService,
           useValue: {
             getUsers,
-            getProfileRecommendationCandidates,
-            getSemanticRecommendationCandidates,
           },
         },
         {
           provide: RecentActivityBufferService,
           useValue: {
-            addRecentActivity,
-            clearActivity,
+            addRecentActivity: jest.fn(),
+            clearActivity: jest.fn(),
+          },
+        },
+        {
+          provide: SOCIAL_GRAPH_REPOSITORY,
+          useValue: {
+            recordRecommendationEvents: jest.fn(),
+            summarizeCandidates: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: GroupClientService,
+          useValue: {
+            getCommonGroupCounts: jest.fn().mockResolvedValue({}),
           },
         },
         {
@@ -161,67 +151,35 @@ liveDescribe('Recommendation live baseline vs AI comparison', () => {
     return moduleRef.get(FriendshipController);
   };
 
-  const toRows = (data: Array<any>): RecommendationRow[] =>
-    data.map((candidate, index) => ({
-      rank: index + 1,
-      candidateId: candidate.id,
-      profileScore: candidate.profileMatchScore ?? 0,
-      semanticScore: candidate.semanticMatchScore ?? 0,
-      baseScore: candidate.baseScore ?? 0,
-      modelScore: candidate.modelScore ?? 0,
-      finalScore: candidate.score ?? 0,
-    }));
-
-  it('should compare baseline-only ranking with live AI ranking on the same fixture', async () => {
+  it('should compare mocked baseline with live query pipeline output', async () => {
     const baselineController = await createController(false);
     const liveController = await createController(true);
 
     const baseline = await baselineController.recommendFriends({
-      userId: fixture.viewerId,
-      query: { limit: fixture.expectedOrder.length },
+      userId: 'viewer',
+      query: { limit: 4 },
     });
     const live = await liveController.recommendFriends({
-      userId: fixture.viewerId,
-      query: { limit: fixture.expectedOrder.length },
+      userId: 'viewer',
+      query: { limit: 4 },
     });
 
-    const baselineRows = toRows(baseline.data);
-    const liveRows = toRows(live.data);
     const baselineRanks = new Map(
-      baselineRows.map((row) => [row.candidateId, row.rank]),
+      baseline.data.map((candidate, index) => [candidate.id, index + 1]),
     );
-    const comparisonRows = liveRows.map((row) => ({
-      candidateId: row.candidateId,
-      baselineRank: baselineRanks.get(row.candidateId) ?? 0,
-      finalRank: row.rank,
-      deltaRank: (baselineRanks.get(row.candidateId) ?? 0) - row.rank,
-      profileScore: row.profileScore,
-      semanticScore: row.semanticScore,
-      baseScore: row.baseScore,
-      modelScore: row.modelScore,
-      finalScore: row.finalScore,
+    const comparisonRows = live.data.map((candidate, index) => ({
+      candidateId: candidate.id,
+      baselineRank: baselineRanks.get(candidate.id) ?? 0,
+      liveRank: index + 1,
+      rankDelta: (baselineRanks.get(candidate.id) ?? 0) - (index + 1),
+      retrievalScore: candidate.retrievalScore ?? 0,
+      modelScore: candidate.modelScore ?? 0,
+      finalScore: candidate.score ?? 0,
     }));
 
-    console.log('\nBaseline vs live AI comparison');
+    console.log('\nBaseline vs live query-only comparison');
     console.table(comparisonRows);
 
-    const changedCandidates = comparisonRows.filter(
-      (row) => row.deltaRank !== 0,
-    );
-    const semanticPeer = comparisonRows.find(
-      (row) => row.candidateId === 'semantic-peer',
-    );
-    const deepGraph = comparisonRows.find(
-      (row) => row.candidateId === 'deep-graph',
-    );
-
-    expect(comparisonRows).toHaveLength(fixture.expectedOrder.length);
-    expect(changedCandidates.length).toBeGreaterThan(0);
-    expect(liveRows.some((row) => row.modelScore > 0)).toBe(true);
-    expect(semanticPeer).toBeDefined();
-    expect(deepGraph).toBeDefined();
-    expect((semanticPeer?.modelScore ?? 0) > (deepGraph?.modelScore ?? 0)).toBe(
-      true,
-    );
+    expect(comparisonRows).toHaveLength(4);
   });
 });

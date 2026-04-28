@@ -43,6 +43,7 @@ describe('FriendshipService', () => {
         acceptFromRequests: 1 / 3,
       },
       sources: [],
+      candidateSourceModes: [],
     });
 
     const module: TestingModule = await Test.createTestingModule({

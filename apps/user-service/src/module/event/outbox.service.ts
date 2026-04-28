@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { EventDestination, EventTopic } from '@repo/dtos';
+import {
+  EventDestination,
+  EventTopic,
+  RecommendationProfileEmbeddingRequestedPayload,
+  RecommendationProfileEventType,
+} from '@repo/dtos';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { outboxEvents } from 'src/drizzle/schema/schema';
 import type { DrizzleDB } from 'src/drizzle/types/drizzle';
@@ -67,6 +72,19 @@ export class OutboxService {
       EventDestination.KAFKA,
       EventTopic.LOGGING,
       eventType,
+      payload
+    );
+  }
+
+  createRecommendationProfileEmbeddingRequestedEvent(
+    tx: any,
+    payload: RecommendationProfileEmbeddingRequestedPayload
+  ) {
+    return this.createOutboxEventWithTransaction(
+      tx,
+      EventDestination.KAFKA,
+      EventTopic.RECOMMENDATION_PROFILE,
+      RecommendationProfileEventType.EMBEDDING_REQUESTED,
       payload
     );
   }

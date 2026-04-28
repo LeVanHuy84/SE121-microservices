@@ -1,0 +1,329 @@
+from __future__ import annotations
+
+import hashlib
+import logging
+import re
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from elasticsearch import Elasticsearch
+
+from app.core.config import settings
+from app.services.embedding_service import embedding_service
+from app.schemas.assistant_schema import AssistantContextItem
+
+logger = logging.getLogger("uvicorn.error")
+
+
+@dataclass(frozen=True)
+class RagDocumentChunk:
+    id: str
+    doc_id: str
+    chunk_index: int
+    title: str
+    type: str
+    visibility: str
+    text: str
+    source_path: str
+
+
+class RagDocumentService:
+    def __init__(self, es: Elasticsearch | None = None):
+        self._es = es
+        self._index_exists_cache: bool | None = None
+        self._index_exists_cache_expires_at: float = 0.0
+
+    def index_assistant_docs(self) -> dict[str, int]:
+        chunks = self._load_markdown_chunks()
+        if not chunks:
+            return {"documents": 0, "chunks": 0}
+
+        embeddings = embedding_service.encode_documents(
+            [chunk.text for chunk in chunks]
+        )
+        if not embeddings:
+            return {"documents": 0, "chunks": 0}
+
+        self._ensure_index(len(embeddings[0]))
+
+        operations: list[dict[str, Any]] = []
+        for chunk, embedding in zip(chunks, embeddings, strict=False):
+            operations.append(
+                {
+                    "index": {
+                        "_index": settings.RAG_INDEX_NAME,
+                        "_id": chunk.id,
+                    }
+                }
+            )
+            operations.append(
+                {
+                    "docId": chunk.doc_id,
+                    "chunkIndex": chunk.chunk_index,
+                    "title": chunk.title,
+                    "type": chunk.type,
+                    "visibility": chunk.visibility,
+                    "text": chunk.text,
+                    "sourcePath": chunk.source_path,
+                    "embedding": embedding,
+                }
+            )
+
+        self.es.bulk(operations=operations, refresh=True)
+        return {
+            "documents": len({chunk.doc_id for chunk in chunks}),
+            "chunks": len(chunks),
+        }
+
+    def search_assistant_docs(
+        self,
+        query: str,
+        top_k: int | None = None,
+    ) -> list[AssistantContextItem]:
+        normalized_query = query.strip()
+        if not normalized_query:
+            return []
+
+        if not self._index_exists_cached():
+            return []
+
+        query_embedding = embedding_service.encode_query(normalized_query)
+        if not query_embedding:
+            return []
+
+        resolved_top_k = top_k or settings.RAG_DOC_TOP_K
+        per_doc_limit = settings.RAG_DOC_MAX_CHUNKS_PER_DOC
+        visibility = settings.RAG_DOC_SEARCH_VISIBILITY
+
+        result = self.es.search(
+            index=settings.RAG_INDEX_NAME,
+            size=max(resolved_top_k * 3, resolved_top_k),
+            knn={
+                "field": "embedding",
+                "query_vector": query_embedding,
+                "k": max(resolved_top_k * 3, resolved_top_k),
+                "num_candidates": max(50, resolved_top_k * 10),
+                "filter": {
+                    "term": {
+                        "visibility": visibility,
+                    }
+                },
+            },
+            _source=[
+                "docId",
+                "chunkIndex",
+                "title",
+                "type",
+                "visibility",
+                "text",
+                "sourcePath",
+            ],
+        )
+
+        hits = result.get("hits", {}).get("hits", [])
+        contexts: list[AssistantContextItem] = []
+        chunk_count_by_doc: dict[str, int] = {}
+
+        for hit in hits:
+            source = hit.get("_source") or {}
+            doc_id = str(source.get("docId") or "")
+            if not doc_id:
+                continue
+
+            used_chunks = chunk_count_by_doc.get(doc_id, 0)
+            if used_chunks >= per_doc_limit:
+                continue
+
+            chunk_id = str(hit.get("_id") or "")
+            if not chunk_id:
+                continue
+
+            contexts.append(
+                AssistantContextItem(
+                    type=str(source.get("type") or "help_doc"),
+                    id=chunk_id,
+                    title=source.get("title"),
+                    content=str(source.get("text") or ""),
+                    score=float(hit.get("_score") or 0),
+                    source="assistant_docs",
+                    metadata={
+                        "docId": doc_id,
+                        "chunkIndex": source.get("chunkIndex"),
+                        "visibility": source.get("visibility"),
+                        "sourcePath": source.get("sourcePath"),
+                    },
+                )
+            )
+            chunk_count_by_doc[doc_id] = used_chunks + 1
+
+            if len(contexts) >= resolved_top_k:
+                break
+
+        return contexts
+
+    def warm_up(self):
+        if not settings.RAG_DOCS_ENABLED:
+            return
+
+        try:
+            if not self._index_exists_cached(force_refresh=True):
+                logger.info(
+                    "Assistant docs RAG index %s does not exist, indexing startup docs",
+                    settings.RAG_INDEX_NAME,
+                )
+                indexed = self.index_assistant_docs()
+                self._index_exists_cache = True
+                self._index_exists_cache_expires_at = time.time() + 60
+                logger.info(
+                    "Assistant docs RAG index bootstrap completed: documents=%s chunks=%s",
+                    indexed.get("documents", 0),
+                    indexed.get("chunks", 0),
+                )
+
+            embedding_service.encode_query("Sentimeta assistant")
+            logger.info("Assistant docs RAG warmup completed")
+        except Exception as exc:
+            logger.warning("Assistant docs RAG warmup skipped: %s", exc)
+
+    @property
+    def es(self) -> Elasticsearch:
+        if self._es is None:
+            self._es = Elasticsearch(settings.ES_NODE)
+        return self._es
+
+    def _ensure_index(self, dimensions: int):
+        if self._index_exists_cached():
+            return
+
+        self.es.indices.create(
+            index=settings.RAG_INDEX_NAME,
+            mappings={
+                "properties": {
+                    "docId": {"type": "keyword"},
+                    "chunkIndex": {"type": "integer"},
+                    "title": {"type": "text"},
+                    "type": {"type": "keyword"},
+                    "visibility": {"type": "keyword"},
+                    "text": {"type": "text"},
+                    "sourcePath": {"type": "keyword"},
+                    "embedding": {
+                        "type": "dense_vector",
+                        "dims": dimensions,
+                        "index": True,
+                        "similarity": "cosine",
+                    },
+                }
+            },
+        )
+        self._index_exists_cache = True
+        self._index_exists_cache_expires_at = time.time() + 60
+
+    def _index_exists_cached(self, force_refresh: bool = False) -> bool:
+        now = time.time()
+        if (
+            not force_refresh
+            and self._index_exists_cache is not None
+            and self._index_exists_cache_expires_at > now
+        ):
+            return self._index_exists_cache
+
+        exists = self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+        self._index_exists_cache = bool(exists)
+        # Keep this short so index creation/deletion is eventually reflected.
+        self._index_exists_cache_expires_at = now + 20
+        return self._index_exists_cache
+
+    def _load_markdown_chunks(self) -> list[RagDocumentChunk]:
+        docs_dir = self._resolve_docs_dir()
+        if not docs_dir.exists():
+            return []
+
+        chunks: list[RagDocumentChunk] = []
+        for path in sorted(docs_dir.rglob("*.md")):
+            metadata, body = self._parse_markdown(path)
+            doc_id = str(metadata.get("id") or path.stem)
+            title = str(metadata.get("title") or path.stem)
+            doc_type = str(metadata.get("type") or "help_doc")
+            visibility = str(metadata.get("visibility") or "public")
+
+            for index, text in enumerate(self._chunk_text(body)):
+                chunk_id = hashlib.sha256(
+                    f"{doc_id}:{index}:{text}".encode("utf-8")
+                ).hexdigest()
+                chunks.append(
+                    RagDocumentChunk(
+                        id=chunk_id,
+                        doc_id=doc_id,
+                        chunk_index=index,
+                        title=title,
+                        type=doc_type,
+                        visibility=visibility,
+                        text=text,
+                        source_path=str(path),
+                    )
+                )
+        return chunks
+
+    def _resolve_docs_dir(self) -> Path:
+        configured = Path(settings.ASSISTANT_DOCS_DIR)
+        if configured.is_absolute():
+            return configured
+
+        service_root = Path(__file__).resolve().parents[2]
+        return (service_root / configured).resolve()
+
+    def _parse_markdown(self, path: Path) -> tuple[dict[str, str], str]:
+        text = path.read_text(encoding="utf-8")
+        if not text.startswith("---"):
+            return {}, text
+
+        match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.S)
+        if not match:
+            return {}, text
+
+        metadata: dict[str, str] = {}
+        for line in match.group(1).splitlines():
+            if ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            metadata[key.strip()] = value.strip()
+
+        return metadata, match.group(2).strip()
+
+    def _chunk_text(self, text: str) -> list[str]:
+        normalized = "\n".join(line.rstrip() for line in text.splitlines()).strip()
+        if not normalized:
+            return []
+
+        try:
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+        except ImportError as exc:
+            raise RuntimeError(
+                "LangChain text splitters are not installed. "
+                "Run: pip install -r requirements.txt"
+            ) from exc
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=settings.RAG_CHUNK_SIZE,
+            chunk_overlap=settings.RAG_CHUNK_OVERLAP,
+            separators=[
+                "\n## ",
+                "\n### ",
+                "\n#### ",
+                "\n\n",
+                "\n",
+                ". ",
+                " ",
+                "",
+            ],
+        )
+        return [
+            chunk.strip()
+            for chunk in splitter.split_text(normalized)
+            if chunk.strip()
+        ]
+
+
+rag_document_service = RagDocumentService()

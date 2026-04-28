@@ -20,14 +20,19 @@ export class CatalogService {
     private readonly musicFeatureRepo: Repository<MusicFeature>,
   ) {}
 
-  async createMusicFeature(dto: CreateMusicFeatureDTO): Promise<MusicFeatureResponse> {
+  async createMusicFeature(
+    dto: CreateMusicFeatureDTO,
+  ): Promise<MusicFeatureResponse> {
     const musicFeature = this.musicFeatureRepo.create(dto);
     await this.musicFeatureRepo.save(musicFeature);
 
     return plainToInstance(MusicFeatureResponse, musicFeature);
   }
 
-  async updateMusicFeature(id: string, dto: UpdateMusicFeatureDTO): Promise<MusicFeatureResponse> {
+  async updateMusicFeature(
+    id: string,
+    dto: UpdateMusicFeatureDTO,
+  ): Promise<MusicFeatureResponse> {
     const musicFeature = await this.musicFeatureRepo.findOneBy({ id });
     if (!musicFeature) {
       throw new RpcException({
@@ -39,7 +44,7 @@ export class CatalogService {
     Object.assign(musicFeature, dto);
     await this.musicFeatureRepo.save(musicFeature);
     return plainToInstance(MusicFeatureResponse, musicFeature);
-  } 
+  }
 
   async getMusicFeature(id: string): Promise<MusicFeatureResponse> {
     const musicFeature = await this.musicFeatureRepo.findOneBy({ id });
@@ -91,81 +96,81 @@ export class CatalogService {
     );
   }
 
-async queryForRecommendation(
-  dto: InternalMusicQueryDto,
-): Promise<[MusicFeatureResponse[], number]> {
-  const limit = dto.limit ?? 50;
-  const offset = dto.offset ?? 0;
+  async queryForRecommendation(
+    dto: InternalMusicQueryDto,
+  ): Promise<[MusicFeatureResponse[], number]> {
+    const limit = dto.limit ?? 50;
+    const offset = dto.offset ?? 0;
 
-  const queryBuilder = this.musicFeatureRepo
-    .createQueryBuilder('musicFeature')
-    .select([
-      'musicFeature.id',
-      'musicFeature.audio',
-      'musicFeature.coverImage',
-      'musicFeature.artist',
-      'musicFeature.title',
-      'musicFeature.genre',
-      'musicFeature.valence',
-      'musicFeature.arousal',
-      'musicFeature.createdAt',
-    ])
-    .take(limit)
-    .skip(offset);
+    const queryBuilder = this.musicFeatureRepo
+      .createQueryBuilder('musicFeature')
+      .select([
+        'musicFeature.id',
+        'musicFeature.audio',
+        'musicFeature.coverImage',
+        'musicFeature.artist',
+        'musicFeature.title',
+        'musicFeature.genre',
+        'musicFeature.valence',
+        'musicFeature.arousal',
+        'musicFeature.createdAt',
+      ])
+      .take(limit)
+      .skip(offset);
 
-  // FILTER
-  if (dto.valenceMin !== undefined) {
-    queryBuilder.andWhere('musicFeature.valence >= :valenceMin', {
-      valenceMin: dto.valenceMin,
-    });
-  }
+    // FILTER
+    if (dto.valenceMin !== undefined) {
+      queryBuilder.andWhere('musicFeature.valence >= :valenceMin', {
+        valenceMin: dto.valenceMin,
+      });
+    }
 
-  if (dto.valenceMax !== undefined) {
-    queryBuilder.andWhere('musicFeature.valence <= :valenceMax', {
-      valenceMax: dto.valenceMax,
-    });
-  }
+    if (dto.valenceMax !== undefined) {
+      queryBuilder.andWhere('musicFeature.valence <= :valenceMax', {
+        valenceMax: dto.valenceMax,
+      });
+    }
 
-  if (dto.arousalMin !== undefined) {
-    queryBuilder.andWhere('musicFeature.arousal >= :arousalMin', {
-      arousalMin: dto.arousalMin,
-    });
-  }
+    if (dto.arousalMin !== undefined) {
+      queryBuilder.andWhere('musicFeature.arousal >= :arousalMin', {
+        arousalMin: dto.arousalMin,
+      });
+    }
 
-  if (dto.arousalMax !== undefined) {
-    queryBuilder.andWhere('musicFeature.arousal <= :arousalMax', {
-      arousalMax: dto.arousalMax,
-    });
-  }
+    if (dto.arousalMax !== undefined) {
+      queryBuilder.andWhere('musicFeature.arousal <= :arousalMax', {
+        arousalMax: dto.arousalMax,
+      });
+    }
 
-  // SORT
-  if (dto.sortByDistanceTo) {
-    const wV = dto.sortByDistanceTo.weightValence ?? 0.5;
-    const wA = dto.sortByDistanceTo.weightArousal ?? 0.5;
+    // SORT
+    if (dto.sortByDistanceTo) {
+      const wV = dto.sortByDistanceTo.weightValence ?? 0.5;
+      const wA = dto.sortByDistanceTo.weightArousal ?? 0.5;
 
-    queryBuilder.orderBy(
-      `
+      queryBuilder.orderBy(
+        `
       (${wV} * POWER(musicFeature.valence - :v, 2)) +
       (${wA} * POWER(musicFeature.arousal - :a, 2))
       `,
-      'ASC',
-    );
+        'ASC',
+      );
 
-    queryBuilder.addOrderBy('RANDOM()', 'ASC');
+      queryBuilder.addOrderBy('RANDOM()', 'ASC');
 
-    queryBuilder.setParameters({
-      v: dto.sortByDistanceTo.valence,
-      a: dto.sortByDistanceTo.arousal,
-    });
-  } else {
-    queryBuilder.orderBy('musicFeature.createdAt', 'DESC');
+      queryBuilder.setParameters({
+        v: dto.sortByDistanceTo.valence,
+        a: dto.sortByDistanceTo.arousal,
+      });
+    } else {
+      queryBuilder.orderBy('musicFeature.createdAt', 'DESC');
+    }
+
+    const [features, total] = await queryBuilder.getManyAndCount();
+
+    return [
+      features.map((f) => plainToInstance(MusicFeatureResponse, f)),
+      total,
+    ];
   }
-
-  const [features, total] = await queryBuilder.getManyAndCount();
-
-  return [
-    features.map((f) => plainToInstance(MusicFeatureResponse, f)),
-    total,
-  ];
-}
 }

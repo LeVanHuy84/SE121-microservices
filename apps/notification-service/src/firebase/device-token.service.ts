@@ -71,7 +71,16 @@ export class DeviceTokenService {
 
   async getActiveTokensByUserId(
     userId: string
-  ): Promise<{ token: string; platform: string; provider: 'fcm' }[]> {
+  ): Promise<
+    {
+      token: string;
+      platform: string;
+      provider: 'fcm';
+      appId?: string;
+      deviceId?: string;
+      deviceName?: string;
+    }[]
+  > {
     try {
       const tokens = await this.deviceTokenModel
         .find({
@@ -79,13 +88,16 @@ export class DeviceTokenService {
           isActive: true,
           provider: 'fcm',
         })
-        .select('token platform provider')
+        .select('token platform provider appId deviceId deviceName')
         .lean();
 
       return tokens.map((t) => ({
         token: t.token,
         platform: t.platform,
         provider: 'fcm',
+        appId: t.appId,
+        deviceId: t.deviceId,
+        deviceName: t.deviceName,
       }));
     } catch (error) {
       this.logger.error('Error getting active tokens', error);

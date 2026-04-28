@@ -14,7 +14,9 @@ export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
   @MessagePattern('create_music_feature')
-  createMusicFeature(@Payload() payload: CreateMusicFeatureDTO): Promise<MusicFeatureResponse> {
+  createMusicFeature(
+    @Payload() payload: CreateMusicFeatureDTO,
+  ): Promise<MusicFeatureResponse> {
     return this.catalogService.createMusicFeature(payload);
   }
 
@@ -36,7 +38,9 @@ export class CatalogController {
   }
 
   @MessagePattern('list_music_features')
-  listMusicFeatures(@Payload() query: MusicFeatureQueryDTO): Promise<PageResponse<MusicFeatureResponse>> {
+  listMusicFeatures(
+    @Payload() query: MusicFeatureQueryDTO,
+  ): Promise<PageResponse<MusicFeatureResponse>> {
     return this.catalogService.getMusicFeatures(query);
   }
 }

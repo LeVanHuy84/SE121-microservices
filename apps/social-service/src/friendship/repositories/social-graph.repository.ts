@@ -15,20 +15,18 @@ export interface FriendRecommendation {
   id: string;
   mutualFriends: number;
   mutualFriendIds: string[];
-  profileMatchScore?: number;
-  profileMatchedSignals?: string[];
-  sharedInterestsCount?: number;
-  semanticMatchScore?: number;
+  retrievalScore?: number;
+  retrievalScoreVersion?: string | null;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
   commonGroups?: number;
   commonGroupIds?: string[];
-  baseScore?: number;
   modelScore?: number;
   score?: number;
   reasons?: string[];
   recommendationId?: string;
   recommendationRequestId?: string;
+  candidateSourceMode?: FriendRecommendationCandidateSourceMode;
 }
 
 export type FriendRecommendationEventType =
@@ -57,12 +55,15 @@ export interface AcceptedFriendRequestAttribution {
 }
 
 export type FriendRecommendationAnalyticsSource =
-  | 'mutual_only'
-  | 'group_only'
-  | 'profile_only'
-  | 'semantic_only'
-  | 'mixed'
+  FriendRecommendationCandidateSourceMode;
+
+export type FriendRecommendationCandidateSourceMode =
+  | 'online'
+  | 'hybrid'
   | 'fallback';
+
+export type FriendRecommendationAnalyticsCandidateSourceMode =
+  FriendRecommendationCandidateSourceMode;
 
 export interface FriendRecommendationAnalyticsTotals {
   served: number;
@@ -71,9 +72,12 @@ export interface FriendRecommendationAnalyticsTotals {
   accepted: number;
 }
 
-export interface FriendRecommendationAnalyticsSourceBreakdown
-  extends FriendRecommendationAnalyticsTotals {
+export interface FriendRecommendationAnalyticsSourceBreakdown extends FriendRecommendationAnalyticsTotals {
   source: FriendRecommendationAnalyticsSource;
+}
+
+export interface FriendRecommendationAnalyticsCandidateSourceModeBreakdown extends FriendRecommendationAnalyticsTotals {
+  candidateSourceMode: FriendRecommendationAnalyticsCandidateSourceMode;
 }
 
 export interface FriendRecommendationAnalyticsRates {
@@ -90,6 +94,7 @@ export interface FriendRecommendationAnalytics {
   totals: FriendRecommendationAnalyticsTotals;
   rates: FriendRecommendationAnalyticsRates;
   sources: FriendRecommendationAnalyticsSourceBreakdown[];
+  candidateSourceModes: FriendRecommendationAnalyticsCandidateSourceModeBreakdown[];
 }
 
 export interface SocialGraphRepository {
@@ -124,10 +129,6 @@ export interface SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>>;
-  recommendFriends(
-    userId: string,
-    query: CursorPaginationDTO,
-  ): Promise<CursorPageResponse<FriendRecommendation>>;
   summarizeCandidates(
     userId: string,
     candidateIds: string[],
@@ -139,6 +140,9 @@ export interface SocialGraphRepository {
   ): Promise<CursorPageResponse<string>>;
   getFriendRecommendationAnalytics(
     userId: string,
+    since: Date,
+  ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
+  getGlobalFriendRecommendationAnalytics(
     since: Date,
   ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
   recordRecommendationEvents(
