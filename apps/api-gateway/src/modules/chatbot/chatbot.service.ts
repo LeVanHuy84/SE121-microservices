@@ -25,6 +25,13 @@ type RespondCacheEntry = {
   expiresAt: number;
 };
 
+type LatencySummary = {
+  count: number;
+  p50: number;
+  p95: number;
+  p99: number;
+};
+
 @Injectable()
 export class ChatbotService {
   private readonly logger = new Logger(ChatbotService.name);
@@ -33,6 +40,9 @@ export class ChatbotService {
     string,
     Promise<AssistantRespondDataDto>
   >();
+  private readonly metricsLatencies = new Map<string, number[]>();
+  private readonly metricsCounters = new Map<string, number>();
+  private metricsRespondCount = 0;
 
   constructor(
     private readonly configService: ConfigService,
@@ -54,7 +64,7 @@ export class ChatbotService {
     );
     const cacheEnabled = this.configService.get<boolean>(
       'CHATBOT_RESPOND_CACHE_ENABLED',
-      true,
+      false,
     );
     const inflightDedupEnabled = this.configService.get<boolean>(
       'CHATBOT_RESPOND_INFLIGHT_DEDUP_ENABLED',
@@ -68,9 +78,9 @@ export class ChatbotService {
     if (cacheEnabled) {
       const cached = this.getCachedRespond(cacheKey);
       if (cached) {
-        this.logger.log(
-          `assistant.respond cache_hit userId=${userId} durationMs=${Date.now() - startedAt}`,
-        );
+        this.incrementMetricCounter('respond_cache_hit');
+        this.recordLatency('respond.total_ms', Date.now() - startedAt);
+        this.maybeLogMetricsSnapshot('cache_hit');
         return cached;
       }
     }
@@ -78,7 +88,9 @@ export class ChatbotService {
     if (inflightDedupEnabled) {
       const inflight = this.respondInflight.get(cacheKey);
       if (inflight) {
-        this.logger.log(`assistant.respond inflight_join userId=${userId}`);
+        this.incrementMetricCounter('respond_inflight_join');
+        this.recordLatency('respond.total_ms', Date.now() - startedAt);
+        this.maybeLogMetricsSnapshot('inflight_join');
         return await inflight;
       }
     }
@@ -148,9 +160,6 @@ export class ChatbotService {
         ),
       );
 
-      this.logger.log(
-        `assistant.history.get ok userId=${userId} pageSize=${pageSize ?? 'default'} durationMs=${Date.now() - startedAt}`,
-      );
       return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(error, userId, startedAt, 'assistant.history.get');
@@ -174,9 +183,6 @@ export class ChatbotService {
         ),
       );
 
-      this.logger.log(
-        `assistant.history.clear ok userId=${userId} durationMs=${Date.now() - startedAt}`,
-      );
       this.clearRespondCacheByUser(userId);
       return res.data.data;
     } catch (error) {
@@ -227,6 +233,7 @@ export class ChatbotService {
       timeoutMs - elapsedMs,
     );
 
+    const downstreamStartedAt = Date.now();
     const res = await firstValueFrom(
       this.httpService.post<AssistantRespondResponseDto>(
         `${baseUrl}/assistant/respond`,
@@ -243,10 +250,14 @@ export class ChatbotService {
         },
       ),
     );
+    const downstreamDurationMs = Date.now() - downstreamStartedAt;
+    const totalDurationMs = Date.now() - startedAt;
 
-    this.logger.log(
-      `assistant.respond ok userId=${userId} contexts=${contexts.length} contextMs=${contextsDurationMs} downstreamTimeoutMs=${remainingBudgetMs} msgLen=${normalizedMessage.length} durationMs=${Date.now() - startedAt}`,
-    );
+    this.incrementMetricCounter('respond_success');
+    this.recordLatency('respond.context_ms', contextsDurationMs);
+    this.recordLatency('respond.downstream_ms', downstreamDurationMs);
+    this.recordLatency('respond.total_ms', totalDurationMs);
+    this.maybeLogMetricsSnapshot('respond_success');
 
     return res.data.data;
   }
@@ -382,6 +393,7 @@ export class ChatbotService {
 
     if (error instanceof AxiosError) {
       if (error.response) {
+        this.incrementMetricCounter(`${action}_downstream_error`);
         this.logger.error(
           `${action} downstream_error userId=${userId} status=${error.response.status} durationMs=${durationMs}`,
         );
@@ -392,22 +404,76 @@ export class ChatbotService {
       }
 
       if (error.code === 'ECONNABORTED') {
+        this.incrementMetricCounter(`${action}_timeout`);
         this.logger.error(
           `${action} timeout userId=${userId} durationMs=${durationMs}`,
         );
         return new GatewayTimeoutException('Chatbot service timeout');
       }
 
+      this.incrementMetricCounter(`${action}_unavailable`);
       this.logger.error(
         `${action} unavailable userId=${userId} code=${error.code} durationMs=${durationMs}`,
       );
       return new ServiceUnavailableException('Chatbot service unavailable');
     }
 
+    this.incrementMetricCounter(`${action}_unexpected_error`);
     this.logger.error(
       `${action} unexpected_error userId=${userId} durationMs=${durationMs} reason=${error instanceof Error ? error.message : String(error)}`,
     );
     return new HttpException('Chatbot gateway error', 500);
+  }
+
+  private metricsEnabled(): boolean {
+    return this.configService.get<boolean>('CHATBOT_METRICS_ENABLED', true);
+  }
+
+  private incrementMetricCounter(key: string) {
+    if (!this.metricsEnabled()) return;
+    const current = this.metricsCounters.get(key) ?? 0;
+    this.metricsCounters.set(key, current + 1);
+  }
+
+  private recordLatency(metric: string, valueMs: number) {
+    if (!this.metricsEnabled()) return;
+    const windowSize = Math.max(
+      10,
+      this.configService.get<number>('CHATBOT_METRICS_WINDOW_SIZE', 200),
+    );
+    const values = this.metricsLatencies.get(metric) ?? [];
+    values.push(Math.max(0, Number(valueMs)));
+    if (values.length > windowSize) {
+      values.shift();
+    }
+    this.metricsLatencies.set(metric, values);
+  }
+
+  private summarizeLatency(metric: string): LatencySummary {
+    const values = this.metricsLatencies.get(metric) ?? [];
+    if (!values.length) {
+      return { count: 0, p50: 0, p95: 0, p99: 0 };
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    return {
+      count: sorted.length,
+      p50: this.percentile(sorted, 50),
+      p95: this.percentile(sorted, 95),
+      p99: this.percentile(sorted, 99),
+    };
+  }
+
+  private percentile(sortedValues: number[], percentile: number): number {
+    if (!sortedValues.length) return 0;
+    const rank = Math.ceil((percentile / 100) * sortedValues.length) - 1;
+    const index = Math.max(0, Math.min(rank, sortedValues.length - 1));
+    return Math.round(sortedValues[index] * 100) / 100;
+  }
+
+  private maybeLogMetricsSnapshot(reason: string) {
+    void reason;
+    return;
   }
 
   private normalizeErrorBody(

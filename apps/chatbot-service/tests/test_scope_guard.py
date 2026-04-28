@@ -14,6 +14,9 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
 
     def test_in_scope_questions(self):
         samples = [
+            "Ban la ai?",
+            "Ban lam duoc gi?",
+            "Ban con nho noi dung truoc do khong?",
             "Cach dang bai viet moi tren bang tin?",
             "Tim giup toi nhom cong dong ve startup",
             "Lam sao de ket ban voi user nay?",
@@ -32,6 +35,113 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             with self.subTest(message=message):
                 req = AssistantRespondRequest(userId="u1", message=message)
                 self.assertTrue(self.guard.is_in_scope(req))
+
+    def test_follow_up_question_is_in_scope_when_has_conversation_context(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="Cach dung chuc nang tren?",
+            history=[
+                {
+                    "role": "user",
+                    "content": "Goi y ban be la gi?",
+                },
+                {
+                    "role": "assistant",
+                    "content": "Do la tinh nang de de xuat ban be phu hop.",
+                },
+            ],
+        )
+        self.assertTrue(
+            self.guard.is_in_scope(
+                req,
+                last_intent="user",
+                recent_history=req.history,
+            )
+        )
+
+    def test_strong_reference_follow_up_is_in_scope_without_anchor(self):
+        samples = [
+            "Cach dung chuc nang tren?",
+            "Phan do dung sao?",
+            "Muc nay la gi?",
+            "That section how to use?",
+        ]
+        for message in samples:
+            with self.subTest(message=message):
+                req = AssistantRespondRequest(
+                    userId="u1",
+                    message=message,
+                )
+                self.assertTrue(self.guard.is_in_scope(req))
+
+    def test_generic_how_to_without_domain_anchor_is_out_of_scope(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="Cach dung quicksort nhu the nao?",
+        )
+        self.assertFalse(self.guard.is_in_scope(req))
+
+    def test_pronoun_follow_up_needs_anchor(self):
+        without_anchor = AssistantRespondRequest(
+            userId="u1",
+            message="No la gi?",
+        )
+        self.assertFalse(self.guard.is_in_scope(without_anchor))
+
+        with_anchor = AssistantRespondRequest(
+            userId="u1",
+            message="No la gi?",
+            history=[
+                {
+                    "role": "user",
+                    "content": "Goi y ban be la gi?",
+                }
+            ],
+        )
+        self.assertTrue(
+            self.guard.is_in_scope(
+                with_anchor,
+                last_intent="user",
+                recent_history=with_anchor.history,
+            )
+        )
+
+    def test_pronoun_follow_up_variants_are_in_scope_with_anchor(self):
+        samples = [
+            "No nhu the nao?",
+            "No hoat dong sao?",
+            "Dung no nhu the nao?",
+            "Su dung no sao?",
+            "Huong dan dung no",
+            "Giai thich them ve no",
+            "Noi ro hon phan do",
+            "Cho vi du cu the",
+            "What next?",
+            "Can you explain more?",
+        ]
+        for message in samples:
+            with self.subTest(message=message):
+                req = AssistantRespondRequest(
+                    userId="u1",
+                    message=message,
+                    history=[
+                        {
+                            "role": "user",
+                            "content": "Goi y ban be la gi?",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "Do la tinh nang de de xuat ban be.",
+                        },
+                    ],
+                )
+                self.assertTrue(
+                    self.guard.is_in_scope(
+                        req,
+                        last_intent="user",
+                        recent_history=req.history,
+                    )
+                )
 
     def test_out_of_scope_questions(self):
         samples = [

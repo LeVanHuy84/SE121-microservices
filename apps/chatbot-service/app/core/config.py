@@ -41,6 +41,15 @@ class Settings:
         self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS", 500)
         )
+        self.CHATBOT_METRICS_ENABLED: bool = (
+            os.getenv("CHATBOT_METRICS_ENABLED", "true").lower() == "true"
+        )
+        self.CHATBOT_METRICS_WINDOW_SIZE: int = int(
+            os.getenv("CHATBOT_METRICS_WINDOW_SIZE", 200)
+        )
+        self.CHATBOT_METRICS_LOG_EVERY_N: int = int(
+            os.getenv("CHATBOT_METRICS_LOG_EVERY_N", 50)
+        )
         self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX: int = int(
             os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 4)
         )
@@ -101,6 +110,15 @@ class Settings:
         self.CHATBOT_REDIS_URL: str = os.getenv(
             "CHATBOT_REDIS_URL", "redis://localhost:6379/0"
         ).strip()
+        self.CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS", 0.5)
+        )
+        self.CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS", 0.5)
+        )
+        self.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS: float = float(
+            os.getenv("CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS", 5)
+        )
         self.CHATBOT_MEMORY_KEY_PREFIX: str = os.getenv(
             "CHATBOT_MEMORY_KEY_PREFIX", "chatbot:assistant"
         ).strip()
@@ -203,6 +221,12 @@ class Settings:
         if self.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS must be positive")
 
+        if self.CHATBOT_METRICS_WINDOW_SIZE <= 0:
+            raise RuntimeError("CHATBOT_METRICS_WINDOW_SIZE must be positive")
+
+        if self.CHATBOT_METRICS_LOG_EVERY_N <= 0:
+            raise RuntimeError("CHATBOT_METRICS_LOG_EVERY_N must be positive")
+
         if self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX <= 0:
             raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEMS_MAX must be positive")
 
@@ -261,6 +285,19 @@ class Settings:
 
         if not self.CHATBOT_REDIS_URL:
             raise RuntimeError("CHATBOT_REDIS_URL must not be empty")
+
+        if self.CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError(
+                "CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS must be positive"
+            )
+
+        if self.CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS must be positive")
+
+        if self.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS <= 0:
+            raise RuntimeError(
+                "CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS must be positive"
+            )
 
         if not self.CHATBOT_MEMORY_KEY_PREFIX:
             raise RuntimeError("CHATBOT_MEMORY_KEY_PREFIX must not be empty")

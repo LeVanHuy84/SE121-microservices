@@ -25,6 +25,7 @@ class SessionMemory:
         self._sessions: dict[str, SessionEntry] = {}
         self._redis = None
         self._redis_unavailable_logged = False
+        self._redis_disabled_until: float = 0.0
 
     def get_recent(self, key: str, limit: int) -> list[AssistantHistoryItem]:
         if self._can_use_redis():
@@ -190,21 +191,28 @@ class SessionMemory:
 
     def _can_use_redis(self) -> bool:
         if self._redis is False:
-            return False
+            if time.time() < self._redis_disabled_until:
+                return False
+            # Retry Redis connection after backoff window.
+            self._redis = None
 
         if self._redis is not None:
             return True
 
+        # Connect lazily when no active client is available.
         try:
             from redis import Redis
 
             self._redis = Redis.from_url(
                 settings.CHATBOT_REDIS_URL,
                 decode_responses=True,
-                socket_connect_timeout=0.2,
-                socket_timeout=0.2,
+                socket_connect_timeout=settings.CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS,
+                socket_timeout=settings.CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS,
             )
             self._redis.ping()
+            if self._redis_unavailable_logged:
+                logger.info("Assistant Redis memory re-enabled")
+                self._redis_unavailable_logged = False
             return True
         except Exception as exc:
             self._disable_redis(exc)
@@ -212,6 +220,9 @@ class SessionMemory:
 
     def _disable_redis(self, exc: Exception):
         self._redis = False
+        self._redis_disabled_until = (
+            time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
+        )
         if not self._redis_unavailable_logged:
             logger.warning("Assistant Redis memory disabled: %s", exc)
             self._redis_unavailable_logged = True

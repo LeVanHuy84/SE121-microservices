@@ -16,19 +16,29 @@ import { ChatbotService } from './chatbot.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const keepAlive = config.get<boolean>('CHATBOT_HTTP_KEEP_ALIVE', true);
-        const keepAliveMsecs = config.get<number>(
-          'CHATBOT_HTTP_KEEP_ALIVE_MSECS',
-          1000,
+        const keepAliveRaw = config.get<string | boolean>(
+          'CHATBOT_HTTP_KEEP_ALIVE',
+          'true',
         );
-        const maxSockets = config.get<number>('CHATBOT_HTTP_MAX_SOCKETS', 100);
-        const maxFreeSockets = config.get<number>(
-          'CHATBOT_HTTP_MAX_FREE_SOCKETS',
-          20,
+        const keepAlive =
+          typeof keepAliveRaw === 'boolean'
+            ? keepAliveRaw
+            : String(keepAliveRaw).toLowerCase() === 'true';
+        const keepAliveMsecs = Number(
+          config.get<string | number>('CHATBOT_HTTP_KEEP_ALIVE_MSECS', 1000),
+        );
+        const maxSockets = Number(
+          config.get<string | number>('CHATBOT_HTTP_MAX_SOCKETS', 100),
+        );
+        const maxFreeSockets = Number(
+          config.get<string | number>('CHATBOT_HTTP_MAX_FREE_SOCKETS', 20),
+        );
+        const timeout = Number(
+          config.get<string | number>('CHATBOT_SERVICE_TIMEOUT_MS', 12000),
         );
 
         return {
-          timeout: config.get<number>('CHATBOT_SERVICE_TIMEOUT_MS', 12000),
+          timeout,
           maxRedirects: 0,
           httpAgent: new HttpAgent({
             keepAlive,

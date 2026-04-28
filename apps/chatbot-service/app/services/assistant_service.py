@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
+from collections import deque
 
 from app.core.config import settings
 from app.memory.session_memory import session_memory
@@ -20,7 +22,10 @@ from app.services.context_resolver import (
 )
 from app.services.prompt_limits import resolve_prompt_limits
 from app.services.prompt_builder import PromptBuilder
-from app.services.scope_guard import AssistantScopeGuard, assistant_scope_guard
+from app.services.scope_guard import (
+    AssistantScopeGuard,
+    assistant_scope_guard,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -38,15 +43,28 @@ class AssistantService:
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
         self._background_tasks: set[asyncio.Task[None]] = set()
+        self._metrics_latencies: dict[str, deque[float]] = {}
+        self._metrics_counters: dict[str, int] = {}
+        self._metrics_respond_count = 0
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:
-        if not self.scope_guard.is_in_scope(request):
+        session_key = self._session_key(request)
+        history = self._resolve_history(request)
+        last_intent = request.intent or session_memory.get_last_intent(session_key)
+
+        scope_decision = self.scope_guard.evaluate_scope(
+            request,
+            last_intent=last_intent,
+            recent_history=history,
+        )
+
+        if not scope_decision.in_scope:
             out_of_scope_response = self._out_of_scope_response()
             self._persist_session_memory(
                 request=request,
                 assistant_reply=out_of_scope_response.reply,
                 sources=[],
-                intent="out_of_scope",
+                intent=None,
             )
             self._persist_history_in_background(
                 request=request,
@@ -54,11 +72,12 @@ class AssistantService:
                 sources=[],
                 intent="out_of_scope",
             )
+            self._increment_metric_counter("respond_out_of_scope")
+            self._record_latency("respond.total_ms", 0.0)
+            self._maybe_log_metrics_snapshot("out_of_scope")
             return out_of_scope_response
 
         started_at = time.perf_counter()
-        session_key = self._session_key(request)
-        history = self._resolve_history(request)
         memory_summary = session_memory.get_summary(session_key)
 
         context_started_at = time.perf_counter()
@@ -95,8 +114,10 @@ class AssistantService:
                 request.conversationId,
                 llm_timeout_ms,
             )
+            self._increment_metric_counter("respond_llm_timeout")
             generation = self._llm_timeout_generation()
         except Exception:
+            self._increment_metric_counter("respond_llm_error")
             logger.exception(
                 "Assistant generation failed: userId=%s conversationId=%s contexts=%s",
                 request.userId,
@@ -107,6 +128,7 @@ class AssistantService:
         generation_duration_ms = round(
             (time.perf_counter() - generation_started_at) * 1000, 2
         )
+        total_duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
 
         sources = [
             AssistantSource(
@@ -118,37 +140,29 @@ class AssistantService:
             )
             for item in final_contexts
         ]
+        reply_content = self._sanitize_assistant_reply(generation.content)
 
         resolved_intent = request.intent or self._infer_intent(final_contexts)
         self._persist_session_memory(
             request=request,
-            assistant_reply=generation.content,
+            assistant_reply=reply_content,
             sources=sources,
             intent=resolved_intent,
         )
         self._persist_history_in_background(
             request=request,
-            assistant_reply=generation.content,
+            assistant_reply=reply_content,
             sources=sources,
             intent=resolved_intent,
         )
-
-        logger.info(
-            "Assistant response generated: userId=%s provider=%s model=%s candidateContexts=%s finalContexts=%s promptVariant=%s promptChars=%s contextMs=%s llmMs=%s durationMs=%s",
-            request.userId,
-            generation.provider,
-            generation.model,
-            len(candidate_contexts),
-            len(final_contexts),
-            prompt_limits.variant,
-            len(prompt),
-            context_duration_ms,
-            generation_duration_ms,
-            round((time.perf_counter() - started_at) * 1000, 2),
-        )
+        self._increment_metric_counter("respond_success")
+        self._record_latency("respond.context_ms", context_duration_ms)
+        self._record_latency("respond.llm_ms", generation_duration_ms)
+        self._record_latency("respond.total_ms", total_duration_ms)
+        self._maybe_log_metrics_snapshot("respond_success")
 
         return AssistantRespondData(
-            reply=generation.content,
+            reply=reply_content,
             sources=sources,
             suggestedActions=[],
             model=generation.model,
@@ -181,6 +195,7 @@ class AssistantService:
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError:
+            self._increment_metric_counter("respond_context_timeout")
             logger.warning(
                 "Assistant context resolver timeout: userId=%s timeoutMs=%s",
                 request.userId,
@@ -188,6 +203,7 @@ class AssistantService:
             )
             return self._dedupe_contexts(request.contexts)
         except Exception as exc:
+            self._increment_metric_counter("respond_context_error")
             logger.warning(
                 "Assistant context resolver failed: userId=%s reason=%s",
                 request.userId,
@@ -230,6 +246,7 @@ class AssistantService:
         if not chat_history_service.is_enabled():
             return
 
+        started_at = time.perf_counter()
         try:
             await chat_history_service.append_exchange(
                 user_id=request.userId,
@@ -238,10 +255,17 @@ class AssistantService:
                 intent=intent,
                 sources=sources,
             )
+            self._increment_metric_counter("persist_history_success")
         except Exception:
+            self._increment_metric_counter("persist_history_error")
             logger.exception(
                 "Assistant history persistence failed: userId=%s",
                 request.userId,
+            )
+        finally:
+            self._record_latency(
+                "persist.history_ms",
+                round((time.perf_counter() - started_at) * 1000, 2),
             )
 
     def _persist_history_in_background(
@@ -305,6 +329,50 @@ class AssistantService:
             return normalized
         return f"{normalized[:limit].rstrip()}..."
 
+    def _metrics_enabled(self) -> bool:
+        return settings.CHATBOT_METRICS_ENABLED
+
+    def _increment_metric_counter(self, key: str):
+        if not self._metrics_enabled():
+            return
+        self._metrics_counters[key] = self._metrics_counters.get(key, 0) + 1
+
+    def _record_latency(self, metric: str, value_ms: float):
+        if not self._metrics_enabled():
+            return
+
+        window_size = max(10, settings.CHATBOT_METRICS_WINDOW_SIZE)
+        window = self._metrics_latencies.get(metric)
+        if window is None or window.maxlen != window_size:
+            window = deque(maxlen=window_size)
+            self._metrics_latencies[metric] = window
+
+        window.append(max(0.0, float(value_ms)))
+
+    def _maybe_log_metrics_snapshot(self, reason: str):
+        del reason
+        return
+
+    def _summarize_latency(self, metric: str) -> dict[str, float | int]:
+        values = list(self._metrics_latencies.get(metric) or [])
+        if not values:
+            return {"count": 0, "p50": 0.0, "p95": 0.0, "p99": 0.0}
+
+        values.sort()
+        return {
+            "count": len(values),
+            "p50": self._percentile(values, 50),
+            "p95": self._percentile(values, 95),
+            "p99": self._percentile(values, 99),
+        }
+
+    def _percentile(self, sorted_values: list[float], percentile: int) -> float:
+        if not sorted_values:
+            return 0.0
+        rank = int((percentile / 100) * len(sorted_values) + 0.999999) - 1
+        index = max(0, min(rank, len(sorted_values) - 1))
+        return round(float(sorted_values[index]), 2)
+
     def _dedupe_contexts(self, contexts):
         result = []
         seen: set[tuple[str, str]] = set()
@@ -326,6 +394,20 @@ class AssistantService:
             provider="chatbot-service",
         )
 
+    def _sanitize_assistant_reply(self, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return text
+
+        # Some LLM outputs echo role labels like "assistant:" at the beginning.
+        text = re.sub(
+            r"^\s*(assistant|ai assistant|bot|assistant reply)\s*[:\-]\s*",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        return text.strip()
+
     def _out_of_scope_response(self) -> AssistantRespondData:
         return AssistantRespondData(
             reply=(
@@ -338,6 +420,5 @@ class AssistantService:
             model="scope-guard",
             provider="chatbot-service",
         )
-
 
 assistant_service = AssistantService()
