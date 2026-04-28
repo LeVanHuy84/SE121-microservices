@@ -75,6 +75,53 @@ class ChatHistoryRepository:
             await session.refresh(message)
             return message
 
+    async def append_exchange(
+        self,
+        user_id: str,
+        user_message: str,
+        assistant_reply: str,
+        intent: str | None = None,
+        sources: list[dict[str, Any]] | None = None,
+    ) -> tuple[ChatMessage, ChatMessage]:
+        async with self._session_factory() as session:
+            conversation = await self._get_conversation(session, user_id)
+            if not conversation:
+                conversation = ChatConversation(user_id=user_id)
+                session.add(conversation)
+                try:
+                    await session.flush()
+                except IntegrityError:
+                    await session.rollback()
+                    conversation = await self._get_conversation(session, user_id)
+                    if not conversation:
+                        raise
+
+            now = datetime.now(timezone.utc)
+            user_chat_message = ChatMessage(
+                conversation_id=conversation.id,
+                user_id=user_id,
+                role="user",
+                content=user_message,
+                meta={"message_kind": "user"},
+                created_at=now,
+            )
+            assistant_chat_message = ChatMessage(
+                conversation_id=conversation.id,
+                user_id=user_id,
+                role="assistant",
+                content=assistant_reply,
+                intent=intent,
+                sources=sources or [],
+                meta={"message_kind": "assistant"},
+                created_at=now,
+            )
+            conversation.last_message_at = now
+            session.add_all([user_chat_message, assistant_chat_message])
+            await session.commit()
+            await session.refresh(user_chat_message)
+            await session.refresh(assistant_chat_message)
+            return user_chat_message, assistant_chat_message
+
     async def list_messages_by_user(
         self,
         user_id: str,
@@ -83,11 +130,14 @@ class ChatHistoryRepository:
         before_id: str | None = None,
     ) -> tuple[list[ChatMessage], bool]:
         async with self._session_factory() as session:
-            conversation = await self._get_conversation(session, user_id)
-            if not conversation:
-                return [], False
-
-            query = select(ChatMessage).where(ChatMessage.conversation_id == conversation.id)
+            query = (
+                select(ChatMessage)
+                .join(
+                    ChatConversation,
+                    ChatMessage.conversation_id == ChatConversation.id,
+                )
+                .where(ChatConversation.user_id == user_id)
+            )
 
             if before_created_at and before_id:
                 cursor_id = UUID(before_id)

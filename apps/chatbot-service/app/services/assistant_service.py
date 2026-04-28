@@ -42,7 +42,6 @@ class AssistantService:
         self.provider = provider or self._resolve_provider()
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
-        self._background_tasks: set[asyncio.Task[None]] = set()
         self._metrics_latencies: dict[str, deque[float]] = {}
         self._metrics_counters: dict[str, int] = {}
         self._metrics_respond_count = 0
@@ -58,6 +57,25 @@ class AssistantService:
             recent_history=history,
         )
 
+        if scope_decision.reason == "greeting":
+            greeting_response = self._greeting_response()
+            self._persist_session_memory(
+                request=request,
+                assistant_reply=greeting_response.reply,
+                sources=[],
+                intent=None,
+            )
+            await self._persist_history_before_response(
+                request=request,
+                assistant_reply=greeting_response.reply,
+                sources=[],
+                intent="greeting",
+            )
+            self._increment_metric_counter("respond_greeting")
+            self._record_latency("respond.total_ms", 0.0)
+            self._maybe_log_metrics_snapshot("greeting")
+            return greeting_response
+
         if not scope_decision.in_scope:
             out_of_scope_response = self._out_of_scope_response()
             self._persist_session_memory(
@@ -66,7 +84,7 @@ class AssistantService:
                 sources=[],
                 intent=None,
             )
-            self._persist_history_in_background(
+            await self._persist_history_before_response(
                 request=request,
                 assistant_reply=out_of_scope_response.reply,
                 sources=[],
@@ -149,7 +167,7 @@ class AssistantService:
             sources=sources,
             intent=resolved_intent,
         )
-        self._persist_history_in_background(
+        await self._persist_history_before_response(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
@@ -236,7 +254,7 @@ class AssistantService:
         session_memory.set_last_intent(session_key, intent)
         session_memory.set_last_sources(session_key, sources)
 
-    async def _persist_history_best_effort(
+    async def _persist_history_before_response(
         self,
         request: AssistantRespondRequest,
         assistant_reply: str,
@@ -247,56 +265,49 @@ class AssistantService:
             return
 
         started_at = time.perf_counter()
+        timeout_seconds = max(settings.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS, 1) / 1000
         try:
-            await chat_history_service.append_exchange(
-                user_id=request.userId,
-                user_message=request.message,
-                assistant_reply=assistant_reply,
-                intent=intent,
-                sources=sources,
+            persisted_exchange = await asyncio.wait_for(
+                chat_history_service.append_exchange(
+                    user_id=request.userId,
+                    user_message=request.message,
+                    assistant_reply=assistant_reply,
+                    intent=intent,
+                    sources=sources,
+                ),
+                timeout=timeout_seconds,
             )
+            if persisted_exchange:
+                user_chat_message, assistant_chat_message = persisted_exchange
+                logger.info(
+                    "Assistant history persisted: userId=%s userMessageId=%s assistantMessageId=%s userRole=%s assistantRole=%s",
+                    request.userId,
+                    user_chat_message.id,
+                    assistant_chat_message.id,
+                    user_chat_message.role,
+                    assistant_chat_message.role,
+                )
             self._increment_metric_counter("persist_history_success")
+        except asyncio.TimeoutError as exc:
+            self._increment_metric_counter("persist_history_timeout")
+            logger.exception(
+                "Assistant history persistence timeout: userId=%s timeoutMs=%s",
+                request.userId,
+                settings.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS,
+            )
+            raise RuntimeError("Assistant history persistence timeout") from exc
         except Exception:
             self._increment_metric_counter("persist_history_error")
             logger.exception(
                 "Assistant history persistence failed: userId=%s",
                 request.userId,
             )
+            raise
         finally:
             self._record_latency(
                 "persist.history_ms",
                 round((time.perf_counter() - started_at) * 1000, 2),
             )
-
-    def _persist_history_in_background(
-        self,
-        request: AssistantRespondRequest,
-        assistant_reply: str,
-        sources: list[AssistantSource],
-        intent: str | None,
-    ):
-        if not chat_history_service.is_enabled():
-            return
-
-        task = asyncio.create_task(
-            self._persist_history_best_effort(
-                request=request,
-                assistant_reply=assistant_reply,
-                sources=sources,
-                intent=intent,
-            )
-        )
-        self._background_tasks.add(task)
-        task.add_done_callback(self._on_background_task_done)
-
-    def _on_background_task_done(self, task: asyncio.Task[None]):
-        self._background_tasks.discard(task)
-        if task.cancelled():
-            return
-        try:
-            task.result()
-        except Exception:
-            logger.exception("Assistant background task failed")
 
     def _build_updated_summary(
         self,
@@ -418,6 +429,18 @@ class AssistantService:
             sources=[],
             suggestedActions=[],
             model="scope-guard",
+            provider="chatbot-service",
+        )
+
+    def _greeting_response(self) -> AssistantRespondData:
+        return AssistantRespondData(
+            reply=(
+                "Xin chào! Mình là trợ lý của Sentimeta. "
+                "Bạn cần mình hỗ trợ gì về bài viết, nhóm, chat, hồ sơ, tìm kiếm hoặc gợi ý bạn bè?"
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="greeting-guard",
             provider="chatbot-service",
         )
 

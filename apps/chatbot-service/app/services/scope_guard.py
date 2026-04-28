@@ -29,14 +29,14 @@ class AssistantScopeGuard:
     ) -> ScopeDecision:
         normalized_text = self._normalize(request.message)
 
-        if request.contexts:
-            return ScopeDecision(True, "has_contexts", normalized_text)
-
         if not normalized_text:
             return ScopeDecision(False, "empty_message", normalized_text)
 
         if normalized_text in GREETINGS:
             return ScopeDecision(True, "greeting", normalized_text)
+
+        if request.contexts:
+            return ScopeDecision(True, "has_contexts", normalized_text)
 
         if self._looks_like_identity_or_capability_question(normalized_text):
             return ScopeDecision(True, "identity_or_capability", normalized_text)

@@ -135,6 +135,9 @@ class Settings:
         self.CHATBOT_HISTORY_PAGE_SIZE_MAX: int = int(
             os.getenv("CHATBOT_HISTORY_PAGE_SIZE_MAX", 100)
         )
+        self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS: int = int(
+            os.getenv("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS", 1800)
+        )
         self.ASSISTANT_DOCS_DIR: str = os.getenv(
             "ASSISTANT_DOCS_DIR", "docs/assistant"
         ).strip()
@@ -315,6 +318,9 @@ class Settings:
             raise RuntimeError(
                 "CHATBOT_HISTORY_PAGE_SIZE_DEFAULT must be <= CHATBOT_HISTORY_PAGE_SIZE_MAX"
             )
+
+        if self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS must be positive")
 
         if not self.ASSISTANT_DOCS_DIR:
             raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")

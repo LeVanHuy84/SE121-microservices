@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import os
 import unittest
 
@@ -73,6 +73,30 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(recent[1].role, "assistant")
 
         session_memory.clear_session(session_key)
+
+    def test_greeting_skips_provider_even_when_contexts_present(self):
+        provider = FakeProvider()
+        service = AssistantService(provider=provider)
+        req = AssistantRespondRequest(
+            userId="user-1",
+            message="hello",
+            contexts=[
+                AssistantContextItem(
+                    type="group",
+                    id="group-hello",
+                    title="hello",
+                    content="Nhóm hello có điểm 4.9",
+                    score=0.95,
+                    source="group-service",
+                )
+            ],
+        )
+
+        res = asyncio.run(service.respond(req))
+
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(res.model, "greeting-guard")
+        self.assertIn("Xin chào", res.reply)
 
 
 if __name__ == "__main__":

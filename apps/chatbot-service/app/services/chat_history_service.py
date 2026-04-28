@@ -34,20 +34,12 @@ class ChatHistoryService:
             return
 
         serialized_sources = [item.model_dump() for item in sources]
-
-        await self._repository.append_message(
+        return await self._repository.append_exchange(
             user_id=user_id,
-            role="user",
-            content=user_message,
-            metadata={"message_kind": "user"},
-        )
-        await self._repository.append_message(
-            user_id=user_id,
-            role="assistant",
-            content=assistant_reply,
+            user_message=user_message,
+            assistant_reply=assistant_reply,
             intent=intent,
             sources=serialized_sources,
-            metadata={"message_kind": "assistant"},
         )
 
     async def get_messages_page_by_user(
