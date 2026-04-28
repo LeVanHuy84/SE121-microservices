@@ -1,45 +1,65 @@
 import { Controller, Logger } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
-import { EventPattern, Payload } from '@nestjs/microservices';
+import {
+  EventPattern,
+  Payload,
+  Ctx,
+  KafkaContext,
+} from '@nestjs/microservices';
 import { AnalysisEventType, AnalysisResultEvent, EventTopic } from '@repo/dtos';
+import { KafkaConsumerHelper } from '@repo/common';
+import { ClientSession } from 'mongoose';
 
 @Controller('ingestion')
 export class IngestionController {
   private readonly logger = new Logger(IngestionController.name);
 
-  constructor(private readonly ingestionService: IngestionService) {}
+  constructor(
+    private readonly ingestionService: IngestionService,
+    private readonly consumerHelper: KafkaConsumerHelper,
+  ) {}
 
   // ----------------------------
-  // 🧩 POST TOPIC HANDLER
+  // ANALYSIS RESULT TOPIC
   // ----------------------------
   @EventPattern(EventTopic.EMOTION_RESULT)
-  async handleAnalysisEvents(@Payload() message: AnalysisResultEvent) {
-    const { type, payload } = message;
-    this.logger.debug(`Received event ${type} for target ${payload.targetId}`);
+  async handleAnalysisEvents(
+    @Payload() message: AnalysisResultEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
 
-    try {
-      switch (type) {
-        case AnalysisEventType.CREATED:
-          await this.ingestionService.handleCreated(payload);
-          break;
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
 
-        case AnalysisEventType.UPDATED:
-          await this.ingestionService.handleUpdated(payload);
-          break;
-        default:
-          this.logger.warn(`Unknown event type: ${type}`);
-          break;
-      }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (_session: ClientSession) => {
+        const { type, payload } = message;
 
-      this.logger.error(
-        `Failed to process event ${type} for ${payload.targetId}: ${errorMessage}`,
-        errorStack,
-      );
-      throw error; // để Kafka retry lại
-    }
+        this.logger.debug(
+          `Received event ${type} for target ${payload.targetId}`,
+        );
+
+        switch (type) {
+          case AnalysisEventType.CREATED:
+            await this.ingestionService.handleCreated(payload);
+            break;
+
+          case AnalysisEventType.UPDATED:
+            await this.ingestionService.handleUpdated(payload);
+            break;
+
+          default:
+            this.logger.warn(`Unknown event type: ${type}`);
+            break;
+        }
+      },
+    });
   }
 }

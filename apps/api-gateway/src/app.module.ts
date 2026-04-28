@@ -7,21 +7,24 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
 import { ChatModule } from './modules/chat/chat.module';
 
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { RabbitmqModule } from '@repo/common';
+import { AdminModule } from './modules/admin/admin.module';
+import { EmotionModule } from './modules/emotion/emotion.module';
+import { FeedModule } from './modules/feed/feed.module';
+import { GroupModule } from './modules/group/group.module';
+import { LogModule } from './modules/log/log.module';
 import { MediaModule } from './modules/media/media.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { PostModule } from './modules/posts/post.module';
+import { SearchModule } from './modules/search/search.module';
 import { SocialModule } from './modules/social/social.module';
 import { UserModule } from './modules/users/users.module';
 import { ClerkClientProvider } from './providers/clerk-client.provider';
-import { RabbitmqModule } from '@repo/common';
-import { FeedModule } from './modules/feed/feed.module';
-import { RedisModule } from '@nestjs-modules/ioredis';
-import { GroupModule } from './modules/group/group.module';
-import { SearchModule } from './modules/search/search.module';
-import { EmotionModule } from './modules/emotion/emotion.module';
-import { LogModule } from './modules/log/log.module';
-import { AdminModule } from './modules/admin/admin.module';
+
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
+
+import { MusicModule } from './modules/music/music.module';
 
 @Module({
   imports: [
@@ -66,9 +69,14 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
     ChatModule,
 
     EmotionModule,
+
     ChatbotModule,
     LogModule,
     AdminModule,
+
+    LogModule,
+    AdminModule,
+    MusicModule,
   ],
 
   providers: [

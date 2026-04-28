@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { FeedEventType, InferSharePayload, ShareEventType } from '@repo/dtos';
 import {
   ShareSnapshot,
@@ -16,43 +16,66 @@ export class IngestionShareService {
     private readonly distributionService: DistributionService,
   ) {}
 
-  async handleCreated(payload: InferSharePayload<ShareEventType.CREATED>) {
+  async handleCreated(
+    payload: InferSharePayload<ShareEventType.CREATED>,
+    session?: ClientSession,
+  ) {
     if (!payload.shareId) return;
-    const exists = await this.shareModel.findOne({
-      where: { shareId: payload.shareId },
-    });
+    const exists = await this.shareModel.findOne(
+      { shareId: payload.shareId },
+      null,
+      { session },
+    );
+
     if (exists) return;
 
-    const shareSnapshot = await this.shareModel.create({
-      ...payload,
-      shareCreatedAt: payload.createdAt,
-    });
+    const [shareSnapshot] = await this.shareModel.insertMany(
+      [
+        {
+          ...payload,
+          shareCreatedAt: payload.createdAt,
+        },
+      ],
+      { session },
+    );
 
-    this.distributionService.distributeCreated(
+    await this.distributionService.distributeCreated(
       FeedEventType.SHARE,
       shareSnapshot.id,
       shareSnapshot.shareId,
       shareSnapshot.postId,
       shareSnapshot.userId,
+      undefined,
+      session,
     );
   }
 
-  async handleUpdated(payload: InferSharePayload<ShareEventType.UPDATED>) {
+  async handleUpdated(
+    payload: InferSharePayload<ShareEventType.UPDATED>,
+    session?: ClientSession,
+  ) {
     if (!payload.shareId) return;
     await this.shareModel.updateOne(
       { shareId: payload.shareId },
       { $set: { content: payload.content, audience: payload.audience } },
+      { session },
     );
   }
 
-  async handleRemoved(payload: InferSharePayload<ShareEventType.REMOVED>) {
+  async handleRemoved(
+    payload: InferSharePayload<ShareEventType.REMOVED>,
+    session?: ClientSession,
+  ) {
     if (!payload.shareId) return;
-    const snapshot = await this.shareModel.findOneAndDelete({
-      shareId: payload.shareId,
-    });
+    const snapshot = await this.shareModel.findOneAndDelete(
+      {
+        shareId: payload.shareId,
+      },
+      { session },
+    );
 
     if (snapshot) {
-      await this.distributionService.distributeRemoved(snapshot.id);
+      await this.distributionService.distributeRemoved(snapshot.id, session);
     }
   }
 }

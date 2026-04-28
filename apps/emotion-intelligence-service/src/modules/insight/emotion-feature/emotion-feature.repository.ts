@@ -13,7 +13,11 @@ import {
   UserEmotionSnapshot,
   UserEmotionSnapshotDocument,
 } from 'src/mongo/schema/emotion-snapshot.schema';
-import { EmotionTimeWindow } from '@repo/dtos';
+import { EmotionTimeWindow, RiskLevel } from '@repo/dtos';
+import {
+  UserRiskState,
+  UserRiskStateDocument,
+} from 'src/mongo/schema/user_risk_states.schema';
 
 export interface ProfileProjection {
   emotionVectorEMA?: Record<string, number>;
@@ -26,6 +30,7 @@ export interface SnapshotProjection {
   emotionVolatility?: number;
   riskScore?: number;
   emotionDistribution?: Record<string, number>;
+  trend?: number;
 }
 
 @Injectable()
@@ -38,7 +43,10 @@ export class EmotionFeatureRepository {
     private readonly snapshotModel: Model<UserEmotionSnapshotDocument>,
 
     @InjectModel(EmotionAnalyticsSnapshot.name)
-    private readonly aggregateModel: Model<EmotionAnalyticsSnapshotDocument>, // giữ lại nếu cần future
+    private readonly aggregateModel: Model<EmotionAnalyticsSnapshotDocument>,
+
+    @InjectModel(UserRiskState.name)
+    private readonly riskModel: Model<UserRiskStateDocument>,
   ) {}
 
   // ===== PROFILE =====
@@ -71,9 +79,10 @@ export class EmotionFeatureRepository {
           emotionVolatility: 1,
           riskScore: 1,
           emotionDistribution: 1,
+          trend: 1,
         },
       )
-      .sort({ createdAt: -1 }) // ⚠️ critical
+      .sort({ createdAt: -1 })
       .lean<SnapshotProjection>()
       .exec();
   }
@@ -111,6 +120,23 @@ export class EmotionFeatureRepository {
         {
           _id: 0,
           finalScores: 1,
+        },
+      )
+      .lean()
+      .exec();
+  }
+
+  async findRiskState(userId: string): Promise<{
+    riskLevel?: RiskLevel;
+    riskScore?: number;
+  } | null> {
+    return this.riskModel
+      .findOne(
+        { userId },
+        {
+          _id: 0,
+          riskLevel: 1,
+          riskScore: 1,
         },
       )
       .lean()

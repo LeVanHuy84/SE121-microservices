@@ -39,7 +39,7 @@ export class PostSearchService extends BaseSearchService {
     );
 
     return {
-      data: result.data,
+      postIds: result.data.map((p) => p.id ),
       nextCursor: result.nextCursor,
       hasNextPage: result.hasNextPage,
     };

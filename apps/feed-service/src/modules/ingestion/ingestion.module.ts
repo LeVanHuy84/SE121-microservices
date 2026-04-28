@@ -17,6 +17,12 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
 import { MICROSERVICE_CLIENT } from 'src/constants';
 import { DistributionService } from './service/distribution.service';
+import {
+  IdempotencyModule,
+  KafkaConsumerHelper,
+  KafkaDLQService,
+  KafkaProducerModule,
+} from '@repo/common';
 
 @Module({
   imports: [
@@ -52,6 +58,9 @@ import { DistributionService } from './service/distribution.service';
         }),
       },
     ]),
+
+    IdempotencyModule.forMongo(),
+    KafkaProducerModule.registerAsync(), // để dùng DLQ
   ],
   controllers: [IngestionController],
   providers: [
@@ -59,6 +68,8 @@ import { DistributionService } from './service/distribution.service';
     IngestionShareService,
     StatsIngestionService,
     DistributionService,
+    KafkaDLQService,
+    KafkaConsumerHelper,
   ],
   exports: [],
 })

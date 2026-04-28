@@ -42,6 +42,11 @@ yarn-error.log*
 **/firebase-adminsdk-*.json
 **/*-firebase-adminsdk-*.json
 
+# Firebase credentials
+**/firebase-service-account.json
+**/firebase-adminsdk-*.json
+**/*-firebase-adminsdk-*.json
+
 # Editor directories and files
 .vscode/
 .idea/

@@ -5,7 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=12",
-    "dev:test": "turbo run start:dev --parallel --concurrency=13 --filter=!analysis-service",
+    "dev:test": "turbo run start:dev --parallel --concurrency=16",
     "demo": "turbo run start:prod --parallel --concurrency=12 --filter=!analysis-service",
     "demo:test": "turbo run start:prod --filter=analysis-service --filter=api-gateway --filter=feed-service",
     "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",

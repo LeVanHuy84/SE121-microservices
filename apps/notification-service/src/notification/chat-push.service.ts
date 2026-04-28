@@ -48,7 +48,6 @@ export class ChatPushService {
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
       dto.userId,
     );
-
     if (!deviceTokens.length) {
       this.logger.debug(
         `Skip chat push for user ${dto.userId}: no active device tokens`,
