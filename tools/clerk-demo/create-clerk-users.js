@@ -2,6 +2,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
+require('dotenv').config({ path: 'tools/clerk-demo/.env' });
 
 const CLERK_API_BASE = process.env.CLERK_API_BASE || 'https://api.clerk.com/v1';
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;

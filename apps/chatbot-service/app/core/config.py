@@ -129,6 +129,21 @@ class Settings:
         self.CHATBOT_DB_ECHO: bool = (
             os.getenv("CHATBOT_DB_ECHO", "false").lower() == "true"
         )
+        self.CHATBOT_DB_POOL_SIZE: int = int(
+            os.getenv("CHATBOT_DB_POOL_SIZE", 10)
+        )
+        self.CHATBOT_DB_MAX_OVERFLOW: int = int(
+            os.getenv("CHATBOT_DB_MAX_OVERFLOW", 20)
+        )
+        self.CHATBOT_DB_POOL_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_DB_POOL_TIMEOUT_SECONDS", 5)
+        )
+        self.CHATBOT_DB_POOL_RECYCLE_SECONDS: int = int(
+            os.getenv("CHATBOT_DB_POOL_RECYCLE_SECONDS", 1800)
+        )
+        self.CHATBOT_DB_COMMAND_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_DB_COMMAND_TIMEOUT_SECONDS", 8)
+        )
         self.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT: int = int(
             os.getenv("CHATBOT_HISTORY_PAGE_SIZE_DEFAULT", 20)
         )
@@ -136,7 +151,7 @@ class Settings:
             os.getenv("CHATBOT_HISTORY_PAGE_SIZE_MAX", 100)
         )
         self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS: int = int(
-            os.getenv("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS", 1800)
+            os.getenv("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS", 5000)
         )
         self.ASSISTANT_DOCS_DIR: str = os.getenv(
             "ASSISTANT_DOCS_DIR", "docs/assistant"
@@ -321,6 +336,21 @@ class Settings:
 
         if self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS must be positive")
+
+        if self.CHATBOT_DB_POOL_SIZE <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_SIZE must be positive")
+
+        if self.CHATBOT_DB_MAX_OVERFLOW < 0:
+            raise RuntimeError("CHATBOT_DB_MAX_OVERFLOW must be >= 0")
+
+        if self.CHATBOT_DB_POOL_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_TIMEOUT_SECONDS must be positive")
+
+        if self.CHATBOT_DB_POOL_RECYCLE_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_RECYCLE_SECONDS must be positive")
+
+        if self.CHATBOT_DB_COMMAND_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_COMMAND_TIMEOUT_SECONDS must be positive")
 
         if not self.ASSISTANT_DOCS_DIR:
             raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")

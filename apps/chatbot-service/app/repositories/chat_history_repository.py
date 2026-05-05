@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -97,6 +97,7 @@ class ChatHistoryRepository:
                         raise
 
             now = datetime.now(timezone.utc)
+            assistant_time = now + timedelta(microseconds=1)
             user_chat_message = ChatMessage(
                 conversation_id=conversation.id,
                 user_id=user_id,
@@ -113,9 +114,9 @@ class ChatHistoryRepository:
                 intent=intent,
                 sources=sources or [],
                 meta={"message_kind": "assistant"},
-                created_at=now,
+                created_at=assistant_time,
             )
-            conversation.last_message_at = now
+            conversation.last_message_at = assistant_time
             session.add_all([user_chat_message, assistant_chat_message])
             await session.commit()
             await session.refresh(user_chat_message)
@@ -130,13 +131,12 @@ class ChatHistoryRepository:
         before_id: str | None = None,
     ) -> tuple[list[ChatMessage], bool]:
         async with self._session_factory() as session:
-            query = (
-                select(ChatMessage)
-                .join(
-                    ChatConversation,
-                    ChatMessage.conversation_id == ChatConversation.id,
-                )
-                .where(ChatConversation.user_id == user_id)
+            conversation = await self._get_conversation(session, user_id)
+            if not conversation:
+                return [], False
+
+            query = select(ChatMessage).where(
+                ChatMessage.conversation_id == conversation.id
             )
 
             if before_created_at and before_id:

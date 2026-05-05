@@ -65,7 +65,7 @@ class AssistantService:
                 sources=[],
                 intent=None,
             )
-            await self._persist_history_before_response(
+            self._schedule_history_persist(
                 request=request,
                 assistant_reply=greeting_response.reply,
                 sources=[],
@@ -84,7 +84,7 @@ class AssistantService:
                 sources=[],
                 intent=None,
             )
-            await self._persist_history_before_response(
+            self._schedule_history_persist(
                 request=request,
                 assistant_reply=out_of_scope_response.reply,
                 sources=[],
@@ -167,7 +167,7 @@ class AssistantService:
             sources=sources,
             intent=resolved_intent,
         )
-        await self._persist_history_before_response(
+        self._schedule_history_persist(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
@@ -308,6 +308,45 @@ class AssistantService:
                 "persist.history_ms",
                 round((time.perf_counter() - started_at) * 1000, 2),
             )
+
+    async def _persist_history_safe(
+        self,
+        request: AssistantRespondRequest,
+        assistant_reply: str,
+        sources: list[AssistantSource],
+        intent: str | None,
+    ):
+        try:
+            await self._persist_history_before_response(
+                request=request,
+                assistant_reply=assistant_reply,
+                sources=sources,
+                intent=intent,
+            )
+        except Exception:
+            self._increment_metric_counter("persist_history_degraded")
+            logger.exception(
+                "Assistant history persistence degraded: userId=%s conversationId=%s",
+                request.userId,
+                request.conversationId,
+            )
+
+    def _schedule_history_persist(
+        self,
+        request: AssistantRespondRequest,
+        assistant_reply: str,
+        sources: list[AssistantSource],
+        intent: str | None,
+    ):
+        self._increment_metric_counter("persist_history_enqueued")
+        asyncio.create_task(
+            self._persist_history_safe(
+                request=request,
+                assistant_reply=assistant_reply,
+                sources=sources,
+                intent=intent,
+            )
+        )
 
     def _build_updated_summary(
         self,
