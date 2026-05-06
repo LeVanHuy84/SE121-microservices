@@ -38,6 +38,7 @@ class ModerationResult(BaseModel):
     isViolation: bool
     violationScore: float
     maxSeverity: SeverityEnum  
-    # violation_categories: List[str] = Field(default_factory=list)
+    
+    modelVersion: str
 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

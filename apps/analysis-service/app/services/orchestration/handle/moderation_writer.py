@@ -9,6 +9,7 @@ from app.database.schemas.moderation_result import (
 )
 from app.enums.event_enum import TargetTypeEnum
 from app.enums.moderation_enum import SeverityEnum
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ class ModerationWriter:
             isViolation=moderation_data.get("isViolation", False),
             violationScore=moderation_data.get("violationScore", 0.0),
             maxSeverity=moderation_data.get("maxSeverity", SeverityEnum.NONE),
+            modelVersion=settings.MODERATION_MODEL_VERSION,
         )
 
         data = moderation.model_dump(mode="json", exclude_none=False, exclude={'id'})
@@ -140,6 +142,7 @@ class ModerationWriter:
                         category=img.get("category"),
                         scores=img.get("scores"),
                         error=img.get("error"),
+                        modelVersion=settings.MODERATION_MODEL_VERSION, 
                     )
                 )
 

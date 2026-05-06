@@ -14,6 +14,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiModule } from './modules/ai/ai.module';
+import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-analytics.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AiModule } from './modules/ai/ai.module';
     DashboardModule,
     SeedModule,
     AiModule,
+    EmotionAnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

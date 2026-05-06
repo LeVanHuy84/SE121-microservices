@@ -28,6 +28,8 @@ class EmotionAggregate(BaseModel):
     targetId: str
     targetType: TargetTypeEnum
 
+    modelVersion: str
+
     finalEmotion: EmotionEnum
     finalScores: Dict[str, float]
     finalConfidence: float
