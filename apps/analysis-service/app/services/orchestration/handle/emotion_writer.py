@@ -12,6 +12,7 @@ from app.database.schemas.emotion_aggregate import (
 )
 from app.enums.event_enum import TargetTypeEnum
 from app.enums.emotion_enum import RiskHintLevelEnum
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ class EmotionWriter:
             riskHintLevel=emotion_data.get(
                 "riskHintLevel", RiskHintLevelEnum.NONE
             ),
+            modelVersion=settings.EMOTION_MODEL_VERSION,
         )
 
         data = aggregate.model_dump(
@@ -138,6 +140,7 @@ class EmotionWriter:
                 "riskHintLevel", RiskHintLevelEnum.NONE
             ),
             "updatedAt": datetime.now(timezone.utc),
+            "modelVersion": settings.EMOTION_MODEL_VERSION,
         }
 
         return await self.emotion_aggregate_repo.update(

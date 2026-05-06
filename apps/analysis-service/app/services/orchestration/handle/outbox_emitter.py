@@ -39,6 +39,8 @@ class OutboxEmitter:
                 "userId": emotion["userId"],
                 "targetId": emotion["targetId"],
                 "targetType": emotion["targetType"],
+                "modelVersion": emotion.get("modelVersion"),
+
                 "finalEmotion": emotion["finalEmotion"].upper(),
                 "scores": emotion["finalScores"],
                 "confidence": emotion["finalConfidence"],

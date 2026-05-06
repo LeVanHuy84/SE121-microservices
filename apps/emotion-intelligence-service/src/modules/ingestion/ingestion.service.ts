@@ -44,10 +44,11 @@ export class IngestionService {
       userId: payload.userId,
       targetId: payload.targetId,
       targetType: payload.targetType,
+      modelVersion: payload.modelVersion,
       finalEmotion: this.normalizeEmotion(payload.finalEmotion),
       finalScores: payload.scores,
       finalConfidence: payload.confidence,
-      riskHintLevel: payload.riskHintLevel ?? 'LOW',
+      riskHintLevel: payload.riskHintLevel ?? 'NONE',
       createdAt: payload.createdAt ?? new Date(),
     };
   }

@@ -27,12 +27,14 @@ export class AnalysisResultEventPayload {
   targetId: string;
   targetType: TargetType;
 
+  modelVersion: string;
+
   finalEmotion: Emotion;
 
-  scores: Record<string, number>; // ✅ full distribution
-  confidence: number; // ✅ finalConfidence
-  intensityScore: number; // ✅ intensity.score
-  intensityLevel?: IntensityLevel; // ✅ intensity.level (optional)
+  scores: Record<string, number>;
+  confidence: number;
+  intensityScore: number;
+  intensityLevel?: IntensityLevel;
 
   dominantSceneType?: string;
   riskHintLevel?: string;

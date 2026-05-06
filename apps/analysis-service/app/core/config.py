@@ -27,6 +27,9 @@ class Settings:
     INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY")
     if not INTERNAL_SERVICE_KEY:
         raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
+    
+    EMOTION_MODEL_VERSION = os.getenv("EMOTION_MODEL_VERSION", "1.0.0")
+    MODERATION_MODEL_VERSION = os.getenv("MODERATION_MODEL_VERSION", "1.0.0")
 
 
 settings = Settings()
