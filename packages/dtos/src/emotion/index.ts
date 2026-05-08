@@ -8,3 +8,4 @@ export * from './emotion-history.dto';
 export * from './user-emotion-signal.dto';
 export * from './analysis-summary.dto';
 export * from './feedback.dto';
+export * from './admin.dto';

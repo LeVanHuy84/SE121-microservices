@@ -3,6 +3,7 @@ import logging
 from app.database.outbox_repository import OutboxRepository
 from app.database.schemas.outbox import Outbox
 from app.enums.event_enum import EventTypeEnum, ResultEventEnum
+from app.utils.moderation_mapper import build_violations, build_display_message
 
 logger = logging.getLogger(__name__)
 
@@ -13,19 +14,37 @@ class OutboxEmitter:
         self.outbox_repo = outbox_repo
 
     async def emit_moderation(self, moderation: dict):
-        """Emit moderation rejection event"""
-        # Build Pydantic DTO
+        is_violation = moderation.get("isViolation", False)
+
+        violations = build_violations(moderation)
+
+        display_message = build_display_message(is_violation, violations)
+
         outbox = Outbox(
             topic=ResultEventEnum.MODERATION_REJECTED.value,
-            eventType="",
+            eventType="MODERATION_EVALUATED",
             payload={
                 "targetId": moderation["targetId"],
                 "targetType": moderation["targetType"],
+                "userId": moderation.get("userId"),
+
+                "violations": violations,
+
+                "maxSeverity": moderation.get("maxSeverity", "").upper(),
+                "confidence": moderation.get("violationScore"),
+
+                "displayMessage": display_message,
+
+                "createdAt": moderation.get("createdAt"),
             }
         )
-        
-        # Convert to dict for persistence
-        data = outbox.model_dump(mode='json', exclude_none=False, exclude={'id'})
+
+        data = outbox.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude={"id"}
+        )
+
         await self.outbox_repo.save_outbox(data)
 
     async def emit_emotion(self, action: EventTypeEnum, emotion: dict):

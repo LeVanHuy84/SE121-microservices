@@ -1,5 +1,5 @@
 import { DominantModality, IntensityLevel } from '../../emotion/enums';
-import { Emotion, TargetType } from '../enums';
+import { Emotion, Severity, TargetType } from '../enums';
 
 export enum AnalysisEventType {
   CREATED = 'analysis_created',
@@ -44,6 +44,18 @@ export class AnalysisResultEventPayload {
 export class ModerationEventPayload {
   targetId: string;
   targetType: TargetType;
+  userId: string;
+  violations: {
+    type: string;
+    category: string;
+    severity: Severity;
+    confidence: number;
+    reason: string;
+  };
+  maxSeverity: string;
+  confidence: number;
+  displayMessage: string;
+  createdAt?: Date;
 }
 
 export class AnalysisResultEvent {

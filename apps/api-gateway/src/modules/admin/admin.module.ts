@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
+import { AdminEmotionController } from './admin-emotion.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ModerationController } from './moderation.controller';
 
 @Module({
   imports: [
@@ -40,8 +42,19 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           },
         }),
       },
+      {
+        name: MICROSERVICES_CLIENTS.EMOTION_INTELLIGENCE_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT'),
+          },
+        }),
+      },
     ]),
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, ModerationController, AdminEmotionController],
 })
 export class AdminModule {}

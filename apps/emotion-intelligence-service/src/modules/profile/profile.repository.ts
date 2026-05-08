@@ -9,7 +9,12 @@ import {
   UserEmotionProfile,
   UserEmotionProfileDocument,
 } from 'src/mongo/schema/emotion-profile.schema';
+import {
+  UserRiskState,
+  UserRiskStateDocument,
+} from 'src/mongo/schema/user_risk_states.schema';
 import { ProfileAggregateEvent } from './profile.schema';
+import { RiskUserItemDto } from '@repo/dtos';
 
 @Injectable()
 export class ProfileRepository {
@@ -18,6 +23,8 @@ export class ProfileRepository {
     private readonly profileModel: Model<UserEmotionProfileDocument>,
     @InjectModel(EmotionAnalyticsSnapshot.name)
     private readonly aggregateModel: Model<EmotionAnalyticsSnapshotDocument>,
+    @InjectModel(UserRiskState.name)
+    private readonly riskStateModel: Model<UserRiskStateDocument>,
   ) {}
 
   async getByUserId(userId: string): Promise<UserEmotionProfile> {
@@ -31,6 +38,66 @@ export class ProfileRepository {
     }
 
     return profile;
+  }
+
+  async listRiskUsers(
+    page = 1,
+    limit = 20,
+    riskLevel?: string,
+  ): Promise<{
+    items: RiskUserItemDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const query: any = {};
+    if (riskLevel) query.riskLevel = riskLevel;
+
+    const skip = (page - 1) * limit;
+
+    const [itemsRaw, total] = await Promise.all([
+      this.riskStateModel
+        .find(query)
+        .sort({ riskScore: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean<any[]>()
+        .exec(),
+      this.riskStateModel.countDocuments(query).exec(),
+    ]);
+
+    const userIds = itemsRaw.map((r) => r.userId);
+    const profiles = await this.profileModel
+      .find({ userId: { $in: userIds } })
+      .lean<any[]>()
+      .exec();
+
+    const profileById = new Map(profiles.map((p) => [p.userId, p]));
+
+    // compute signal counts per user from analytics snapshots (privacy-safe numeric only)
+    const counts = await this.aggregateModel
+      .aggregate([
+        { $match: { userId: { $in: userIds } } },
+        { $group: { _id: '$userId', count: { $sum: 1 } } },
+      ])
+      .exec();
+
+    const countById = new Map(counts.map((c: any) => [c._id, c.count]));
+
+    const items: RiskUserItemDto[] = itemsRaw.map((r) => ({
+      userId: r.userId,
+      riskLevel: r.riskLevel,
+      riskScore: r.riskScore,
+      signalCount: Number(countById.get(r.userId) ?? 0),
+      updatedAt: r.updatedAt,
+      flagged: !!r.flagged,
+    }));
+
+    return { items, total, page, limit };
+  }
+
+  async getRiskStateByUserId(userId: string) {
+    return this.riskStateModel.findOne({ userId }).lean().exec();
   }
 
   async upsert(

@@ -52,4 +52,83 @@ export class FeedbackRepository {
       .sort({ createdAt: -1 })
       .lean<EmotionFeedback[]>();
   }
+
+  async listFeedbacks(
+    page = 1,
+    limit = 20,
+    isAccurate?: boolean,
+  ): Promise<{
+    items: EmotionFeedback[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const query: any = {};
+    if (isAccurate !== undefined) query.isAccurate = isAccurate;
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.feedbackModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean<EmotionFeedback[]>()
+        .exec(),
+      this.feedbackModel.countDocuments(query).exec(),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
+  async accuracySummary(): Promise<{
+    totalFeedbacks: number;
+    accurateCount: number;
+    inaccurateCount: number;
+    accuracyRate: number;
+    topMismatchPairs: { predicted: string; expected: string; count: number }[];
+  }> {
+    const [totalFeedbacks, accurateCount] = await Promise.all([
+      this.feedbackModel.countDocuments().exec(),
+      this.feedbackModel.countDocuments({ isAccurate: true }).exec(),
+    ]);
+
+    const inaccurateCount = totalFeedbacks - accurateCount;
+    const accuracyRate =
+      totalFeedbacks > 0 ? accurateCount / totalFeedbacks : 0;
+
+    const mismatches = await this.feedbackModel
+      .aggregate([
+        { $match: { isAccurate: false, expectedEmotion: { $exists: true } } },
+        {
+          $group: {
+            _id: {
+              predicted: '$predictedEmotion',
+              expected: '$expectedEmotion',
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            predicted: '$_id.predicted',
+            expected: '$_id.expected',
+            count: 1,
+          },
+        },
+      ])
+      .exec();
+
+    return {
+      totalFeedbacks,
+      accurateCount,
+      inaccurateCount,
+      accuracyRate,
+      topMismatchPairs: mismatches,
+    };
+  }
 }
