@@ -8,3 +8,4 @@ export * from './media.event';
 export * from './interaction.event';
 export * from './recommendation-profile.event';
 export * from './recommendation-graph.event';
+export * from './log.event';

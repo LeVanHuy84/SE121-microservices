@@ -10,6 +10,7 @@ import {
   TargetType,
 } from '@repo/dtos';
 import { Comment } from 'src/entities/comment.entity';
+import { ContentModeration } from 'src/entities/content-moderation.entity';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Post } from 'src/entities/post.entity';
 import { Share } from 'src/entities/share.entity';
@@ -81,35 +82,78 @@ export class ConsumerService {
     manager?: EntityManager,
   ): Promise<void> {
     const txManager = manager ?? this.dataSource.manager;
+
     let entity: Post | Comment | Share | null = null;
+    let notificationMessage: string;
 
     switch (payload.targetType) {
       case TargetType.POST:
         entity = await txManager.findOne(Post, {
           where: { id: payload.targetId },
         });
+        notificationMessage = `Bài viết ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.COMMENT:
         entity = await txManager.findOne(Comment, {
           where: { id: payload.targetId },
         });
+        notificationMessage = `Bình luận ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.SHARE:
         entity = await txManager.findOne(Share, {
           where: { id: payload.targetId },
         });
+        notificationMessage = `Bài chia sẻ ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
     }
 
     if (!entity) return;
 
-    // Soft delete
+    // =====================================================
+    // 1. SAVE CONTENT MODERATION (UPSERT)
+    // =====================================================
+
+    let moderation = await txManager.findOne(ContentModeration, {
+      where: {
+        targetId: payload.targetId,
+        targetType: payload.targetType,
+      },
+    });
+
+    if (!moderation) {
+      moderation = txManager.create(ContentModeration, {
+        userId: payload.userId,
+        targetId: payload.targetId,
+        targetType: payload.targetType,
+      });
+    }
+
+    moderation.violations = Array.isArray(payload.violations)
+      ? payload.violations.map((v) => ({
+          category: v.category,
+          reason: v.reason,
+        }))
+      : [];
+
+    moderation.maxSeverity = payload.maxSeverity as any;
+    moderation.confidence = payload.confidence;
+    moderation.displayMessage = payload.displayMessage;
+
+    await txManager.save(moderation);
+
+    // =====================================================
+    // 2. SOFT DELETE CONTENT
+    // =====================================================
+
     entity.isDeleted = true;
     await txManager.save(entity);
 
-    // Nếu là POST → emit removed event
+    // =====================================================
+    // 3. POST EVENT (nếu là post)
+    // =====================================================
+
     if (payload.targetType === TargetType.POST) {
       const postOutbox = txManager.create(OutboxEvent, {
         topic: EventTopic.POST,
@@ -121,7 +165,10 @@ export class ConsumerService {
       await txManager.save(postOutbox);
     }
 
-    // Notification outbox
+    // =====================================================
+    // 4. NOTIFICATION
+    // =====================================================
+
     const notiOutbox = txManager.create(OutboxEvent, {
       topic: 'notification',
       destination: EventDestination.RABBITMQ,
@@ -131,7 +178,7 @@ export class ConsumerService {
         targetType: payload.targetType,
         actorName: 'SentiMeta System',
         actorAvatar: 'https://sentimeta.vercel.app/logo.svg',
-        content: (entity.content ?? '').slice(0, 100),
+        content: notificationMessage,
         receivers: [entity.userId],
       },
     });
