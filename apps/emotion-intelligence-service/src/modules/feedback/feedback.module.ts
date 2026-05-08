@@ -8,6 +8,8 @@ import { FeedbackService } from './feedback.service';
 import { FeedbackController } from './feedback.controller';
 import { FeedbackRepository } from './feedback.repository';
 import { EmotionAnalyticsModule } from '../emotion-analytics/emotion-analytics.module';
+import { AdminFeedbackController } from './admin-feedback.controller';
+import { AdminFeedbackService } from './admin-feedback.service';
 
 @Module({
   imports: [
@@ -19,8 +21,8 @@ import { EmotionAnalyticsModule } from '../emotion-analytics/emotion-analytics.m
     ]),
     EmotionAnalyticsModule,
   ],
-  controllers: [FeedbackController],
-  providers: [FeedbackService, FeedbackRepository],
-  exports: [FeedbackService, FeedbackRepository],
+  controllers: [FeedbackController, AdminFeedbackController],
+  providers: [FeedbackService, FeedbackRepository, AdminFeedbackService],
+  exports: [FeedbackService, FeedbackRepository, AdminFeedbackService],
 })
 export class FeedbackModule {}
