@@ -10,6 +10,7 @@ import { Share } from 'src/entities/share.entity';
 import { ModerationAppeal } from 'src/entities/moderation-appeal.entity';
 import { UserClientModule } from '../client/user/user-client.module';
 import { LogService } from './log.service';
+import { OutboxEvent } from 'src/entities/outbox.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { LogService } from './log.service';
       Share,
       ContentModeration,
       ModerationAppeal,
+      OutboxEvent,
     ]),
     UserClientModule,
   ],

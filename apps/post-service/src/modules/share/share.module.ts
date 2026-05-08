@@ -10,6 +10,7 @@ import { ShareQueryService } from './service/share-query.service';
 import { ShareCacheService } from './service/share-cache.service';
 import { SocialClientModule } from '../client/social/social-client.module';
 import { GroupClientModule } from '../client/group/group-client.module';
+import { OutboxService } from '../event/outbox.service';
 
 @Module({
   imports: [
@@ -18,6 +19,11 @@ import { GroupClientModule } from '../client/group/group-client.module';
     GroupClientModule,
   ],
   controllers: [ShareController],
-  providers: [ShareCommandService, ShareQueryService, ShareCacheService],
+  providers: [
+    ShareCommandService,
+    ShareQueryService,
+    ShareCacheService,
+    OutboxService,
+  ],
 })
 export class ShareModule {}

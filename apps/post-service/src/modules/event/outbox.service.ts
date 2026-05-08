@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ActivityType,
   AnalysisEventType,
   CreatedAnalysisEventPayload,
   EventDestination,
@@ -7,6 +8,7 @@ import {
   MediaType,
   TargetType,
   UpdatedAnalysisEventPayload,
+  UserActivityLogPayload,
 } from '@repo/dtos';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 
@@ -57,7 +59,7 @@ export class OutboxService {
     manager: any,
     targetType: TargetType,
     targetId: string,
-    newContent: string
+    newContent: string,
   ) {
     const payload: UpdatedAnalysisEventPayload = {
       targetId,
@@ -72,6 +74,20 @@ export class OutboxService {
       payload,
     });
 
+    return await manager.save(outbox);
+  }
+
+  async createUserActivityEvent(
+    manager: any,
+    activityType: ActivityType,
+    payload: UserActivityLogPayload,
+  ) {
+    const outbox = manager.create(OutboxEvent, {
+      topic: EventTopic.USER_ACTIVITY_LOG,
+      destination: EventDestination.KAFKA,
+      eventType: activityType,
+      payload,
+    });
     return await manager.save(outbox);
   }
 }

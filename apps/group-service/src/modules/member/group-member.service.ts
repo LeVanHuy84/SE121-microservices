@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  ActivityType,
   CursorPageResponse,
   EventDestination,
+  EventTopic,
   GroupEventLog,
   GroupMemberDTO,
   GroupMemberFilter,
@@ -56,6 +58,22 @@ export class GroupMemberService {
       });
 
       await this.updateMemberCount(manager, groupId, -1);
+
+      const userActivityLog = manager.create(OutboxEvent, {
+        destination: EventDestination.RABBITMQ,
+        topic: EventTopic.USER_ACTIVITY_LOG,
+        eventType: ActivityType.GROUP_LEFT,
+        payload: {
+          actorId: userId,
+          activityType: ActivityType.GROUP_LEFT,
+          targetId: groupId,
+          contentPreview: `Bạn đã rời khỏi nhóm ${member.group.name}`,
+          createdAt: new Date(),
+        },
+      });
+
+      await manager.save(userActivityLog);
+
       return true;
     });
   }
@@ -372,7 +390,6 @@ export class GroupMemberService {
 
     return rows.map((r) => r.userId);
   }
-
 
   async getCommonGroupCountsBatch(
     userId: string,

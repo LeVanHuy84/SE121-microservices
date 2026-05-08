@@ -9,10 +9,12 @@ import {
 import { Repository } from 'typeorm';
 import { OutboxEvent } from 'src/entities/outbox.entity';
 import { UserClientService } from '../client/user/user-client.service';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class LogService {
   constructor(
+    @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly userClient: UserClientService,
   ) {}
@@ -37,7 +39,6 @@ export class LogService {
     const logPayload: LogEventPayload = {
       actorId: moderatorId,
       targetId: appealId,
-      logType: LogType.MODERATE_LOG,
       action: 'REVIEW_APPEAL',
       detail: detailMessage,
       createdAt: new Date(),
@@ -72,7 +73,6 @@ export class LogService {
     const logPayload: LogEventPayload = {
       actorId: moderatorId,
       targetId: moderationId,
-      logType: LogType.MODERATE_LOG,
       action: 'FINAL_DECISION',
       detail: detailMessage,
       createdAt: new Date(),

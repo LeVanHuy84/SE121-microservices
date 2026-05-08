@@ -18,5 +18,5 @@ export enum EventTopic {
   RECOMMENDATION_RESULT = 'recommendation-result-events',
 
   TEST_FAULT = 'test-fault',
-
+  USER_ACTIVITY_LOG = 'user-activity-log-events',
 }

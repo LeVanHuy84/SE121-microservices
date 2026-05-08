@@ -11,6 +11,7 @@ import { OutboxEvent } from 'src/entities/outbox.entity';
 import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu chưa có
 
 import {
+  ActivityType,
   Audience,
   CreatePostDTO,
   EventDestination,
@@ -102,6 +103,21 @@ export class PostCommandService {
         manager,
         TargetType.POST,
         entity,
+      );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.POST_CREATED,
+        {
+          actorId: userId,
+          activityType: ActivityType.POST_CREATED,
+          targetId: entity.id,
+          contentPreview: entity.content.slice(0, 100),
+          metadata: {
+            audience: entity.audience,
+          },
+          createdAt: entity.createdAt,
+        },
       );
 
       return PostShortenMapper.toPostSnapshotDTO(entity);

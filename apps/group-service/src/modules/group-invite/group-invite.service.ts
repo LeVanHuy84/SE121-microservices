@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { DataSource, In } from 'typeorm';
 import {
+  ActivityType,
   EventDestination,
+  EventTopic,
   GroupEventLog,
   GroupMemberStatus,
   GroupPermission,
@@ -188,6 +190,7 @@ export class GroupInviteService {
       const inviteRepo = manager.getRepository(GroupInvite);
       const memberRepo = manager.getRepository(GroupMember);
       const groupRepo = manager.getRepository(Group);
+      const outboxRepo = manager.getRepository(OutboxEvent);
 
       const invite = await inviteRepo.findOne({
         where: { groupId, inviteeId: userId, status: InviteStatus.PENDING },
@@ -240,16 +243,32 @@ export class GroupInviteService {
       invite.status = InviteStatus.ACCEPTED;
       await inviteRepo.save(invite);
 
+      const userActivityLog = outboxRepo.create({
+        destination: EventDestination.RABBITMQ,
+        topic: EventTopic.USER_ACTIVITY_LOG,
+        eventType: ActivityType.GROUP_JOINED,
+        payload: {
+          actorId: userId,
+          activityType: ActivityType.GROUP_JOINED,
+          targetId: group.id,
+          contentPreview: `Đã tham gia nhóm ${group.name}`,
+          createdAt: group.createdAt,
+        },
+      });
+
+      await outboxRepo.save(userActivityLog);
+
       return true;
     });
   }
 
   // ==================================================
-  // ❌ DECLINE INVITE
+  // DECLINE INVITE
   // ==================================================
   async declineInvite(groupId: string, userId: string): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const inviteRepo = manager.getRepository(GroupInvite);
+      const outboxRepo = manager.getRepository(OutboxEvent);
 
       const invite = await inviteRepo.findOne({
         where: { groupId, inviteeId: userId, status: InviteStatus.PENDING },
