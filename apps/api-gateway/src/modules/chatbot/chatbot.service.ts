@@ -408,21 +408,57 @@ export class ChatbotService {
         this.logger.error(
           `${action} timeout userId=${userId} durationMs=${durationMs}`,
         );
-        return new GatewayTimeoutException('Chatbot service timeout');
+        return new GatewayTimeoutException(
+          this.createStableErrorBody(
+            504,
+            'ASSISTANT_GATEWAY_TIMEOUT',
+            'Chatbot service timeout',
+            true,
+          ),
+        );
       }
 
       this.incrementMetricCounter(`${action}_unavailable`);
       this.logger.error(
         `${action} unavailable userId=${userId} code=${error.code} durationMs=${durationMs}`,
       );
-      return new ServiceUnavailableException('Chatbot service unavailable');
+      return new ServiceUnavailableException(
+        this.createStableErrorBody(
+          503,
+          'ASSISTANT_GATEWAY_UNAVAILABLE',
+          'Chatbot service unavailable',
+          true,
+        ),
+      );
     }
 
     this.incrementMetricCounter(`${action}_unexpected_error`);
     this.logger.error(
       `${action} unexpected_error userId=${userId} durationMs=${durationMs} reason=${error instanceof Error ? error.message : String(error)}`,
     );
-    return new HttpException('Chatbot gateway error', 500);
+    return new HttpException(
+      this.createStableErrorBody(
+        500,
+        'ASSISTANT_GATEWAY_ERROR',
+        'Chatbot gateway error',
+        false,
+      ),
+      500,
+    );
+  }
+
+  private createStableErrorBody(
+    statusCode: number,
+    code: string,
+    message: string,
+    retryable: boolean,
+  ) {
+    return {
+      statusCode,
+      code,
+      message,
+      retryable,
+    };
   }
 
   private metricsEnabled(): boolean {

@@ -51,6 +51,10 @@ class AssistantRespondData(BaseModel):
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
     model: str
     provider: str
+    requestId: Optional[str] = None
+    latencyMs: Optional[float] = None
+    persisted: Optional[bool] = None
+    conversationId: Optional[str] = None
 
 
 class AssistantRespondResponse(BaseModel):
