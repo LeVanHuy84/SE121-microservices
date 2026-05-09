@@ -3,8 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config'; // Import ConfigModule and ConfigService
 import { AuditLog, AuditLogSchema } from './schema/audit-log.schema';
 import {
-  UserActivity,
-  UserActivitySchema,
+  UserActivityLog,
+  UserActivityLogSchema,
 } from './schema/user-activity.schema';
 
 @Global()
@@ -20,7 +20,7 @@ import {
     }),
     MongooseModule.forFeature([
       { name: AuditLog.name, schema: AuditLogSchema },
-      { name: UserActivity.name, schema: UserActivitySchema },
+      { name: UserActivityLog.name, schema: UserActivityLogSchema },
     ]),
   ],
   providers: [],
