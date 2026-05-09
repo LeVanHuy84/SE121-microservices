@@ -8,8 +8,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import asyncio
 
-from elasticsearch import Elasticsearch
+from elasticsearch import AsyncElasticsearch
 
 from app.core.config import settings
 from app.schemas.assistant_schema import AssistantContextItem
@@ -36,24 +37,24 @@ class RagDocumentChunk:
 
 
 class RagDocumentService:
-    def __init__(self, es: Elasticsearch | None = None):
+    def __init__(self, es: AsyncElasticsearch | None = None):
         self._es = es
         self._index_exists_cache: bool | None = None
         self._index_exists_cache_expires_at: float = 0.0
 
-    def index_assistant_docs(self) -> dict[str, int]:
+    async def index_assistant_docs(self) -> dict[str, int]:
         chunks, manifest_signature = self._load_markdown_chunks_with_signature()
         if not chunks:
             return {"documents": 0, "chunks": 0}
 
-        if self._is_index_signature_unchanged(manifest_signature):
+        if await self._is_index_signature_unchanged(manifest_signature):
             return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": 0}
 
         embeddings = embedding_service.encode_documents([chunk.text for chunk in chunks])
         if not embeddings:
             return {"documents": 0, "chunks": 0}
 
-        self._ensure_index(len(embeddings[0]))
+        await self._ensure_index(len(embeddings[0]))
 
         operations: list[dict[str, Any]] = []
         for chunk, embedding in zip(chunks, embeddings, strict=False):
@@ -77,13 +78,13 @@ class RagDocumentService:
                 }
             )
 
-        self.es.bulk(operations=operations, refresh=True)
+        await self.es.bulk(operations=operations, refresh=True)
         self._write_index_signature(manifest_signature)
         return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": len(chunks)}
 
-    def search_assistant_docs(self, query: str, top_k: int | None = None) -> list[AssistantContextItem]:
+    async def search_assistant_docs(self, query: str, top_k: int | None = None) -> list[AssistantContextItem]:
         normalized_query = normalize_query_text(query)
-        if not normalized_query or not self._index_exists_cached():
+        if not normalized_query or not await self._index_exists_cached():
             return []
 
         query_embedding = embedding_service.encode_query(normalized_query)
@@ -97,8 +98,8 @@ class RagDocumentService:
         )
         visibility = settings.RAG_DOC_SEARCH_VISIBILITY
 
-        vector_hits = self._search_vector(normalized_query, query_embedding, candidate_size, visibility)
-        bm25_hits = self._search_bm25(normalized_query, candidate_size, visibility)
+        vector_hits = await self._search_vector(normalized_query, query_embedding, candidate_size, visibility)
+        bm25_hits = await self._search_bm25(normalized_query, candidate_size, visibility)
         hybrid_candidates = self._rrf_merge([vector_hits, bm25_hits])
         reranked = self._semantic_rerank(query_embedding, hybrid_candidates)
 
@@ -142,27 +143,30 @@ class RagDocumentService:
                 break
         return contexts
 
-    def warm_up(self):
+    async def warm_up_async(self):
         if not settings.RAG_DOCS_ENABLED:
             return
         try:
             # Do not re-index on startup; only warm query path and embedding model.
-            self._index_exists_cached(force_refresh=True)
+            await self._index_exists_cached(force_refresh=True)
             embedding_service.encode_query("Tro ly Sentimeta")
             logger.info("Assistant docs RAG warmup completed")
         except Exception as exc:
             logger.warning("Assistant docs RAG warmup skipped: %s", exc)
 
+    def warm_up(self):
+        asyncio.run(self.warm_up_async())
+
     @property
-    def es(self) -> Elasticsearch:
+    def es(self) -> AsyncElasticsearch:
         if self._es is None:
-            self._es = Elasticsearch(settings.ES_NODE)
+            self._es = AsyncElasticsearch(settings.ES_NODE)
         return self._es
 
-    def _ensure_index(self, dimensions: int):
-        if self._index_exists_cached():
+    async def _ensure_index(self, dimensions: int):
+        if await self._index_exists_cached():
             return
-        self.es.indices.create(
+        await self.es.indices.create(
             index=settings.RAG_INDEX_NAME,
             mappings={
                 "properties": {
@@ -189,7 +193,7 @@ class RagDocumentService:
         self._index_exists_cache = True
         self._index_exists_cache_expires_at = time.time() + 60
 
-    def _search_vector(
+    async def _search_vector(
         self,
         normalized_query: str,
         query_embedding: list[float],
@@ -197,7 +201,7 @@ class RagDocumentService:
         visibility: str,
     ) -> list[dict[str, Any]]:
         del normalized_query
-        result = self.es.search(
+        result = await self.es.search(
             index=settings.RAG_INDEX_NAME,
             size=candidate_size,
             knn={
@@ -224,8 +228,8 @@ class RagDocumentService:
         )
         return result.get("hits", {}).get("hits", [])
 
-    def _search_bm25(self, normalized_query: str, candidate_size: int, visibility: str) -> list[dict[str, Any]]:
-        result = self.es.search(
+    async def _search_bm25(self, normalized_query: str, candidate_size: int, visibility: str) -> list[dict[str, Any]]:
+        result = await self.es.search(
             index=settings.RAG_INDEX_NAME,
             size=candidate_size,
             query={
@@ -298,7 +302,7 @@ class RagDocumentService:
             return 0.0
         return dot / (norm_a * norm_b)
 
-    def _index_exists_cached(self, force_refresh: bool = False) -> bool:
+    async def _index_exists_cached(self, force_refresh: bool = False) -> bool:
         now = time.time()
         if (
             not force_refresh
@@ -306,7 +310,7 @@ class RagDocumentService:
             and self._index_exists_cache_expires_at > now
         ):
             return self._index_exists_cache
-        exists = self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+        exists = await self.es.indices.exists(index=settings.RAG_INDEX_NAME)
         self._index_exists_cache = bool(exists)
         self._index_exists_cache_expires_at = now + 20
         return self._index_exists_cache
@@ -459,13 +463,13 @@ class RagDocumentService:
         service_root = Path(__file__).resolve().parents[2]
         return (service_root / path).resolve()
 
-    def _is_index_signature_unchanged(self, signature: str) -> bool:
+    async def _is_index_signature_unchanged(self, signature: str) -> bool:
         manifest_path = self._manifest_path()
         if not manifest_path.exists():
             return False
         try:
             existing = manifest_path.read_text(encoding="utf-8").strip()
-            return existing == signature and self._index_exists_cached(force_refresh=True)
+            return existing == signature and await self._index_exists_cached(force_refresh=True)
         except Exception:
             return False
 
@@ -479,4 +483,3 @@ class RagDocumentService:
 
 
 rag_document_service = RagDocumentService()
-

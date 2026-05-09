@@ -189,7 +189,7 @@ class RespondCommand:
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(self.context_resolver.resolve, request),
+                self.context_resolver.resolve(request),
                 timeout=timeout_seconds,
             )
         except Exception:

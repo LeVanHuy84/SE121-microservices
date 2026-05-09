@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from app.core.config import settings
 from app.providers.base import LlmGeneration
 from app.schemas.assistant_schema import AssistantRespondRequest
@@ -17,19 +15,20 @@ class GroqProvider:
         request: AssistantRespondRequest,
     ) -> LlmGeneration:
         del request
-        content = await asyncio.to_thread(self._generate_sync, prompt)
+        content = await self._generate_async(prompt)
         return LlmGeneration(
             content=content,
             model=settings.GROQ_MODEL,
             provider="groq",
         )
 
-    def _generate_sync(self, prompt: str) -> str:
+    async def _generate_async(self, prompt: str) -> str:
         if not settings.GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY is not set")
 
         chain = self._get_chain()
-        response = str(chain.invoke({"input": prompt}) or "").strip()
+        response = await chain.ainvoke({"input": prompt})
+        response = str(response or "").strip()
         if not response:
             raise RuntimeError("Groq returned an empty response")
         return response
