@@ -177,6 +177,18 @@ class Settings:
         self.RAG_DOC_MAX_CHUNKS_PER_DOC: int = int(
             os.getenv("RAG_DOC_MAX_CHUNKS_PER_DOC", 2)
         )
+        self.RAG_HYBRID_CANDIDATE_MULTIPLIER: int = int(
+            os.getenv("RAG_HYBRID_CANDIDATE_MULTIPLIER", 4)
+        )
+        self.RAG_SEMANTIC_MERGE_THRESHOLD: float = float(
+            os.getenv("RAG_SEMANTIC_MERGE_THRESHOLD", 0.82)
+        )
+        self.RAG_CHUNK_TOKEN_BUDGET: int = int(
+            os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320)
+        )
+        self.RAG_REINDEX_MANIFEST_PATH: str = os.getenv(
+            "RAG_REINDEX_MANIFEST_PATH", ".rag_index_manifest.sha256"
+        ).strip()
         self.RAG_DOC_SEARCH_VISIBILITY: str = os.getenv(
             "RAG_DOC_SEARCH_VISIBILITY", "public"
         ).strip()
@@ -387,6 +399,18 @@ class Settings:
 
         if self.RAG_DOC_MAX_CHUNKS_PER_DOC <= 0:
             raise RuntimeError("RAG_DOC_MAX_CHUNKS_PER_DOC must be positive")
+
+        if self.RAG_HYBRID_CANDIDATE_MULTIPLIER <= 0:
+            raise RuntimeError("RAG_HYBRID_CANDIDATE_MULTIPLIER must be positive")
+
+        if not (0 <= self.RAG_SEMANTIC_MERGE_THRESHOLD <= 1):
+            raise RuntimeError("RAG_SEMANTIC_MERGE_THRESHOLD must be between 0 and 1")
+
+        if self.RAG_CHUNK_TOKEN_BUDGET <= 0:
+            raise RuntimeError("RAG_CHUNK_TOKEN_BUDGET must be positive")
+
+        if not self.RAG_REINDEX_MANIFEST_PATH:
+            raise RuntimeError("RAG_REINDEX_MANIFEST_PATH must not be empty")
 
         if not self.RAG_DOC_SEARCH_VISIBILITY:
             raise RuntimeError("RAG_DOC_SEARCH_VISIBILITY must not be empty")

@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 
 from app.core.config import settings
+from app.utils.text_normalizer import normalize_text
 
 
 class EmbeddingService:
@@ -103,7 +104,7 @@ class EmbeddingService:
         return text
 
     def _normalize_input(self, text: object) -> str:
-        return " ".join(str(text or "").split())
+        return normalize_text(text)
 
 
 embedding_service = EmbeddingService()

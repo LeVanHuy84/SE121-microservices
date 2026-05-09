@@ -223,9 +223,9 @@ class RespondCommand:
         assistant_reply: str,
     ) -> str:
         latest = (
-            "Luot gan nhat: "
-            f"Nguoi dung hoi '{self._truncate_text(user_message, 180)}'. "
-            f"Assistant tra loi '{self._truncate_text(assistant_reply, 260)}'."
+            "Lượt gần nhất: "
+            f"Người dùng hỏi '{self._truncate_text(user_message, 180)}'. "
+            f"Assistant trả lời '{self._truncate_text(assistant_reply, 260)}'."
         )
         combined = " ".join(part for part in [current_summary, latest] if part)
         return self._truncate_text(combined, settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT)
@@ -258,8 +258,8 @@ class RespondCommand:
     def _llm_timeout_generation(self) -> LlmGeneration:
         return LlmGeneration(
             content=(
-                "He thong dang cham hon binh thuong. "
-                "Ban thu gui cau hoi ngan hon hoac thu lai sau vai giay."
+                "Hệ thống đang chậm hơn bình thường. "
+                "Bạn thử gửi câu hỏi ngắn hơn hoặc thử lại sau vài giây."
             ),
             model="timeout-guard",
             provider="chatbot-service",
@@ -280,9 +280,9 @@ class RespondCommand:
     def _out_of_scope_response(self) -> AssistantRespondData:
         return AssistantRespondData(
             reply=(
-                "Minh chi ho tro cac cau hoi lien quan den he thong Sentimeta "
-                "nhu bai viet, nhom, tim kiem, chat, ho so, quyen rieng tu "
-                "va goi y ban be."
+                "Mình chỉ hỗ trợ các câu hỏi liên quan đến hệ thống Sentimeta "
+                "như bài viết, nhóm, tìm kiếm, chat, hồ sơ, quyền riêng tư "
+                "và gợi ý bạn bè."
             ),
             sources=[],
             suggestedActions=[],
@@ -293,8 +293,8 @@ class RespondCommand:
     def _greeting_response(self) -> AssistantRespondData:
         return AssistantRespondData(
             reply=(
-                "Xin chao! Minh la tro ly cua Sentimeta. "
-                "Ban can minh ho tro gi ve bai viet, nhom, chat, ho so, tim kiem hoac goi y ban be?"
+                "Xin chào! Mình là trợ lý của Sentimeta. "
+                "Bạn cần mình hỗ trợ gì về bài viết, nhóm, chat, hồ sơ, tìm kiếm hoặc gợi ý bạn bè?"
             ),
             sources=[],
             suggestedActions=[],

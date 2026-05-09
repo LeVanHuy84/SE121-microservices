@@ -60,8 +60,10 @@ class GroqProvider:
                 (
                     "system",
                     (
-                        "You are the SE121 social network AI Assistant. "
-                        "Follow the instructions and RAG context from the user message."
+                        "Bạn là AI Assistant của mạng xã hội Sentimeta. "
+                        "Luôn trả lời theo ngôn ngữ của người dùng. "
+                        "Ưu tiên câu trả lời ngắn gọn, rõ ràng, theo từng bước khi cần. "
+                        "Chỉ dùng thông tin có trong prompt/context, không bịa dữ liệu."
                     ),
                 ),
                 ("human", "{input}"),
