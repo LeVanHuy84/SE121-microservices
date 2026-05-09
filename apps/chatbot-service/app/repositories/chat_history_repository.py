@@ -82,8 +82,18 @@ class ChatHistoryRepository:
         assistant_reply: str,
         intent: str | None = None,
         sources: list[dict[str, Any]] | None = None,
+        client_message_id: str | None = None,
     ) -> tuple[ChatMessage, ChatMessage]:
         async with self._session_factory() as session:
+            if client_message_id:
+                existing_exchange = await self.get_exchange_by_client_message_id(
+                    session=session,
+                    user_id=user_id,
+                    client_message_id=client_message_id,
+                )
+                if existing_exchange:
+                    return existing_exchange
+
             conversation = await self._get_conversation(session, user_id)
             if not conversation:
                 conversation = ChatConversation(user_id=user_id)
@@ -102,6 +112,7 @@ class ChatHistoryRepository:
                 conversation_id=conversation.id,
                 user_id=user_id,
                 role="user",
+                client_message_id=client_message_id,
                 content=user_message,
                 meta={"message_kind": "user"},
                 created_at=now,
@@ -122,6 +133,42 @@ class ChatHistoryRepository:
             await session.refresh(user_chat_message)
             await session.refresh(assistant_chat_message)
             return user_chat_message, assistant_chat_message
+
+    async def get_exchange_by_client_message_id(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        client_message_id: str,
+    ) -> tuple[ChatMessage, ChatMessage] | None:
+        user_result = await session.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.user_id == user_id,
+                ChatMessage.role == "user",
+                ChatMessage.client_message_id == client_message_id,
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+            .limit(1)
+        )
+        user_message = user_result.scalar_one_or_none()
+        if not user_message:
+            return None
+
+        assistant_result = await session.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.conversation_id == user_message.conversation_id,
+                ChatMessage.role == "assistant",
+                ChatMessage.created_at >= user_message.created_at,
+            )
+            .order_by(ChatMessage.created_at, ChatMessage.id)
+            .limit(1)
+        )
+        assistant_message = assistant_result.scalar_one_or_none()
+        if not assistant_message:
+            return None
+
+        return user_message, assistant_message
 
     async def list_messages_by_user(
         self,

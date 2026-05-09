@@ -196,6 +196,9 @@ class Settings:
         self.CHATBOT_LLM_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
         )
+        self.CHATBOT_MAX_CONCURRENT_LLM: int = int(
+            os.getenv("CHATBOT_MAX_CONCURRENT_LLM", 32)
+        )
         self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", 1024))
         self.GROQ_TEMPERATURE: float = float(
             os.getenv("GROQ_TEMPERATURE", 0.2)
@@ -399,6 +402,9 @@ class Settings:
 
         if self.CHATBOT_LLM_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_LLM_TIMEOUT_MS must be positive")
+
+        if self.CHATBOT_MAX_CONCURRENT_LLM <= 0:
+            raise RuntimeError("CHATBOT_MAX_CONCURRENT_LLM must be positive")
 
         if self.GROQ_MAX_TOKENS <= 0:
             raise RuntimeError("GROQ_MAX_TOKENS must be positive")

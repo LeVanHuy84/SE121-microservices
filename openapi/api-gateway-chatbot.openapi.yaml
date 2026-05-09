@@ -242,6 +242,11 @@ components:
           type: string
           minLength: 1
           example: How does friend recommendation work?
+        clientMessageId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 2b7b8cb3-38bb-4bbf-95c3-2a26ffd90f79
 
     AssistantRespondResponse:
       type: object

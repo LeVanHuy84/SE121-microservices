@@ -25,6 +25,7 @@ from app.services.prompt_limits import resolve_prompt_limits
 from app.services.scope_guard import AssistantScopeGuard, assistant_scope_guard
 
 logger = logging.getLogger("uvicorn.error")
+_LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
 
 
 class RespondCommand:
@@ -94,9 +95,13 @@ class RespondCommand:
             )
 
         memory_summary = self.memory.get_summary(session_key)
-        candidate_contexts = await self._resolve_contexts_with_budget(
-            request,
-            settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+        candidate_contexts = (
+            self._dedupe_contexts(request.contexts)
+            if request.contexts
+            else await self._resolve_contexts_with_budget(
+                request,
+                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+            )
         )
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
@@ -115,10 +120,11 @@ class RespondCommand:
         llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
         generation: LlmGeneration
         try:
-            generation = await asyncio.wait_for(
-                self.provider.generate(prompt, resolved_request),
-                timeout=max(llm_timeout_ms, 1) / 1000,
-            )
+            async with _LLM_SEMAPHORE:
+                generation = await asyncio.wait_for(
+                    self.provider.generate(prompt, resolved_request),
+                    timeout=max(llm_timeout_ms, 1) / 1000,
+                )
         except asyncio.TimeoutError:
             generation = self._llm_timeout_generation()
         except Exception:
@@ -295,4 +301,3 @@ class RespondCommand:
             model="greeting-guard",
             provider="chatbot-service",
         )
-

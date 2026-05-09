@@ -35,6 +35,7 @@ class PersistHistoryCommand:
                     assistant_reply=assistant_reply,
                     intent=intent,
                     sources=sources,
+                    client_message_id=request.clientMessageId,
                 ),
                 timeout=timeout_seconds,
             )
@@ -53,4 +54,3 @@ class PersistHistoryCommand:
                 duration_ms,
                 request.userId,
             )
-

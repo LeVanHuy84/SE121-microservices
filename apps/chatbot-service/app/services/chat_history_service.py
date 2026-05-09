@@ -29,6 +29,7 @@ class ChatHistoryService:
         assistant_reply: str,
         intent: str | None,
         sources: list[AssistantSource],
+        client_message_id: str | None = None,
     ):
         if not self.is_enabled():
             return
@@ -40,6 +41,7 @@ class ChatHistoryService:
             assistant_reply=assistant_reply,
             intent=intent,
             sources=serialized_sources,
+            client_message_id=client_message_id,
         )
 
     async def get_messages_page_by_user(

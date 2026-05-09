@@ -57,7 +57,11 @@ export class ChatbotService {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
     const normalizedMessage = this.normalizeMessage(dto.message);
-    const cacheKey = this.buildRespondCacheKey(userId, normalizedMessage);
+    const cacheKey = this.buildRespondCacheKey(
+      userId,
+      normalizedMessage,
+      dto.clientMessageId,
+    );
     const contextTimeoutMs = this.configService.get<number>(
       'CHATBOT_CONTEXT_BUILD_TIMEOUT_MS',
       1200,
@@ -98,6 +102,7 @@ export class ChatbotService {
     const execution = this.executeRespond({
       userId,
       message: dto.message,
+      clientMessageId: dto.clientMessageId,
       normalizedMessage,
       baseUrl,
       internalKey,
@@ -198,6 +203,7 @@ export class ChatbotService {
   private async executeRespond(params: {
     userId: string;
     message: string;
+    clientMessageId?: string;
     normalizedMessage: string;
     baseUrl: string;
     internalKey: string;
@@ -208,6 +214,7 @@ export class ChatbotService {
     const {
       userId,
       message,
+      clientMessageId,
       normalizedMessage,
       baseUrl,
       internalKey,
@@ -240,6 +247,7 @@ export class ChatbotService {
         {
           userId,
           message,
+          clientMessageId,
           contexts,
         },
         {
@@ -298,8 +306,15 @@ export class ChatbotService {
     });
   }
 
-  private buildRespondCacheKey(userId: string, normalizedMessage: string): string {
-    return `${userId}:${normalizedMessage}`;
+  private buildRespondCacheKey(
+    userId: string,
+    normalizedMessage: string,
+    clientMessageId?: string,
+  ): string {
+    if (clientMessageId) {
+      return `${userId}:idempotency:${clientMessageId}`;
+    }
+    return `${userId}:message:${normalizedMessage}`;
   }
 
   private normalizeMessage(message: string): string {
