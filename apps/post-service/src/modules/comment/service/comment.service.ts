@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import {
+  ActivityType,
   CommentResponseDTO,
   CreateCommentDTO,
   EventDestination,
@@ -69,8 +70,7 @@ export class CommentService {
               items: [
                 {
                   publicId: comment.media.publicId,
-                  type:
-                    comment.media.type,
+                  type: comment.media.type,
                   url: comment.media.url,
                 },
               ],
@@ -127,12 +127,29 @@ export class CommentService {
         entity,
       );
 
+      const userActivityOutbox = this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.COMMENT_CREATED,
+        {
+          actorId: userId,
+          activityType: ActivityType.COMMENT_CREATED,
+          targetId: entity.id,
+          contentPreview: entity.content.slice(0, 100),
+          metadata: {
+            rootType: entity.rootType,
+            rootId: entity.rootId,
+          },
+          createdAt: entity.createdAt,
+        },
+      );
+
       // ✅ 4. Chạy song song các tác vụ không phụ thuộc
       await Promise.all(
         [
           updateStatsPromise,
           outboxPromise,
           analysisOutbox,
+          userActivityOutbox,
           manager.save(interactionOutbox),
         ].filter(Boolean),
       );

@@ -60,17 +60,17 @@ export class SeedService {
 
     this.logger.log(`🌱 Start seeding (days=${days}, batch=${batchSize})`);
 
-    // 🔥 LOAD JSON
+    // LOAD JSON
     const seedUsers = await await loadUsersFromJSON(
       'src/modules/seed/users.json',
     );
 
     this.logger.log(`👥 Loaded ${seedUsers.length} users from JSON`);
 
-    // 📊 distribution
+    // distribution
     const stats = { positive: 0, downward: 0, negative: 0 };
     seedUsers.forEach((u) => stats[u.behavior]++);
-    this.logger.log(`📊 Behavior distribution: ${JSON.stringify(stats)}`);
+    this.logger.log(`Behavior distribution: ${JSON.stringify(stats)}`);
 
     const totalUsers = seedUsers.length;
     let processedUsers = 0;
@@ -116,7 +116,7 @@ export class SeedService {
           const duration = ((Date.now() - userStart) / 1000).toFixed(2);
 
           this.logger.log(
-            `✅ [${processedUsers}/${totalUsers}] user=${seedUser.userId} (${eventCount} events, ${duration}s) | ETA: ${eta}s`,
+            `[${processedUsers}/${totalUsers}] user=${seedUser.userId} (${eventCount} events, ${duration}s) | ETA: ${eta}s`,
           );
 
           return {
@@ -129,9 +129,7 @@ export class SeedService {
 
           const errorMessage = err instanceof Error ? err.message : String(err);
 
-          this.logger.error(
-            `❌ user=${seedUser.userId} failed: ${errorMessage}`,
-          );
+          this.logger.error(`user=${seedUser.userId} failed: ${errorMessage}`);
 
           throw err; // giữ nguyên behavior Promise.all
         }
@@ -139,7 +137,7 @@ export class SeedService {
     );
 
     this.logger.log(
-      `🎯 DONE: success=${processedUsers}, failed=${failedUsers}, total=${totalUsers}`,
+      `DONE: success=${processedUsers}, failed=${failedUsers}, total=${totalUsers}`,
     );
 
     return { users: results };
@@ -192,6 +190,7 @@ export class SeedService {
       userId: generated.userId,
       targetId: generated.targetId,
       targetType: TargetType.POST,
+      modelVersion: 'v1.0.1',
       finalEmotion: this.toUpperEmotion(generated.finalEmotion),
       scores: generated.scores,
       confidence: generated.finalConfidence,

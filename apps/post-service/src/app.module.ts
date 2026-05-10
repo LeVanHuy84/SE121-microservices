@@ -11,6 +11,7 @@ import { StatsModule } from './modules/stats/stats.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventModule } from './modules/event/event.module';
 import { ReportModule } from './modules/report/report.module';
+import { ModerationModule } from './modules/moderation/moderation.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ReportModule } from './modules/report/report.module';
     EventModule,
     StatsModule,
     ReportModule,
+    ModerationModule,
   ],
   controllers: [],
   providers: [],

@@ -291,4 +291,53 @@ export class DashboardRepository {
       .lean<DashboardHistoryProjection[]>()
       .exec();
   }
+
+  // ===== ADMIN OVERVIEW =====
+  async getOverview(): Promise<{
+    totalAnalyzedSnapshots: number;
+    highRiskUsers: number;
+    criticalRiskUsers: number;
+    averageNegativityScore: number;
+    topEmotions: Record<string, number>;
+  }> {
+    const [totalSnapshots, highRiskUsers, criticalRiskUsers] =
+      await Promise.all([
+        this.analyticsSnapshotModel.countDocuments().exec(),
+        this.riskStateModel
+          .countDocuments({ riskLevel: RiskLevel.HIGH })
+          .exec(),
+        this.riskStateModel
+          .countDocuments({ riskLevel: RiskLevel.CRITICAL })
+          .exec(),
+      ]);
+
+    // average negativity (across user snapshots)
+    const avgRes = await this.snapshotModel
+      .aggregate([{ $group: { _id: null, avg: { $avg: '$negativeRatio' } } }])
+      .exec();
+
+    const averageNegativityScore = (avgRes?.[0]?.avg ?? 0) as number;
+
+    // top emotions distribution (by count)
+    const dist = await this.analyticsSnapshotModel
+      .aggregate([
+        { $group: { _id: '$finalEmotion', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ])
+      .exec();
+
+    const topEmotions: Record<string, number> = {};
+    for (const d of dist) {
+      if (d._id) topEmotions[d._id] = d.count;
+    }
+
+    return {
+      totalAnalyzedSnapshots: totalSnapshots,
+      highRiskUsers,
+      criticalRiskUsers,
+      averageNegativityScore: Number(averageNegativityScore ?? 0),
+      topEmotions,
+    };
+  }
 }

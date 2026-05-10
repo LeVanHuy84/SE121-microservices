@@ -17,6 +17,10 @@ import {
   UserRiskState,
   UserRiskStateSchema,
 } from './schema/user_risk_states.schema';
+import {
+  EmotionFeedback,
+  EmotionFeedbackSchema,
+} from './schema/emotion-feedback.schema';
 
 @Global()
 @Module({
@@ -48,6 +52,10 @@ import {
       {
         name: UserRiskState.name,
         schema: UserRiskStateSchema,
+      },
+      {
+        name: EmotionFeedback.name,
+        schema: EmotionFeedbackSchema,
       },
     ]),
   ],

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+﻿﻿from __future__ import annotations
 
 from app.core.config import settings
 from app.providers.base import LlmGeneration

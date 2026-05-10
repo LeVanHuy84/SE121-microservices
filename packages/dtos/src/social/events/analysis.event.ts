@@ -1,5 +1,5 @@
 import { DominantModality, IntensityLevel } from '../../emotion/enums';
-import { Emotion, TargetType } from '../enums';
+import { Emotion, Severity, TargetType } from '../enums';
 
 export enum AnalysisEventType {
   CREATED = 'analysis_created',
@@ -27,12 +27,14 @@ export class AnalysisResultEventPayload {
   targetId: string;
   targetType: TargetType;
 
+  modelVersion: string;
+
   finalEmotion: Emotion;
 
-  scores: Record<string, number>; // ✅ full distribution
-  confidence: number; // ✅ finalConfidence
-  intensityScore: number; // ✅ intensity.score
-  intensityLevel?: IntensityLevel; // ✅ intensity.level (optional)
+  scores: Record<string, number>;
+  confidence: number;
+  intensityScore: number;
+  intensityLevel?: IntensityLevel;
 
   dominantSceneType?: string;
   riskHintLevel?: string;
@@ -42,6 +44,18 @@ export class AnalysisResultEventPayload {
 export class ModerationEventPayload {
   targetId: string;
   targetType: TargetType;
+  userId: string;
+  violations: {
+    type: string;
+    category: string;
+    severity: Severity;
+    confidence: number;
+    reason: string;
+  };
+  maxSeverity: string;
+  confidence: number;
+  displayMessage: string;
+  createdAt?: Date;
 }
 
 export class AnalysisResultEvent {
