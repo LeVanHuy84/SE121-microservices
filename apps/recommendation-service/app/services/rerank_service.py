@@ -23,6 +23,11 @@ class RerankService:
         if not valid_candidates:
             return []
 
+        if not model_loader.is_ready():
+            logger.warning(
+                "Recommendation model not ready; attempting best-effort rerank"
+            )
+
         resolved_similarity_scores = self._resolve_similarity_scores(
             request.viewerProfileText,
             valid_candidates,

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.bootstrap import recommendation_query_service
 from app.core.security import verify_internal_key
+from app.core.config import settings
 from app.models.rerank_request import (
     RecommendationQueryOutput,
     RecommendationQueryRequest,
@@ -18,6 +19,13 @@ logger = logging.getLogger("uvicorn.error")
 def ensure_model_ready():
     readiness = model_loader.get_readiness_status()
     if readiness["ready"] is not True:
+        if settings.RECOMMENDATION_ALLOW_DEGRADED_QUERY:
+            logger.warning(
+                "Recommendation model not ready; serving degraded results: %s",
+                readiness,
+            )
+            return
+
         raise HTTPException(status_code=503, detail=readiness)
 
 

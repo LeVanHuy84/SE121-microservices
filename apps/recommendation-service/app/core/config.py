@@ -32,6 +32,19 @@ class Settings:
                 "social connections for this viewer."
             ),
         ).strip()
+        self.RECOMMENDATION_ALLOW_DEGRADED_QUERY: bool = (
+            os.getenv("RECOMMENDATION_ALLOW_DEGRADED_QUERY", "true")
+            .strip()
+            .lower()
+            == "true"
+        )
+        self.RECOMMENDATION_WARMUP_VIEWER_IDS: str = os.getenv(
+            "RECOMMENDATION_WARMUP_VIEWER_IDS",
+            "",
+        ).strip()
+        self.RECOMMENDATION_WARMUP_QUERY_LIMIT: int = int(
+            os.getenv("RECOMMENDATION_WARMUP_QUERY_LIMIT", 20)
+        )
         self.RECOMMENDATION_SCORE_FLOOR: float = float(
             os.getenv("RECOMMENDATION_SCORE_FLOOR", 0.55)
         )
@@ -55,13 +68,13 @@ class Settings:
             os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
         )
         self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU: int = int(
-            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K_CPU", 10)
+            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K_CPU", 6)
         )
         self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES", 5000)
         )
         self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS: float = float(
-            os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 30)
+            os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 45)
         )
         self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES", 1000)
@@ -70,7 +83,7 @@ class Settings:
             os.getenv("RECOMMENDATION_QUERY_SESSION_TTL_SECONDS", 120)
         )
         self.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE: int = int(
-            os.getenv("RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE", 200)
+            os.getenv("RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE", 120)
         )
         self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST: str = os.getenv(
             "RECOMMENDATION_QUERY_CACHE_REDIS_HOST", "localhost"
