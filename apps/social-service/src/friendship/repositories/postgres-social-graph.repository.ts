@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  ActivityType,
   CursorPaginationDTO,
   CursorPageResponse,
   RecommendationGraphEventType,
@@ -40,25 +41,36 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
   ) {}
 
   async getRelationshipStatus(userId: string, targetId: string) {
-    const [block, reverseBlock, friendship, outgoingRequest, incomingRequest] =
-      await Promise.all([
-        this.userBlockRepo.existsBy({ blockerId: userId, blockedId: targetId }),
-        this.userBlockRepo.existsBy({ blockerId: targetId, blockedId: userId }),
-        this.friendshipRepo.existsBy({ userId, friendId: targetId }),
-        this.friendRequestRepo.existsBy({
-          requesterId: userId,
-          receiverId: targetId,
-        }),
-        this.friendRequestRepo.existsBy({
-          requesterId: targetId,
-          receiverId: userId,
-        }),
-      ]);
+    const [row] = await this.dataSource.query(
+      `
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = $2)
+             OR (ub.blocker_id = $2 AND ub.blocked_id = $1)
+        ) THEN 'BLOCKED'
+        WHEN EXISTS (
+          SELECT 1 FROM friendships f
+          WHERE f.user_id = $1 AND f.friend_id = $2
+        ) THEN 'FRIEND'
+        WHEN EXISTS (
+          SELECT 1 FROM friend_requests fr
+          WHERE fr.requester_id = $1 AND fr.receiver_id = $2
+        ) THEN 'REQUESTED_OUT'
+        WHEN EXISTS (
+          SELECT 1 FROM friend_requests fr
+          WHERE fr.requester_id = $2 AND fr.receiver_id = $1
+        ) THEN 'REQUESTED_IN'
+        ELSE 'NONE'
+      END AS status
+      `,
+      [userId, targetId],
+    );
 
-    if (block || reverseBlock) return { status: 'BLOCKED' as const };
-    if (friendship) return { status: 'FRIEND' as const };
-    if (outgoingRequest) return { status: 'REQUESTED_OUT' as const };
-    if (incomingRequest) return { status: 'REQUESTED_IN' as const };
+    if (row?.status) {
+      return { status: row.status as 'BLOCKED' | 'FRIEND' | 'REQUESTED_OUT' | 'REQUESTED_IN' | 'NONE' };
+    }
+
     return { status: 'NONE' as const };
   }
 
@@ -66,8 +78,8 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     userId: string,
     targetId: string,
     attribution?: FriendRecommendationAttribution,
-  ) {
-    await this.dataSource.transaction(async (manager) => {
+  ): Promise<{ created: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
       const insertResult = await manager
         .createQueryBuilder()
         .insert()
@@ -82,7 +94,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         .execute();
 
       if ((insertResult.identifiers?.length ?? 0) === 0) {
-        return;
+        return { created: false };
       }
 
       await this.outboxService.createRecommendationGraphEvent(
@@ -90,21 +102,62 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         RecommendationGraphEventType.FRIEND_REQUEST_SENT,
         this.buildGraphEventPayload(userId, targetId),
       );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.SEND_REQUEST,
+        {
+          actorId: userId,
+          activityType: ActivityType.SEND_REQUEST,
+          targetId,
+          targetOwnerId: targetId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
+      return { created: true };
     });
   }
 
-  async cancelFriendRequest(userId: string, targetId: string) {
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(FriendRequestEntity, {
+  async cancelFriendRequest(
+    userId: string,
+    targetId: string,
+  ): Promise<{ removed: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      const deleteResult = await manager.delete(FriendRequestEntity, {
         requesterId: userId,
         receiverId: targetId,
       });
+
+      if (!deleteResult.affected) {
+        return { removed: false };
+      }
 
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.FRIEND_REQUEST_CANCELED,
         this.buildGraphEventPayload(userId, targetId),
       );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.CANCEL_REQUEST,
+        {
+          actorId: userId,
+          activityType: ActivityType.CANCEL_REQUEST,
+          targetId,
+          targetOwnerId: targetId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
+      return { removed: true };
     });
   }
 
@@ -119,6 +172,10 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           receiverId: userId,
         },
       });
+
+      if (!pendingRequest) {
+        return null;
+      }
 
       await manager.delete(FriendRequestEntity, {
         requesterId,
@@ -142,6 +199,21 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         this.buildGraphEventPayload(userId, requesterId),
       );
 
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.ACCEPT_REQUEST,
+        {
+          actorId: userId,
+          activityType: ActivityType.ACCEPT_REQUEST,
+          targetId: requesterId,
+          targetOwnerId: requesterId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
       return pendingRequest
         ? {
             recommendationId: pendingRequest.recommendationId ?? null,
@@ -152,38 +224,89 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     });
   }
 
-  async declineFriendRequest(userId: string, requesterId: string) {
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(FriendRequestEntity, {
+  async declineFriendRequest(
+    userId: string,
+    requesterId: string,
+  ): Promise<{ removed: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      const deleteResult = await manager.delete(FriendRequestEntity, {
         requesterId,
         receiverId: userId,
       });
+
+      if (!deleteResult.affected) {
+        return { removed: false };
+      }
 
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.FRIEND_REQUEST_DECLINED,
         this.buildGraphEventPayload(userId, requesterId),
       );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.REJECT_REQUEST,
+        {
+          actorId: userId,
+          activityType: ActivityType.REJECT_REQUEST,
+          targetId: requesterId,
+          targetOwnerId: requesterId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
+      return { removed: true };
     });
   }
 
-  async removeFriend(userId: string, friendId: string) {
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(FriendshipEntity, [
+  async removeFriend(
+    userId: string,
+    friendId: string,
+  ): Promise<{ removed: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      const deleteResult = await manager.delete(FriendshipEntity, [
         { userId, friendId },
         { userId: friendId, friendId: userId },
       ]);
+
+      if (!deleteResult.affected) {
+        return { removed: false };
+      }
 
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.FRIENDSHIP_REMOVED,
         this.buildGraphEventPayload(userId, friendId),
       );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.UNFRIEND,
+        {
+          actorId: userId,
+          activityType: ActivityType.UNFRIEND,
+          targetId: friendId,
+          targetOwnerId: friendId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
+      return { removed: true };
     });
   }
 
-  async blockUser(userId: string, targetId: string) {
-    await this.dataSource.transaction(async (manager) => {
+  async blockUser(
+    userId: string,
+    targetId: string,
+  ): Promise<{ created: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
       await manager.delete(FriendshipEntity, [
         { userId, friendId: targetId },
         { userId: targetId, friendId: userId },
@@ -194,7 +317,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         { requesterId: targetId, receiverId: userId },
       ]);
 
-      await manager
+      const insertResult = await manager
         .createQueryBuilder()
         .insert()
         .into(UserBlockEntity)
@@ -202,26 +325,56 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         .orIgnore()
         .execute();
 
+      if ((insertResult.identifiers?.length ?? 0) === 0) {
+        return { created: false };
+      }
+
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.USER_BLOCKED,
         this.buildGraphEventPayload(userId, targetId),
       );
+
+      await this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.USER_BLOCKED,
+        {
+          actorId: userId,
+          activityType: ActivityType.USER_BLOCKED,
+          targetId,
+          targetOwnerId: targetId,
+          metadata: {
+            targetType: 'user',
+          },
+          createdAt: new Date(),
+        },
+      );
+
+      return { created: true };
     });
   }
 
-  async unblockUser(userId: string, targetId: string) {
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(UserBlockEntity, {
+  async unblockUser(
+    userId: string,
+    targetId: string,
+  ): Promise<{ removed: boolean }> {
+    return this.dataSource.transaction(async (manager) => {
+      const deleteResult = await manager.delete(UserBlockEntity, {
         blockerId: userId,
         blockedId: targetId,
       });
+
+      if (!deleteResult.affected) {
+        return { removed: false };
+      }
 
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.USER_UNBLOCKED,
         this.buildGraphEventPayload(userId, targetId),
       );
+
+      return { removed: true };
     });
   }
 

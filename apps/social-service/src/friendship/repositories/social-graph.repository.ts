@@ -106,16 +106,22 @@ export interface SocialGraphRepository {
     userId: string,
     targetId: string,
     attribution?: FriendRecommendationAttribution,
-  ): Promise<void>;
-  cancelFriendRequest(userId: string, targetId: string): Promise<void>;
+  ): Promise<{ created: boolean }>;
+  cancelFriendRequest(
+    userId: string,
+    targetId: string,
+  ): Promise<{ removed: boolean }>;
   acceptFriendRequest(
     userId: string,
     requesterId: string,
   ): Promise<AcceptedFriendRequestAttribution | null>;
-  declineFriendRequest(userId: string, requesterId: string): Promise<void>;
-  removeFriend(userId: string, friendId: string): Promise<void>;
-  blockUser(userId: string, targetId: string): Promise<void>;
-  unblockUser(userId: string, targetId: string): Promise<void>;
+  declineFriendRequest(
+    userId: string,
+    requesterId: string,
+  ): Promise<{ removed: boolean }>;
+  removeFriend(userId: string, friendId: string): Promise<{ removed: boolean }>;
+  blockUser(userId: string, targetId: string): Promise<{ created: boolean }>;
+  unblockUser(userId: string, targetId: string): Promise<{ removed: boolean }>;
   dismissFriendRecommendation(
     userId: string,
     candidateId: string,

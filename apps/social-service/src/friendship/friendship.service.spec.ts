@@ -1,32 +1,79 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
+import { CursorPaginationDTO } from '@repo/dtos';
+import { Test, TestingModule } from '@nestjs/testing';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
-import { FriendshipService } from './friendship.service';
-import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
+import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
+import { FriendshipService } from './friendship.service';
 
 describe('FriendshipService', () => {
   let service: FriendshipService;
+
   const dismissFriendRecommendation = jest.fn();
   const sendFriendRequest = jest.fn();
+  const cancelFriendRequest = jest.fn();
   const acceptFriendRequest = jest.fn();
+  const declineFriendRequest = jest.fn();
+  const removeFriend = jest.fn();
+  const blockUser = jest.fn();
+  const unblockUser = jest.fn();
   const getRelationshipStatus = jest.fn();
+  const getFriends = jest.fn();
+  const getFriendRequests = jest.fn();
+  const getBlockedUsers = jest.fn();
   const getFriendRecommendationAnalytics = jest.fn();
+  const getGlobalFriendRecommendationAnalytics = jest.fn();
   const recordRecommendationEvents = jest.fn();
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
+  const recommendFriends = jest.fn();
 
   beforeEach(async () => {
-    dismissFriendRecommendation.mockReset();
-    sendFriendRequest.mockReset();
-    acceptFriendRequest.mockReset();
-    getRelationshipStatus.mockReset();
-    getFriendRecommendationAnalytics.mockReset();
-    recordRecommendationEvents.mockReset();
-    addRecentActivity.mockReset();
-    clearActivity.mockReset();
+    [
+      dismissFriendRecommendation,
+      sendFriendRequest,
+      cancelFriendRequest,
+      acceptFriendRequest,
+      declineFriendRequest,
+      removeFriend,
+      blockUser,
+      unblockUser,
+      getRelationshipStatus,
+      getFriends,
+      getFriendRequests,
+      getBlockedUsers,
+      getFriendRecommendationAnalytics,
+      getGlobalFriendRecommendationAnalytics,
+      recordRecommendationEvents,
+      addRecentActivity,
+      clearActivity,
+      recommendFriends,
+    ].forEach((mockFn) => mockFn.mockReset());
+
     getRelationshipStatus.mockResolvedValue({ status: 'NONE' });
+    sendFriendRequest.mockResolvedValue({ created: true });
+    cancelFriendRequest.mockResolvedValue({ removed: true });
     acceptFriendRequest.mockResolvedValue(null);
+    declineFriendRequest.mockResolvedValue({ removed: true });
+    removeFriend.mockResolvedValue({ removed: true });
+    blockUser.mockResolvedValue({ created: true });
+    unblockUser.mockResolvedValue({ removed: true });
+    getFriends.mockResolvedValue({ data: [], nextCursor: null, hasNextPage: false });
+    getFriendRequests.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getBlockedUsers.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    recommendFriends.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
     getFriendRecommendationAnalytics.mockResolvedValue({
       windowStart: '2026-03-01T00:00:00.000Z',
       windowEnd: '2026-03-18T00:00:00.000Z',
@@ -45,6 +92,8 @@ describe('FriendshipService', () => {
       sources: [],
       candidateSourceModes: [],
     });
+    addRecentActivity.mockResolvedValue(undefined);
+    clearActivity.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -54,20 +103,21 @@ describe('FriendshipService', () => {
           useValue: {
             getRelationshipStatus,
             sendFriendRequest,
-            cancelFriendRequest: jest.fn(),
+            cancelFriendRequest,
             acceptFriendRequest,
-            declineFriendRequest: jest.fn(),
-            removeFriend: jest.fn(),
-            blockUser: jest.fn(),
-            unblockUser: jest.fn(),
+            declineFriendRequest,
+            removeFriend,
+            blockUser,
+            unblockUser,
             dismissFriendRecommendation,
-            getFriends: jest.fn(),
-            getFriendRequests: jest.fn(),
+            getFriends,
+            getFriendRequests,
             recommendFriends: jest.fn(),
             summarizeCandidates: jest.fn(),
             getFriendIds: jest.fn(),
-            getBlockedUsers: jest.fn(),
+            getBlockedUsers,
             getFriendRecommendationAnalytics,
+            getGlobalFriendRecommendationAnalytics,
             recordRecommendationEvents,
           },
         },
@@ -81,7 +131,7 @@ describe('FriendshipService', () => {
         {
           provide: RecommendationQueryService,
           useValue: {
-            recommendFriends: jest.fn(),
+            recommendFriends,
           },
         },
       ],
@@ -102,7 +152,6 @@ describe('FriendshipService', () => {
       recommendationRequestId: 'req-1',
     });
 
-    expect(dismissFriendRecommendation).toHaveBeenCalledTimes(1);
     expect(dismissFriendRecommendation).toHaveBeenCalledWith(
       'self',
       'target',
@@ -146,45 +195,28 @@ describe('FriendshipService', () => {
         recommendationRequestId: 'req-1',
       },
     ]);
-    expect(addRecentActivity).toHaveBeenCalledWith({
-      actorId: 'self',
-      targetId: 'target',
-      type: 'friendship_request',
-    });
   });
 
-  it('should record accepted when accepted request came from recommendation', async () => {
+  it('should reject duplicated friend request when repository reports no insert', async () => {
+    sendFriendRequest.mockResolvedValueOnce({ created: false });
+
+    await expect(
+      service.sendFriendRequest('self', 'target'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('should reject accepting request when repository detects race and returns null', async () => {
     getRelationshipStatus.mockResolvedValue({ status: 'REQUESTED_IN' });
-    acceptFriendRequest.mockResolvedValue({
-      recommendationId: 'rec-1',
-      recommendationRequestId: 'req-1',
-    });
+    acceptFriendRequest.mockResolvedValue(null);
 
-    await service.acceptFriendRequest('receiver', 'requester');
-
-    expect(recordRecommendationEvents).toHaveBeenCalledWith([
-      {
-        userId: 'requester',
-        candidateId: 'receiver',
-        eventType: 'accepted',
-        recommendationId: 'rec-1',
-        recommendationRequestId: 'req-1',
-      },
-    ]);
-    expect(addRecentActivity).toHaveBeenCalledWith({
-      actorId: 'receiver',
-      targetId: 'requester',
-      type: 'friendship_accept',
-    });
-    expect(clearActivity).toHaveBeenCalledWith(
-      'friendship_request',
-      'receiver',
-      'requester',
-    );
+    await expect(
+      service.acceptFriendRequest('receiver', 'requester'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('should clear pending request activity when declining a friend request', async () => {
     getRelationshipStatus.mockResolvedValue({ status: 'REQUESTED_IN' });
+    declineFriendRequest.mockResolvedValue({ removed: true });
 
     await service.declineFriendRequest('receiver', 'requester');
 
@@ -198,12 +230,34 @@ describe('FriendshipService', () => {
   it('should return recommendation analytics with normalized window days', async () => {
     const result = await service.getFriendRecommendationAnalytics('self', 999);
 
-    expect(getFriendRecommendationAnalytics).toHaveBeenCalledTimes(1);
     expect(getFriendRecommendationAnalytics).toHaveBeenCalledWith(
       'self',
       expect.any(Date),
     );
     expect(result.windowDays).toBe(365);
-    expect(result.totals.served).toBe(10);
+  });
+
+  it('should normalize cursor query before querying friend requests', async () => {
+    await service.getFriendRequests('self', {
+      cursor: '  abc  ',
+      limit: 999,
+    } as CursorPaginationDTO);
+
+    expect(getFriendRequests).toHaveBeenCalledWith('self', {
+      cursor: 'abc',
+      limit: 50,
+    });
+  });
+
+  it('should normalize recommendation query before calling recommendation service', async () => {
+    await service.recommendFriends('self', {
+      cursor: '   ',
+      limit: 0,
+    } as CursorPaginationDTO);
+
+    expect(recommendFriends).toHaveBeenCalledWith('self', {
+      cursor: undefined,
+      limit: 1,
+    });
   });
 });

@@ -16,6 +16,8 @@ import { RecommendationTrackingService } from './recommendation-tracking.service
 @Injectable()
 export class RecommendationQueryService {
   private readonly logger = new Logger(RecommendationQueryService.name);
+  private readonly defaultLimit = 10;
+  private readonly maxLimit = 20;
 
   constructor(
     private readonly recommendationClient: RecommendationClientService,
@@ -67,7 +69,7 @@ export class RecommendationQueryService {
       );
 
     void this.trackingService
-      .recordServedEvents(userId, recommendations, startIndex)
+      .recordServedEvents(userId, trackedRecommendations, startIndex)
       .catch((error) => {
         this.logger.warn(`recordServedEvents failed: ${error.message}`);
       });
@@ -202,10 +204,10 @@ export class RecommendationQueryService {
 
   private normalizeLimit(limit: number | undefined): number {
     if (typeof limit !== 'number' || !Number.isFinite(limit)) {
-      return 10;
+      return this.defaultLimit;
     }
 
-    return Math.max(1, Math.floor(limit));
+    return Math.min(this.maxLimit, Math.max(1, Math.floor(limit)));
   }
 
   private normalizeCursor(cursor: string | null | undefined): string | undefined {
