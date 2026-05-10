@@ -42,12 +42,13 @@ class RagDocumentService:
         self._index_exists_cache: bool | None = None
         self._index_exists_cache_expires_at: float = 0.0
 
-    async def index_assistant_docs(self) -> dict[str, int]:
+    async def index_assistant_docs(self, force_reindex: bool = False) -> dict[str, int]:
         chunks, manifest_signature = self._load_markdown_chunks_with_signature()
         if not chunks:
             return {"documents": 0, "chunks": 0}
 
-        if await self._is_index_signature_unchanged(manifest_signature):
+        if not force_reindex and await self._is_index_signature_unchanged(manifest_signature):
+            logger.info("RAG index skipped: assistant docs signature unchanged")
             return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": 0}
 
         embeddings = embedding_service.encode_documents([chunk.text for chunk in chunks])
@@ -153,6 +154,15 @@ class RagDocumentService:
             logger.info("Assistant docs RAG warmup completed")
         except Exception as exc:
             logger.warning("Assistant docs RAG warmup skipped: %s", exc)
+
+    async def close(self):
+        if self._es is not None:
+            try:
+                await self._es.close()
+            except Exception:
+                pass
+            finally:
+                self._es = None
 
     def warm_up(self):
         asyncio.run(self.warm_up_async())
@@ -310,7 +320,15 @@ class RagDocumentService:
             and self._index_exists_cache_expires_at > now
         ):
             return self._index_exists_cache
-        exists = await self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+        try:
+            exists = await self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+        except RuntimeError as exc:
+            # Recover from loop-bound async client created on a closed loop.
+            if "Event loop is closed" in str(exc):
+                self._es = None
+                exists = await self.es.indices.exists(index=settings.RAG_INDEX_NAME)
+            else:
+                raise
         self._index_exists_cache = bool(exists)
         self._index_exists_cache_expires_at = now + 20
         return self._index_exists_cache
@@ -469,7 +487,12 @@ class RagDocumentService:
             return False
         try:
             existing = manifest_path.read_text(encoding="utf-8").strip()
-            return existing == signature and await self._index_exists_cached(force_refresh=True)
+            if existing != signature:
+                return False
+            if not await self._index_exists_cached(force_refresh=True):
+                return False
+            count_result = await self.es.count(index=settings.RAG_INDEX_NAME)
+            return int(count_result.get("count", 0)) > 0
         except Exception:
             return False
 

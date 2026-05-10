@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -12,6 +13,7 @@ from app.memory.session_memory import SessionMemory, session_memory
 from app.providers.base import LlmGeneration, LlmProvider
 from app.providers.groq_provider import GroqProvider
 from app.schemas.assistant_schema import (
+    AssistantHistoryItem,
     AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
@@ -20,6 +22,7 @@ from app.services.context_resolver import (
     AssistantContextResolver,
     assistant_context_resolver,
 )
+from app.services.community_guard import CommunityGuard, assistant_community_guard
 from app.services.prompt_builder import PromptBuilder
 from app.services.prompt_limits import resolve_prompt_limits
 from app.services.scope_guard import AssistantScopeGuard, assistant_scope_guard
@@ -35,6 +38,7 @@ class RespondCommand:
         provider: LlmProvider | None = None,
         context_resolver: AssistantContextResolver | None = None,
         scope_guard: AssistantScopeGuard | None = None,
+        community_guard: CommunityGuard | None = None,
         memory: SessionMemory | None = None,
         persist_history: PersistHistoryCommand | None = None,
     ):
@@ -42,6 +46,7 @@ class RespondCommand:
         self.provider = provider or GroqProvider()
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
+        self.community_guard = community_guard or assistant_community_guard
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
 
@@ -51,9 +56,38 @@ class RespondCommand:
         session_key = self._session_key(request)
         history = self._resolve_history(request, session_key)
         last_intent = request.intent or self.memory.get_last_intent(session_key)
+        memory_facts = self.memory.get_facts(session_key)
+        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+            request.message,
+            history,
+            memory_facts,
+        )
+        working_request = (
+            request.model_copy(update={"message": effective_message})
+            if effective_message != request.message
+            else request
+        )
+        community_decision = self.community_guard.evaluate(request.message)
+        if not community_decision.allowed:
+            data = self._community_response(community_decision.reason)
+            self._persist_session_memory(request, data.reply, [], "community_guard")
+            persisted = await self.persist_history.execute(
+                request=request,
+                assistant_reply=data.reply,
+                sources=[],
+                intent="community_guard",
+            )
+            return data.model_copy(
+                update={
+                    "requestId": request_id,
+                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                    "persisted": persisted,
+                    "conversationId": request.conversationId or "default",
+                }
+            )
 
         scope_decision = self.scope_guard.evaluate_scope(
-            request,
+            working_request,
             last_intent=last_intent,
             recent_history=history,
         )
@@ -77,6 +111,57 @@ class RespondCommand:
             )
 
         if not scope_decision.in_scope:
+            if "privacy" in scope_decision.matched_domains:
+                data = self._privacy_policy_response()
+                self._persist_session_memory(request, data.reply, [], "privacy")
+                persisted = await self.persist_history.execute(
+                    request=request,
+                    assistant_reply=data.reply,
+                    sources=[],
+                    intent="privacy",
+                )
+                return data.model_copy(
+                    update={
+                        "requestId": request_id,
+                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                        "persisted": persisted,
+                        "conversationId": request.conversationId or "default",
+                    }
+                )
+            if scope_decision.state == "in_domain_unknown":
+                data = self._in_domain_unknown_response(scope_decision.matched_domains)
+                self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
+                persisted = await self.persist_history.execute(
+                    request=request,
+                    assistant_reply=data.reply,
+                    sources=[],
+                    intent="in_domain_unknown",
+                )
+                return data.model_copy(
+                    update={
+                        "requestId": request_id,
+                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                        "persisted": persisted,
+                        "conversationId": request.conversationId or "default",
+                    }
+                )
+            if scope_decision.state == "ambiguous":
+                data = self._ambiguous_scope_response(scope_decision.matched_domains)
+                self._persist_session_memory(request, data.reply, [], "clarify")
+                persisted = await self.persist_history.execute(
+                    request=request,
+                    assistant_reply=data.reply,
+                    sources=[],
+                    intent="clarify",
+                )
+                return data.model_copy(
+                    update={
+                        "requestId": request_id,
+                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                        "persisted": persisted,
+                        "conversationId": request.conversationId or "default",
+                    }
+                )
             data = self._out_of_scope_response()
             self._persist_session_memory(request, data.reply, [], None)
             persisted = await self.persist_history.execute(
@@ -95,27 +180,50 @@ class RespondCommand:
             )
 
         memory_summary = self.memory.get_summary(session_key)
+        memory_context = self._build_memory_context(memory_summary, memory_facts)
         candidate_contexts = (
-            self._dedupe_contexts(request.contexts)
-            if request.contexts
+            self._dedupe_contexts(working_request.contexts)
+            if working_request.contexts
             else await self._resolve_contexts_with_budget(
-                request,
+                working_request,
                 settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
             )
         )
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+        if (
+            not final_contexts
+            and scope_decision.matched_domains
+            and not has_follow_up_anchor
+        ):
+            data = self._in_domain_unknown_response(scope_decision.matched_domains)
+            self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
+            persisted = await self.persist_history.execute(
+                request=request,
+                assistant_reply=data.reply,
+                sources=[],
+                intent="in_domain_unknown",
+            )
+            return data.model_copy(
+                update={
+                    "requestId": request_id,
+                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                    "persisted": persisted,
+                    "conversationId": request.conversationId or "default",
+                }
+            )
 
-        resolved_request = request.model_copy(update={"contexts": final_contexts})
+        resolved_request = working_request.model_copy(update={"contexts": final_contexts})
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
-            memory_summary,
+            memory_context,
             context_char_limit=prompt_limits.context_char_limit,
             max_history_items=prompt_limits.max_history_items,
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
         )
+        prompt = self._prepend_turn_policy(prompt)
 
         llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
         generation: LlmGeneration
@@ -147,7 +255,10 @@ class RespondCommand:
             for item in final_contexts
         ]
         reply_content = self._sanitize_assistant_reply(generation.content)
-        resolved_intent = request.intent or self._infer_intent(final_contexts)
+        resolved_intent = request.intent or self._infer_intent(
+            final_contexts,
+            fallback_domains=scope_decision.matched_domains,
+        )
         self._persist_session_memory(
             request=request,
             assistant_reply=reply_content,
@@ -215,6 +326,14 @@ class RespondCommand:
         )
         self.memory.set_last_intent(session_key, intent)
         self.memory.set_last_sources(session_key, sources)
+        self.memory.set_facts(
+            session_key,
+            {
+                "last_intent": intent or "",
+                "last_user_message": self._truncate_text(request.message, 140),
+                "last_assistant_reply": self._truncate_text(assistant_reply, 180),
+            },
+        )
 
     def _build_updated_summary(
         self,
@@ -230,13 +349,31 @@ class RespondCommand:
         combined = " ".join(part for part in [current_summary, latest] if part)
         return self._truncate_text(combined, settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT)
 
-    def _infer_intent(self, contexts) -> str | None:
+    def _build_memory_context(self, summary: str, facts: dict[str, str]) -> str:
+        if not facts:
+            return summary
+        fact_lines = [f"{key}: {value}" for key, value in facts.items() if value]
+        facts_block = "\n".join(fact_lines[:8])
+        payload = {
+            "summary": summary,
+            "facts": facts_block,
+        }
+        return self._truncate_text(
+            json.dumps(payload, ensure_ascii=False),
+            settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT,
+        )
+
+    def _infer_intent(
+        self,
+        contexts,
+        fallback_domains: tuple[str, ...] = (),
+    ) -> str | None:
         if not contexts:
-            return None
+            return fallback_domains[0] if fallback_domains else None
         first_type = contexts[0].type
         if first_type in {"post", "group", "user", "help_doc"}:
             return first_type
-        return None
+        return fallback_domains[0] if fallback_domains else None
 
     def _truncate_text(self, value: str, limit: int) -> str:
         normalized = " ".join(str(value or "").split())
@@ -277,6 +414,95 @@ class RespondCommand:
         )
         return text.strip()
 
+    def _prepend_turn_policy(self, prompt: str) -> str:
+        policy = (
+            "TURN_POLICY:\n"
+            "- User did not greet in this turn.\n"
+            "- Start directly with the answer content.\n"
+            "- Do not open with greeting words (e.g., xin chao/hello/hi).\n"
+        )
+        return f"{policy}\n{prompt}"
+
+    def _resolve_follow_up_message(
+        self,
+        message: str,
+        history: list[AssistantHistoryItem],
+        memory_facts: dict[str, str],
+    ) -> tuple[str, bool]:
+        normalized = self.scope_guard._normalize(message)  # noqa: SLF001
+        if not self._is_follow_up_reference(normalized):
+            return message, False
+
+        anchor = self._pick_recent_user_anchor(history, memory_facts)
+        if not anchor:
+            return message, False
+        rewritten = f"{message.strip()}\n\nFOLLOW_UP_ANCHOR:\n{anchor}"
+        return rewritten, True
+
+    def _pick_recent_user_anchor(
+        self,
+        history: list[AssistantHistoryItem],
+        memory_facts: dict[str, str],
+    ) -> str:
+        for item in reversed(history[-10:]):
+            if item.role != "user":
+                continue
+            content = " ".join(str(item.content or "").split())
+            if not content:
+                continue
+            if content == memory_facts.get("last_user_message", ""):
+                continue
+            normalized = self.scope_guard._normalize(content)  # noqa: SLF001
+            if normalized in {"hi", "hello", "hey", "xin chao", "chao"}:
+                continue
+            if len(normalized.split()) <= 2:
+                continue
+            if self._is_follow_up_reference(normalized):
+                continue
+            return self._truncate_text(content, 220)
+        fallback = memory_facts.get("last_user_message", "")
+        return self._truncate_text(fallback, 220) if fallback else ""
+
+    def _is_follow_up_reference(self, normalized_message: str) -> bool:
+        if not normalized_message:
+            return False
+        patterns = (
+            r"\b(no|cai do|cai nay|truoc do|y truoc do|van de truoc do)\b",
+            r"\b(giai thich them|noi ro hon|chi tiet hon|tiep theo)\b",
+            r"\b(nhu vay|nhu tren|phan do|muc do)\b",
+        )
+        return any(re.search(pattern, normalized_message) for pattern in patterns)
+
+    def _in_domain_unknown_response(
+        self,
+        matched_domains: tuple[str, ...],
+    ) -> AssistantRespondData:
+        domain_hint = ", ".join(matched_domains[:3]) if matched_domains else "hệ thống Sentimeta"
+        return AssistantRespondData(
+            reply=(
+                f"Câu hỏi của bạn vẫn thuộc phạm vi {domain_hint}, "
+                "nhưng hiện mình chưa có đủ dữ liệu hoặc tài liệu để trả lời chính xác tính năng này. "
+                "Bạn có thể mô tả rõ hơn màn hình hoặc thao tác đang dùng để mình hỗ trợ theo hướng gần nhất."
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="scope-guard",
+            provider="chatbot-service",
+        )
+
+    def _privacy_policy_response(self) -> AssistantRespondData:
+        return AssistantRespondData(
+            reply=(
+                "Mình có thể hỗ trợ câu hỏi về quyền riêng tư trên Sentimeta. "
+                "Hiện tại mình chưa có trích dẫn chính sách cụ thể trong context để xác nhận chi tiết điều khoản. "
+                "Bạn có thể nêu rõ mục bạn cần (dữ liệu cá nhân, quyền truy cập, chặn người dùng, xoá tài khoản) để mình hướng dẫn theo luồng sử dụng phù hợp."
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="scope-guard",
+            provider="chatbot-service",
+        )
+
     def _out_of_scope_response(self) -> AssistantRespondData:
         return AssistantRespondData(
             reply=(
@@ -299,5 +525,38 @@ class RespondCommand:
             sources=[],
             suggestedActions=[],
             model="greeting-guard",
+            provider="chatbot-service",
+        )
+
+    def _ambiguous_scope_response(self, matched_domains: tuple[str, ...]) -> AssistantRespondData:
+        domain_hint = ", ".join(matched_domains[:3]) if matched_domains else "hệ thống Sentimeta"
+        return AssistantRespondData(
+            reply=(
+                "Mình chưa chắc bạn đang hỏi phần nào. "
+                f"Bạn muốn mình hỗ trợ về {domain_hint} hay phần khác trong Sentimeta? "
+                "Bạn có thể nói rõ mục tiêu trong 1 câu."
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="scope-guard",
+            provider="chatbot-service",
+        )
+
+    def _community_response(self, reason: str) -> AssistantRespondData:
+        if reason == "community_violation":
+            message = (
+                "Mình không thể hỗ trợ nội dung vi phạm tiêu chuẩn cộng đồng. "
+                "Bạn hãy đổi sang câu hỏi an toàn và phù hợp hơn để mình hỗ trợ tiếp."
+            )
+        else:
+            message = (
+                "Mình chưa thể xử lý câu có từ ngữ tục tĩu hoặc xúc phạm. "
+                "Bạn có thể diễn đạt lại lịch sự hơn để mình hỗ trợ chính xác."
+            )
+        return AssistantRespondData(
+            reply=message,
+            sources=[],
+            suggestedActions=[],
+            model="community-guard",
             provider="chatbot-service",
         )

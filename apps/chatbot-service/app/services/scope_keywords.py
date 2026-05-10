@@ -1,139 +1,153 @@
-SYSTEM_KEYWORDS = {
-    "sentimeta",
-    "se121",
-    "app",
-    "ung dung",
-    "he thong",
-    "tinh nang",
-    "mang xa hoi",
-    "social",
-    "social network",
-    "platform",
-    "assistant",
-    "chatbot",
-    "rag",
-    "ban la ai",
-    "ban lam duoc gi",
-    "ban co the lam gi",
-    "tro ly la ai",
-    "who are you",
-    "what can you do",
+﻿from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+TEENCODE_MAP = {
+    "ko": "khong",
+    "k": "khong",
+    "dc": "duoc",
+    "đc": "duoc",
+    "ntn": "nhu the nao",
+    "ib": "inbox",
+    "rep": "reply",
+    "ad": "admin",
+    "mn": "moi nguoi",
+    "mik": "minh",
+    "tui": "toi",
 }
 
-CHAT_KEYWORDS = {
-    "chat",
-    "tin nhan",
-    "nhan tin",
-    "hoi thoai",
-    "tro chuyen",
-    "inbox",
-    "conversation",
-    "message",
-    "messages",
-    "direct message",
-    "dm",
-}
 
-POST_KEYWORDS = {
-    "bai viet",
-    "bai dang",
-    "dang bai",
-    "dang status",
-    "status",
-    "bang tin",
-    "feed",
-    "newfeed",
-    "viet bai",
-    "post",
-    "posts",
-    "noi dung",
-    "caption",
-}
+@dataclass(frozen=True)
+class DomainKeywordGroup:
+    domain: str
+    keywords: set[str]
 
-GROUP_KEYWORDS = {
-    "group",
-    "nhom",
-    "cong dong",
-    "cau lac bo",
-    "clb",
-    "tham gia nhom",
-    "nhom cong khai",
-    "nhom kin",
-    "groups",
-}
 
-SEARCH_KEYWORDS = {
-    "search",
-    "tra cuu",
-    "tim",
-    "tim kiem",
-    "find",
-    "lookup",
-}
+DOMAIN_KEYWORD_GROUPS: tuple[DomainKeywordGroup, ...] = (
+    DomainKeywordGroup(
+        "system",
+        {
+            "sentimeta",
+            "se121",
+            "he thong",
+            "ung dung",
+            "tinh nang",
+            "mang xa hoi",
+            "assistant",
+            "chatbot",
+        },
+    ),
+    DomainKeywordGroup(
+        "chat",
+        {
+            "chat",
+            "tin nhan",
+            "nhan tin",
+            "inbox",
+            "conversation",
+            "message",
+            "messages",
+            "dm",
+        },
+    ),
+    DomainKeywordGroup(
+        "post",
+        {
+            "bai viet",
+            "bai dang",
+            "dang bai",
+            "feed",
+            "newfeed",
+            "post",
+            "posts",
+            "caption",
+        },
+    ),
+    DomainKeywordGroup(
+        "group",
+        {
+            "group",
+            "nhom",
+            "cong dong",
+            "tham gia nhom",
+            "nhom kin",
+        },
+    ),
+    DomainKeywordGroup(
+        "search",
+        {
+            "search",
+            "tim",
+            "tim kiem",
+            "tra cuu",
+            "lookup",
+            "find",
+            "find posts",
+        },
+    ),
+    DomainKeywordGroup(
+        "user_social",
+        {
+            "user",
+            "tai khoan",
+            "profile",
+            "ho so",
+            "ban be",
+            "ket ban",
+            "goi y ban be",
+            "recommendation",
+            "friend",
+        },
+    ),
+    DomainKeywordGroup(
+        "privacy",
+        {
+            "quyen rieng tu",
+            "chinh sach rieng tu",
+            "chinh sach bao mat",
+            "bao mat",
+            "du lieu ca nhan",
+            "thong tin ca nhan",
+            "block",
+            "chan nguoi dung",
+            "privacy",
+            "privacy policy",
+            "privacy settings",
+            "data policy",
+            "personal data",
+        },
+    ),
+    DomainKeywordGroup(
+        "notification",
+        {
+            "thong bao",
+            "notification",
+            "notifications",
+        },
+    ),
+    DomainKeywordGroup(
+        "emotion",
+        {
+            "cam xuc",
+            "phan tich cam xuc",
+            "sentiment",
+            "emotion",
+        },
+    ),
+    DomainKeywordGroup(
+        "memory",
+        {
+            "ban con nho",
+            "nho noi dung truoc do",
+            "tom tat cuoc tro chuyen",
+            "conversation history",
+            "chat history",
+            "nho gi khong",
+        },
+    ),
+)
 
-USER_KEYWORDS = {
-    "user",
-    "tai khoan",
-    "nguoi dung",
-    "profile",
-    "trang ca nhan",
-    "ho so",
-    "ban be",
-    "ket ban",
-    "goi y ket ban",
-    "de xuat ban be",
-    "tim ban",
-    "ket noi",
-    "goi y",
-    "recommend",
-    "recommendation",
-    "friend",
-    "friends",
-    "friend request",
-    "add friend",
-    "suggest",
-}
-
-PRIVACY_KEYWORDS = {
-    "quyen rieng tu",
-    "quyen tu rieng",
-    "bao mat",
-    "block",
-    "chan nguoi dung",
-    "mo chan",
-    "privacy",
-    "privacy settings",
-    "private account",
-}
-
-NOTIFICATION_KEYWORDS = {
-    "thong bao",
-    "nhac nho",
-    "bao tin",
-    "notification",
-    "notifications",
-}
-
-EMOTION_KEYWORDS = {
-    "cam xuc",
-    "cam nghi",
-    "phan tich cam xuc",
-    "sentiment",
-    "emotion",
-}
-
-MEMORY_KEYWORDS = {
-    "memory",
-    "ghi nho",
-    "nho",
-    "ban con nho",
-    "nho noi dung",
-    "tom tat cuoc tro chuyen",
-    "nhac lai",
-    "context truoc",
-    "conversation history",
-    "chat history",
-}
 
 FOLLOW_UP_REFERENCE_KEYWORDS = {
     "chuc nang tren",
@@ -205,22 +219,28 @@ FOLLOW_UP_REFERENCE_KEYWORDS = {
     "this part",
     "that section",
     "this section",
+    "what next",
+    "then what",
+    "explain more",
+    "giai thich them ve no",
+    "cho vi du cu the",
+    "buoc tiep theo",
+    "cach dung cai do",
+    "truoc do",
+    "cai truoc do",
+    "y truoc do",
+    "van de truoc do",
+}
+
+STRONG_REFERENCE_KEYWORDS = {
+    "chuc nang tren",
+    "phan do",
+    "muc nay",
+    "that section",
+    "this section",
     "that feature",
     "this feature",
 }
-
-KEYWORD_GROUPS = (
-    SYSTEM_KEYWORDS,
-    CHAT_KEYWORDS,
-    POST_KEYWORDS,
-    GROUP_KEYWORDS,
-    SEARCH_KEYWORDS,
-    USER_KEYWORDS,
-    PRIVACY_KEYWORDS,
-    NOTIFICATION_KEYWORDS,
-    EMOTION_KEYWORDS,
-    MEMORY_KEYWORDS,
-)
 
 GREETINGS = {
     "hi",
@@ -228,4 +248,19 @@ GREETINGS = {
     "hey",
     "xin chao",
     "chao",
+}
+
+FEATURE_QUERY_KEYWORDS = {
+    "co chuc nang",
+    "co ho tro",
+    "ho tro khong",
+    "co khong",
+    "duoc khong",
+    "hien tai",
+    "tinh nang",
+    "feature",
+    "support",
+    "available",
+    "co the",
+    "co cho phep",
 }

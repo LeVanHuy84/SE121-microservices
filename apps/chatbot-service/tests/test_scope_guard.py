@@ -84,6 +84,16 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             message="Cach dung quicksort nhu the nao?",
         )
         self.assertFalse(self.guard.is_in_scope(req))
+        decision = self.guard.evaluate_scope(req)
+        self.assertIn(decision.state, {"out_of_scope", "ambiguous"})
+
+    def test_ambiguous_scope_question(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="Cach dung cai do sao nhi?",
+        )
+        decision = self.guard.evaluate_scope(req)
+        self.assertEqual(decision.state, "ambiguous")
 
     def test_pronoun_follow_up_needs_anchor(self):
         without_anchor = AssistantRespondRequest(

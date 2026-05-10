@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.schemas.assistant_schema import AssistantHistoryPageData
-from app.services.chat_history_service import ChatHistoryService, chat_history_service
+from app.services.history_store import HistoryStore, history_store
 
 
 class GetHistoryQuery:
-    def __init__(self, history_service: ChatHistoryService | None = None):
-        self.history_service = history_service or chat_history_service
+    def __init__(self, store: HistoryStore | None = None):
+        self.store = store or history_store
 
     async def execute(
         self,
@@ -17,10 +17,9 @@ class GetHistoryQuery:
         before_created_at: datetime | None = None,
         before_id: str | None = None,
     ) -> AssistantHistoryPageData:
-        return await self.history_service.get_messages_page_by_user(
+        return await self.store.get_messages_page_by_user(
             user_id=user_id,
             page_size=page_size,
             before_created_at=before_created_at,
             before_id=before_id,
         )
-
