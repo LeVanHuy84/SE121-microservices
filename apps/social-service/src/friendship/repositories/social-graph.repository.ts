@@ -19,8 +19,6 @@ export interface FriendRecommendation {
   retrievalScoreVersion?: string | null;
   user?: BaseUserDTO | null;
   mutualFriendPreview?: BaseUserDTO[];
-  commonGroups?: number;
-  commonGroupIds?: string[];
   modelScore?: number;
   score?: number;
   reasons?: string[];

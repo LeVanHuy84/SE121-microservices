@@ -34,9 +34,12 @@ def ensure_model_ready():
     dependencies=[Depends(verify_internal_key), Depends(ensure_model_ready)],
 )
 def query_candidates(req: RecommendationQueryRequest):
-    response = RecommendationQueryOutput.model_validate(
-        recommendation_query_service.query(req)
-    )
+    try:
+        response = RecommendationQueryOutput.model_validate(
+            recommendation_query_service.query(req)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info(
         (
             "Recommendation query completed: viewerId=%s limit=%s cursor=%s "

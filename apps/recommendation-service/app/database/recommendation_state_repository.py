@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from sqlalchemy import delete, func, inspect, select, text
+from sqlalchemy import delete, func, inspect, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -448,67 +448,47 @@ class RecommendationStateRepository:
 
         candidate_id_list = sorted(normalized_candidate_ids)
         with self.session_scope() as session:
+            exclusion_union = union_all(
+                select(RecommendationFriendship.friend_id.label("candidate_id")).where(
+                    RecommendationFriendship.user_id == normalized_viewer_id,
+                    RecommendationFriendship.friend_id.in_(candidate_id_list),
+                ),
+                select(RecommendationFriendship.user_id.label("candidate_id")).where(
+                    RecommendationFriendship.user_id.in_(candidate_id_list),
+                    RecommendationFriendship.friend_id == normalized_viewer_id,
+                ),
+                select(
+                    RecommendationPendingRequest.receiver_id.label("candidate_id")
+                ).where(
+                    RecommendationPendingRequest.requester_id == normalized_viewer_id,
+                    RecommendationPendingRequest.receiver_id.in_(candidate_id_list),
+                ),
+                select(
+                    RecommendationPendingRequest.requester_id.label("candidate_id")
+                ).where(
+                    RecommendationPendingRequest.requester_id.in_(candidate_id_list),
+                    RecommendationPendingRequest.receiver_id == normalized_viewer_id,
+                ),
+                select(RecommendationBlock.blocked_id.label("candidate_id")).where(
+                    RecommendationBlock.blocker_id == normalized_viewer_id,
+                    RecommendationBlock.blocked_id.in_(candidate_id_list),
+                ),
+                select(RecommendationBlock.blocker_id.label("candidate_id")).where(
+                    RecommendationBlock.blocker_id.in_(candidate_id_list),
+                    RecommendationBlock.blocked_id == normalized_viewer_id,
+                ),
+                select(
+                    RecommendationDismissal.candidate_id.label("candidate_id")
+                ).where(
+                    RecommendationDismissal.user_id == normalized_viewer_id,
+                    RecommendationDismissal.candidate_id.in_(candidate_id_list),
+                    RecommendationDismissal.expires_at > self._now(),
+                ),
+            ).subquery()
+
             excluded_ids.update(
                 session.scalars(
-                    select(RecommendationFriendship.friend_id).where(
-                        RecommendationFriendship.user_id == normalized_viewer_id,
-                        RecommendationFriendship.friend_id.in_(candidate_id_list),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationFriendship.user_id).where(
-                        RecommendationFriendship.user_id.in_(candidate_id_list),
-                        RecommendationFriendship.friend_id == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationPendingRequest.receiver_id).where(
-                        RecommendationPendingRequest.requester_id
-                        == normalized_viewer_id,
-                        RecommendationPendingRequest.receiver_id.in_(
-                            candidate_id_list
-                        ),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationPendingRequest.requester_id).where(
-                        RecommendationPendingRequest.requester_id.in_(
-                            candidate_id_list
-                        ),
-                        RecommendationPendingRequest.receiver_id
-                        == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationBlock.blocked_id).where(
-                        RecommendationBlock.blocker_id == normalized_viewer_id,
-                        RecommendationBlock.blocked_id.in_(candidate_id_list),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationBlock.blocker_id).where(
-                        RecommendationBlock.blocker_id.in_(candidate_id_list),
-                        RecommendationBlock.blocked_id == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationDismissal.candidate_id).where(
-                        RecommendationDismissal.user_id == normalized_viewer_id,
-                        RecommendationDismissal.candidate_id.in_(candidate_id_list),
-                        RecommendationDismissal.expires_at > self._now(),
-                    )
+                    select(exclusion_union.c.candidate_id).distinct()
                 ).all()
             )
 

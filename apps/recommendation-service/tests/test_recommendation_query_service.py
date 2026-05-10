@@ -324,7 +324,6 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
                         "semantic_retrieval",
                         "semantic_rerank",
                         "graph_mutual_friend",
-                        "graph_common_group",
                         "graph_rerank",
                         "graph_recent_unblock",
                     ],

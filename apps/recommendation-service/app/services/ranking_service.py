@@ -31,12 +31,20 @@ class RankingService:
         if not candidates:
             return []
 
+        deduped_candidates = self._dedupe_candidates(candidates)
+        if not deduped_candidates:
+            return []
+
         pair_features = self.repository.get_graph_pair_features(
             viewer_id,
-            [str(candidate["candidateId"]) for candidate in candidates],
+            [str(candidate["candidateId"]) for candidate in deduped_candidates],
         )
 
-        rerank_input = candidates[: self._resolve_rerank_top_k()]
+        rerank_input = self._select_rerank_candidates(
+            candidates=deduped_candidates,
+            pair_features=pair_features,
+            top_k=self._resolve_rerank_top_k(),
+        )
         model_scores = self._resolve_model_scores(
             viewer_id=viewer_id,
             viewer_profile_text=viewer_profile_text,
@@ -45,7 +53,7 @@ class RankingService:
         )
 
         scored = []
-        for candidate in candidates:
+        for candidate in deduped_candidates:
             candidate_id = str(candidate["candidateId"])
             pair_feature = pair_features.get(candidate_id, {})
 
@@ -84,6 +92,68 @@ class RankingService:
             candidate["rank"] = index + 1
 
         return scored
+
+    def _dedupe_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        deduped: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        for candidate in candidates:
+            candidate_id = str(candidate.get("candidateId") or "").strip()
+            if not candidate_id or candidate_id in seen_ids:
+                continue
+
+            seen_ids.add(candidate_id)
+            deduped.append(candidate)
+
+        return deduped
+
+    def _select_rerank_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+        pair_features: dict[str, dict[str, Any]],
+        top_k: int,
+    ) -> list[dict[str, Any]]:
+        resolved_top_k = max(1, int(top_k))
+        if len(candidates) <= resolved_top_k:
+            return candidates
+
+        # Keep most of the budget for semantic retrieval ordering.
+        # Reserve a small portion for graph-strong candidates so
+        # mutual-friend signals can influence rerank quality.
+        graph_reserve = max(1, resolved_top_k // 3)
+        base_semantic_budget = max(1, resolved_top_k - graph_reserve)
+
+        selected = list(candidates[:base_semantic_budget])
+        selected_ids = {str(candidate["candidateId"]) for candidate in selected}
+
+        graph_sorted_candidates = sorted(
+            candidates,
+            key=lambda candidate: (
+                -int(
+                    pair_features.get(str(candidate["candidateId"]), {}).get(
+                        "mutualFriendCount",
+                        0,
+                    )
+                ),
+                -float(candidate.get("retrievalScore", 0.0)),
+                str(candidate.get("candidateId", "")),
+            ),
+        )
+
+        for candidate in graph_sorted_candidates:
+            candidate_id = str(candidate["candidateId"])
+            if candidate_id in selected_ids:
+                continue
+
+            selected.append(candidate)
+            selected_ids.add(candidate_id)
+            if len(selected) >= resolved_top_k:
+                break
+
+        return selected
 
     def passthrough_fallback_candidates(
         self,
@@ -128,11 +198,6 @@ class RankingService:
                                 "mutualFriendCount", 0
                             )
                         ),
-                        commonGroups=int(
-                            pair_features.get(str(candidate["candidateId"]), {}).get(
-                                "commonGroupCount", 0
-                            )
-                        ),
                     )
                     for candidate in candidates
                 ],
@@ -168,17 +233,10 @@ class RankingService:
             return 0.0
 
         mutual_friend_cap = max(1, int(settings.RECOMMENDATION_MUTUAL_FRIEND_CAP))
-        common_group_cap = max(1, int(settings.RECOMMENDATION_COMMON_GROUP_CAP))
-
         mutual_friend_score = min(
             int(pair_feature.get("mutualFriendCount", 0)),
             mutual_friend_cap,
         ) / mutual_friend_cap
-
-        common_group_score = min(
-            int(pair_feature.get("commonGroupCount", 0)),
-            common_group_cap,
-        ) / common_group_cap
 
         recent_event_score = 0.0
         last_event_type = str(pair_feature.get("lastEventType") or "").strip()
@@ -190,7 +248,6 @@ class RankingService:
 
         return self._clamp_score(
             0.7 * mutual_friend_score
-            + 0.2 * common_group_score
             + recent_event_score
         )
 
@@ -208,8 +265,6 @@ class RankingService:
 
         if int(pair_feature.get("mutualFriendCount", 0)) > 0:
             reasons.append("graph_mutual_friend")
-        if int(pair_feature.get("commonGroupCount", 0)) > 0:
-            reasons.append("graph_common_group")
         if self._resolve_graph_score(pair_feature) > 0:
             reasons.append("graph_rerank")
 

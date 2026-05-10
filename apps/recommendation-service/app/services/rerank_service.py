@@ -124,9 +124,6 @@ class RerankService:
         candidate: RecommendationCandidateInput,
         similarity_score: float,
     ) -> str:
-        if candidate.commonGroups > 0:
-            return "graph_common_group"
-
         if candidate.mutualFriends > 0 and similarity_score >= 0.6:
             return "graph_mutual_friend_semantic_match"
 

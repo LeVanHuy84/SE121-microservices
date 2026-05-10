@@ -104,15 +104,11 @@ class QueryService:
                 limit=limit,
             )
 
-        filtered_primary = self.candidate_retrieval_service.filter_graph_projection(
-            viewer_id,
-            primary_batch.candidates,
-        )
-
         ranked_primary = self.ranking_service.rank_candidates(
             viewer_id=viewer_id,
             viewer_profile_text=viewer_profile_text,
-            candidates=filtered_primary,
+            # CandidateRetrievalService already applies graph projection filtering.
+            candidates=primary_batch.candidates,
         )
 
         session_candidates = list(ranked_primary)
@@ -121,7 +117,7 @@ class QueryService:
         has_more_source = primary_batch.has_next
 
         if len(session_candidates) < window_size and primary_batch.source == "semantic_online":
-            excluded_ids = {str(candidate["candidateId"]) for candidate in filtered_primary}
+            excluded_ids = {str(candidate["candidateId"]) for candidate in primary_batch.candidates}
             fallback_candidates, fallback_has_next = self.global_fallback_service.get_batch(
                 viewer_id=viewer_id,
                 offset=0,
@@ -359,10 +355,31 @@ class QueryService:
             decoded = base64.urlsafe_b64decode(cursor.encode("utf-8")).decode("utf-8")
             payload = json.loads(decoded)
             if not isinstance(payload, dict):
-                return {}
-            return payload
+                raise ValueError("Invalid cursor payload format")
+
+            source = str(payload.get("source") or "").strip()
+            offset = payload.get("offset")
+            session_id = str(payload.get("sessionId") or "").strip()
+            if not isinstance(offset, int) or offset < 0:
+                raise ValueError("Invalid cursor offset")
+
+            if source == SESSION_CURSOR_SOURCE:
+                if not session_id:
+                    raise ValueError("Missing cursor sessionId")
+                return {
+                    "source": SESSION_CURSOR_SOURCE,
+                    "sessionId": session_id,
+                    "offset": offset,
+                }
+
+            if source not in {"semantic_online", "global_fallback"}:
+                raise ValueError("Unsupported cursor source")
+            return {
+                "source": source,
+                "offset": offset,
+            }
         except Exception:
-            return {}
+            raise ValueError("Invalid cursor")
 
     def _encode_cursor(self, source: str, offset: int) -> str:
         payload = json.dumps(
