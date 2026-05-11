@@ -124,8 +124,13 @@ class QueryService:
                 size=window_size - len(session_candidates),
                 excluded_candidate_ids=excluded_ids,
             )
-            ranked_fallback = self.ranking_service.passthrough_fallback_candidates(
-                fallback_candidates,
+            ranked_fallback = self.ranking_service.rank_candidates(
+                viewer_id=viewer_id,
+                viewer_profile_text=viewer_profile_text,
+                candidates=fallback_candidates,
+            )
+            ranked_fallback = self._normalize_fallback_candidates(
+                ranked_fallback,
                 start_rank=len(session_candidates) + 1,
             )
             if ranked_fallback:
@@ -180,6 +185,10 @@ class QueryService:
             viewer_profile_text=viewer_profile_text,
             candidates=fallback_candidates,
         )
+        ranked = self._normalize_fallback_candidates(
+            ranked,
+            start_rank=1,
+        )
 
         response = self._build_output(
             viewer_id=viewer_id,
@@ -193,6 +202,31 @@ class QueryService:
             else None,
         )
         return self._cache_response(request, response)
+
+    def _normalize_fallback_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+        start_rank: int,
+    ) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for index, candidate in enumerate(candidates):
+            reason_codes = [
+                str(reason_code)
+                for reason_code in candidate.get("reasonCodes", [])
+                if str(reason_code).strip()
+            ]
+            if "global_fallback" not in reason_codes:
+                reason_codes.append("global_fallback")
+
+            normalized.append(
+                {
+                    **candidate,
+                    "source": "global_fallback",
+                    "rank": start_rank + index,
+                    "reasonCodes": reason_codes,
+                }
+            )
+        return normalized
 
     def _resolve_viewer_profile_text(
         self,

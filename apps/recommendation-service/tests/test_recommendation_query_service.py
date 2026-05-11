@@ -153,6 +153,61 @@ class RecommendationQueryServiceTestCase(unittest.TestCase):
             finally:
                 repository.close()
 
+    def test_cold_start_fallback_uses_emotion_affinity_without_exposing_raw_emotion(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = RecommendationStateRepository(
+                f"sqlite+pysqlite:///{Path(temp_dir) / 'recommendation-state.sqlite3'}"
+            )
+            try:
+                repository.create_schema()
+                repository.replace_global_fallback_candidates(
+                    [
+                        {
+                            "candidateId": "candidate-1",
+                            "fallbackScore": 0.91,
+                            "rank": 1,
+                        }
+                    ],
+                    datetime.now(timezone.utc).isoformat(),
+                    "global-fallback-v1",
+                )
+                now = datetime.now(timezone.utc).isoformat()
+                repository.upsert_emotion_profile(
+                    user_id="viewer-1",
+                    risk_score=0.2,
+                    recent_negativity_score=0.2,
+                    dominant_emotion="joy",
+                    emotion_scores={"joy": 0.8},
+                    source_event_at=now,
+                )
+                repository.upsert_emotion_profile(
+                    user_id="candidate-1",
+                    risk_score=0.2,
+                    recent_negativity_score=0.25,
+                    dominant_emotion="joy",
+                    emotion_scores={"joy": 0.7},
+                    source_event_at=now,
+                )
+
+                rerank_service = Mock()
+                rerank_service.rerank.return_value = []
+                service = QueryService(repository, rerank_service, cache=None)
+
+                response = service.query(
+                    RecommendationQueryRequest(viewerId="viewer-1", limit=1)
+                )
+
+                self.assertEqual(response.source, "global_fallback")
+                self.assertEqual(response.candidateCount, 1)
+                self.assertIn("global_fallback", response.candidates[0].reasonCodes)
+                self.assertIn("emotion_affinity", response.candidates[0].reasonCodes)
+                self.assertFalse(hasattr(response.candidates[0], "emotionScore"))
+                self.assertFalse(hasattr(response.candidates[0], "riskScore"))
+            finally:
+                repository.close()
+
     def test_query_prefers_semantic_online_over_global_fallback(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             repository = RecommendationStateRepository(

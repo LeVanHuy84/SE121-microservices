@@ -5,9 +5,10 @@ logger = logging.getLogger(__name__)
 
 
 class RecommendationEventDispatcher:
-    def __init__(self, profile_handler, graph_handler):
+    def __init__(self, profile_handler, graph_handler, emotion_handler):
         self.profile_handler = profile_handler
         self.graph_handler = graph_handler
+        self.emotion_handler = emotion_handler
 
         self.profile_event_types = {
             "recommendation.profile.embedding.requested",
@@ -21,6 +22,9 @@ class RecommendationEventDispatcher:
             "recommendation.graph.user-blocked",
             "recommendation.graph.user-unblocked",
             "recommendation.graph.recommendation-dismissed",
+        }
+        self.emotion_event_types = {
+            "recommendation.emotion.profile-updated",
         }
 
     async def dispatch(self, event: dict[str, Any]):
@@ -57,6 +61,18 @@ class RecommendationEventDispatcher:
                 self._payload_value(payload, "targetUserId"),
             )
             await self.graph_handler.handle(event)
+            return
+
+        if raw_type in self.emotion_event_types:
+            logger.info(
+                (
+                    "Dispatching recommendation emotion event: type=%s "
+                    "userId=%s"
+                ),
+                raw_type,
+                self._payload_value(payload, "userId"),
+            )
+            await self.emotion_handler.handle(event)
             return
 
         logger.warning(
