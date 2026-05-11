@@ -85,7 +85,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /api/v1/assistant/chat-history/{userId}:
+  /api/v1/assistant/chat-history/me:
     get:
       tags:
         - Assistant
@@ -97,12 +97,6 @@ paths:
       security:
         - clerkBearerAuth: []
       parameters:
-        - name: userId
-          in: path
-          required: true
-          description: User id mapped to the single chatbot conversation.
-          schema:
-            type: string
         - name: page_size
           in: query
           required: false
@@ -191,13 +185,6 @@ paths:
       operationId: clearAssistantHistoryByUser
       security:
         - clerkBearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          description: User id mapped to the single chatbot conversation.
-          schema:
-            type: string
       responses:
         "200":
           description: Chat history cleared successfully.
@@ -255,6 +242,11 @@ components:
           type: string
           minLength: 1
           example: How does friend recommendation work?
+        clientMessageId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 2b7b8cb3-38bb-4bbf-95c3-2a26ffd90f79
 
     AssistantRespondResponse:
       type: object
@@ -294,6 +286,23 @@ components:
         provider:
           type: string
           example: groq
+        requestId:
+          type: string
+          nullable: true
+          example: 2b7b8cb3-38bb-4bbf-95c3-2a26ffd90f79
+        latencyMs:
+          type: number
+          format: float
+          nullable: true
+          example: 842.13
+        persisted:
+          type: boolean
+          nullable: true
+          example: true
+        conversationId:
+          type: string
+          nullable: true
+          example: default
 
     AssistantSource:
       type: object

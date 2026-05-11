@@ -30,6 +30,10 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             "How can I search posts in Sentimeta?",
             "How do I update my profile privacy settings?",
             "Why are chat messages not real-time?",
+            "tim giup toi bai viet ve startup",
+            "Tìm giúp tôi bài viết về startup",
+            "hướng dẫn tui chỉnh quyền riêng tư profile nha",
+            "cho tui hỏi cách vào nhóm kín với",
         ]
         for message in samples:
             with self.subTest(message=message):
@@ -80,6 +84,16 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             message="Cach dung quicksort nhu the nao?",
         )
         self.assertFalse(self.guard.is_in_scope(req))
+        decision = self.guard.evaluate_scope(req)
+        self.assertIn(decision.state, {"out_of_scope", "ambiguous"})
+
+    def test_ambiguous_scope_question(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="Cach dung cai do sao nhi?",
+        )
+        decision = self.guard.evaluate_scope(req)
+        self.assertEqual(decision.state, "ambiguous")
 
     def test_pronoun_follow_up_needs_anchor(self):
         without_anchor = AssistantRespondRequest(
@@ -155,11 +169,37 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
             "Cong thuc nau bo kho",
             "Mua laptop nao cho dan backend",
             "Tom tat phim Interstellar",
+            "dịch giúp tui cv sang tiếng anh chuẩn ats",
+            "kể mình nghe chuyện ma đi",
         ]
         for message in samples:
             with self.subTest(message=message):
                 req = AssistantRespondRequest(userId="u1", message=message)
                 self.assertFalse(self.guard.is_in_scope(req))
+
+    def test_multi_intent_question_with_sentimeta_anchor_is_in_scope(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="Vừa cách đăng bài vừa cách tìm nhóm trong Sentimeta là gì?",
+        )
+        self.assertTrue(self.guard.is_in_scope(req))
+
+    def test_follow_up_contextual_question_is_in_scope(self):
+        req = AssistantRespondRequest(
+            userId="u1",
+            message="còn bước tiếp theo thì sao?",
+            history=[
+                {"role": "user", "content": "Cách bật quyền riêng tư hồ sơ?"},
+                {"role": "assistant", "content": "Bạn vào Cài đặt > Quyền riêng tư..."},
+            ],
+        )
+        self.assertTrue(
+            self.guard.is_in_scope(
+                req,
+                last_intent="user",
+                recent_history=req.history,
+            )
+        )
 
 
 if __name__ == "__main__":

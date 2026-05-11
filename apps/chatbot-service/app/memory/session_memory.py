@@ -18,6 +18,7 @@ class SessionEntry:
     summary: str = ""
     last_intent: str | None = None
     last_sources: list[AssistantSource] = field(default_factory=list)
+    facts: dict[str, str] = field(default_factory=dict)
 
 
 class SessionMemory:
@@ -164,6 +165,7 @@ class SessionMemory:
                     self._redis_key(key, "summary"),
                     self._redis_key(key, "last_intent"),
                     self._redis_key(key, "last_sources"),
+                    self._redis_key(key, "facts"),
                 )
             except Exception as exc:
                 self._disable_redis(exc)
@@ -231,11 +233,44 @@ class SessionMemory:
         return f"{settings.CHATBOT_MEMORY_KEY_PREFIX}:{session_key}:{field}"
 
     def _expire_session_keys(self, session_key: str):
-        for memory_field in ("history", "summary", "last_intent", "last_sources"):
+        for memory_field in ("history", "summary", "last_intent", "last_sources", "facts"):
             self._redis.expire(
                 self._redis_key(session_key, memory_field),
                 settings.CHATBOT_SESSION_TTL_SECONDS,
             )
+
+    def get_facts(self, key: str) -> dict[str, str]:
+        if self._can_use_redis():
+            try:
+                raw = self._redis.get(self._redis_key(key, "facts"))
+                if not raw:
+                    return {}
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    return {str(k): str(v) for k, v in parsed.items()}
+                return {}
+            except Exception as exc:
+                self._disable_redis(exc)
+
+        self._prune_expired()
+        entry = self._sessions.get(key)
+        return dict(entry.facts) if entry else {}
+
+    def set_facts(self, key: str, facts: dict[str, str]):
+        normalized = {str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()}
+        if self._can_use_redis():
+            try:
+                self._redis.setex(
+                    self._redis_key(key, "facts"),
+                    settings.CHATBOT_SESSION_TTL_SECONDS,
+                    json.dumps(normalized),
+                )
+                return
+            except Exception as exc:
+                self._disable_redis(exc)
+
+        entry = self._get_or_create_entry(key)
+        entry.facts = normalized
 
 
 session_memory = SessionMemory()

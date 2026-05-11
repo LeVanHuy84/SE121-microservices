@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 import torch
@@ -31,12 +32,29 @@ class RankingService:
         if not candidates:
             return []
 
+        deduped_candidates = self._dedupe_candidates(candidates)
+        if not deduped_candidates:
+            return []
+
         pair_features = self.repository.get_graph_pair_features(
             viewer_id,
-            [str(candidate["candidateId"]) for candidate in candidates],
+            [str(candidate["candidateId"]) for candidate in deduped_candidates],
         )
+        emotion_profiles = (
+            self.repository.get_emotion_profiles(
+                [viewer_id]
+                + [str(candidate["candidateId"]) for candidate in deduped_candidates]
+            )
+            if settings.RECOMMENDATION_EMOTION_SCORING_ENABLED
+            else {}
+        )
+        viewer_emotion = emotion_profiles.get(viewer_id)
 
-        rerank_input = candidates[: self._resolve_rerank_top_k()]
+        rerank_input = self._select_rerank_candidates(
+            candidates=deduped_candidates,
+            pair_features=pair_features,
+            top_k=self._resolve_rerank_top_k(),
+        )
         model_scores = self._resolve_model_scores(
             viewer_id=viewer_id,
             viewer_profile_text=viewer_profile_text,
@@ -45,28 +63,35 @@ class RankingService:
         )
 
         scored = []
-        for candidate in candidates:
+        for candidate in deduped_candidates:
             candidate_id = str(candidate["candidateId"])
             pair_feature = pair_features.get(candidate_id, {})
 
             model_score = float(model_scores.get(candidate_id, 0.0))
             retrieval_score = float(candidate.get("retrievalScore", 0.0))
             graph_score = self._resolve_graph_score(pair_feature)
+            emotion_score = self._resolve_emotion_affinity_score(
+                viewer_emotion=viewer_emotion,
+                candidate_emotion=emotion_profiles.get(candidate_id),
+            )
 
             scored.append(
                 {
                     **candidate,
                     "modelScore": model_score,
+                    "emotionScore": emotion_score,
                     "mutualFriendCount": int(pair_feature.get("mutualFriendCount", 0)),
                     "commonGroupCount": int(pair_feature.get("commonGroupCount", 0)),
                     "finalScore": self._resolve_final_score(
                         retrieval_score=retrieval_score,
                         model_score=model_score,
                         graph_score=graph_score,
+                        emotion_score=emotion_score,
                     ),
                     "reasonCodes": self._build_reason_codes(
                         model_score=model_score,
                         pair_feature=pair_feature,
+                        emotion_score=emotion_score,
                     ),
                 }
             )
@@ -84,6 +109,68 @@ class RankingService:
             candidate["rank"] = index + 1
 
         return scored
+
+    def _dedupe_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        deduped: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        for candidate in candidates:
+            candidate_id = str(candidate.get("candidateId") or "").strip()
+            if not candidate_id or candidate_id in seen_ids:
+                continue
+
+            seen_ids.add(candidate_id)
+            deduped.append(candidate)
+
+        return deduped
+
+    def _select_rerank_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+        pair_features: dict[str, dict[str, Any]],
+        top_k: int,
+    ) -> list[dict[str, Any]]:
+        resolved_top_k = max(1, int(top_k))
+        if len(candidates) <= resolved_top_k:
+            return candidates
+
+        # Keep most of the budget for semantic retrieval ordering.
+        # Reserve a small portion for graph-strong candidates so
+        # mutual-friend signals can influence rerank quality.
+        graph_reserve = max(1, resolved_top_k // 3)
+        base_semantic_budget = max(1, resolved_top_k - graph_reserve)
+
+        selected = list(candidates[:base_semantic_budget])
+        selected_ids = {str(candidate["candidateId"]) for candidate in selected}
+
+        graph_sorted_candidates = sorted(
+            candidates,
+            key=lambda candidate: (
+                -int(
+                    pair_features.get(str(candidate["candidateId"]), {}).get(
+                        "mutualFriendCount",
+                        0,
+                    )
+                ),
+                -float(candidate.get("retrievalScore", 0.0)),
+                str(candidate.get("candidateId", "")),
+            ),
+        )
+
+        for candidate in graph_sorted_candidates:
+            candidate_id = str(candidate["candidateId"])
+            if candidate_id in selected_ids:
+                continue
+
+            selected.append(candidate)
+            selected_ids.add(candidate_id)
+            if len(selected) >= resolved_top_k:
+                break
+
+        return selected
 
     def passthrough_fallback_candidates(
         self,
@@ -128,11 +215,6 @@ class RankingService:
                                 "mutualFriendCount", 0
                             )
                         ),
-                        commonGroups=int(
-                            pair_features.get(str(candidate["candidateId"]), {}).get(
-                                "commonGroupCount", 0
-                            )
-                        ),
                     )
                     for candidate in candidates
                 ],
@@ -145,11 +227,13 @@ class RankingService:
         retrieval_score: float,
         model_score: float,
         graph_score: float,
+        emotion_score: float,
     ) -> float:
         total_weight = (
             settings.RECOMMENDATION_QUERY_MODEL_WEIGHT
             + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
             + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
+            + settings.RECOMMENDATION_QUERY_EMOTION_WEIGHT
         )
         if total_weight <= 0:
             return 0.0
@@ -159,6 +243,7 @@ class RankingService:
                 settings.RECOMMENDATION_QUERY_MODEL_WEIGHT * self._clamp_score(model_score)
                 + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT * self._clamp_score(retrieval_score)
                 + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT * self._clamp_score(graph_score)
+                + settings.RECOMMENDATION_QUERY_EMOTION_WEIGHT * self._clamp_score(emotion_score)
             ) / total_weight,
             6,
         )
@@ -168,17 +253,10 @@ class RankingService:
             return 0.0
 
         mutual_friend_cap = max(1, int(settings.RECOMMENDATION_MUTUAL_FRIEND_CAP))
-        common_group_cap = max(1, int(settings.RECOMMENDATION_COMMON_GROUP_CAP))
-
         mutual_friend_score = min(
             int(pair_feature.get("mutualFriendCount", 0)),
             mutual_friend_cap,
         ) / mutual_friend_cap
-
-        common_group_score = min(
-            int(pair_feature.get("commonGroupCount", 0)),
-            common_group_cap,
-        ) / common_group_cap
 
         recent_event_score = 0.0
         last_event_type = str(pair_feature.get("lastEventType") or "").strip()
@@ -190,7 +268,6 @@ class RankingService:
 
         return self._clamp_score(
             0.7 * mutual_friend_score
-            + 0.2 * common_group_score
             + recent_event_score
         )
 
@@ -198,18 +275,19 @@ class RankingService:
         self,
         model_score: float,
         pair_feature: dict[str, Any] | None = None,
+        emotion_score: float = 0.0,
     ) -> list[str]:
         reasons = ["semantic_retrieval"]
         if model_score > 0:
             reasons.append("semantic_rerank")
+        if emotion_score > 0:
+            reasons.append("emotion_affinity")
 
         if not pair_feature:
             return reasons
 
         if int(pair_feature.get("mutualFriendCount", 0)) > 0:
             reasons.append("graph_mutual_friend")
-        if int(pair_feature.get("commonGroupCount", 0)) > 0:
-            reasons.append("graph_common_group")
         if self._resolve_graph_score(pair_feature) > 0:
             reasons.append("graph_rerank")
 
@@ -222,6 +300,47 @@ class RankingService:
             reasons.append("graph_recent_friendship_removed")
 
         return reasons
+
+    def _resolve_emotion_affinity_score(
+        self,
+        viewer_emotion: dict[str, Any] | None,
+        candidate_emotion: dict[str, Any] | None,
+    ) -> float:
+        if not settings.RECOMMENDATION_EMOTION_SCORING_ENABLED:
+            return 0.0
+        if not viewer_emotion or not candidate_emotion:
+            return 0.0
+        if self._is_emotion_profile_stale(viewer_emotion) or self._is_emotion_profile_stale(
+            candidate_emotion
+        ):
+            return 0.0
+
+        viewer_negativity = self._clamp_score(viewer_emotion.get("recentNegativityScore"))
+        candidate_negativity = self._clamp_score(
+            candidate_emotion.get("recentNegativityScore")
+        )
+        viewer_risk = self._clamp_score(viewer_emotion.get("riskScore"))
+        candidate_risk = self._clamp_score(candidate_emotion.get("riskScore"))
+
+        # Prefer emotionally stable pairing and avoid amplifying high-high risk pairing.
+        stability_similarity = 1.0 - abs(viewer_negativity - candidate_negativity)
+        risk_penalty = max(0.0, (viewer_risk + candidate_risk) / 2.0 - 0.7) * 0.5
+        base_score = 0.75 * stability_similarity + 0.25 * (1.0 - candidate_risk)
+        return self._clamp_score(base_score - risk_penalty)
+
+    def _is_emotion_profile_stale(self, profile: dict[str, Any]) -> bool:
+        updated_at = str(profile.get("updatedAt") or "").strip()
+        if not updated_at:
+            return True
+        try:
+            parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            max_age_hours = max(1, int(settings.RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS))
+            age_seconds = (datetime.now(timezone.utc) - parsed).total_seconds()
+            return age_seconds > max_age_hours * 3600
+        except ValueError:
+            return True
 
     def _clamp_score(self, value: float | None) -> float:
         if value is None:

@@ -21,6 +21,9 @@ export class FriendshipService {
   private readonly recommendationDismissDurationMs = 30 * 24 * 60 * 60 * 1000;
   private readonly defaultAnalyticsWindowDays = 30;
   private readonly maxAnalyticsWindowDays = 365;
+  private readonly defaultCursorLimit = 10;
+  private readonly maxCursorLimit = 50;
+  private readonly maxFriendIdsLimit = 200;
 
   constructor(
     @Inject(SOCIAL_GRAPH_REPOSITORY)
@@ -53,7 +56,15 @@ export class FriendshipService {
       throw new BadRequestException('Cannot send request to a blocked user');
     }
 
-    await this.socialGraphRepo.sendFriendRequest(userId, targetId, attribution);
+    const result = await this.socialGraphRepo.sendFriendRequest(
+      userId,
+      targetId,
+      attribution,
+    );
+
+    if (!result.created) {
+      throw new BadRequestException('Friend request already sent');
+    }
 
     if (attribution?.recommendationId || attribution?.recommendationRequestId) {
       await this.socialGraphRepo.recordRecommendationEvents([
@@ -82,7 +93,15 @@ export class FriendshipService {
       throw new BadRequestException('No outgoing friend request to cancel');
     }
 
-    await this.socialGraphRepo.cancelFriendRequest(userId, targetId);
+    const result = await this.socialGraphRepo.cancelFriendRequest(
+      userId,
+      targetId,
+    );
+
+    if (!result.removed) {
+      throw new BadRequestException('No outgoing friend request to cancel');
+    }
+
     await this.buffer.clearActivity('friendship_request', targetId, userId);
 
     return { message: 'Friend request canceled successfully' };
@@ -102,6 +121,10 @@ export class FriendshipService {
       userId,
       requesterId,
     );
+
+    if (!attribution) {
+      throw new BadRequestException('No pending friend request to accept');
+    }
 
     if (attribution?.recommendationId || attribution?.recommendationRequestId) {
       await this.socialGraphRepo.recordRecommendationEvents([
@@ -136,7 +159,15 @@ export class FriendshipService {
       throw new BadRequestException('No pending friend request to decline');
     }
 
-    await this.socialGraphRepo.declineFriendRequest(userId, requesterId);
+    const result = await this.socialGraphRepo.declineFriendRequest(
+      userId,
+      requesterId,
+    );
+
+    if (!result.removed) {
+      throw new BadRequestException('No pending friend request to decline');
+    }
+
     await this.buffer.clearActivity('friendship_request', userId, requesterId);
 
     return { message: 'Friend request declined' };
@@ -152,7 +183,11 @@ export class FriendshipService {
       throw new BadRequestException('Not friends');
     }
 
-    await this.socialGraphRepo.removeFriend(userId, friendId);
+    const result = await this.socialGraphRepo.removeFriend(userId, friendId);
+
+    if (!result.removed) {
+      throw new BadRequestException('Not friends');
+    }
 
     return { message: 'Friend removed successfully' };
   }
@@ -167,7 +202,11 @@ export class FriendshipService {
       throw new BadRequestException('User already blocked');
     }
 
-    await this.socialGraphRepo.blockUser(userId, targetId);
+    const result = await this.socialGraphRepo.blockUser(userId, targetId);
+
+    if (!result.created) {
+      throw new BadRequestException('User already blocked');
+    }
 
     return { message: 'User blocked successfully' };
   }
@@ -182,7 +221,11 @@ export class FriendshipService {
       throw new BadRequestException('User is not blocked');
     }
 
-    await this.socialGraphRepo.unblockUser(userId, targetId);
+    const result = await this.socialGraphRepo.unblockUser(userId, targetId);
+
+    if (!result.removed) {
+      throw new BadRequestException('User is not blocked');
+    }
 
     return { message: 'User unblocked successfully' };
   }
@@ -228,33 +271,38 @@ export class FriendshipService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    return this.socialGraphRepo.getFriends(userId, query);
+    return this.socialGraphRepo.getFriends(userId, this.normalizeCursorQuery(query));
   }
 
   async getFriendRequests(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
+    const normalizedQuery = this.normalizeCursorQuery(query);
     this.logger.debug(
-      `Getting friend requests for userId: ${userId} with query: ${JSON.stringify(query)}`,
+      `Getting friend requests for userId: ${userId} with query: ${JSON.stringify(normalizedQuery)}`,
     );
-    return this.socialGraphRepo.getFriendRequests(userId, query);
+    return this.socialGraphRepo.getFriendRequests(userId, normalizedQuery);
   }
 
   async recommendFriends(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<FriendRecommendation>> {
+    const normalizedQuery = this.normalizeCursorQuery(query);
     this.logger.debug(
-      `Recommending friends for userId: ${userId} with query: ${JSON.stringify(query)}`,
+      `Recommending friends for userId: ${userId} with query: ${JSON.stringify(normalizedQuery)}`,
     );
     try {
       return await this.recommendationQueryService.recommendFriends(
         userId,
-        query,
+        normalizedQuery,
       );
     } catch (error) {
-      this.logger.error('Recommendation unavailable', error);
+      this.logger.error(
+        `Recommendation unavailable for userId=${userId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return {
         data: [],
         nextCursor: null,
@@ -296,14 +344,45 @@ export class FriendshipService {
   }
 
   async getFriendIds(userId: string, limit?: number) {
-    return this.socialGraphRepo.getFriendIds(userId, limit);
+    const normalizedLimit =
+      typeof limit === 'number' && Number.isFinite(limit)
+        ? Math.min(this.maxFriendIdsLimit, Math.max(1, Math.floor(limit)))
+        : undefined;
+
+    return this.socialGraphRepo.getFriendIds(userId, normalizedLimit);
   }
 
   async getBlockedUsers(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    return this.socialGraphRepo.getBlockedUsers(userId, query);
+    return this.socialGraphRepo.getBlockedUsers(
+      userId,
+      this.normalizeCursorQuery(query),
+    );
+  }
+
+  private normalizeCursorQuery(query: CursorPaginationDTO): CursorPaginationDTO {
+    const normalizedCursor =
+      typeof query?.cursor === 'string' && query.cursor.trim().length > 0
+        ? query.cursor.trim()
+        : undefined;
+
+    const resolvedLimit =
+      typeof query?.limit === 'number' && Number.isFinite(query.limit)
+        ? Math.floor(query.limit)
+        : this.defaultCursorLimit;
+
+    const normalizedLimit = Math.min(
+      this.maxCursorLimit,
+      Math.max(1, resolvedLimit),
+    );
+
+    return {
+      ...query,
+      cursor: normalizedCursor,
+      limit: normalizedLimit,
+    };
   }
 
   private normalizeAnalyticsWindowDays(days: number | undefined): number {

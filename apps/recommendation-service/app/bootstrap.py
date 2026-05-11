@@ -1,6 +1,7 @@
 from app.core.config import settings
 from app.database.recommendation_state_repository import RecommendationStateRepository
 from app.messaging.event_dispatcher import RecommendationEventDispatcher
+from app.messaging.emotion_profile_event_handler import EmotionProfileEventHandler
 from app.messaging.kafka_consumer import KafkaConsumerService
 from app.messaging.profile_embedding_event_handler import ProfileEmbeddingEventHandler
 from app.messaging.recommendation_graph_event_handler import (
@@ -26,7 +27,8 @@ profile_handler = ProfileEmbeddingEventHandler(state_repository)
 graph_handler = RecommendationGraphEventHandler(
     state_repository,
 )
-dispatcher = RecommendationEventDispatcher(profile_handler, graph_handler)
+emotion_handler = EmotionProfileEventHandler(state_repository)
+dispatcher = RecommendationEventDispatcher(profile_handler, graph_handler, emotion_handler)
 profile_consumer = KafkaConsumerService(
     brokers=settings.KAFKA_BROKERS,
     topic=settings.RECOMMENDATION_PROFILE_TOPIC,
@@ -39,7 +41,13 @@ graph_consumer = KafkaConsumerService(
     group_id=settings.KAFKA_GROUP_ID,
     handler=dispatcher.dispatch,
 )
+emotion_consumer = KafkaConsumerService(
+    brokers=settings.KAFKA_BROKERS,
+    topic=settings.RECOMMENDATION_EMOTION_TOPIC,
+    group_id=settings.KAFKA_GROUP_ID,
+    handler=dispatcher.dispatch,
+)
 messaging_runtime = RecommendationMessagingRuntime(
-    consumers=[profile_consumer, graph_consumer],
+    consumers=[profile_consumer, graph_consumer, emotion_consumer],
     state_processor=recommendation_state_processor,
 )

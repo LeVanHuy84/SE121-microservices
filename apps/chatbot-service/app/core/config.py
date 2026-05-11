@@ -129,6 +129,21 @@ class Settings:
         self.CHATBOT_DB_ECHO: bool = (
             os.getenv("CHATBOT_DB_ECHO", "false").lower() == "true"
         )
+        self.CHATBOT_DB_POOL_SIZE: int = int(
+            os.getenv("CHATBOT_DB_POOL_SIZE", 10)
+        )
+        self.CHATBOT_DB_MAX_OVERFLOW: int = int(
+            os.getenv("CHATBOT_DB_MAX_OVERFLOW", 20)
+        )
+        self.CHATBOT_DB_POOL_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_DB_POOL_TIMEOUT_SECONDS", 5)
+        )
+        self.CHATBOT_DB_POOL_RECYCLE_SECONDS: int = int(
+            os.getenv("CHATBOT_DB_POOL_RECYCLE_SECONDS", 1800)
+        )
+        self.CHATBOT_DB_COMMAND_TIMEOUT_SECONDS: float = float(
+            os.getenv("CHATBOT_DB_COMMAND_TIMEOUT_SECONDS", 8)
+        )
         self.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT: int = int(
             os.getenv("CHATBOT_HISTORY_PAGE_SIZE_DEFAULT", 20)
         )
@@ -136,7 +151,16 @@ class Settings:
             os.getenv("CHATBOT_HISTORY_PAGE_SIZE_MAX", 100)
         )
         self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS: int = int(
-            os.getenv("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS", 1800)
+            os.getenv("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS", 5000)
+        )
+        self.CHATBOT_HISTORY_WRITE_WORKERS: int = int(
+            os.getenv("CHATBOT_HISTORY_WRITE_WORKERS", 2)
+        )
+        self.CHATBOT_HISTORY_QUEUE_SIZE: int = int(
+            os.getenv("CHATBOT_HISTORY_QUEUE_SIZE", 2000)
+        )
+        self.CHATBOT_HISTORY_CACHE_TTL_SECONDS: int = int(
+            os.getenv("CHATBOT_HISTORY_CACHE_TTL_SECONDS", 20)
         )
         self.ASSISTANT_DOCS_DIR: str = os.getenv(
             "ASSISTANT_DOCS_DIR", "docs/assistant"
@@ -162,6 +186,18 @@ class Settings:
         self.RAG_DOC_MAX_CHUNKS_PER_DOC: int = int(
             os.getenv("RAG_DOC_MAX_CHUNKS_PER_DOC", 2)
         )
+        self.RAG_HYBRID_CANDIDATE_MULTIPLIER: int = int(
+            os.getenv("RAG_HYBRID_CANDIDATE_MULTIPLIER", 4)
+        )
+        self.RAG_SEMANTIC_MERGE_THRESHOLD: float = float(
+            os.getenv("RAG_SEMANTIC_MERGE_THRESHOLD", 0.82)
+        )
+        self.RAG_CHUNK_TOKEN_BUDGET: int = int(
+            os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320)
+        )
+        self.RAG_REINDEX_MANIFEST_PATH: str = os.getenv(
+            "RAG_REINDEX_MANIFEST_PATH", ".cache/rag/.rag_index_manifest.sha256"
+        ).strip()
         self.RAG_DOC_SEARCH_VISIBILITY: str = os.getenv(
             "RAG_DOC_SEARCH_VISIBILITY", "public"
         ).strip()
@@ -181,9 +217,15 @@ class Settings:
         self.CHATBOT_LLM_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
         )
+        self.CHATBOT_MAX_CONCURRENT_LLM: int = int(
+            os.getenv("CHATBOT_MAX_CONCURRENT_LLM", 32)
+        )
         self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", 1024))
         self.GROQ_TEMPERATURE: float = float(
             os.getenv("GROQ_TEMPERATURE", 0.2)
+        )
+        self.GROQ_TEMPERATURE_TASK: float = float(
+            os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
 
         self._validate()
@@ -321,6 +363,27 @@ class Settings:
 
         if self.CHATBOT_HISTORY_PERSIST_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_HISTORY_PERSIST_TIMEOUT_MS must be positive")
+        if self.CHATBOT_HISTORY_WRITE_WORKERS <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_WRITE_WORKERS must be positive")
+        if self.CHATBOT_HISTORY_QUEUE_SIZE <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_QUEUE_SIZE must be positive")
+        if self.CHATBOT_HISTORY_CACHE_TTL_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_HISTORY_CACHE_TTL_SECONDS must be positive")
+
+        if self.CHATBOT_DB_POOL_SIZE <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_SIZE must be positive")
+
+        if self.CHATBOT_DB_MAX_OVERFLOW < 0:
+            raise RuntimeError("CHATBOT_DB_MAX_OVERFLOW must be >= 0")
+
+        if self.CHATBOT_DB_POOL_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_TIMEOUT_SECONDS must be positive")
+
+        if self.CHATBOT_DB_POOL_RECYCLE_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_POOL_RECYCLE_SECONDS must be positive")
+
+        if self.CHATBOT_DB_COMMAND_TIMEOUT_SECONDS <= 0:
+            raise RuntimeError("CHATBOT_DB_COMMAND_TIMEOUT_SECONDS must be positive")
 
         if not self.ASSISTANT_DOCS_DIR:
             raise RuntimeError("ASSISTANT_DOCS_DIR must not be empty")
@@ -355,6 +418,18 @@ class Settings:
         if self.RAG_DOC_MAX_CHUNKS_PER_DOC <= 0:
             raise RuntimeError("RAG_DOC_MAX_CHUNKS_PER_DOC must be positive")
 
+        if self.RAG_HYBRID_CANDIDATE_MULTIPLIER <= 0:
+            raise RuntimeError("RAG_HYBRID_CANDIDATE_MULTIPLIER must be positive")
+
+        if not (0 <= self.RAG_SEMANTIC_MERGE_THRESHOLD <= 1):
+            raise RuntimeError("RAG_SEMANTIC_MERGE_THRESHOLD must be between 0 and 1")
+
+        if self.RAG_CHUNK_TOKEN_BUDGET <= 0:
+            raise RuntimeError("RAG_CHUNK_TOKEN_BUDGET must be positive")
+
+        if not self.RAG_REINDEX_MANIFEST_PATH:
+            raise RuntimeError("RAG_REINDEX_MANIFEST_PATH must not be empty")
+
         if not self.RAG_DOC_SEARCH_VISIBILITY:
             raise RuntimeError("RAG_DOC_SEARCH_VISIBILITY must not be empty")
 
@@ -370,8 +445,21 @@ class Settings:
         if self.CHATBOT_LLM_TIMEOUT_MS <= 0:
             raise RuntimeError("CHATBOT_LLM_TIMEOUT_MS must be positive")
 
+        if self.CHATBOT_MAX_CONCURRENT_LLM <= 0:
+            raise RuntimeError("CHATBOT_MAX_CONCURRENT_LLM must be positive")
+
         if self.GROQ_MAX_TOKENS <= 0:
             raise RuntimeError("GROQ_MAX_TOKENS must be positive")
+
+        if not isfinite(self.GROQ_TEMPERATURE):
+            raise RuntimeError("GROQ_TEMPERATURE must be finite")
+        if not (0 <= self.GROQ_TEMPERATURE <= 2):
+            raise RuntimeError("GROQ_TEMPERATURE must be between 0 and 2")
+
+        if not isfinite(self.GROQ_TEMPERATURE_TASK):
+            raise RuntimeError("GROQ_TEMPERATURE_TASK must be finite")
+        if not (0 <= self.GROQ_TEMPERATURE_TASK <= 2):
+            raise RuntimeError("GROQ_TEMPERATURE_TASK must be between 0 and 2")
 
         if not (0 <= self.GROQ_TEMPERATURE <= 2):
             raise RuntimeError("GROQ_TEMPERATURE must be between 0 and 2")

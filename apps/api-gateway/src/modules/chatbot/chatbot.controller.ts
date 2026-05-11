@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  Param,
   Post,
   Query,
 } from '@nestjs/common';
@@ -21,9 +20,9 @@ export class ChatbotController {
     return this.chatbotService.respond(userId, dto);
   }
 
-  @Get('chat-history/:userId')
+  @Get('chat-history/me')
   getHistory(
-    @Param('userId') userId: string,
+    @CurrentUserId() userId: string,
     @Query('page_size') pageSize?: string,
     @Query('before_created_at') beforeCreatedAt?: string,
     @Query('before_id') beforeId?: string,
@@ -37,8 +36,8 @@ export class ChatbotController {
     );
   }
 
-  @Delete('chat-history/:userId')
-  clearHistory(@Param('userId') userId: string) {
+  @Delete('chat-history/me')
+  clearHistory(@CurrentUserId() userId: string) {
     return this.chatbotService.clearHistory(userId);
   }
 

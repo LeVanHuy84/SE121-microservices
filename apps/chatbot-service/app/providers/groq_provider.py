@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-import asyncio
+﻿﻿from __future__ import annotations
 
 from app.core.config import settings
 from app.providers.base import LlmGeneration
@@ -9,34 +7,37 @@ from app.schemas.assistant_schema import AssistantRespondRequest
 
 class GroqProvider:
     def __init__(self):
-        self._chain = None
+        self._chains: dict[float, object] = {}
 
     async def generate(
         self,
         prompt: str,
         request: AssistantRespondRequest,
     ) -> LlmGeneration:
-        del request
-        content = await asyncio.to_thread(self._generate_sync, prompt)
+        temperature = self._resolve_temperature(request)
+        content = await self._generate_async(prompt, temperature)
         return LlmGeneration(
             content=content,
             model=settings.GROQ_MODEL,
             provider="groq",
         )
 
-    def _generate_sync(self, prompt: str) -> str:
+    async def _generate_async(self, prompt: str, temperature: float) -> str:
         if not settings.GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY is not set")
 
-        chain = self._get_chain()
-        response = str(chain.invoke({"input": prompt}) or "").strip()
+        chain = self._get_chain(temperature)
+        response = await chain.ainvoke({"input": prompt})
+        response = str(response or "").strip()
         if not response:
             raise RuntimeError("Groq returned an empty response")
         return response
 
-    def _get_chain(self):
-        if self._chain is not None:
-            return self._chain
+    def _get_chain(self, temperature: float):
+        cache_key = round(float(temperature), 3)
+        cached = self._chains.get(cache_key)
+        if cached is not None:
+            return cached
 
         try:
             from langchain_core.output_parsers import StrOutputParser
@@ -51,7 +52,7 @@ class GroqProvider:
         llm = ChatGroq(
             api_key=settings.GROQ_API_KEY,
             model=settings.GROQ_MODEL,
-            temperature=settings.GROQ_TEMPERATURE,
+            temperature=cache_key,
             max_tokens=settings.GROQ_MAX_TOKENS,
             timeout=settings.GROQ_TIMEOUT_SECONDS,
         )
@@ -60,12 +61,19 @@ class GroqProvider:
                 (
                     "system",
                     (
-                        "You are the SE121 social network AI Assistant. "
-                        "Follow the instructions and RAG context from the user message."
+                        "Tuân thủ hệ thống trong prompt. "
+                        "Chỉ dùng thông tin trong prompt/context, không bịa dữ liệu."
                     ),
                 ),
                 ("human", "{input}"),
             ]
         )
-        self._chain = prompt_template | llm | StrOutputParser()
-        return self._chain
+        chain = prompt_template | llm | StrOutputParser()
+        self._chains[cache_key] = chain
+        return chain
+
+    def _resolve_temperature(self, request: AssistantRespondRequest) -> float:
+        # Task-oriented turns should be more deterministic.
+        if request.intent or request.contexts:
+            return settings.GROQ_TEMPERATURE_TASK
+        return settings.GROQ_TEMPERATURE

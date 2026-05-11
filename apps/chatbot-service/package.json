@@ -10,7 +10,12 @@
     "install": "pip install -r requirements.txt",
     "start:dev": ".venv\\Scripts\\python.exe -m app.main",
     "build": "python -m compileall app",
-    "rag:index-docs": ".venv\\Scripts\\python.exe -m app.tools.index_assistant_docs",
+    "db:migrate": ".venv\\Scripts\\alembic.exe -c alembic.ini upgrade head",
+    "db:current": ".venv\\Scripts\\alembic.exe -c alembic.ini current",
+    "db:history": ".venv\\Scripts\\alembic.exe -c alembic.ini history",
+    "db:revision": ".venv\\Scripts\\alembic.exe -c alembic.ini revision --autogenerate -m",
+    "rag:index-docs": ".venv\\Scripts\\python.exe -m app.tools.index_assistant_docs --force",
+    "loadtest:assistant": ".venv\\Scripts\\python.exe tools\\loadtest_assistant.py",
     "lint": "python -m ruff check app tests",
     "format": "python -m ruff format app tests",
     "test": "python -m unittest discover -s tests -p \"test_*.py\""

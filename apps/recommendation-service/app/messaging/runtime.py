@@ -36,10 +36,11 @@ class RecommendationMessagingRuntime:
         logger.info(
             (
                 "Recommendation messaging runtime started: profileTopic=%s "
-                "graphTopic=%s groupId=%s processorInterval=%s"
+                "graphTopic=%s emotionTopic=%s groupId=%s processorInterval=%s"
             ),
             settings.RECOMMENDATION_PROFILE_TOPIC,
             settings.RECOMMENDATION_GRAPH_TOPIC,
+            settings.RECOMMENDATION_EMOTION_TOPIC,
             settings.KAFKA_GROUP_ID,
             settings.RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS,
         )
@@ -71,6 +72,7 @@ class RecommendationMessagingRuntime:
         target_topics = [
             settings.RECOMMENDATION_PROFILE_TOPIC,
             settings.RECOMMENDATION_GRAPH_TOPIC,
+            settings.RECOMMENDATION_EMOTION_TOPIC,
         ]
 
         last_error: Exception | None = None

@@ -1,4 +1,5 @@
 import {
+  IsUUID,
   IsNumber,
   IsObject,
   IsNotEmpty,
@@ -37,4 +38,8 @@ export class AssistantMessageDto {
   @IsNotEmpty()
   @IsString()
   message: string;
+
+  @IsOptional()
+  @IsUUID()
+  clientMessageId?: string;
 }

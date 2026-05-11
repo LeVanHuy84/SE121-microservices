@@ -23,6 +23,11 @@ class RerankService:
         if not valid_candidates:
             return []
 
+        if not model_loader.is_ready():
+            logger.warning(
+                "Recommendation model not ready; attempting best-effort rerank"
+            )
+
         resolved_similarity_scores = self._resolve_similarity_scores(
             request.viewerProfileText,
             valid_candidates,
@@ -119,9 +124,6 @@ class RerankService:
         candidate: RecommendationCandidateInput,
         similarity_score: float,
     ) -> str:
-        if candidate.commonGroups > 0:
-            return "graph_common_group"
-
         if candidate.mutualFriends > 0 and similarity_score >= 0.6:
             return "graph_mutual_friend_semantic_match"
 

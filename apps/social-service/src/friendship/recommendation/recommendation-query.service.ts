@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
-import { GroupClientService } from '../../client/group/group-client.service';
 import {
   RecommendationClientService,
   RecommendationQueryCandidate,
@@ -16,6 +15,8 @@ import { RecommendationTrackingService } from './recommendation-tracking.service
 @Injectable()
 export class RecommendationQueryService {
   private readonly logger = new Logger(RecommendationQueryService.name);
+  private readonly defaultLimit = 10;
+  private readonly maxLimit = 20;
 
   constructor(
     private readonly recommendationClient: RecommendationClientService,
@@ -23,7 +24,6 @@ export class RecommendationQueryService {
     private readonly trackingService: RecommendationTrackingService,
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
-    private readonly groupClient: GroupClientService,
   ) {}
 
   async recommendFriends(
@@ -67,7 +67,7 @@ export class RecommendationQueryService {
       );
 
     void this.trackingService
-      .recordServedEvents(userId, recommendations, startIndex)
+      .recordServedEvents(userId, trackedRecommendations, startIndex)
       .catch((error) => {
         this.logger.warn(`recordServedEvents failed: ${error.message}`);
       });
@@ -87,7 +87,6 @@ export class RecommendationQueryService {
       id: candidate.candidateId,
       mutualFriends: this.normalizeCount(candidate.mutualFriendCount),
       mutualFriendIds: [],
-      commonGroups: this.normalizeCount(candidate.commonGroupCount),
       retrievalScore: candidate.retrievalScore,
       retrievalScoreVersion: scoreVersion,
       modelScore: candidate.modelScore,
@@ -107,8 +106,6 @@ export class RecommendationQueryService {
             return 'AI rerank boosted';
           case 'graph_mutual_friend':
             return 'Mutual friends';
-          case 'graph_common_group':
-            return 'Common groups';
           case 'graph_rerank':
             return 'Social graph boosted';
           case 'graph_recent_unblock':
@@ -155,31 +152,23 @@ export class RecommendationQueryService {
     const candidateIds = [
       ...new Set(recommendations.map((recommendation) => recommendation.id)),
     ];
-    const [candidateSummaries, commonGroupCounts] = await Promise.all([
-      this.socialGraphRepo.summarizeCandidates(userId, candidateIds),
-      this.groupClient.getCommonGroupCounts(userId, candidateIds),
-    ]);
+    const candidateSummaries = await this.socialGraphRepo.summarizeCandidates(
+      userId,
+      candidateIds,
+    );
     const summariesById = new Map(
       candidateSummaries.map((summary) => [summary.id, summary]),
     );
 
     return recommendations.map((recommendation) => {
       const summary = summariesById.get(recommendation.id);
-      const commonGroups = Number(commonGroupCounts[recommendation.id]);
       const resolvedMutualFriends = Math.max(
         this.normalizeCount(recommendation.mutualFriends),
         summary?.mutualFriends ?? 0,
       );
-      const resolvedCommonGroups = Math.max(
-        this.normalizeCount(recommendation.commonGroups),
-        this.normalizeCount(commonGroups),
-      );
       const reasons = [...(recommendation.reasons ?? [])];
       if (resolvedMutualFriends > 0 && !reasons.includes('Mutual friends')) {
         reasons.push('Mutual friends');
-      }
-      if (resolvedCommonGroups > 0 && !reasons.includes('Common groups')) {
-        reasons.push('Common groups');
       }
 
       return {
@@ -187,7 +176,7 @@ export class RecommendationQueryService {
         mutualFriends: resolvedMutualFriends,
         mutualFriendIds:
           summary?.mutualFriendIds ?? recommendation.mutualFriendIds,
-        commonGroups: resolvedCommonGroups,
+        commonGroups: 0,
         reasons,
       };
     });
@@ -202,10 +191,10 @@ export class RecommendationQueryService {
 
   private normalizeLimit(limit: number | undefined): number {
     if (typeof limit !== 'number' || !Number.isFinite(limit)) {
-      return 10;
+      return this.defaultLimit;
     }
 
-    return Math.max(1, Math.floor(limit));
+    return Math.min(this.maxLimit, Math.max(1, Math.floor(limit)));
   }
 
   private normalizeCursor(cursor: string | null | undefined): string | undefined {
@@ -222,27 +211,30 @@ export class RecommendationQueryService {
       return 0;
     }
 
-    const parsedFromBase64Url = this.tryResolveOffsetFromCursor(cursor, 'base64url');
+    const parsedFromBase64Url = this.tryResolveOffsetFromCursor(cursor);
     if (parsedFromBase64Url !== null) {
       return parsedFromBase64Url;
-    }
-
-    const parsedFromBase64 = this.tryResolveOffsetFromCursor(cursor, 'base64');
-    if (parsedFromBase64 !== null) {
-      return parsedFromBase64;
     }
 
     this.logger.warn(`Ignoring invalid recommendation cursor for tracking: ${cursor}`);
     return 0;
   }
 
-  private tryResolveOffsetFromCursor(
-    cursor: string,
-    encoding: BufferEncoding,
-  ): number | null {
+  private tryResolveOffsetFromCursor(cursor: string): number | null {
     try {
-      const decodedPayload = Buffer.from(cursor, encoding).toString('utf8');
-      const parsedPayload = JSON.parse(decodedPayload) as { offset?: unknown };
+      const decodedPayload = Buffer.from(cursor, 'base64url').toString('utf8');
+      const parsedPayload = JSON.parse(decodedPayload) as {
+        source?: unknown;
+        offset?: unknown;
+      };
+      const source = String(parsedPayload.source ?? '').trim();
+      if (
+        !['semantic_online', 'global_fallback', 'semantic_session'].includes(
+          source,
+        )
+      ) {
+        return null;
+      }
       const offset = Number(parsedPayload.offset);
       if (!Number.isFinite(offset)) {
         return null;

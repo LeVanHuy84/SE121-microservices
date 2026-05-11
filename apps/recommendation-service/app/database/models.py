@@ -212,3 +212,32 @@ class RecommendationGlobalFallbackCandidate(Base):
             "rank",
         ),
     )
+
+
+class RecommendationEmotionProfile(Base):
+    __tablename__ = "recommendation_emotion_profiles"
+
+    user_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    recent_negativity_score: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
+    dominant_emotion: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    emotion_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    source_event_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_recommendation_emotion_profiles_updated_at",
+            "updated_at",
+        ),
+        Index(
+            "idx_recommendation_emotion_profiles_source_event_at",
+            "source_event_at",
+        ),
+    )

@@ -3,9 +3,9 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.bootstrap import assistant_service
+from app.commands.assistant import RespondCommand
 from app.core.security import verify_internal_key
-from app.memory.session_memory import session_memory
+from app.queries.assistant import ClearHistoryCommand, GetHistoryQuery
 from app.schemas.assistant_schema import (
     AssistantHistoryClearData,
     AssistantHistoryClearResponse,
@@ -13,10 +13,12 @@ from app.schemas.assistant_schema import (
     AssistantRespondRequest,
     AssistantRespondResponse,
 )
-from app.services.chat_history_service import chat_history_service
 
 assistant_router = APIRouter(prefix="/assistant")
 logger = logging.getLogger("uvicorn.error")
+respond_command = RespondCommand()
+get_history_query = GetHistoryQuery()
+clear_history_command = ClearHistoryCommand()
 
 
 def _stable_client_error(
@@ -38,7 +40,7 @@ def _stable_client_error(
 )
 async def respond(req: AssistantRespondRequest):
     try:
-        data = await assistant_service.respond(req)
+        data = await respond_command.execute(req)
         return AssistantRespondResponse(success=True, data=data)
     except Exception as exc:
         logger.exception(
@@ -68,7 +70,7 @@ async def get_history_by_user(
     before_id: str | None = None,
 ):
     try:
-        data = await chat_history_service.get_messages_page_by_user(
+        data = await get_history_query.execute(
             user_id=user_id,
             page_size=page_size,
             before_created_at=before_created_at,
@@ -108,8 +110,7 @@ async def get_history_by_user(
 )
 async def clear_history_by_user(user_id: str):
     try:
-        deleted_count = await chat_history_service.clear_history_by_user(user_id)
-        session_memory.clear_session(f"{user_id}:default")
+        deleted_count = await clear_history_command.execute(user_id)
         return AssistantHistoryClearResponse(
             success=True,
             data=AssistantHistoryClearData(

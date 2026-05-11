@@ -26,6 +26,13 @@ def get_engine() -> AsyncEngine:
             settings.DATABASE_URL,
             echo=settings.CHATBOT_DB_ECHO,
             pool_pre_ping=True,
+            pool_size=settings.CHATBOT_DB_POOL_SIZE,
+            max_overflow=settings.CHATBOT_DB_MAX_OVERFLOW,
+            pool_timeout=settings.CHATBOT_DB_POOL_TIMEOUT_SECONDS,
+            pool_recycle=settings.CHATBOT_DB_POOL_RECYCLE_SECONDS,
+            connect_args={
+                "command_timeout": settings.CHATBOT_DB_COMMAND_TIMEOUT_SECONDS,
+            },
         )
 
     return _engine

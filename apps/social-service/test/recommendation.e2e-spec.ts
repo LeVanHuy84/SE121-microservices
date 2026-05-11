@@ -1,5 +1,4 @@
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
-import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FriendshipController } from '../src/friendship/friendship.controller';
 import { FriendshipService } from '../src/friendship/friendship.service';
@@ -180,15 +179,20 @@ describe('Recommendation query-only integration', () => {
     expect(recordRecommendationEvents).not.toHaveBeenCalled();
   });
 
-  it('should reject invalid cursor format', async () => {
-    await expect(
-      controller.recommendFriends({
-        userId: 'viewer',
-        query: { limit: 5, cursor: 'invalid-cursor' },
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+  it('should return empty page when upstream rejects invalid cursor', async () => {
+    queryCandidates.mockResolvedValue(null);
 
-    expect(queryCandidates).not.toHaveBeenCalled();
+    const result = await controller.recommendFriends({
+      userId: 'viewer',
+      query: { limit: 5, cursor: 'invalid-cursor' },
+    });
+
+    expect(queryCandidates).toHaveBeenCalledWith('viewer', 5, 'invalid-cursor');
+    expect(result).toEqual({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
     expect(recordRecommendationEvents).not.toHaveBeenCalled();
   });
 });

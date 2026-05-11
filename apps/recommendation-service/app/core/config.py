@@ -32,6 +32,19 @@ class Settings:
                 "social connections for this viewer."
             ),
         ).strip()
+        self.RECOMMENDATION_ALLOW_DEGRADED_QUERY: bool = (
+            os.getenv("RECOMMENDATION_ALLOW_DEGRADED_QUERY", "true")
+            .strip()
+            .lower()
+            == "true"
+        )
+        self.RECOMMENDATION_WARMUP_VIEWER_IDS: str = os.getenv(
+            "RECOMMENDATION_WARMUP_VIEWER_IDS",
+            "",
+        ).strip()
+        self.RECOMMENDATION_WARMUP_QUERY_LIMIT: int = int(
+            os.getenv("RECOMMENDATION_WARMUP_QUERY_LIMIT", 20)
+        )
         self.RECOMMENDATION_SCORE_FLOOR: float = float(
             os.getenv("RECOMMENDATION_SCORE_FLOOR", 0.55)
         )
@@ -55,13 +68,13 @@ class Settings:
             os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K", 25)
         )
         self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU: int = int(
-            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K_CPU", 10)
+            os.getenv("RECOMMENDATION_QUERY_RERANK_TOP_K_CPU", 6)
         )
         self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES", 5000)
         )
         self.RECOMMENDATION_QUERY_CACHE_TTL_SECONDS: float = float(
-            os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 30)
+            os.getenv("RECOMMENDATION_QUERY_CACHE_TTL_SECONDS", 45)
         )
         self.RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES: int = int(
             os.getenv("RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES", 1000)
@@ -70,7 +83,7 @@ class Settings:
             os.getenv("RECOMMENDATION_QUERY_SESSION_TTL_SECONDS", 120)
         )
         self.RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE: int = int(
-            os.getenv("RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE", 200)
+            os.getenv("RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE", 120)
         )
         self.RECOMMENDATION_QUERY_CACHE_REDIS_HOST: str = os.getenv(
             "RECOMMENDATION_QUERY_CACHE_REDIS_HOST", "localhost"
@@ -93,6 +106,18 @@ class Settings:
         )
         self.RECOMMENDATION_QUERY_GRAPH_WEIGHT: float = float(
             os.getenv("RECOMMENDATION_QUERY_GRAPH_WEIGHT", 0.15)
+        )
+        self.RECOMMENDATION_QUERY_EMOTION_WEIGHT: float = float(
+            os.getenv("RECOMMENDATION_QUERY_EMOTION_WEIGHT", 0.1)
+        )
+        self.RECOMMENDATION_EMOTION_SCORING_ENABLED: bool = (
+            os.getenv("RECOMMENDATION_EMOTION_SCORING_ENABLED", "true")
+            .strip()
+            .lower()
+            == "true"
+        )
+        self.RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS: int = int(
+            os.getenv("RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS", 168)
         )
         self.RECOMMENDATION_MUTUAL_FRIEND_CAP: int = int(
             os.getenv("RECOMMENDATION_MUTUAL_FRIEND_CAP", 10)
@@ -124,6 +149,9 @@ class Settings:
         ).strip()
         self.RECOMMENDATION_GRAPH_TOPIC: str = os.getenv(
             "RECOMMENDATION_GRAPH_TOPIC", "recommendation-graph-events"
+        ).strip()
+        self.RECOMMENDATION_EMOTION_TOPIC: str = os.getenv(
+            "RECOMMENDATION_EMOTION_TOPIC", "recommendation-emotion-events"
         ).strip()
 
         self._validate()
@@ -254,6 +282,8 @@ class Settings:
 
         if not self.RECOMMENDATION_GRAPH_TOPIC:
             raise RuntimeError("RECOMMENDATION_GRAPH_TOPIC must not be empty")
+        if not self.RECOMMENDATION_EMOTION_TOPIC:
+            raise RuntimeError("RECOMMENDATION_EMOTION_TOPIC must not be empty")
 
         if not (-1.0 <= self.RECOMMENDATION_SCORE_FLOOR <= 1.0):
             raise RuntimeError("RECOMMENDATION_SCORE_FLOOR must be within [-1, 1]")
@@ -269,6 +299,13 @@ class Settings:
 
         if self.RECOMMENDATION_QUERY_GRAPH_WEIGHT < 0:
             raise RuntimeError("RECOMMENDATION_QUERY_GRAPH_WEIGHT must be >= 0")
+        if self.RECOMMENDATION_QUERY_EMOTION_WEIGHT < 0:
+            raise RuntimeError("RECOMMENDATION_QUERY_EMOTION_WEIGHT must be >= 0")
+
+        if self.RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS <= 0:
+            raise RuntimeError(
+                "RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS must be positive"
+            )
 
         if self.RECOMMENDATION_MUTUAL_FRIEND_CAP <= 0:
             raise RuntimeError("RECOMMENDATION_MUTUAL_FRIEND_CAP must be positive")
@@ -280,12 +317,14 @@ class Settings:
             self.RECOMMENDATION_QUERY_MODEL_WEIGHT
             + self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
             + self.RECOMMENDATION_QUERY_GRAPH_WEIGHT
+            + self.RECOMMENDATION_QUERY_EMOTION_WEIGHT
             <= 0
         ):
             raise RuntimeError(
                 "RECOMMENDATION_QUERY_MODEL_WEIGHT + "
                 "RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT + "
-                "RECOMMENDATION_QUERY_GRAPH_WEIGHT must be > 0"
+                "RECOMMENDATION_QUERY_GRAPH_WEIGHT + "
+                "RECOMMENDATION_QUERY_EMOTION_WEIGHT must be > 0"
             )
 
 

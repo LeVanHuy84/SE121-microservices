@@ -56,6 +56,13 @@ class ChatMessage(Base):
             text("created_at DESC"),
             text("id DESC"),
         ),
+        Index(
+            "ux_chat_messages_user_client_message_id_not_null",
+            "user_id",
+            "client_message_id",
+            unique=True,
+            postgresql_where=text("client_message_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -66,6 +73,7 @@ class ChatMessage(Base):
     )
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
+    client_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sources: Mapped[list[dict[str, Any]]] = mapped_column(

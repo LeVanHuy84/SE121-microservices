@@ -18,6 +18,10 @@ export class AssistantRespondDataDto {
   suggestedActions: AssistantSuggestedActionDto[];
   model: string;
   provider: string;
+  requestId?: string;
+  latencyMs?: number;
+  persisted?: boolean;
+  conversationId?: string;
 }
 
 export class AssistantRespondResponseDto {

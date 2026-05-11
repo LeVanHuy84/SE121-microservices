@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  ActivityType,
   CreateGroupDTO,
   EventDestination,
   EventTopic,
@@ -33,8 +34,6 @@ import { GroupCacheService } from './group-cache.service';
 export class GroupService {
   constructor(
     private readonly dataSource: DataSource,
-    @InjectRepository(Group)
-    private readonly groupRepo: Repository<Group>,
     private readonly groupLogService: GroupLogService,
     private readonly groupCacheService: GroupCacheService,
     private readonly userClient: UserClientService,
@@ -97,6 +96,21 @@ export class GroupService {
         members: 1,
         createdAt: saved.createdAt,
       });
+
+      const userActivityLog = manager.create(OutboxEvent, {
+        destination: EventDestination.RABBITMQ,
+        topic: EventTopic.USER_ACTIVITY_LOG,
+        eventType: ActivityType.GROUP_CREATED,
+        payload: {
+          actorId: userId,
+          activityType: ActivityType.GROUP_CREATED,
+          targetId: group.id,
+          contentPreview: `Bạn đã tạo nhóm ${group.name}`,
+          createdAt: group.createdAt,
+        },
+      });
+
+      await manager.save(userActivityLog);
 
       await this.groupCacheService.set(saved.id, saved).catch(() => void 0);
 

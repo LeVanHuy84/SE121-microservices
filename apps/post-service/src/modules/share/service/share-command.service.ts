@@ -14,6 +14,7 @@ import {
   EventDestination,
   InteractionEventPayload,
   InteractionType,
+  ActivityType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -28,6 +29,7 @@ import { ShareCacheService } from './share-cache.service';
 import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 import { ShareShortenMapper } from '../share-shorten.mapper';
 import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
+import { OutboxService } from 'src/modules/event/outbox.service';
 
 @Injectable()
 export class ShareCommandService {
@@ -38,6 +40,7 @@ export class ShareCommandService {
     private readonly statsBuffer: StatsBufferService,
     private readonly recentActivityBuffer: RecentActivityBufferService,
     private readonly dataSource: DataSource,
+    private readonly outboxService: OutboxService,
   ) {}
 
   /**
@@ -111,6 +114,23 @@ export class ShareCommandService {
         });
 
         promises.push(manager.save(interactionOutbox));
+
+        const userActivityOutbox = this.outboxService.createUserActivityEvent(
+          manager,
+          ActivityType.POST_SHARED,
+          {
+            actorId: userId,
+            activityType: ActivityType.POST_SHARED,
+            targetId: saved.id,
+            contentPreview: saved.content.slice(0, 100),
+            metadata: {
+              audience: saved.audience,
+            },
+            createdAt: saved.createdAt,
+          },
+        );
+
+        promises.push(userActivityOutbox);
 
         // ✅ Chạy tất cả các tác vụ song song (trong transaction)
         await Promise.all(promises);

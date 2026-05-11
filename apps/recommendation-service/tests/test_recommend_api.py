@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+from fastapi import HTTPException
+
 from app.api.recommend_api import (
     get_query_cache_stats,
     query_candidates,
@@ -78,6 +80,22 @@ class RecommendationApiTestCase(unittest.TestCase):
         self.assertEqual(response["data"]["entryCount"], 1)
         self.assertEqual(response["data"]["hits"], 2)
         get_stats.assert_called_once_with()
+
+    def test_query_candidates_raises_bad_request_for_invalid_cursor(self):
+        request = RecommendationQueryRequest(
+            viewerId="viewer-1",
+            limit=3,
+        )
+
+        with patch(
+            "app.api.recommend_api.recommendation_query_service.query",
+            side_effect=ValueError("Invalid cursor"),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                query_candidates(request)
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.detail, "Invalid cursor")
 
 
 if __name__ == "__main__":

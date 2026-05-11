@@ -9,7 +9,7 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class AssistantContextResolver:
-    def resolve(self, request: AssistantRespondRequest) -> list[AssistantContextItem]:
+    async def resolve(self, request: AssistantRespondRequest) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
         rag_top_k = min(
@@ -23,7 +23,7 @@ class AssistantContextResolver:
         try:
             from app.services.rag_document_service import rag_document_service
 
-            doc_contexts = rag_document_service.search_assistant_docs(
+            doc_contexts = await rag_document_service.search_assistant_docs(
                 request.message,
                 rag_top_k,
             )

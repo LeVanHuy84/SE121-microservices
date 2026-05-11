@@ -9,11 +9,16 @@ import {
   KafkaDLQService,
   KafkaProducerModule,
 } from '@repo/common';
+import {
+  UserActivityLog,
+  UserActivityLogSchema,
+} from 'src/mongo/schema/user-activity.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AuditLog.name, schema: AuditLogSchema },
+      { name: UserActivityLog.name, schema: UserActivityLogSchema },
     ]),
 
     IdempotencyModule.forMongo(),

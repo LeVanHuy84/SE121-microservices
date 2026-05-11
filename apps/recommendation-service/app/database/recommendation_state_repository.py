@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from sqlalchemy import delete, func, inspect, select, text
+from sqlalchemy import delete, func, inspect, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -20,6 +20,7 @@ from app.database.models import (
     RecommendationFriendship,
     RecommendationGlobalFallbackCandidate,
     RecommendationGraphEventJournal,
+    RecommendationEmotionProfile,
     RecommendationPairFeature,
     RecommendationPendingRequest,
 )
@@ -50,6 +51,7 @@ class RecommendationStateRepository:
             "recommendation_dismissals",
             "recommendation_graph_event_journal",
             "recommendation_pair_features",
+            "recommendation_emotion_profiles",
         }
         missing_tables = sorted(
             table_name
@@ -448,67 +450,47 @@ class RecommendationStateRepository:
 
         candidate_id_list = sorted(normalized_candidate_ids)
         with self.session_scope() as session:
+            exclusion_union = union_all(
+                select(RecommendationFriendship.friend_id.label("candidate_id")).where(
+                    RecommendationFriendship.user_id == normalized_viewer_id,
+                    RecommendationFriendship.friend_id.in_(candidate_id_list),
+                ),
+                select(RecommendationFriendship.user_id.label("candidate_id")).where(
+                    RecommendationFriendship.user_id.in_(candidate_id_list),
+                    RecommendationFriendship.friend_id == normalized_viewer_id,
+                ),
+                select(
+                    RecommendationPendingRequest.receiver_id.label("candidate_id")
+                ).where(
+                    RecommendationPendingRequest.requester_id == normalized_viewer_id,
+                    RecommendationPendingRequest.receiver_id.in_(candidate_id_list),
+                ),
+                select(
+                    RecommendationPendingRequest.requester_id.label("candidate_id")
+                ).where(
+                    RecommendationPendingRequest.requester_id.in_(candidate_id_list),
+                    RecommendationPendingRequest.receiver_id == normalized_viewer_id,
+                ),
+                select(RecommendationBlock.blocked_id.label("candidate_id")).where(
+                    RecommendationBlock.blocker_id == normalized_viewer_id,
+                    RecommendationBlock.blocked_id.in_(candidate_id_list),
+                ),
+                select(RecommendationBlock.blocker_id.label("candidate_id")).where(
+                    RecommendationBlock.blocker_id.in_(candidate_id_list),
+                    RecommendationBlock.blocked_id == normalized_viewer_id,
+                ),
+                select(
+                    RecommendationDismissal.candidate_id.label("candidate_id")
+                ).where(
+                    RecommendationDismissal.user_id == normalized_viewer_id,
+                    RecommendationDismissal.candidate_id.in_(candidate_id_list),
+                    RecommendationDismissal.expires_at > self._now(),
+                ),
+            ).subquery()
+
             excluded_ids.update(
                 session.scalars(
-                    select(RecommendationFriendship.friend_id).where(
-                        RecommendationFriendship.user_id == normalized_viewer_id,
-                        RecommendationFriendship.friend_id.in_(candidate_id_list),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationFriendship.user_id).where(
-                        RecommendationFriendship.user_id.in_(candidate_id_list),
-                        RecommendationFriendship.friend_id == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationPendingRequest.receiver_id).where(
-                        RecommendationPendingRequest.requester_id
-                        == normalized_viewer_id,
-                        RecommendationPendingRequest.receiver_id.in_(
-                            candidate_id_list
-                        ),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationPendingRequest.requester_id).where(
-                        RecommendationPendingRequest.requester_id.in_(
-                            candidate_id_list
-                        ),
-                        RecommendationPendingRequest.receiver_id
-                        == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationBlock.blocked_id).where(
-                        RecommendationBlock.blocker_id == normalized_viewer_id,
-                        RecommendationBlock.blocked_id.in_(candidate_id_list),
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationBlock.blocker_id).where(
-                        RecommendationBlock.blocker_id.in_(candidate_id_list),
-                        RecommendationBlock.blocked_id == normalized_viewer_id,
-                    )
-                ).all()
-            )
-            excluded_ids.update(
-                session.scalars(
-                    select(RecommendationDismissal.candidate_id).where(
-                        RecommendationDismissal.user_id == normalized_viewer_id,
-                        RecommendationDismissal.candidate_id.in_(candidate_id_list),
-                        RecommendationDismissal.expires_at > self._now(),
-                    )
+                    select(exclusion_union.c.candidate_id).distinct()
                 ).all()
             )
 
@@ -652,6 +634,98 @@ class RecommendationStateRepository:
             )
 
         return signal_counts
+
+    def upsert_emotion_profile(
+        self,
+        user_id: str,
+        risk_score: float,
+        recent_negativity_score: float,
+        dominant_emotion: str | None,
+        emotion_scores: dict[str, float] | None,
+        source_event_at: str | datetime,
+    ):
+        normalized_user_id = str(user_id or "").strip()
+        if not normalized_user_id:
+            return
+
+        normalized_scores = {
+            str(key): float(value)
+            for key, value in (emotion_scores or {}).items()
+            if str(key).strip()
+        }
+        now = self._now()
+        event_at = self._parse_datetime(source_event_at)
+
+        with self.session_scope() as session:
+            values = {
+                "user_id": normalized_user_id,
+                "risk_score": self._clamp_score(risk_score),
+                "recent_negativity_score": self._clamp_score(
+                    recent_negativity_score
+                ),
+                "dominant_emotion": str(dominant_emotion).strip()
+                if isinstance(dominant_emotion, str) and dominant_emotion.strip()
+                else None,
+                "emotion_scores_json": normalized_scores,
+                "source_event_at": event_at,
+                "updated_at": now,
+            }
+            stmt = self._build_upsert_statement(
+                RecommendationEmotionProfile.__table__,
+                values,
+                conflict_columns=["user_id"],
+                update_columns=[
+                    "risk_score",
+                    "recent_negativity_score",
+                    "dominant_emotion",
+                    "emotion_scores_json",
+                    "source_event_at",
+                    "updated_at",
+                ],
+            )
+            session.execute(stmt)
+
+    def get_emotion_profiles(
+        self,
+        user_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        normalized_user_ids = sorted(
+            {
+                str(user_id or "").strip()
+                for user_id in user_ids
+                if str(user_id or "").strip()
+            }
+        )
+        if not normalized_user_ids:
+            return {}
+
+        with self.session_scope() as session:
+            rows = session.scalars(
+                select(RecommendationEmotionProfile).where(
+                    RecommendationEmotionProfile.user_id.in_(normalized_user_ids)
+                )
+            ).all()
+
+            return {
+                row.user_id: {
+                    "userId": row.user_id,
+                    "riskScore": float(row.risk_score),
+                    "recentNegativityScore": float(row.recent_negativity_score),
+                    "dominantEmotion": row.dominant_emotion,
+                    "emotionScores": {
+                        str(key): float(value)
+                        for key, value in (row.emotion_scores_json or {}).items()
+                    },
+                    "sourceEventAt": row.source_event_at.isoformat(),
+                    "updatedAt": row.updated_at.isoformat(),
+                }
+                for row in rows
+            }
+
+    def _clamp_score(self, value: float | int | None) -> float:
+        if value is None:
+            return 0.0
+        return max(0.0, min(1.0, float(value)))
 
 
     @contextmanager

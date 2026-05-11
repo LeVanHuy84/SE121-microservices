@@ -26,6 +26,7 @@ class AssistantRespondRequest(BaseModel):
     userId: str
     conversationId: Optional[str] = None
     message: str
+    clientMessageId: Optional[str] = None
     history: list[AssistantHistoryItem] = Field(default_factory=list)
     contexts: list[AssistantContextItem] = Field(default_factory=list)
     intent: Optional[str] = None
@@ -51,6 +52,10 @@ class AssistantRespondData(BaseModel):
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
     model: str
     provider: str
+    requestId: Optional[str] = None
+    latencyMs: Optional[float] = None
+    persisted: Optional[bool] = None
+    conversationId: Optional[str] = None
 
 
 class AssistantRespondResponse(BaseModel):

@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ActivityType,
   EventDestination,
   EventTopic,
   RecommendationGraphDismissedPayload,
   RecommendationGraphEventPayload,
   RecommendationGraphEventType,
+  UserActivityLogPayload,
 } from '@repo/dtos';
 import { EntityManager } from 'typeorm';
 import { OutboxEventEntity } from 'src/postgres/entities/outbox-event.entity';
@@ -37,6 +39,20 @@ export class OutboxService {
       EventDestination.KAFKA,
       EventTopic.RECOMMENDATION_GRAPH,
       RecommendationGraphEventType.RECOMMENDATION_DISMISSED,
+      payload,
+    );
+  }
+
+  createUserActivityEvent(
+    manager: EntityManager,
+    activityType: ActivityType,
+    payload: UserActivityLogPayload,
+  ) {
+    return this.createOutboxEvent(
+      manager,
+      EventDestination.KAFKA,
+      EventTopic.USER_ACTIVITY_LOG,
+      activityType,
       payload,
     );
   }

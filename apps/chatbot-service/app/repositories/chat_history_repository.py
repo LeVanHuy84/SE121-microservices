@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -82,8 +82,18 @@ class ChatHistoryRepository:
         assistant_reply: str,
         intent: str | None = None,
         sources: list[dict[str, Any]] | None = None,
+        client_message_id: str | None = None,
     ) -> tuple[ChatMessage, ChatMessage]:
         async with self._session_factory() as session:
+            if client_message_id:
+                existing_exchange = await self.get_exchange_by_client_message_id(
+                    session=session,
+                    user_id=user_id,
+                    client_message_id=client_message_id,
+                )
+                if existing_exchange:
+                    return existing_exchange
+
             conversation = await self._get_conversation(session, user_id)
             if not conversation:
                 conversation = ChatConversation(user_id=user_id)
@@ -97,10 +107,12 @@ class ChatHistoryRepository:
                         raise
 
             now = datetime.now(timezone.utc)
+            assistant_time = now + timedelta(microseconds=1)
             user_chat_message = ChatMessage(
                 conversation_id=conversation.id,
                 user_id=user_id,
                 role="user",
+                client_message_id=client_message_id,
                 content=user_message,
                 meta={"message_kind": "user"},
                 created_at=now,
@@ -113,14 +125,50 @@ class ChatHistoryRepository:
                 intent=intent,
                 sources=sources or [],
                 meta={"message_kind": "assistant"},
-                created_at=now,
+                created_at=assistant_time,
             )
-            conversation.last_message_at = now
+            conversation.last_message_at = assistant_time
             session.add_all([user_chat_message, assistant_chat_message])
             await session.commit()
             await session.refresh(user_chat_message)
             await session.refresh(assistant_chat_message)
             return user_chat_message, assistant_chat_message
+
+    async def get_exchange_by_client_message_id(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        client_message_id: str,
+    ) -> tuple[ChatMessage, ChatMessage] | None:
+        user_result = await session.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.user_id == user_id,
+                ChatMessage.role == "user",
+                ChatMessage.client_message_id == client_message_id,
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+            .limit(1)
+        )
+        user_message = user_result.scalar_one_or_none()
+        if not user_message:
+            return None
+
+        assistant_result = await session.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.conversation_id == user_message.conversation_id,
+                ChatMessage.role == "assistant",
+                ChatMessage.created_at >= user_message.created_at,
+            )
+            .order_by(ChatMessage.created_at, ChatMessage.id)
+            .limit(1)
+        )
+        assistant_message = assistant_result.scalar_one_or_none()
+        if not assistant_message:
+            return None
+
+        return user_message, assistant_message
 
     async def list_messages_by_user(
         self,
@@ -130,13 +178,12 @@ class ChatHistoryRepository:
         before_id: str | None = None,
     ) -> tuple[list[ChatMessage], bool]:
         async with self._session_factory() as session:
-            query = (
-                select(ChatMessage)
-                .join(
-                    ChatConversation,
-                    ChatMessage.conversation_id == ChatConversation.id,
-                )
-                .where(ChatConversation.user_id == user_id)
+            conversation = await self._get_conversation(session, user_id)
+            if not conversation:
+                return [], False
+
+            query = select(ChatMessage).where(
+                ChatMessage.conversation_id == conversation.id
             )
 
             if before_created_at and before_id:
