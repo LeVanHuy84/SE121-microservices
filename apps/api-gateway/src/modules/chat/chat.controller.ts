@@ -12,12 +12,18 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 
 import {
+  AcceptCallDTO,
+  CallSessionResponseDTO,
   ConversationResponseDTO,
+  CreateCallDTO,
   CreateConversationDTO,
   CursorPaginationDTO,
+  EndCallDTO,
   GetConversationsQueryDTO,
   MessageResponseDTO,
+  RejectCallDTO,
   SendMessageDTO,
+  SendCallSignalDTO,
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
@@ -172,5 +178,65 @@ export class ChatController {
     @Param('messageId') messageId: string
   ) {
     return this.chatClient.send('deleteMessage', { userId, messageId });
+  }
+
+  @Get('calls/:callId')
+  getCallById(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    return this.chatClient.send('getCallById', { userId, callId });
+  }
+
+  @Post('calls')
+  async createCall(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreateCallDTO
+  ): Promise<CallSessionResponseDTO> {
+    return await lastValueFrom(
+      this.chatClient.send<CallSessionResponseDTO>('createCall', {
+        userId,
+        dto,
+      })
+    );
+  }
+
+  @Post('calls/:callId/accept')
+  acceptCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: AcceptCallDTO = { callId };
+    return this.chatClient.send('acceptCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/reject')
+  rejectCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<RejectCallDTO, 'callId'>
+  ) {
+    const dto: RejectCallDTO = { callId, reason: body?.reason };
+    return this.chatClient.send('rejectCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/end')
+  endCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<EndCallDTO, 'callId'>
+  ) {
+    const dto: EndCallDTO = { callId, reason: body?.reason };
+    return this.chatClient.send('endCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/signal')
+  sendCallSignal(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<SendCallSignalDTO, 'callId'>
+  ) {
+    const dto: SendCallSignalDTO = { callId, ...body };
+    return this.chatClient.send('sendCallSignal', { userId, dto });
   }
 }

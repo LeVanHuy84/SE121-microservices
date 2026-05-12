@@ -12,6 +12,7 @@ import {
 } from 'src/mongo/schema/conversation.schema';
 import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
 import { OutboxModule } from 'src/outbox/outbox.module';
+import { CallTimeoutWorker } from './call-timeout.worker';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { OutboxModule } from 'src/outbox/outbox.module';
     OutboxModule,
   ],
   controllers: [CallController],
-  providers: [CallService],
+  providers: [CallService, CallTimeoutWorker],
   exports: [CallService],
 })
 export class CallModule {}

@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 import {
   AcceptCallDTO,
   CallEndReason,
   CallSessionResponseDTO,
   CallSessionStatus,
   CreateCallDTO,
+  DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
   DEFAULT_CALL_RING_TIMEOUT_MS,
   EndCallDTO,
   RejectCallDTO,
@@ -28,9 +30,14 @@ import {
   populateAndMapConversation,
   populateAndMapMessage,
 } from 'src/utils/mapping';
+import Redis from 'ioredis';
 
 @Injectable()
 export class CallService {
+  private readonly logger = new Logger(CallService.name);
+  private readonly ringTimeoutKey = 'chat:call:ring-timeout:z';
+  private readonly reconnectTimeoutKey = 'chat:call:reconnect-timeout:z';
+
   constructor(
     @InjectModel(CallSession.name)
     private readonly callSessionModel: Model<CallSessionDocument>,
@@ -38,6 +45,7 @@ export class CallService {
     private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name)
     private readonly messageModel: Model<MessageDocument>,
+    @InjectRedis() private readonly redis: Redis,
     private readonly outboxService: OutboxService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
@@ -122,6 +130,7 @@ export class CallService {
         ringTimeoutAt,
       });
       await call.save({ session });
+      await this.scheduleRingTimeout(call._id.toString(), ringTimeoutAt);
 
       conversation.activeCallId = call._id;
       conversation.lastCallAt = now;
@@ -155,10 +164,19 @@ export class CallService {
       }
 
       const now = new Date();
+      const reconnectDeadlineAt = new Date(
+        now.getTime() + DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
+      );
       call.status = CallSessionStatus.ACCEPTED;
       call.startedAt = now;
       call.ringTimeoutAt = null;
+      call.reconnectDeadlineAt = reconnectDeadlineAt;
       await call.save({ session });
+      await this.clearRingTimeout(call._id.toString());
+      await this.scheduleReconnectTimeout(
+        call._id.toString(),
+        reconnectDeadlineAt,
+      );
 
       const conversation = await this.conversationModel
         .findById(call.conversationId)
@@ -178,6 +196,7 @@ export class CallService {
           callId: callDto._id,
           conversationId: callDto.conversationId,
           userId,
+          participants: call.participants,
           startedAt: now,
         },
         callDto._id,
@@ -221,25 +240,14 @@ export class CallService {
       call.ringTimeoutAt = null;
       call.reconnectDeadlineAt = null;
       await call.save({ session });
+      await this.clearAllTimeoutSchedules(call._id.toString());
       await this.createTerminalCallMessage(call, userId, 0, session);
 
       await this.clearConversationActiveCall(call, session);
 
-      const callDto = this.toCallResponse(call.toObject());
-      await this.outboxService.enqueueChatEvent(
-        'call.rejected',
-        {
-          callId: callDto._id,
-          conversationId: callDto.conversationId,
-          userId,
-          reason: endReason,
-          status: callDto.status,
-        },
-        callDto._id,
-        session,
-      );
+      await this.emitCallEndedEvent(session, call, userId, endReason, 0, now);
 
-      return callDto;
+      return this.toCallResponse(call.toObject());
     });
   }
 
@@ -278,6 +286,7 @@ export class CallService {
       call.reconnectDeadlineAt = null;
 
       await call.save({ session });
+      await this.clearAllTimeoutSchedules(call._id.toString());
 
       const durationSec =
         call.startedAt && call.endedAt
@@ -293,23 +302,16 @@ export class CallService {
 
       await this.clearConversationActiveCall(call, session);
 
-      const callDto = this.toCallResponse(call.toObject());
-      await this.outboxService.enqueueChatEvent(
-        'call.ended',
-        {
-          callId: callDto._id,
-          conversationId: callDto.conversationId,
-          userId,
-          reason: endReason,
-          status: callDto.status,
-          endedAt: now,
-          durationSec,
-        },
-        callDto._id,
+      await this.emitCallEndedEvent(
         session,
+        call,
+        userId,
+        endReason,
+        durationSec,
+        now,
       );
 
-      return callDto;
+      return this.toCallResponse(call.toObject());
     });
   }
 
@@ -334,9 +336,128 @@ export class CallService {
       conversationId: call.conversationId.toString(),
     };
 
+    if (call.status === CallSessionStatus.ACCEPTED) {
+      const reconnectDeadlineAt = new Date(
+        Date.now() + DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
+      );
+      await this.callSessionModel.updateOne(
+        { _id: call._id, status: CallSessionStatus.ACCEPTED },
+        { $set: { reconnectDeadlineAt } },
+      );
+      await this.scheduleReconnectTimeout(call._id.toString(), reconnectDeadlineAt);
+    }
+
     await this.outboxService.enqueueChatEvent('call.signal', payload, dto.callId);
 
     return payload;
+  }
+
+  async markMissedCallBySystem(callId: string): Promise<boolean> {
+    try {
+      await this.withTransaction(async (session) => {
+        if (!Types.ObjectId.isValid(callId)) return;
+        const call = await this.callSessionModel
+          .findById(callId)
+          .session(session)
+          .exec();
+        if (!call) return;
+        if (call.status !== CallSessionStatus.RINGING) return;
+
+        const now = new Date();
+        if (!call.ringTimeoutAt || call.ringTimeoutAt.getTime() > now.getTime()) {
+          return;
+        }
+
+        call.status = CallSessionStatus.MISSED;
+        call.endReason = CallEndReason.MISSED;
+        call.endedAt = now;
+        call.ringTimeoutAt = null;
+        call.reconnectDeadlineAt = null;
+        await call.save({ session });
+        await this.clearAllTimeoutSchedules(call._id.toString());
+
+        await this.createTerminalCallMessage(call, call.initiatorId, 0, session);
+        await this.clearConversationActiveCall(call, session);
+
+        await this.emitCallEndedEvent(
+          session,
+          call,
+          call.initiatorId,
+          CallEndReason.MISSED,
+          0,
+          now,
+        );
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `markMissedCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  async markReconnectTimeoutCallBySystem(callId: string): Promise<boolean> {
+    try {
+      await this.withTransaction(async (session) => {
+        if (!Types.ObjectId.isValid(callId)) return;
+        const call = await this.callSessionModel
+          .findById(callId)
+          .session(session)
+          .exec();
+        if (!call) return;
+        if (call.status !== CallSessionStatus.ACCEPTED) return;
+
+        const now = new Date();
+        if (
+          !call.reconnectDeadlineAt ||
+          call.reconnectDeadlineAt.getTime() > now.getTime()
+        ) {
+          return;
+        }
+
+        call.status = CallSessionStatus.ENDED;
+        call.endReason = CallEndReason.TIMEOUT;
+        call.endedAt = now;
+        call.ringTimeoutAt = null;
+        call.reconnectDeadlineAt = null;
+        await call.save({ session });
+        await this.clearAllTimeoutSchedules(call._id.toString());
+
+        const durationSec =
+          call.startedAt && call.endedAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,
+                ),
+              )
+            : 0;
+
+        await this.createTerminalCallMessage(
+          call,
+          call.initiatorId,
+          durationSec,
+          session,
+        );
+        await this.clearConversationActiveCall(call, session);
+
+        await this.emitCallEndedEvent(
+          session,
+          call,
+          call.initiatorId,
+          CallEndReason.TIMEOUT,
+          durationSec,
+          now,
+        );
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `markReconnectTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
   }
 
   private async findAuthorizedCall(
@@ -398,7 +519,7 @@ export class CallService {
       throw new RpcException('Failed to map call message');
     }
     await this.outboxService.enqueueChatEvent(
-      'message.updated',
+      'message.created',
       dtoMsg,
       call.conversationId.toString(),
       session,
@@ -485,5 +606,109 @@ export class CallService {
         call.conversationId?.toString?.() ?? call.conversationId,
       callMessageId: call.callMessageId?.toString?.() ?? call.callMessageId,
     });
+  }
+
+  private async clearAllTimeoutSchedules(callId: string) {
+    await Promise.all([
+      this.clearRingTimeout(callId),
+      this.clearReconnectTimeout(callId),
+    ]);
+  }
+
+  private async emitCallEndedEvent(
+    session: ClientSession,
+    call: CallSessionDocument,
+    actorId: string,
+    reason: CallEndReason,
+    durationSec: number,
+    endedAt = new Date(),
+  ) {
+    const callDto = this.toCallResponse(call.toObject());
+    await this.outboxService.enqueueChatEvent(
+      'call.ended',
+      {
+        callId: callDto._id,
+        conversationId: callDto.conversationId,
+        userId: actorId,
+        participants: call.participants,
+        reason,
+        status: callDto.status,
+        endedAt,
+        durationSec,
+      },
+      callDto._id,
+      session,
+    );
+  }
+
+  async popDueRingTimeoutCallIds(limit: number): Promise<string[]> {
+    return this.popDueTimeoutCallIds(this.ringTimeoutKey, limit);
+  }
+
+  async popDueReconnectTimeoutCallIds(limit: number): Promise<string[]> {
+    return this.popDueTimeoutCallIds(this.reconnectTimeoutKey, limit);
+  }
+
+  private async popDueTimeoutCallIds(key: string, limit: number): Promise<string[]> {
+    const now = Date.now();
+    const script = `
+      local zkey = KEYS[1]
+      local nowScore = tonumber(ARGV[1])
+      local maxItems = tonumber(ARGV[2])
+      local ids = redis.call('ZRANGEBYSCORE', zkey, '-inf', nowScore, 'LIMIT', 0, maxItems)
+      if #ids == 0 then
+        return ids
+      end
+      redis.call('ZREM', zkey, unpack(ids))
+      return ids
+    `;
+
+    const result = (await this.redis.eval(
+      script,
+      1,
+      key,
+      String(now),
+      String(limit),
+    )) as string[] | null;
+
+    return result ?? [];
+  }
+
+  private async scheduleRingTimeout(callId: string, deadline: Date) {
+    await this.redis.zadd(this.ringTimeoutKey, deadline.getTime(), callId);
+  }
+
+  async scheduleRingTimeoutBulk(
+    items: Array<{ callId: string; deadline: Date }>,
+  ) {
+    if (!items.length) return;
+    const args: Array<string | number> = [];
+    for (const item of items) {
+      args.push(item.deadline.getTime(), item.callId);
+    }
+    await this.redis.zadd(this.ringTimeoutKey, ...args);
+  }
+
+  private async clearRingTimeout(callId: string) {
+    await this.redis.zrem(this.ringTimeoutKey, callId);
+  }
+
+  private async scheduleReconnectTimeout(callId: string, deadline: Date) {
+    await this.redis.zadd(this.reconnectTimeoutKey, deadline.getTime(), callId);
+  }
+
+  async scheduleReconnectTimeoutBulk(
+    items: Array<{ callId: string; deadline: Date }>,
+  ) {
+    if (!items.length) return;
+    const args: Array<string | number> = [];
+    for (const item of items) {
+      args.push(item.deadline.getTime(), item.callId);
+    }
+    await this.redis.zadd(this.reconnectTimeoutKey, ...args);
+  }
+
+  private async clearReconnectTimeout(callId: string) {
+    await this.redis.zrem(this.reconnectTimeoutKey, callId);
   }
 }

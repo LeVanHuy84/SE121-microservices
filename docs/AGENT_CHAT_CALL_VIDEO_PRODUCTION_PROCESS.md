@@ -8,6 +8,7 @@ Tài liệu này là quy trình chuẩn để agent triển khai tính năng cal
 - Chịu tải multi-instance.
 - Có khả năng quan sát, chống lỗi, rollback.
 - Có checklist rõ ràng cho từng phase.
+- Hỗ trợ cả 1-1 và group call/video call (GR) theo lộ trình an toàn.
 
 ## 2) Hiện trạng chat-service (đã rà soát)
 
@@ -36,6 +37,7 @@ Tài liệu này là quy trình chuẩn để agent triển khai tính năng cal
 - Chưa có signaling event chuẩn (offer/answer/ice).
 - Chưa có timeout logic cho missed/reconnect timeout.
 - Chưa tích hợp media infrastructure (SFU/TURN).
+- Chưa có rule group call: host/moderator, join/leave nhiều participant, giới hạn room.
 
 ## 3) Kiến trúc đích production
 
@@ -50,6 +52,7 @@ Tài liệu này là quy trình chuẩn để agent triển khai tính năng cal
 - Media stream không đi qua app service.
 - App chỉ xử lý signaling + authz + lifecycle.
 - Mọi chuyển trạng thái call phải idempotent và có điều kiện trạng thái trước.
+- Group call ưu tiên kiến trúc SFU (không P2P mesh) để đảm bảo hiệu năng khi nhiều người tham gia.
 
 ## 4) Dữ liệu và schema bắt buộc
 
@@ -61,6 +64,8 @@ Trường bắt buộc:
 - `conversationId`
 - `initiatorId`
 - `participants[]`
+- `maxParticipants` (khuyến nghị cho group call)
+- `isGroupCall` (derive từ conversation hoặc lưu trực tiếp)
 - `type` (`audio` | `video`)
 - `status` (`initiated` | `ringing` | `accepted` | `ended` | `rejected` | `missed` | `cancelled`)
 - `startedAt`, `endedAt`, `endReason`
@@ -102,8 +107,8 @@ Chỉnh `message` schema:
 
 Rule hiển thị:
 
-- Khi `createCall`: tạo 1 `system_call` message kiểu "Cuộc gọi bắt đầu".
-- Khi `reject/missed/cancelled/ended`: update cùng message đó hoặc tạo message kết thúc riêng (chọn 1 chiến lược nhất quán).
+- Không tạo message khi `createCall` hoặc `acceptCall`.
+- Chỉ tạo `system_call` message khi call đi vào trạng thái kết thúc: `reject | missed | cancelled | ended`.
 - Luôn cập nhật `conversation.lastMessage` để timeline/sort hoạt động đúng.
 
 ## 5) Contract realtime và API
@@ -126,18 +131,33 @@ Rule hiển thị:
 - `rejectCall`
 - `endCall`
 - `sendCallSignal`
+- `joinCall` (GR)
+- `leaveCall` (GR)
+- `kickParticipant` (GR, moderator/admin)
+- `toggleMute` / `toggleVideo` (optional signaling state)
 
 ### 5.3 Rule validate
 
 - User phải thuộc `conversation.participants`.
 - Chỉ 1 active call/conversation (trừ khi business cho phép khác).
 - Transition hợp lệ theo state machine.
+- Group call:
+  - Chỉ member conversation/group mới được join.
+  - Role moderator/admin mới được kick participant hoặc end-for-all.
+  - Respect `maxParticipants`.
 
 ## 6) State machine chuẩn
 
 - `initiated -> ringing`
 - `ringing -> accepted | rejected | missed | cancelled`
 - `accepted -> ended`
+
+Group extensions:
+
+- `accepted` cho group nghĩa là room active, participant có thể join/leave nhiều lần.
+- Kết thúc room khi:
+  - Host/moderator end-for-all, hoặc
+  - Không còn participant online quá `emptyRoomTimeout`.
 
 Quy tắc:
 
@@ -146,6 +166,8 @@ Quy tắc:
 - `end` hợp lệ từ `accepted` (hoặc `ringing` nếu caller cancel).
 
 ## 7) Phase triển khai cho agent
+
+
 
 ### Phase A - Foundation
 
@@ -167,10 +189,14 @@ Definition of Done:
   - `rejectCall`
   - `endCall`
   - `getCallById`
+  - `joinCall` (GR)
+  - `leaveCall` (GR)
+  - `kickParticipant` (GR)
 - Dùng transaction + optimistic control (`syncVersion` hoặc conditional update).
 - Publish `call.*` events vào stream.
 - Tạo/cập nhật `system_call` message đồng bộ với trạng thái call.
 - Đảm bảo update `conversation.lastMessage` khi call message thay đổi.
+- Với GR: emit participant events (`call.participantJoined`, `call.participantLeft`, `call.participantKicked`).
 
 Definition of Done:
 
@@ -197,6 +223,9 @@ Definition of Done:
   - `reconnectDeadline` -> `ended(timeout)`
 - Dọn state Redis TTL.
 - Push incoming call cho user offline/background.
+- Với GR:
+  - `emptyRoomTimeout` -> `ended(timeout)`
+  - xử lý race khi nhiều participant leave cùng lúc.
 
 Definition of Done:
 
@@ -209,6 +238,10 @@ Definition of Done:
 - Cấp token theo `callSessionId`, `participant`.
 - Cấu hình TURN bắt buộc.
 - Fallback audio-only khi network xấu.
+- Group call bắt buộc SFU room policy:
+  - participant limit
+  - moderator privileges
+  - screen share policy (nếu bật)
 
 Definition of Done:
 
@@ -254,6 +287,13 @@ Definition of Done:
 - Timeout không trả lời.
 - Mất mạng và reconnect trong grace window.
 - Kiểm tra conversation list và message timeline luôn phản ánh trạng thái call mới nhất.
+- Group call cases:
+  - 3-10 users join/leave liên tục.
+  - Moderator kick participant.
+  - Host end-for-all.
+  - Room empty timeout -> tự ended.
+  - Late joiner nhận đúng call state hiện tại.
+  - Room full -> reject join đúng mã lỗi.
 
 ## 9) SLO/SLI gợi ý cho production
 
@@ -261,6 +301,10 @@ Definition of Done:
 - P95 call setup latency <= 3s (signaling side)
 - Unexpected drop rate <= 1%
 - WS event delivery success >= 99.9%
+- Group call:
+  - Join success rate >= 98.5%
+  - P95 join latency <= 4s
+  - SFU publish/subscribe error rate <= 0.5%
 
 ## 10) Runbook vận hành
 
