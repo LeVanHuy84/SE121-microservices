@@ -11,6 +11,7 @@ import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-pro
 import { KafkaProducerModule } from '@repo/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { OutboxModule } from './outbox/outbox.module';
+import { CallModule } from './call/call.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { OutboxModule } from './outbox/outbox.module';
     PresenceModule,
     ChatStreamProducerModule,
     OutboxModule,
+    CallModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -48,6 +48,12 @@ export class Conversation {
 
   @Prop({ type: Number, default: 0 })
   syncVersion: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'CallSession', default: null })
+  activeCallId?: Types.ObjectId | null;
+
+  @Prop({ type: Date, default: null })
+  lastCallAt?: Date | null;
 }
 
 export type ConversationDocument = HydratedDocument<Conversation>;
