@@ -1,98 +1,109 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# music-service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Music catalog and emotion-aware recommendation service. The service runs as a NestJS TCP microservice, persists music features in PostgreSQL, and queries emotion intelligence over TCP with Redis-backed caching.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Responsibility
 
-## Description
+- Manage music feature metadata (catalog CRUD and listing).
+- Provide user-targeted music recommendations from emotional state.
+- Query emotion signals from emotion-intelligence-service and cache them in Redis.
+- Map emotion vectors into valence/arousal space and rank tracks by distance.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Architecture Role
 
-## Project setup
+- Music-domain authority for track feature records.
+- Recommendation endpoint for other services through TCP RPC.
+- Consumer of emotion intelligence data via inter-service TCP client.
+- Read-heavy ranking layer over stored music feature vectors.
 
-```bash
-$ npm install
+## Runtime Profile
+
+| Item            | Value                               |
+| --------------- | ----------------------------------- |
+| Service type    | NestJS                              |
+| TCP host        | `MUSIC_SERVICE_HOST` or `localhost` |
+| TCP port        | `MUSIC_SERVICE_PORT` or `4014`      |
+| Transports      | TCP (server), TCP (outgoing client) |
+| Primary storage | PostgreSQL                          |
+| Cache           | Redis                               |
+| Shared packages | `@repo/common`, `@repo/dtos`        |
+
+## Interfaces
+
+### RPC / Message Patterns
+
+- Catalog:
+  - `create_music_feature`
+  - `update_music_feature`
+  - `delete_music_feature`
+  - `get_music_feature`
+  - `list_music_features`
+- Recommendation:
+  - `get_music_recommendations`
+
+### HTTP APIs
+
+- `AppController` defines `GET /` in source, but current bootstrap creates only a TCP microservice and does not start an HTTP listener.
+
+## Kafka Events Consumed / Produced
+
+### Consumed
+
+- None.
+
+### Produced
+
+- None.
+
+## Health and Readiness
+
+- No dedicated health or readiness endpoint is exposed in current runtime.
+- No `health_check` RPC pattern is implemented.
+- Service readiness depends on PostgreSQL connectivity and successful TCP dependency calls to emotion-intelligence-service.
+
+## Internal Flow
+
+```mermaid
+flowchart LR
+  KafkaIn[Kafka Consumers none] -.-> Core
+  RPC[RPC APIs] --> Core[Core Processing]
+  Core --> Pg[(PostgreSQL Storage)]
+  Core --> Redis[(Redis Cache)]
+  Core --> EmotionSvc[External Services]
+  Core --> Outbound[Outbound Events / Responses]
+  Workers[Background Workers none] -.-> Core
 ```
 
-## Compile and run the project
+- Catalog RPC handlers perform CRUD and listing against PostgreSQL-backed music features.
+- Recommendation RPC resolves user emotion signals (cache first, service fallback), maps to valence/arousal, then queries and ranks candidate tracks.
+- Responses are returned via TCP RPC without Kafka or scheduled worker stages.
+
+## Dependencies and Env Vars
+
+- `MUSIC_DATABASE_URL` for PostgreSQL.
+- `MUSIC_SERVICE_HOST`, `MUSIC_SERVICE_PORT` for TCP listener binding.
+- `REDIS_HOST`, `REDIS_PORT` for emotion-signal cache.
+- `EMOTION_INTELLIGENCE_SERVICE_HOST`, `EMOTION_INTELLIGENCE_SERVICE_PORT` for outgoing TCP client requests.
+
+Shared Docker infrastructure in the monorepo compose file provides Redis and Kafka services. Music-service itself currently uses Redis and PostgreSQL, with PostgreSQL provided outside the shared compose file.
+
+## Observability
+
+- `ExceptionsFilter` is applied globally to the TCP microservice.
+- `EmotionSignalService` logs debug/warn events for cache hits, downstream fetches, and fallback cases.
+- No scheduler/worker module is configured in current source.
+
+## Development
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run build
+npm run start
+npm run start:dev
+npm run start:prod
+npm run test
+npm run test:e2e
+npm run test:cov
+npm run lint
+npm run format
 ```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
