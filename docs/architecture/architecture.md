@@ -439,18 +439,6 @@ User Request: GET /recommend/query?viewerId=U123&limit=20
 - `feed_snapshots` (7-day TTL)
 - `outbox` (30-day TTL) for failed message recovery
 
-**Queries** (Cypher):
-
-```cypher
--- Mutual friends count
-MATCH (a:User {userId: $viewer})-[:FRIEND_WITH]-(mutual:User)-[:FRIEND_WITH]-(b:User {userId: $target})
-RETURN count(DISTINCT mutual)
-
--- Graph proximity for ranking
-MATCH path = (a:User {userId: $viewer})-[*1..3]-(b:User {userId: $candidate})
-WHERE NOT (a)-[:BLOCKS]-(b)
-RETURN CASE length(path) WHEN 1 THEN 10 WHEN 2 THEN 5 WHEN 3 THEN 2 END AS score
-```
 
 ### Redis Cache Strategies
 
