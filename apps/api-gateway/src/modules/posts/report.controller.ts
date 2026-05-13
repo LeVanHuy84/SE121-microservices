@@ -10,16 +10,16 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 
-@Controller('reports')
+@Controller('reports/content')
 export class ReportController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private client: ClientProxy
+    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private client: ClientProxy,
   ) {}
 
   @Post()
   createReport(
     @CurrentUserId() userId: string,
-    @Body() createReportDto: CreateReportDTO
+    @Body() createReportDto: CreateReportDTO,
   ) {
     return this.client.send('create_report', { userId, createReportDto });
   }
@@ -28,7 +28,7 @@ export class ReportController {
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   resolveReportTarget(
     @CurrentUserId() userId: string,
-    @Body() payload: { targetId: string; targetType: TargetType }
+    @Body() payload: { targetId: string; targetType: TargetType },
   ) {
     const { targetId, targetType } = payload;
     return this.client.send('resolve_report_target', {
@@ -42,7 +42,7 @@ export class ReportController {
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   ignoreReport(
     @CurrentUserId() userId: string,
-    @Body() payload: { targetId: string; targetType: TargetType }
+    @Body() payload: { targetId: string; targetType: TargetType },
   ) {
     const { targetId, targetType } = payload;
     return this.client.send('reject_report', {

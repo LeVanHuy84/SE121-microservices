@@ -1,103 +1,281 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { BaseUserDTO } from '@repo/dtos';
+import {
+  BaseUserDTO,
+  ProfileRecommendationCandidateDTO,
+  UserResponseDTO,
+} from '@repo/dtos';
 import Redis from 'ioredis';
 import { lastValueFrom } from 'rxjs';
 
+type UserProjection = 'base' | 'full';
+
 @Injectable()
 export class UserClientService {
+  private readonly baseProfileCacheTtlSeconds = 60 * 5;
+  private readonly fullProfileCacheTtlSeconds = 60 * 5;
+  private readonly logger = new Logger(UserClientService.name);
+
   constructor(
     @InjectRedis() private readonly redis: Redis,
     @Inject('USER_SERVICE') private readonly userClient: ClientProxy,
   ) {}
 
-  async getUserInfo(userId: string): Promise<BaseUserDTO | null> {
-    if (!userId) return null;
-
-    // 1️⃣ Check cache
-    const cached = await this.redis.hgetall(`user:profile:${userId}`);
-    if (cached && Object.keys(cached).length > 0) {
-      return {
-        id: userId,
-        firstName: cached.firstName ?? '',
-        lastName: cached.lastName ?? '',
-        avatarUrl: cached.avatarUrl ?? '',
-      };
+  async getUsers(
+    userIds: string[],
+    projection: 'base',
+  ): Promise<Record<string, BaseUserDTO>>;
+  async getUsers(
+    userIds: string[],
+    projection: 'full',
+  ): Promise<Record<string, UserResponseDTO>>;
+  async getUsers(
+    userIds: string[],
+    projection: UserProjection,
+  ): Promise<Record<string, BaseUserDTO | UserResponseDTO>> {
+    const dedupedIds = [...new Set(userIds.filter(Boolean))];
+    if (dedupedIds.length === 0) {
+      return {};
     }
 
-    // 2️⃣ Gọi batch API (với 1 userId)
-    const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
-      this.userClient.send<Record<string, BaseUserDTO>>('getBaseUsersBatch', [
-        userId,
-      ]),
+    const startedAt = Date.now();
+    const cachedUsers =
+      projection === 'base'
+        ? await this.getCachedBaseUsers(dedupedIds)
+        : await this.getCachedFullUsers(dedupedIds);
+    const unresolvedIds = dedupedIds.filter((userId) => !cachedUsers[userId]);
+
+    let fetchedUsers: Record<string, BaseUserDTO | UserResponseDTO> = {};
+    if (unresolvedIds.length > 0) {
+      fetchedUsers =
+        projection === 'base'
+          ? await this.fetchBaseUsers(unresolvedIds)
+          : await this.fetchFullUsers(unresolvedIds);
+    }
+
+    const usersById = dedupedIds.reduce<
+      Record<string, BaseUserDTO | UserResponseDTO>
+    >((acc, userId) => {
+      const user = cachedUsers[userId] ?? fetchedUsers[userId];
+      if (user) {
+        acc[userId] = user;
+      }
+      return acc;
+    }, {});
+
+    this.logger.debug(
+      `USER_SERVICE users resolved: projection=${projection} requested=${dedupedIds.length} cacheHits=${dedupedIds.length - unresolvedIds.length} cacheMisses=${unresolvedIds.length} durationMs=${Date.now() - startedAt}`,
     );
 
-    const profile = fetchedProfiles?.[userId];
-    if (!profile) return null;
-
-    // 3️⃣ Cache lại
-    const cacheData = {
-      firstName: profile.firstName ?? '',
-      lastName: profile.lastName ?? '',
-      avatarUrl: profile.avatarUrl ?? '',
-    };
-    await this.redis.hmset(`user:profile:${userId}`, cacheData);
-    await this.redis.expire(`user:profile:${userId}`, 60 * 5);
-
-    return profile;
+    return usersById;
   }
 
-  async getUserInfos(userIds: string[]): Promise<Record<string, BaseUserDTO>> {
-    if (!userIds.length) return {};
+  async getProfileRecommendationCandidates(
+    userId: string,
+    limit: number,
+  ): Promise<ProfileRecommendationCandidateDTO[]> {
+    if (!userId || !Number.isFinite(limit) || limit <= 0) {
+      return [];
+    }
 
-    const profiles: Record<string, BaseUserDTO> = {};
-    const uncachedIds: string[] = [];
+    const startedAt = Date.now();
+    const candidates = await lastValueFrom(
+      this.userClient.send<ProfileRecommendationCandidateDTO[]>(
+        'getProfileRecommendationCandidates',
+        {
+          userId,
+          limit,
+        },
+      ),
+    );
 
-    // 1️⃣ Check cache
-    const pipeline = this.redis.pipeline();
-    userIds.forEach((id) => pipeline.hgetall(`user:profile:${id}`));
-    const results = await pipeline.exec();
+    this.logger.debug(
+      `USER_SERVICE profile recommendation candidates resolved: userId=${userId} limit=${limit} returned=${candidates?.length ?? 0} durationMs=${Date.now() - startedAt}`,
+    );
 
-    if (!results) return {}; // Fix TS error: possibly null
+    return Array.isArray(candidates) ? candidates : [];
+  }
 
-    results.forEach(([error, data], index) => {
-      const userId = userIds[index];
-      const hash = data as Record<string, string>; // Fix TS: type {}
+  private async getCachedBaseUsers(
+    userIds: string[],
+  ): Promise<Record<string, BaseUserDTO>> {
+    const profilesById: Record<string, BaseUserDTO> = {};
+    const basePipeline = this.redis.pipeline();
+    userIds.forEach((id) =>
+      basePipeline.hgetall(this.getUserCacheKey(id, 'base')),
+    );
+    const baseResults = await basePipeline.exec();
 
-      if (error || !hash || Object.keys(hash).length === 0) {
-        uncachedIds.push(userId);
-      } else {
-        profiles[userId] = {
+    const idsMissingBaseCache: string[] = [];
+    if (baseResults) {
+      baseResults.forEach(([error, data], index) => {
+        const userId = userIds[index];
+        const hash = data as Record<string, string>;
+
+        if (error || !hash || Object.keys(hash).length === 0) {
+          idsMissingBaseCache.push(userId);
+          return;
+        }
+
+        profilesById[userId] = {
           id: userId,
           firstName: hash.firstName ?? '',
           lastName: hash.lastName ?? '',
           avatarUrl: hash.avatarUrl ?? '',
         };
+      });
+    } else {
+      idsMissingBaseCache.push(...userIds);
+    }
+
+    if (idsMissingBaseCache.length === 0) {
+      return profilesById;
+    }
+
+    const fullPipeline = this.redis.pipeline();
+    idsMissingBaseCache.forEach((id) =>
+      fullPipeline.get(this.getUserCacheKey(id, 'full')),
+    );
+    const fullResults = await fullPipeline.exec();
+
+    if (!fullResults) {
+      return profilesById;
+    }
+
+    const writePipeline = this.redis.pipeline();
+    fullResults.forEach(([, value], index) => {
+      const userId = idsMissingBaseCache[index];
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      try {
+        const profile = JSON.parse(value) as UserResponseDTO;
+        const baseProfile = this.toBaseUserDTO(profile);
+        profilesById[userId] = baseProfile;
+        writePipeline.hmset(this.getUserCacheKey(userId, 'base'), {
+          firstName: baseProfile.firstName ?? '',
+          lastName: baseProfile.lastName ?? '',
+          avatarUrl: baseProfile.avatarUrl ?? '',
+        });
+        writePipeline.expire(
+          this.getUserCacheKey(userId, 'base'),
+          this.baseProfileCacheTtlSeconds,
+        );
+      } catch {
+        return;
       }
     });
 
-    // 2️⃣ Fetch uncached IDs
-    if (uncachedIds.length > 0) {
-      const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
-        this.userClient.send<Record<string, BaseUserDTO>>(
-          'getBaseUsersBatch',
-          uncachedIds,
-        ),
-      );
+    await writePipeline.exec();
+    return profilesById;
+  }
 
-      for (const [id, profile] of Object.entries(fetchedProfiles)) {
-        profiles[id] = profile;
-        const cacheData = {
-          firstName: profile.firstName ?? '',
-          lastName: profile.lastName ?? '',
-          avatarUrl: profile.avatarUrl ?? '',
-        };
-        await this.redis.hmset(`user:profile:${id}`, cacheData);
-        await this.redis.expire(`user:profile:${id}`, 60 * 5);
-      }
+  private async getCachedFullUsers(
+    userIds: string[],
+  ): Promise<Record<string, UserResponseDTO>> {
+    const profilesById: Record<string, UserResponseDTO> = {};
+    const pipeline = this.redis.pipeline();
+    userIds.forEach((id) => pipeline.get(this.getUserCacheKey(id, 'full')));
+    const cachedResults = await pipeline.exec();
+
+    if (!cachedResults) {
+      return profilesById;
     }
 
-    return profiles;
+    cachedResults.forEach(([, value], index) => {
+      const userId = userIds[index];
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      try {
+        profilesById[userId] = JSON.parse(value) as UserResponseDTO;
+      } catch {
+        return;
+      }
+    });
+
+    return profilesById;
+  }
+
+  private async fetchBaseUsers(
+    userIds: string[],
+  ): Promise<Record<string, BaseUserDTO>> {
+    const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
+      this.userClient.send<Record<string, BaseUserDTO>>(
+        'getBaseUsersBatch',
+        userIds,
+      ),
+    );
+    const writePipeline = this.redis.pipeline();
+
+    for (const [id, profile] of Object.entries(fetchedProfiles ?? {})) {
+      writePipeline.hmset(this.getUserCacheKey(id, 'base'), {
+        firstName: profile.firstName ?? '',
+        lastName: profile.lastName ?? '',
+        avatarUrl: profile.avatarUrl ?? '',
+      });
+      writePipeline.expire(
+        this.getUserCacheKey(id, 'base'),
+        this.baseProfileCacheTtlSeconds,
+      );
+    }
+
+    await writePipeline.exec();
+    return fetchedProfiles;
+  }
+
+  private async fetchFullUsers(
+    userIds: string[],
+  ): Promise<Record<string, UserResponseDTO>> {
+    const profiles = await lastValueFrom(
+      this.userClient.send<UserResponseDTO[]>('getUsersBatch', userIds),
+    );
+    const profilesById: Record<string, UserResponseDTO> = {};
+    const fullWritePipeline = this.redis.pipeline();
+    const baseWritePipeline = this.redis.pipeline();
+
+    for (const profile of profiles ?? []) {
+      if (!profile?.id) {
+        continue;
+      }
+
+      profilesById[profile.id] = profile;
+      fullWritePipeline.set(
+        this.getUserCacheKey(profile.id, 'full'),
+        JSON.stringify(profile),
+        'EX',
+        this.fullProfileCacheTtlSeconds,
+      );
+
+      const baseProfile = this.toBaseUserDTO(profile);
+      baseWritePipeline.hmset(this.getUserCacheKey(profile.id, 'base'), {
+        firstName: baseProfile.firstName ?? '',
+        lastName: baseProfile.lastName ?? '',
+        avatarUrl: baseProfile.avatarUrl ?? '',
+      });
+      baseWritePipeline.expire(
+        this.getUserCacheKey(profile.id, 'base'),
+        this.baseProfileCacheTtlSeconds,
+      );
+    }
+
+    await Promise.all([fullWritePipeline.exec(), baseWritePipeline.exec()]);
+    return profilesById;
+  }
+
+  private toBaseUserDTO(profile: UserResponseDTO): BaseUserDTO {
+    return {
+      id: profile.id,
+      firstName: profile.firstName ?? '',
+      lastName: profile.lastName ?? '',
+      avatarUrl: profile.avatarUrl ?? '',
+    };
+  }
+
+  private getUserCacheKey(userId: string, projection: UserProjection): string {
+    return `user:${userId}:${projection}`;
   }
 }

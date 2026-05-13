@@ -1,9 +1,7 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
 import { AppModule } from './app.module';
-import { Neo4jTypeInterceptor } from './neo4j/neo4j-type.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

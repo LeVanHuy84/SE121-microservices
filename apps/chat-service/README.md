@@ -1,98 +1,133 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# chat-service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The chat service owns private conversations, messages, reactions, presence state, and the outbox flow that feeds the realtime gateway. It stores chat data in MongoDB, caches conversation/message slices in Redis, and publishes chat events through a Redis stream that the gateway consumes.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Responsibilities
 
-## Description
+- Serve conversation and message RPC handlers for the rest of the platform.
+- Maintain message and conversation documents in MongoDB.
+- Keep chat list/detail caches and presence state in Redis.
+- Publish realtime chat events for the gateway WebSocket layer.
+- Coordinate outbox-backed retries for non-stream events.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Runtime Profile
 
-## Project setup
+| Item            | Value                        |
+| --------------- | ---------------------------- |
+| Service type    | NestJS                       |
+| Port(s)         | `PORT` or `4010` for TCP     |
+| Transport(s)    | TCP, Redis, Kafka            |
+| Primary storage | MongoDB                      |
+| Shared packages | `@repo/common`, `@repo/dtos` |
 
-```bash
-$ npm install
+## Interfaces
+
+### HTTP API
+
+- `GET /` is implemented by `AppController` and returns the app service greeting.
+- No health-specific HTTP route was verified.
+
+### TCP / RPC
+
+- Conversation handlers: `getConversations`, `getConversationById`, `createConversation`, `updateConversation`, `hideConversation`, `unhideConversation`, `leaveConversation`, `deleteConversation`, and `markConversationAsRead`.
+- Message handlers: `getMessages`, `sendMessage`, `deleteMessage`, and `getMessageById`.
+
+### Events
+
+- Redis stream events published by `ChatStreamProducerService`: `message.created`, `message.deleted`, `conversation.created`, `conversation.updated`, `conversation.memberJoined`, `conversation.memberLeft`, `conversation.deleted`, `conversation.read`, `conversation.hidden`, and `conversation.unhidden`.
+- The gateway’s chat stream consumer reads those events from `chat:events` and broadcasts them to WebSocket rooms.
+- Generic outbox events are persisted in MongoDB and forwarded by the scheduled outbox processor.
+
+### Async Infrastructure
+
+- Redis caches conversation and message details, list pages, and presence-related state.
+- The outbox processor runs every 5 seconds and retries failed records with exponential backoff.
+- Chat stream state is tracked in Redis stream consumer groups, not in a message broker.
+
+## Internal Flow
+
+```mermaid
+flowchart LR
+  RPC[RPC APIs] --> Core[Chat Processing]
+  HTTP[HTTP API] --> Core
+  Core --> Mongo[(MongoDB Storage)]
+  Core --> Redis[(Redis Cache)]
+  Core --> Outbound[Realtime Chat Events]
+  Workers[Background Workers] --> Outbound
+  Outbound --> Gateway[WebSocket Gateway]
+  Core --> User[External User Service]
 ```
 
-## Compile and run the project
+- RPC and HTTP requests converge on the chat processing layer.
+- Conversation and message state lives in MongoDB with Redis used for cached reads and realtime coordination.
+- Output leaves the service as realtime chat events that the gateway fans out to clients.
+- The service also depends on the user-service for profile metadata.
+
+## Dependencies
+
+- MongoDB collections for conversations, messages, reactions, and outbox records.
+- Redis for cache, presence, and chat stream publication.
+- The user-service RPC client through `USER_SERVICE` for user metadata.
+- `@repo/common` Kafka producer helpers and shared exception handling.
+
+## Health and Readiness
+
+- No dedicated health or readiness endpoint is implemented.
+- The only verified HTTP route is `GET /`.
+
+## Observability
+
+- Uses the shared `ExceptionsFilter` in the TCP microservice bootstrap.
+- Emits debug and error logs from the chat stream producer, presence layer, and outbox processor.
+- The outbox processor records retries, lease refreshes, and skipped legacy chat events.
+- No metrics or tracing exporter was verified.
+
+## Environment Variables
+
+| Variable                        | Purpose                                                       |
+| ------------------------------- | ------------------------------------------------------------- |
+| `PORT`                          | TCP listener port, defaults to `4010`.                        |
+| `REDIS_HOST`                    | Redis host for caches, presence, and chat stream publication. |
+| `REDIS_PORT`                    | Redis port, defaults to `6379`.                               |
+| `MACHINE_ID`                    | Snowflake-style machine id used in message identifiers.       |
+| `PRESENCE_OFFLINE_THRESHOLD_MS` | Presence offline threshold.                                   |
+| `OUTBOX_LEASE_MS`               | Lease window for the outbox processor.                        |
+| `HOSTNAME`                      | Worker identity fallback for the outbox processor.            |
+| `GATEWAY_INSTANCE_ID`           | Gateway instance identity used by the Redis stream consumer.  |
+| `CHAT_STREAM_BATCH_SIZE`        | Redis stream batch size.                                      |
+| `CHAT_STREAM_BLOCK_MS`          | Redis stream blocking wait time.                              |
+| `CHAT_STREAM_CLAIM_IDLE_MS`     | Idle time before stale stream entries are claimed.            |
+| `CHAT_STREAM_CLAIM_INTERVAL_MS` | Interval for stale claim sweeps.                              |
+| `CHAT_STREAM_MAX_RETRIES`       | Retry cap for stream processing.                              |
+| `CHAT_STREAM_DLQ_MAXLEN`        | Dead-letter stream cap.                                       |
+| `CHAT_CONV_VERSION_TTL_SEC`     | Conversation version TTL in Redis.                            |
+| `CHAT_MSG_VERSION_TTL_SEC`      | Message version TTL in Redis.                                 |
+
+## Development
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run start:dev
+npm run build
+npm run test
+npm run test:e2e
+npm run lint
 ```
 
-## Run tests
+## Docker and Deployment
 
-```bash
-# unit tests
-$ npm run test
+- No service-specific Dockerfile was found in the repository scan.
+- The service depends on the root Compose stack for MongoDB and Redis locally.
 
-# e2e tests
-$ npm run test:e2e
+## Scaling Considerations
 
-# test coverage
-$ npm run test:cov
-```
+- Redis cache and stream consumer groups keep the realtime path decoupled from MongoDB reads.
+- The outbox worker uses lease-based locking and exponential retry to avoid duplicate publish storms.
+- Presence tracking depends on Redis fan-out and the heartbeat interval settings.
 
-## Deployment
+## Troubleshooting
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- If message RPCs fail, verify the TCP port and downstream MongoDB connectivity.
+- If realtime updates stop, check the Redis stream group and the gateway consumer settings.
+- If presence becomes stale, verify the heartbeat interval and Redis connectivity.
+- If user metadata lookups fail, verify the `USER_SERVICE` client wiring.

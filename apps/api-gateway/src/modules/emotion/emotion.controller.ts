@@ -1,12 +1,35 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { EmotionService } from './emotion.service';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
-import { DashboardQueryDTO, SystemRole } from '@repo/dtos';
+import {
+  CreateFeedbackDto,
+  CursorPaginationDTO,
+  DashboardQueryDTO,
+  EmotionTimeWindow,
+  GetDashboardDistributionDto,
+  GetDashboardTrendDto,
+  SystemRole,
+  TargetType,
+} from '@repo/dtos';
+import { ClientProxy } from '@nestjs/microservices';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 
-@Controller('emotion')
+@Controller('emotions')
 export class EmotionController {
-  constructor(private readonly emotionService: EmotionService) {}
+  constructor(
+    @Inject(MICROSERVICES_CLIENTS.EMOTION_INTELLIGENCE_SERVICE)
+    private client: ClientProxy,
+    private readonly emotionService: EmotionService,
+  ) {}
 
   @Get('dashboard')
   @RequireRole(SystemRole.ADMIN)
@@ -14,62 +37,82 @@ export class EmotionController {
     return this.emotionService.getEmotionDashboard(filter);
   }
 
-  @Get('detail/:id')
-  getDetail(@Param('id') id: string) {
-    return this.emotionService.getDetail(id);
+  @Get('summary')
+  async getEmotionDashboardSummary(@CurrentUserId() userId: string) {
+    return this.client.send('dashboard.get_summary', { userId });
+  }
+
+  @Get('trend')
+  async getEmotionDashboardTrend(
+    @CurrentUserId() userId: string,
+    @Query('window') window: EmotionTimeWindow,
+  ) {
+    const payload: GetDashboardTrendDto = {
+      userId,
+      window,
+    };
+    return this.client.send('dashboard.get_trend', payload);
+  }
+
+  @Get('distribution')
+  async getEmotionDashboardDistribution(
+    @CurrentUserId() userId: string,
+    @Query('window') window: EmotionTimeWindow,
+  ) {
+    const payload: GetDashboardDistributionDto = {
+      userId,
+      window,
+    };
+    return this.client.send('dashboard.get_distribution', payload);
+  }
+
+  @Get('insights')
+  async getEmotionDashboardInsights(@CurrentUserId() userId: string) {
+    return this.client.send('dashboard.get_insights', { userId });
   }
 
   @Get('history')
-  getHistory(
+  async getEmotionHistory(
     @CurrentUserId() userId: string,
-    @Query('preset') preset: string,
-    @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: number
+    @Query() query: CursorPaginationDTO,
   ) {
-    return this.emotionService.getHistory({
+    return this.client.send('dashboard.get_history', { userId, query });
+  }
+
+  @Get(':targetType/:targetId')
+  async getEmotionAnalysis(
+    @CurrentUserId() userId: string,
+    @Param('targetType') targetType: TargetType,
+    @Param('targetId') targetId: string,
+  ) {
+    return this.client.send('emotion-analytics.get_by_target', {
       userId,
-      preset,
-      fromDate,
-      toDate,
-      cursor,
-      limit,
+      targetId,
+      targetType,
     });
   }
 
-  @Get('summary')
-  getSummary(
+  @Post('feedback')
+  async submitFeedback(
     @CurrentUserId() userId: string,
-    @Query('preset') preset: string,
-    @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string
+    @Body() createFeedbackDto: CreateFeedbackDto,
   ) {
-    return this.emotionService.getSummary({
+    return this.client.send('emotion-feedback.create', {
       userId,
-      preset,
-      fromDate,
-      toDate,
+      data: createFeedbackDto,
     });
   }
 
-  @Get('summary/daily-trend')
-  getDailyTrend(
+  @Get('feedback/:targetType/:targetId')
+  async getFeedbackByTarget(
     @CurrentUserId() userId: string,
-    @Query('preset') preset = 'week',
-    @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string
+    @Param('targetType') targetType: TargetType,
+    @Param('targetId') targetId: string,
   ) {
-    return this.emotionService.getDailyTrend({
-      userId,
-      preset,
-      fromDate: fromDate,
-      toDate: toDate,
+    return this.client.send('emotion-feedback.get_by_target', {
+      userId: 'user_3D11cgEdQ4ax0oPgIx134paPtIQ',
+      targetId,
+      targetType,
     });
-  }
-
-  @Get('summary/by-hour')
-  getByHour(@CurrentUserId() userId: string) {
-    return this.emotionService.getByHour(userId);
   }
 }

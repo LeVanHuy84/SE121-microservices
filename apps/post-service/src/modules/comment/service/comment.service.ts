@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import {
+  ActivityType,
   CommentResponseDTO,
   CreateCommentDTO,
   EventDestination,
   EventTopic,
+  InteractionEventPayload,
+  InteractionType,
   MediaDeleteItem,
   MediaEventPayloads,
   MediaEventType,
@@ -40,12 +43,12 @@ export class CommentService {
     private readonly statsBuffer: StatsBufferService,
     private readonly recentActivityBuffer: RecentActivityBufferService,
     private readonly userClient: UserClientService,
-    private readonly outboxService: OutboxService
+    private readonly outboxService: OutboxService,
   ) {}
 
   async create(
     userId: string,
-    dto: CreateCommentDTO
+    dto: CreateCommentDTO,
   ): Promise<CommentResponseDTO> {
     // 🧩 Transaction đảm bảo toàn vẹn dữ liệu
     const savedComment = await this.dataSource.transaction(async (manager) => {
@@ -67,8 +70,7 @@ export class CommentService {
               items: [
                 {
                   publicId: comment.media.publicId,
-                  type:
-                    comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+                  type: comment.media.type,
                   url: comment.media.url,
                 },
               ],
@@ -85,13 +87,28 @@ export class CommentService {
         await manager.save(mediaOutbox);
       }
 
+      const interactionPayload: InteractionEventPayload = {
+        userId: userId,
+        targetType: dto.rootType,
+        targetId: dto.rootId,
+        interactionType: InteractionType.COMMENT,
+        createdAt: new Date(),
+      };
+
+      const interactionOutbox = manager.create(OutboxEvent, {
+        topic: EventTopic.INTERACTION,
+        destination: EventDestination.KAFKA,
+        eventType: 'user.interaction',
+        payload: interactionPayload,
+      });
+
       // ✅ 2. Cập nhật thống kê comment gốc (Post/Share + parent)
       const updateStatsPromise = this.updateStatsForComment(
         manager,
         dto.rootType,
         dto.rootId,
         dto.parentId,
-        +1
+        +1,
       );
 
       // ✅ 3. Nếu là reply → chuẩn bị outbox event cho thông báo
@@ -100,19 +117,41 @@ export class CommentService {
         outboxPromise = this.createReplyNotificationEvent(
           manager,
           entity,
-          dto.parentId
+          dto.parentId,
         );
       }
 
       const analysisOutbox = this.outboxService.createAnalysisEvent(
         manager,
         TargetType.COMMENT,
-        entity
+        entity,
+      );
+
+      const userActivityOutbox = this.outboxService.createUserActivityEvent(
+        manager,
+        ActivityType.COMMENT_CREATED,
+        {
+          actorId: userId,
+          activityType: ActivityType.COMMENT_CREATED,
+          targetId: entity.id,
+          contentPreview: entity.content.slice(0, 100),
+          metadata: {
+            rootType: entity.rootType,
+            rootId: entity.rootId,
+          },
+          createdAt: entity.createdAt,
+        },
       );
 
       // ✅ 4. Chạy song song các tác vụ không phụ thuộc
       await Promise.all(
-        [updateStatsPromise, outboxPromise, analysisOutbox].filter(Boolean)
+        [
+          updateStatsPromise,
+          outboxPromise,
+          analysisOutbox,
+          userActivityOutbox,
+          manager.save(interactionOutbox),
+        ].filter(Boolean),
       );
 
       return entity;
@@ -135,7 +174,7 @@ export class CommentService {
         dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
         dto.rootId,
         StatsEventType.COMMENT,
-        +1
+        +1,
       )
       .catch(console.error);
 
@@ -148,7 +187,7 @@ export class CommentService {
   async update(
     userId: string,
     commentId: string,
-    dto: UpdateCommentDTO
+    dto: UpdateCommentDTO,
   ): Promise<CommentResponseDTO> {
     return await this.dataSource.transaction(async (manager) => {
       const commentRepo = manager.getRepository(Comment);
@@ -177,14 +216,14 @@ export class CommentService {
         manager,
         TargetType.COMMENT,
         commentId,
-        dto.content
+        dto.content,
       );
 
       // 4️⃣ Xoá cache (sau transaction)
       await this.commentCache.invalidateComment(
         comment.id,
         comment.rootId,
-        comment.parentId
+        comment.parentId,
       );
 
       // 5️⃣ Trả về DTO
@@ -271,14 +310,14 @@ export class CommentService {
         comment.rootType,
         comment.rootId,
         comment.parentId,
-        -1
+        -1,
       );
 
       await this.statsBuffer.updateStat(
         comment.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
         comment.rootId,
         StatsEventType.COMMENT,
-        -1
+        -1,
       );
 
       if (mediaPayload) {
@@ -295,7 +334,7 @@ export class CommentService {
       await this.commentCache.invalidateComment(
         comment.id,
         comment.rootId,
-        comment.parentId
+        comment.parentId,
       );
 
       return true;
@@ -307,7 +346,7 @@ export class CommentService {
     rootType: RootType,
     rootId: string,
     parentId?: string,
-    delta: number = 1
+    delta: number = 1,
   ) {
     if (parentId) {
       await manager
@@ -356,7 +395,7 @@ export class CommentService {
   private async createReplyNotificationEvent(
     manager: EntityManager,
     entity: Comment,
-    parentId: string
+    parentId: string,
   ): Promise<OutboxEvent | null> {
     const [actor, parentComment] = await Promise.all([
       this.userClient.getUserInfo(entity.userId),

@@ -15,4 +15,27 @@ export class MediaItemDTO {
   @IsOptional()
   @IsString()
   publicId?: string;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  fileName?: string;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @Expose()
+  @IsOptional()
+  size?: number;
+
+  @Expose()
+  @IsOptional()
+  duration?: number;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
 }

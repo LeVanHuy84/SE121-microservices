@@ -7,14 +7,31 @@ import {
   PostSnapshot,
   PostSnapshotSchema,
 } from 'src/mongo/schema/post-snapshot.schema';
+import { AffinityModule } from '../affinity/affinity.module';
+import { FeedItem, FeedItemSchema } from 'src/mongo/schema/feed-item.schema';
+import {
+  ShareSnapshot,
+  ShareSnapshotSchema,
+} from 'src/mongo/schema/share-snapshot.schema';
+import {
+  IdempotencyModule,
+  KafkaConsumerHelper,
+  KafkaDLQService,
+  KafkaProducerModule,
+} from '@repo/common';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PostSnapshot.name, schema: PostSnapshotSchema },
+      { name: ShareSnapshot.name, schema: ShareSnapshotSchema },
+      { name: FeedItem.name, schema: FeedItemSchema },
     ]),
+    AffinityModule,
+    IdempotencyModule.forMongo(),
+    KafkaProducerModule.registerAsync(), // để dùng DLQ
   ],
   controllers: [ConsumerController],
-  providers: [ConsumerService],
+  providers: [ConsumerService, KafkaDLQService, KafkaConsumerHelper],
 })
 export class ConsumerModule {}

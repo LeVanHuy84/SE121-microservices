@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ConsumerModule } from './modules/consumer/consumer.module';
+import { WarmupModule } from './modules/warmup/warmup.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ConsumerModule } from './modules/consumer/consumer.module';
     MongoModule,
     IngestionModule,
     ConsumerModule,
+    WarmupModule,
   ],
   controllers: [],
   providers: [],

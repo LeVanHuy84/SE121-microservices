@@ -1,23 +1,43 @@
-from app.database.analysis_repository import AnalysisRepository
-from app.database.outbox_repository import OutboxRepository
 import asyncio
-from app.enums.analysis_status_enum import AnalysisStatusEnum
-from app.services.emotion_analyzer import EmotionAnalyzer
-from app.database.models.outbox_schema import Outbox
-from app.enums.analysis_status_enum import RetryScopeEnum
-from datetime import datetime, timezone
+import logging
+
+from app.utils.exceptions import RetryableException
+from app.enums.event_enum import EventTypeEnum
+
+from app.services.orchestration.analysis_flow_service import analysis_flow_service
+from app.services.orchestration.handle.moderation_writer import ModerationWriter
+from app.services.orchestration.handle.emotion_writer import EmotionWriter
+from app.services.orchestration.handle.task_manager import TaskManager
+from app.services.orchestration.handle.outbox_emitter import OutboxEmitter
+
+logger = logging.getLogger(__name__)
 
 
 class RetryWorker:
 
     MAX_RETRY = 2
+    SLEEP_SECONDS = 3600
 
-    def __init__(self, repo: AnalysisRepository, outbox_repo: OutboxRepository):
-        self.repo = repo
-        self.outbox_repo = outbox_repo
-        self.analyzer = EmotionAnalyzer()
+    def __init__(
+        self,
+        emotion_aggregate_repo,
+        moderation_repo,
+        task_repo,
+        outbox_repo
+    ):
+        self.task_repository = task_repo
+        self.moderation_repo = moderation_repo
+
+        self.moderation_writer = ModerationWriter(moderation_repo)
+        self.emotion_writer = EmotionWriter(emotion_aggregate_repo)
+        self.task_manager = TaskManager(task_repo)
+        self.outbox = OutboxEmitter(outbox_repo)
+
         self._running = True
 
+    # ======================================================
+    # LOOP
+    # ======================================================
     def stop(self):
         self._running = False
 
@@ -25,83 +45,146 @@ class RetryWorker:
         while self._running:
             try:
                 await self.process_failed()
-            except Exception as e:
-                print("[RetryWorker] LOOP ERROR:", str(e))
+            except Exception:
+                logger.exception("[RetryWorker] LOOP ERROR")
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(self.SLEEP_SECONDS)
 
-
+    # ======================================================
+    # PROCESS FAILED
+    # ======================================================
     async def process_failed(self):
-        docs = await self.repo.find_failed(max_retry=self.MAX_RETRY)
+        tasks = await self.task_repository.find_failed_tasks(
+            max_retry=self.MAX_RETRY
+        )
 
-        for doc in docs:
-            scope = doc.retryScope or RetryScopeEnum.FULL
-
+        for task in tasks:
             try:
-                print(f"[RetryWorker] Retrying: {doc.id} | scope={scope}")
+                await self.retry_task(task)
+            except RetryableException:
+                continue
+            except Exception:
+                continue
 
-                # ===============================
-                # 1. CHỌN CÁCH ANALYZE
-                # ===============================
-                if scope == RetryScopeEnum.TEXT_ONLY:
-                    result = self.analyzer.update_emotion_analysis(
-                        emotion_analysis=doc,
-                        new_text=doc.content,
-                    )
-                    outbox_event_type = "ANALYSIS_UPDATED"
-                else:
-                    result = await self.analyzer.analyze(
-                        text=doc.content,
-                        image_urls=doc.imageUrls or [],
-                    )
-                    outbox_event_type = "ANALYSIS_CREATED"
+    # ======================================================
+    # RETRY SINGLE TASK
+    # ======================================================
+    async def retry_task(self, task: dict):
 
-                # ===============================
-                # 2. UPDATE DB (SUCCESS)
-                # ===============================
-                await self.repo.update_analysis(doc.id, {
-                    "textEmotion": result["textEmotion"],
-                    "imageEmotions": result["imageEmotions"],
-                    "finalEmotion": result["finalEmotion"],
-                    "finalScores": result["finalScores"],
-                    "status": AnalysisStatusEnum.SUCCESS,
-                    "retryCount": doc.retryCount + 1,
-                    "retryScope": None,
-                    "errorReason": None,
-                    "updatedAt": datetime.now(timezone.utc),
-                })
+        try:
+            result = await analysis_flow_service.analyze_content(
+                text=task.get("content", ""),
+                image_urls=task.get("imageUrls", []),
+                target_type=task["targetType"]
+            )
 
-                # ===============================
-                # 3. SAVE OUTBOX
-                # ===============================
-                await self.outbox_repo.save_outbox(
-                    Outbox(
-                        topic="analysis-result-events",
-                        event_type=outbox_event_type,
-                        payload={
-                            "targetId": str(doc.targetId),
-                            "targetType": doc.targetType,
-                            "finalEmotion": result["finalEmotion"],
-                        }
-                    )
+            moderation_result = result["moderation"]
+            emotion_result = result.get("emotion")
+            should_block = result.get("should_block", False)
+            skip_reason = result.get("skip_reason")
+
+            # ==========================================
+            # 1️⃣ SAVE MODERATION
+            # ==========================================
+            if task["action"] == EventTypeEnum.ANALYSIS_CREATED.value:
+
+                moderation = await self.moderation_writer.save_created(
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
+                    content=task.get("content", ""),
+                    moderation_data=moderation_result
                 )
 
-            except Exception as e:
-                new_count = doc.retryCount + 1
-
-                status = (
-                    AnalysisStatusEnum.FAILED
-                    if new_count < self.MAX_RETRY
-                    else AnalysisStatusEnum.PERMANENT_FAILED
+            else:
+                existing = await self.moderation_repo.get_by_target(
+                    target_id=task["targetId"],
+                    target_type=task["targetType"]
                 )
 
-                # ===============================
-                # 4. UPDATE DB (FAILED)
-                # ===============================
-                await self.repo.update_analysis(doc.id, {
-                    "retryCount": new_count,
-                    "status": status,
-                    "errorReason": str(e),
-                    # giữ nguyên retry_scope để lần sau retry đúng loại
-                    "updatedAt": datetime.now(timezone.utc),
-                })
+                if not existing:
+                    raise ValueError(
+                        f"ModerationResult not found for target {task['targetId']}"
+                    )
+
+                moderation = await self.moderation_writer.save_updated(
+                    existing=existing,
+                    new_content=task.get("content", ""),
+                    moderation_data=moderation_result
+                )
+
+            if moderation.get("is_violation"):
+                await self.outbox.emit_moderation(moderation)
+
+            # ==========================================
+            # 2️⃣ SKIP / BLOCK
+            # ==========================================
+            if skip_reason:
+                await self.task_manager.mark_permanent_failed(
+                    task["targetId"],
+                    task["targetType"],
+                    skip_reason
+                )
+                return
+
+            if should_block or not emotion_result:
+                await self.task_manager.mark_permanent_failed(
+                    task["targetId"],
+                    task["targetType"],
+                    "blocked_or_emotion_missing"
+                )
+                return
+
+            # ==========================================
+            # 3️⃣ SAVE EMOTION
+            # ==========================================
+            if task["action"] == EventTypeEnum.ANALYSIS_CREATED.value:
+
+                emotion = await self.emotion_writer.save_created(
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
+                    emotion_data=emotion_result
+                )
+
+            else:
+
+                emotion = await self.emotion_writer.save_updated(
+                    user_id=task["userId"],
+                    target_id=task["targetId"],
+                    target_type=task["targetType"],
+                    emotion_data=emotion_result
+                )
+
+            await self.outbox.emit_emotion(emotion)
+
+            # mark success
+            await self.task_repository.update_task(
+                task["_id"],
+                {
+                    "status": "SUCCESS"
+                }
+            )
+
+        except RetryableException as e:
+            logger.warning(f"[RetryWorker] Retryable error: {e}")
+
+            await self.task_repository.update_task(
+                task["_id"],
+                {
+                    "status": "FAILED",
+                    "retryCount": task.get("retryCount", 0) + 1,
+                    "error": str(e)
+                }
+            )
+            raise
+
+        except Exception as e:
+            logger.exception("[RetryWorker] Permanent error")
+
+            await self.task_manager.mark_permanent_failed(
+                task["targetId"],
+                task["targetType"],
+                str(e)
+            )
+            raise

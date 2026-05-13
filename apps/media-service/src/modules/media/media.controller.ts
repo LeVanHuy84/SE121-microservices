@@ -14,7 +14,10 @@ export class MediaController {
       file: Buffer;
       userId: string;
       folder: string;
-      type: 'image' | 'video';
+      type: 'image' | 'video' | 'audio' | 'file';
+      mimeType?: string;
+      fileName?: string;
+      size?: number;
     }
   ) {
     const buffer = Buffer.isBuffer(data.file)
@@ -24,7 +27,10 @@ export class MediaController {
       buffer,
       data.userId,
       data.folder,
-      data.type
+      data.type,
+      data.mimeType,
+      data.fileName,
+      data.size
     );
   }
 }

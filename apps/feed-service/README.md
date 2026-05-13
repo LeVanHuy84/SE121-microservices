@@ -1,4 +1,105 @@
-<p align="center">
+# feed-service
+
+Feed generation, trending ranking, and Kafka ingestion for the content timeline. The service runs as TCP and Kafka microservices with Redis-backed ranking state and MongoDB snapshots; no HTTP listener is started in the current bootstrap.
+
+## Responsibility
+
+- Build personalized and trending feeds from snapshot data.
+- Ingest post, share, stats, emotion, and interaction events.
+- Keep Redis ranking keys and MongoDB snapshots in sync.
+- Re-rank content using emotion features and affinity context.
+
+## Architecture Role
+
+- Read-side service for feed delivery and trending.
+- Kafka consumer for content and analysis events.
+- Redis score maintainer for trending and emotion-specific ZSETs.
+- Uses scheduled workers to keep feed scores fresh and bounded.
+
+## Runtime Profile
+
+| Item                  | Value                        |
+| --------------------- | ---------------------------- |
+| Service type          | NestJS                       |
+| TCP port              | `PORT` or `4003`             |
+| Transports            | TCP, Kafka, Redis            |
+| Primary storage       | MongoDB (`feed_service`)     |
+| Cache / ranking store | Redis                        |
+| Shared packages       | `@repo/common`, `@repo/dtos` |
+
+## Interfaces
+
+### RPC / Message Patterns
+
+- `get_my_feed`
+- `get_trending`
+
+### Kafka Events Consumed
+
+- `EventTopic.POST`
+- `EventTopic.SHARE`
+- `EventTopic.STATS`
+- `EventTopic.TEST_FAULT`
+- `EventTopic.EMOTION_RESULT`
+- `EventTopic.INTERACTION`
+
+### Health and Readiness
+
+- No dedicated HTTP health endpoint is started by `src/main.ts`.
+- No explicit health message pattern was found in the current bootstrap.
+
+## Internal Flow
+
+```mermaid
+flowchart LR
+  KafkaIn[Kafka Consumers] --> Core[Feed Processing]
+  RPC[RPC APIs] --> Core
+  Core --> Mongo[(MongoDB Storage)]
+  Core --> Redis[(Redis Ranking)]
+  Core --> Outbound[RPC Responses]
+  Workers[Background Workers] --> Redis
+  Core --> Post[External Post Service]
+  Core --> Group[External Group Service]
+  Core --> Analysis[External Analysis Service]
+```
+
+- Kafka and RPC requests converge on feed processing.
+- MongoDB stores snapshots and feed items, while Redis holds ranking state.
+- Background workers refresh ranking data so feed responses stay current.
+- The feed layer depends on post, group, and analysis services for enrichment.
+
+## Dependencies and Env Vars
+
+- `MONGODB_URI` for the MongoDB connection.
+- `REDIS_HOST` and `REDIS_PORT` for the Redis cache and ranking store.
+- `PORT` for the TCP listener, defaulting to `4003`.
+- `KAFKA_BROKERS`, `KAFKA_CLIENT_ID`, `KAFKA_GROUP_ID`, and `KAFKA_FROM_BEGINNING` for Kafka consumption.
+- `POST_SERVICE_HOST` and `POST_SERVICE_PORT` for reaction lookups.
+- `GROUP_SERVICE_HOST` and `GROUP_SERVICE_PORT` for group enrichment and candidate queries.
+- `EMOTION_INTELLIGENCE_SERVICE_HOST` and `EMOTION_INTELLIGENCE_SERVICE_PORT` for emotion features.
+
+## Observability
+
+- `ExceptionsFilter` is applied to both microservices in `src/main.ts`.
+- `Logger` is used in ingestion, consumer, ranking, and trending code paths.
+- `KafkaConsumerHelper` and `KafkaDLQService` provide idempotency and failure routing.
+- Cron jobs keep trending data fresh and expose operational logging when score sets are recomputed.
+
+## Development
+
+````bash
+npm install
+npm run build
+npm run start
+npm run start:dev
+npm run start:prod
+npm run test
+npm run test:e2e
+npm run test:cov
+npm run seed:direct
+npm run lint
+npm run format
+```<p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
@@ -29,7 +130,7 @@
 
 ```bash
 $ npm install
-```
+````
 
 ## Compile and run the project
 

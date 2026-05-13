@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import {
   PostSnapshot,
   PostSnapshotDocument,
@@ -36,25 +36,39 @@ export class IngestionPostService {
   ) {}
 
   // ------------------------------------------------
-  // 🧩 HANDLE CREATED (đã fix hiển thị trending ngay)
+  // HANDLE CREATED (đã fix hiển thị trending ngay)
   // ------------------------------------------------
-  async handleCreated(payload: InferPostPayload<PostEventType.CREATED>) {
+  async handleCreated(
+    payload: InferPostPayload<PostEventType.CREATED>,
+    session?: ClientSession,
+  ) {
     if (!payload.postId) return;
 
     // Không tạo trùng
-    const exists = await this.postModel.findOne({ postId: payload.postId });
+    const exists = await this.postModel.findOne(
+      { postId: payload.postId },
+      null,
+      {
+        session,
+      },
+    );
     if (exists) return;
 
     const createdAt = new Date(payload.createdAt);
 
     // Tạo snapshot trong Mongo
-    const entity = await this.postModel.create({
-      ...payload,
-      postCreatedAt: createdAt,
-    });
+    const [entity] = await this.postModel.insertMany(
+      [
+        {
+          ...payload,
+          postCreatedAt: createdAt,
+        },
+      ],
+      { session },
+    );
 
     // ------------------------------
-    // 🧠 Ghi meta key
+    // Ghi meta key
     // ------------------------------
     if (payload.audience === Audience.PUBLIC || !payload.groupId) {
       const metaKey = `post:meta:${payload.postId}`;
@@ -63,25 +77,34 @@ export class IngestionPostService {
         lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
       });
       await this.redis.expire(metaKey, this.META_TTL_SECONDS);
-      await this.redis.zadd('post:score', 8, payload.postId);
+      await this.redis.zadd('post:score', 1, payload.postId);
+      const ttlFreshMs = 48 * 60 * 60 * 1000; // 48h
+      const expireAt = createdAt.getTime() + ttlFreshMs;
+
+      await this.redis.zadd('post:fresh', expireAt, payload.postId);
     }
 
     // ------------------------------
-    // 📢 Phân phối bài mới tới feed
+    // Phân phối bài mới tới feed
     // ------------------------------
     await this.distributionService.distributeCreated(
       FeedEventType.POST,
       entity._id.toString(),
       entity.postId,
+      entity.postId,
       entity.userId,
       entity.groupId,
+      session,
     );
   }
 
   // ------------------------------------------------
-  // 🧩 HANDLE UPDATED
+  // HANDLE UPDATED
   // ------------------------------------------------
-  async handleUpdated(payload: InferPostPayload<PostEventType.UPDATED>) {
+  async handleUpdated(
+    payload: InferPostPayload<PostEventType.UPDATED>,
+    session?: ClientSession,
+  ) {
     if (!payload.postId) return;
 
     const updateData: Record<string, any> = {};
@@ -99,28 +122,32 @@ export class IngestionPostService {
     await this.postModel.updateOne(
       { postId: payload.postId },
       { $set: updateData },
+      { session },
     );
   }
 
   // ------------------------------------------------
-  // 🧩 HANDLE REMOVED
+  // HANDLE REMOVED
   // ------------------------------------------------
-  // ------------------------------------------------
-  // 🧩 HANDLE REMOVED (FIX REDIS CLEANUP - ENUM SAFE)
-  // ------------------------------------------------
-  async handleRemoved(payload: InferPostPayload<PostEventType.REMOVED>) {
+  async handleRemoved(
+    payload: InferPostPayload<PostEventType.REMOVED>,
+    session?: ClientSession,
+  ) {
     if (!('postId' in payload)) return;
 
-    const snapshot = await this.postModel.findOneAndDelete({
-      postId: payload.postId,
-    });
+    const snapshot = await this.postModel.findOneAndDelete(
+      {
+        postId: payload.postId,
+      },
+      { session },
+    );
 
-    await this.shareModel.deleteMany({ postId: payload.postId });
+    await this.shareModel.deleteMany({ postId: payload.postId }, { session });
 
     const postId = payload.postId;
 
     // ------------------------------
-    // 🧹 Dọn Redis
+    // Dọn Redis
     // ------------------------------
 
     // 1. Xóa trending score chính
@@ -139,10 +166,13 @@ export class IngestionPostService {
     }
 
     // ------------------------------
-    // 📢 Phân phối remove
+    // Phân phối remove
     // ------------------------------
     if (snapshot) {
-      await this.distributionService.distributeRemoved(snapshot.postId);
+      await this.distributionService.distributeRemoved(
+        snapshot.postId,
+        session,
+      );
     }
   }
 }

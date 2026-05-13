@@ -5,7 +5,7 @@ type CloudinaryWebhookPayload = {
   public_id?: string;
   secure_url?: string;
   url?: string;
-  resource_type?: 'image' | 'video';
+  resource_type?: 'image' | 'video' | 'raw';
   format?: string;
   bytes?: number;
   duration?: number;
@@ -48,7 +48,7 @@ export class MediaWebhookController {
     const media = await this.mediaService.upsertFromWebhook({
       publicId: body.public_id,
       url,
-      type: body.resource_type ?? 'image',
+      resourceType: body.resource_type,
       format: body.format,
       size: body.bytes,
       duration: body.duration ? Math.round(body.duration) : undefined,

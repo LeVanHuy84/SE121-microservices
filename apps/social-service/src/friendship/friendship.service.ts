@@ -1,54 +1,51 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { int, Transaction } from 'neo4j-driver';
-import { Neo4jService } from 'src/neo4j/neo4j.service';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
-import { RecentActivityBufferService } from 'src/event/recent-activity.buffer.service';
+import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
+import type {
+  FriendRecommendationAnalytics,
+  FriendRecommendationAttribution,
+  FriendRecommendation,
+  SocialGraphRepository,
+} from './repositories/social-graph.repository';
+import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
+import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 
 @Injectable()
 export class FriendshipService {
   private readonly logger = new Logger(FriendshipService.name);
+  private readonly recommendationDismissDurationMs = 30 * 24 * 60 * 60 * 1000;
+  private readonly defaultAnalyticsWindowDays = 30;
+  private readonly maxAnalyticsWindowDays = 365;
+  private readonly defaultCursorLimit = 10;
+  private readonly maxCursorLimit = 50;
+  private readonly maxFriendIdsLimit = 200;
+
   constructor(
-    private readonly neo4j: Neo4jService,
+    @Inject(SOCIAL_GRAPH_REPOSITORY)
+    private readonly socialGraphRepo: SocialGraphRepository,
+    private readonly recommendationQueryService: RecommendationQueryService,
     private readonly buffer: RecentActivityBufferService,
   ) {}
 
-  // ----- Get relationship status -----
   async getRelationshipStatus(userId: string, targetId: string) {
-    const res = await this.neo4j.read(
-      `
-      MATCH (u:User {id:$userId}), (t:User {id:$targetId})
-      OPTIONAL MATCH (u)-[f:FRIEND_WITH]-(t)
-      OPTIONAL MATCH (u)-[bOut:BLOCKED]->(t)
-      OPTIONAL MATCH (t)-[bIn:BLOCKED]->(u)
-      OPTIONAL MATCH (u)-[reqOut:REQUESTED]->(t)
-      OPTIONAL MATCH (t)-[reqIn:REQUESTED]->(u)
-      RETURN 
-        count(f) > 0 as isFriend,
-        count(bOut) > 0 as isBlocked,
-        count(bIn) > 0 as isBlockedByTarget,
-        count(reqOut) > 0 as hasRequestedOut,
-        count(reqIn) > 0 as hasRequestedIn
-      `,
-      { userId, targetId },
-    );
-
-    if (!res.records.length) return { status: 'NONE' };
-    const r = res.records[0];
-    if (r.get('isBlocked') || r.get('isBlockedByTarget'))
-      return { status: 'BLOCKED' };
-    if (r.get('isFriend')) return { status: 'FRIEND' };
-    if (r.get('hasRequestedOut')) return { status: 'REQUESTED_OUT' };
-    if (r.get('hasRequestedIn')) return { status: 'REQUESTED_IN' };
-    return { status: 'NONE' };
+    return this.socialGraphRepo.getRelationshipStatus(userId, targetId);
   }
 
-  // ----- Send friend request -----
-  async sendFriendRequest(tx: Transaction, userId: string, targetId: string) {
+  async sendFriendRequest(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot send request to yourself');
     }
-    const status = await this.getRelationshipStatus(userId, targetId);
 
+    const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status === 'FRIEND') {
       throw new BadRequestException('Already friends');
     }
@@ -59,66 +56,90 @@ export class FriendshipService {
       throw new BadRequestException('Cannot send request to a blocked user');
     }
 
-    await this.neo4j.write(
-      `MERGE (u:User {id:$userId}) 
-       MERGE (t:User {id:$targetId}) 
-       MERGE (u)-[:REQUESTED]->(t)`,
-      { userId, targetId },
-      tx,
+    const result = await this.socialGraphRepo.sendFriendRequest(
+      userId,
+      targetId,
+      attribution,
     );
+
+    if (!result.created) {
+      throw new BadRequestException('Friend request already sent');
+    }
+
+    if (attribution?.recommendationId || attribution?.recommendationRequestId) {
+      await this.socialGraphRepo.recordRecommendationEvents([
+        {
+          userId,
+          candidateId: targetId,
+          eventType: 'request_sent',
+          recommendationId: attribution?.recommendationId ?? null,
+          recommendationRequestId: attribution?.recommendationRequestId ?? null,
+        },
+      ]);
+    }
 
     await this.buffer.addRecentActivity({
       actorId: userId,
-      targetId: targetId,
+      targetId,
       type: 'friendship_request',
     });
 
     return { message: 'Friend request sent successfully' };
   }
-  async cancelFriendRequest(tx: Transaction, userId: string, targetId: string) {
-    const status = await this.getRelationshipStatus(userId, targetId);
 
-    // Chỉ được hủy khi bạn là người gửi lời mời
+  async cancelFriendRequest(userId: string, targetId: string) {
+    const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status !== 'REQUESTED_OUT') {
       throw new BadRequestException('No outgoing friend request to cancel');
     }
 
-    await this.neo4j.write(
-      `
-    MATCH (u:User {id:$userId})-[r:REQUESTED]->(t:User {id:$targetId})
-    DELETE r
-    `,
-      { userId, targetId },
-      tx,
+    const result = await this.socialGraphRepo.cancelFriendRequest(
+      userId,
+      targetId,
     );
+
+    if (!result.removed) {
+      throw new BadRequestException('No outgoing friend request to cancel');
+    }
 
     await this.buffer.clearActivity('friendship_request', targetId, userId);
 
     return { message: 'Friend request canceled successfully' };
   }
 
-  // ----- Accept friend request -----
-  async acceptFriendRequest(
-    tx: Transaction,
-    userId: string,
-    requesterId: string,
-  ) {
+  async acceptFriendRequest(userId: string, requesterId: string) {
     if (userId === requesterId) {
       throw new BadRequestException('Cannot accept your own request');
     }
+
     const status = await this.getRelationshipStatus(userId, requesterId);
     if (status.status !== 'REQUESTED_IN') {
       throw new BadRequestException('No pending friend request to accept');
     }
 
-    await this.neo4j.write(
-      `MATCH (r:User {id:$requesterId})-[req:REQUESTED]->(u:User {id:$userId})
-       DELETE req
-       MERGE (u)-[:FRIEND_WITH {since:datetime(), sentimentScore:0}]->(r)
-       MERGE (r)-[:FRIEND_WITH {since:datetime(), sentimentScore:0}]->(u)`,
-      { userId, requesterId },
-      tx,
+    const attribution = await this.socialGraphRepo.acceptFriendRequest(
+      userId,
+      requesterId,
     );
+
+    if (!attribution) {
+      throw new BadRequestException('No pending friend request to accept');
+    }
+
+    if (attribution?.recommendationId || attribution?.recommendationRequestId) {
+      await this.socialGraphRepo.recordRecommendationEvents([
+        {
+          userId: requesterId,
+          candidateId: userId,
+          eventType: 'accepted',
+          recommendationId: attribution.recommendationId,
+          recommendationRequestId: attribution.recommendationRequestId,
+        },
+      ]);
+    }
+
+    await this.buffer.clearActivity('friendship_request', userId, requesterId);
+
     await this.buffer.addRecentActivity({
       actorId: userId,
       targetId: requesterId,
@@ -127,251 +148,248 @@ export class FriendshipService {
 
     return { message: 'Friend request accepted' };
   }
-  // ----- Decline friend request -----
-  async declineFriendRequest(
-    tx: Transaction,
-    userId: string,
-    requesterId: string,
-  ) {
+
+  async declineFriendRequest(userId: string, requesterId: string) {
     if (userId === requesterId) {
       throw new BadRequestException('Cannot decline your own request');
     }
+
     const status = await this.getRelationshipStatus(userId, requesterId);
     if (status.status !== 'REQUESTED_IN') {
       throw new BadRequestException('No pending friend request to decline');
     }
 
-    await this.neo4j.write(
-      `MATCH (requester:User {id:$requesterId})-[req:REQUESTED]->(receiver:User {id:$userId})
-       DELETE req`,
-      { userId, requesterId },
-      tx,
+    const result = await this.socialGraphRepo.declineFriendRequest(
+      userId,
+      requesterId,
     );
+
+    if (!result.removed) {
+      throw new BadRequestException('No pending friend request to decline');
+    }
+
+    await this.buffer.clearActivity('friendship_request', userId, requesterId);
 
     return { message: 'Friend request declined' };
   }
 
-  // ----- Remove friend -----
-  async removeFriend(tx: Transaction, userId: string, friendId: string) {
+  async removeFriend(userId: string, friendId: string) {
     if (userId === friendId) {
       throw new BadRequestException('Cannot remove yourself');
     }
+
     const status = await this.getRelationshipStatus(userId, friendId);
     if (status.status !== 'FRIEND') {
       throw new BadRequestException('Not friends');
     }
 
-    await this.neo4j.write(
-      `MATCH (u:User {id:$userId})-[f:FRIEND_WITH]-(fr:User {id:$friendId})
-       DELETE f`,
-      { userId, friendId },
-      tx,
-    );
+    const result = await this.socialGraphRepo.removeFriend(userId, friendId);
+
+    if (!result.removed) {
+      throw new BadRequestException('Not friends');
+    }
 
     return { message: 'Friend removed successfully' };
   }
 
-  // ----- Block / Unblock -----
-  async blockUser(tx: Transaction, userId: string, targetId: string) {
+  async blockUser(userId: string, targetId: string) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot block yourself');
     }
+
     const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status === 'BLOCKED') {
       throw new BadRequestException('User already blocked');
     }
 
-    await this.neo4j.write(
-      `MATCH (a:User {id:$userId}), (b:User {id:$targetId})
-       OPTIONAL MATCH (a)-[r:FRIEND_WITH|REQUESTED|FOLLOWS]-(b)
-       DELETE r
-       MERGE (a)-[:BLOCKED]->(b)`,
-      { userId, targetId },
-      tx,
-    );
+    const result = await this.socialGraphRepo.blockUser(userId, targetId);
+
+    if (!result.created) {
+      throw new BadRequestException('User already blocked');
+    }
+
     return { message: 'User blocked successfully' };
   }
 
-  async unblockUser(tx: Transaction, userId: string, targetId: string) {
+  async unblockUser(userId: string, targetId: string) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot unblock yourself');
     }
+
     const status = await this.getRelationshipStatus(userId, targetId);
     if (status.status !== 'BLOCKED') {
       throw new BadRequestException('User is not blocked');
     }
 
-    await this.neo4j.write(
-      `MATCH (a:User {id:$userId})-[r:BLOCKED]->(b:User {id:$targetId})
-       DELETE r`,
-      { userId, targetId },
-      tx,
-    );
+    const result = await this.socialGraphRepo.unblockUser(userId, targetId);
+
+    if (!result.removed) {
+      throw new BadRequestException('User is not blocked');
+    }
 
     return { message: 'User unblocked successfully' };
   }
 
-  // ----- Cursor-based get friends -----
+  async dismissFriendRecommendation(
+    userId: string,
+    targetId: string,
+    attribution?: FriendRecommendationAttribution,
+  ) {
+    if (userId === targetId) {
+      throw new BadRequestException('Cannot dismiss yourself');
+    }
+
+    const expiresAt = new Date(
+      Date.now() + this.recommendationDismissDurationMs,
+    );
+
+    await this.socialGraphRepo.dismissFriendRecommendation(
+      userId,
+      targetId,
+      expiresAt,
+    );
+    await this.socialGraphRepo.recordRecommendationEvents([
+      {
+        userId,
+        candidateId: targetId,
+        eventType: 'dismissed',
+        recommendationId: attribution?.recommendationId ?? null,
+        recommendationRequestId: attribution?.recommendationRequestId ?? null,
+        metadata: {
+          expiresAt: expiresAt.toISOString(),
+        },
+      },
+    ]);
+
+    return {
+      message: 'Friend recommendation dismissed successfully',
+      expiresAt,
+    };
+  }
+
   async getFriends(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    const queryDB = `
-      MATCH (u:User {id:$userId})-[:FRIEND_WITH]->(f:User)
-      ${query.cursor ? 'WHERE f.id > $cursor' : ''}
-      RETURN f.id as id
-      ORDER BY f.id
-      LIMIT $limitPlusOne
-    `;
-    const params: any = { userId, limitPlusOne: int(query.limit + 1) };
-    if (query.cursor) params.cursor = query.cursor;
-
-    const res = await this.neo4j.read(queryDB, params);
-    const ids = res.records.map((r) => String(r.get('id')));
-
-    const hasNextPage = ids.length > query.limit;
-    const pageData = hasNextPage ? ids.slice(0, query.limit) : ids;
-    const nextCursor = hasNextPage ? pageData[pageData.length - 1] : null;
-
-    return {
-      data: Array.isArray(pageData) ? [...pageData] : [],
-      nextCursor,
-      hasNextPage,
-    };
+    return this.socialGraphRepo.getFriends(userId, this.normalizeCursorQuery(query));
   }
 
-  // ----- Cursor-based get friend requests -----
   async getFriendRequests(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    this.logger.debug(`Getting friend requests for userId: ${userId} with query: ${JSON.stringify(query)}`);
-    const queryDB = `
-      MATCH (sender:User)-[:REQUESTED]->(receiver:User {id:$userId})
-      ${query.cursor ? 'WHERE sender.id > $cursor' : ''}
-      RETURN sender.id as id
-      ORDER BY sender.id
-      LIMIT $limitPlusOne
-    `;
-    const params: any = { userId, limitPlusOne: int(query.limit + 1) };
-    if (query.cursor) params.cursor = query.cursor;
-
-    const res = await this.neo4j.read(queryDB, params);
-    const ids = res.records.map((r) => String(r.get('id')));
-
-    const hasNextPage = ids.length > query.limit;
-    const pageData = hasNextPage ? ids.slice(0, query.limit) : ids;
-    const nextCursor = hasNextPage ? pageData[pageData.length - 1] : null;
-
-    return {
-      data: Array.isArray(pageData) ? [...pageData] : [],
-      nextCursor,
-      hasNextPage,
-    };
+    const normalizedQuery = this.normalizeCursorQuery(query);
+    this.logger.debug(
+      `Getting friend requests for userId: ${userId} with query: ${JSON.stringify(normalizedQuery)}`,
+    );
+    return this.socialGraphRepo.getFriendRequests(userId, normalizedQuery);
   }
 
-  // ----- Recommend friends (top 10 by mutual friends) -----
   async recommendFriends(
     userId: string,
     query: CursorPaginationDTO,
-  ): Promise<
-    CursorPageResponse<{
-      id: string;
-      mutualFriends: number;
-      mutualFriendIds: string[];
-    }>
-  > {
-    this.logger.debug(`Recommending friends for userId: ${userId} with query: ${JSON.stringify(query)}`);
-    const queryDB = `
-    MATCH (u:User {id:$userId})-[:FRIEND_WITH]->(f:User)<-[:FRIEND_WITH]-(rec:User)
-    WHERE 
-      u <> rec
-      AND NOT (u)-[:FRIEND_WITH]-(rec)
-      AND NOT (u)-[:REQUESTED]->(rec)
-      AND NOT (rec)-[:REQUESTED]->(u)
-      AND NOT (u)-[:BLOCKED]->(rec)
-      AND NOT (rec)-[:BLOCKED]->(u)
-      ${query.cursor ? 'AND rec.id > $cursor' : ''}
-    WITH rec, COLLECT(DISTINCT f.id) AS mutualFriendIds
-    RETURN rec.id AS id, SIZE(mutualFriendIds) AS mutualFriends, mutualFriendIds
-    ORDER BY mutualFriends DESC, rec.id ASC
-    LIMIT $limitPlusOne
-  `;
+  ): Promise<CursorPageResponse<FriendRecommendation>> {
+    const normalizedQuery = this.normalizeCursorQuery(query);
+    this.logger.debug(
+      `Recommending friends for userId: ${userId} with query: ${JSON.stringify(normalizedQuery)}`,
+    );
+    try {
+      return await this.recommendationQueryService.recommendFriends(
+        userId,
+        normalizedQuery,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Recommendation unavailable for userId=${userId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return {
+        data: [],
+        nextCursor: null,
+        hasNextPage: false,
+      };
+    }
+  }
 
-    const params: any = { userId, limitPlusOne: int(query.limit + 1) };
-    if (query.cursor) params.cursor = query.cursor;
-
-    const result = await this.neo4j.read(queryDB, params);
-
-    this.logger.debug(`Recommend friends query result: ${JSON.stringify(result)}`);
-    const records = (result as any).records ?? result;
-    this.logger.debug(`Records: ${JSON.stringify(records)}`);
-
-    const rows = (records ?? []).map((r: any) => ({
-      id: String(r.get('id')),
-      mutualFriends: Number(
-        r.get('mutualFriends')?.toNumber?.() ?? r.get('mutualFriends'),
-      ),
-      mutualFriendIds: (r.get('mutualFriendIds') ?? []).map((x: any) =>
-        String(x),
-      ),
-    }));
-
-    const hasNextPage = rows.length > query.limit;
-    const pageData = hasNextPage ? rows.slice(0, query.limit) : rows;
-    const nextCursor = hasNextPage ? pageData[pageData.length - 1].id : null;
+  async getFriendRecommendationAnalytics(
+    userId: string,
+    days?: number,
+  ): Promise<FriendRecommendationAnalytics> {
+    const windowDays = this.normalizeAnalyticsWindowDays(days);
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const analytics =
+      await this.socialGraphRepo.getFriendRecommendationAnalytics(
+        userId,
+        since,
+      );
 
     return {
-      data: Array.isArray(pageData) ? [...pageData] : [],
-      nextCursor,
-      hasNextPage,
+      ...analytics,
+      windowDays,
+    };
+  }
+
+  async getGlobalFriendRecommendationAnalytics(
+    days?: number,
+  ): Promise<FriendRecommendationAnalytics> {
+    const windowDays = this.normalizeAnalyticsWindowDays(days);
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const analytics =
+      await this.socialGraphRepo.getGlobalFriendRecommendationAnalytics(since);
+
+    return {
+      ...analytics,
+      windowDays,
     };
   }
 
   async getFriendIds(userId: string, limit?: number) {
-    const safeLimit =
-      typeof limit !== 'undefined' ? Math.max(0, Math.floor(limit)) : undefined;
+    const normalizedLimit =
+      typeof limit === 'number' && Number.isFinite(limit)
+        ? Math.min(this.maxFriendIdsLimit, Math.max(1, Math.floor(limit)))
+        : undefined;
 
-    const query = `
-    MATCH (u:User {id: $userId})- [r:FRIEND_WITH]-> (f:User)
-    RETURN f.id as id, r.since as since
-    ORDER BY r.since DESC
-    ${safeLimit ? 'LIMIT $limit' : ''}
-  `;
-
-    const params: any = { userId };
-    if (safeLimit !== undefined) params.limit = this.neo4j.int(safeLimit);
-
-    const result = await this.neo4j.read(query, params);
-    const records = result.records || result;
-    return records.map((r) => r.get('id'));
+    return this.socialGraphRepo.getFriendIds(userId, normalizedLimit);
   }
 
   async getBlockedUsers(
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    const queryDB = `
-      MATCH (u:User {id:$userId})-[:BLOCKED]->(b:User)
-      ${query.cursor ? 'WHERE b.id > $cursor' : ''}
-      RETURN b.id as id
-      ORDER BY b.id
-      LIMIT $limitPlusOne
-    `;
-    const params: any = { userId, limitPlusOne: int(query.limit + 1) };
-    if (query.cursor) params.cursor = query.cursor;
+    return this.socialGraphRepo.getBlockedUsers(
+      userId,
+      this.normalizeCursorQuery(query),
+    );
+  }
 
-    const res = await this.neo4j.read(queryDB, params);
-    const ids = res.records.map((r) => String(r.get('id')));
+  private normalizeCursorQuery(query: CursorPaginationDTO): CursorPaginationDTO {
+    const normalizedCursor =
+      typeof query?.cursor === 'string' && query.cursor.trim().length > 0
+        ? query.cursor.trim()
+        : undefined;
 
-    const hasNextPage = ids.length > query.limit;
-    const pageData = hasNextPage ? ids.slice(0, query.limit) : ids;
-    const nextCursor = hasNextPage ? pageData[pageData.length - 1] : null;
+    const resolvedLimit =
+      typeof query?.limit === 'number' && Number.isFinite(query.limit)
+        ? Math.floor(query.limit)
+        : this.defaultCursorLimit;
+
+    const normalizedLimit = Math.min(
+      this.maxCursorLimit,
+      Math.max(1, resolvedLimit),
+    );
 
     return {
-      data: Array.isArray(pageData) ? [...pageData] : [],
-      nextCursor,
-      hasNextPage,
+      ...query,
+      cursor: normalizedCursor,
+      limit: normalizedLimit,
     };
+  }
+
+  private normalizeAnalyticsWindowDays(days: number | undefined): number {
+    if (typeof days !== 'number' || !Number.isFinite(days)) {
+      return this.defaultAnalyticsWindowDays;
+    }
+
+    return Math.min(this.maxAnalyticsWindowDays, Math.max(1, Math.floor(days)));
   }
 }

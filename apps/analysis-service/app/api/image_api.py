@@ -1,40 +1,36 @@
-from starlette.concurrency import run_in_threadpool
-from fastapi import APIRouter
-from app.models.analyze_response import ImageEmotion
-from app.services.emotion_detector import analyze_multiple_image_urls
-from fastapi import HTTPException
-from typing import List
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, HttpUrl
+from typing import List, Dict, Union
+from app.core.services.image_downloader import image_downloader
+from app.services.ai.image_emotion.image_emotion_analyzer import (
+    analyze_multiple_images
+)
 
-image_router = APIRouter()
+image_router = APIRouter(prefix="/image", tags=["Image Analysis"])
+
+
+# =============================================================================
+# Request DTO
+# =============================================================================
 
 class ImagesRequest(BaseModel):
     images: List[HttpUrl]
 
-@image_router.post("/analyze_images")
+# =============================================================================
+# API Endpoint
+# =============================================================================
+
+@image_router.post(
+    "/analyze_images",
+)
 async def analyze_images(req: ImagesRequest):
-    if not req.images:
-        raise HTTPException(status_code=400, detail="images list is empty")
+    
 
-    # chạy hàm sync trong threadpool
-    results = await run_in_threadpool(
-        analyze_multiple_image_urls,
-        [str(u) for u in req.images]
-    )
+    image_inputs = await image_downloader.download([str(url) for url in req.images])
 
-    images_out = []
-    for r in results:
-        if r.get("error"):
-            images_out.append(
-                ImageEmotion(
-                    url=r.get("url"),
-                    error=r.get("error")
-                )
-            )
-        else:
-            images_out.append(r)
+    results = await analyze_multiple_images(image_inputs)
 
     return {
         "success": True,
-        "data": images_out
+        "data": results
     }

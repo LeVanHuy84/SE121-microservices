@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   Notification,
@@ -6,32 +7,46 @@ import {
 } from 'src/mongo/schema/notification.schema';
 import { UserPreferenceModule } from 'src/user-preference/user-preference.module';
 import { NotificationController } from './notification.controller';
+import { ChatPushService } from './chat-push.service';
+import { NotificationProcessor } from './notification.proccessor';
+import { NOTIFICATION_QUEUE } from './notification.jobs';
 import { NotificationService } from './notification.service';
-import { RabbitmqModule } from '@repo/common';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
+import { FirebaseModule } from 'src/firebase/firebase.module';
 
 @Module({
   imports: [
-    RabbitmqModule.register({
-      urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
-      exchanges: [{ name: 'notification', type: 'topic' }],
-    }),
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
     ]),
+    ConfigModule,
     UserPreferenceModule,
-    BullModule.forRoot({
-      redis: {
-        host: 'localhost',
-        port: 6379,
+    FirebaseModule,
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const redisPort = configService.get<string>('REDIS_PORT');
+
+        return {
+          redis: {
+            host: configService.get('REDIS_HOST') || 'localhost',
+            port: redisPort ? parseInt(redisPort, 10) : 6379,
+          },
+        };
       },
     }),
     BullModule.registerQueue({
-      name: 'notifications',
+      name: NOTIFICATION_QUEUE,
     }),
   ],
   controllers: [NotificationController],
-  providers: [NotificationService, TemplateService],
+  providers: [
+    NotificationService,
+    ChatPushService,
+    NotificationProcessor,
+    TemplateService,
+  ],
 })
 export class NotificationModule {}

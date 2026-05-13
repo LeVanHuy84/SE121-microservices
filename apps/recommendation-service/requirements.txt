@@ -1,0 +1,14 @@
+fastapi==0.115.2
+uvicorn==0.32.0
+python-dotenv==1.0.1
+transformers==4.41.2
+torch==2.2.2
+pydantic==2.8.2
+numpy<2
+aiokafka==0.10.0
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+redis==5.0.1
+ruff==0.7.2

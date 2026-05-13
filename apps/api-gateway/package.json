@@ -20,8 +20,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@nestjs-modules/ioredis": "^2.0.2",
     "@clerk/backend": "^2.13.0",
+    "@nestjs-modules/ioredis": "^2.0.2",
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
@@ -34,7 +35,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/http-proxy-middleware": "^0.19.3",
     "amqp-connection-manager": "^5.0.0",
-    "axios": "^1.13.2",
+    "axios": "^1.15.1",
     "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.7.0",
     "passport": "^0.7.0",
@@ -42,7 +43,8 @@
     "redis": "^5.9.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "svix": "^1.86.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -80,6 +82,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

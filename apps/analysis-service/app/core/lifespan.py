@@ -8,26 +8,54 @@ from app.messaging.kafka_consumer import KafkaConsumerService
 from app.messaging.kafka_producer import KafkaProducerService
 from app.processors.batch_processor import OutboxBatchProcessor
 from app.database.outbox_repository import OutboxRepository
-from app.database.mongo_client import engine
+from app.database.mongo import collections, db
 from app.messaging.event_dispatcher import EventDispatcher
-from app.services.handle_event_service import HandleEventService
-from app.database.analysis_repository import AnalysisRepository
+from app.services.orchestration.handle_event_service import HandleEventService
+from app.database.moderation_repository import ModerationRepository
+from app.database.task_repository import TaskRepository
 from app.processors.retry_worker import RetryWorker
+from app.services.ai.model_loader import ensure_models_loaded
+from app.services.orchestration.analysis_flow_service import AnalysisFlowService
+from app.database.emotion_aggregate_repository import EmotionAggregateRepository
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+
 # -------------------------------------------------------
-# INIT SINGLETONS (GIỐNG BẢN CŨ)
+# INIT SINGLETONS - Now using Motor collections
 # -------------------------------------------------------
-outbox_repo = OutboxRepository(engine)
-analysis_repo = AnalysisRepository(engine)
+outbox_repo = OutboxRepository(collections['outbox_events'])
+emotion_aggregate_repo = EmotionAggregateRepository(collections['emotion_aggregates'])
+moderation_repo = ModerationRepository(collections['moderation_results'])
+task_repo = TaskRepository(collections['analysis_tasks'])
+
+# Inject repositories vào analysis_flow_service
+analysis_flow_service = AnalysisFlowService(
+    moderation_repo,
+    emotion_aggregate_repo
+)
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
 processor = OutboxBatchProcessor(outbox_repo, kafka_producer)
-retry_worker = RetryWorker(analysis_repo, outbox_repo)
+retry_worker = RetryWorker(
+    emotion_aggregate_repo,
+    moderation_repo,
+    task_repo,
+    outbox_repo
+)
 
-event_service = HandleEventService(analysis_repo)
-dispatcher = EventDispatcher(event_service, outbox_repo)
+event_service = HandleEventService(
+    analysis_flow_service,
+    emotion_aggregate_repo,
+    moderation_repo,
+    task_repo,
+    outbox_repo,
+)
+dispatcher = EventDispatcher(event_service)
 
 # -------------------------------------------------------
 # Kafka Consumer Handler
@@ -48,6 +76,56 @@ register_consumer(
 )
 
 # -------------------------------------------------------
+# DATABASE INITIALIZATION
+# -------------------------------------------------------
+async def init_database():
+    """
+    Initialize database indexes.
+    
+    Creates required unique indexes to ensure data integrity:
+    - user_emotion_snapshots: (userId, window) unique constraint
+    """
+    try:
+        logger.info("[DB Init] Creating indexes...")
+        
+        # User Emotion Snapshots: Unique index on (userId, window)
+        # Ensures each user has only ONE snapshot per time window (7d, 30d)
+        await db['user_emotion_snapshots'].create_index(
+            [("userId", 1), ("window", 1)],
+            unique=True,
+            name="idx_unique_user_window"
+        )
+        logger.info("[DB Init] ✅ Created unique index: user_emotion_snapshots(userId, window)")
+        
+        # Optional: Create index on userId for faster lookups
+        await db['user_emotion_snapshots'].create_index(
+            [("userId", 1)],
+            name="idx_userId"
+        )
+        logger.info("[DB Init] ✅ Created index: user_emotion_snapshots(userId)")
+        
+        # Optional: Create index on user_emotion_profiles
+        await db['user_emotion_profiles'].create_index(
+            [("userId", 1)],
+            unique=True,
+            name="idx_unique_userId"
+        )
+        logger.info("[DB Init] ✅ Created unique index: user_emotion_profiles(userId)")
+        
+        # CRITICAL: Create index on emotion_aggregates for snapshot/profile batch queries
+        await db['emotion_aggregates'].create_index(
+            [("userId", 1), ("createdAt", 1)],
+            name="idx_userId_createdAt"
+        )
+        logger.info("[DB Init] ✅ Created index: emotion_aggregates(userId, createdAt)")
+        
+        logger.info("[DB Init] ✅ All indexes created successfully")
+        
+    except Exception as e:
+        # Log but don't fail startup if indexes already exist
+        logger.warning(f"[DB Init] Index creation warning (may already exist): {e}")
+
+# -------------------------------------------------------
 # LIFESPAN
 # -------------------------------------------------------
 @asynccontextmanager
@@ -55,29 +133,49 @@ async def lifespan(app):
     background_tasks: list[asyncio.Task] = []
 
     try:
-        logger.info("🚀 Application startup")
+        logger.info("=" * 70)
+        logger.info("🚀 Analysis Service V2.0 - Starting up...")
+        logger.info("=" * 70)
 
-        # Kafka Producer
+        # 0. Database initialization (indexes)
+        logger.info("[Startup] Step 0/5: Initializing database indexes...")
+        await init_database()
+        logger.info("[Startup] ✅ Database indexes ready")
+
+        # 1. Load AI Models FIRST (chặn startup để load models)
+        logger.info("[Startup] Step 1/5: Loading AI models...")
+        await asyncio.to_thread(ensure_models_loaded)
+        logger.info("[Startup] ✅ AI models ready")
+
+        # 2. Kafka Producer
+        logger.info("[Startup] Step 2/5: Starting Kafka Producer...")
         await kafka_producer.start()
-        logger.info("[KafkaProducer] Started")
+        logger.info("[Startup] ✅ Kafka Producer started")
 
-        # Kafka Consumer loop
+        # 3. Kafka Consumer loop
+        logger.info("[Startup] Step 3/5: Starting Kafka Consumer...")
         background_tasks.append(
             asyncio.create_task(start_kafka(settings))
         )
-        logger.info("[KafkaConsumer] Started")
+        logger.info("[Startup] ✅ Kafka Consumer started")
 
-        # Outbox processor
+        # 4. Outbox processor
+        logger.info("[Startup] Step 4/5: Starting Outbox Processor...")
         background_tasks.append(
             asyncio.create_task(processor.start(interval_seconds=5))
         )
-        logger.info("[OutboxBatchProcessor] Started")
+        logger.info("[Startup] ✅ Outbox Processor started")
 
-        # Retry worker
+        # 5. Retry worker
+        logger.info("[Startup] Step 5/5: Starting Retry Worker...")
         background_tasks.append(
             asyncio.create_task(retry_worker.start())
         )
-        logger.info("[RetryWorker] Started")
+        logger.info("[Startup] ✅ Retry Worker started")
+
+        logger.info("=" * 70)
+        logger.info("✅ Analysis Service V2.0 - Fully operational!")
+        logger.info("=" * 70)
 
         yield  # ← FastAPI chạy tại đây
 
@@ -86,16 +184,20 @@ async def lifespan(app):
         raise
 
     finally:
-        logger.info("🛑 Application shutdown")
+        logger.info("=" * 70)
+        logger.info("🛑 Analysis Service - Shutting down...")
+        logger.info("=" * 70)
 
         processor.stop()
         retry_worker.stop()
 
         await kafka_producer.stop()
-        logger.info("[KafkaProducer] Stopped")
+        logger.info("[Shutdown] Kafka Producer stopped")
 
         for task in background_tasks:
             task.cancel()
 
         await asyncio.gather(*background_tasks, return_exceptions=True)
-        logger.info("✅ All background tasks stopped cleanly")
+        logger.info("=" * 70)
+        logger.info("✅ Analysis Service - Shutdown complete")
+        logger.info("=" * 70)

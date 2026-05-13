@@ -1,3 +1,4 @@
+import { Audience } from '../..';
 import { MediaItemDTO } from '../../common';
 import { EventTopic } from './event.enum';
 
@@ -12,20 +13,14 @@ export interface ShareEventPayloads {
     userId: string;
     shareId: string;
     content: string;
-    post: {
-      postId: string;
-      userId: string;
-      groupId?: string;
-      content?: string;
-      mediaPreviews?: MediaItemDTO[];
-      mediaRemaining?: number;
-      createdAt: Date;
-    };
+    audience: Audience;
+    postId?: string;
     createdAt: Date;
   };
   [ShareEventType.UPDATED]: {
     shareId: string;
     content: string;
+    audience: Audience;
   };
   [ShareEventType.REMOVED]: {
     shareId: string;

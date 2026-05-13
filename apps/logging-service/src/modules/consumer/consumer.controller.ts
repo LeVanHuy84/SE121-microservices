@@ -1,26 +1,79 @@
 import { Controller, Logger } from '@nestjs/common';
 import { ConsumerService } from './consumer.service';
-import { EventPattern, Payload } from '@nestjs/microservices';
-import { EventTopic } from '@repo/dtos';
+import {
+  EventPattern,
+  Payload,
+  Ctx,
+  KafkaContext,
+} from '@nestjs/microservices';
+import { EventTopic, LogEvent, UserActivityLogEvent } from '@repo/dtos';
+import { KafkaConsumerHelper } from '@repo/common';
+import { ClientSession } from 'mongoose';
 
 @Controller()
 export class ConsumerController {
-  constructor(private readonly consumerService: ConsumerService) {}
   private readonly logger = new Logger(ConsumerController.name);
 
-  @EventPattern(EventTopic.LOGGING)
-  async handlePostEvents(@Payload() message: any) {
-    const { type, payload } = message;
+  constructor(
+    private readonly consumerService: ConsumerService,
+    private readonly consumerHelper: KafkaConsumerHelper,
+  ) {}
 
-    try {
-      await this.consumerService.createAuditLog(type, payload);
-      this.logger.log(`Processed POST event ${type} for ${payload.postId}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to process POST event ${type} for ${payload.postId}: ${error.message}`,
-        error.stack,
-      );
-      throw error; // để Kafka retry lại
-    }
+  @EventPattern(EventTopic.LOGGING)
+  async handleLoggingEvents(
+    @Payload() message: LogEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
+
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (_session: ClientSession) => {
+        const { type, payload } = message;
+
+        await this.consumerService.createAuditLog(type, payload, _session);
+
+        this.logger.log(
+          `Processed LOGGING event ${type} for ${payload.targetId}`,
+        );
+      },
+    });
+  }
+
+  @EventPattern(EventTopic.USER_ACTIVITY_LOG)
+  async handleUserActivityEvents(
+    @Payload() message: UserActivityLogEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
+
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (_session: ClientSession) => {
+        const { type, payload } = message;
+
+        await this.consumerService.createUserActivity(payload, _session);
+
+        this.logger.log(
+          `Processed USER_ACTIVITY_LOG event ${type} for ${payload.targetId}`,
+        );
+      },
+    });
   }
 }

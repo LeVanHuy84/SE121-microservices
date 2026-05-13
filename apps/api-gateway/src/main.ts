@@ -5,7 +5,7 @@ import { DateFormatInterceptor } from './common/interceptors/date-format.interce
 import { RedisIoAdapter } from './redis.adapter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();
 

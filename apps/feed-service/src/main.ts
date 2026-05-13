@@ -5,6 +5,8 @@ import { TCPAppModule } from './tcp-app.module';
 import { KafkaAppModule } from './kafka-app.module';
 
 async function bootstrap() {
+  const kafkaFromBeginning = process.env.KAFKA_FROM_BEGINNING === 'true';
+
   const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     TCPAppModule,
     {
@@ -26,7 +28,17 @@ async function bootstrap() {
         },
         consumer: {
           groupId: process.env.KAFKA_GROUP_ID!,
+          sessionTimeout: 10_000,
+          heartbeatInterval: 3_000,
         },
+        subscribe: {
+          fromBeginning: kafkaFromBeginning,
+        },
+        run: {
+          autoCommit: false,
+          eachBatchAutoResolve: false,
+        },
+        commitAfterFunctionCompleted: false,
       },
     },
   );

@@ -12,7 +12,6 @@ import { ClerkModule } from './module/clerk/clerk.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DrizzleModule,
-    RedisModule,
     UserModule,
     ScheduleModule.forRoot(),
     RedisModule.forRoot({

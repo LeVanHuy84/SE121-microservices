@@ -1,12 +1,22 @@
 export enum EventTopic {
+  CHAT = 'chat-events',
   POST = 'post-events',
   SHARE = 'share-events',
+  INTERACTION = 'interaction',
   STATS = 'stats-events',
   GROUP = 'group-events',
   GROUP_CRUD = 'group-crud-events',
   USER = 'user-events',
   ANALYSIS = 'analysis-events',
-  ANALYSIS_RESULT = 'analysis-result-events',
+  EMOTION_RESULT = 'emotion-result-events',
+  MODERATION_REJECTED = 'moderation-rejected-events',
   LOGGING = 'logging-events',
   MEDIA = 'media-events',
+
+  RECOMMENDATION_PROFILE = 'recommendation-profile-events',
+  RECOMMENDATION_GRAPH = 'recommendation-graph-events',
+  RECOMMENDATION_RESULT = 'recommendation-result-events',
+
+  TEST_FAULT = 'test-fault',
+  USER_ACTIVITY_LOG = 'user-activity-log-events',
 }
