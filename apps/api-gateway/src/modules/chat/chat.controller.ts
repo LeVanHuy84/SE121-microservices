@@ -13,6 +13,7 @@ import { ClientProxy } from '@nestjs/microservices';
 
 import {
   AcceptCallDTO,
+  CallMediaTokenResponseDTO,
   CallSessionResponseDTO,
   ConversationResponseDTO,
   CreateCallDTO,
@@ -25,6 +26,7 @@ import {
   LeaveCallDTO,
   MessageResponseDTO,
   RejectCallDTO,
+  RequestCallMediaTokenDTO,
   SendMessageDTO,
   SendCallSignalDTO,
   UpdateConversationDTO,
@@ -272,5 +274,21 @@ export class ChatController {
       targetUserId: body.targetUserId,
     };
     return this.chatClient.send('kickCallParticipant', { userId, dto });
+  }
+
+  @Post('calls/:callId/media-token')
+  issueCallMediaToken(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<RequestCallMediaTokenDTO, 'callId'>,
+  ) {
+    const dto: RequestCallMediaTokenDTO = {
+      callId,
+      preferAudioOnly: body?.preferAudioOnly,
+    };
+    return this.chatClient.send<CallMediaTokenResponseDTO>('issueCallMediaToken', {
+      userId,
+      dto,
+    });
   }
 }

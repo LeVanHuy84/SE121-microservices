@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { InjectRedis } from '@nestjs-modules/ioredis';
+import { ConfigService } from '@nestjs/config';
 import {
   AcceptCallDTO,
   CallEndReason,
@@ -41,12 +42,8 @@ export class CallService {
   private readonly ringTimeoutKey = 'chat:call:ring-timeout:z';
   private readonly reconnectTimeoutKey = 'chat:call:reconnect-timeout:z';
   private readonly emptyRoomTimeoutKey = 'chat:call:empty-room-timeout:z';
-  private readonly groupCallMaxParticipants = Number(
-    process.env.GROUP_CALL_MAX_PARTICIPANTS ?? 10,
-  );
-  private readonly emptyRoomTimeoutMs = Number(
-    process.env.GROUP_CALL_EMPTY_ROOM_TIMEOUT_MS ?? 15_000,
-  );
+  private readonly groupCallMaxParticipants: number;
+  private readonly emptyRoomTimeoutMs: number;
 
   constructor(
     @InjectModel(CallSession.name)
@@ -58,7 +55,17 @@ export class CallService {
     @InjectRedis() private readonly redis: Redis,
     private readonly outboxService: OutboxService,
     @InjectConnection() private readonly connection: Connection,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.groupCallMaxParticipants = this.getNumberConfig(
+      'GROUP_CALL_MAX_PARTICIPANTS',
+      10,
+    );
+    this.emptyRoomTimeoutMs = this.getNumberConfig(
+      'GROUP_CALL_EMPTY_ROOM_TIMEOUT_MS',
+      15_000,
+    );
+  }
 
   private async withTransaction<T>(
     work: (session: ClientSession) => Promise<T>,
@@ -466,6 +473,11 @@ export class CallService {
       call._id.toString(),
     );
     return payload;
+  }
+
+  async getAuthorizedCallForUser(callId: string, userId: string) {
+    const call = await this.findAuthorizedCall(callId, userId);
+    return call.toObject();
   }
 
   async markMissedCallBySystem(callId: string): Promise<boolean> {
@@ -917,4 +929,15 @@ export class CallService {
   private groupOnlineSetKey(callId: string) {
     return `chat:call:${callId}:online`;
   }
+
+  private getNumberConfig(key: string, fallback: number): number {
+    const raw = this.configService.get<string | number>(key);
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+  }
+
 }

@@ -30,6 +30,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@repo/common": "*",
     "@repo/dtos": "*",
+    "@stream-io/node-sdk": "^0.7.56",
     "ioredis": "^5.7.0",
     "mongoose": "^8.19.1",
     "redis": "^5.8.3",

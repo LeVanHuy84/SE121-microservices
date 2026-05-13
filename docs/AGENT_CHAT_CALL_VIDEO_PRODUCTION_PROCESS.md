@@ -44,7 +44,7 @@ Tài liệu này là quy trình chuẩn để agent triển khai tính năng cal
 ### 3.1 Tách 3 lớp rõ ràng
 
 1. **Signaling layer**: `api-gateway` WebSocket + `chat-service` call domain.  
-2. **Media layer**: SFU (khuyến nghị LiveKit) + TURN (coturn).  
+2. **Media layer**: Stream Video (managed SFU).  
 3. **Persistence/observability layer**: Mongo + Redis + metrics/logs/traces.
 
 ### 3.2 Nguyên tắc
@@ -234,9 +234,9 @@ Definition of Done:
 
 ### Phase E - Media infra production
 
-- Tích hợp LiveKit (hoặc mediasoup).
+- Tích hợp Stream Video.
 - Cấp token theo `callSessionId`, `participant`.
-- Cấu hình TURN bắt buộc.
+- Cấu hình TURN cho production (khuyến nghị bắt buộc khi self-host/hybrid).
 - Fallback audio-only khi network xấu.
 - Group call bắt buộc SFU room policy:
   - participant limit
@@ -247,6 +247,49 @@ Definition of Done:
 
 - Test qua NAT/restrictive network thành công.
 - Theo dõi được setup latency/drop rate.
+
+Backend contract đã triển khai:
+
+- RPC `issueCallMediaToken` (chat-service).
+- HTTP `POST /chats/calls/:callId/media-token` (api-gateway).
+- WS event `call.mediaToken` (api-gateway socket namespace `/chat`).
+
+Payload request:
+
+- `callId` (path hoặc DTO).
+- `preferAudioOnly?: boolean` để fallback audio-only khi network xấu.
+
+Payload response:
+
+- `token`, `wsUrl`, `roomName`, `participantIdentity`.
+- `callId`, `conversationId`, `expiresAt`.
+- `audioOnly`.
+- `iceServers` (bao gồm TURN/STUN).
+- `policy`:
+  - `participantLimit`
+  - `moderatorUserIds`
+  - `screenShareAllowed`
+  - `screenShareModeratorOnly`
+
+Biến môi trường bắt buộc cho media infra:
+
+- `STREAM_API_KEY`
+- `STREAM_API_SECRET`
+- `STREAM_CALL_TYPE`
+- `STREAM_TOKEN_TTL_SEC`
+
+Biến môi trường policy:
+
+- `GROUP_CALL_MAX_PARTICIPANTS` (default `10`)
+- `CALL_SCREEN_SHARE_ENABLED` (default `true`)
+- `CALL_SCREEN_SHARE_MODERATOR_ONLY` (default `true`)
+
+Ghi chú implementation:
+
+- `chat-service` đọc toàn bộ cấu hình media/call policy thông qua NestJS `ConfigService` (không đọc trực tiếp `process.env` trong service).
+- Media layer đã tách theo provider abstraction:
+  - `CallMediaService` (orchestrator)
+  - `StreamMediaProvider`
 
 ### Phase F - Hardening + rollout
 

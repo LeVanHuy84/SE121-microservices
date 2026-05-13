@@ -18,6 +18,7 @@ import type {
   JoinCallDTO,
   KickCallParticipantDTO,
   LeaveCallDTO,
+  RequestCallMediaTokenDTO,
   PresenceDisconnectEvent,
   PresenceHeartbeatEvent,
   PresenceInfo,
@@ -358,6 +359,18 @@ export class ChatGateway
     if (!userId || !dto?.callId || !dto?.targetUserId) return;
     return await lastValueFrom(
       this.chatClient.send("kickCallParticipant", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.mediaToken")
+  async handleCallMediaToken(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: RequestCallMediaTokenDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("issueCallMediaToken", { userId, dto }),
     );
   }
 

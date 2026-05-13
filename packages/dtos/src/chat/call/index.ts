@@ -12,3 +12,5 @@ export * from './get-call-session.dto';
 export * from './join-call.dto';
 export * from './leave-call.dto';
 export * from './kick-call-participant.dto';
+export * from './request-call-media-token.dto';
+export * from './get-call-media-token.dto';
