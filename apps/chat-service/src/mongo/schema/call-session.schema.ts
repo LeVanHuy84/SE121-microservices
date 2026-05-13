@@ -22,6 +22,12 @@ export class CallSession {
   @Prop({ type: [String], required: true, default: [] })
   participants: string[];
 
+  @Prop({ type: Boolean, default: false, index: true })
+  isGroupCall: boolean;
+
+  @Prop({ type: Number, default: null })
+  maxParticipants?: number | null;
+
   @Prop({ type: String, enum: Object.values(CallType), required: true })
   type: CallType;
 

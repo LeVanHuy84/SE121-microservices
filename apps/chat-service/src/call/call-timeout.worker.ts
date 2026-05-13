@@ -57,14 +57,28 @@ export class CallTimeoutWorker {
         await this.callService.markReconnectTimeoutCallBySystem(callId);
       }
     }
+
+    const emptyRoomExpired = await this.callService.popDueEmptyRoomTimeoutCallIds(
+      this.batchSize,
+    );
+    if (emptyRoomExpired.length) {
+      this.logger.debug(
+        `Found ${emptyRoomExpired.length} empty-room-timeout calls`,
+      );
+      for (const callId of emptyRoomExpired) {
+        await this.callService.markEmptyRoomTimeoutCallBySystem(callId);
+      }
+    }
   }
 
   private async rehydrateTimeoutSchedulesFromMongo() {
     const threshold = new Date(Date.now() - this.startupGraceMs);
     let ringOffset = 0;
     let reconnectOffset = 0;
+    let emptyRoomOffset = 0;
     let ringCount = 0;
     let reconnectCount = 0;
+    let emptyRoomCount = 0;
 
     while (true) {
       const ringingCalls = await this.callSessionModel
@@ -126,8 +140,39 @@ export class CallTimeoutWorker {
       reconnectOffset += acceptedCalls.length;
     }
 
+    while (true) {
+      const acceptedGroupCalls = await this.callSessionModel
+        .find(
+          {
+            status: CallSessionStatus.ACCEPTED,
+            isGroupCall: true,
+          },
+          { _id: 1, updatedAt: 1 },
+        )
+        .sort({ _id: 1 })
+        .skip(emptyRoomOffset)
+        .limit(this.rehydrateBatchSize)
+        .lean()
+        .exec();
+
+      if (!acceptedGroupCalls.length) break;
+
+      await this.callService.scheduleEmptyRoomTimeoutBulk(
+        acceptedGroupCalls.map((item) => ({
+          callId: item._id.toString(),
+          deadline: new Date(
+            new Date((item as any).updatedAt as Date).getTime() +
+              Number(process.env.GROUP_CALL_EMPTY_ROOM_TIMEOUT_MS ?? 15_000),
+          ),
+        })),
+      );
+
+      emptyRoomCount += acceptedGroupCalls.length;
+      emptyRoomOffset += acceptedGroupCalls.length;
+    }
+
     this.logger.log(
-      `Rehydrated timeout schedules: ringing=${ringCount}, accepted=${reconnectCount}`,
+      `Rehydrated timeout schedules: ringing=${ringCount}, accepted=${reconnectCount}, emptyRoom=${emptyRoomCount}`,
     );
   }
 }

@@ -4,6 +4,9 @@ import {
   AcceptCallDTO,
   CreateCallDTO,
   EndCallDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
   RejectCallDTO,
   SendCallSignalDTO,
 } from '@repo/dtos';
@@ -76,5 +79,38 @@ export class CallController {
     },
   ) {
     return this.callService.sendCallSignal(data.userId, data.dto);
+  }
+
+  @MessagePattern('joinCall')
+  async joinCall(
+    @Payload()
+    data: {
+      userId: string;
+      dto: JoinCallDTO;
+    },
+  ) {
+    return this.callService.joinCall(data.userId, data.dto);
+  }
+
+  @MessagePattern('leaveCall')
+  async leaveCall(
+    @Payload()
+    data: {
+      userId: string;
+      dto: LeaveCallDTO;
+    },
+  ) {
+    return this.callService.leaveCall(data.userId, data.dto);
+  }
+
+  @MessagePattern('kickCallParticipant')
+  async kickCallParticipant(
+    @Payload()
+    data: {
+      userId: string;
+      dto: KickCallParticipantDTO;
+    },
+  ) {
+    return this.callService.kickCallParticipant(data.userId, data.dto);
   }
 }

@@ -11,6 +11,9 @@ import {
   DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
   DEFAULT_CALL_RING_TIMEOUT_MS,
   EndCallDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
   RejectCallDTO,
   SendCallSignalDTO,
 } from '@repo/dtos';
@@ -37,6 +40,13 @@ export class CallService {
   private readonly logger = new Logger(CallService.name);
   private readonly ringTimeoutKey = 'chat:call:ring-timeout:z';
   private readonly reconnectTimeoutKey = 'chat:call:reconnect-timeout:z';
+  private readonly emptyRoomTimeoutKey = 'chat:call:empty-room-timeout:z';
+  private readonly groupCallMaxParticipants = Number(
+    process.env.GROUP_CALL_MAX_PARTICIPANTS ?? 10,
+  );
+  private readonly emptyRoomTimeoutMs = Number(
+    process.env.GROUP_CALL_EMPTY_ROOM_TIMEOUT_MS ?? 15_000,
+  );
 
   constructor(
     @InjectModel(CallSession.name)
@@ -125,6 +135,10 @@ export class CallService {
         conversationId: conversation._id,
         initiatorId: userId,
         participants: conversation.participants,
+        isGroupCall: Boolean(conversation.isGroup),
+        maxParticipants: conversation.isGroup
+          ? this.groupCallMaxParticipants
+          : 2,
         type: dto.type,
         status: CallSessionStatus.RINGING,
         ringTimeoutAt,
@@ -352,6 +366,108 @@ export class CallService {
     return payload;
   }
 
+  async joinCall(userId: string, dto: JoinCallDTO) {
+    const call = await this.findAuthorizedCall(dto.callId, userId);
+    if (call.status !== CallSessionStatus.ACCEPTED) {
+      throw new RpcException('Call is not joinable');
+    }
+
+    if (call.isGroupCall) {
+      const onlineCount = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+      const limit = call.maxParticipants ?? this.groupCallMaxParticipants;
+      if (onlineCount >= limit) {
+        throw new RpcException('CALL_ROOM_FULL');
+      }
+    }
+
+    await this.redis.sadd(this.groupOnlineSetKey(call._id.toString()), userId);
+    await this.redis.expire(this.groupOnlineSetKey(call._id.toString()), 86_400);
+    await this.clearEmptyRoomTimeout(call._id.toString());
+
+    const payload = {
+      callId: call._id.toString(),
+      conversationId: call.conversationId.toString(),
+      userId,
+      participants: call.participants,
+    };
+    await this.outboxService.enqueueChatEvent(
+      'call.participantJoined',
+      payload,
+      call._id.toString(),
+    );
+    return payload;
+  }
+
+  async leaveCall(userId: string, dto: LeaveCallDTO) {
+    const call = await this.findAuthorizedCall(dto.callId, userId);
+    if (call.status !== CallSessionStatus.ACCEPTED) {
+      throw new RpcException('Call is not active');
+    }
+
+    await this.redis.srem(this.groupOnlineSetKey(call._id.toString()), userId);
+    const remaining = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+    if (remaining === 0) {
+      await this.scheduleEmptyRoomTimeout(
+        call._id.toString(),
+        new Date(Date.now() + this.emptyRoomTimeoutMs),
+      );
+    }
+
+    const payload = {
+      callId: call._id.toString(),
+      conversationId: call.conversationId.toString(),
+      userId,
+      participants: call.participants,
+      remainingParticipants: remaining,
+    };
+    await this.outboxService.enqueueChatEvent(
+      'call.participantLeft',
+      payload,
+      call._id.toString(),
+    );
+    return payload;
+  }
+
+  async kickCallParticipant(userId: string, dto: KickCallParticipantDTO) {
+    const call = await this.findAuthorizedCall(dto.callId, userId);
+    if (!call.isGroupCall) {
+      throw new RpcException('Kick is only allowed in group call');
+    }
+    if (call.initiatorId !== userId) {
+      throw new RpcException('Only call initiator can kick participant');
+    }
+    if (!call.participants.includes(dto.targetUserId)) {
+      throw new RpcException('Target user is not in this call');
+    }
+
+    await this.redis.srem(
+      this.groupOnlineSetKey(call._id.toString()),
+      dto.targetUserId,
+    );
+    const remaining = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+    if (remaining === 0) {
+      await this.scheduleEmptyRoomTimeout(
+        call._id.toString(),
+        new Date(Date.now() + this.emptyRoomTimeoutMs),
+      );
+    }
+
+    const payload = {
+      callId: call._id.toString(),
+      conversationId: call.conversationId.toString(),
+      userId,
+      targetUserId: dto.targetUserId,
+      participants: call.participants,
+      remainingParticipants: remaining,
+    };
+    await this.outboxService.enqueueChatEvent(
+      'call.participantKicked',
+      payload,
+      call._id.toString(),
+    );
+    return payload;
+  }
+
   async markMissedCallBySystem(callId: string): Promise<boolean> {
     try {
       await this.withTransaction(async (session) => {
@@ -455,6 +571,68 @@ export class CallService {
     } catch (error) {
       this.logger.warn(
         `markReconnectTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  async markEmptyRoomTimeoutCallBySystem(callId: string): Promise<boolean> {
+    try {
+      await this.withTransaction(async (session) => {
+        if (!Types.ObjectId.isValid(callId)) return;
+        const call = await this.callSessionModel
+          .findById(callId)
+          .session(session)
+          .exec();
+        if (!call) return;
+        if (call.status !== CallSessionStatus.ACCEPTED) return;
+        if (!call.isGroupCall) return;
+
+        const onlineCount = await this.redis.scard(
+          this.groupOnlineSetKey(call._id.toString()),
+        );
+        if (onlineCount > 0) return;
+
+        const now = new Date();
+        call.status = CallSessionStatus.ENDED;
+        call.endReason = CallEndReason.TIMEOUT;
+        call.endedAt = now;
+        call.ringTimeoutAt = null;
+        call.reconnectDeadlineAt = null;
+        await call.save({ session });
+        await this.clearAllTimeoutSchedules(call._id.toString());
+        await this.clearEmptyRoomTimeout(call._id.toString());
+
+        const durationSec =
+          call.startedAt && call.endedAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,
+                ),
+              )
+            : 0;
+
+        await this.createTerminalCallMessage(
+          call,
+          call.initiatorId,
+          durationSec,
+          session,
+        );
+        await this.clearConversationActiveCall(call, session);
+        await this.emitCallEndedEvent(
+          session,
+          call,
+          call.initiatorId,
+          CallEndReason.TIMEOUT,
+          durationSec,
+          now,
+        );
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `markEmptyRoomTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return false;
     }
@@ -612,6 +790,7 @@ export class CallService {
     await Promise.all([
       this.clearRingTimeout(callId),
       this.clearReconnectTimeout(callId),
+      this.clearEmptyRoomTimeout(callId),
     ]);
   }
 
@@ -647,6 +826,10 @@ export class CallService {
 
   async popDueReconnectTimeoutCallIds(limit: number): Promise<string[]> {
     return this.popDueTimeoutCallIds(this.reconnectTimeoutKey, limit);
+  }
+
+  async popDueEmptyRoomTimeoutCallIds(limit: number): Promise<string[]> {
+    return this.popDueTimeoutCallIds(this.emptyRoomTimeoutKey, limit);
   }
 
   private async popDueTimeoutCallIds(key: string, limit: number): Promise<string[]> {
@@ -697,6 +880,10 @@ export class CallService {
     await this.redis.zadd(this.reconnectTimeoutKey, deadline.getTime(), callId);
   }
 
+  private async scheduleEmptyRoomTimeout(callId: string, deadline: Date) {
+    await this.redis.zadd(this.emptyRoomTimeoutKey, deadline.getTime(), callId);
+  }
+
   async scheduleReconnectTimeoutBulk(
     items: Array<{ callId: string; deadline: Date }>,
   ) {
@@ -708,7 +895,26 @@ export class CallService {
     await this.redis.zadd(this.reconnectTimeoutKey, ...args);
   }
 
+  async scheduleEmptyRoomTimeoutBulk(
+    items: Array<{ callId: string; deadline: Date }>,
+  ) {
+    if (!items.length) return;
+    const args: Array<string | number> = [];
+    for (const item of items) {
+      args.push(item.deadline.getTime(), item.callId);
+    }
+    await this.redis.zadd(this.emptyRoomTimeoutKey, ...args);
+  }
+
   private async clearReconnectTimeout(callId: string) {
     await this.redis.zrem(this.reconnectTimeoutKey, callId);
+  }
+
+  private async clearEmptyRoomTimeout(callId: string) {
+    await this.redis.zrem(this.emptyRoomTimeoutKey, callId);
+  }
+
+  private groupOnlineSetKey(callId: string) {
+    return `chat:call:${callId}:online`;
   }
 }

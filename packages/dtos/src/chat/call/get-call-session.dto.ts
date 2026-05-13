@@ -17,6 +17,12 @@ export class CallSessionResponseDTO {
   participants: string[];
 
   @Expose()
+  isGroupCall?: boolean;
+
+  @Expose()
+  maxParticipants?: number;
+
+  @Expose()
   type: CallType;
 
   @Expose()

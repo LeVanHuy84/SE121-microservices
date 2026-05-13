@@ -20,6 +20,9 @@ import {
   CursorPaginationDTO,
   EndCallDTO,
   GetConversationsQueryDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
   MessageResponseDTO,
   RejectCallDTO,
   SendMessageDTO,
@@ -238,5 +241,36 @@ export class ChatController {
   ) {
     const dto: SendCallSignalDTO = { callId, ...body };
     return this.chatClient.send('sendCallSignal', { userId, dto });
+  }
+
+  @Post('calls/:callId/join')
+  joinCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: JoinCallDTO = { callId };
+    return this.chatClient.send('joinCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/leave')
+  leaveCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: LeaveCallDTO = { callId };
+    return this.chatClient.send('leaveCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/kick')
+  kickCallParticipant(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<KickCallParticipantDTO, 'callId'>
+  ) {
+    const dto: KickCallParticipantDTO = {
+      callId,
+      targetUserId: body.targetUserId,
+    };
+    return this.chatClient.send('kickCallParticipant', { userId, dto });
   }
 }

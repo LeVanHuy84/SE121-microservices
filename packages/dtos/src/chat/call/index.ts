@@ -9,3 +9,6 @@ export * from './reject-call.dto';
 export * from './end-call.dto';
 export * from './send-call-signal.dto';
 export * from './get-call-session.dto';
+export * from './join-call.dto';
+export * from './leave-call.dto';
+export * from './kick-call-participant.dto';

@@ -15,6 +15,9 @@ import type {
   AcceptCallDTO,
   CreateCallDTO,
   EndCallDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
   PresenceDisconnectEvent,
   PresenceHeartbeatEvent,
   PresenceInfo,
@@ -326,6 +329,38 @@ export class ChatGateway
     );
   }
 
+  @SubscribeMessage("call.join")
+  async handleCallJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: JoinCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(this.chatClient.send("joinCall", { userId, dto }));
+  }
+
+  @SubscribeMessage("call.leave")
+  async handleCallLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LeaveCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(this.chatClient.send("leaveCall", { userId, dto }));
+  }
+
+  @SubscribeMessage("call.kick")
+  async handleCallKick(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: KickCallParticipantDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId || !dto?.targetUserId) return;
+    return await lastValueFrom(
+      this.chatClient.send("kickCallParticipant", { userId, dto }),
+    );
+  }
+
   private broadcastToConversation(
     conversationId: string,
     event: string,
@@ -484,6 +519,51 @@ export class ChatGateway
     }
     if (payload.conversationId) {
       this.broadcastToConversation(payload.conversationId, "call.signal", payload);
+    }
+  }
+
+  emitCallParticipantJoined(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantJoined",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantLeft(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantLeft",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantKicked(payload: {
+    conversationId: string;
+    targetUserId?: string;
+    [key: string]: any;
+  }) {
+    if (payload.targetUserId) {
+      this.server
+        .to(`user:${payload.targetUserId}`)
+        .emit("call.participantKicked", payload);
+    }
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantKicked",
+        payload,
+      );
     }
   }
 
