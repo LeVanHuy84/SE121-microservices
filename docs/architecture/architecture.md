@@ -33,14 +33,14 @@ SE121 is a **social networking platform with mental health awareness**, featurin
 
 ### Major Technologies
 
-| Component          | Stack                                                                   |
-| ------------------ | ----------------------------------------------------------------------- |
-| **API Layer**      | NestJS 11.x (TypeScript), FastAPI (Python)                              |
-| **Messaging**      | Kafka 7.6.1, RabbitMQ 3, Redis 7                                        |
-| **Databases**      | PostgreSQL, MongoDB, Elasticsearch 9.1.7                                |
-| **AI/ML**          | PyTorch, Transformers (PhoBERT), CLIP, FER, Hugging Face embeddings      |
-| **Build & Deploy** | Turborepo 2.5.6, Docker Compose, npm workspaces                         |
-| **Monitoring**     | ELK Stack (Elasticsearch + Kibana), Structured logging                  |
+| Component          | Stack                                                               |
+| ------------------ | ------------------------------------------------------------------- |
+| **API Layer**      | NestJS 11.x (TypeScript), FastAPI (Python)                          |
+| **Messaging**      | Kafka 7.6.1, RabbitMQ 3, Redis 7                                    |
+| **Databases**      | PostgreSQL, MongoDB, Elasticsearch 9.1.7                            |
+| **AI/ML**          | PyTorch, Transformers (PhoBERT), CLIP, FER, Hugging Face embeddings |
+| **Build & Deploy** | Turborepo 2.5.6, Docker Compose, npm workspaces                     |
+| **Monitoring**     | ELK Stack (Elasticsearch + Kibana), Structured logging              |
 
 ### Event-Driven Design Philosophy
 
@@ -60,69 +60,66 @@ SE121 is a **social networking platform with mental health awareness**, featurin
 graph TB
     Client[Web/Mobile Client]
     Auth["Authentication<br/>(Clerk)"]
+    Gateway["API Gateway"]
 
-    Client -->|HTTP/WSS| Gateway["API Gateway<br/>(4000)"]
-    Auth -.->|Token Validation| Gateway
+    Client -->|HTTP / WSS| Gateway
+    Auth -.->|Token validation| Gateway
 
-    Gateway -->|RPC/HTTP| UserSvc["user-service<br/>(4001)"]
-    Gateway -->|RPC/HTTP| PostSvc["post-service<br/>(4002)"]
-    Gateway -->|RPC/TCP| FeedSvc["feed-service<br/>(4003)"]
-    Gateway -->|RPC/TCP| SocialSvc["social-service<br/>(4004)"]
-    Gateway -->|RPC/TCP| ChatSvc["chat-service<br/>(4010)"]
-    Gateway -->|RPC/TCP| GroupSvc["group-service<br/>(4008)"]
-    Gateway -->|RPC/HTTP| RecommendSvc["recommendation-service<br/>(4016)"]
-    Gateway -->|RPC/TCP| MusicSvc["music-service<br/>(4014)"]
-    Gateway -->|RPC/HTTP| ChatbotSvc["chatbot-service<br/>"]
-    Gateway -->|RPC/TCP| SearchSvc["search-service<br/>(4009)"]
+    subgraph Core[Core Domain Services]
+      CoreSvc["User · Post · Feed · Social · Chat · Group"]
+    end
 
-    PostSvc -->|Kafka Events| EventBus["Kafka Cluster<br/>(Port 9092)"]
-    UserSvc -->|Kafka Events| EventBus
-    FeedSvc -->|Kafka Events| EventBus
-    SocialSvc -->|Kafka Events| EventBus
-    ChatSvc -->|Kafka Events| EventBus
-    GroupSvc -->|Kafka Events| EventBus
-    RecommendSvc -->|Kafka Events| EventBus
+    subgraph AI[AI & Personalization]
+      AIService["Analysis · Emotion · Recommendation · Music · Chatbot"]
+    end
 
-    EventBus -->|POST.CREATED| AnalysisSvc["analysis-service<br/>(8003 FastAPI)"]
-    EventBus -->|POST.CREATED| FeedSvc
-    EventBus -->|POST.CREATED| SearchSvc
-    EventBus -->|POST.STATS| FeedSvc
-    EventBus -->|EMOTION_RESULT| FeedSvc
+    subgraph Platform[Platform Services]
+      InfraSvc["Search · Notifications · Logging · Media"]
+    end
 
-    AnalysisSvc -->|Models| ModelCache["Model Cache<br/>(HuggingFace)"]
-    AnalysisSvc -->|HTTP| EmotionIntel["emotion-intelligence-service<br/>(4015)"]
+    EventBus["Kafka Event Bus"]
+    RabbitMQ["RabbitMQ"]
 
-    FeedSvc -->|Cache/Scores| Redis["Redis 7<br/>(6379)"]
-    ChatSvc -->|Cache/Streams| Redis
-    RecommendSvc -->|Cache/Sessions| Redis
-    MusicSvc -->|Signals Cache| Redis
+    subgraph Storage[Storage & Cache]
+      Redis["Redis"]
+      MongoDB["MongoDB"]
+      Postgres["PostgreSQL"]
+      Elasticsearch["Elasticsearch"]
+    end
 
-    UserSvc -->|Persistence| PostgreSQL["PostgreSQL<br/>user-service DB"]
-    RecommendSvc -->|Embeddings/Graph| PostgreSQL
-    MusicSvc -->|Catalog| PostgreSQL
+    subgraph External[External Integrations]
+      Cloudinary["Cloudinary"]
+      Delivery["Firebase / Email / SMS"]
+    end
 
-    PostSvc -->|Persistence| MongoDB["MongoDB<br/>Posts/Messages/Feeds"]
-    FeedSvc -->|Snapshots| MongoDB
-    ChatSvc -->|Messages| MongoDB
-    GroupSvc -->|Groups| MongoDB
+    Gateway -->|Sync / RPC| CoreSvc
+    Gateway -->|Sync / RPC| AIService
+    Gateway -->|Sync / RPC| InfraSvc
 
-    SocialSvc -->|Relationships| PostgreSQL
+    CoreSvc -->|Domain events| EventBus
+    AIService -->|Domain events| EventBus
+    EventBus -->|Feeds, search, analysis| CoreSvc
+    EventBus -->|Analysis triggers| AIService
+    EventBus -->|Indexing & notifications| InfraSvc
 
-    SearchSvc -->|Indexing| Elasticsearch["Elasticsearch 9.1.7<br/>Search Indices"]
+    CoreSvc -->|Primary data| MongoDB
+    CoreSvc -->|User/social data| Postgres
+    AIService -->|Cache & profiles| Redis
+    InfraSvc -->|Search indices| Elasticsearch
 
-    PostSvc -->|Upload| Cloudinary["Cloudinary API<br/>(External)"]
+    CoreSvc -->|Cache / ranking| Redis
+    InfraSvc -->|Queue delivery| RabbitMQ
+    InfraSvc -->|Media upload| Cloudinary
+    RabbitMQ -->|Notifications| Delivery
 
-    NotifSvc["notification-service<br/>(4006)"] -->|RabbitMQ| RabbitMQ["RabbitMQ 3<br/>(5672)"]
-    Gateway -->|RPC/TCP| NotifSvc
-
-    LoggingSvc["logging-service<br/>(4007)"] -->|ELK| Kibana["Kibana 9.1.7<br/>Logs & Analytics"]
-
-    style Gateway fill:#1e90ff,color:#fff
+    style Gateway fill:#1e90ff,color:#fff,stroke:#036
     style EventBus fill:#ff8c00,color:#fff
     style Redis fill:#dc143c,color:#fff
-    style PostgreSQL fill:#336791,color:#fff
+    style Postgres fill:#336791,color:#fff
     style MongoDB fill:#10aa50,color:#fff
     style Elasticsearch fill:#f0e68c,color:#000
+    style RabbitMQ fill:#8b008b,color:#fff
+    style Cloudinary fill:#0073e6,color:#fff
 ```
 
 ### Gateway and Entry Points
@@ -312,7 +309,7 @@ flowchart TD
     CLIP2 --> ModResult
 
     ModResult --> Decision{Status?}
-    
+
     Decision -->|reject/warn| ModReject["Moderation Violation<br/>Result"]
     Decision -->|pass| EmoPipeline["Emotion Pipeline"]
 
@@ -438,7 +435,6 @@ User Request: GET /recommend/query?viewerId=U123&limit=20
 - `emotion_history` (90-day TTL on `created_at`)
 - `feed_snapshots` (7-day TTL)
 - `outbox` (30-day TTL) for failed message recovery
-
 
 ### Redis Cache Strategies
 
