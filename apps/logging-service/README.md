@@ -1,98 +1,104 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# logging-service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The logging service is the repository’s log sink for audit records and user activity events. It consumes Kafka events, stores normalized records in MongoDB, and exposes RPC queries back to the rest of the platform.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Responsibilities
 
-## Description
+- Consume audit and user-activity events from Kafka.
+- Persist log records into MongoDB collections.
+- Serve log lookup queries over the TCP microservice transport.
+- Keep the log store isolated from the rest of the application services.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Runtime Profile
 
-## Project setup
+| Item            | Value                                |
+| --------------- | ------------------------------------ |
+| Service type    | NestJS                               |
+| Port(s)         | `PORT` or `4012` for TCP             |
+| Transport(s)    | HTTP, TCP, Kafka                     |
+| Primary storage | MongoDB (`logging_service` database) |
+| Shared packages | `@repo/common`, `@repo/dtos`         |
+
+## Interfaces
+
+### HTTP API
+
+- `GET /` is implemented by `AppController` and returns the app service greeting.
+- No health-specific HTTP route was verified.
+
+### TCP / RPC
+
+- `get_audit_log` returns audit-log queries.
+- `get_user_activity_log` returns user-activity queries and expects an `actorId` in the request payload.
+
+### Events
+
+- Kafka consumer topics: `EventTopic.LOGGING` and `EventTopic.USER_ACTIVITY_LOG`.
+- The consumer uses `KafkaConsumerHelper` for idempotent handling and wraps the database writes in a Mongo session.
+
+### Async Infrastructure
+
+- MongoDB collections: `audit_logs` and `user_activity_logs`.
+- The Kafka consumer is isolated from the query path so write ingestion and reads can scale separately.
+
+## Internal Flow
+
+- Kafka events arrive in `ConsumerController` and are handled through `ConsumerService` inside a Mongo transaction/session.
+- RPC queries in `LogController` read the persisted records back out of the database.
+- The service module wiring keeps the HTTP greeting path separate from the microservice and consumer paths.
+
+## Dependencies
+
+- MongoDB via `MONGODB_URI`.
+- Kafka brokers, client id, and group id.
+- Shared DTOs for `AuditLogQuery`, `GetUserActivityLogQuery`, `LogEvent`, and `UserActivityLogEvent`.
+- Shared `KafkaConsumerHelper` and `ExceptionsFilter` from the common package.
+
+## Health and Readiness
+
+- No dedicated health or readiness endpoint is implemented.
+- The only verified HTTP route is `GET /`.
+
+## Observability
+
+- Uses Nest `Logger` in the Kafka consumer for processed-event logs.
+- The consumer helper provides idempotent topic/event handling.
+- No metrics or tracing exporter was verified.
+
+## Environment Variables
+
+| Variable          | Purpose                                |
+| ----------------- | -------------------------------------- |
+| `PORT`            | TCP listener port, defaults to `4012`. |
+| `MONGODB_URI`     | MongoDB connection string.             |
+| `KAFKA_BROKERS`   | Kafka broker list.                     |
+| `KAFKA_CLIENT_ID` | Kafka client id.                       |
+| `KAFKA_GROUP_ID`  | Kafka consumer group id.               |
+
+## Development
 
 ```bash
-$ npm install
+npm install
+npm run start:dev
+npm run build
+npm run test
+npm run test:e2e
+npm run lint
 ```
 
-## Compile and run the project
+## Docker and Deployment
 
-```bash
-# development
-$ npm run start
+- No service-specific Dockerfile was found in the repository scan.
+- The service depends on the root Compose stack for MongoDB and Kafka locally.
 
-# watch mode
-$ npm run start:dev
+## Scaling Considerations
 
-# production mode
-$ npm run start:prod
-```
+- Kafka consumer groups can scale independently from the TCP query path.
+- MongoDB collections should keep the audit and activity indexes tight as event volume grows.
+- The idempotent consumer helper helps the service tolerate duplicate Kafka delivery.
 
-## Run tests
+## Troubleshooting
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- If Kafka ingestion stalls, verify `KAFKA_BROKERS`, `KAFKA_CLIENT_ID`, and `KAFKA_GROUP_ID`.
+- If log queries fail, verify `MONGODB_URI` and the `logging_service` database.
+- If `GET /` works but RPC does not, confirm the TCP port and transport listener are both running.
