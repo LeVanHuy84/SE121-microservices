@@ -1,161 +1,187 @@
-# Recommendation Service
+# recommendation-service
 
-Python/FastAPI microservice that owns friend recommendation retrieval and semantic ranking.
+Social recommendation and discovery service using semantic embeddings and graph-aware ranking. The service runs as a Python FastAPI HTTP API with Kafka consumers for event-driven state management, powered by PostgreSQL and Redis caching.
 
-Current architecture is centralized in this service:
+## Responsibility
 
-- build candidates from online ANN retrieval (pgvector)
-- apply graph projection filtering (exclude self, blocked, existing friend edges)
-- rerank with semantic model scores and graph feature boosts
-- apply global fallback when primary retrieval is empty or insufficient
-- return cursor-based paginated result
+- Compute and maintain user profile embeddings via Kafka event handlers.
+- Maintain social graph state (friendships, blocks, mutual connections) via Kafka events.
+- Store and update emotion profile data for ranking refinement.
+- Provide semantic recommendation queries over user profiles with multi-factor ranking.
+- Cache query results and model embeddings in Redis for low-latency responses.
+- Validate readiness of embedding models and fallback to global recommendations if degraded.
 
-`social-service` is now a thin orchestrator that calls `/recommend/query` and hydrates profile cards.
+## Architecture Role
 
-## Data Flow
+- Recommendation-domain authority for semantic discovery and ranking.
+- Kafka consumer for profile embeddings, social graph, and emotion profile events.
+- HTTP REST API for other services querying recommendations for a viewer.
+- Multi-tier ranking integrating semantic similarity, graph proximity, and emotion affinity.
+- Session-based pagination with cursor support for result continuity.
 
-1. User/social changes publish profile and graph events.
-2. `recommendation-service` consumes events and updates projection + embeddings.
-3. Processor refreshes global fallback materialization.
-4. Query pipeline serves online-first recommendation requests.
+## Runtime Profile
 
-## Retrieval Strategy
+| Item            | Value                                          |
+| --------------- | ---------------------------------------------- |
+| Service type    | FastAPI (Python)                               |
+| HTTP port       | `PORT` or `4016` (default `4011`)              |
+| HTTP host       | `HOST` or `0.0.0.0`                            |
+| Transports      | HTTP, Kafka                                    |
+| Primary storage | PostgreSQL                                     |
+| Cache           | Redis                                          |
+| Embedding model | Hugging Face (`intfloat/multilingual-e5-base`) |
 
-Primary path:
+## Interfaces
 
-- semantic online retrieval from pgvector (`source=semantic_online`)
-- graph feature rerank from pair features such as mutual friends and common groups
-- Redis query cache with event-driven invalidation
-- Redis query session window for pagination so follow-up pages reuse the first
-  page's candidate window instead of re-running semantic retrieval
+### HTTP APIs
 
-Fallback path:
+- `GET /health` — Health check endpoint (always returns `200 OK`).
+- `GET /ready` — Readiness probe (returns `200 OK` if embedding model is loaded; `503` if not ready and `RECOMMENDATION_ALLOW_DEGRADED_QUERY=false`).
+- `POST /recommend/query` (requires `INTERNAL_SERVICE_KEY` header) — Semantic recommendation query with pagination.
+- `GET /recommend/query-cache` (requires `INTERNAL_SERVICE_KEY` header) — Query cache statistics.
 
-- global fallback table (`recommendation_global_fallback_candidates`) for cold start
-  and degraded online retrieval (`source=global_fallback`)
-- hybrid response when semantic online provides only partial page (`source=hybrid`)
+### RPC / Message Patterns
 
-## API
+- No RPC/TCP patterns (HTTP-only API service).
 
-All endpoints require header `x-internal-key`.
+### Kafka Consumers
 
-### POST /recommend/query
+- Topic: `RECOMMENDATION_PROFILE_TOPIC` (defaults to `recommendation-profile-events`)
+  - Event type: `recommendation.profile.embedding.requested` → store user profile embedding
+- Topic: `RECOMMENDATION_GRAPH_TOPIC` (defaults to `recommendation-graph-events`)
+  - Event types:
+    - `recommendation.graph.friend-request-sent` → update graph state
+    - `recommendation.graph.friend-request-canceled` → update graph state
+    - `recommendation.graph.friend-request-accepted` → update graph state
+    - `recommendation.graph.friend-request-declined` → update graph state
+    - `recommendation.graph.friendship-removed` → update graph state
+    - `recommendation.graph.user-blocked` → update graph state
+    - `recommendation.graph.user-unblocked` → update graph state
+    - `recommendation.graph.recommendation-dismissed` → update graph state
+- Topic: `RECOMMENDATION_EMOTION_TOPIC` (defaults to `recommendation-emotion-events`)
+  - Event type: `recommendation.emotion.profile-updated` → store emotion profile data
 
-Main recommendation endpoint.
+## Kafka Events Consumed / Produced
 
-Request fields:
+### Consumed
 
-- `viewerId` (required)
-- `limit` (default 20)
-- `cursor` (optional)
-- `viewerProfileText` (optional fallback when viewer embedding text is missing)
-
-Response contains:
-
-- `source`, `scoreVersion`, `candidateCount`
-- ordered `candidates` with `retrievalScore`, `modelScore`, `finalScore`, `reasonCodes`, `rank`
-- `nextCursor`, `hasNextPage`; semantic pages may return a Redis-backed
-  session cursor (`source=semantic_session`)
-
-### GET /ready
-
-Readiness endpoint for model/runtime health.
-
-### GET /recommend/query-cache
-
-Internal cache diagnostics endpoint. Returns cache backend, TTL, max entries,
-entry count, viewer count, hits, misses, sets, evictions, invalidations, clears,
-and Redis errors when Redis is enabled.
-
-Current recommendation API surface is query-first:
-
-- `POST /recommend/query`
-- `GET /recommend/query-cache`
-- `GET /health`
-- `GET /ready`
-
-## Storage and Migrations
-
-- PostgreSQL + SQLAlchemy + Alembic
-- pgvector extension for vector search
-- HNSW index over `profile_embeddings.embedding_vector`
-
-Migrations:
-
-- `20260410_0001_initial_recommendation_state.py`
-- `20260413_0004_add_pgvector_profile_embeddings.py`
-- `20260413_0005_add_global_fallback_candidates.py`
-- `20260413_0006_segment_global_fallback_candidates.py`
-- `20260413_0007_drop_recommendation_outbox.py`
-- `20260413_0008_add_graph_event_journal_and_pair_features.py`
-- `20260414_0009_drop_precomputed_snapshots.py`
-
-## Environment Variables
-
-Core:
-
-- `INTERNAL_SERVICE_KEY`
-- `HOST`
-- `PORT`
-- `RELOAD`
-- `DATABASE_URL`
-
-Model:
-
-- `RECOMMENDATION_MODEL_NAME`
-- `RECOMMENDATION_MAX_LENGTH`
-- `RECOMMENDATION_BATCH_SIZE`
-- `RECOMMENDATION_MAX_CANDIDATES`
-- `RECOMMENDATION_QUERY_INSTRUCTION`
-- `RECOMMENDATION_SCORE_FLOOR`
-- `RECOMMENDATION_SCORE_CEILING`
-
-Pipeline:
-
-- `RECOMMENDATION_QUERY_RERANK_TOP_K`
-- `RECOMMENDATION_QUERY_RERANK_TOP_K_CPU`
-- `RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES`
-- `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS`
-- `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES`
-- `RECOMMENDATION_QUERY_SESSION_TTL_SECONDS`
-- `RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE`
-- `RECOMMENDATION_QUERY_CACHE_REDIS_HOST`
-- `RECOMMENDATION_QUERY_CACHE_REDIS_PORT`
-- `RECOMMENDATION_QUERY_CACHE_REDIS_DB`
-- `RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX`
-- `RECOMMENDATION_QUERY_MODEL_WEIGHT`
-- `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT`
-- `RECOMMENDATION_QUERY_GRAPH_WEIGHT`
-- `RECOMMENDATION_MUTUAL_FRIEND_CAP`
-- `RECOMMENDATION_COMMON_GROUP_CAP`
-- `RECOMMENDATION_GLOBAL_FALLBACK_TOP_K`
-- `RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS`
-
-Messaging:
-
-- `KAFKA_BROKERS`
-- `KAFKA_REQUIRED` (`true` to fail startup if Kafka is unavailable, default `false`)
-- `KAFKA_CLIENT_ID`
-- `KAFKA_GROUP_ID`
-- `KAFKA_TOPIC_INIT_RETRIES`
-- `KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS`
-- `KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS`
 - `RECOMMENDATION_PROFILE_TOPIC`
 - `RECOMMENDATION_GRAPH_TOPIC`
-- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS`
+- `RECOMMENDATION_EMOTION_TOPIC`
 
-## Dev Commands
+### Produced
 
-- `npm run install`
-- `npm run model:warmup`
-- `npm run db:upgrade`
-- `npm run start:dev`
-- `npm run test`
-- `npm run lint`
-- `npm run format`
+- No domain outbound Kafka event producer is implemented in this service source.
 
-## Operational Notes
+## Health and Readiness
 
-- Service warms model at startup to avoid first-request latency spikes.
-- Query pipeline is deterministic and score-versioned for easier rollout tracking.
-- Fallback materialization is segment-aware (`locale::language`) for future targeting.
+- `GET /health` returns `{"status": "ok", "service": "recommendation-service"}` immediately.
+- `GET /ready` returns `{"status": "ready", "service": "recommendation-service", "model": {...}}` when embedding model is loaded; returns `{"status": "not_ready", "reason": "Model loading"}` with HTTP `503` if model is not ready and `RECOMMENDATION_ALLOW_DEGRADED_QUERY=false`.
+- Model loading occurs asynchronously during application startup and does not block initial readiness checks.
+
+## Internal Flow
+
+```mermaid
+flowchart LR
+  KafkaIn[Kafka Consumers] --> Dispatcher[Event Dispatcher]
+  Dispatcher --> StateRepo[(PostgreSQL State)]
+  HTTP[HTTP API] --> QuerySvc[Query Service]
+  QuerySvc --> Cache[(Redis Cache)]
+  QuerySvc --> StateRepo
+  QuerySvc --> Model[Embedding Model]
+  QuerySvc --> Ranker[Ranking Service]
+  Ranker --> StateRepo
+  StateRepo --> HTTP
+  Processor[State Processor] --> StateRepo
+```
+
+- Kafka events are dispatched to handler services (ProfileEmbeddingEventHandler, RecommendationGraphEventHandler, EmotionProfileEventHandler) which persist state in PostgreSQL.
+- HTTP `/recommend/query` endpoints receive recommendation requests, cache lookups are checked in Redis first.
+- Query service retrieves candidate profiles, applies semantic ranking using the embedding model, applies reranking with graph proximity and emotion affinity weights.
+- Background state processor periodically refreshes global fallback candidates (top-K profiles) for degraded query paths.
+- Responses include pagination cursors for session continuity.
+
+## Dependencies and Env Vars
+
+- `HOST`, `PORT` for HTTP listener binding (defaults: `0.0.0.0`, `4016`).
+- `RELOAD` for development hot-reload (defaults: `false`).
+- `INTERNAL_SERVICE_KEY` for HTTP header authentication (`Authorization: Bearer <key>`).
+- `DATABASE_URL` for PostgreSQL connection (Alembic-managed schema with pgvector support).
+- `RECOMMENDATION_MODEL_NAME` for Hugging Face embedding model (defaults: `intfloat/multilingual-e5-base`).
+- `RECOMMENDATION_MAX_LENGTH` max token length for embedding (defaults: `256`).
+- `RECOMMENDATION_BATCH_SIZE` for batch embedding (defaults: `16`).
+- `RECOMMENDATION_MAX_CANDIDATES` max candidates per query (defaults: `100`).
+- `RECOMMENDATION_QUERY_INSTRUCTION` semantic search instruction prompt.
+- `RECOMMENDATION_ALLOW_DEGRADED_QUERY` allows querying without model (defaults: `true`).
+- `RECOMMENDATION_WARMUP_VIEWER_IDS` comma-separated IDs to warm query cache on startup.
+- `RECOMMENDATION_WARMUP_QUERY_LIMIT` batch size for cache warmup.
+- `RECOMMENDATION_SCORE_FLOOR`, `RECOMMENDATION_SCORE_CEILING` candidate score thresholds.
+- `RECOMMENDATION_STATE_PROCESSOR_INTERVAL_SECONDS` background state refresh interval (defaults: `30`).
+- `RECOMMENDATION_GLOBAL_FALLBACK_TOP_K` fallback candidate pool size (defaults: `500`).
+- `RECOMMENDATION_GLOBAL_FALLBACK_REFRESH_INTERVAL_SECONDS` fallback refresh interval (defaults: `900`).
+- `RECOMMENDATION_QUERY_RERANK_TOP_K` reranking candidate limit (defaults: `25`).
+- `RECOMMENDATION_QUERY_RERANK_TOP_K_CPU` CPU-only reranking candidate limit (defaults: `6`).
+- `RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES` model output cache size (defaults: `5000`).
+- `RECOMMENDATION_QUERY_CACHE_TTL_SECONDS` Redis cache entry TTL (defaults: `45`).
+- `RECOMMENDATION_QUERY_CACHE_MAX_ENTRIES` Redis cache entry limit (defaults: `1000`).
+- `RECOMMENDATION_QUERY_SESSION_TTL_SECONDS` session state TTL (defaults: `120`).
+- `RECOMMENDATION_QUERY_SESSION_WINDOW_SIZE` session pagination window (defaults: `120`).
+- `RECOMMENDATION_QUERY_CACHE_REDIS_HOST`, `RECOMMENDATION_QUERY_CACHE_REDIS_PORT`, `RECOMMENDATION_QUERY_CACHE_REDIS_DB` Redis connection (defaults: `localhost:6379:0`).
+- `RECOMMENDATION_QUERY_CACHE_REDIS_PREFIX` Redis key prefix (defaults: `recommendation:query-cache`).
+- `RECOMMENDATION_QUERY_MODEL_WEIGHT` semantic similarity weight (defaults: `0.7`).
+- `RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT` retrieval score weight (defaults: `0.3`).
+- `RECOMMENDATION_QUERY_GRAPH_WEIGHT` social graph proximity weight (defaults: `0.15`).
+- `RECOMMENDATION_QUERY_EMOTION_WEIGHT` emotion affinity weight (defaults: `0.1`).
+- `RECOMMENDATION_EMOTION_SCORING_ENABLED` enable emotion-based ranking (defaults: `true`).
+- `RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS` emotion profile age limit (defaults: `168` hours = 7 days).
+- `RECOMMENDATION_MUTUAL_FRIEND_CAP` max mutual friends to consider (defaults: `10`).
+- `RECOMMENDATION_COMMON_GROUP_CAP` max common groups to consider (defaults: `5`).
+- `KAFKA_BROKERS` Kafka broker addresses (comma-separated).
+- `KAFKA_CLIENT_ID` Kafka client identifier.
+- `KAFKA_GROUP_ID` Kafka consumer group identifier.
+- `KAFKA_REQUIRED` whether Kafka is required for startup (defaults: `false`; if false, service runs without messaging).
+- `KAFKA_TOPIC_INIT_RETRIES`, `KAFKA_TOPIC_INIT_RETRY_DELAY_SECONDS`, `KAFKA_TOPIC_INIT_WAIT_TIMEOUT_SECONDS` Kafka topic initialization behavior.
+- `RECOMMENDATION_PROFILE_TOPIC`, `RECOMMENDATION_GRAPH_TOPIC`, `RECOMMENDATION_EMOTION_TOPIC` Kafka topic names.
+
+Shared Docker infrastructure in the monorepo compose file provides Kafka and Redis. PostgreSQL is expected from external/local environment configuration.
+
+## Observability
+
+- Structured logging via Python `logging` module with `uvicorn.error` and application-specific loggers.
+- Application logs query execution timing, cache hits/misses, model loading status, and messaging events.
+- Lifespan logging tracks model warmup, database validation, messaging runtime initialization, and startup failures.
+- Event dispatcher logs incoming events by type and extracts payload fields for context.
+- Query service logs per-request details: viewerId, limit, cursor, source, result count, and pagination state.
+- No explicit metrics or tracing instrumentation in current source.
+
+## Development
+
+```bash
+# Virtual environment (PowerShell on Windows)
+npm run venv
+
+# Install dependencies
+npm run install
+
+# Model warmup (downloads embedding model from Hugging Face)
+npm run model:warmup
+
+# Development server (auto-reload)
+npm run start:dev
+
+# Build (compile Python modules)
+npm run build
+
+# Linting
+npm run lint
+
+# Code formatting
+npm run format
+
+# Database migrations
+npm run db:upgrade
+npm run db:revision -m "Migration name"
+
+# Run tests
+npm run test
+```

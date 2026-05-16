@@ -1,184 +1,156 @@
-# Analysis Service
+# analysis-service
 
-An AI-powered emotion analysis microservice built with FastAPI, PyTorch, and transformers. Provides REST endpoints for emotion detection, music analysis, and community emotion dashboards.
+FastAPI-based AI analysis service for emotion detection, moderation, music analysis, and analysis-event processing. The service loads local AI models at startup, exposes internal HTTP endpoints for analysis and dashboard queries, and publishes results through MongoDB-backed outbox events and Kafka.
 
-## Overview
+## Responsibilities
 
-The Analysis Service processes text and audio to extract emotional insights. It leverages multiple machine learning models including arousal/valence prediction and supports internal API endpoints for integration with other microservices in the platform.
+- Analyze text, images, and music for emotion and moderation signals.
+- Serve internal dashboard, history, summary, detail, and music-analysis HTTP endpoints.
+- Consume analysis events from Kafka and persist snapshots, moderation records, and retry tasks in MongoDB.
+- Publish emotion and moderation results through an outbox pattern to Kafka topics.
+- Keep model health and startup readiness visible through the health endpoint.
 
-**Key Features:**
+## Runtime Profile
 
-- Emotion analysis with arousal and valence prediction
-- Music emotion analysis from URLs
-- Community emotion dashboard with configurable date ranges
-- Internal security with API key verification
-- MongoDB and Redis integration for caching and persistence
+| Item            | Value            |
+| --------------- | ---------------- |
+| Service type    | FastAPI / Python |
+| Port(s)         | `PORT` or `4011` |
+| Transport(s)    | HTTP, Kafka      |
+| Primary storage | MongoDB          |
+| Shared packages | None             |
 
-## Project Structure
+## Interfaces
 
-```
-analysis-service/
-├── app/
-│   ├── api/                    # FastAPI route handlers
-│   │   ├── analyze_api.py      # Emotion analysis endpoints
-│   │   ├── music_api.py        # Music analysis endpoints
-│   │   ├── health_api.py       # Health check endpoint
-│   │   ├── image_api.py        # Image analysis (available)
-│   │   ├── moderation_api.py   # Content moderation (available)
-│   │   └── test_api.py         # Testing endpoints
-│   ├── core/                   # Core configurations
-│   │   ├── lifespan.py         # FastAPI lifespan management
-│   │   └── security.py         # API key verification
-│   ├── database/               # MongoDB repositories
-│   ├── enums/                  # Enumerations (emotion types, status)
-│   ├── messaging/              # Kafka integration
-│   ├── models/                 # ML model implementations
-│   ├── processors/             # Data processing pipelines
-│   ├── redis/                  # Redis client and utilities
-│   ├── services/               # Business logic and orchestration
-│   ├── utils/                  # Helper utilities
-│   └── main.py                 # FastAPI app initialization
-├── model/                      # Model files directory (ignored in git)
-├── download_models.py          # Script to download pre-trained models
-├── requirements.txt            # Python dependencies
-├── package.json                # Node.js metadata (npm scripts)
-└── .env.example                # Environment variable template
-```
+### HTTP API
 
-## Setup Instructions
+- `GET /` returns the service name, version, and running status.
+- `GET /health` returns model readiness, uptime, and per-model load state.
+- `GET /emotion/dashboard` returns the community emotion dashboard for a date range.
+- `GET /emotion/history` returns paged analysis history for a user and preset range.
+- `GET /emotion/summary` returns the top emotion and distribution for a range.
+- `GET /emotion/summary/daily-trend` returns the daily emotion trend for a user.
+- `GET /emotion/summary/by-hour` returns the hourly emotion distribution for a user.
+- `GET /emotion/detail/{analysisId}` returns a single analysis record.
+- `POST /musics/analyze` analyzes music emotion from a URL.
+- `POST /test/text/sentiment`, `POST /test/post`, `POST /test/update-post`, `POST /test/before_save`, and `POST /test/music/from-url` are mounted test utilities.
 
-### Prerequisites
+### Auth
 
-- Python 3.8 or higher
-- pip or conda package manager
-- 4GB+ RAM recommended (for model loading)
-- Approximately 3.5GB disk space for downloaded models
+- `GET /emotion/*` and `POST /musics/analyze` require the `X-Internal-Key` header.
+- `X-Internal-Key` is validated against `INTERNAL_SERVICE_KEY`.
+- The test routes and health routes are not wrapped with the internal-key dependency.
 
-### Installation
+### Kafka and Async Processing
 
-1. Clone the repository:
+- Kafka consumer group is started from `app.core.lifespan` and consumes the `analysis-events` topic.
+- The analysis outbox writes result events to `emotion-result-events` and `moderation-rejected-events`.
+- The startup lifecycle also runs an outbox batch processor and a retry worker.
 
-```bash
-git clone <repository-url>
-cd apps/analysis-service
-```
+### Enabled vs Disabled Routers
 
-2. Create a virtual environment:
+- `health`, `music`, `test`, and `analyze` routers are mounted by `app.main`.
+- `image` and `moderation` routers exist in source but are commented out in `app.main`, so they are not exposed at runtime.
 
-```bash
-python -m venv venv
-```
+## Internal Flow
 
-3. Activate the virtual environment:
-
-**Windows:**
-
-```bash
-venv\Scripts\activate
+```mermaid
+flowchart LR
+  HTTP[HTTP APIs] --> Core[Analysis Orchestration]
+  KafkaIn[Kafka Consumers] --> Core
+  Core --> Mongo[(MongoDB Storage)]
+  Core --> Redis[(Redis Cache)]
+  Core --> Outbound[Outbound Events]
+  Core --> AI[External AI Services]
+  Workers[Background Workers] --> Core
+  Workers --> Mongo
+  Outbound --> KafkaOut[Kafka Events]
+  Outbound --> Notify[Notifications]
 ```
 
-**macOS/Linux:**
+- HTTP and Kafka requests converge on the analysis orchestration layer.
+- MongoDB stores analysis state, while Redis supports cached lookups and fast state.
+- Background workers handle scheduled and retry-style processing around the core flow.
+- Output leaves the service through Kafka events and notification side effects.
 
-```bash
-source venv/bin/activate
-```
+## Dependencies
 
-4. Install dependencies:
+- MongoDB via `MONGO_URL` and `MONGO_DB`.
+- Redis via `REDIS_HOST` and `REDIS_PORT`.
+- Kafka via `KAFKA_BROKERS` and `KAFKA_CLIENT_ID`.
+- `INTERNAL_SERVICE_KEY` for protected analysis and music endpoints.
+- `EMOTION_MODEL_VERSION` and `MODERATION_MODEL_VERSION` for persisted result metadata.
+- `EMOTION_DAILY_CRON_HOUR_UTC` and `EMOTION_DAILY_CRON_MINUTE_UTC` for daily aggregation work.
+- `PROFILE_BATCH_SIZE`, `SNAPSHOT_BATCH_SIZE`, and `EMOTION_PROFILE_EMA_ALPHA` for background processors.
 
-```bash
-pip install -r requirements.txt
-```
+## Health and Readiness
 
-### Model Setup
+- `GET /health` reports `healthy` only when the core models are initialized and the text-emotion model is loaded.
+- The response includes model-specific load flags, uptime, and a `ready` boolean.
+- `GET /` is a simple running-status check but does not report model readiness.
 
-Pre-trained model files are required but not included in the repository due to size constraints. Download them using the provided script:
+## Observability
 
-```bash
-python download_models.py
-```
-
-This will download two models:
-
-- `model_arousal.pkl` - Arousal prediction model
-- `model_valence.pkl` - Valence prediction model
-
-Models are saved to the `model/` directory, which is excluded from version control.
-
-## Running the Service
-
-### Development Mode
-
-```bash
-python -m app.main
-```
-
-The service will start on `http://localhost:4011` by default.
-
-### Production Mode
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1
-```
-
-### Health Check
-
-```bash
-curl http://localhost:4011/health
-```
+- Startup and shutdown use structured logging from `app.core.lifespan`.
+- The health endpoint exposes model readiness and uptime directly.
+- The orchestration layers log moderation decisions, retryable failures, and outbox processing state.
+- `logging.basicConfig` is enabled for the process logger.
 
 ## Environment Variables
 
-Create a `.env` file in the service root directory. Required variables:
+| Variable                        | Purpose                                                                     |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `HOST`                          | HTTP bind host, defaults to `0.0.0.0`.                                      |
+| `PORT`                          | HTTP port, defaults to `4010` in config and `4011` in the provided scripts. |
+| `MONGO_URL`                     | MongoDB connection string.                                                  |
+| `MONGO_DB`                      | MongoDB database name, defaults to `analysis_service`.                      |
+| `REDIS_HOST`                    | Redis host.                                                                 |
+| `REDIS_PORT`                    | Redis port, defaults to `6379`.                                             |
+| `KAFKA_BROKERS`                 | Kafka broker list.                                                          |
+| `KAFKA_CLIENT_ID`               | Kafka client id.                                                            |
+| `INTERNAL_SERVICE_KEY`          | Shared secret for internal analysis and music endpoints.                    |
+| `EMOTION_MODEL_VERSION`         | Version recorded on emotion aggregates.                                     |
+| `MODERATION_MODEL_VERSION`      | Version recorded on moderation results.                                     |
+| `EMOTION_DAILY_CRON_HOUR_UTC`   | UTC hour for daily aggregation.                                             |
+| `EMOTION_DAILY_CRON_MINUTE_UTC` | UTC minute for daily aggregation.                                           |
+| `EMOTION_PROFILE_EMA_ALPHA`     | Smoothing factor for profile updates.                                       |
 
+## Development
+
+```bash
+pip install -r requirements.txt
+python download_models.py
+python -m app.main
+uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1
+curl http://localhost:4011/health
 ```
-HOST=0.0.0.0
-PORT=4011
-MONGO_URL=mongodb://localhost:27017
-MONGO_DB=analysis_service
 
-REDIS_HOST=localhost
-REDIS_PORT=6379
+The package scripts also define:
 
-KAFKA_BROKERS=localhost:9092
-KAFKA_CLIENT_ID=analysis_service
+- `npm run install` to install Python dependencies.
+- `npm run download-models` to fetch model files.
+- `npm run start:dev` to start the app module with the service environment.
+- `npm run start:prod` to run Uvicorn on port `4011`.
+- `npm run health` to probe the health endpoint.
 
-INTERNAL_SERVICE_KEY=emotion-internal-key-123
+There is no dedicated automated test runner defined in `package.json` or `requirements.txt`.
 
-EMOTION_DAILY_CRON_HOUR_UTC=17
-EMOTION_DAILY_CRON_MINUTE_UTC=05
-```
+## Docker and Deployment
 
-Refer to `.env.example` for a complete template.
+- No service-specific Dockerfile was found in the repository scan.
+- The service is designed to run directly from Python source with local model files downloaded into the workspace.
+- First startup may take longer because the model loader initializes multiple AI subdomains.
 
-## API Endpoints
+## Scaling Considerations
 
-All endpoints require the `X-Internal-Key` header with the value from `INTERNAL_SERVICE_KEY`.
+- Model loading is the main cold-start cost.
+- Kafka producer, consumer, outbox processor, and retry worker all start during lifespan startup.
+- MongoDB collections used for snapshots, moderation, tasks, and outbox records should be indexed for write-heavy workloads.
+- Redis and Kafka share the background processing load, so broker latency affects end-to-end throughput.
 
-### Emotion Analysis
+## Troubleshooting
 
-- `GET /emotion/dashboard` - Community emotion dashboard
-  - Query params: `from` (date), `to` (date)
-  - Default range: Last 7 days
-  - Max range: 30 days
-
-### Music Analysis
-
-- `POST /musics/analyze` - Analyze music emotion from URL
-  - Request body: `{"url": "music_file_url"}`
-
-### Health Check
-
-- `GET /health` - Service health status
-
-### Additional Endpoints
-
-- `GET /test` - Testing endpoints
-- Image and moderation endpoints available but disabled by default
-
-## Notes
-
-- Model files (`.pkl`) are git-ignored. Always run `python download_models.py` after cloning.
-- The service integrates with Kafka for event streaming and MongoDB for persistence.
-- Redis is used for caching and session management.
-- All internal endpoints require API key verification via the `INTERNAL_SERVICE_KEY` environment variable.
-- First startup may take longer due to model initialization.
+- If startup fails, verify `INTERNAL_SERVICE_KEY`, `MONGO_URL`, `KAFKA_BROKERS`, and `KAFKA_CLIENT_ID`.
+- If `/health` reports `initializing`, confirm that the local AI models were downloaded and loaded.
+- If protected endpoints return `403`, verify the `X-Internal-Key` header.
+- If outbox events are not emitted, inspect the MongoDB outbox collection and the Kafka broker settings.
