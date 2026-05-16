@@ -11,6 +11,7 @@ import Redis from 'ioredis';
 import { DeviceTokenService } from 'src/firebase/device-token.service';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import {
+  CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   NOTIFICATION_QUEUE,
@@ -55,6 +56,24 @@ export class ChatPushService {
       { sendCallPushDto: dto },
       {
         jobId: `call:${dto.userId}:${dto.callId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+      },
+    );
+  }
+
+  async enqueueCallCancelPush(dto: {
+    callId: string;
+    conversationId: string;
+    actorId: string;
+    userId: string;
+  }) {
+    await this.notificationQueue.add(
+      CALL_CANCEL_PUSH_DELIVERY_JOB,
+      dto,
+      {
+        jobId: `call-cancel:${dto.userId}:${dto.callId}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
         removeOnComplete: true,
@@ -186,6 +205,7 @@ export class ChatPushService {
       .map((token) => token.token);
 
     const [androidNativeResult, fallbackResult] = await Promise.all([
+      // Android Native: Data-only (high priority) to trigger Ringer/Full-screen UI
       this.firebaseService.sendDataOnlyToMultipleDevices(
         androidNativeTokens,
         {
@@ -193,12 +213,16 @@ export class ChatPushService {
           displayTitle: title,
           displayBody: body,
           channelId: 'calls',
-          conversationTag,
+          priority: 'high',
         },
         {
           collapseKey: conversationTag,
+          apnsPriority: 10,
+          apnsPushType: 'background',
+          contentAvailable: true,
         },
       ),
+      // iOS/Fallback: Notification + Data (high priority)
       this.firebaseService.sendToMultipleDevices(
         fallbackTokens,
         title,
@@ -210,6 +234,8 @@ export class ChatPushService {
           androidChannelId: 'calls',
           apnsCollapseId: conversationTag,
           apnsThreadId: conversationTag,
+          apnsPriority: 10,
+          apnsPushType: 'alert',
         },
       ),
     ]);
@@ -230,6 +256,47 @@ export class ChatPushService {
         androidNativeResult.failureCount + fallbackResult.failureCount,
       invalidTokens,
     };
+  }
+
+  async sendCallCancelPush(dto: {
+    callId: string;
+    conversationId: string;
+    actorId: string;
+    userId: string;
+  }) {
+    const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
+      dto.userId,
+    );
+    if (!deviceTokens.length) return;
+
+    const data = {
+      type: 'call_cancelled',
+      callId: dto.callId,
+      conversationId: dto.conversationId,
+      actorId: dto.actorId,
+    };
+
+    const conversationTag = `call:${dto.conversationId}`;
+
+    const tokens = deviceTokens.map((t) => t.token);
+
+    // Send high-priority silent push to all devices
+    const result = await this.firebaseService.sendDataOnlyToMultipleDevices(
+      tokens,
+      data,
+      {
+        collapseKey: conversationTag,
+        apnsPriority: 10,
+        apnsPushType: 'background',
+        contentAvailable: true,
+      },
+    );
+
+    if (result.invalidTokens.length > 0) {
+      await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
+    }
+
+    return result;
   }
 
   async clearChatPushState(dto: ClearChatPushStateDto) {

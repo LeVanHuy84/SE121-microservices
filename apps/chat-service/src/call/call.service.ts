@@ -140,6 +140,25 @@ export class CallService {
         throw new RpcException('Conversation already has an active call');
       }
 
+      // Check if recipient is busy (for 1-1 calls)
+      if (!conversation.isGroup) {
+        const recipientId = conversation.participants.find((id) => id !== userId);
+        if (recipientId) {
+          const recipientHasActiveCall = await this.callSessionModel
+            .exists({
+              participants: recipientId,
+              status: {
+                $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED],
+              },
+            })
+            .session(session);
+
+          if (recipientHasActiveCall) {
+            throw new RpcException('RECIPIENT_BUSY');
+          }
+        }
+      }
+
       // Check if CALLER is already in another active call (Global check)
       const userHasActiveCall = await this.callSessionModel
         .exists({
@@ -324,8 +343,31 @@ export class CallService {
 
       await this.emitCallEndedEvent(session, call, userId, endReason, 0, now);
 
-      return this.toCallResponse(call.toObject());
+      // Trigger Cancel Push outside transaction if it was ringing
+      const callDto = this.toCallResponse(call.toObject());
+      void this.triggerCallCancelPush(userId, callDto);
+
+      return callDto;
     });
+  }
+
+  private async triggerCallCancelPush(
+    actorId: string,
+    callDto: CallSessionResponseDTO,
+  ) {
+    try {
+      const receiverIds = callDto.participants.filter((id) => id !== actorId);
+      if (!receiverIds.length) return;
+
+      await this.chatPushService.sendCallCancelPush({
+        callId: callDto._id,
+        conversationId: callDto.conversationId,
+        actorId,
+        receiverIds,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to trigger call cancel push: ${error.message}`);
+    }
   }
 
   async endCall(userId: string, dto: EndCallDTO): Promise<CallSessionResponseDTO> {
@@ -388,7 +430,12 @@ export class CallService {
         now,
       );
 
-      return this.toCallResponse(call.toObject());
+      const callDto = this.toCallResponse(call.toObject());
+      if (isRingingCancel) {
+        void this.triggerCallCancelPush(userId, callDto);
+      }
+
+      return callDto;
     });
   }
 
@@ -828,6 +875,18 @@ export class CallService {
       conv._id.toString(),
       session,
     );
+
+    // Trigger Push for terminal message (e.g., Missed Call)
+    void this.chatPushService.sendMessagePush({
+      conversationId: conv._id.toString(),
+      isGroup: conv.isGroup,
+      conversationName: conv.groupName,
+      senderId: actorId,
+      senderName: 'System', // Or fetch actual actor name
+      messageId: msg._id.toString(),
+      preview: this.buildSystemCallContent(call.type, call.status),
+      receiverIds: call.participants.filter((id) => id !== actorId),
+    });
   }
 
   private buildSystemCallContent(

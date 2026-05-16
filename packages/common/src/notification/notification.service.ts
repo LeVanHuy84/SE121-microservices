@@ -36,6 +36,15 @@ export class NotificationService {
     await lastValueFrom(this.client.emit('send_call_push', { sendCallPushDto }));
   }
 
+  async sendCallCancelPush(data: {
+    callId: string;
+    conversationId: string;
+    actorId: string;
+    userId: string;
+  }) {
+    await lastValueFrom(this.client.emit('send_call_cancel_push', data));
+  }
+
   async clearChatPushState(clearChatPushStateDto: ClearChatPushStateDto) {
     await lastValueFrom(
       this.client.emit('clear_chat_push_state', { clearChatPushStateDto }),

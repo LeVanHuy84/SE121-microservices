@@ -13,6 +13,9 @@ export interface FirebasePushOptions {
   apnsThreadId?: string;
   apnsSummaryArg?: string;
   apnsSummaryArgCount?: number;
+  apnsPriority?: number;
+  apnsPushType?: string;
+  contentAvailable?: boolean;
 }
 
 type MessagingErrorLike = Error & {
@@ -190,7 +193,10 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   async sendDataOnlyToMultipleDevices(
     tokens: string[],
     data: Record<string, string>,
-    options?: Pick<FirebasePushOptions, 'collapseKey'>,
+    options?: Pick<
+      FirebasePushOptions,
+      'collapseKey' | 'apnsPriority' | 'apnsPushType' | 'contentAvailable'
+    >,
   ): Promise<{
     successCount: number;
     failureCount: number;
@@ -209,6 +215,21 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         android: {
           priority: 'high',
           collapseKey: options?.collapseKey,
+        },
+        apns: {
+          headers: {
+            ...(options?.apnsPriority && {
+              'apns-priority': String(options.apnsPriority),
+            }),
+            ...(options?.apnsPushType && {
+              'apns-push-type': options.apnsPushType,
+            }),
+          },
+          payload: {
+            aps: {
+              contentAvailable: options?.contentAvailable ?? true,
+            },
+          },
         },
       }));
       this.logger.log(
