@@ -12,17 +12,29 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 
 import {
+  AcceptCallDTO,
+  CallMediaTokenResponseDTO,
+  CallSessionResponseDTO,
   ConversationResponseDTO,
+  CreateCallDTO,
   CreateConversationDTO,
   CursorPaginationDTO,
+  EndCallDTO,
   GetConversationsQueryDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
   MessageResponseDTO,
+  RejectCallDTO,
+  RequestCallMediaTokenDTO,
   SendMessageDTO,
+  SendCallSignalDTO,
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { lastValueFrom } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('chats')
 export class ChatController {
@@ -172,5 +184,121 @@ export class ChatController {
     @Param('messageId') messageId: string
   ) {
     return this.chatClient.send('deleteMessage', { userId, messageId });
+  }
+
+  @Get('calls/:callId')
+  getCallById(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    return this.chatClient.send('getCallById', { userId, callId });
+  }
+
+  @Post('calls')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async createCall(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreateCallDTO
+  ): Promise<CallSessionResponseDTO> {
+    return await lastValueFrom(
+      this.chatClient.send<CallSessionResponseDTO>('createCall', {
+        userId,
+        dto,
+      })
+    );
+  }
+
+  @Post('calls/:callId/accept')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  acceptCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: AcceptCallDTO = { callId };
+    return this.chatClient.send('acceptCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/reject')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  rejectCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<RejectCallDTO, 'callId'>
+  ) {
+    const dto: RejectCallDTO = { callId, reason: body?.reason };
+    return this.chatClient.send('rejectCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/end')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  endCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<EndCallDTO, 'callId'>
+  ) {
+    const dto: EndCallDTO = { callId, reason: body?.reason };
+    return this.chatClient.send('endCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/signal')
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
+  sendCallSignal(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<SendCallSignalDTO, 'callId'>
+  ) {
+    const dto: SendCallSignalDTO = { callId, ...body };
+    return this.chatClient.send('sendCallSignal', { userId, dto });
+  }
+
+  @Post('calls/:callId/join')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  joinCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: JoinCallDTO = { callId };
+    return this.chatClient.send('joinCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/leave')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  leaveCall(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string
+  ) {
+    const dto: LeaveCallDTO = { callId };
+    return this.chatClient.send('leaveCall', { userId, dto });
+  }
+
+  @Post('calls/:callId/kick')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  kickCallParticipant(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<KickCallParticipantDTO, 'callId'>
+  ) {
+    const dto: KickCallParticipantDTO = {
+      callId,
+      targetUserId: body.targetUserId,
+    };
+    return this.chatClient.send('kickCallParticipant', { userId, dto });
+  }
+
+  @Post('calls/:callId/media-token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  issueCallMediaToken(
+    @CurrentUserId() userId: string,
+    @Param('callId') callId: string,
+    @Body() body: Omit<RequestCallMediaTokenDTO, 'callId'>,
+  ) {
+    const dto: RequestCallMediaTokenDTO = {
+      callId,
+      preferAudioOnly: body?.preferAudioOnly,
+    };
+    return this.chatClient.send<CallMediaTokenResponseDTO>('issueCallMediaToken', {
+      userId,
+      dto,
+    });
   }
 }

@@ -11,12 +11,15 @@ import { ChatStreamProducerModule } from './chat-stream-producer/chat-stream-pro
 import { KafkaProducerModule } from '@repo/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { OutboxModule } from './outbox/outbox.module';
+import { CallModule } from './call/call.module';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
+      validate: validateEnv,
     }),
     ScheduleModule.forRoot(),
     KafkaProducerModule.registerAsync(),
@@ -35,6 +38,7 @@ import { OutboxModule } from './outbox/outbox.module';
     PresenceModule,
     ChatStreamProducerModule,
     OutboxModule,
+    CallModule,
   ],
   controllers: [AppController],
   providers: [AppService],

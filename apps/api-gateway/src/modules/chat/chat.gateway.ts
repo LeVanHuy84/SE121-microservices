@@ -12,11 +12,20 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import type {
+  AcceptCallDTO,
+  CreateCallDTO,
+  EndCallDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
+  RequestCallMediaTokenDTO,
   PresenceDisconnectEvent,
   PresenceHeartbeatEvent,
   PresenceInfo,
   PresenceStatus,
   PresenceUpdateEvent,
+  RejectCallDTO,
+  SendCallSignalDTO,
 } from "@repo/dtos";
 import { ConversationResponseDTO, MessageResponseDTO } from "@repo/dtos";
 import Redis from "ioredis";
@@ -257,6 +266,114 @@ export class ChatGateway
     });
   }
 
+  @SubscribeMessage("call.create")
+  async handleCallCreate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: CreateCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId) return;
+    const conversationId = dto?.conversationId;
+    if (!conversationId) return;
+    const allowed = await this.ensureConversationAccess(client, conversationId);
+    if (!allowed) return;
+    return await lastValueFrom(
+      this.chatClient.send("createCall", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.accept")
+  async handleCallAccept(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: AcceptCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("acceptCall", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.reject")
+  async handleCallReject(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: RejectCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("rejectCall", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.end")
+  async handleCallEnd(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: EndCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("endCall", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.signal")
+  async handleCallSignal(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: SendCallSignalDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("sendCallSignal", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.join")
+  async handleCallJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: JoinCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(this.chatClient.send("joinCall", { userId, dto }));
+  }
+
+  @SubscribeMessage("call.leave")
+  async handleCallLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LeaveCallDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(this.chatClient.send("leaveCall", { userId, dto }));
+  }
+
+  @SubscribeMessage("call.kick")
+  async handleCallKick(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: KickCallParticipantDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId || !dto?.targetUserId) return;
+    return await lastValueFrom(
+      this.chatClient.send("kickCallParticipant", { userId, dto }),
+    );
+  }
+
+  @SubscribeMessage("call.mediaToken")
+  async handleCallMediaToken(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: RequestCallMediaTokenDTO,
+  ) {
+    const userId = client.user?.id as string | undefined;
+    if (!userId || !dto?.callId) return;
+    return await lastValueFrom(
+      this.chatClient.send("issueCallMediaToken", { userId, dto }),
+    );
+  }
+
   private broadcastToConversation(
     conversationId: string,
     event: string,
@@ -351,6 +468,116 @@ export class ChatGateway
     participants: string[],
   ) {
     this.emitToUsers(participants, "conversation.memberJoined", conversation);
+  }
+
+  emitCallCreated(payload: {
+    conversationId: string;
+    participants: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.invite", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(payload.conversationId, "call.invite", payload);
+    }
+  }
+
+  emitCallAccepted(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.accepted", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.accepted",
+        payload,
+      );
+    }
+  }
+
+  emitCallRejected(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.rejected", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.rejected",
+        payload,
+      );
+    }
+  }
+
+  emitCallEnded(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.ended", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(payload.conversationId, "call.ended", payload);
+    }
+  }
+
+  emitCallSignal(payload: {
+    conversationId?: string;
+    targetUserId?: string;
+    [key: string]: any;
+  }) {
+    if (payload.targetUserId) {
+      this.server.to(`user:${payload.targetUserId}`).emit("call.signal", payload);
+    }
+    if (payload.conversationId) {
+      this.broadcastToConversation(payload.conversationId, "call.signal", payload);
+    }
+  }
+
+  emitCallParticipantJoined(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantJoined",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantLeft(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantLeft",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantKicked(payload: {
+    conversationId: string;
+    targetUserId?: string;
+    [key: string]: any;
+  }) {
+    if (payload.targetUserId) {
+      this.server
+        .to(`user:${payload.targetUserId}`)
+        .emit("call.participantKicked", payload);
+    }
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantKicked",
+        payload,
+      );
+    }
   }
 
   // ========== Handle presence update từ presence-service ==========

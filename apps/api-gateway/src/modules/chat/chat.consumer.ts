@@ -316,6 +316,89 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           }
           break;
         }
+        case 'call.created': {
+          const data: {
+            _id: string;
+            conversationId: string;
+            participants: string[];
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallCreated(data);
+          break;
+        }
+        case 'call.accepted': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            userId: string;
+            participants?: string[];
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallAccepted(data);
+          break;
+        }
+        case 'call.rejected': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            userId: string;
+            participants?: string[];
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallRejected(data);
+          break;
+        }
+        case 'call.ended': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            userId: string;
+            participants?: string[];
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallEnded(data);
+          break;
+        }
+        case 'call.signal': {
+          const data: {
+            callId: string;
+            conversationId?: string;
+            targetUserId?: string;
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallSignal(data);
+          break;
+        }
+        case 'call.participantJoined': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            userId: string;
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallParticipantJoined(data);
+          break;
+        }
+        case 'call.participantLeft': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            userId: string;
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallParticipantLeft(data);
+          break;
+        }
+        case 'call.participantKicked': {
+          const data: {
+            callId: string;
+            conversationId: string;
+            targetUserId?: string;
+            [key: string]: any;
+          } = JSON.parse(payload);
+          this.chatGateway.emitCallParticipantKicked(data);
+          break;
+        }
 
         default:
           this.logger.warn(`Unknown chat event: ${event}`);

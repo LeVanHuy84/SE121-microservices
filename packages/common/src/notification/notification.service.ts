@@ -3,6 +3,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import {
   ClearChatPushStateDto,
   CreateNotificationDto,
+  SendCallPushDto,
   SendChatPushDto,
 } from '@repo/dtos';
 import { lastValueFrom } from 'rxjs';
@@ -29,6 +30,19 @@ export class NotificationService {
 
   async sendChatPush(sendChatPushDto: SendChatPushDto) {
     await lastValueFrom(this.client.emit('send_chat_push', { sendChatPushDto }));
+  }
+
+  async sendCallPush(sendCallPushDto: SendCallPushDto) {
+    await lastValueFrom(this.client.emit('send_call_push', { sendCallPushDto }));
+  }
+
+  async sendCallCancelPush(data: {
+    callId: string;
+    conversationId: string;
+    actorId: string;
+    userId: string;
+  }) {
+    await lastValueFrom(this.client.emit('send_call_cancel_push', data));
   }
 
   async clearChatPushState(clearChatPushStateDto: ClearChatPushStateDto) {

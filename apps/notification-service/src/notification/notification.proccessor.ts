@@ -5,6 +5,7 @@ import { NotificationService } from './notification.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatPushService } from './chat-push.service';
 import {
+  CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   LEGACY_REGULAR_NOTIFICATION_JOB,
   NOTIFICATION_QUEUE,
@@ -35,16 +36,26 @@ export class NotificationProcessor {
     await this.handleRegularNotificationJob(job);
   }
 
-  @Process(CHAT_PUSH_DELIVERY_JOB)
-  async handleChatPush(job: Job<{ sendChatPushDto: Parameters<ChatPushService['sendChatPush']>[0] }>) {
+  @Process(CALL_PUSH_DELIVERY_JOB)
+  async handleCallPush(job: Job<{ sendCallPushDto: Parameters<ChatPushService['sendCallPush']>[0] }>) {
     try {
-      await this.chatPushService.sendChatPush(job.data.sendChatPushDto);
+      await this.chatPushService.sendCallPush(job.data.sendCallPushDto);
+    } catch (error) {
+      this.handleDeliveryError(job, error);
+    }
+  }
+
+  @Process(CALL_CANCEL_PUSH_DELIVERY_JOB)
+  async handleCallCancelPush(job: Job<{ callId: string; conversationId: string; actorId: string; userId: string }>) {
+    try {
+      await this.chatPushService.sendCallCancelPush(job.data);
     } catch (error) {
       this.handleDeliveryError(job, error);
     }
   }
 
   private async handleRegularNotificationJob(job: Job<{ id: string }>) {
+
     try {
       const id = job.data.id;
       const notification = await this.notificationService.findById(id);
