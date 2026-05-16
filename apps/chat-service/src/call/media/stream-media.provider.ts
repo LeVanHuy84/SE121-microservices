@@ -44,20 +44,20 @@ export class StreamMediaProvider implements CallMediaProvider {
   async issueParticipantToken(
     context: IssueMediaTokenContext,
   ): Promise<CallMediaTokenResponseDTO> {
-    const { call, userId, preferAudioOnly } = context;
+    const { call, userId, preferAudioOnly, moderatorUserIds } = context;
     this.assertStreamConfig();
 
     const callId = call._id?.toString?.() ?? String(call._id);
     const conversationId =
       call.conversationId?.toString?.() ?? String(call.conversationId);
-    const isModerator = call.initiatorId === userId;
+    const isModerator = moderatorUserIds.includes(userId);
     const audioOnly = Boolean(preferAudioOnly);
     const callCid = `${this.streamCallType}:${callId}`;
 
     await this.streamClient.upsertUsers(
       call.participants.map((participantId: string) => ({
         id: participantId,
-        role: participantId === call.initiatorId ? 'admin' : 'user',
+        role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
       })),
     );
 
@@ -68,7 +68,7 @@ export class StreamMediaProvider implements CallMediaProvider {
         created_by_id: call.initiatorId,
         members: call.participants.map((participantId: string) => ({
           user_id: participantId,
-          role: participantId === call.initiatorId ? 'admin' : 'user',
+          role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
         })),
         custom: {
           callSessionId: callId,
@@ -96,7 +96,7 @@ export class StreamMediaProvider implements CallMediaProvider {
       iceServers: [],
       policy: {
         participantLimit: call.maxParticipants ?? this.defaultGroupLimit,
-        moderatorUserIds: [call.initiatorId],
+        moderatorUserIds,
         screenShareAllowed: this.callScreenShareEnabled,
         screenShareModeratorOnly: this.callScreenShareModeratorOnly,
       },

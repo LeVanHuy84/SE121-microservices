@@ -35,6 +35,8 @@ import {
   populateAndMapMessage,
 } from 'src/utils/mapping';
 import Redis from 'ioredis';
+import { ChatPushService } from 'src/push/chat-push.service';
+import { UserClientService } from 'src/client/user/user-client.service';
 
 @Injectable()
 export class CallService {
@@ -56,6 +58,8 @@ export class CallService {
     private readonly outboxService: OutboxService,
     @InjectConnection() private readonly connection: Connection,
     private readonly configService: ConfigService,
+    private readonly chatPushService: ChatPushService,
+    private readonly userClientService: UserClientService,
   ) {
     this.groupCallMaxParticipants = this.getNumberConfig(
       'GROUP_CALL_MAX_PARTICIPANTS',
@@ -105,7 +109,7 @@ export class CallService {
     userId: string,
     dto: CreateCallDTO,
   ): Promise<CallSessionResponseDTO> {
-    return this.withTransaction(async (session) => {
+    const result = await this.withTransaction(async (session) => {
       const conversation = await this.conversationModel
         .findById(dto.conversationId)
         .session(session)
@@ -118,7 +122,8 @@ export class CallService {
         throw new RpcException('You are not in this conversation');
       }
 
-      const hasActiveCall = await this.callSessionModel
+      // Check for active call in THIS conversation
+      const hasActiveCallInConversation = await this.callSessionModel
         .exists({
           conversationId: conversation._id,
           status: {
@@ -131,8 +136,25 @@ export class CallService {
         })
         .session(session);
 
-      if (hasActiveCall) {
+      if (hasActiveCallInConversation) {
         throw new RpcException('Conversation already has an active call');
+      }
+
+      // Check if CALLER is already in another active call (Global check)
+      const userHasActiveCall = await this.callSessionModel
+        .exists({
+          participants: userId,
+          status: {
+            $in: [
+              CallSessionStatus.RINGING,
+              CallSessionStatus.ACCEPTED,
+            ],
+          },
+        })
+        .session(session);
+
+      if (userHasActiveCall) {
+        throw new RpcException('USER_BUSY_IN_ANOTHER_CALL');
       }
 
       const now = new Date();
@@ -166,8 +188,42 @@ export class CallService {
         session,
       );
 
-      return callDto;
+      return { callDto, conversation };
     });
+
+    // Trigger Push Notification outside transaction
+    void this.triggerCallPush(userId, result.callDto, result.conversation);
+
+    return result.callDto;
+  }
+
+  private async triggerCallPush(
+    callerId: string,
+    callDto: CallSessionResponseDTO,
+    conversation: ConversationDocument,
+  ) {
+    try {
+      const caller = await this.userClientService.getUserInfo(callerId);
+      const callerName =
+        [caller?.firstName, caller?.lastName].filter(Boolean).join(' ').trim() ||
+        callerId;
+
+      const receiverIds = conversation.participants.filter((id) => id !== callerId);
+
+      await this.chatPushService.sendCallPush({
+        conversationId: conversation._id.toString(),
+        isGroup: conversation.isGroup,
+        conversationName: conversation.groupName,
+        callerId,
+        callerName,
+        callerAvatar: caller?.avatarUrl,
+        callId: callDto._id,
+        callType: callDto.type,
+        receiverIds,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to trigger call push: ${error.message}`);
+    }
   }
 
   async acceptCall(
@@ -440,8 +496,18 @@ export class CallService {
     if (!call.isGroupCall) {
       throw new RpcException('Kick is only allowed in group call');
     }
-    if (call.initiatorId !== userId) {
-      throw new RpcException('Only call initiator can kick participant');
+
+    const conversation = await this.conversationModel
+      .findById(call.conversationId)
+      .exec();
+
+    const isInitiator = call.initiatorId === userId;
+    const isAdmin = conversation?.admins?.includes(userId);
+
+    if (!isInitiator && !isAdmin) {
+      throw new RpcException(
+        'Only call initiator or group admins can kick participant',
+      );
     }
     if (!call.participants.includes(dto.targetUserId)) {
       throw new RpcException('Target user is not in this call');

@@ -15,6 +15,8 @@ import { OutboxModule } from 'src/outbox/outbox.module';
 import { CallTimeoutWorker } from './call-timeout.worker';
 import { CallMediaService } from './call-media.service';
 import { StreamMediaProvider } from './media/stream-media.provider';
+import { PushModule } from 'src/push/push.module';
+import { UserClientModule } from 'src/client/user/user-client.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { StreamMediaProvider } from './media/stream-media.provider';
       { name: Message.name, schema: MessageSchema },
     ]),
     OutboxModule,
+    PushModule,
+    UserClientModule,
   ],
   controllers: [CallController],
   providers: [

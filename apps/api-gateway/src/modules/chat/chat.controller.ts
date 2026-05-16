@@ -34,6 +34,7 @@ import {
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { lastValueFrom } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('chats')
 export class ChatController {
@@ -194,6 +195,7 @@ export class ChatController {
   }
 
   @Post('calls')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async createCall(
     @CurrentUserId() userId: string,
     @Body() dto: CreateCallDTO
@@ -207,6 +209,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/accept')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   acceptCall(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string
@@ -216,6 +219,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/reject')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   rejectCall(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string,
@@ -226,6 +230,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/end')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   endCall(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string,
@@ -236,6 +241,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/signal')
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   sendCallSignal(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string,
@@ -246,6 +252,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/join')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   joinCall(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string
@@ -255,6 +262,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/leave')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   leaveCall(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string
@@ -264,6 +272,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/kick')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   kickCallParticipant(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string,
@@ -277,6 +286,7 @@ export class ChatController {
   }
 
   @Post('calls/:callId/media-token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   issueCallMediaToken(
     @CurrentUserId() userId: string,
     @Param('callId') callId: string,

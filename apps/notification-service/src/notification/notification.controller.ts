@@ -48,6 +48,20 @@ export class NotificationController {
     }
   }
 
+  @EventPattern('send_call_push')
+  async handleSendCallPush(@Payload() data: any, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.chatPushService.enqueueCallPush(data.sendCallPushDto);
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error('Error processing call push message:', err);
+      channel.nack(originalMsg, false, false);
+    }
+  }
+
   @EventPattern('clear_chat_push_state')
   async handleClearChatPushState(
     @Payload() data: any,

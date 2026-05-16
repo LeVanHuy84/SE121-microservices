@@ -1,12 +1,17 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
-import { ClearChatPushStateDto, SendChatPushDto } from '@repo/dtos';
+import {
+  ClearChatPushStateDto,
+  SendCallPushDto,
+  SendChatPushDto,
+} from '@repo/dtos';
 import type { Queue } from 'bull';
 import Redis from 'ioredis';
 import { DeviceTokenService } from 'src/firebase/device-token.service';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import {
+  CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   NOTIFICATION_QUEUE,
 } from './notification.jobs';
@@ -39,6 +44,19 @@ export class ChatPushService {
         jobId: `chat:${dto.userId}:${dto.messageId}`,
         attempts: 5,
         backoff: { type: 'exponential', delay: 3000 },
+        removeOnComplete: true,
+      },
+    );
+  }
+
+  async enqueueCallPush(dto: SendCallPushDto) {
+    await this.notificationQueue.add(
+      CALL_PUSH_DELIVERY_JOB,
+      { sendCallPushDto: dto },
+      {
+        jobId: `call:${dto.userId}:${dto.callId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
         removeOnComplete: true,
       },
     );
@@ -102,6 +120,96 @@ export class ChatPushService {
             ? dto.conversationName || 'Nhom chat'
             : dto.senderName,
           apnsSummaryArgCount: unreadCount,
+        },
+      ),
+    ]);
+
+    const invalidTokens = [
+      ...androidNativeResult.invalidTokens,
+      ...fallbackResult.invalidTokens,
+    ];
+
+    if (invalidTokens.length > 0) {
+      await this.deviceTokenService.markTokensAsInvalid(invalidTokens);
+    }
+
+    return {
+      successCount:
+        androidNativeResult.successCount + fallbackResult.successCount,
+      failureCount:
+        androidNativeResult.failureCount + fallbackResult.failureCount,
+      invalidTokens,
+    };
+  }
+
+  async sendCallPush(dto: SendCallPushDto) {
+    const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
+      dto.userId,
+    );
+    if (!deviceTokens.length) {
+      this.logger.debug(
+        `Skip call push for user ${dto.userId}: no active device tokens`,
+      );
+      return {
+        successCount: 0,
+        failureCount: 0,
+        invalidTokens: [] as string[],
+      };
+    }
+
+    const title = dto.isGroup
+      ? dto.conversationName || 'Cuộc gọi nhóm'
+      : dto.callerName;
+    const callLabel = dto.callType === 'video' ? 'video' : 'thoại';
+    const body = `Cuộc gọi ${callLabel} đến từ ${dto.callerName}`;
+
+    const data = {
+      type: 'call',
+      userId: dto.userId,
+      callId: dto.callId,
+      callType: dto.callType,
+      conversationId: dto.conversationId,
+      callerId: dto.callerId,
+      callerName: dto.callerName,
+      callerAvatar: dto.callerAvatar || '',
+      conversationName: dto.conversationName || '',
+      isGroup: dto.isGroup ? 'true' : 'false',
+    };
+
+    const conversationTag = `call:${dto.conversationId}`;
+
+    const androidNativeTokens = deviceTokens
+      .filter((token) => this.isNativeAndroidTarget(token))
+      .map((token) => token.token);
+    const fallbackTokens = deviceTokens
+      .filter((token) => !this.isNativeAndroidTarget(token))
+      .map((token) => token.token);
+
+    const [androidNativeResult, fallbackResult] = await Promise.all([
+      this.firebaseService.sendDataOnlyToMultipleDevices(
+        androidNativeTokens,
+        {
+          ...data,
+          displayTitle: title,
+          displayBody: body,
+          channelId: 'calls',
+          conversationTag,
+        },
+        {
+          collapseKey: conversationTag,
+        },
+      ),
+      this.firebaseService.sendToMultipleDevices(
+        fallbackTokens,
+        title,
+        body,
+        data,
+        {
+          collapseKey: conversationTag,
+          androidTag: conversationTag,
+          androidChannelId: 'calls',
+          apnsCollapseId: conversationTag,
+          apnsThreadId: conversationTag,
         },
       ),
     ]);
