@@ -29,6 +29,7 @@ import {
   RequestCallMediaTokenDTO,
   SendMessageDTO,
   SendCallSignalDTO,
+  StreamUserTokenResponseDTO,
   UpdateConversationDTO,
 } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
@@ -300,5 +301,14 @@ export class ChatController {
       userId,
       dto,
     });
+  }
+
+  @Post('calls/user-token')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  issueUserMediaToken(@CurrentUserId() userId: string) {
+    return this.chatClient.send<StreamUserTokenResponseDTO>(
+      'issueUserMediaToken',
+      { userId }
+    );
   }
 }

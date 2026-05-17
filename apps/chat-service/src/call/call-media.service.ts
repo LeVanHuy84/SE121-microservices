@@ -4,6 +4,7 @@ import {
   CallMediaTokenResponseDTO,
   CallSessionStatus,
   RequestCallMediaTokenDTO,
+  StreamUserTokenResponseDTO,
 } from '@repo/dtos';
 import { CallService } from './call.service';
 import { StreamMediaProvider } from './media/stream-media.provider';
@@ -47,5 +48,12 @@ export class CallMediaService {
       preferAudioOnly: dto.preferAudioOnly,
       moderatorUserIds,
     });
+  }
+
+  async issueUserMediaToken(
+    userId: string,
+  ): Promise<StreamUserTokenResponseDTO> {
+    const token = await this.streamProvider.issueUserToken(userId);
+    return { token };
   }
 }

@@ -5,6 +5,7 @@ import { NotificationService } from './notification.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatPushService } from './chat-push.service';
 import {
+  CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   LEGACY_REGULAR_NOTIFICATION_JOB,

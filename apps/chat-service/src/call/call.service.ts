@@ -847,6 +847,17 @@ export class CallService {
       conv._id.toString(),
       session,
     );
+
+    // Trigger Push for terminal message (e.g., Missed Call)
+    void this.chatPushService.sendMessagePush({
+      conversationId: conv._id.toString(),
+      isGroup: conv.isGroup,
+      conversationName: conv.groupName,
+      senderId: actorId,
+      messageId: msg._id.toString(),
+      preview: this.buildSystemCallContent(call.type, call.status),
+      receiverIds: call.participants.filter((id) => id !== actorId),
+    });
   }
 
   private async clearConversationActiveCall(
@@ -875,18 +886,6 @@ export class CallService {
       conv._id.toString(),
       session,
     );
-
-    // Trigger Push for terminal message (e.g., Missed Call)
-    void this.chatPushService.sendMessagePush({
-      conversationId: conv._id.toString(),
-      isGroup: conv.isGroup,
-      conversationName: conv.groupName,
-      senderId: actorId,
-      senderName: 'System', // Or fetch actual actor name
-      messageId: msg._id.toString(),
-      preview: this.buildSystemCallContent(call.type, call.status),
-      receiverIds: call.participants.filter((id) => id !== actorId),
-    });
   }
 
   private buildSystemCallContent(

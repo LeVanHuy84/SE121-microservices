@@ -11,6 +11,7 @@ import {
   RejectCallDTO,
   RequestCallMediaTokenDTO,
   SendCallSignalDTO,
+  StreamUserTokenResponseDTO,
 } from '@repo/dtos';
 import { CallService } from './call.service';
 import { CallMediaService } from './call-media.service';
@@ -129,5 +130,15 @@ export class CallController {
     },
   ): Promise<CallMediaTokenResponseDTO> {
     return this.callMediaService.issueCallMediaToken(data.userId, data.dto);
+  }
+
+  @MessagePattern('issueUserMediaToken')
+  async issueUserMediaToken(
+    @Payload()
+    data: {
+      userId: string;
+    },
+  ): Promise<StreamUserTokenResponseDTO> {
+    return this.callMediaService.issueUserMediaToken(data.userId);
   }
 }

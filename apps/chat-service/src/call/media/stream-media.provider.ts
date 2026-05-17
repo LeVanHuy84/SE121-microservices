@@ -103,6 +103,11 @@ export class StreamMediaProvider implements CallMediaProvider {
     });
   }
 
+  async issueUserToken(userId: string): Promise<string> {
+    this.assertStreamConfig();
+    return this.streamClient.createToken(userId);
+  }
+
   private assertStreamConfig() {
     if (!this.streamApiKey || !this.streamApiSecret) {
       throw new RpcException('Stream media infra is not configured');
