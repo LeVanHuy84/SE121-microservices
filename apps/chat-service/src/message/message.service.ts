@@ -198,11 +198,16 @@ export class MessageService {
 
   // ============= SEND MESSAGE =============
 
- async sendMessage(
-  userId: string,
-  dto: SendMessageDTO,
-): Promise<MessageResponseDTO> {
-  this.validateAttachments(dto.attachments);
+  async sendMessage(
+   userId: string,
+   dto: SendMessageDTO,
+ ): Promise<MessageResponseDTO> {
+   const trimmedContent = dto.content?.trim();
+   if (!trimmedContent && !dto.attachments?.length) {
+     throw new RpcException('Message content or attachments must not be empty');
+   }
+
+   this.validateAttachments(dto.attachments);
 
   const { conversation, dtoMsg } = await this.withTransaction(async (session) => {
     const conversation = await this.conversationModel

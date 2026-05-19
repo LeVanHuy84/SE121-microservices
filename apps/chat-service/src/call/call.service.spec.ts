@@ -1,3 +1,8 @@
+// Mock @stream-io/node-sdk BEFORE any import that touches it
+jest.mock('@stream-io/node-sdk', () => ({
+  StreamClient: jest.fn().mockImplementation(() => ({})),
+}));
+
 import { CallService } from './call.service';
 import { CallSessionStatus, CallEndReason } from '@repo/dtos';
 import { Types } from 'mongoose';
@@ -43,6 +48,7 @@ describe('CallService', () => {
   let configService: any;
   let chatPushService: any;
   let userClientService: any;
+  let streamProvider: any;
 
   const createService = () =>
     new CallService(
@@ -55,11 +61,17 @@ describe('CallService', () => {
       configService as any,
       chatPushService as any,
       userClientService as any,
+      streamProvider as any,
     );
 
   beforeEach(() => {
     jest.clearAllMocks();
     connection.startSession.mockResolvedValue(session);
+
+    streamProvider = {
+      registerCall: jest.fn().mockResolvedValue(undefined),
+      issueUserToken: jest.fn().mockResolvedValue('token'),
+    };
 
     callSessionModel = Object.assign(
       jest.fn().mockImplementation((data: any) => {
@@ -109,6 +121,8 @@ describe('CallService', () => {
 
     chatPushService = {
       sendCallPush: jest.fn().mockResolvedValue(undefined),
+      sendMessagePush: jest.fn().mockResolvedValue(undefined),
+      sendCallCancelPush: jest.fn().mockResolvedValue(undefined),
     };
 
     userClientService = {
@@ -202,9 +216,11 @@ describe('CallService', () => {
       const conv = makeConv();
       conversationModel.findById.mockReturnValue(createQuery(conv));
       
-      // First exists call (active in conv) -> null
-      // Second exists call (user busy global) -> true
+      // 1. hasActiveCallInConversation -> null
+      // 2. recipientHasActiveCall -> null
+      // 3. userHasActiveCall -> true
       callSessionModel.exists
+        .mockReturnValueOnce({ session: jest.fn().mockReturnValue(null) })
         .mockReturnValueOnce({ session: jest.fn().mockReturnValue(null) })
         .mockReturnValueOnce({ session: jest.fn().mockReturnValue({ _id: 'other-call' }) });
 

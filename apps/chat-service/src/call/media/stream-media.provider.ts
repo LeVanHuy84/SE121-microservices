@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
-import { CallMediaTokenResponseDTO } from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
 import { StreamClient } from '@stream-io/node-sdk';
 import {
   CallMediaProvider,
-  IssueMediaTokenContext,
   MediaProviderName,
 } from './media-provider.interface';
 
@@ -37,36 +34,47 @@ export class StreamMediaProvider implements CallMediaProvider {
       'CALL_SCREEN_SHARE_MODERATOR_ONLY',
       true,
     );
-    this.defaultGroupLimit = this.getNumberConfig('GROUP_CALL_MAX_PARTICIPANTS', 10);
-    this.streamClient = new StreamClient(this.streamApiKey, this.streamApiSecret);
+    this.defaultGroupLimit = this.getNumberConfig(
+      'GROUP_CALL_MAX_PARTICIPANTS',
+      10,
+    );
+    this.streamClient = new StreamClient(
+      this.streamApiKey,
+      this.streamApiSecret,
+    );
   }
 
-  async issueParticipantToken(
-    context: IssueMediaTokenContext,
-  ): Promise<CallMediaTokenResponseDTO> {
-    const { call, userId, preferAudioOnly, moderatorUserIds } = context;
+  async registerCall(params: {
+    callId: string;
+    conversationId: string;
+    initiatorId: string;
+    participants: string[];
+    moderatorUserIds: string[];
+  }): Promise<void> {
+    const {
+      callId,
+      conversationId,
+      initiatorId,
+      participants,
+      moderatorUserIds,
+    } = params;
     this.assertStreamConfig();
 
-    const callId = call._id?.toString?.() ?? String(call._id);
-    const conversationId =
-      call.conversationId?.toString?.() ?? String(call.conversationId);
-    const isModerator = moderatorUserIds.includes(userId);
-    const audioOnly = Boolean(preferAudioOnly);
-    const callCid = `${this.streamCallType}:${callId}`;
-
+    // Ensure all participants exist in Stream
     await this.streamClient.upsertUsers(
-      call.participants.map((participantId: string) => ({
+      participants.map((participantId: string) => ({
         id: participantId,
         role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
       })),
     );
 
+    // Create the call on Stream's side
     await this.streamClient.video.getOrCreateCall({
       type: this.streamCallType,
       id: callId,
       data: {
-        created_by_id: call.initiatorId,
-        members: call.participants.map((participantId: string) => ({
+        created_by_id: initiatorId,
+        members: participants.map((participantId: string) => ({
           user_id: participantId,
           role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
         })),
@@ -74,31 +82,6 @@ export class StreamMediaProvider implements CallMediaProvider {
           callSessionId: callId,
           conversationId,
         },
-      },
-    });
-
-    const token = this.streamClient.generateCallToken({
-      user_id: userId,
-      role: isModerator ? 'admin' : 'user',
-      call_cids: [callCid],
-      validity_in_seconds: this.streamTokenTtlSec,
-    });
-
-    return plainToInstance(CallMediaTokenResponseDTO, {
-      token,
-      wsUrl: this.streamBaseUrl,
-      roomName: callCid,
-      participantIdentity: userId,
-      callId,
-      conversationId,
-      expiresAt: new Date(Date.now() + this.streamTokenTtlSec * 1000),
-      audioOnly,
-      iceServers: [],
-      policy: {
-        participantLimit: call.maxParticipants ?? this.defaultGroupLimit,
-        moderatorUserIds,
-        screenShareAllowed: this.callScreenShareEnabled,
-        screenShareModeratorOnly: this.callScreenShareModeratorOnly,
       },
     });
   }

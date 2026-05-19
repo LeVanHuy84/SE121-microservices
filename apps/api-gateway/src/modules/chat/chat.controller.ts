@@ -26,7 +26,6 @@ import {
   LeaveCallDTO,
   MessageResponseDTO,
   RejectCallDTO,
-  RequestCallMediaTokenDTO,
   SendMessageDTO,
   SendCallSignalDTO,
   StreamUserTokenResponseDTO,
@@ -284,23 +283,6 @@ export class ChatController {
       targetUserId: body.targetUserId,
     };
     return this.chatClient.send('kickCallParticipant', { userId, dto });
-  }
-
-  @Post('calls/:callId/media-token')
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
-  issueCallMediaToken(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<RequestCallMediaTokenDTO, 'callId'>,
-  ) {
-    const dto: RequestCallMediaTokenDTO = {
-      callId,
-      preferAudioOnly: body?.preferAudioOnly,
-    };
-    return this.chatClient.send<CallMediaTokenResponseDTO>('issueCallMediaToken', {
-      userId,
-      dto,
-    });
   }
 
   @Post('calls/user-token')

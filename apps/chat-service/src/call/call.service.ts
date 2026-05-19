@@ -37,6 +37,7 @@ import {
 import Redis from 'ioredis';
 import { ChatPushService } from 'src/push/chat-push.service';
 import { UserClientService } from 'src/client/user/user-client.service';
+import { StreamMediaProvider } from './media/stream-media.provider';
 
 @Injectable()
 export class CallService {
@@ -60,6 +61,7 @@ export class CallService {
     private readonly configService: ConfigService,
     private readonly chatPushService: ChatPushService,
     private readonly userClientService: UserClientService,
+    private readonly streamProvider: StreamMediaProvider,
   ) {
     this.groupCallMaxParticipants = this.getNumberConfig(
       'GROUP_CALL_MAX_PARTICIPANTS',
@@ -193,6 +195,19 @@ export class CallService {
       });
       await call.save({ session });
       await this.scheduleRingTimeout(call._id.toString(), ringTimeoutAt);
+
+      // Register the call with Stream media infra
+      const moderatorUserIds = [userId, ...(conversation?.admins || [])].filter(
+        (id, index, self) => self.indexOf(id) === index,
+      );
+
+      await this.streamProvider.registerCall({
+        callId: call._id.toString(),
+        conversationId: conversation._id.toString(),
+        initiatorId: userId,
+        participants: conversation.participants,
+        moderatorUserIds,
+      });
 
       conversation.activeCallId = call._id;
       conversation.lastCallAt = now;

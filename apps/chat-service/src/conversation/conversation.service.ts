@@ -263,6 +263,12 @@ export class ConversationService {
         );
       }
 
+      if (groupName || dto.groupAvatar) {
+        throw new RpcException(
+          'Direct conversation cannot have group name or group avatar',
+        );
+      }
+
       const sorted = [...participants].sort();
       const directKey = sorted.join(':');
 
@@ -443,6 +449,16 @@ export class ConversationService {
         conv.participants = conv.participants.filter((p) => !rm.has(p));
         conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
         conv.hiddenFor = (conv.hiddenFor || []).filter((u) => !rm.has(u));
+
+        if (conv.participants.length < 2) {
+          throw new RpcException(
+            'Group conversation must have at least 2 participants remaining',
+          );
+        }
+
+        if (!conv.admins.length && conv.participants.length > 0) {
+          conv.admins = [conv.participants[0]];
+        }
       }
 
       // // Thêm admin
