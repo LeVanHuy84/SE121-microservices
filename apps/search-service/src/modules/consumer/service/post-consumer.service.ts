@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PostIndexService } from '../../post/post-index.service';
-import { InferPostPayload, PostEventType } from '@repo/dtos';
+import {
+  AnalysisResultEventPayload,
+  Emotion,
+  InferPostPayload,
+  PostEventType,
+  TargetType,
+} from '@repo/dtos';
 
 @Injectable()
 export class PostConsumerService {
@@ -27,5 +33,12 @@ export class PostConsumerService {
   removePostIndex(payload: InferPostPayload<PostEventType.REMOVED>) {
     const { postId } = payload;
     this.postIndexService.deleteDocument(postId);
+  }
+
+  handleEmotionResult(payload: AnalysisResultEventPayload) {
+    const { targetId, finalEmotion } = payload;
+    this.postIndexService.updatePartialDocument(targetId, {
+      mainEmotion: finalEmotion as Emotion,
+    });
   }
 }
