@@ -38,5 +38,8 @@ export class ConversationResponseDTO {
   hiddenFor?: string[];
 
   @Expose()
+  activeCallId?: string;
+
+  @Expose()
   syncVersion?: number;
 }

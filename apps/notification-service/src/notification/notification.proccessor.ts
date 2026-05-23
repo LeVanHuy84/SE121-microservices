@@ -8,7 +8,6 @@ import {
   CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
-  LEGACY_REGULAR_NOTIFICATION_JOB,
   NOTIFICATION_QUEUE,
   REGULAR_NOTIFICATION_DELIVERY_JOB,
 } from './notification.jobs';
@@ -27,14 +26,19 @@ export class NotificationProcessor {
     private readonly chatPushService: ChatPushService,
   ) {}
 
-  @Process(LEGACY_REGULAR_NOTIFICATION_JOB)
-  async handleLegacySend(job: Job<{ id: string }>) {
-    await this.handleRegularNotificationJob(job);
-  }
 
   @Process(REGULAR_NOTIFICATION_DELIVERY_JOB)
   async handleSend(job: Job<{ id: string }>) {
     await this.handleRegularNotificationJob(job);
+  }
+
+  @Process(CHAT_PUSH_DELIVERY_JOB) 
+  async handleChatPush(job: Job<{ sendChatPushDto: Parameters<ChatPushService['sendChatPush']>[0] }>) {
+    try {
+      await this.chatPushService.sendChatPush(job.data.sendChatPushDto);
+    } catch (error) {
+      this.handleDeliveryError(job, error);
+    }
   }
 
   @Process(CALL_PUSH_DELIVERY_JOB)

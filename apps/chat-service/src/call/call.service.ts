@@ -9,6 +9,7 @@ import {
   CallSessionResponseDTO,
   CallSessionStatus,
   CreateCallDTO,
+  DEFAULT_CALL_MAX_DURATION_MS,
   DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
   DEFAULT_CALL_RING_TIMEOUT_MS,
   EndCallDTO,
@@ -75,23 +76,42 @@ export class CallService {
 
   private async withTransaction<T>(
     work: (session: ClientSession) => Promise<T>,
+    maxRetries = 3,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    session.startTransaction();
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      const session = await this.connection.startSession();
+      session.startTransaction();
 
-    try {
-      const result = await work(session);
-      await session.commitTransaction();
-      await this.outboxService.flushPendingChatEvents(session);
-      return result;
-    } catch (error) {
-      await session.abortTransaction();
-      this.outboxService.clearPendingChatEvents(session);
-      throw error;
-    } finally {
-      this.outboxService.clearPendingChatEvents(session);
-      await session.endSession();
+      try {
+        const result = await work(session);
+        await session.commitTransaction();
+        await this.outboxService.flushPendingChatEvents(session);
+        return result;
+      } catch (error) {
+        await session.abortTransaction();
+        this.outboxService.clearPendingChatEvents(session);
+
+        const isWriteConflict =
+          error.message?.includes('Write conflict') || error.code === 112;
+        if (isWriteConflict && attempts < maxRetries - 1) {
+          attempts++;
+          this.logger.warn(
+            `WriteConflict occurred, retrying transaction (attempt ${attempts + 1}/${maxRetries})...`,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.random() * 50 + 10),
+          ); // Jitter 10-60ms
+          continue;
+        }
+
+        throw error;
+      } finally {
+        this.outboxService.clearPendingChatEvents(session);
+        await session.endSession();
+      }
     }
+    throw new Error('Transaction failed after retries');
   }
 
   async getCallById(callId: string): Promise<CallSessionResponseDTO> {
@@ -111,6 +131,7 @@ export class CallService {
     userId: string,
     dto: CreateCallDTO,
   ): Promise<CallSessionResponseDTO> {
+    // Phase 1: Persist call session in a short, fast transaction (no external I/O)
     const result = await this.withTransaction(async (session) => {
       const conversation = await this.conversationModel
         .findById(dto.conversationId)
@@ -124,61 +145,59 @@ export class CallService {
         throw new RpcException('You are not in this conversation');
       }
 
-      // Check for active call in THIS conversation
-      const hasActiveCallInConversation = await this.callSessionModel
-        .exists({
-          conversationId: conversation._id,
-          status: {
-            $in: [
-              CallSessionStatus.INITIATED,
-              CallSessionStatus.RINGING,
-              CallSessionStatus.ACCEPTED,
-            ],
-          },
-        })
-        .session(session);
-
-      if (hasActiveCallInConversation) {
-        throw new RpcException('Conversation already has an active call');
-      }
-
-      // Check if recipient is busy (for 1-1 calls)
-      if (!conversation.isGroup) {
-        const recipientId = conversation.participants.find((id) => id !== userId);
-        if (recipientId) {
-          const recipientHasActiveCall = await this.callSessionModel
-            .exists({
-              participants: recipientId,
-              status: {
-                $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED],
-              },
-            })
-            .session(session);
-
-          if (recipientHasActiveCall) {
-            throw new RpcException('RECIPIENT_BUSY');
-          }
-        }
-      }
-
-      // Check if CALLER is already in another active call (Global check)
-      const userHasActiveCall = await this.callSessionModel
-        .exists({
-          participants: userId,
-          status: {
-            $in: [
-              CallSessionStatus.RINGING,
-              CallSessionStatus.ACCEPTED,
-            ],
-          },
-        })
-        .session(session);
-
-      if (userHasActiveCall) {
-        throw new RpcException('USER_BUSY_IN_ANOTHER_CALL');
-      }
-
       const now = new Date();
+
+      // Phase 2.1: Run all existence checks in parallel — 3 RTTs → 1 RTT
+      const recipientId = !conversation.isGroup
+        ? conversation.participants.find((id) => id !== userId)
+        : undefined;
+
+      const [hasActiveInConv, recipientBusy, callerBusy] = await Promise.all([
+        this.callSessionModel
+          .exists({
+            conversationId: conversation._id,
+            status: {
+              $in: [
+                CallSessionStatus.INITIATED,
+                CallSessionStatus.RINGING,
+                CallSessionStatus.ACCEPTED,
+              ],
+            },
+            $or: [
+              { status: CallSessionStatus.INITIATED },
+              { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+              { status: CallSessionStatus.ACCEPTED },
+            ],
+          })
+          .session(session),
+        recipientId
+          ? this.callSessionModel
+              .exists({
+                participants: recipientId,
+                status: { $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED] },
+                $or: [
+                  { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+                  { status: CallSessionStatus.ACCEPTED },
+                ],
+              })
+              .session(session)
+          : Promise.resolve(null),
+        this.callSessionModel
+          .exists({
+            participants: userId,
+            status: { $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED] },
+            $or: [
+              { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+              { status: CallSessionStatus.ACCEPTED },
+            ],
+          })
+          .session(session),
+      ]);
+
+      if (hasActiveInConv) throw new RpcException('Conversation already has an active call');
+      if (recipientBusy) throw new RpcException('Receiver is busy in another call');
+      if (callerBusy) throw new RpcException('Caller is busy in another call');
+
       const ringTimeoutAt = new Date(now.getTime() + DEFAULT_CALL_RING_TIMEOUT_MS);
 
       const call = new this.callSessionModel({
@@ -196,19 +215,6 @@ export class CallService {
       await call.save({ session });
       await this.scheduleRingTimeout(call._id.toString(), ringTimeoutAt);
 
-      // Register the call with Stream media infra
-      const moderatorUserIds = [userId, ...(conversation?.admins || [])].filter(
-        (id, index, self) => self.indexOf(id) === index,
-      );
-
-      await this.streamProvider.registerCall({
-        callId: call._id.toString(),
-        conversationId: conversation._id.toString(),
-        initiatorId: userId,
-        participants: conversation.participants,
-        moderatorUserIds,
-      });
-
       conversation.activeCallId = call._id;
       conversation.lastCallAt = now;
       await conversation.save({ session });
@@ -224,6 +230,30 @@ export class CallService {
 
       return { callDto, conversation };
     });
+
+    // Phase 2: Register with Stream OUTSIDE the transaction (non-blocking for DB)
+    // If this fails, immediately cancel the call so the caller is not stuck in BUSY state.
+    const moderatorUserIds = [userId, ...(result.conversation?.admins || [])].filter(
+      (id, index, self) => self.indexOf(id) === index,
+    );
+    try {
+      await this.streamProvider.registerCall({
+        callId: result.callDto._id,
+        conversationId: result.callDto.conversationId,
+        initiatorId: userId,
+        participants: result.conversation.participants,
+        moderatorUserIds,
+      });
+    } catch (streamError) {
+      this.logger.error(
+        `[createCall] Stream registration failed for call=${result.callDto._id}, auto-cancelling: ${streamError?.message}`,
+      );
+      // Best-effort cancel so the user is not stuck in BUSY state
+      void this.rejectCall(userId, { callId: result.callDto._id }).catch((e) =>
+        this.logger.error(`[createCall] Auto-cancel after Stream failure also failed: ${e?.message}`),
+      );
+      throw new RpcException('Failed to register call with media infrastructure');
+    }
 
     // Trigger Push Notification outside transaction
     void this.triggerCallPush(userId, result.callDto, result.conversation);
@@ -276,7 +306,7 @@ export class CallService {
 
       const now = new Date();
       const reconnectDeadlineAt = new Date(
-        now.getTime() + DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
+        now.getTime() + DEFAULT_CALL_MAX_DURATION_MS,
       );
       call.status = CallSessionStatus.ACCEPTED;
       call.startedAt = now;
@@ -322,7 +352,7 @@ export class CallService {
     userId: string,
     dto: RejectCallDTO,
   ): Promise<CallSessionResponseDTO> {
-    return this.withTransaction(async (session) => {
+    const callDto = await this.withTransaction(async (session) => {
       const call = await this.findAuthorizedCall(dto.callId, userId, session);
 
       if (
@@ -335,35 +365,21 @@ export class CallService {
         throw new RpcException('Call is not in ringing state');
       }
 
-      const now = new Date();
       const endReason =
         dto.reason ??
-        (call.initiatorId === userId
-          ? CallEndReason.HANGUP
-          : CallEndReason.REJECTED);
+        (call.initiatorId === userId ? CallEndReason.HANGUP : CallEndReason.REJECTED);
 
-      call.status =
-        call.initiatorId === userId
-          ? CallSessionStatus.CANCELLED
-          : CallSessionStatus.REJECTED;
-      call.endReason = endReason;
-      call.endedAt = now;
-      call.ringTimeoutAt = null;
-      call.reconnectDeadlineAt = null;
-      await call.save({ session });
-      await this.clearAllTimeoutSchedules(call._id.toString());
-      await this.createTerminalCallMessage(call, userId, 0, session);
-
-      await this.clearConversationActiveCall(call, session);
-
-      await this.emitCallEndedEvent(session, call, userId, endReason, 0, now);
-
-      // Trigger Cancel Push outside transaction if it was ringing
-      const callDto = this.toCallResponse(call.toObject());
-      void this.triggerCallCancelPush(userId, callDto);
-
-      return callDto;
+      await this.cancelRingingCall(call, userId, endReason, session);
+      return this.toCallResponse(call.toObject());
     });
+
+    // Phase 3.4: Tell Stream to end the call so it doesn't linger as a zombie room
+    void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
+      this.logger.warn(`[rejectCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
+    );
+    void this.triggerCallCancelPush(userId, callDto);
+
+    return callDto;
   }
 
   private async triggerCallCancelPush(
@@ -385,8 +401,29 @@ export class CallService {
     }
   }
 
+  // Phase 1.1: Extracted from endCall — handles RINGING cancellation atomically
+  private async cancelRingingCall(
+    call: CallSessionDocument,
+    userId: string,
+    endReason: CallEndReason,
+    session: import('mongoose').ClientSession,
+  ) {
+    const now = new Date();
+    call.status =
+      call.initiatorId === userId ? CallSessionStatus.CANCELLED : CallSessionStatus.REJECTED;
+    call.endReason = endReason;
+    call.endedAt = now;
+    call.ringTimeoutAt = null;
+    call.reconnectDeadlineAt = null;
+    await call.save({ session });
+    await this.clearAllTimeoutSchedules(call._id.toString());
+    await this.createTerminalCallMessage(call, userId, 0, session);
+    await this.clearConversationActiveCall(call, session);
+    await this.emitCallEndedEvent(session, call, userId, endReason, 0, now);
+  }
+
   async endCall(userId: string, dto: EndCallDTO): Promise<CallSessionResponseDTO> {
-    return this.withTransaction(async (session) => {
+    const callDto = await this.withTransaction(async (session) => {
       const call = await this.findAuthorizedCall(dto.callId, userId, session);
 
       if (
@@ -405,15 +442,32 @@ export class CallService {
         throw new RpcException('Call cannot be ended from current state');
       }
 
-      const now = new Date();
-      const isRingingCancel = call.status === CallSessionStatus.RINGING;
-      const endReason =
-        dto.reason ?? (isRingingCancel ? CallEndReason.HANGUP : CallEndReason.HANGUP);
-      const nextStatus = isRingingCancel
-        ? CallSessionStatus.CANCELLED
-        : CallSessionStatus.ENDED;
+      // If RINGING: use the shared cancel logic (Phase 1.1)
+      if (call.status === CallSessionStatus.RINGING) {
+        await this.cancelRingingCall(call, userId, CallEndReason.HANGUP, session);
+        const cancelledDto = this.toCallResponse(call.toObject());
+        return cancelledDto;
+      }
 
-      call.status = nextStatus;
+      // ACCEPTED group call: check if other participants still active
+      if (call.isGroupCall) {
+        const onlineCount = await this.streamProvider.getActiveParticipantsCount(dto.callId);
+        if (onlineCount > 1) {
+          await this.redis.srem(this.groupOnlineSetKey(call._id.toString()), userId);
+          await this.outboxService.enqueueChatEvent(
+            'call.participantLeft',
+            { callId: call._id.toString(), conversationId: call.conversationId, userId, leftAt: new Date() },
+            call._id.toString(),
+            session,
+          );
+          return this.toCallResponse(call.toObject());
+        }
+      }
+
+      const now = new Date();
+      const endReason = dto.reason ?? CallEndReason.HANGUP;
+
+      call.status = CallSessionStatus.ENDED;
       call.endReason = endReason;
       call.endedAt = now;
       call.ringTimeoutAt = null;
@@ -424,34 +478,28 @@ export class CallService {
 
       const durationSec =
         call.startedAt && call.endedAt
-          ? Math.max(
-              0,
-              Math.floor(
-                (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,
-              ),
-            )
+          ? Math.max(0, Math.floor((call.endedAt.getTime() - call.startedAt.getTime()) / 1000))
           : 0;
 
       await this.createTerminalCallMessage(call, userId, durationSec, session);
-
       await this.clearConversationActiveCall(call, session);
+      await this.emitCallEndedEvent(session, call, userId, endReason, durationSec, now);
 
-      await this.emitCallEndedEvent(
-        session,
-        call,
-        userId,
-        endReason,
-        durationSec,
-        now,
-      );
-
-      const callDto = this.toCallResponse(call.toObject());
-      if (isRingingCancel) {
-        void this.triggerCallCancelPush(userId, callDto);
-      }
-
-      return callDto;
+      return this.toCallResponse(call.toObject());
     });
+
+    // Phase 3.4: Tell Stream to tear down the call room after RINGING cancel
+    const wasRingingCancel =
+      callDto.status === CallSessionStatus.CANCELLED ||
+      callDto.status === CallSessionStatus.REJECTED;
+    if (wasRingingCancel) {
+      void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
+        this.logger.warn(`[endCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
+      );
+      void this.triggerCallCancelPush(userId, callDto);
+    }
+
+    return callDto;
   }
 
   async sendCallSignal(userId: string, dto: SendCallSignalDTO) {
@@ -672,6 +720,17 @@ export class CallService {
           return;
         }
 
+        // Before ending the call, double check if there are actual participants on GetStream
+        const onlineCount = await this.streamProvider.getActiveParticipantsCount(callId);
+        if (onlineCount > 0) {
+          // If participants are still active in the call, extend the timeout by another 1 hour instead of ending it
+          const nextDeadline = new Date(Date.now() + 60 * 60 * 1000);
+          call.reconnectDeadlineAt = nextDeadline;
+          await call.save({ session });
+          await this.scheduleReconnectTimeout(call._id.toString(), nextDeadline);
+          return;
+        }
+
         call.status = CallSessionStatus.ENDED;
         call.endReason = CallEndReason.TIMEOUT;
         call.endedAt = now;
@@ -728,10 +787,23 @@ export class CallService {
         if (call.status !== CallSessionStatus.ACCEPTED) return;
         if (!call.isGroupCall) return;
 
-        const onlineCount = await this.redis.scard(
+        let onlineCount = await this.redis.scard(
           this.groupOnlineSetKey(call._id.toString()),
         );
-        if (onlineCount > 0) return;
+        
+        // Fallback: query Stream SFU directly to see if participants are still in the room
+        if (onlineCount === 0) {
+          onlineCount = await this.streamProvider.getActiveParticipantsCount(callId);
+        }
+
+        if (onlineCount > 0) {
+          // Reschedule the empty room timeout rather than ending the call
+          await this.scheduleEmptyRoomTimeout(
+            call._id.toString(),
+            new Date(Date.now() + this.emptyRoomTimeoutMs),
+          );
+          return;
+        }
 
         const now = new Date();
         call.status = CallSessionStatus.ENDED;
@@ -946,7 +1018,7 @@ export class CallService {
   }
 
   private async emitCallEndedEvent(
-    session: ClientSession,
+    session: import('mongoose').ClientSession,
     call: CallSessionDocument,
     actorId: string,
     reason: CallEndReason,
@@ -959,6 +1031,8 @@ export class CallService {
       {
         callId: callDto._id,
         conversationId: callDto.conversationId,
+        // Phase 3.2: include callType so consumers don't need to re-fetch the call
+        callType: call.type,
         userId: actorId,
         participants: call.participants,
         reason,

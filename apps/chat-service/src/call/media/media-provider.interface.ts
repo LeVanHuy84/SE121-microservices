@@ -10,4 +10,7 @@ export interface CallMediaProvider {
     moderatorUserIds: string[];
   }): Promise<void>;
   issueUserToken(userId: string): Promise<string>;
+  getActiveParticipantsCount(callId: string): Promise<number>;
+  endCallOnStream(callId: string): Promise<void>;
 }
+

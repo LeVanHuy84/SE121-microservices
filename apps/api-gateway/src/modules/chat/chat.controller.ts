@@ -11,9 +11,9 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 
+import { Throttle } from '@nestjs/throttler';
 import {
   AcceptCallDTO,
-  CallMediaTokenResponseDTO,
   CallSessionResponseDTO,
   ConversationResponseDTO,
   CreateCallDTO,
@@ -26,15 +26,14 @@ import {
   LeaveCallDTO,
   MessageResponseDTO,
   RejectCallDTO,
-  SendMessageDTO,
   SendCallSignalDTO,
+  SendMessageDTO,
   StreamUserTokenResponseDTO,
-  UpdateConversationDTO,
+  UpdateConversationDTO
 } from '@repo/dtos';
+import { lastValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { lastValueFrom } from 'rxjs';
-import { Throttle } from '@nestjs/throttler';
 
 @Controller('chats')
 export class ChatController {

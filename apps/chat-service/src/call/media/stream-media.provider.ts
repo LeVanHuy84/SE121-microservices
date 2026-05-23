@@ -6,6 +6,8 @@ import {
   CallMediaProvider,
   MediaProviderName,
 } from './media-provider.interface';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class StreamMediaProvider implements CallMediaProvider {
@@ -20,7 +22,10 @@ export class StreamMediaProvider implements CallMediaProvider {
   private readonly defaultGroupLimit: number;
   private readonly streamClient: StreamClient;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {
     this.streamApiKey = this.getStringConfig('STREAM_API_KEY', '');
     this.streamApiSecret = this.getStringConfig('STREAM_API_SECRET', '');
     this.streamCallType = this.getStringConfig('STREAM_CALL_TYPE', 'default');
@@ -60,13 +65,30 @@ export class StreamMediaProvider implements CallMediaProvider {
     } = params;
     this.assertStreamConfig();
 
-    // Ensure all participants exist in Stream
-    await this.streamClient.upsertUsers(
-      participants.map((participantId: string) => ({
-        id: participantId,
-        role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
-      })),
-    );
+    // Ensure all participants exist in Stream - with Redis cache
+    const needsUpsert: string[] = [];
+    for (const participantId of participants) {
+      const cacheKey = `stream:user_upserted:${participantId}`;
+      const exists = await this.redis.exists(cacheKey);
+      if (!exists) {
+        needsUpsert.push(participantId);
+      }
+    }
+
+    if (needsUpsert.length > 0) {
+      await this.streamClient.upsertUsers(
+        needsUpsert.map((participantId: string) => ({
+          id: participantId,
+          role: moderatorUserIds.includes(participantId) ? 'admin' : 'user',
+        })),
+      );
+
+      const pipeline = this.redis.pipeline();
+      for (const participantId of needsUpsert) {
+        pipeline.set(`stream:user_upserted:${participantId}`, '1', 'EX', 86400); // 24h
+      }
+      await pipeline.exec();
+    }
 
     // Create the call on Stream's side
     await this.streamClient.video.getOrCreateCall({
@@ -88,7 +110,34 @@ export class StreamMediaProvider implements CallMediaProvider {
 
   async issueUserToken(userId: string): Promise<string> {
     this.assertStreamConfig();
-    return this.streamClient.createToken(userId);
+    const nowSec = Math.floor(Date.now() / 1000);
+    // Set iat 120 seconds in the past to absorb developer machine clock skew
+    const iat = nowSec - 120;
+    const exp = nowSec + this.streamTokenTtlSec;
+    return this.streamClient.generateUserToken({ user_id: userId, exp, iat });
+  }
+
+  async getActiveParticipantsCount(callId: string): Promise<number> {
+    this.assertStreamConfig();
+    try {
+      const response = await this.streamClient.video
+        .call(this.streamCallType, callId)
+        .get();
+      return response.call.session?.participants?.length ?? 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  // Phase 3.4: End the call room on Stream's side to avoid zombie sessions after cancel
+  async endCallOnStream(callId: string): Promise<void> {
+    this.assertStreamConfig();
+    try {
+      await this.streamClient.video.call(this.streamCallType, callId).end();
+    } catch (error) {
+      // Non-fatal — call may already be gone on Stream
+      throw error;
+    }
   }
 
   private assertStreamConfig() {
