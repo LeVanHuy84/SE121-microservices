@@ -15,6 +15,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiModule } from './modules/ai/ai.module';
 import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-analytics.module';
+import { UserClientModule } from './modules/client/user/user-client.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-anal
     SeedModule,
     AiModule,
     EmotionAnalyticsModule,
+    UserClientModule,
   ],
   controllers: [AppController],
   providers: [AppService],

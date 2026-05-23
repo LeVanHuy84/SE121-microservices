@@ -5,8 +5,10 @@ import { ProfileRepository } from './profile.repository';
 import { ProfileService } from './profile.service';
 import { AdminProfileController } from './admin-profile.controller';
 import { AdminProfileService } from './admin-profile.service';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
+  imports: [UserClientModule],
   controllers: [AdminProfileController],
   providers: [
     ProfileRepository,

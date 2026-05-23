@@ -4,4 +4,5 @@ export enum MusicGenre {
   POP = 'pop',
   ACOUSTIC = 'acoustic',
   ROCK = 'rock',
+  OTHER = 'other',
 }

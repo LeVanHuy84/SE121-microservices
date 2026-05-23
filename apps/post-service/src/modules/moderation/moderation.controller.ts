@@ -8,6 +8,7 @@ import {
   CreateAdminReviewAppealDTO,
   CreateAppealRequestDTO,
   GetMyModerationQuery,
+  SystemRole,
 } from '@repo/dtos';
 import { ModerationAppealService } from './appeal.service';
 
@@ -31,9 +32,11 @@ export class ModerationController {
   }
 
   @MessagePattern('moderation.get-record-detail')
-  async getModerationRecordDetail(@Payload() payload: { id: string }) {
-    const { id } = payload;
-    return this.moderationService.getModerationRecordDetail(id);
+  async getModerationRecordDetail(
+    @Payload() payload: { id: string; userId?: string; role?: SystemRole },
+  ) {
+    const { id, userId, role } = payload;
+    return this.moderationService.getModerationRecordDetail(id, userId, role);
   }
 
   @MessagePattern('moderation.admin.get-records')
