@@ -17,6 +17,7 @@ import { CallMediaService } from './call-media.service';
 import { StreamMediaProvider } from './media/stream-media.provider';
 import { PushModule } from 'src/push/push.module';
 import { UserClientModule } from 'src/client/user/user-client.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UserClientModule } from 'src/client/user/user-client.module';
     OutboxModule,
     PushModule,
     UserClientModule,
+    RedisModule,
   ],
   controllers: [CallController],
   providers: [

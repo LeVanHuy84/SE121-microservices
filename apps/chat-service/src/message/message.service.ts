@@ -51,23 +51,42 @@ export class MessageService {
 
   private async withTransaction<T>(
     work: (session: ClientSession) => Promise<T>,
+    maxRetries = 3,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    session.startTransaction();
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      const session = await this.connection.startSession();
+      session.startTransaction();
 
-    try {
-      const result = await work(session);
-      await session.commitTransaction();
-      await this.outboxService.flushPendingChatEvents(session);
-      return result;
-    } catch (error) {
-      await session.abortTransaction();
-      this.outboxService.clearPendingChatEvents(session);
-      throw error;
-    } finally {
-      this.outboxService.clearPendingChatEvents(session);
-      await session.endSession();
+      try {
+        const result = await work(session);
+        await session.commitTransaction();
+        await this.outboxService.flushPendingChatEvents(session);
+        return result;
+      } catch (error) {
+        await session.abortTransaction();
+        this.outboxService.clearPendingChatEvents(session);
+
+        const isWriteConflict =
+          error.message?.includes('Write conflict') || error.code === 112;
+        if (isWriteConflict && attempts < maxRetries - 1) {
+          attempts++;
+          this.logger.warn(
+            `WriteConflict occurred, retrying transaction (attempt ${attempts + 1}/${maxRetries})...`,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.random() * 50 + 10),
+          ); // Jitter 10-60ms
+          continue;
+        }
+
+        throw error;
+      } finally {
+        this.outboxService.clearPendingChatEvents(session);
+        await session.endSession();
+      }
     }
+    throw new Error('Transaction failed after retries');
   }
 
   // ============= HISTORY =============
@@ -198,11 +217,16 @@ export class MessageService {
 
   // ============= SEND MESSAGE =============
 
- async sendMessage(
-  userId: string,
-  dto: SendMessageDTO,
-): Promise<MessageResponseDTO> {
-  this.validateAttachments(dto.attachments);
+  async sendMessage(
+   userId: string,
+   dto: SendMessageDTO,
+ ): Promise<MessageResponseDTO> {
+   const trimmedContent = dto.content?.trim();
+   if (!trimmedContent && !dto.attachments?.length) {
+     throw new RpcException('Message content or attachments must not be empty');
+   }
+
+   this.validateAttachments(dto.attachments);
 
   const { conversation, dtoMsg } = await this.withTransaction(async (session) => {
     const conversation = await this.conversationModel

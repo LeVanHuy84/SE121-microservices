@@ -47,14 +47,9 @@ export class RecommendationTrackingService {
             recommendation.recommendationRequestId ?? null,
           metadata: {
             mutualFriends: recommendation.mutualFriends,
-            commonGroups: recommendation.commonGroups ?? 0,
             candidateSourceMode: sourceMode,
             retrievalScore: recommendation.retrievalScore ?? null,
-            retrievalScoreVersion: recommendation.retrievalScoreVersion ?? null,
-            modelScore: recommendation.modelScore ?? null,
-            score: recommendation.score ?? 0,
-            source: sourceMode,
-            reasons: recommendation.reasons ?? [],
+            reason: recommendation.reasons ?? [],
             position: startIndex + index,
           },
         };

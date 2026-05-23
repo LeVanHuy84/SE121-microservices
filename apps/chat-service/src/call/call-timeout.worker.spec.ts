@@ -1,3 +1,8 @@
+// Mock @stream-io/node-sdk BEFORE any import that touches it
+jest.mock('@stream-io/node-sdk', () => ({
+  StreamClient: jest.fn().mockImplementation(() => ({})),
+}));
+
 import { CallTimeoutWorker } from './call-timeout.worker';
 import { CallSessionStatus } from '@repo/dtos';
 

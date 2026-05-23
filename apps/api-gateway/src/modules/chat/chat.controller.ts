@@ -11,9 +11,9 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 
+import { Throttle } from '@nestjs/throttler';
 import {
   AcceptCallDTO,
-  CallMediaTokenResponseDTO,
   CallSessionResponseDTO,
   ConversationResponseDTO,
   CreateCallDTO,
@@ -26,15 +26,14 @@ import {
   LeaveCallDTO,
   MessageResponseDTO,
   RejectCallDTO,
-  RequestCallMediaTokenDTO,
-  SendMessageDTO,
   SendCallSignalDTO,
-  UpdateConversationDTO,
+  SendMessageDTO,
+  StreamUserTokenResponseDTO,
+  UpdateConversationDTO
 } from '@repo/dtos';
+import { lastValueFrom } from 'rxjs';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { lastValueFrom } from 'rxjs';
-import { Throttle } from '@nestjs/throttler';
 
 @Controller('chats')
 export class ChatController {
@@ -285,20 +284,12 @@ export class ChatController {
     return this.chatClient.send('kickCallParticipant', { userId, dto });
   }
 
-  @Post('calls/:callId/media-token')
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
-  issueCallMediaToken(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<RequestCallMediaTokenDTO, 'callId'>,
-  ) {
-    const dto: RequestCallMediaTokenDTO = {
-      callId,
-      preferAudioOnly: body?.preferAudioOnly,
-    };
-    return this.chatClient.send<CallMediaTokenResponseDTO>('issueCallMediaToken', {
-      userId,
-      dto,
-    });
+  @Post('calls/user-token')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  issueUserMediaToken(@CurrentUserId() userId: string) {
+    return this.chatClient.send<StreamUserTokenResponseDTO>(
+      'issueUserMediaToken',
+      { userId }
+    );
   }
 }

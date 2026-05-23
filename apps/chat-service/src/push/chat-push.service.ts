@@ -18,6 +18,13 @@ type SendCallPushParams = Omit<SendCallPushDto, 'userId'> & {
   receiverIds: string[];
 };
 
+type SendCallCancelPushParams = {
+  callId: string;
+  conversationId: string;
+  actorId: string;
+  receiverIds: string[];
+};
+
 @Injectable()
 export class ChatPushService {
   private readonly logger = new Logger(ChatPushService.name);
@@ -82,6 +89,37 @@ export class ChatPushService {
         receiverIds.map((userId) =>
           this.notificationService.sendCallPush({
             ...params,
+            userId,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+
+  async sendCallCancelPush(params: SendCallCancelPushParams) {
+    try {
+      const receiverIds =
+        await this.conversationActivityService.filterReceiversOutsideConversation(
+          params.receiverIds,
+          params.conversationId,
+        );
+
+      if (!receiverIds.length) {
+        return;
+      }
+
+      await Promise.all(
+        receiverIds.map((userId) =>
+          this.notificationService.sendCallCancelPush({
+            callId: params.callId,
+            conversationId: params.conversationId,
+            actorId: params.actorId,
             userId,
           }),
         ),

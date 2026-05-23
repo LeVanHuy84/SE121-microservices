@@ -136,7 +136,7 @@ export class ChatPushService {
           apnsCollapseId: conversationTag,
           apnsThreadId: conversationTag,
           apnsSummaryArg: dto.isGroup
-            ? dto.conversationName || 'Nhom chat'
+            ? dto.conversationName || 'Nhóm chat'
             : dto.senderName,
           apnsSummaryArgCount: unreadCount,
         },
@@ -179,7 +179,7 @@ export class ChatPushService {
     const title = dto.isGroup
       ? dto.conversationName || 'Cuộc gọi nhóm'
       : dto.callerName;
-    const callLabel = dto.callType === 'video' ? 'video' : 'thoại';
+    const callLabel = dto.callType === 'video' ? 'video' : 'audio';
     const body = `Cuộc gọi ${callLabel} đến từ ${dto.callerName}`;
 
     const data = {
@@ -351,17 +351,17 @@ export class ChatPushService {
   ): string {
     if (dto.isGroup) {
       if (unreadCount > 1) {
-        return `Trong ${dto.conversationName || 'nhom chat'}`;
+        return `Trong ${dto.conversationName || 'nhóm chat'}`;
       }
 
       return preview ? `${dto.senderName}: ${preview}` : dto.senderName;
     }
 
     if (unreadCount > 1) {
-      return `Tu ${dto.senderName}`;
+      return `Từ ${dto.senderName}`;
     }
 
-    return preview || 'Ban co tin nhan moi';
+    return preview || 'Bạn có tin nhắn mới';
   }
 
   private buildData(
@@ -395,7 +395,7 @@ export class ChatPushService {
 
   private sanitizePreview(value?: string) {
     if (!value?.trim()) {
-      return 'Ban co tin nhan moi';
+      return 'Bạn có tin nhắn mới';
     }
 
     const normalized = value.replace(/\s+/g, ' ').trim();

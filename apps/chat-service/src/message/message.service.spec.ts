@@ -18,6 +18,7 @@ describe('MessageService', () => {
 
   const conversationModel = {
     findById: jest.fn(),
+    findOne: jest.fn(),
   };
 
   const conversationService = {
@@ -159,11 +160,12 @@ describe('MessageService', () => {
       conversationId: { toString: () => 'conv-2' },
     };
 
-    conversationModel.findById.mockReturnValue({
+    conversationModel.findOne.mockReturnValue({
       session: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(conv),
     });
     messageModel.findById.mockReturnValueOnce({
+      select: jest.fn().mockReturnThis(),
       session: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(foreignReply),
     });

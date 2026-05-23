@@ -92,6 +92,7 @@ export function populateAndMapConversation(
       ? mapMessage(convDoc.lastMessage)
       : undefined,
     hiddenFor: (base.hiddenFor || []).map((h: any) => String(h)),
+    activeCallId: base.activeCallId ? String(base.activeCallId) : undefined,
     syncVersion:
       base.syncVersion !== undefined ? Number(base.syncVersion) : undefined,
   });

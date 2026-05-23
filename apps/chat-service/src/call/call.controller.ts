@@ -2,15 +2,14 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   AcceptCallDTO,
-  CallMediaTokenResponseDTO,
   CreateCallDTO,
   EndCallDTO,
   JoinCallDTO,
   KickCallParticipantDTO,
   LeaveCallDTO,
   RejectCallDTO,
-  RequestCallMediaTokenDTO,
   SendCallSignalDTO,
+  StreamUserTokenResponseDTO,
 } from '@repo/dtos';
 import { CallService } from './call.service';
 import { CallMediaService } from './call-media.service';
@@ -120,14 +119,13 @@ export class CallController {
     return this.callService.kickCallParticipant(data.userId, data.dto);
   }
 
-  @MessagePattern('issueCallMediaToken')
-  async issueCallMediaToken(
+  @MessagePattern('issueUserMediaToken')
+  async issueUserMediaToken(
     @Payload()
     data: {
       userId: string;
-      dto: RequestCallMediaTokenDTO;
     },
-  ): Promise<CallMediaTokenResponseDTO> {
-    return this.callMediaService.issueCallMediaToken(data.userId, data.dto);
+  ): Promise<StreamUserTokenResponseDTO> {
+    return this.callMediaService.issueUserMediaToken(data.userId);
   }
 }
