@@ -41,6 +41,7 @@ export class NotificationProcessor {
     }
   }
 
+ 
   @Process(CALL_PUSH_DELIVERY_JOB)
   async handleCallPush(job: Job<{ sendCallPushDto: Parameters<ChatPushService['sendCallPush']>[0] }>) {
     try {
