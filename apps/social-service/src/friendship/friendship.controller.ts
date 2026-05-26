@@ -25,10 +25,14 @@ export class FriendshipController {
       recommendationRequestId?: string;
     },
   ) {
-    return this.friendshipService.sendFriendRequest(data.userId, data.targetId, {
-      recommendationId: data.recommendationId,
-      recommendationRequestId: data.recommendationRequestId,
-    });
+    return this.friendshipService.sendFriendRequest(
+      data.userId,
+      data.targetId,
+      {
+        recommendationId: data.recommendationId,
+        recommendationRequestId: data.recommendationRequestId,
+      },
+    );
   }
 
   @MessagePattern('cancel_friend_request')

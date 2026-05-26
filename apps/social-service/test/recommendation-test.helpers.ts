@@ -199,7 +199,11 @@ export function buildMultiUserRecommendationFixture(): MultiUserRecommendationFi
     viewerId,
     graphCandidates: [
       { id: 'semantic-peer', mutualFriends: 2, mutualFriendIds: ['u5', 'u6'] },
-      { id: 'deep-graph', mutualFriends: 4, mutualFriendIds: ['u1', 'u2', 'u3', 'u4'] },
+      {
+        id: 'deep-graph',
+        mutualFriends: 4,
+        mutualFriendIds: ['u1', 'u2', 'u3', 'u4'],
+      },
       { id: 'runner-a', mutualFriends: 1, mutualFriendIds: ['u7'] },
       { id: 'runner-b', mutualFriends: 1, mutualFriendIds: ['u7'] },
       { id: 'mutual-docs', mutualFriends: 2, mutualFriendIds: ['u8', 'u9'] },
@@ -230,7 +234,11 @@ export function buildMultiUserRecommendationFixture(): MultiUserRecommendationFi
       'runner-b': ['Weekend Runners'],
       'mutual-docs': [],
       'mutual-local': [],
-      'community-host': ['Community Builders', 'Weekend Runners', 'Startup Friends'],
+      'community-host': [
+        'Community Builders',
+        'Weekend Runners',
+        'Startup Friends',
+      ],
       'group-designer': ['Design Circle', 'Product Guild'],
     },
     aiScores: {
@@ -313,8 +321,6 @@ export function resolveFixtureUsers(
   ids: string[],
 ): Record<string, BaseUserDTO | UserResponseDTO> {
   return Object.fromEntries(
-    ids
-      .filter((id) => Boolean(users[id]))
-      .map((id) => [id, users[id]]),
+    ids.filter((id) => Boolean(users[id])).map((id) => [id, users[id]]),
   );
 }

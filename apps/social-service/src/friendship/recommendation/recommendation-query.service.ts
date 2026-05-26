@@ -92,6 +92,7 @@ export class RecommendationQueryService {
       modelScore: candidate.modelScore,
       score: candidate.finalScore,
       reasons: this.toHumanReasons(candidate.reasonCodes),
+      isEmotionMatched: candidate.reasonCodes.includes('emotion_affinity'),
       candidateSourceMode: this.mapCandidateSourceMode(candidate.source),
     };
   }
@@ -114,6 +115,8 @@ export class RecommendationQueryService {
             return 'Recent graph update';
           case 'global_fallback':
             return 'Global fallback recommendation';
+          case 'emotion_affinity':
+            return 'Đồng điệu cảm xúc';
           default:
             return '';
         }
@@ -197,7 +200,9 @@ export class RecommendationQueryService {
     return Math.min(this.maxLimit, Math.max(1, Math.floor(limit)));
   }
 
-  private normalizeCursor(cursor: string | null | undefined): string | undefined {
+  private normalizeCursor(
+    cursor: string | null | undefined,
+  ): string | undefined {
     if (typeof cursor !== 'string') {
       return undefined;
     }
@@ -216,7 +221,9 @@ export class RecommendationQueryService {
       return parsedFromBase64Url;
     }
 
-    this.logger.warn(`Ignoring invalid recommendation cursor for tracking: ${cursor}`);
+    this.logger.warn(
+      `Ignoring invalid recommendation cursor for tracking: ${cursor}`,
+    );
     return 0;
   }
 

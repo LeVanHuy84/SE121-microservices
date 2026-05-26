@@ -128,7 +128,9 @@ export class RecentActivityBufferService {
     const key = `recent:activity:${type}:${targetId}:${actorId}`;
     const deleted = await this.redis.del(key);
     if (deleted) {
-      this.logger.debug(`Cleared activity ${type}:${targetId} actor:${actorId}`);
+      this.logger.debug(
+        `Cleared activity ${type}:${targetId} actor:${actorId}`,
+      );
     }
   }
 
@@ -141,7 +143,9 @@ export class RecentActivityBufferService {
       this.getProcessingRedisKeyFromLogicalKey(logicalKey),
     );
     await this.redis.del(...processingKeys);
-    this.logger.debug(`Acknowledged ${logicalKeys.length} processing activities`);
+    this.logger.debug(
+      `Acknowledged ${logicalKeys.length} processing activities`,
+    );
   }
 
   async requeueProcessingActivities(

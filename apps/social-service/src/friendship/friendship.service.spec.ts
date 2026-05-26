@@ -58,7 +58,11 @@ describe('FriendshipService', () => {
     removeFriend.mockResolvedValue({ removed: true });
     blockUser.mockResolvedValue({ created: true });
     unblockUser.mockResolvedValue({ removed: true });
-    getFriends.mockResolvedValue({ data: [], nextCursor: null, hasNextPage: false });
+    getFriends.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
     getFriendRequests.mockResolvedValue({
       data: [],
       nextCursor: null,

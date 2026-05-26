@@ -84,7 +84,9 @@ export class OutboxProcessor {
     } catch (error) {
       await this.outboxRepo.update({ id: event.id }, { processed: false });
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to publish social outbox event ${event.id}: ${message}`);
+      this.logger.error(
+        `Failed to publish social outbox event ${event.id}: ${message}`,
+      );
     }
   }
 

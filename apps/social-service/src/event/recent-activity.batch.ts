@@ -41,7 +41,11 @@ export class RecentActivityBatch {
     this.logger.log(`Flushing ${count} recent activities`);
 
     const actorsById = await this.userClient.getUsers(
-      [...new Set(Object.values(activities).map((activity) => activity.actorId))],
+      [
+        ...new Set(
+          Object.values(activities).map((activity) => activity.actorId),
+        ),
+      ],
       'base',
     );
     const limit = pLimit(20);

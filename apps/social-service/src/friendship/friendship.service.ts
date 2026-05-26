@@ -271,7 +271,10 @@ export class FriendshipService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    return this.socialGraphRepo.getFriends(userId, this.normalizeCursorQuery(query));
+    return this.socialGraphRepo.getFriends(
+      userId,
+      this.normalizeCursorQuery(query),
+    );
   }
 
   async getFriendRequests(
@@ -362,7 +365,9 @@ export class FriendshipService {
     );
   }
 
-  private normalizeCursorQuery(query: CursorPaginationDTO): CursorPaginationDTO {
+  private normalizeCursorQuery(
+    query: CursorPaginationDTO,
+  ): CursorPaginationDTO {
     const normalizedCursor =
       typeof query?.cursor === 'string' && query.cursor.trim().length > 0
         ? query.cursor.trim()
