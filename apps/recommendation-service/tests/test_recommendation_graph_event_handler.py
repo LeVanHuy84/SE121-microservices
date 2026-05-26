@@ -129,9 +129,9 @@ class RecommendationGraphEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             ["candidate-1"],
         )
         self.assertIn("candidate-1", pair_features)
-        self.assertTrue(pair_features["candidate-1"]["hasActiveDismissal"])
+        self.assertTrue(pair_features["candidate-1"].has_active_dismissal)
         self.assertEqual(
-            pair_features["candidate-1"]["lastEventType"],
+            pair_features["candidate-1"].last_event_type,
             "recommendation.graph.recommendation-dismissed",
         )
 

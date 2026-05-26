@@ -12,8 +12,8 @@ from app.models.rerank_request import (
 )
 
 
-class RecommendationApiTestCase(unittest.TestCase):
-    def test_query_candidates_returns_query_contract_payload(self):
+class RecommendationApiTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_query_candidates_returns_query_contract_payload(self):
         request = RecommendationQueryRequest(
             viewerId="viewer-1",
             limit=3,
@@ -43,7 +43,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                 ],
             },
         ) as query:
-            response = query_candidates(request)
+            response = await query_candidates(request)
 
         self.assertTrue(response["success"])
         self.assertEqual(response["data"].viewerId, "viewer-1")

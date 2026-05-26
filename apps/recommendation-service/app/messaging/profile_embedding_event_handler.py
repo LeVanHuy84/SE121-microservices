@@ -46,7 +46,7 @@ class ProfileEmbeddingEventHandler:
         try:
             if normalized_profile_text is None:
                 self.repository.delete_profile_embedding(user_id)
-                query_cache.clear()
+                query_cache.invalidate_viewer(user_id)
                 logger.info(
                     (
                         "Recommendation profile embedding cleared: "
@@ -88,7 +88,7 @@ class ProfileEmbeddingEventHandler:
                 settings.RECOMMENDATION_MODEL_NAME,
                 generated_at,
             )
-            query_cache.clear()
+            query_cache.invalidate_viewer(user_id)
             logger.info(
                 (
                     "Recommendation profile embedding updated: "

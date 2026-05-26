@@ -38,11 +38,11 @@ class EmotionProfileEventHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         profiles = self.repository.get_emotion_profiles(["user-1"])
         self.assertIn("user-1", profiles)
-        self.assertAlmostEqual(profiles["user-1"]["riskScore"], 0.42, places=3)
+        self.assertAlmostEqual(profiles["user-1"].risk_score, 0.42, places=3)
         self.assertAlmostEqual(
-            profiles["user-1"]["recentNegativityScore"], 0.31, places=3
+            profiles["user-1"].recent_negativity_score, 0.31, places=3
         )
-        self.assertEqual(profiles["user-1"]["dominantEmotion"], "joy")
+        self.assertEqual(profiles["user-1"].dominant_emotion, "joy")
 
 
 if __name__ == "__main__":

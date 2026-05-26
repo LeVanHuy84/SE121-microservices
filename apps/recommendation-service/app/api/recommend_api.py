@@ -29,15 +29,28 @@ def ensure_model_ready():
         raise HTTPException(status_code=503, detail=readiness)
 
 
+from collections import defaultdict
+import asyncio
+
+viewer_semaphores: dict[str, asyncio.Semaphore] = defaultdict(lambda: asyncio.Semaphore(1))
+
 @recommend_router.post(
     "/query",
     dependencies=[Depends(verify_internal_key), Depends(ensure_model_ready)],
 )
-def query_candidates(req: RecommendationQueryRequest):
+async def query_candidates(req: RecommendationQueryRequest):
+    viewer_id = str(req.viewerId or "").strip()
+    sem = viewer_semaphores[viewer_id]
+    
     try:
-        response = RecommendationQueryOutput.model_validate(
-            recommendation_query_service.query(req)
-        )
+        async def _run_query():
+            async with sem:
+                response_data = await asyncio.to_thread(recommendation_query_service.query, req)
+                return RecommendationQueryOutput.model_validate(response_data)
+        
+        response = await asyncio.wait_for(_run_query(), timeout=5.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Recommendation query timed out")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info(

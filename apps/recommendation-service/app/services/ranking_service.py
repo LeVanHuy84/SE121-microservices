@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from app.models.domain import GraphPairFeature, EmotionProfile
 
 import torch
 
@@ -65,7 +66,7 @@ class RankingService:
         scored = []
         for candidate in deduped_candidates:
             candidate_id = str(candidate["candidateId"])
-            pair_feature = pair_features.get(candidate_id, {})
+            pair_feature = pair_features.get(candidate_id)
 
             model_score = float(model_scores.get(candidate_id, 0.0))
             retrieval_score = float(candidate.get("retrievalScore", 0.0))
@@ -80,8 +81,8 @@ class RankingService:
                     **candidate,
                     "modelScore": model_score,
                     "emotionScore": emotion_score,
-                    "mutualFriendCount": int(pair_feature.get("mutualFriendCount", 0)),
-                    "commonGroupCount": int(pair_feature.get("commonGroupCount", 0)),
+                    "mutualFriendCount": pair_feature.mutual_friend_count if pair_feature else 0,
+                    "commonGroupCount": 0,
                     "finalScore": self._resolve_final_score(
                         retrieval_score=retrieval_score,
                         model_score=model_score,
@@ -130,7 +131,7 @@ class RankingService:
     def _select_rerank_candidates(
         self,
         candidates: list[dict[str, Any]],
-        pair_features: dict[str, dict[str, Any]],
+        pair_features: dict[str, GraphPairFeature],
         top_k: int,
     ) -> list[dict[str, Any]]:
         resolved_top_k = max(1, int(top_k))
@@ -149,12 +150,9 @@ class RankingService:
         graph_sorted_candidates = sorted(
             candidates,
             key=lambda candidate: (
-                -int(
-                    pair_features.get(str(candidate["candidateId"]), {}).get(
-                        "mutualFriendCount",
-                        0,
-                    )
-                ),
+                -pair_features[str(candidate["candidateId"])].mutual_friend_count
+                if str(candidate["candidateId"]) in pair_features
+                else 0,
                 -float(candidate.get("retrievalScore", 0.0)),
                 str(candidate.get("candidateId", "")),
             ),
@@ -197,7 +195,7 @@ class RankingService:
         viewer_id: str,
         viewer_profile_text: str | None,
         candidates: list[dict[str, Any]],
-        pair_features: dict[str, dict[str, Any]],
+        pair_features: dict[str, GraphPairFeature],
     ) -> dict[str, float]:
         if not candidates:
             return {}
@@ -210,11 +208,9 @@ class RankingService:
                     RecommendationCandidateInput(
                         candidateId=str(candidate["candidateId"]),
                         candidateProfileText=candidate.get("candidateProfileText"),
-                        mutualFriends=int(
-                            pair_features.get(str(candidate["candidateId"]), {}).get(
-                                "mutualFriendCount", 0
-                            )
-                        ),
+                        mutualFriends=pair_features[str(candidate["candidateId"])].mutual_friend_count
+                        if str(candidate["candidateId"]) in pair_features
+                        else 0,
                     )
                     for candidate in candidates
                 ],
@@ -229,37 +225,26 @@ class RankingService:
         graph_score: float,
         emotion_score: float,
     ) -> float:
-        total_weight = (
-            settings.RECOMMENDATION_QUERY_MODEL_WEIGHT
-            + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
-            + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT
-            + settings.RECOMMENDATION_QUERY_EMOTION_WEIGHT
-        )
-        if total_weight <= 0:
-            return 0.0
-
         return round(
-            (
-                settings.RECOMMENDATION_QUERY_MODEL_WEIGHT * self._clamp_score(model_score)
-                + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT * self._clamp_score(retrieval_score)
-                + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT * self._clamp_score(graph_score)
-                + settings.RECOMMENDATION_QUERY_EMOTION_WEIGHT * self._clamp_score(emotion_score)
-            ) / total_weight,
+            settings.RECOMMENDATION_QUERY_MODEL_WEIGHT * self._clamp_score(model_score)
+            + settings.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT * self._clamp_score(retrieval_score)
+            + settings.RECOMMENDATION_QUERY_GRAPH_WEIGHT * self._clamp_score(graph_score)
+            + settings.RECOMMENDATION_QUERY_EMOTION_WEIGHT * self._clamp_score(emotion_score),
             6,
         )
 
-    def _resolve_graph_score(self, pair_feature: dict[str, Any] | None) -> float:
+    def _resolve_graph_score(self, pair_feature: GraphPairFeature | None) -> float:
         if not pair_feature:
             return 0.0
 
         mutual_friend_cap = max(1, int(settings.RECOMMENDATION_MUTUAL_FRIEND_CAP))
         mutual_friend_score = min(
-            int(pair_feature.get("mutualFriendCount", 0)),
+            pair_feature.mutual_friend_count,
             mutual_friend_cap,
         ) / mutual_friend_cap
 
         recent_event_score = 0.0
-        last_event_type = str(pair_feature.get("lastEventType") or "").strip()
+        last_event_type = pair_feature.last_event_type or ""
         if last_event_type in {
             "recommendation.graph.user-unblocked",
             "recommendation.graph.friend-request-canceled",
@@ -274,7 +259,7 @@ class RankingService:
     def _build_reason_codes(
         self,
         model_score: float,
-        pair_feature: dict[str, Any] | None = None,
+        pair_feature: GraphPairFeature | None = None,
         emotion_score: float = 0.0,
     ) -> list[str]:
         reasons = ["semantic_retrieval"]
@@ -286,12 +271,12 @@ class RankingService:
         if not pair_feature:
             return reasons
 
-        if int(pair_feature.get("mutualFriendCount", 0)) > 0:
+        if pair_feature.mutual_friend_count > 0:
             reasons.append("graph_mutual_friend")
         if self._resolve_graph_score(pair_feature) > 0:
             reasons.append("graph_rerank")
 
-        last_event_type = str(pair_feature.get("lastEventType") or "").strip()
+        last_event_type = pair_feature.last_event_type or ""
         if last_event_type == "recommendation.graph.user-unblocked":
             reasons.append("graph_recent_unblock")
         elif last_event_type == "recommendation.graph.friend-request-canceled":
@@ -303,8 +288,8 @@ class RankingService:
 
     def _resolve_emotion_affinity_score(
         self,
-        viewer_emotion: dict[str, Any] | None,
-        candidate_emotion: dict[str, Any] | None,
+        viewer_emotion: EmotionProfile | None,
+        candidate_emotion: EmotionProfile | None,
     ) -> float:
         if not settings.RECOMMENDATION_EMOTION_SCORING_ENABLED:
             return 0.0
@@ -315,32 +300,29 @@ class RankingService:
         ):
             return 0.0
 
-        viewer_negativity = self._clamp_score(viewer_emotion.get("recentNegativityScore"))
+        viewer_negativity = self._clamp_score(viewer_emotion.recent_negativity_score)
         candidate_negativity = self._clamp_score(
-            candidate_emotion.get("recentNegativityScore")
+            candidate_emotion.recent_negativity_score
         )
-        viewer_risk = self._clamp_score(viewer_emotion.get("riskScore"))
-        candidate_risk = self._clamp_score(candidate_emotion.get("riskScore"))
+        viewer_risk = self._clamp_score(viewer_emotion.risk_score)
+        candidate_risk = self._clamp_score(candidate_emotion.risk_score)
 
-        # Prefer emotionally stable pairing and avoid amplifying high-high risk pairing.
-        stability_similarity = 1.0 - abs(viewer_negativity - candidate_negativity)
+        # Prefer complementary pairing (high-negativity viewers with low-negativity candidates)
+        # and avoid amplifying high-high risk pairing.
+        stability_complementarity = 1.0 - (viewer_negativity + candidate_negativity) / 2.0
         risk_penalty = max(0.0, (viewer_risk + candidate_risk) / 2.0 - 0.7) * 0.5
-        base_score = 0.75 * stability_similarity + 0.25 * (1.0 - candidate_risk)
+        
+        # Base score rewards complementarity and penalizes candidate's risk
+        base_score = 0.75 * stability_complementarity + 0.25 * (1.0 - candidate_risk)
+        
         return self._clamp_score(base_score - risk_penalty)
 
-    def _is_emotion_profile_stale(self, profile: dict[str, Any]) -> bool:
-        updated_at = str(profile.get("updatedAt") or "").strip()
-        if not updated_at:
+    def _is_emotion_profile_stale(self, profile: EmotionProfile) -> bool:
+        if not profile.updated_at:
             return True
-        try:
-            parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            max_age_hours = max(1, int(settings.RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS))
-            age_seconds = (datetime.now(timezone.utc) - parsed).total_seconds()
-            return age_seconds > max_age_hours * 3600
-        except ValueError:
-            return True
+        max_age_hours = max(1, int(settings.RECOMMENDATION_EMOTION_DATA_MAX_AGE_HOURS))
+        age_seconds = (datetime.now(timezone.utc) - profile.updated_at.replace(tzinfo=timezone.utc)).total_seconds()
+        return age_seconds > max_age_hours * 3600
 
     def _clamp_score(self, value: float | None) -> float:
         if value is None:
