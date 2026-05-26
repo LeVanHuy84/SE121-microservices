@@ -9,8 +9,8 @@ import {
   type FriendRecommendation,
   type SocialGraphRepository,
 } from '../repositories/social-graph.repository';
-import { RecommendationHydrationService } from './recommendation-hydration.service';
-import { RecommendationTrackingService } from './recommendation-tracking.service';
+import { randomUUID } from 'crypto';
+import { UserClientService } from '../../client/user/user-client.service';
 
 @Injectable()
 export class RecommendationQueryService {
@@ -20,8 +20,7 @@ export class RecommendationQueryService {
 
   constructor(
     private readonly recommendationClient: RecommendationClientService,
-    private readonly hydrationService: RecommendationHydrationService,
-    private readonly trackingService: RecommendationTrackingService,
+    private readonly userClient: UserClientService,
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
   ) {}
@@ -57,20 +56,18 @@ export class RecommendationQueryService {
       userId,
       recommendations,
     );
-    const trackedRecommendations =
-      this.trackingService.attachRecommendationTrackingIds(
-        enrichedRecommendations,
-      );
-    const hydratedRecommendations =
-      await this.hydrationService.hydrateRecommendationUsers(
-        trackedRecommendations,
-      );
+    const trackedRecommendations = this.attachRecommendationTrackingIds(
+      enrichedRecommendations,
+    );
+    const hydratedRecommendations = await this.hydrateRecommendationUsers(
+      trackedRecommendations,
+    );
 
-    void this.trackingService
-      .recordServedEvents(userId, trackedRecommendations, startIndex)
-      .catch((error) => {
+    void this.recordServedEvents(userId, trackedRecommendations, startIndex).catch(
+      (error) => {
         this.logger.warn(`recordServedEvents failed: ${error.message}`);
-      });
+      },
+    );
 
     return {
       data: hydratedRecommendations,
@@ -251,5 +248,77 @@ export class RecommendationQueryService {
     } catch {
       return null;
     }
+  }
+
+  private attachRecommendationTrackingIds<T extends FriendRecommendation>(
+    recommendations: T[],
+  ): T[] {
+    if (recommendations.length === 0) {
+      return recommendations;
+    }
+
+    const recommendationRequestId = randomUUID();
+
+    return recommendations.map((recommendation) => ({
+      ...recommendation,
+      recommendationId: randomUUID(),
+      recommendationRequestId,
+    }));
+  }
+
+  private async hydrateRecommendationUsers<T extends FriendRecommendation>(
+    recommendations: T[],
+  ): Promise<T[]> {
+    if (recommendations.length === 0) {
+      return recommendations;
+    }
+
+    const userIds = [
+      ...new Set(
+        recommendations.flatMap((recommendation) => [
+          recommendation.id,
+          ...recommendation.mutualFriendIds.slice(0, 3),
+        ]),
+      ),
+    ];
+
+    const usersById = await this.userClient.getUsers(userIds, 'base');
+
+    return recommendations.map((recommendation) => ({
+      ...recommendation,
+      user: usersById[recommendation.id] ?? null,
+      mutualFriendPreview: recommendation.mutualFriendIds
+        .slice(0, 3)
+        .map((mutualFriendId) => usersById[mutualFriendId])
+        .filter((user): user is NonNullable<typeof user> => Boolean(user)),
+    }));
+  }
+
+  private async recordServedEvents(
+    userId: string,
+    recommendations: FriendRecommendation[],
+    startIndex: number,
+  ): Promise<void> {
+    await this.socialGraphRepo.recordRecommendationEvents(
+      recommendations.map((recommendation, index) => {
+        const sourceMode = recommendation.candidateSourceMode ?? 'fallback';
+
+        return {
+          userId,
+          candidateId: recommendation.id,
+          eventType: 'served' as const,
+          recommendationId: recommendation.recommendationId ?? null,
+          recommendationRequestId:
+            recommendation.recommendationRequestId ?? null,
+          metadata: {
+            mutualFriends: recommendation.mutualFriends,
+            candidateSourceMode: sourceMode,
+            retrievalScore: recommendation.retrievalScore ?? null,
+            reason: recommendation.reasons ?? [],
+            position: startIndex + index,
+          },
+        };
+      }),
+    );
   }
 }

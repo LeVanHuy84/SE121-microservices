@@ -81,7 +81,7 @@ class RecommendationApiTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response["data"]["hits"], 2)
         get_stats.assert_called_once_with()
 
-    def test_query_candidates_raises_bad_request_for_invalid_cursor(self):
+    async def test_query_candidates_raises_bad_request_for_invalid_cursor(self):
         request = RecommendationQueryRequest(
             viewerId="viewer-1",
             limit=3,
@@ -92,7 +92,7 @@ class RecommendationApiTestCase(unittest.IsolatedAsyncioTestCase):
             side_effect=ValueError("Invalid cursor"),
         ):
             with self.assertRaises(HTTPException) as context:
-                query_candidates(request)
+                await query_candidates(request)
 
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail, "Invalid cursor")
