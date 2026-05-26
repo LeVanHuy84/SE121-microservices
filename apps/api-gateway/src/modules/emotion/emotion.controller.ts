@@ -7,7 +7,6 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { EmotionService } from './emotion.service';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
 import {
@@ -28,14 +27,7 @@ export class EmotionController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.EMOTION_INTELLIGENCE_SERVICE)
     private client: ClientProxy,
-    private readonly emotionService: EmotionService,
   ) {}
-
-  @Get('dashboard')
-  @RequireRole(SystemRole.ADMIN)
-  async getEmotionDashboard(@Query() filter: DashboardQueryDTO) {
-    return this.emotionService.getEmotionDashboard(filter);
-  }
 
   @Get('summary')
   async getEmotionDashboardSummary(@CurrentUserId() userId: string) {
@@ -110,7 +102,7 @@ export class EmotionController {
     @Param('targetId') targetId: string,
   ) {
     return this.client.send('emotion-feedback.get_by_target', {
-      userId: 'user_3D11cgEdQ4ax0oPgIx134paPtIQ',
+      userId,
       targetId,
       targetType,
     });

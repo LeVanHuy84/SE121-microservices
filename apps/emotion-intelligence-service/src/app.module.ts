@@ -16,6 +16,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiModule } from './modules/ai/ai.module';
 import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-analytics.module';
 import { UserClientModule } from './modules/client/user/user-client.module';
+import { PostClientModule } from './modules/client/post/post-client.module';
 
 @Module({
   imports: [

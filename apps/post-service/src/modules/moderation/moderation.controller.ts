@@ -5,10 +5,13 @@ import {
   AdminAppealQuery,
   AdminModerationQuery,
   AppealStatus,
+  CommentResponseDTO,
   CreateAdminReviewAppealDTO,
   CreateAppealRequestDTO,
   GetMyModerationQuery,
+  PostResponseDTO,
   SystemRole,
+  TargetType,
 } from '@repo/dtos';
 import { ModerationAppealService } from './appeal.service';
 
@@ -90,5 +93,13 @@ export class ModerationController {
       false,
       adminId,
     );
+  }
+
+  @MessagePattern('internal.get_target_content')
+  async getTargetContent(
+    @Payload() payload: { targetId: string; targetType: TargetType },
+  ): Promise<PostResponseDTO | CommentResponseDTO | null> {
+    const { targetId, targetType } = payload;
+    return this.moderationService.getTargetContent(targetId, targetType);
   }
 }

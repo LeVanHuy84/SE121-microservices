@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Emotion, TargetType } from '@repo/dtos';
 import { Document, HydratedDocument } from 'mongoose';
 
-@Schema({ timestamps: true })
+@Schema({ collection: 'emotion-feedback', timestamps: true })
 export class EmotionFeedback extends Document {
   @Prop({ required: true })
   userId: string;

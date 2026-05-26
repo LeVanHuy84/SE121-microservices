@@ -379,4 +379,22 @@ export class ModerationService {
 
     return plainToInstance(ContentModerationDTO, updatedModeration);
   }
+
+  async getTargetContent(targetId: string, targetType: TargetType) {
+    if (targetType === TargetType.POST) {
+      const post = await this.postRepository.findOne({
+        where: { id: targetId },
+      });
+      return post ? plainToInstance(PostResponseDTO, post) : null;
+    } else if (targetType === TargetType.COMMENT) {
+      const comment = await this.commentRepository.findOne({
+        where: { id: targetId },
+      });
+      return comment ? plainToInstance(CommentResponseDTO, comment) : null;
+    } else if (targetType === TargetType.SHARE) {
+      return null;
+    }
+
+    return null;
+  }
 }

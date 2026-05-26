@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { EmotionController } from './emotion.controller';
-import { EmotionService } from './emotion.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
@@ -22,6 +21,6 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
     ]),
   ],
   controllers: [EmotionController],
-  providers: [EmotionService],
+  providers: [],
 })
 export class EmotionModule {}
