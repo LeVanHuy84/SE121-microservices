@@ -4,6 +4,7 @@ import type { Job } from 'bull';
 import { NotificationService } from './notification.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatPushService } from './chat-push.service';
+import { NotificationDispatcherService } from './services/notification-dispatcher.service';
 import {
   CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
@@ -23,6 +24,7 @@ export class NotificationProcessor {
 
   constructor(
     private readonly notificationService: NotificationService,
+    private readonly dispatcherService: NotificationDispatcherService,
     private readonly chatPushService: ChatPushService,
   ) {}
 
@@ -66,7 +68,7 @@ export class NotificationProcessor {
       const id = job.data.id;
       const notification = await this.notificationService.findById(id);
       if (!notification) return;
-      await this.notificationService.publishToChannels(notification as any);
+      await this.dispatcherService.publishToChannels(notification as any);
     } catch (error) {
       this.handleDeliveryError(job, error);
     }

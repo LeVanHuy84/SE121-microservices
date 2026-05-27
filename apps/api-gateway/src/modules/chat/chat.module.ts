@@ -7,6 +7,7 @@ import { ChatGateway } from "./chat.gateway";
 
 import { RedisModule } from "@nestjs-modules/ioredis";
 import { ChatStreamConsumer } from "./chat.consumer";
+import { PresenceTrackerService } from "./services/presence-tracker.service";
 
 @Module({
   imports: [
@@ -34,6 +35,6 @@ import { ChatStreamConsumer } from "./chat.consumer";
     }),
   ],
   controllers: [ChatController],
-  providers: [ChatGateway, ChatStreamConsumer],
+  providers: [ChatGateway, ChatStreamConsumer, PresenceTrackerService],
 })
 export class ChatModule {}

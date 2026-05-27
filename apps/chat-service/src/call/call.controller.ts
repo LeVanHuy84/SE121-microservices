@@ -12,13 +12,13 @@ import {
   StreamUserTokenResponseDTO,
 } from '@repo/dtos';
 import { CallService } from './call.service';
-import { CallMediaService } from './call-media.service';
+import { StreamMediaProvider } from './media/stream-media.provider';
 
 @Controller()
 export class CallController {
   constructor(
     private readonly callService: CallService,
-    private readonly callMediaService: CallMediaService,
+    private readonly streamMediaProvider: StreamMediaProvider,
   ) {}
 
   @MessagePattern('getCallById')
@@ -126,6 +126,7 @@ export class CallController {
       userId: string;
     },
   ): Promise<StreamUserTokenResponseDTO> {
-    return this.callMediaService.issueUserMediaToken(data.userId);
+    const token = await this.streamMediaProvider.issueUserToken(data.userId);
+    return { token };
   }
 }

@@ -12,17 +12,12 @@ import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
 import { Model, ObjectId, Types } from 'mongoose';
-import { DeviceTokenService } from 'src/firebase/device-token.service';
-import { FirebaseService } from 'src/firebase/firebase.service';
 import {
   Notification,
   NotificationDocument,
 } from 'src/mongo/schema/notification.schema';
-import { UserPreferenceService } from 'src/user-preference/user-preference.service';
-import {
-  NOTIFICATION_QUEUE,
-  REGULAR_NOTIFICATION_DELIVERY_JOB,
-} from './notification.jobs';
+import { NotificationDispatcherService } from './services/notification-dispatcher.service';
+import { NotificationPolicyService } from './services/notification-policy.service';
 import { TemplateService } from './template.service';
 
 @Injectable()
@@ -35,13 +30,10 @@ export class NotificationService {
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<Notification>,
     private readonly templateService: TemplateService,
-    private readonly userPreferenceService: UserPreferenceService,
-    @InjectQueue(NOTIFICATION_QUEUE)
-    private readonly notificationQueue: Queue,
+    private readonly policyService: NotificationPolicyService,
+    private readonly dispatcherService: NotificationDispatcherService,
     @InjectRedis()
     private readonly redis: Redis,
-    private readonly firebaseService: FirebaseService,
-    private readonly deviceTokenService: DeviceTokenService,
   ) {}
 
   async createAndEnqueue(dto: CreateNotificationDto) {
@@ -54,55 +46,37 @@ export class NotificationService {
       }
     }
 
-    const prefs = await this.userPreferenceService.getUserPreferences(
-      dto.userId,
-    );
-    const allowedChannels =
-      dto.channels && dto.channels.length
-        ? dto.channels.filter((channel) =>
-            prefs.allowedChannels.includes(channel),
-          )
-        : prefs.allowedChannels;
+    const policyResult = await this.policyService.evaluatePolicy(dto.userId, dto.type, dto.channels);
 
-    if (!allowedChannels || allowedChannels.length === 0) {
-      this.logger.warn(`User ${dto.userId} has no allowed channels - skipping`);
-      return this.notificationModel.create({
-        requestId: dto.requestId,
-        userId: dto.userId,
-        type: dto.type,
-        payload: dto.payload,
-        message: null,
-        channels: [],
-        status: 'unread',
-        meta: { suppressed: true },
-      });
-    }
-
-    const limitResult = await this.userPreferenceService.reserveNotificationSlot(
-      dto.userId,
-      dto.type,
-      prefs.limits,
-    );
-
-    if (!limitResult.allowed) {
-      this.logger.warn(
-        `User ${dto.userId} exceeded ${limitResult.reason} limit for notification type ${dto.type}`,
-      );
-      return this.notificationModel.create({
-        requestId: dto.requestId,
-        userId: dto.userId,
-        type: dto.type,
-        payload: dto.payload,
-        message: null,
-        channels: [],
-        status: 'unread',
-        meta: {
-          rateLimited: true,
-          rateLimitReason: limitResult.reason,
-          dailyCount: limitResult.dailyCount,
-          burstCount: limitResult.burstCount,
-        },
-      });
+    if (!policyResult.allowed) {
+      if (policyResult.suppressed) {
+        return this.notificationModel.create({
+          requestId: dto.requestId,
+          userId: dto.userId,
+          type: dto.type,
+          payload: dto.payload,
+          message: null,
+          channels: [],
+          status: 'unread',
+          meta: { suppressed: true },
+        });
+      } else {
+        return this.notificationModel.create({
+          requestId: dto.requestId,
+          userId: dto.userId,
+          type: dto.type,
+          payload: dto.payload,
+          message: null,
+          channels: [],
+          status: 'unread',
+          meta: {
+            rateLimited: true,
+            rateLimitReason: policyResult.reason,
+            dailyCount: policyResult.dailyCount,
+            burstCount: policyResult.burstCount,
+          },
+        });
+      }
     }
 
     try {
@@ -118,7 +92,7 @@ export class NotificationService {
         type: dto.type,
         payload: dto.payload,
         message: renderedTemplate.body,
-        channels: allowedChannels,
+        channels: policyResult.allowedChannels,
         sendAt,
         status: 'unread',
         meta: dto.meta || {},
@@ -132,45 +106,13 @@ export class NotificationService {
         );
       }
 
-      const delay =
-        sendAt && sendAt.getTime() > Date.now()
-          ? Math.max(0, sendAt.getTime() - Date.now())
-          : 0;
-
-      await this.notificationQueue.add(
-        REGULAR_NOTIFICATION_DELIVERY_JOB,
-        { id: doc._id.toString() },
-        {
-          jobId: `regular:${doc._id.toString()}`,
-          delay,
-          attempts: 5,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: true,
-        },
-      );
-
-      if (delay > 0) {
-        this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
-      } else {
-        this.logger.log(`Notification ${doc._id} enqueued for delivery`);
-      }
+      await this.dispatcherService.dispatchToQueue(doc as any, sendAt);
 
       return doc;
     } catch (error) {
-      await this.userPreferenceService.releaseNotificationSlot(
-        dto.userId,
-        dto.type,
-        prefs.limits,
-      );
+      await this.policyService.releaseSlot(dto.userId, dto.type);
       throw error;
     }
-  }
-
-  async publishToChannels(doc: NotificationDocument) {
-    await this.sendPushNotification(doc);
-    this.logger.log(
-      `Sent push notification ${doc._id} via FCM to user ${doc.userId}`,
-    );
   }
 
   async findById(id: string) {
@@ -336,47 +278,7 @@ export class NotificationService {
     await multi.exec();
   }
 
-  private async sendPushNotification(doc: NotificationDocument) {
-    const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
-      doc.userId,
-    );
 
-    if (deviceTokens.length === 0) {
-      this.logger.warn(`No device tokens found for user ${doc.userId}`);
-      return;
-    }
-
-    const tokens = deviceTokens.map((deviceToken) => deviceToken.token);
-    const renderedTemplate = this.templateService.renderTemplate(
-      doc.type,
-      doc.payload as any,
-    );
-    const result = await this.firebaseService.sendToMultipleDevices(
-      tokens,
-      renderedTemplate.title,
-      renderedTemplate.body || doc.message || 'Bạn có thông báo mới',
-      {
-        notificationId: (doc._id as Types.ObjectId).toString(),
-        type: doc.type,
-        userId: doc.userId,
-        ...renderedTemplate.data,
-      },
-      {
-        androidChannelId: renderedTemplate.delivery.androidChannelId,
-      },
-    );
-
-    this.logger.log(
-      `FCM sent to ${result.successCount}/${tokens.length} devices for user ${doc.userId}`,
-    );
-
-    if (result.invalidTokens.length > 0) {
-      await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
-      this.logger.warn(
-        `Marked ${result.invalidTokens.length} invalid tokens as inactive`,
-      );
-    }
-  }
 
   private async cacheNotifications(userId: string, items: any[]) {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);

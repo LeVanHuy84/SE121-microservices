@@ -13,7 +13,7 @@ import {
 import { Message, MessageSchema } from 'src/mongo/schema/message.schema';
 import { OutboxModule } from 'src/outbox/outbox.module';
 import { CallTimeoutWorker } from './call-timeout.worker';
-import { CallMediaService } from './call-media.service';
+
 import { StreamMediaProvider } from './media/stream-media.provider';
 import { PushModule } from 'src/push/push.module';
 import { UserClientModule } from 'src/client/user/user-client.module';
@@ -34,7 +34,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
   controllers: [CallController],
   providers: [
     CallService,
-    CallMediaService,
+
     StreamMediaProvider,
     CallTimeoutWorker,
   ],

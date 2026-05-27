@@ -2,6 +2,7 @@ import { Controller, Inject } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 
 import { UserService } from './user.service';
+import { UserRecommendationService } from './recommendation/user-recommendation.service';
 
 import { CreateUserDTO, UpdateUserDTO } from '@repo/dtos';
 import { firstValueFrom } from 'rxjs';
@@ -10,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 export class UserController {
   constructor(
     private readonly userService: UserService,
+    private readonly userRecommendationService: UserRecommendationService,
     @Inject('SOCIAL_SERVICE') private readonly socialClient
   ) {}
 
@@ -66,7 +68,7 @@ export class UserController {
   async getProfileRecommendationCandidates(
     @Payload() data: { userId: string; limit?: number },
   ) {
-    return this.userService.getProfileRecommendationCandidates(
+    return this.userRecommendationService.getProfileRecommendationCandidates(
       data.userId,
       data.limit,
     );
