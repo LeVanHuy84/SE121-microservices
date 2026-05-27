@@ -8,6 +8,7 @@ import {
 import { EmotionAnalyticsService } from './emotion-analytics.service';
 import { EmotionAnalyticsController } from './emotion-analytics.controller';
 import { EmotionAnalyticsRepository } from './emotion-analytics.repository';
+import { PostClientModule } from '../client/post/post-client.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmotionAnalyticsRepository } from './emotion-analytics.repository';
       },
     ]),
     InsightModule,
+    PostClientModule,
   ],
   controllers: [EmotionAnalyticsController],
   providers: [EmotionAnalyticsService, EmotionAnalyticsRepository],

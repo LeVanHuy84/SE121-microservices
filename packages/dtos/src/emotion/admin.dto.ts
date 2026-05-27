@@ -1,5 +1,7 @@
 import { IsOptional, IsEnum, IsNumber } from 'class-validator';
 import { RiskLevel } from './enums';
+import { UserEmotionSignalDto } from './user-emotion-signal.dto';
+import { BaseUserDTO } from '../user';
 
 export class DashboardOverviewResponseDto {
   totalAnalyzedSnapshots: number;
@@ -7,6 +9,18 @@ export class DashboardOverviewResponseDto {
   criticalRiskUsers: number;
   averageNegativityScore: number;
   topEmotions: Record<string, number>;
+}
+
+export class EmotionDashboardChartItemDto {
+  date: string;
+
+  angry: number;
+  disgust: number;
+  fear: number;
+  happy: number;
+  neutral: number;
+  sad: number;
+  surprise: number;
 }
 
 export class RiskUsersQueryDto {
@@ -23,13 +37,17 @@ export class RiskUsersQueryDto {
   riskLevel?: RiskLevel;
 }
 
+export class RiskUserDto {
+  user: BaseUserDTO;
+  riskItem: RiskUserItemDto;
+}
+
 export class RiskUserItemDto {
   userId: string;
   riskLevel: RiskLevel;
   riskScore: number;
   signalCount: number;
   updatedAt?: Date;
-  flagged?: boolean;
 }
 
 // Profile detail and snapshot timeline DTOs removed for privacy.

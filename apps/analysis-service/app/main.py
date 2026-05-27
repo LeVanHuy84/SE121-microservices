@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from app.api.test_api import test_router
 from app.api.image_api import image_router
-from app.api.analyze_api import analyze_router
 from app.api.health_api import health_router
 from app.api.music_api import music_router
 from app.api.moderation_api import moderation_router
@@ -18,5 +17,4 @@ app.include_router(health_router)
 app.include_router(music_router)
 app.include_router(test_router)
 # app.include_router(image_router)
-app.include_router(analyze_router)
 # app.include_router(moderation_router)

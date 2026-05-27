@@ -23,6 +23,9 @@ export class ContentModeration {
   @Column({ type: 'enum', enum: TargetType, name: 'target_type' })
   targetType: TargetType;
 
+  @Column({ name: 'is_violation', default: true })
+  isViolation: boolean;
+
   @Column({ type: 'jsonb', nullable: true })
   violations: {
     category: string;

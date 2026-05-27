@@ -47,6 +47,7 @@ export class MusicController {
   @Post()
   @RequireRole(SystemRole.ADMIN)
   createMusicFeature(@Body() dto: CreateMusicFeatureDTO) {
+    console.log('Received DTO in controller:', dto);
     return this.client.send('create_music_feature', dto);
   }
 

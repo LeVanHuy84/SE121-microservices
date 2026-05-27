@@ -67,12 +67,6 @@ export class ProfileRepository {
     ]);
 
     const userIds = itemsRaw.map((r) => r.userId);
-    const profiles = await this.profileModel
-      .find({ userId: { $in: userIds } })
-      .lean<any[]>()
-      .exec();
-
-    const profileById = new Map(profiles.map((p) => [p.userId, p]));
 
     // compute signal counts per user from analytics snapshots (privacy-safe numeric only)
     const counts = await this.aggregateModel
