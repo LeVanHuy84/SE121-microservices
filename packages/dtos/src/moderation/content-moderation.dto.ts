@@ -4,6 +4,7 @@ import {
   PostResponseDTO,
   ShareResponseDTO,
 } from '../social';
+import { ModerationAppealResponseDTO } from './appeal.response';
 
 export class ContentModerationDTO {
   id: string;
@@ -30,4 +31,5 @@ export class ContentModerationDTO {
 export class ModerationRecordDetailDTO {
   moderation: ContentModerationDTO;
   target: CommentResponseDTO | PostResponseDTO | ShareResponseDTO | null;
+  appeals: ModerationAppealResponseDTO[];
 }

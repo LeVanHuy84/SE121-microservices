@@ -26,10 +26,6 @@ export class ModerationController {
   async getMyModerationRecords(
     @Payload() payload: { userId: string; query: GetMyModerationQuery },
   ) {
-    console.log(
-      'Received get-my-moderation-records message with payload:',
-      payload,
-    );
     const { userId, query } = payload;
     return this.moderationService.getMyModerationRecords(userId, query);
   }

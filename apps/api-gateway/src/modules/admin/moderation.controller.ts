@@ -42,8 +42,6 @@ export class ModerationController {
     @CurrentUserId() userId: string,
     @Query() query: GetMyModerationQuery,
   ) {
-    this.logger.log(`Get moderation records for userId=${userId}`);
-
     return this.postClient.send('moderation.get-my-records', {
       userId,
       query,
@@ -55,6 +53,12 @@ export class ModerationController {
     @CurrentUserId() userId: string,
     @Param('id') id: string,
   ) {
+    console.log(
+      'Fetching moderation record detail for id:',
+      id,
+      'and userId:',
+      userId,
+    );
     return this.postClient.send('moderation.get-record-detail', {
       id,
       userId,

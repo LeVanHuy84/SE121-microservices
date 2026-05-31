@@ -8,6 +8,7 @@ import {
   ContentModerationDTO,
   FinalDecision,
   GetMyModerationQuery,
+  ModerationAppealResponseDTO,
   ModerationRecordDetailDTO,
   PageResponse,
   PostResponseDTO,
@@ -141,6 +142,7 @@ export class ModerationService {
   ): Promise<ModerationRecordDetailDTO> {
     const moderation = await this.contentModerationRepository.findOne({
       where: { id },
+      relations: ['appeals'],
     });
 
     if (!moderation) {
@@ -180,6 +182,7 @@ export class ModerationService {
     return {
       moderation: plainToInstance(ContentModerationDTO, moderation),
       target,
+      appeals: plainToInstance(ModerationAppealResponseDTO, moderation.appeals),
     };
   }
 
