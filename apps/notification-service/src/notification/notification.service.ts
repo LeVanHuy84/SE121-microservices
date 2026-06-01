@@ -6,6 +6,7 @@ import {
   CreateNotificationDto,
   CursorPageResponse,
   CursorPaginationDTO,
+  GetNotificationQueryDto,
   NotificationResponseDto,
 } from '@repo/dtos';
 import type { Queue } from 'bull';
@@ -46,7 +47,7 @@ export class NotificationService {
       }
     }
 
-    const policyResult = await this.policyService.evaluatePolicy(dto.userId, dto.type, dto.channels);
+    const policyResult = await this.policyService.evaluatePolicy(dto.userId, dto.type);
 
     if (!policyResult.allowed) {
       if (policyResult.suppressed) {
@@ -92,7 +93,7 @@ export class NotificationService {
         type: dto.type,
         payload: dto.payload,
         message: renderedTemplate.body,
-        channels: policyResult.allowedChannels,
+        channels: [], // Deprecated, we no longer store allowedChannels here
         sendAt,
         status: 'unread',
         meta: dto.meta || {},
@@ -122,15 +123,17 @@ export class NotificationService {
 
   async findByUser(
     userId: string,
-    query: CursorPaginationDTO,
+    query: GetNotificationQueryDto,
   ): Promise<CursorPageResponse<NotificationResponseDto>> {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
     const limit = query.limit;
+    const hasFilters = query.type !== undefined || query.isRead !== undefined;
 
-    const isEmpty = await this.redis.exists(emptyKey);
-    if (isEmpty) {
-      return new CursorPageResponse<NotificationResponseDto>([], null, false);
-    }
+    if (!hasFilters) {
+      const isEmpty = await this.redis.exists(emptyKey);
+      if (isEmpty) {
+        return new CursorPageResponse<NotificationResponseDto>([], null, false);
+      }
 
     let maxScore = '+inf';
     if (query.cursor) {
@@ -203,18 +206,29 @@ export class NotificationService {
       );
     }
 
-    const scoreFilter = query.cursor
-      ? { $lt: new Date(parseInt(query.cursor, 10)) }
-      : {};
+    }
+
+    const mongoQuery: any = { userId };
+    if (query.cursor) {
+      mongoQuery.createdAt = { $lt: new Date(parseInt(query.cursor, 10)) };
+    }
+    if (query.type) {
+      mongoQuery.type = query.type;
+    }
+    if (query.isRead !== undefined) {
+      mongoQuery.status = query.isRead ? 'read' : 'unread';
+    }
 
     const dbItems = await this.notificationModel
-      .find({ userId, ...(query.cursor ? { createdAt: scoreFilter } : {}) })
+      .find(mongoQuery)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .lean();
 
     if (dbItems.length > 0) {
-      await this.cacheNotifications(userId, dbItems);
+      if (!hasFilters) {
+        await this.cacheNotifications(userId, dbItems);
+      }
 
       const hasNext = dbItems.length > limit;
       const items = dbItems.slice(0, limit);
@@ -231,7 +245,9 @@ export class NotificationService {
       );
     }
 
-    await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+    if (!hasFilters) {
+      await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+    }
     return new CursorPageResponse([], null, false);
   }
 

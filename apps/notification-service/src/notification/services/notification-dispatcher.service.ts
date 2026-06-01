@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import type { Queue } from 'bull';
 import { Types } from 'mongoose';
 import { NotificationDocument } from 'src/mongo/schema/notification.schema';
@@ -21,6 +23,7 @@ export class NotificationDispatcherService {
     private readonly firebaseService: FirebaseService,
     private readonly deviceTokenService: DeviceTokenService,
     private readonly templateService: TemplateService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async dispatchToQueue(doc: NotificationDocument, sendAt?: Date) {
@@ -49,10 +52,26 @@ export class NotificationDispatcherService {
   }
 
   async publishToChannels(doc: NotificationDocument) {
+    const isOnline = await this.checkUserOnline(doc.userId);
+    if (isOnline) {
+      this.logger.debug(`User ${doc.userId} is online, skipping push notification`);
+      return;
+    }
+
     await this.sendPushNotification(doc);
     this.logger.log(
       `Sent push notification ${doc._id} via FCM to user ${doc.userId}`,
     );
+  }
+
+  private async checkUserOnline(userId: string): Promise<boolean> {
+    try {
+      const status = await this.redis.hget(`presence:user:${userId}`, 'status');
+      return status === 'online';
+    } catch (e) {
+      this.logger.warn(`Failed to check presence for user ${userId}: ${e.message}`);
+      return false;
+    }
   }
 
   private async sendPushNotification(doc: NotificationDocument) {

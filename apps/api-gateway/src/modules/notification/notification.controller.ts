@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CursorPaginationDTO, PaginationDTO } from '@repo/dtos';
+import { CursorPaginationDTO, PaginationDTO, UserPreferenceSettingsDto, GetNotificationQueryDto } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -23,7 +23,7 @@ export class NotificationController {
   @Get()
   getNotifications(
     @CurrentUserId() userId: string,
-    @Query() query: CursorPaginationDTO
+    @Query() query: GetNotificationQueryDto
   ) {
     return this.client.send('get_notifications', { userId, query });
   }
@@ -46,6 +46,20 @@ export class NotificationController {
   @Delete()
   deleteAllNotifications(@CurrentUserId() userId: string) {
     return this.client.send('delete_all_notifications', userId);
+  }
+
+  // Preferences endpoints
+  @Get('preferences')
+  getUserPreferences(@CurrentUserId() userId: string) {
+    return this.client.send('get_user_preference', { userId });
+  }
+
+  @Patch('preferences')
+  updateUserPreferences(
+    @CurrentUserId() userId: string,
+    @Body('settings') settings: UserPreferenceSettingsDto
+  ) {
+    return this.client.send('update_user_preference', { userId, settings });
   }
 
   // Device token endpoints

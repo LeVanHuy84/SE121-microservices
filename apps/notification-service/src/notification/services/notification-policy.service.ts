@@ -3,7 +3,6 @@ import { UserPreferenceService } from 'src/user-preference/user-preference.servi
 
 export interface PolicyCheckResult {
   allowed: boolean;
-  allowedChannels: string[];
   reason?: string;
   dailyCount?: number;
   burstCount?: number;
@@ -16,19 +15,71 @@ export class NotificationPolicyService {
 
   constructor(private readonly userPreferenceService: UserPreferenceService) {}
 
-  async evaluatePolicy(userId: string, type: string, requestedChannels?: string[]): Promise<PolicyCheckResult> {
-    const prefs = await this.userPreferenceService.getUserPreferences(userId);
-    const allowedChannels =
-      requestedChannels && requestedChannels.length
-        ? requestedChannels.filter((channel) =>
-            prefs.allowedChannels.includes(channel),
-          )
-        : prefs.allowedChannels;
+  private isDndActive(dnd: any): boolean {
+    if (!dnd || !dnd.enabled) return false;
+    const now = new Date();
+    // Assuming server time or timezone handled here
+    const currentAbs = now.getHours() * 60 + now.getMinutes();
 
-    if (!allowedChannels || allowedChannels.length === 0) {
-      this.logger.warn(`User ${userId} has no allowed channels - skipping`);
-      return { allowed: false, allowedChannels: [], suppressed: true };
+    const parseTime = (t: string) => {
+      if (!t) return 0;
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + (m || 0);
+    };
+    const from = parseTime(dnd.from);
+    const to = parseTime(dnd.to);
+
+    if (from <= to) {
+      return currentAbs >= from && currentAbs <= to;
+    } else {
+      return currentAbs >= from || currentAbs <= to;
     }
+  }
+
+  async checkPreferencesOnly(userId: string, type: string): Promise<{ allowed: boolean, reason?: string }> {
+    const prefs = await this.userPreferenceService.getUserPreferences(userId);
+    
+    if (prefs.settings) {
+      if (this.isDndActive(prefs.settings.doNotDisturb) && type !== 'SYSTEM_ALERT') {
+        return { allowed: false, reason: 'DND' };
+      }
+
+      if (type === 'chat_message') {
+        if (prefs.settings.pushMessages === false) {
+          return { allowed: false, reason: 'PREF_PUSH_MESSAGES' };
+        }
+      }
+
+      if (type === 'group_message') {
+        if (prefs.settings.pushGroupMessages === false) {
+          return { allowed: false, reason: 'PREF_PUSH_GROUP_MESSAGES' };
+        }
+      }
+
+      if (type === 'friend_request_received' || type === 'friend_request_accepted') {
+        if (prefs.settings.pushFriendRequests === false) {
+          return { allowed: false, reason: 'PREF_FRIEND_REQUESTS' };
+        }
+      }
+
+      if (type.includes('mention')) {
+        if (prefs.settings.pushMentions === false) {
+          return { allowed: false, reason: 'PREF_MENTIONS' };
+        }
+      }
+    }
+    
+    return { allowed: true };
+  }
+
+  async evaluatePolicy(userId: string, type: string): Promise<PolicyCheckResult> {
+    const prefCheck = await this.checkPreferencesOnly(userId, type);
+    if (!prefCheck.allowed) {
+      this.logger.debug(`User ${userId} suppressed by policy for type ${type} (${prefCheck.reason})`);
+      return { allowed: false, suppressed: true, reason: prefCheck.reason };
+    }
+
+    const prefs = await this.userPreferenceService.getUserPreferences(userId);
 
     const limitResult = await this.userPreferenceService.reserveNotificationSlot(
       userId,
@@ -42,14 +93,13 @@ export class NotificationPolicyService {
       );
       return {
         allowed: false,
-        allowedChannels: [],
         reason: limitResult.reason,
         dailyCount: limitResult.dailyCount,
         burstCount: limitResult.burstCount,
       };
     }
 
-    return { allowed: true, allowedChannels };
+    return { allowed: true };
   }
 
   async releaseSlot(userId: string, type: string) {

@@ -6,7 +6,7 @@ import {
   Payload,
   RmqContext,
 } from '@nestjs/microservices';
-import { CursorPaginationDTO } from '@repo/dtos';
+import { CursorPaginationDTO, GetNotificationQueryDto } from '@repo/dtos';
 
 import { ChatPushService } from './chat-push.service';
 import { NotificationService } from './notification.service';
@@ -96,7 +96,7 @@ export class NotificationController {
   }
 
   @MessagePattern('get_notifications')
-  findAll(@Payload() data: { userId: string; query: CursorPaginationDTO }) {
+  findAll(@Payload() data: { userId: string; query: GetNotificationQueryDto }) {
     return this.notificationService.findByUser(data.userId, data.query);
   }
 
