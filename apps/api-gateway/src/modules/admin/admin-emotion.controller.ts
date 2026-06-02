@@ -24,6 +24,14 @@ export class AdminEmotionController {
     );
   }
 
+  @Get('dashboard/charts')
+  @RequireRole(SystemRole.ADMIN)
+  async getDashboardCharts(@Query() query: { from?: string; to?: string }) {
+    return await firstValueFrom(
+      this.client.send('emotion-admin.dashboard.chart', query),
+    );
+  }
+
   @Get('risk-users')
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async listRiskUsers(@Query() query: RiskUsersQueryDto) {

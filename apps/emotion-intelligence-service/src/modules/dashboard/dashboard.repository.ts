@@ -62,6 +62,17 @@ export interface DashboardHistoryProjection {
   createdAt: Date;
 }
 
+export interface DashboardChartItemProjection {
+  date: string;
+  angry: number;
+  disgust: number;
+  fear: number;
+  happy: number;
+  neutral: number;
+  sad: number;
+  surprise: number;
+}
+
 @Injectable()
 export class DashboardRepository {
   constructor(
@@ -339,5 +350,113 @@ export class DashboardRepository {
       averageNegativityScore: Number(averageNegativityScore ?? 0),
       topEmotions,
     };
+  }
+
+  // ===== ADMIN DASHBOARD CHART =====
+  async getDashboardChart(payload: {
+    from?: string;
+    to?: string;
+  }): Promise<DashboardChartItemProjection[]> {
+    const now = new Date();
+
+    // ===== DEFAULT RANGE =====
+    const toDate = payload.to ? new Date(payload.to) : now;
+
+    const fromDate = payload.from
+      ? new Date(payload.from)
+      : new Date(toDate.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+    // ===== CLAMP RANGE =====
+    const MAX_DAYS = 30;
+
+    const diffDays =
+      Math.floor(
+        (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
+
+    if (diffDays > MAX_DAYS) {
+      fromDate.setTime(toDate.getTime() - (MAX_DAYS - 1) * 24 * 60 * 60 * 1000);
+    }
+
+    // normalize time
+    const startDt = new Date(fromDate);
+    startDt.setHours(0, 0, 0, 0);
+
+    const endDt = new Date(toDate);
+    endDt.setHours(23, 59, 59, 999);
+
+    // ===== AGGREGATE =====
+    const raw = await this.analyticsSnapshotModel.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDt,
+            $lte: endDt,
+          },
+        },
+      },
+
+      {
+        $group: {
+          _id: {
+            day: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$createdAt',
+              },
+            },
+            emotion: '$finalEmotion',
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // ===== GROUP MAP =====
+    const grouped: Record<string, Record<string, number>> = {};
+
+    for (const item of raw) {
+      const day = item._id.day;
+      const emotion = item._id.emotion;
+
+      if (!grouped[day]) {
+        grouped[day] = {
+          angry: 0,
+          disgust: 0,
+          fear: 0,
+          happy: 0,
+          neutral: 0,
+          sad: 0,
+          surprise: 0,
+        };
+      }
+
+      grouped[day][emotion] = item.count;
+    }
+
+    // ===== FILL MISSING DAYS =====
+    const result: DashboardChartItemProjection[] = [];
+
+    const cursor = new Date(startDt);
+
+    while (cursor <= endDt) {
+      const dayStr = cursor.toISOString().split('T')[0];
+
+      result.push({
+        date: dayStr,
+
+        angry: grouped[dayStr]?.angry ?? 0,
+        disgust: grouped[dayStr]?.disgust ?? 0,
+        fear: grouped[dayStr]?.fear ?? 0,
+        happy: grouped[dayStr]?.happy ?? 0,
+        neutral: grouped[dayStr]?.neutral ?? 0,
+        sad: grouped[dayStr]?.sad ?? 0,
+        surprise: grouped[dayStr]?.surprise ?? 0,
+      });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return result;
   }
 }

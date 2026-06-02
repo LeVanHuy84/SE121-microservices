@@ -12,6 +12,7 @@ import {
   PageResponse,
   PostResponseDTO,
   ShareResponseDTO,
+  SystemRole,
   TargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
@@ -135,6 +136,8 @@ export class ModerationService {
 
   async getModerationRecordDetail(
     id: string,
+    userId?: string,
+    role?: SystemRole,
   ): Promise<ModerationRecordDetailDTO> {
     const moderation = await this.contentModerationRepository.findOne({
       where: { id },
@@ -142,6 +145,12 @@ export class ModerationService {
 
     if (!moderation) {
       throw new RpcException('Moderation record not found');
+    }
+
+    if (moderation.userId !== userId) {
+      if (role !== SystemRole.ADMIN && role !== SystemRole.MODERATOR) {
+        throw new RpcException('Access denied');
+      }
     }
 
     let target: PostResponseDTO | CommentResponseDTO | ShareResponseDTO | null =
@@ -317,6 +326,7 @@ export class ModerationService {
       ? FinalDecision.NO_VIOLATION
       : FinalDecision.VIOLATION;
 
+    const isViolation = !isApproved;
     const isDeleted = !isApproved;
 
     // =========================================================
@@ -347,6 +357,7 @@ export class ModerationService {
 
     await this.contentModerationRepository.update(moderationId, {
       finalDecision,
+      isViolation,
     });
 
     // =========================================================
@@ -367,5 +378,23 @@ export class ModerationService {
     }
 
     return plainToInstance(ContentModerationDTO, updatedModeration);
+  }
+
+  async getTargetContent(targetId: string, targetType: TargetType) {
+    if (targetType === TargetType.POST) {
+      const post = await this.postRepository.findOne({
+        where: { id: targetId },
+      });
+      return post ? plainToInstance(PostResponseDTO, post) : null;
+    } else if (targetType === TargetType.COMMENT) {
+      const comment = await this.commentRepository.findOne({
+        where: { id: targetId },
+      });
+      return comment ? plainToInstance(CommentResponseDTO, comment) : null;
+    } else if (targetType === TargetType.SHARE) {
+      return null;
+    }
+
+    return null;
   }
 }

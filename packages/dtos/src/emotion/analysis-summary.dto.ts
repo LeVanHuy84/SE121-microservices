@@ -1,4 +1,9 @@
-import { Emotion, TargetType } from '../social';
+import {
+  CommentResponseDTO,
+  Emotion,
+  PostResponseDTO,
+  TargetType,
+} from '../social';
 import { LowCaseEmotion, RiskHintLevel } from './enums';
 
 export class AnalysisSummaryDto {
@@ -12,4 +17,6 @@ export class AnalysisSummaryDto {
   riskLevel: RiskHintLevel;
 
   createdAt: Date;
+
+  content: PostResponseDTO | CommentResponseDTO;
 }
