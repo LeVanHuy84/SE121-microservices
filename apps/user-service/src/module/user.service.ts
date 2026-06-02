@@ -23,7 +23,7 @@ import { users } from 'src/drizzle/schema/users.schema';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { OutboxService } from './event/outbox.service';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { USER_STATUS } from 'src/constants';
 import { randomUUID } from 'crypto';
 import { ProfileHelper } from './helpers/profile.helper';
@@ -74,7 +74,8 @@ export class UserService {
         school: normalizedProfile.school,
         interests: normalizedProfile.interests,
         semanticProfileText,
-        stats: { followers: 0, following: 0, posts: 0 },
+        postCount: 0,
+        friendCount: 0,
         privacySettings: {
           profileVisibility: 'PUBLIC',
           messagePrivacy: 'EVERYONE',
@@ -238,6 +239,102 @@ export class UserService {
 
     await this.redis.set(cacheKey, JSON.stringify(dto), 'EX', CACHE_TTL.USER);
     return dto;
+  }
+
+  async findByUsername(username: string): Promise<UserResponseDTO | null> {
+    const cachedUser = await this.redis.get(`user:username:${username}`);
+    if (cachedUser) {
+      return JSON.parse(cachedUser);
+    }
+    const [user] = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        avatarUrl: profiles.avatarUrl,
+        coverImage: profiles.coverImage,
+        bio: profiles.bio,
+        location: profiles.location,
+        jobTitle: profiles.jobTitle,
+        company: profiles.company,
+        school: profiles.school,
+        interests: profiles.interests,
+        privacySettings: profiles.privacySettings,
+        postCount: profiles.postCount,
+        friendCount: profiles.friendCount,
+      })
+      .from(users)
+      .leftJoin(profiles, eq(users.id, profiles.userId))
+      .where(
+        and(
+          eq(
+            sql`LOWER(${profiles.firstName} || ${profiles.lastName})`,
+            username.toLowerCase(),
+          ),
+          eq(users.isActive, true),
+        ),
+      );
+
+    if (!user) {
+      return null;
+    }
+
+    const dto = plainToInstance(UserResponseDTO, user, {
+      excludeExtraneousValues: true,
+    });
+
+    await this.redis.set(
+      `user:username:${username}`,
+      JSON.stringify(dto),
+      'EX',
+      CACHE_TTL.USER,
+    );
+    return dto;
+  }
+
+  async incrementPostCount(userId: string) {
+    await this.db
+      .update(profiles)
+      .set({ postCount: sql`${profiles.postCount} + 1` })
+      .where(eq(profiles.userId, userId));
+    await this.redis.del(`user:${userId}`);
+    await this.redis.del('users:all');
+  }
+
+  async decrementPostCount(userId: string) {
+    await this.db
+      .update(profiles)
+      .set({ postCount: sql`GREATEST(${profiles.postCount} - 1, 0)` })
+      .where(eq(profiles.userId, userId));
+    await this.redis.del(`user:${userId}`);
+    await this.redis.del('users:all');
+  }
+
+  async incrementFriendCount(userIds: string[]) {
+    if (!userIds.length) return;
+    await this.db
+      .update(profiles)
+      .set({ friendCount: sql`${profiles.friendCount} + 1` })
+      .where(inArray(profiles.userId, userIds));
+    for (const userId of userIds) {
+      await this.redis.del(`user:${userId}`);
+    }
+    await this.redis.del('users:all');
+  }
+
+  async decrementFriendCount(userIds: string[]) {
+    if (!userIds.length) return;
+    await this.db
+      .update(profiles)
+      .set({ friendCount: sql`GREATEST(${profiles.friendCount} - 1, 0)` })
+      .where(inArray(profiles.userId, userIds));
+    for (const userId of userIds) {
+      await this.redis.del(`user:${userId}`);
+    }
+    await this.redis.del('users:all');
   }
 
   async update(id: string, dto: UpdateUserDTO) {

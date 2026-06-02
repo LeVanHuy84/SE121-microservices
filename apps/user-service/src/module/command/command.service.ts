@@ -55,7 +55,8 @@ export class CommandService {
           firstName: 'System',
           lastName: 'Admin',
           avatarUrl: null,
-          stats: { followers: 0, following: 0, posts: 0 },
+          postCount: 0,
+          friendCount: 0,
         });
 
         const [defaultRole] = await tx

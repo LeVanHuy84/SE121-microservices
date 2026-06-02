@@ -26,6 +26,8 @@ export interface PostEventPayloads {
   };
   [PostEventType.REMOVED]: {
     postId: string;
+    userId: string;
+    groupId?: string;
   };
 }
 

@@ -46,6 +46,12 @@ export class UserResponseDTO {
   createdAt: Date;
 
   @Expose()
+  postCount: number;
+
+  @Expose()
+  friendCount: number;
+
+  @Expose()
   @Type(() => UserPrivacySettingsResponse)
   privacySettings: UserPrivacySettingsResponse;
 }

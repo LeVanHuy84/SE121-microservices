@@ -1,4 +1,5 @@
 import {
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -34,7 +35,8 @@ export const profiles = pgTable("profiles", {
   interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   semanticProfileText: text("semantic_profile_text"),
 
-  stats: jsonb("stats").default({ friends: 0, posts: 0 }).notNull(),
+  postCount: integer("post_count").default(0).notNull(),
+  friendCount: integer("friend_count").default(0).notNull(),
   privacyLevel: privacyLevelEnum("privacy_level")
     .default(PRIVACY_LEVEL.PUBLIC)
     .notNull(),
