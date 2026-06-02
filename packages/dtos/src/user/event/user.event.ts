@@ -1,4 +1,5 @@
 import { EventTopic } from '../../social';
+import { PrivacyLevel, MessagePrivacy, UserPrivacySettings } from '../enums';
 
 export enum UserEventType {
   CREATED = 'user.created',
@@ -21,6 +22,7 @@ export interface UserEventPayloads {
     interests?: string[];
     isActive: boolean;
     createdAt: Date;
+    privacySettings?: UserPrivacySettings;
   };
   [UserEventType.UPDATED]: {
     userId: string;
@@ -35,6 +37,7 @@ export interface UserEventPayloads {
     school?: string;
     interests?: string[];
     isActive?: boolean;
+    privacySettings?: UserPrivacySettings;
   };
   [UserEventType.REMOVED]: {
     userId: string;

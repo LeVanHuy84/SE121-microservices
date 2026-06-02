@@ -1,7 +1,8 @@
 import { PartialType } from "@nestjs/mapped-types";
 import { Type } from "class-transformer";
-import { IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsOptional, IsString, ValidateNested, IsEnum } from "class-validator";
 import { CreateUserDTO } from "./create-user.dto";
+import { PrivacyLevel, MessagePrivacy } from "./enums";
 
 export class CoverImageDTO {
   @IsOptional()
@@ -18,4 +19,23 @@ export class UpdateUserDTO extends PartialType(CreateUserDTO) {
   @ValidateNested()
   @Type(() => CoverImageDTO)
   coverImage?: CoverImageDTO;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UserPrivacySettingsDTO)
+  privacySettings?: UserPrivacySettingsDTO;
+}
+
+export class UserPrivacySettingsDTO {
+  @IsOptional()
+  @IsEnum(PrivacyLevel)
+  profileVisibility?: PrivacyLevel;
+
+  @IsOptional()
+  @IsEnum(MessagePrivacy)
+  messagePrivacy?: MessagePrivacy;
+
+  @IsOptional()
+  @IsEnum(PrivacyLevel)
+  friendListVisibility?: PrivacyLevel;
 }

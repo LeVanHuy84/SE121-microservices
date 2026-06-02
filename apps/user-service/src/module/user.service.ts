@@ -75,6 +75,11 @@ export class UserService {
         interests: normalizedProfile.interests,
         semanticProfileText,
         stats: { followers: 0, following: 0, posts: 0 },
+        privacySettings: {
+          profileVisibility: 'PUBLIC',
+          messagePrivacy: 'EVERYONE',
+          friendListVisibility: 'PUBLIC',
+        } as any,
       });
 
       const [defaultRole] = await tx
@@ -118,6 +123,11 @@ export class UserService {
       interests: normalizedProfile.interests ?? undefined,
       isActive: true,
       createdAt: new Date(),
+      privacySettings: {
+        profileVisibility: 'PUBLIC',
+        messagePrivacy: 'EVERYONE',
+        friendListVisibility: 'PUBLIC',
+      } as any,
     };
 
     await this.outboxService.createUserOutboxEvent(
@@ -164,6 +174,7 @@ export class UserService {
             company: true,
             school: true,
             interests: true,
+            privacySettings: true,
           },
         },
       },
@@ -212,6 +223,7 @@ export class UserService {
             company: true,
             school: true,
             interests: true,
+            privacySettings: true,
           },
         },
       },
@@ -288,6 +300,9 @@ export class UserService {
         school: nextProfileInput.school ?? profile.school,
         interests: nextProfileInput.interests ?? profile.interests ?? [],
         semanticProfileText,
+        privacySettings: dto.privacySettings 
+          ? { ...profile.privacySettings, ...dto.privacySettings } 
+          : profile.privacySettings,
         updatedAt: new Date(),
       };
 
@@ -367,6 +382,7 @@ export class UserService {
       company: finalProfile.company ?? undefined,
       school: finalProfile.school ?? undefined,
       interests: finalProfile.interests ?? undefined,
+      privacySettings: finalProfile.privacySettings,
     };
 
     await this.outboxService.createUserOutboxEvent(

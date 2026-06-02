@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ALTER COLUMN "privacy_settings" SET DEFAULT '{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC"}'::jsonb;
