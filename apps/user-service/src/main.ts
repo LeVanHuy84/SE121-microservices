@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
 import { CommandService } from './module/command/command.service';
+import { CommandModule } from './module/command/command.module';
 
 async function bootstrap() {
   const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -12,7 +13,7 @@ async function bootstrap() {
       options: {
         port: process.env.PORT ? parseInt(process.env.PORT) : 4001,
       },
-    }
+    },
   );
 
   const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -23,7 +24,7 @@ async function bootstrap() {
         port: 6379,
         host: 'localhost',
       },
-    }
+    },
   );
 
   const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -39,7 +40,7 @@ async function bootstrap() {
           groupId: process.env.KAFKA_GROUP_ID || 'user-service-group',
         },
       },
-    }
+    },
   );
 
   tcpApp.useGlobalFilters(new ExceptionsFilter());
@@ -47,7 +48,9 @@ async function bootstrap() {
   kafkaApp.useGlobalFilters(new ExceptionsFilter());
   await Promise.all([tcpApp.listen(), redisApp.listen(), kafkaApp.listen()]);
 
-  const commandApp = await NestFactory.createApplicationContext(AppModule);
+  // Use a dedicated module for startup commands so closing this context
+  // does not tear down shared infra providers from AppModule (e.g. Redis).
+  const commandApp = await NestFactory.createApplicationContext(CommandModule);
   const commandService = commandApp.get(CommandService);
   await commandService.run();
   await commandApp.close();
