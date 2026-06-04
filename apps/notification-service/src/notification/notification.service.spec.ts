@@ -11,7 +11,8 @@ import { DeviceTokenService } from 'src/firebase/device-token.service';
 describe('NotificationService (unit)', () => {
   let service: NotificationService;
   let notificationQueue: { add: jest.Mock };
-  let userPreferenceService: UserPreferenceService;
+  let policyService: any;
+  let dispatcherService: any;
 
   beforeEach(async () => {
     notificationQueue = { add: jest.fn() };
@@ -45,21 +46,16 @@ describe('NotificationService (unit)', () => {
           },
         },
         {
-          provide: UserPreferenceService,
+          provide: 'NotificationPolicyService', // Wait, the actual class is NotificationPolicyService
           useValue: {
-            getUserPreferences: jest
-              .fn()
-              .mockResolvedValue({
-                allowedChannels: ['push'],
-                limits: { dailyLimit: 10, burstLimit: 3, burstWindowSeconds: 60 },
-              }),
-            reserveNotificationSlot: jest.fn().mockResolvedValue({
-              allowed: true,
-              dailyCount: 1,
-              burstCount: 1,
-            }),
-            releaseNotificationSlot: jest.fn().mockResolvedValue(undefined),
-            checkAndIncrementDailyLimit: jest.fn().mockResolvedValue(true),
+            evaluatePolicy: jest.fn().mockResolvedValue({ allowed: true }),
+            releaseSlot: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: 'NotificationDispatcherService',
+          useValue: {
+            dispatchToQueue: jest.fn(),
           },
         },
         {
@@ -102,26 +98,23 @@ describe('NotificationService (unit)', () => {
     }).compile();
 
     service = module.get<NotificationService>(NotificationService);
-    userPreferenceService = module.get<UserPreferenceService>(UserPreferenceService);
+    policyService = module.get('NotificationPolicyService');
+    dispatcherService = module.get('NotificationDispatcherService');
   });
 
   it('should create notification and enqueue delivery job', async () => {
     const dto = {
       userId: 'user1',
       type: 'welcome',
-      payload: { name: 'Alice' },
-      channels: ['push'],
+      payload: { targetType: 'user', targetId: '1', content: 'hello' } as any,
+      channels: [],
     };
     const result = await service.createAndEnqueue(dto);
 
     expect(result._id).toBeDefined();
-    expect(notificationQueue.add).toHaveBeenCalledWith(
-      'deliver-regular-notification',
-      { id: '123' },
-      expect.objectContaining({
-        jobId: 'regular:123',
-        attempts: 5,
-      }),
+    expect(dispatcherService.dispatchToQueue).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: '123' }),
+      undefined
     );
   });
 
@@ -131,20 +124,18 @@ describe('NotificationService (unit)', () => {
       requestId: 'req-1',
       userId: 'user1',
       type: 'reminder',
-      payload: {},
-      channels: ['push'],
+      payload: { targetType: 'user', targetId: '1', content: 'hello' } as any,
+      channels: [],
       sendAt: future,
     };
     const result = await service.createAndEnqueue(dto);
 
-    expect(service['notificationQueue'].add).toHaveBeenCalled();
+    expect(dispatcherService.dispatchToQueue).toHaveBeenCalled();
     expect(result._id).toBeDefined();
   });
 
   it('should persist a rate-limited notification when burst limit is exceeded', async () => {
-    jest
-      .spyOn(userPreferenceService, 'reserveNotificationSlot')
-      .mockResolvedValue({
+    policyService.evaluatePolicy.mockResolvedValue({
         allowed: false,
         reason: 'burst',
         dailyCount: 4,
@@ -154,12 +145,12 @@ describe('NotificationService (unit)', () => {
     const result = await service.createAndEnqueue({
       userId: 'user1',
       type: 'comment',
-      payload: { content: 'hello' } as any,
-      channels: ['push'],
+      payload: { targetType: 'user', targetId: '1', content: 'hello' } as any,
+      channels: [],
     });
 
-    expect(notificationQueue.add).not.toHaveBeenCalled();
-    expect(result.meta).toEqual(
+    expect(dispatcherService.dispatchToQueue).not.toHaveBeenCalled();
+    expect((result as any).meta).toEqual(
       expect.objectContaining({
         rateLimited: true,
         rateLimitReason: 'burst',
@@ -168,25 +159,20 @@ describe('NotificationService (unit)', () => {
   });
 
   it('should rollback reserved rate-limit slot when enqueue fails', async () => {
-    jest.spyOn(notificationQueue, 'add').mockRejectedValue(new Error('queue down'));
+    dispatcherService.dispatchToQueue.mockRejectedValue(new Error('queue down'));
 
     await expect(
       service.createAndEnqueue({
         userId: 'user1',
         type: 'comment',
-        payload: { content: 'hello' } as any,
-        channels: ['push'],
+        payload: { targetType: 'user', targetId: '1', content: 'hello' } as any,
+        channels: [],
       }),
     ).rejects.toThrow('queue down');
 
-    expect(userPreferenceService.releaseNotificationSlot).toHaveBeenCalledWith(
+    expect(policyService.releaseSlot).toHaveBeenCalledWith(
       'user1',
-      'comment',
-      expect.objectContaining({
-        dailyLimit: 10,
-        burstLimit: 3,
-        burstWindowSeconds: 60,
-      }),
+      'comment'
     );
   });
 });

@@ -1,5 +1,24 @@
 #!/usr/bin/env node
 
+/**
+ * seed-data/clerk/update-profiles.js
+ *
+ * Đọc CSV, lookup Clerk user theo email, sync vào app DB rồi PATCH profile rich.
+ *
+ * Usage (chạy từ root monorepo):
+ *   node seed-data/clerk/update-profiles.js [options] [csv-path]
+ *
+ * Options:
+ *   --limit=N    Số lượng user xử lý (default: 70)
+ *   --seed=S     Seed cho random profile (default: timestamp)
+ *
+ * Env vars (đọc từ seed-data/clerk/.env):
+ *   CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY
+ *   API_BASE_URL   (default: http://localhost:4000/api/v1)
+ *   DRY_RUN=1
+ *   MAX_USERS, SEED
+ */
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {
@@ -13,159 +32,70 @@ const DRY_RUN = process.env.DRY_RUN === '1';
 const DEFAULT_LIMIT = Number.parseInt(process.env.MAX_USERS || '70', 10);
 const DEFAULT_SEED = process.env.SEED || `${Date.now()}`;
 
+const DEFAULT_CSV = path.resolve(__dirname, 'demo-clerk-users.csv');
+
 const FIRST_NAME_POOL = [
-  'An',
-  'Bình',
-  'Chi',
-  'Dũng',
-  'Giang',
-  'Hà',
-  'Hải',
-  'Hương',
-  'Khánh',
-  'Lan',
-  'Linh',
-  'Mai',
-  'Minh',
-  'My',
-  'Nam',
-  'Ngân',
-  'Ngọc',
-  'Nhung',
-  'Phúc',
-  'Phương',
-  'Quang',
-  'Quỳnh',
-  'Sơn',
-  'Thanh',
-  'Thảo',
-  'Thu',
-  'Trang',
-  'Trúc',
-  'Tuấn',
-  'Việt',
-  'Vy',
-  'Yến',
+  'An', 'Bình', 'Chi', 'Dũng', 'Giang', 'Hà', 'Hải', 'Hương',
+  'Khánh', 'Lan', 'Linh', 'Mai', 'Minh', 'My', 'Nam', 'Ngân',
+  'Ngọc', 'Nhung', 'Phúc', 'Phương', 'Quang', 'Quỳnh', 'Sơn',
+  'Thanh', 'Thảo', 'Thu', 'Trang', 'Trúc', 'Tuấn', 'Việt', 'Vy', 'Yến',
 ];
 
 const LAST_NAME_POOL = [
-  'Nguyễn',
-  'Trần',
-  'Lê',
-  'Phạm',
-  'Hoàng',
-  'Phan',
-  'Vũ',
-  'Võ',
-  'Đặng',
-  'Bùi',
-  'Đỗ',
-  'Hồ',
-  'Ngô',
-  'Dương',
-  'Lý',
+  'Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Phan', 'Vũ', 'Võ',
+  'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý',
 ];
 
 const CITY_POOL = [
-  'TP. Hồ Chí Minh',
-  'Hà Nội',
-  'Đà Nẵng',
-  'Cần Thơ',
-  'Huế',
-  'Hải Phòng',
-  'Nha Trang',
-  'Biên Hòa',
-  'Vũng Tàu',
-  'Quy Nhơn',
+  'TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Huế',
+  'Hải Phòng', 'Nha Trang', 'Biên Hòa', 'Vũng Tàu', 'Quy Nhơn',
 ];
 
 const DISTRICT_POOL = [
-  'Quận 1',
-  'Thủ Đức',
-  'Cầu Giấy',
-  'Hải Châu',
-  'Ninh Kiều',
-  'Hồng Bàng',
-  'Thanh Khê',
-  'Sơn Trà',
-  'Bình Thạnh',
-  'Nam Từ Liêm',
+  'Quận 1', 'Thủ Đức', 'Cầu Giấy', 'Hải Châu', 'Ninh Kiều',
+  'Hồng Bàng', 'Thanh Khê', 'Sơn Trà', 'Bình Thạnh', 'Nam Từ Liêm',
 ];
 
 const COMPANY_POOL = [
-  'Mạng Xã Hội Sen Việt',
-  'Công nghệ Tâm An',
-  'Phòng Lab Sông Xanh',
-  'Xưởng Bình Minh',
-  'Cộng Đồng Mở',
-  'Sóng Mới Digital',
-  'Kết Nối Đô Thị',
-  'Nền Tảng Hoa Sen',
-  'Mindful Health Lab',
-  'Emotion Insight Hub',
-  'Blue River Software',
-  'Wellbeing Data Studio',
-  'Sunrise Product House',
+  'Mạng Xã Hội Sen Việt', 'Công nghệ Tâm An', 'Phòng Lab Sông Xanh', 'Xưởng Bình Minh',
+  'Cộng Đồng Mở', 'Sóng Mới Digital', 'Kết Nối Đô Thị', 'Nền Tảng Hoa Sen',
+  'Mindful Health Lab', 'Emotion Insight Hub', 'Blue River Software', 'Wellbeing Data Studio',
+  'Sunrise Product House', 'VNG Corporation', 'FPT Software', 'Viettel', 'MoMo', 'Zalo',
+  'VNPAY', 'Shopee', 'Tiki', 'NashTech', 'KMS Technology', 'CyberLogitec', 'VNGGames',
+  'Gameloft', 'Be Group', 'VinAI', 'VNPT', 'Base.vn', 'Got It', 'Axie Infinity',
+  'Techcombank', 'MB Bank', 'Vinamilk', 'Masan Group', 'Thế Giới Di Động',
 ];
 
 const JOB_POOL = [
-  'Kỹ sư Backend',
-  'Kỹ sư Frontend',
-  'Kỹ sư Mobile',
-  'Thiết kế sản phẩm',
-  'Phân tích dữ liệu',
-  'Kỹ sư QA',
-  'Kỹ sư DevOps',
-  'Quản lý cộng đồng',
-  'Nhà nghiên cứu AI ứng dụng',
-  'Chuyên viên vận hành sản phẩm',
-  'Kỹ sư dữ liệu',
-  'Kỹ sư machine learning',
-  'Chuyên viên phân tích hành vi người dùng',
+  'Kỹ sư Backend', 'Kỹ sư Frontend', 'Kỹ sư Mobile', 'Thiết kế sản phẩm',
+  'Phân tích dữ liệu', 'Kỹ sư QA', 'Kỹ sư DevOps', 'Quản lý cộng đồng',
+  'Nhà nghiên cứu AI ứng dụng', 'Chuyên viên vận hành sản phẩm', 'Kỹ sư dữ liệu',
+  'Kỹ sư machine learning', 'Chuyên viên phân tích hành vi người dùng',
+  'Product Manager', 'UX/UI Designer', 'Data Scientist', 'Data Analyst',
+  'Scrum Master', 'Business Analyst', 'Marketing Executive', 'Content Creator',
+  'HR Specialist', 'Tester', 'IT Support', 'Game Developer', 'Blockchain Engineer',
+  'Fullstack Developer', 'System Administrator', 'Solution Architect', 'Technical Lead',
 ];
 
 const SCHOOL_POOL = [
-  'HCMUT',
-  'UIT',
-  'UEH',
-  'DUT',
-  'VNU',
-  'Đại học FPT',
-  'HUST',
-  'Đại học Cần Thơ',
-  'PTIT',
-  'HUFLIT',
-  'Đại học Khoa học Tự nhiên',
-  'Đại học Bách khoa Hà Nội',
+  'HCMUT', 'UIT', 'UEH', 'DUT', 'VNU', 'Đại học FPT', 'HUST', 'Đại học Cần Thơ',
+  'PTIT', 'HUFLIT', 'Đại học Khoa học Tự nhiên', 'Đại học Bách khoa Hà Nội',
+  'Đại học Ngoại thương (FTU)', 'Kinh tế Quốc dân (NEU)', 'Đại học Tôn Đức Thắng (TDTU)',
+  'RMIT Vietnam', 'Swinburne Vietnam', 'Đại học Quốc tế (IU)', 'Đại học Kinh tế - Luật (UEL)',
+  'Đại học Sư phạm Kỹ thuật (HCMUTE)', 'Học viện Ngân hàng', 'Đại học Y Dược',
+  'Học viện Tài chính', 'Đại học Ngoại ngữ', 'Đại học Công nghiệp',
 ];
 
 const INTEREST_POOL = [
-  'công nghệ',
-  'chạy bộ',
-  'âm nhạc',
-  'xem phim',
-  'thể hình',
-  'thiết kế',
-  'khởi nghiệp',
-  'du lịch',
-  'đọc sách',
-  'nhiếp ảnh',
-  'cộng đồng',
-  'chơi game',
-  'ẩm thực',
-  'cà phê',
-  'tình nguyện',
-  'sức khỏe tinh thần',
-  'thiền',
-  'podcast',
-  'viết blog',
-  'thảo luận công nghệ',
-  'tâm lý học ứng dụng',
-  'đá bóng',
-  'bơi lội',
-  'đạp xe',
-  'nấu ăn',
-  'học ngoại ngữ',
+  'công nghệ', 'chạy bộ', 'âm nhạc', 'xem phim', 'thể hình', 'thiết kế',
+  'khởi nghiệp', 'du lịch', 'đọc sách', 'nhiếp ảnh', 'cộng đồng', 'chơi game',
+  'ẩm thực', 'cà phê', 'tình nguyện', 'sức khỏe tinh thần', 'thiền', 'podcast',
+  'viết blog', 'thảo luận công nghệ', 'tâm lý học ứng dụng', 'đá bóng', 'bơi lội',
+  'đạp xe', 'nấu ăn', 'học ngoại ngữ', 'AI', 'Machine Learning', 'Blockchain',
+  'Crypto', 'chứng khoán', 'đầu tư', 'kinh doanh', 'quản trị', 'tiếng Anh',
+  'tiếng Nhật', 'IELTS', 'guitar', 'piano', 'ca hát', 'nuôi mèo', 'nuôi chó',
+  'thú cưng', 'yoga', 'pilates', 'camping', 'trekking', 'nhiếp ảnh đường phố',
+  'quay phim', 'TikTok', 'chơi cờ', 'board game', 'eSports', 'cầu lông', 'tennis', 'võ thuật',
 ];
 
 const GOAL_POOL = [
@@ -174,11 +104,23 @@ const GOAL_POOL = [
   'chia sẻ kiến thức công nghệ và wellbeing',
   'cải thiện thói quen sống lành mạnh',
   'kết nối với những người truyền cảm hứng',
+  'tìm bạn đồng hành khởi nghiệp',
+  'tìm người hướng dẫn (mentor)',
+  'muốn học thêm kỹ năng mới',
+  'tìm kiếm cơ hội việc làm',
+  'mở rộng quan hệ đối tác',
+  'tìm người chơi thể thao cùng',
+  'phát triển kỹ năng giao tiếp',
+  'cải thiện tiếng Anh giao tiếp',
+  'tìm nhóm học tập',
+  'kết nối với những người yêu động vật',
+  'lan tỏa năng lượng tích cực',
+  'tìm kiếm nguồn cảm hứng sáng tạo',
 ];
 
 function parseCliOptions() {
   const args = process.argv.slice(2);
-  let csvArg = 'tools/clerk-demo/demo-clerk-users.csv';
+  let csvArg = DEFAULT_CSV;
   let limit = Number.isFinite(DEFAULT_LIMIT) && DEFAULT_LIMIT > 0 ? DEFAULT_LIMIT : 70;
   let seed = DEFAULT_SEED;
 
@@ -197,7 +139,7 @@ function parseCliOptions() {
     }
 
     if (!arg.startsWith('--')) {
-      csvArg = arg;
+      csvArg = path.isAbsolute(arg) ? arg : path.resolve(process.cwd(), arg);
     }
   }
 
@@ -327,11 +269,6 @@ function buildCreateUserPayload(clerkUser, profilePayload) {
   };
 }
 
-async function readDemoUsers(csvPath) {
-  const csvContent = await fs.readFile(csvPath, 'utf8');
-  return parseCsv(csvContent);
-}
-
 async function checkUserExistsInAppDatabase(authToken, userId) {
   const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
     method: 'GET',
@@ -371,8 +308,6 @@ async function ensureUserInAppDatabase(createPayload, authToken) {
     return { status: 'exists', detail: bodyText.slice(0, 200) };
   }
 
-  // Some environments return HTTP 500 for duplicate inserts. Verify by reading
-  // the user back via authenticated endpoint before classifying as hard failure.
   if (authToken && createPayload?.id) {
     const existenceCheck = await checkUserExistsInAppDatabase(authToken, createPayload.id);
     if (existenceCheck.exists) {
@@ -412,12 +347,12 @@ async function updateProfile(authToken, profilePayload) {
 
 async function run() {
   const { csvArg, limit, seed } = parseCliOptions();
-  const csvPath = path.resolve(process.cwd(), csvArg);
-  const allRecords = await readDemoUsers(csvPath);
+  const csvContent = await fs.readFile(csvArg, 'utf8');
+  const allRecords = parseCsv(csvContent);
   const records = allRecords.slice(0, limit);
 
   if (allRecords.length === 0) {
-    console.error(`Không tìm thấy dữ liệu demo trong CSV: ${csvPath}`);
+    console.error(`Không tìm thấy dữ liệu demo trong CSV: ${csvArg}`);
     process.exit(1);
   }
 
@@ -431,7 +366,7 @@ async function run() {
   let updated = 0;
   let failed = 0;
 
-  console.log(`Using CSV: ${csvPath}`);
+  console.log(`Using CSV: ${csvArg}`);
   console.log(`Limit: ${records.length}/${allRecords.length}`);
   console.log(`Seed: ${seed}`);
   console.log(`Dry run: ${DRY_RUN ? 'yes' : 'no'}`);

@@ -99,16 +99,16 @@ class Settings:
             "recommendation:query-cache",
         ).strip()
         self.RECOMMENDATION_QUERY_MODEL_WEIGHT: float = float(
-            os.getenv("RECOMMENDATION_QUERY_MODEL_WEIGHT", 0.7)
+            os.getenv("RECOMMENDATION_QUERY_MODEL_WEIGHT", 0.56)
         )
         self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT: float = float(
-            os.getenv("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT", 0.3)
+            os.getenv("RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT", 0.24)
         )
         self.RECOMMENDATION_QUERY_GRAPH_WEIGHT: float = float(
-            os.getenv("RECOMMENDATION_QUERY_GRAPH_WEIGHT", 0.15)
+            os.getenv("RECOMMENDATION_QUERY_GRAPH_WEIGHT", 0.12)
         )
         self.RECOMMENDATION_QUERY_EMOTION_WEIGHT: float = float(
-            os.getenv("RECOMMENDATION_QUERY_EMOTION_WEIGHT", 0.1)
+            os.getenv("RECOMMENDATION_QUERY_EMOTION_WEIGHT", 0.08)
         )
         self.RECOMMENDATION_EMOTION_SCORING_ENABLED: bool = (
             os.getenv("RECOMMENDATION_EMOTION_SCORING_ENABLED", "true")
@@ -192,9 +192,9 @@ class Settings:
         if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:
             raise RuntimeError("RECOMMENDATION_QUERY_RERANK_TOP_K must be positive")
 
-        if self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU <= 0:
+        if self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU < 0:
             raise RuntimeError(
-                "RECOMMENDATION_QUERY_RERANK_TOP_K_CPU must be positive"
+                "RECOMMENDATION_QUERY_RERANK_TOP_K_CPU must be non-negative"
             )
 
         if self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES <= 0:
@@ -313,18 +313,19 @@ class Settings:
         if self.RECOMMENDATION_COMMON_GROUP_CAP <= 0:
             raise RuntimeError("RECOMMENDATION_COMMON_GROUP_CAP must be positive")
 
-        if (
+        weight_sum = (
             self.RECOMMENDATION_QUERY_MODEL_WEIGHT
             + self.RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT
             + self.RECOMMENDATION_QUERY_GRAPH_WEIGHT
             + self.RECOMMENDATION_QUERY_EMOTION_WEIGHT
-            <= 0
-        ):
+        )
+        if abs(weight_sum - 1.0) > 0.01:
             raise RuntimeError(
                 "RECOMMENDATION_QUERY_MODEL_WEIGHT + "
                 "RECOMMENDATION_QUERY_RETRIEVAL_WEIGHT + "
                 "RECOMMENDATION_QUERY_GRAPH_WEIGHT + "
-                "RECOMMENDATION_QUERY_EMOTION_WEIGHT must be > 0"
+                "RECOMMENDATION_QUERY_EMOTION_WEIGHT must sum to 1.0 "
+                f"(got {weight_sum:.4f})"
             )
 
 

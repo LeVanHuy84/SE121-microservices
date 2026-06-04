@@ -10,6 +10,7 @@
     "install": "pip install -r requirements.txt",
     "model:warmup": ".venv\\Scripts\\python.exe -m app.tools.warmup_model",
     "start:dev": ".venv\\Scripts\\python.exe -m app.main",
+    "start:prod": ".venv\\Scripts\\python.exe -m app.main",
     "lint": "python -m ruff check app tests",
     "format": "python -m ruff format app tests",
     "db:upgrade": "python -m alembic upgrade head",

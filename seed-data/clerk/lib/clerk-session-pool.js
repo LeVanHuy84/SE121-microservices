@@ -10,6 +10,7 @@ function loadLocalEnv() {
   }
 
   envLoaded = true;
+  // .env lives one level up from lib/, i.e. seed-data/clerk/.env
   const envFilePath = path.resolve(__dirname, '..', '.env');
   if (!fs.existsSync(envFilePath)) {
     return;

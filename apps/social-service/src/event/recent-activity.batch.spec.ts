@@ -113,7 +113,9 @@ describe('RecentActivityBatch', () => {
         avatarUrl: 'avatar-1',
       },
     });
-    sendNotification.mockRejectedValueOnce(new Error('notification unavailable'));
+    sendNotification.mockRejectedValueOnce(
+      new Error('notification unavailable'),
+    );
 
     await service.flushRecentActivities();
 

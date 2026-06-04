@@ -22,6 +22,7 @@ export interface FriendRecommendation {
   modelScore?: number;
   score?: number;
   reasons?: string[];
+  isEmotionMatched?: boolean;
   recommendationId?: string;
   recommendationRequestId?: string;
   candidateSourceMode?: FriendRecommendationCandidateSourceMode;

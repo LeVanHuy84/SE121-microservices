@@ -89,7 +89,8 @@ export class AdminService {
           userId: user.id,
           firstName: dto.firstName ?? '',
           lastName: dto.lastName ?? '',
-          stats: { followers: 0, following: 0, posts: 0 },
+          postCount: 0,
+          friendCount: 0,
         });
 
         const stringRole = dto.role as string;

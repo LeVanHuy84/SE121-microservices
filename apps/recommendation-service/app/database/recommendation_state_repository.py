@@ -4,6 +4,7 @@ import math
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
+from app.models.domain import GraphPairFeature, EmotionProfile
 
 from sqlalchemy import delete, func, inspect, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -106,6 +107,27 @@ class RecommendationStateRepository:
                 .order_by(ProfileEmbedding.user_id.asc())
             ).all()
             return [self._serialize_profile_embedding(row) for row in rows]
+
+    def list_profile_metadata_for_fallback(self) -> list[dict[str, Any]]:
+        with self.session_scope() as session:
+            rows = session.execute(
+                select(
+                    ProfileEmbedding.user_id,
+                    ProfileEmbedding.semantic_profile_text,
+                    ProfileEmbedding.dimensions,
+                    ProfileEmbedding.updated_at,
+                ).where(ProfileEmbedding.dimensions > 0)
+            ).all()
+            
+            return [
+                {
+                    "userId": row.user_id,
+                    "semanticProfileText": row.semantic_profile_text,
+                    "dimensions": row.dimensions,
+                    "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+                }
+                for row in rows
+            ]
 
     def search_semantic_candidates(
         self,
@@ -338,7 +360,7 @@ class RecommendationStateRepository:
         self,
         viewer_id: str,
         candidate_ids: list[str],
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, GraphPairFeature]:
         normalized_viewer_id = str(viewer_id or "").strip()
         normalized_candidate_ids = sorted(
             {
@@ -357,22 +379,19 @@ class RecommendationStateRepository:
                     RecommendationPairFeature.candidate_id.in_(normalized_candidate_ids),
                 )
             ).all()
-            features = {
-                row.candidate_id: {
-                    "viewerId": row.viewer_id,
-                    "candidateId": row.candidate_id,
-                    "hasFriendship": bool(row.has_friendship),
-                    "hasPendingRequest": bool(row.has_pending_request),
-                    "isBlockedEitherWay": bool(row.is_blocked_either_way),
-                    "hasActiveDismissal": bool(row.has_active_dismissal),
-                    "mutualFriendCount": int(row.mutual_friend_count),
-                    "commonGroupCount": int(row.common_group_count),
-                    "lastEventType": row.last_event_type,
-                    "lastEventAt": row.last_event_at.isoformat()
-                    if row.last_event_at is not None
-                    else None,
-                    "updatedAt": row.updated_at.isoformat(),
-                }
+            features: dict[str, GraphPairFeature] = {
+                row.candidate_id: GraphPairFeature(
+                    viewer_id=row.viewer_id,
+                    candidate_id=row.candidate_id,
+                    has_friendship=bool(row.has_friendship),
+                    has_pending_request=bool(row.has_pending_request),
+                    is_blocked_either_way=bool(row.is_blocked_either_way),
+                    has_active_dismissal=bool(row.has_active_dismissal),
+                    mutual_friend_count=int(row.mutual_friend_count),
+                    last_event_type=row.last_event_type,
+                    last_event_at=row.last_event_at,
+                    updated_at=row.updated_at,
+                )
                 for row in rows
             }
             mutual_friend_counts = self._get_mutual_friend_counts(
@@ -384,25 +403,20 @@ class RecommendationStateRepository:
             for candidate_id in normalized_candidate_ids:
                 mutual_friend_count = mutual_friend_counts.get(candidate_id, 0)
                 if candidate_id in features:
-                    features[candidate_id]["mutualFriendCount"] = mutual_friend_count
-                    continue
-
-                if mutual_friend_count <= 0:
-                    continue
-
-                features[candidate_id] = {
-                    "viewerId": normalized_viewer_id,
-                    "candidateId": candidate_id,
-                    "hasFriendship": False,
-                    "hasPendingRequest": False,
-                    "isBlockedEitherWay": False,
-                    "hasActiveDismissal": False,
-                    "mutualFriendCount": mutual_friend_count,
-                    "commonGroupCount": 0,
-                    "lastEventType": None,
-                    "lastEventAt": None,
-                    "updatedAt": self._now().isoformat(),
-                }
+                    features[candidate_id].mutual_friend_count = mutual_friend_count
+                else:
+                    features[candidate_id] = GraphPairFeature(
+                        viewer_id=normalized_viewer_id,
+                        candidate_id=candidate_id,
+                        has_friendship=False,
+                        has_pending_request=False,
+                        is_blocked_either_way=False,
+                        has_active_dismissal=False,
+                        mutual_friend_count=mutual_friend_count,
+                        last_event_type=None,
+                        last_event_at=None,
+                        updated_at=self._now(),
+                    )
 
             return features
 
@@ -513,28 +527,42 @@ class RecommendationStateRepository:
         )
 
         with self.session_scope() as session:
+            if candidates:
+                for candidate in candidates:
+                    values = {
+                        "segment_key": segment_key,
+                        "candidate_id": str(candidate["candidateId"]),
+                        "fallback_score": float(candidate["fallbackScore"]),
+                        "rank": int(candidate["rank"]),
+                        "locale": normalized_locale,
+                        "language": normalized_language,
+                        "score_version": score_version,
+                        "generated_at": generated_at_dt,
+                    }
+                    stmt = self._build_upsert_statement(
+                        RecommendationGlobalFallbackCandidate.__table__,
+                        values,
+                        conflict_columns=["segment_key", "candidate_id"],
+                        update_columns=[
+                            "fallback_score",
+                            "rank",
+                            "locale",
+                            "language",
+                            "score_version",
+                            "generated_at"
+                        ]
+                    )
+                    session.execute(stmt)
+                    
+            # Delete any extra candidates that used to be in the fallback list but aren't anymore.
+            # We assume the candidates list contains exactly the top-N fallback candidates.
+            max_rank = len(candidates)
             session.execute(
                 delete(RecommendationGlobalFallbackCandidate).where(
-                    RecommendationGlobalFallbackCandidate.segment_key == segment_key
+                    RecommendationGlobalFallbackCandidate.segment_key == segment_key,
+                    RecommendationGlobalFallbackCandidate.rank > max_rank
                 )
             )
-
-            if candidates:
-                session.add_all(
-                    [
-                        RecommendationGlobalFallbackCandidate(
-                            segment_key=segment_key,
-                            candidate_id=str(candidate["candidateId"]),
-                            fallback_score=float(candidate["fallbackScore"]),
-                            rank=int(candidate["rank"]),
-                            locale=normalized_locale,
-                            language=normalized_language,
-                            score_version=score_version,
-                            generated_at=generated_at_dt,
-                        )
-                        for candidate in candidates
-                    ]
-                )
 
     def list_global_fallback_candidates(
         self,
@@ -688,7 +716,7 @@ class RecommendationStateRepository:
     def get_emotion_profiles(
         self,
         user_ids: list[str],
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, EmotionProfile]:
         normalized_user_ids = sorted(
             {
                 str(user_id or "").strip()
@@ -707,18 +735,18 @@ class RecommendationStateRepository:
             ).all()
 
             return {
-                row.user_id: {
-                    "userId": row.user_id,
-                    "riskScore": float(row.risk_score),
-                    "recentNegativityScore": float(row.recent_negativity_score),
-                    "dominantEmotion": row.dominant_emotion,
-                    "emotionScores": {
+                row.user_id: EmotionProfile(
+                    user_id=row.user_id,
+                    risk_score=float(row.risk_score),
+                    recent_negativity_score=float(row.recent_negativity_score),
+                    dominant_emotion=row.dominant_emotion,
+                    emotion_scores={
                         str(key): float(value)
                         for key, value in (row.emotion_scores_json or {}).items()
                     },
-                    "sourceEventAt": row.source_event_at.isoformat(),
-                    "updatedAt": row.updated_at.isoformat(),
-                }
+                    source_event_at=row.source_event_at,
+                    updated_at=row.updated_at,
+                )
                 for row in rows
             }
 

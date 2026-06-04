@@ -5,7 +5,13 @@ import {
   Ctx,
   KafkaContext,
 } from '@nestjs/microservices';
-import { EventTopic, PostEventType, TargetType } from '@repo/dtos';
+import {
+  EventTopic,
+  PostEventType,
+  TargetType,
+  GroupEventType,
+  UserEventType,
+} from '@repo/dtos';
 import type {
   GroupEventMessage,
   PostEventMessage,
@@ -46,7 +52,7 @@ export class KafkaConsumerController {
       eventId,
       message,
       context,
-      handler: async () => {
+      handler: () => {
         const { type, payload } = message;
 
         switch (type) {
@@ -66,9 +72,10 @@ export class KafkaConsumerController {
             break;
 
           default:
-            this.logger.warn(`Unknown POST event type: ${type}`);
+            this.logger.warn(`Unknown POST event type: ${String(type)}`);
             break;
         }
+        return Promise.resolve();
       },
     });
   }
@@ -89,26 +96,27 @@ export class KafkaConsumerController {
       eventId,
       message,
       context,
-      handler: async () => {
+      handler: () => {
         const { type, payload } = message;
 
         switch (type) {
-          case 'group.created':
+          case GroupEventType.CREATED:
             this.logger.log(`Group created: ${payload.groupId}`);
             this.groupConsumer.createGroupIndex(payload);
             break;
-          case 'group.updated':
+          case GroupEventType.UPDATED:
             this.logger.log(`Group updated: ${payload.groupId}`);
             this.groupConsumer.updateGroupIndex(payload);
             break;
-          case 'group.removed':
+          case GroupEventType.REMOVED:
             this.logger.log(`Group removed: ${payload.groupId}`);
             this.groupConsumer.removeGroupIndex(payload);
             break;
           default:
-            this.logger.warn(`Unknown GROUP event type: ${type}`);
+            this.logger.warn(`Unknown GROUP event type: ${String(type)}`);
             break;
         }
+        return Promise.resolve();
       },
     });
   }
@@ -129,26 +137,27 @@ export class KafkaConsumerController {
       eventId,
       message,
       context,
-      handler: async () => {
+      handler: () => {
         const { type, payload } = message;
 
         switch (type) {
-          case 'user.created':
+          case UserEventType.CREATED:
             this.logger.log(`User created: ${payload.userId}`);
             this.userConsumer.createUserIndex(payload);
             break;
-          case 'user.updated':
+          case UserEventType.UPDATED:
             this.logger.log(`User updated: ${payload.userId}`);
             this.userConsumer.updateUserIndex(payload);
             break;
-          case 'user.removed':
+          case UserEventType.REMOVED:
             this.logger.log(`User removed: ${payload.userId}`);
             this.userConsumer.removeUserIndex(payload);
             break;
           default:
-            this.logger.warn(`Unknown USER event type: ${type}`);
+            this.logger.warn(`Unknown USER event type: ${String(type)}`);
             break;
         }
+        return Promise.resolve();
       },
     });
   }
@@ -169,7 +178,7 @@ export class KafkaConsumerController {
       eventId,
       message,
       context,
-      handler: async () => {
+      handler: () => {
         const { payload } = message;
 
         if (payload.targetType === TargetType.POST) {
@@ -178,7 +187,7 @@ export class KafkaConsumerController {
           );
           this.postConsumer.handleEmotionResult(payload);
         }
-        return;
+        return Promise.resolve();
       },
     });
   }

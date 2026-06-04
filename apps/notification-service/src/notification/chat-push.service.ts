@@ -16,6 +16,7 @@ import {
   CHAT_PUSH_DELIVERY_JOB,
   NOTIFICATION_QUEUE,
 } from './notification.jobs';
+import { NotificationPolicyService } from './services/notification-policy.service';
 
 type ActiveDeviceToken = Awaited<
   ReturnType<DeviceTokenService['getActiveTokensByUserId']>
@@ -35,6 +36,7 @@ export class ChatPushService {
     @InjectRedis() private readonly redis: Redis,
     private readonly firebaseService: FirebaseService,
     private readonly deviceTokenService: DeviceTokenService,
+    private readonly policyService: NotificationPolicyService,
   ) {}
 
   async enqueueChatPush(dto: SendChatPushDto) {
@@ -82,6 +84,18 @@ export class ChatPushService {
   }
 
   async sendChatPush(dto: SendChatPushDto) {
+    const policy = await this.policyService.checkPreferencesOnly(dto.userId, dto.isGroup ? 'group_message' : 'chat_message');
+    if (!policy.allowed) {
+      this.logger.debug(`Skip chat push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
+    const isFocused = await this.checkUserFocused(dto.userId, dto.conversationId);
+    if (isFocused) {
+      this.logger.debug(`Skip chat push for user ${dto.userId}: user is focused on conversation`);
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
       dto.userId,
     );
@@ -162,6 +176,12 @@ export class ChatPushService {
   }
 
   async sendCallPush(dto: SendCallPushDto) {
+    const policy = await this.policyService.checkPreferencesOnly(dto.userId, 'call');
+    if (!policy.allowed) {
+      this.logger.debug(`Skip call push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
       dto.userId,
     );
@@ -264,6 +284,12 @@ export class ChatPushService {
     actorId: string;
     userId: string;
   }) {
+    const policy = await this.policyService.checkPreferencesOnly(dto.userId, 'call');
+    if (!policy.allowed) {
+      this.logger.debug(`Skip call cancel push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      return { successCount: 0, failureCount: 0, invalidTokens: [] };
+    }
+
     const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
       dto.userId,
     );
@@ -308,6 +334,16 @@ export class ChatPushService {
     return (
       token.platform === 'android' && token.appId === this.nativeAndroidAppId
     );
+  }
+
+  private async checkUserFocused(userId: string, conversationId: string): Promise<boolean> {
+    try {
+      const count = await this.redis.scard(`chat:activeConv:user:${userId}:${conversationId}`);
+      return count > 0;
+    } catch (e) {
+      this.logger.warn(`Failed to check focus for user ${userId}: ${e.message}`);
+      return false;
+    }
   }
 
   private async incrementUnreadState(dto: SendChatPushDto): Promise<number> {

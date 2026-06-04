@@ -7,6 +7,7 @@ import { ChatGateway } from "./chat.gateway";
 
 import { RedisModule } from "@nestjs-modules/ioredis";
 import { ChatStreamConsumer } from "./chat.consumer";
+import { PresenceTrackerService } from "./services/presence-tracker.service";
 
 @Module({
   imports: [
@@ -22,6 +23,28 @@ import { ChatStreamConsumer } from "./chat.consumer";
           },
         }),
       },
+      {
+        name: MICROSERVICES_CLIENTS.USER_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>("USER_SERVICE_PORT"),
+          },
+        }),
+      },
+      {
+        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>("SOCIAL_SERVICE_PORT"),
+          },
+        }),
+      },
     ]),
     RedisModule.forRoot({
       type: "single",
@@ -34,6 +57,6 @@ import { ChatStreamConsumer } from "./chat.consumer";
     }),
   ],
   controllers: [ChatController],
-  providers: [ChatGateway, ChatStreamConsumer],
+  providers: [ChatGateway, ChatStreamConsumer, PresenceTrackerService],
 })
 export class ChatModule {}

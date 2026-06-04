@@ -1,5 +1,26 @@
 #!/usr/bin/env node
 
+/**
+ * seed-data/clerk/simulate-social.js
+ *
+ * Mô phỏng hoạt động social (friend requests, accept/decline, block, recommend)
+ * cho demo users bằng cách gọi API Gateway.
+ *
+ * Usage (chạy từ root monorepo):
+ *   node seed-data/clerk/simulate-social.js [options] [csv-path]
+ *
+ * Options:
+ *   --limit=N        Số lượng user từ CSV (default: 70)
+ *   --rounds=N       Số vòng mô phỏng (default: 2)
+ *   --seed=S         Seed random (default: timestamp)
+ *   --api-base=URL   API Gateway base URL
+ *   --dry-run        Không gọi API thật
+ *
+ * Env vars (đọc từ seed-data/clerk/.env):
+ *   CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY
+ *   API_BASE_URL, DRY_RUN=1, MAX_USERS, SOCIAL_ROUNDS, SEED
+ */
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {
@@ -9,7 +30,7 @@ const {
 } = require('./lib/clerk-session-pool');
 
 const DEFAULT_API_BASE_URL = 'http://localhost:4000/api/v1';
-const DEFAULT_CSV = 'tools/clerk-demo/demo-clerk-users.csv';
+const DEFAULT_CSV = path.resolve(__dirname, 'demo-clerk-users.csv');
 const DEFAULT_LIMIT = positiveIntOrFallback(process.env.MAX_USERS, 70);
 const DEFAULT_ROUNDS = positiveIntOrFallback(process.env.SOCIAL_ROUNDS, 2);
 const DEFAULT_SEED = process.env.SEED || `${Date.now()}`;
@@ -68,38 +89,11 @@ function parseCliOptions() {
     }
 
     if (!arg.startsWith('--')) {
-      options.csvArg = arg;
+      options.csvArg = path.isAbsolute(arg) ? arg : path.resolve(process.cwd(), arg);
     }
   }
 
   return options;
-}
-
-async function resolveCsvPath(csvArg) {
-  const candidates = [];
-
-  if (path.isAbsolute(csvArg)) {
-    candidates.push(csvArg);
-  } else {
-    candidates.push(path.resolve(process.cwd(), csvArg));
-    candidates.push(path.resolve(__dirname, csvArg));
-  }
-
-  candidates.push(path.resolve(__dirname, path.basename(csvArg)));
-  candidates.push(path.resolve(__dirname, 'demo-clerk-users.csv'));
-
-  const uniqueCandidates = Array.from(new Set(candidates));
-
-  for (const candidate of uniqueCandidates) {
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // try next
-    }
-  }
-
-  throw new Error(`CSV file not found. Checked paths: ${uniqueCandidates.join(', ')}`);
 }
 
 function parseCsv(content) {
@@ -189,6 +183,8 @@ function createCounters() {
     friendRemoved: 0,
     userBlocked: 0,
     userUnblocked: 0,
+    recommendationAccepted: 0,
+    recommendationDismissed: 0,
     errors: 0,
   };
 }
@@ -207,6 +203,7 @@ function printDryRunPlan({ usersCount, rounds }) {
   console.log('DRYRUN plan:');
   console.log(`- Random request actions: ${usersCount * rounds * 2}`);
   console.log('- Process incoming requests for each user per round');
+  console.log('- Process friend recommendations (accept/dismiss)');
   console.log('- Remove/block/unblock random relationships');
 }
 
@@ -220,6 +217,8 @@ function printSummary(counters) {
   console.log(`- Friends removed:             ${counters.friendRemoved}`);
   console.log(`- Users blocked:               ${counters.userBlocked}`);
   console.log(`- Users unblocked:             ${counters.userUnblocked}`);
+  console.log(`- Recommend requests sent:     ${counters.recommendationAccepted}`);
+  console.log(`- Recommend dismissed:         ${counters.recommendationDismissed}`);
   console.log(`- Errors:                      ${counters.errors}`);
 }
 
@@ -392,6 +391,102 @@ async function processIncomingRequestsRound({ users, tokenPool, random, counters
   }
 }
 
+async function simulateRecommendationsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
+  for (const user of users) {
+    if (random() < 0.5) {
+      continue;
+    }
+
+    const recEndpoint = '/social/friends/recommend?limit=5';
+    let recResult;
+
+    try {
+      recResult = await apiRequestForUser(
+        tokenPool,
+        apiBaseUrl,
+        user.userId,
+        'GET',
+        recEndpoint,
+      );
+    } catch (error) {
+      counters.errors += 1;
+      console.error(`[ERROR] GET ${recEndpoint} | actor=${user.email}`, error);
+      continue;
+    }
+
+    if (!recResult.ok) {
+      counters.errors += 1;
+      logApiFailure('GET', recEndpoint, recResult.status, recResult.payload, `actor=${user.email}`);
+      continue;
+    }
+
+    logApiSuccess('GET', recEndpoint, recResult.status, `actor=${user.email}`);
+
+    const recommendations = extractArrayData(recResult.payload);
+
+    for (const rec of recommendations) {
+      if (!rec || !rec.candidateId) {
+        continue;
+      }
+
+      const shouldRequest = random() < 0.6;
+      const body = {
+        recommendationId: rec.recommendationId,
+        recommendationRequestId: rec.recommendationRequestId,
+      };
+
+      if (shouldRequest) {
+        const reqEndpoint = `/social/request/${rec.candidateId}`;
+        try {
+          const reqResult = await apiRequestForUser(
+            tokenPool,
+            apiBaseUrl,
+            user.userId,
+            'POST',
+            reqEndpoint,
+            body,
+          );
+
+          if (reqResult.ok) {
+            counters.recommendationAccepted += 1;
+            counters.requestSent += 1;
+            logApiSuccess('POST', reqEndpoint, reqResult.status, `actor=${user.email} (recommendation)`);
+          } else {
+            counters.errors += 1;
+            logApiFailure('POST', reqEndpoint, reqResult.status, reqResult.payload, `actor=${user.email}`);
+          }
+        } catch (error) {
+          counters.errors += 1;
+          console.error(`[ERROR] POST ${reqEndpoint} | actor=${user.email}`, error);
+        }
+      } else {
+        const disEndpoint = `/social/friends/recommend/dismiss/${rec.candidateId}`;
+        try {
+          const disResult = await apiRequestForUser(
+            tokenPool,
+            apiBaseUrl,
+            user.userId,
+            'POST',
+            disEndpoint,
+            body,
+          );
+
+          if (disResult.ok) {
+            counters.recommendationDismissed += 1;
+            logApiSuccess('POST', disEndpoint, disResult.status, `actor=${user.email} (dismissed)`);
+          } else {
+            counters.errors += 1;
+            logApiFailure('POST', disEndpoint, disResult.status, disResult.payload, `actor=${user.email}`);
+          }
+        } catch (error) {
+          counters.errors += 1;
+          console.error(`[ERROR] POST ${disEndpoint} | actor=${user.email}`, error);
+        }
+      }
+    }
+  }
+}
+
 async function mutateRelationshipsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
   for (const user of users) {
     if (random() < 0.2) {
@@ -507,13 +602,12 @@ async function mutateRelationshipsRound({ users, tokenPool, random, counters, ap
 
 async function run() {
   const options = parseCliOptions();
-  const csvPath = await resolveCsvPath(options.csvArg);
-  const csvContent = await fs.readFile(csvPath, 'utf8');
+  const csvContent = await fs.readFile(options.csvArg, 'utf8');
   const allRecords = parseCsv(csvContent);
   const records = allRecords.slice(0, options.limit);
 
   if (allRecords.length === 0) {
-    throw new Error(`No records found in CSV: ${csvPath}`);
+    throw new Error(`No records found in CSV: ${options.csvArg}`);
   }
 
   const clerkClient = createClerkClientFromEnv();
@@ -524,7 +618,7 @@ async function run() {
   }
 
   printBanner({
-    csvPath,
+    csvPath: options.csvArg,
     recordsCount: records.length,
     usersCount: users.length,
     rounds: options.rounds,
@@ -555,6 +649,14 @@ async function run() {
       });
 
       await processIncomingRequestsRound({
+        users,
+        tokenPool,
+        random,
+        counters,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+
+      await simulateRecommendationsRound({
         users,
         tokenPool,
         random,

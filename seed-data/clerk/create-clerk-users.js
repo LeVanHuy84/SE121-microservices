@@ -1,17 +1,47 @@
 #!/usr/bin/env node
 
+/**
+ * seed-data/clerk/create-clerk-users.js
+ *
+ * Tạo demo users trên Clerk từ CSV rồi ghi kết quả (userId + email) vào
+ * seed-data/data/generated-users.json — file này là source-of-truth cho
+ * tất cả seed scripts khác.
+ *
+ * Usage (chạy từ root monorepo):
+ *   node seed-data/clerk/create-clerk-users.js [options] [csv-path]
+ *
+ * Options:
+ *   --limit=N        Số lượng user lấy từ CSV (default: 70)
+ *   --reset          Xóa user cũ theo email trước khi tạo lại
+ *   --reset-only     Chỉ xóa, không tạo mới
+ *   --reset-all      Xóa toàn bộ email trong CSV (bỏ qua limit)
+ *
+ * Env vars (đọc từ seed-data/clerk/.env):
+ *   CLERK_SECRET_KEY   (bắt buộc)
+ *   CLERK_API_BASE     (default: https://api.clerk.com/v1)
+ *   DRY_RUN=1          Không gọi API thật, không ghi file
+ *   MAX_USERS          Default cho limit
+ *   RESET_BEFORE_CREATE=1
+ *   RESET_ONLY=1
+ *   RESET_ALL=1
+ */
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
-require('dotenv').config({ path: 'tools/clerk-demo/.env' });
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const CLERK_API_BASE = process.env.CLERK_API_BASE || 'https://api.clerk.com/v1';
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const DRY_RUN = process.env.DRY_RUN === '1';
 const DEFAULT_LIMIT = Number.parseInt(process.env.MAX_USERS || '70', 10);
 
+// Output file — source-of-truth cho toàn bộ seed scripts
+const GENERATED_USERS_FILE = path.resolve(__dirname, '../data/generated-users.json');
+const DEFAULT_CSV = path.resolve(__dirname, 'demo-clerk-users.csv');
+
 function parseCliOptions() {
   const args = process.argv.slice(2);
-  let csvArg = 'tools/clerk-demo/demo-clerk-users.csv';
+  let csvArg = DEFAULT_CSV;
   let limit = Number.isFinite(DEFAULT_LIMIT) && DEFAULT_LIMIT > 0 ? DEFAULT_LIMIT : 70;
   let resetBeforeCreate = process.env.RESET_BEFORE_CREATE === '1';
   let resetOnly = process.env.RESET_ONLY === '1';
@@ -50,7 +80,7 @@ function parseCliOptions() {
     }
 
     if (!arg.startsWith('--')) {
-      csvArg = arg;
+      csvArg = path.isAbsolute(arg) ? arg : path.resolve(process.cwd(), arg);
     }
   }
 
@@ -125,9 +155,9 @@ async function createClerkUser(record) {
   };
 }
 
-async function findClerkUserByEmail(email) {
+async function findClerkUsersByEmail(email) {
   const response = await fetch(
-    `${CLERK_API_BASE}/users?limit=1&email_address[]=${encodeURIComponent(email)}`,
+    `${CLERK_API_BASE}/users?email_address=${encodeURIComponent(email)}`,
     {
       method: 'GET',
       headers: {
@@ -137,17 +167,17 @@ async function findClerkUserByEmail(email) {
   );
 
   if (!response.ok) {
-    return { status: 'failed', id: '', error: `http_${response.status}` };
+    return { status: 'failed', users: [], error: `http_${response.status}` };
   }
 
   const data = await response.json().catch(() => []);
-  const user = Array.isArray(data) ? data[0] : null;
+  const users = Array.isArray(data) ? data : [];
 
-  if (!user?.id) {
-    return { status: 'not_found', id: '', error: '' };
+  if (users.length === 0) {
+    return { status: 'not_found', users: [], error: '' };
   }
 
-  return { status: 'found', id: user.id, error: '' };
+  return { status: 'found', users, error: '' };
 }
 
 async function deleteClerkUser(userId) {
@@ -169,16 +199,24 @@ async function deleteClerkUser(userId) {
   };
 }
 
+/**
+ * Ghi danh sách users (userId + email) ra generated-users.json.
+ * File này là source-of-truth để các seed script khác dùng.
+ */
+async function writeGeneratedUsers(entries) {
+  const json = JSON.stringify(entries, null, 2);
+  await fs.writeFile(GENERATED_USERS_FILE, json, 'utf8');
+  console.log(`\nWrote ${entries.length} users to ${GENERATED_USERS_FILE}`);
+}
+
 async function main() {
-  const { csvArg, limit, resetBeforeCreate, resetOnly, resetAll } =
-    parseCliOptions();
-  const csvPath = path.resolve(process.cwd(), csvArg);
-  const csvContent = await fs.readFile(csvPath, 'utf8');
+  const { csvArg, limit, resetBeforeCreate, resetOnly, resetAll } = parseCliOptions();
+  const csvContent = await fs.readFile(csvArg, 'utf8');
   const allRecords = parseCsv(csvContent);
   const records = resetAll ? allRecords : allRecords.slice(0, limit);
 
   if (allRecords.length === 0) {
-    console.error(`No records found in CSV: ${csvPath}`);
+    console.error(`No records found in CSV: ${csvArg}`);
     process.exit(1);
   }
 
@@ -192,12 +230,16 @@ async function main() {
   let skipped = 0;
   let failed = 0;
 
-  console.log(`Using CSV: ${csvPath}`);
+  // Danh sách user đã tạo thành công: { userId, email }
+  const generatedUsers = [];
+
+  console.log(`Using CSV: ${csvArg}`);
   console.log(`Limit: ${records.length}/${allRecords.length}${resetAll ? ' (all via reset-all)' : ''}`);
   console.log(`Reset before create: ${resetBeforeCreate ? 'yes' : 'no'}`);
   console.log(`Reset only: ${resetOnly ? 'yes' : 'no'}`);
   console.log(`Reset all: ${resetAll ? 'yes' : 'no'}`);
   console.log(`Dry run: ${DRY_RUN ? 'yes' : 'no'}`);
+  console.log(`Output: ${GENERATED_USERS_FILE}`);
   console.log('');
 
   for (const record of records) {
@@ -217,32 +259,34 @@ async function main() {
         ? 'reset-all'
         : resetOnly
           ? 'reset-only'
-        : resetBeforeCreate
-          ? 'reset+create'
-          : 'create';
+          : resetBeforeCreate
+            ? 'reset+create'
+            : 'create';
       console.log(`DRYRUN  ${record.email} | ${mode}`);
       continue;
     }
 
     if (resetBeforeCreate) {
-      const existingUser = await findClerkUserByEmail(record.email);
+      const existingUsersResult = await findClerkUsersByEmail(record.email);
 
-      if (existingUser.status === 'failed') {
+      if (existingUsersResult.status === 'failed') {
         failed += 1;
-        console.log(`FAILED  ${record.email} | find existing failed: ${existingUser.error}`);
+        console.log(`FAILED  ${record.email} | find existing failed: ${existingUsersResult.error}`);
         continue;
       }
 
-      if (existingUser.status === 'found') {
-        const deleteResult = await deleteClerkUser(existingUser.id);
-        if (deleteResult.status === 'failed') {
-          failed += 1;
-          console.log(`FAILED  ${record.email} | delete failed: ${deleteResult.error}`);
-          continue;
+      if (existingUsersResult.status === 'found') {
+        for (const user of existingUsersResult.users) {
+          const deleteResult = await deleteClerkUser(user.id);
+          if (deleteResult.status === 'failed') {
+            console.log(`FAILED  ${record.email} | delete failed: ${deleteResult.error}`);
+          } else {
+            deleted += 1;
+            console.log(`DELETED ${record.email} | ${user.id}`);
+          }
         }
-
-        deleted += 1;
-        console.log(`DELETED ${record.email} | ${existingUser.id}`);
+        // Chờ Clerk propagate deletion
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } else if (resetOnly) {
         skipped += 1;
         console.log(`SKIPPED ${record.email} | user not found`);
@@ -257,6 +301,7 @@ async function main() {
 
     if (result.status === 'created') {
       created += 1;
+      generatedUsers.push({ userId: result.id, email: record.email });
       console.log(`CREATED ${record.email} | ${result.id}`);
       continue;
     }
@@ -264,6 +309,11 @@ async function main() {
     if (result.status === 'skipped') {
       skipped += 1;
       console.log(`SKIPPED ${record.email} | ${result.error}`);
+      // Thử lookup user hiện có để vẫn đưa vào generated-users
+      const lookupResult = await findClerkUsersByEmail(record.email);
+      if (lookupResult.status === 'found' && lookupResult.users[0]?.id) {
+        generatedUsers.push({ userId: lookupResult.users[0].id, email: record.email });
+      }
       continue;
     }
 
@@ -278,6 +328,11 @@ async function main() {
   console.log(`- Created: ${created}`);
   console.log(`- Skipped: ${skipped}`);
   console.log(`- Failed:  ${failed}`);
+
+  // Ghi ra generated-users.json (chỉ khi không phải reset-only / dry-run)
+  if (!DRY_RUN && !resetOnly && generatedUsers.length > 0) {
+    await writeGeneratedUsers(generatedUsers);
+  }
 }
 
 main().catch((error) => {

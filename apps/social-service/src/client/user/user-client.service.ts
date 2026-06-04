@@ -71,6 +71,14 @@ export class UserClientService {
     return usersById;
   }
 
+  async searchUserIds(ids: string[], search: string, limit?: number): Promise<string[]> {
+    if (!ids.length || !search.trim()) return [];
+    const matchedIds = await lastValueFrom(
+      this.userClient.send<string[]>('searchUserIds', { ids, search, limit }),
+    );
+    return Array.isArray(matchedIds) ? matchedIds : [];
+  }
+
   async getProfileRecommendationCandidates(
     userId: string,
     limit: number,

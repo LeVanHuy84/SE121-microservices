@@ -41,16 +41,36 @@ export class UserPreferenceService {
     // default preference
     const def = {
       userId,
-      allowedChannels: [ChannelNotification.WEBSOCKET],
       limits: { dailyLimit: 100, burstLimit: 10, burstWindowSeconds: 300 },
+      settings: {
+        pushMentions: true,
+        pushMessages: true,
+        pushGroupMessages: true,
+        pushFriendRequests: true,
+        doNotDisturb: { enabled: false, from: '22:00', to: '07:00' },
+      },
     };
     await this.redis.set(key, JSON.stringify(def), 'EX', 60 * 5);
     return def;
   }
   async setUserPreferences(userId: string, prefs: Partial<UserPreference>) {
+    const updateData: any = {};
+    if (prefs.limits) updateData.limits = prefs.limits;
+    if (prefs.settings) {
+      if (prefs.settings.pushMentions !== undefined) updateData['settings.pushMentions'] = prefs.settings.pushMentions;
+      if (prefs.settings.pushMessages !== undefined) updateData['settings.pushMessages'] = prefs.settings.pushMessages;
+      if (prefs.settings.pushGroupMessages !== undefined) updateData['settings.pushGroupMessages'] = prefs.settings.pushGroupMessages;
+      if (prefs.settings.pushFriendRequests !== undefined) updateData['settings.pushFriendRequests'] = prefs.settings.pushFriendRequests;
+      if (prefs.settings.doNotDisturb) {
+        if (prefs.settings.doNotDisturb.enabled !== undefined) updateData['settings.doNotDisturb.enabled'] = prefs.settings.doNotDisturb.enabled;
+        if (prefs.settings.doNotDisturb.from !== undefined) updateData['settings.doNotDisturb.from'] = prefs.settings.doNotDisturb.from;
+        if (prefs.settings.doNotDisturb.to !== undefined) updateData['settings.doNotDisturb.to'] = prefs.settings.doNotDisturb.to;
+      }
+    }
+
     const updated = await this.userPreferenceModel.findOneAndUpdate(
       { userId },
-      prefs,
+      { $set: updateData },
       {
         upsert: true,
         new: true,

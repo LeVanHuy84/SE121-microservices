@@ -18,6 +18,7 @@ class ModelLoader:
         self._tokenizer = None
         self._model = None
         self._load_lock = threading.Lock()
+        self._inference_lock = threading.Lock()
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._ready = False
         self._last_error: str | None = None
@@ -229,7 +230,7 @@ class ModelLoader:
             )
             inputs = {key: value.to(self._device) for key, value in inputs.items()}
 
-            with torch.inference_mode():
+            with torch.inference_mode(), self._inference_lock:
                 outputs = self.model(**inputs)
 
             pooled = self._mean_pool(

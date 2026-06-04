@@ -87,4 +87,8 @@ export class CreateUserDTO {
   @ArrayMaxSize(10)
   @IsString({ each: true })
   interests?: string[];
+
+  @IsOptional()
+  @IsString()
+  role?: string;
 }

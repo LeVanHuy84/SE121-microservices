@@ -11,6 +11,8 @@ import { ChatPushService } from './chat-push.service';
 import { NotificationProcessor } from './notification.proccessor';
 import { NOTIFICATION_QUEUE } from './notification.jobs';
 import { NotificationService } from './notification.service';
+import { NotificationDispatcherService } from './services/notification-dispatcher.service';
+import { NotificationPolicyService } from './services/notification-policy.service';
 import { TemplateService } from './template.service';
 import { BullModule } from '@nestjs/bull';
 import { FirebaseModule } from 'src/firebase/firebase.module';
@@ -44,6 +46,8 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
   controllers: [NotificationController],
   providers: [
     NotificationService,
+    NotificationDispatcherService,
+    NotificationPolicyService,
     ChatPushService,
     NotificationProcessor,
     TemplateService,

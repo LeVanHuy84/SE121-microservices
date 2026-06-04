@@ -274,21 +274,17 @@ async function main(): Promise<void> {
 
   await flushTrendingRedis();
 
-  await mongoose.connect(mongoUri, {
+  const mongooseInstance = await mongoose.connect(mongoUri, {
     dbName: 'feed_service',
   });
 
   try {
-    const db = mongoose.connection.db;
+    const conn = mongooseInstance.connection;
 
-    if (!db) {
-      throw new Error('MongoDB connection did not expose a database handle');
-    }
+    await conn.dropDatabase();
 
-    await db.dropDatabase();
-
-    const snapshotCollection = db.collection('post_snapshots');
-    const feedItemCollection = db.collection('feed_items');
+    const snapshotCollection = conn.collection('post_snapshots');
+    const feedItemCollection = conn.collection('feed_items');
 
     for (const chunk of chunkArray(snapshotSeeds, 200)) {
       await snapshotCollection.insertMany(chunk, { ordered: false });
@@ -302,7 +298,7 @@ async function main(): Promise<void> {
       `Seeded feed-service from ${POST_FULL_DATA_FILE} + ${POST_GROUP_DATA_FILE}: ${snapshotSeeds.length} snapshots, ${feedItemSeeds.length} feed items`,
     );
   } finally {
-    await mongoose.disconnect();
+    await mongooseInstance.disconnect();
   }
 }
 

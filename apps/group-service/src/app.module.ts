@@ -10,6 +10,7 @@ import { PostgresModule } from './postgres/postgres.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { GroupLogModule } from './modules/group-log/group-log.module';
 import { GroupInviteModule } from './modules/group-invite/group-invite.module';
+import { GroupRecommendationModule } from './modules/recommendation/group-recommendation.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { GroupInviteModule } from './modules/group-invite/group-invite.module';
     GroupLogModule,
     EventModule,
     GroupInviteModule,
+    GroupRecommendationModule,
   ],
   controllers: [],
   providers: [],

@@ -161,11 +161,11 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                     ["candidate-1"],
                 )
                 self.assertIn("candidate-1", pair_features)
-                self.assertTrue(pair_features["candidate-1"]["hasPendingRequest"])
-                self.assertFalse(pair_features["candidate-1"]["hasFriendship"])
-                self.assertFalse(pair_features["candidate-1"]["isBlockedEitherWay"])
+                self.assertTrue(pair_features["candidate-1"].has_pending_request)
+                self.assertFalse(pair_features["candidate-1"].has_friendship)
+                self.assertFalse(pair_features["candidate-1"].is_blocked_either_way)
                 self.assertEqual(
-                    pair_features["candidate-1"]["lastEventType"],
+                    pair_features["candidate-1"].last_event_type,
                     "recommendation.graph.friend-request-sent",
                 )
             finally:
@@ -194,10 +194,10 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                 )
 
                 self.assertEqual(
-                    pair_features["candidate-1"]["mutualFriendCount"],
+                    pair_features["candidate-1"].mutual_friend_count,
                     1,
                 )
-                self.assertFalse(pair_features["candidate-1"]["hasFriendship"])
+                self.assertFalse(pair_features["candidate-1"].has_friendship)
 
                 repository.upsert_graph_pair_feature(
                     "viewer-1",
@@ -209,7 +209,7 @@ class RecommendationStateRepositoryTestCase(unittest.TestCase):
                     ["candidate-2"],
                 )
                 self.assertEqual(
-                    refreshed_pair_features["candidate-2"]["mutualFriendCount"],
+                    refreshed_pair_features["candidate-2"].mutual_friend_count,
                     0,
                 )
             finally:

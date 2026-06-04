@@ -53,6 +53,9 @@ export class ClerkWebhookController {
         case 'user.created':
           await this.webhookService.handleUserCreated(data);
           break;
+        case 'user.updated':
+          await this.webhookService.handleUserUpdated(data);
+          break;
         case 'session.ended':
           await this.webhookService.handleSessionEnded(data);
           break;
