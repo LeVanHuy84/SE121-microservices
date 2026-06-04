@@ -275,7 +275,7 @@ export class NotificationService {
   async removeById(id: string) {
     const doc = await this.notificationModel.findByIdAndDelete(id);
     if (!doc) {
-      return;
+      return { success: true };
     }
 
     const { key, dataKey, emptyKey } = this.getCacheKeys(doc.userId);
@@ -284,6 +284,7 @@ export class NotificationService {
     multi.hdel(dataKey, id);
     multi.del(emptyKey);
     await multi.exec();
+    return { success: true };
   }
 
   async removeAll(userId: string) {
@@ -292,6 +293,7 @@ export class NotificationService {
     const multi = this.redis.multi();
     multi.del(key, dataKey, emptyKey);
     await multi.exec();
+    return { success: true };
   }
 
 

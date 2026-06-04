@@ -59,6 +59,11 @@ export class UserController {
     return this.userService.getUsersBatch(ids);
   }
 
+  @MessagePattern('searchUserIds')
+  async searchUserIds(@Payload() data: { ids: string[]; search: string; limit?: number }) {
+    return this.userService.searchUserIds(data.ids, data.search, data.limit);
+  }
+
   @MessagePattern('getBaseUsersBatch')
   async getBaseUserBatch(@Payload() ids: string[]) {
     return this.userService.getBaseUsersBatch(ids);

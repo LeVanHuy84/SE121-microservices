@@ -1,27 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   ActivityType,
-  CursorPaginationDTO,
   CursorPageResponse,
+  CursorPaginationDTO,
   RecommendationGraphEventType,
 } from '@repo/dtos';
-import { DataSource, MoreThan, Repository } from 'typeorm';
+import Redis from 'ioredis';
+import { OutboxService } from 'src/event/outbox.service';
+import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { FriendRecommendationEventEntity } from 'src/postgres/entities/friend-recommendation-event.entity';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
-import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
-import { OutboxService } from 'src/event/outbox.service';
+import { DataSource, MoreThan, Repository } from 'typeorm';
 import {
   AcceptedFriendRequestAttribution,
+  FriendRecommendation,
   FriendRecommendationAnalyticsCandidateSourceMode,
   FriendRecommendationAnalyticsSource,
   FriendRecommendationAttribution,
   FriendRecommendationEvent,
-  FriendRecommendation,
   SocialGraphRepository,
 } from './social-graph.repository';
 
@@ -38,6 +38,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     private readonly friendshipRepo: Repository<FriendshipEntity>,
     @InjectRepository(UserBlockEntity)
     private readonly userBlockRepo: Repository<UserBlockEntity>,
+    @InjectRepository(FriendRecommendationDismissalEntity)
     private readonly recommendationDismissalRepo: Repository<FriendRecommendationDismissalEntity>,
     private readonly outboxService: OutboxService,
     @InjectRedis() private readonly redis: Redis,

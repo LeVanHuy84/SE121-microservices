@@ -16,7 +16,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 export class SocialController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.SOCIAL_SERVICE)
-    private readonly socialClient: ClientProxy
+    private readonly socialClient: ClientProxy,
   ) {}
   @Post('request/:targetId')
   sendFriendRequest(

@@ -9,7 +9,7 @@
     "demo": "turbo run start:dev --filter=api-gateway --filter=analysis-service --filter=user-service --filter=post-service --filter=group-service --filter=logging-service --filter=music-service --filter=emotion-intelligence-service",
     "demo:test": "turbo run start:prod --filter=analysis-service --filter=api-gateway --filter=feed-service",
     "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
-    "recommend:dev:gateway": "turbo run start:dev --parallel --filter=api-gateway --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service",
+    "recommend:dev:gateway": "turbo run start:prod --parallel --filter=api-gateway --filter=user-service --filter=social-service --filter=group-service --filter=recommendation-service --filter=notification-service",
     "assistant:dev": "turbo run start:dev --parallel --filter=api-gateway --filter=chatbot-service --filter=search-service",
     "video-call:dev": "turbo run start:prod  --filter=api-gateway --filter=social-service --filter=user-service --filter=notification-service --filter=chat-service",
     "recommend:report:live": "npm --workspace=social-service run test:recommend:live:report",

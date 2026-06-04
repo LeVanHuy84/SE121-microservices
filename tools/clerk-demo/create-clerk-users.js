@@ -125,9 +125,9 @@ async function createClerkUser(record) {
   };
 }
 
-async function findClerkUserByEmail(email) {
+async function findClerkUsersByEmail(email) {
   const response = await fetch(
-    `${CLERK_API_BASE}/users?limit=1&email_address[]=${encodeURIComponent(email)}`,
+    `${CLERK_API_BASE}/users?email_address=${encodeURIComponent(email)}`,
     {
       method: 'GET',
       headers: {
@@ -137,17 +137,17 @@ async function findClerkUserByEmail(email) {
   );
 
   if (!response.ok) {
-    return { status: 'failed', id: '', error: `http_${response.status}` };
+    return { status: 'failed', users: [], error: `http_${response.status}` };
   }
 
   const data = await response.json().catch(() => []);
-  const user = Array.isArray(data) ? data[0] : null;
+  const users = Array.isArray(data) ? data : [];
 
-  if (!user?.id) {
-    return { status: 'not_found', id: '', error: '' };
+  if (users.length === 0) {
+    return { status: 'not_found', users: [], error: '' };
   }
 
-  return { status: 'found', id: user.id, error: '' };
+  return { status: 'found', users, error: '' };
 }
 
 async function deleteClerkUser(userId) {
@@ -225,24 +225,27 @@ async function main() {
     }
 
     if (resetBeforeCreate) {
-      const existingUser = await findClerkUserByEmail(record.email);
+      const existingUsersResult = await findClerkUsersByEmail(record.email);
 
-      if (existingUser.status === 'failed') {
+      if (existingUsersResult.status === 'failed') {
         failed += 1;
-        console.log(`FAILED  ${record.email} | find existing failed: ${existingUser.error}`);
+        console.log(`FAILED  ${record.email} | find existing failed: ${existingUsersResult.error}`);
         continue;
       }
 
-      if (existingUser.status === 'found') {
-        const deleteResult = await deleteClerkUser(existingUser.id);
-        if (deleteResult.status === 'failed') {
-          failed += 1;
-          console.log(`FAILED  ${record.email} | delete failed: ${deleteResult.error}`);
-          continue;
+      if (existingUsersResult.status === 'found') {
+        for (const user of existingUsersResult.users) {
+          const deleteResult = await deleteClerkUser(user.id);
+          if (deleteResult.status === 'failed') {
+            console.log(`FAILED  ${record.email} | delete failed: ${deleteResult.error}`);
+            // We won't increment failed here to not mess up the counter for the whole record yet
+          } else {
+            deleted += 1;
+            console.log(`DELETED ${record.email} | ${user.id}`);
+          }
         }
-
-        deleted += 1;
-        console.log(`DELETED ${record.email} | ${existingUser.id}`);
+        // Add a small delay to let Clerk's internal database/cache propagate the deletion
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } else if (resetOnly) {
         skipped += 1;
         console.log(`SKIPPED ${record.email} | user not found`);

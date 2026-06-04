@@ -192,9 +192,9 @@ class Settings:
         if self.RECOMMENDATION_QUERY_RERANK_TOP_K <= 0:
             raise RuntimeError("RECOMMENDATION_QUERY_RERANK_TOP_K must be positive")
 
-        if self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU <= 0:
+        if self.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU < 0:
             raise RuntimeError(
-                "RECOMMENDATION_QUERY_RERANK_TOP_K_CPU must be positive"
+                "RECOMMENDATION_QUERY_RERANK_TOP_K_CPU must be non-negative"
             )
 
         if self.RECOMMENDATION_EMBEDDING_CACHE_MAX_ENTRIES <= 0:

@@ -3,10 +3,12 @@ import { EventPattern, Payload } from '@nestjs/microservices';
 import { UserService } from './user.service';
 import {
   EventTopic,
-  PostEventMessage,
   PostEventType,
-  RecommendationGraphEventMessage,
   RecommendationGraphEventType,
+} from '@repo/dtos';
+import type {
+  PostEventMessage,
+  RecommendationGraphEventMessage,
 } from '@repo/dtos';
 
 @Controller()
@@ -17,24 +19,22 @@ export class UserEventController {
 
   @EventPattern(EventTopic.POST)
   async handlePostEvent(@Payload() message: PostEventMessage) {
-    const { type, payload } = message;
-
     // Do not count group posts for personal profile stats
-    if ('groupId' in payload && payload.groupId) {
+    if ('groupId' in message.payload && message.payload.groupId) {
       return;
     }
 
     try {
-      if (type === PostEventType.CREATED) {
-        await this.userService.incrementPostCount(payload.userId);
-        this.logger.log(`Incremented postCount for user ${payload.userId}`);
-      } else if (type === PostEventType.REMOVED) {
+      if (message.type === PostEventType.CREATED) {
+        await this.userService.incrementPostCount(message.payload.userId);
+        this.logger.log(`Incremented postCount for user ${message.payload.userId}`);
+      } else if (message.type === PostEventType.REMOVED) {
         // userId is now required in DTO
-        if (payload.userId) {
-          await this.userService.decrementPostCount(payload.userId);
-          this.logger.log(`Decremented postCount for user ${payload.userId}`);
+        if (message.payload.userId) {
+          await this.userService.decrementPostCount(message.payload.userId);
+          this.logger.log(`Decremented postCount for user ${message.payload.userId}`);
         } else {
-          this.logger.warn(`Received REMOVED event without userId for post ${payload.postId}`);
+          this.logger.warn(`Received REMOVED event without userId for post ${message.payload.postId}`);
         }
       }
     } catch (error) {

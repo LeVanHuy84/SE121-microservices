@@ -36,25 +36,32 @@ class RankingService:
         if not deduped_candidates:
             return []
 
+        top_k = self._resolve_rerank_top_k()
+        
+        # Determine how many candidates to enrich (at least 25 to ensure basic graph features in local dev)
+        enrich_k = max(top_k, 25)
+        
+        # Sort by retrieval score descending before selecting top_k
+        deduped_candidates.sort(
+            key=lambda c: (-float(c.get("retrievalScore", 0.0)), str(c.get("candidateId", "")))
+        )
+        
+        enrich_candidates = deduped_candidates[:enrich_k]
+        enrich_ids = [str(candidate["candidateId"]) for candidate in enrich_candidates]
+
         pair_features = self.repository.get_graph_pair_features(
             viewer_id,
-            [str(candidate["candidateId"]) for candidate in deduped_candidates],
+            enrich_ids,
         )
         emotion_profiles = (
-            self.repository.get_emotion_profiles(
-                [viewer_id]
-                + [str(candidate["candidateId"]) for candidate in deduped_candidates]
-            )
+            self.repository.get_emotion_profiles([viewer_id] + enrich_ids)
             if settings.RECOMMENDATION_EMOTION_SCORING_ENABLED
             else {}
         )
         viewer_emotion = emotion_profiles.get(viewer_id)
 
-        rerank_input = self._select_rerank_candidates(
-            candidates=deduped_candidates,
-            pair_features=pair_features,
-            top_k=self._resolve_rerank_top_k(),
-        )
+        # We only rerank up to top_k, even if enrich_k is larger
+        rerank_input = enrich_candidates[:top_k] if top_k > 0 else []
         model_scores = self._resolve_model_scores(
             viewer_id=viewer_id,
             viewer_profile_text=viewer_profile_text,
@@ -130,7 +137,9 @@ class RankingService:
         pair_features: dict[str, GraphPairFeature],
         top_k: int,
     ) -> list[dict[str, Any]]:
-        resolved_top_k = max(1, int(top_k))
+        resolved_top_k = max(0, int(top_k))
+        if resolved_top_k == 0:
+            return []
         if len(candidates) <= resolved_top_k:
             return candidates
 
@@ -251,7 +260,7 @@ class RankingService:
             return max(1, int(settings.RECOMMENDATION_QUERY_RERANK_TOP_K))
 
         return max(
-            1,
+            0,
             min(
                 int(settings.RECOMMENDATION_QUERY_RERANK_TOP_K),
                 int(settings.RECOMMENDATION_QUERY_RERANK_TOP_K_CPU),

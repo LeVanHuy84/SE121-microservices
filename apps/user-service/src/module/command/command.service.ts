@@ -48,6 +48,10 @@ export class CommandService {
             id: sysAdmin.id,
             email: rootEmail,
           })
+          .onConflictDoUpdate({
+            target: users.email,
+            set: { id: sysAdmin.id },
+          })
           .returning();
 
         await tx.insert(profiles).values({
@@ -57,7 +61,7 @@ export class CommandService {
           avatarUrl: null,
           postCount: 0,
           friendCount: 0,
-        });
+        }).onConflictDoNothing();
 
         const [defaultRole] = await tx
           .select()

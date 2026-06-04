@@ -14,6 +14,7 @@ import type {
 } from './repositories/social-graph.repository';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
+import { UserClientService } from '../client/user/user-client.service';
 
 @Injectable()
 export class FriendshipService {
@@ -30,6 +31,7 @@ export class FriendshipService {
     private readonly socialGraphRepo: SocialGraphRepository,
     private readonly recommendationQueryService: RecommendationQueryService,
     private readonly buffer: RecentActivityBufferService,
+    private readonly userClientService: UserClientService,
   ) {}
 
   async getRelationshipStatus(userId: string, targetId: string) {
@@ -271,9 +273,27 @@ export class FriendshipService {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
+    const normalizedQuery = this.normalizeCursorQuery(query);
+
+    if (query.search?.trim()) {
+      const allFriendIds = await this.socialGraphRepo.getFriendIds(userId, 2000);
+      
+      if (!allFriendIds || allFriendIds.length === 0) {
+        return { data: [], nextCursor: null, hasNextPage: false };
+      }
+      
+      const matchedIds = await this.userClientService.searchUserIds(
+        allFriendIds, 
+        query.search, 
+        normalizedQuery.limit
+      );
+      
+      return { data: matchedIds, nextCursor: null, hasNextPage: false };
+    }
+
     return this.socialGraphRepo.getFriends(
       userId,
-      this.normalizeCursorQuery(query),
+      normalizedQuery,
     );
   }
 

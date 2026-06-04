@@ -48,7 +48,7 @@ async def query_candidates(req: RecommendationQueryRequest):
                 response_data = await asyncio.to_thread(recommendation_query_service.query, req)
                 return RecommendationQueryOutput.model_validate(response_data)
         
-        response = await asyncio.wait_for(_run_query(), timeout=5.0)
+        response = await asyncio.wait_for(_run_query(), timeout=28.0)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Recommendation query timed out")
     except ValueError as exc:

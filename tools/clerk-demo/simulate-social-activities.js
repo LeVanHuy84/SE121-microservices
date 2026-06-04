@@ -189,6 +189,8 @@ function createCounters() {
     friendRemoved: 0,
     userBlocked: 0,
     userUnblocked: 0,
+    recommendationAccepted: 0,
+    recommendationDismissed: 0,
     errors: 0,
   };
 }
@@ -207,6 +209,7 @@ function printDryRunPlan({ usersCount, rounds }) {
   console.log('DRYRUN plan:');
   console.log(`- Random request actions: ${usersCount * rounds * 2}`);
   console.log('- Process incoming requests for each user per round');
+  console.log('- Process friend recommendations (accept/dismiss)');
   console.log('- Remove/block/unblock random relationships');
 }
 
@@ -220,6 +223,8 @@ function printSummary(counters) {
   console.log(`- Friends removed:             ${counters.friendRemoved}`);
   console.log(`- Users blocked:               ${counters.userBlocked}`);
   console.log(`- Users unblocked:             ${counters.userUnblocked}`);
+  console.log(`- Recommend requests sent:     ${counters.recommendationAccepted}`);
+  console.log(`- Recommend dismissed:         ${counters.recommendationDismissed}`);
   console.log(`- Errors:                      ${counters.errors}`);
 }
 
@@ -392,6 +397,102 @@ async function processIncomingRequestsRound({ users, tokenPool, random, counters
   }
 }
 
+async function simulateRecommendationsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
+  for (const user of users) {
+    if (random() < 0.5) {
+      continue;
+    }
+
+    const recEndpoint = '/social/friends/recommend?limit=5';
+    let recResult;
+
+    try {
+      recResult = await apiRequestForUser(
+        tokenPool,
+        apiBaseUrl,
+        user.userId,
+        'GET',
+        recEndpoint,
+      );
+    } catch (error) {
+      counters.errors += 1;
+      console.error(`[ERROR] GET ${recEndpoint} | actor=${user.email}`, error);
+      continue;
+    }
+
+    if (!recResult.ok) {
+      counters.errors += 1;
+      logApiFailure('GET', recEndpoint, recResult.status, recResult.payload, `actor=${user.email}`);
+      continue;
+    }
+
+    logApiSuccess('GET', recEndpoint, recResult.status, `actor=${user.email}`);
+
+    const recommendations = extractArrayData(recResult.payload);
+
+    for (const rec of recommendations) {
+      if (!rec || !rec.candidateId) {
+        continue;
+      }
+
+      const shouldRequest = random() < 0.6; // 60% request, 40% dismiss
+      const body = {
+        recommendationId: rec.recommendationId,
+        recommendationRequestId: rec.recommendationRequestId,
+      };
+
+      if (shouldRequest) {
+        const reqEndpoint = `/social/request/${rec.candidateId}`;
+        try {
+          const reqResult = await apiRequestForUser(
+            tokenPool,
+            apiBaseUrl,
+            user.userId,
+            'POST',
+            reqEndpoint,
+            body,
+          );
+
+          if (reqResult.ok) {
+            counters.recommendationAccepted += 1;
+            counters.requestSent += 1;
+            logApiSuccess('POST', reqEndpoint, reqResult.status, `actor=${user.email} (recommendation)`);
+          } else {
+            counters.errors += 1;
+            logApiFailure('POST', reqEndpoint, reqResult.status, reqResult.payload, `actor=${user.email}`);
+          }
+        } catch (error) {
+          counters.errors += 1;
+          console.error(`[ERROR] POST ${reqEndpoint} | actor=${user.email}`, error);
+        }
+      } else {
+        const disEndpoint = `/social/friends/recommend/dismiss/${rec.candidateId}`;
+        try {
+          const disResult = await apiRequestForUser(
+            tokenPool,
+            apiBaseUrl,
+            user.userId,
+            'POST',
+            disEndpoint,
+            body,
+          );
+
+          if (disResult.ok) {
+            counters.recommendationDismissed += 1;
+            logApiSuccess('POST', disEndpoint, disResult.status, `actor=${user.email} (dismissed)`);
+          } else {
+            counters.errors += 1;
+            logApiFailure('POST', disEndpoint, disResult.status, disResult.payload, `actor=${user.email}`);
+          }
+        } catch (error) {
+          counters.errors += 1;
+          console.error(`[ERROR] POST ${disEndpoint} | actor=${user.email}`, error);
+        }
+      }
+    }
+  }
+}
+
 async function mutateRelationshipsRound({ users, tokenPool, random, counters, apiBaseUrl }) {
   for (const user of users) {
     if (random() < 0.2) {
@@ -555,6 +656,14 @@ async function run() {
       });
 
       await processIncomingRequestsRound({
+        users,
+        tokenPool,
+        random,
+        counters,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+
+      await simulateRecommendationsRound({
         users,
         tokenPool,
         random,

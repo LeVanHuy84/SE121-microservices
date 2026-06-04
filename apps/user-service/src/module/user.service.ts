@@ -52,61 +52,76 @@ export class UserService {
         semanticProfileText,
         'user.created',
       );
-    const user = await this.db.transaction(async (tx) => {
-      const [user] = await tx
-        .insert(users)
-        .values({
-          id: dto.id,
-          email: dto.email,
-        })
-        .returning();
-
-      await tx.insert(profiles).values({
-        userId: user.id,
-        firstName: normalizedProfile.firstName ?? '',
-        lastName: normalizedProfile.lastName ?? '',
-        avatarUrl: normalizedProfile.avatarUrl ?? null,
-        coverImage: null,
-        bio: normalizedProfile.bio,
-        location: normalizedProfile.location,
-        jobTitle: normalizedProfile.jobTitle,
-        company: normalizedProfile.company,
-        school: normalizedProfile.school,
-        interests: normalizedProfile.interests,
-        semanticProfileText,
-        postCount: 0,
-        friendCount: 0,
-        privacySettings: {
-          profileVisibility: 'PUBLIC',
-          messagePrivacy: 'EVERYONE',
-          friendListVisibility: 'PUBLIC',
-        } as any,
-      });
-
-      const [defaultRole] = await tx
-        .select()
-        .from(roles)
-        .where(eq(roles.name, 'user'));
-
-      let roleId = defaultRole?.id;
-      if (!roleId) {
-        const [newRole] = await tx
-          .insert(roles)
+    let user;
+    try {
+      user = await this.db.transaction(async (tx) => {
+        let [newUser] = await tx
+          .insert(users)
           .values({
-            name: 'user',
-            description: 'Default user role',
+            id: dto.id,
+            email: dto.email,
           })
+          .onConflictDoNothing()
           .returning();
-        roleId = newRole.id;
-      }
 
-      await tx.insert(userRoles).values({
-        userId: user.id,
-        roleId,
+        if (!newUser) {
+          const [existingUser] = await tx
+            .select()
+            .from(users)
+            .where(eq(users.id, dto.id));
+          return existingUser;
+        }
+
+        const user = newUser;
+
+        await tx.insert(profiles).values({
+          userId: user.id,
+          firstName: normalizedProfile.firstName ?? '',
+          lastName: normalizedProfile.lastName ?? '',
+          avatarUrl: normalizedProfile.avatarUrl ?? null,
+          coverImage: null,
+          bio: normalizedProfile.bio,
+          location: normalizedProfile.location,
+          jobTitle: normalizedProfile.jobTitle,
+          company: normalizedProfile.company,
+          school: normalizedProfile.school,
+          interests: normalizedProfile.interests,
+          semanticProfileText,
+          postCount: 0,
+          friendCount: 0,
+        });
+
+        const [defaultRole] = await tx
+          .select()
+          .from(roles)
+          .where(eq(roles.name, 'user'));
+
+        let roleId = defaultRole?.id;
+        if (!roleId) {
+          const [newRole] = await tx
+            .insert(roles)
+            .values({
+              name: 'user',
+              description: 'Default user role',
+            })
+            .returning();
+          roleId = newRole.id;
+        }
+
+        await tx.insert(userRoles).values({
+          userId: user.id,
+          roleId,
+        });
+
+        return user;
       });
-
-      return user;
-    });
+    } catch (error: any) {
+      this.logger.error('Database error in createUser:', error);
+      if (error.cause) {
+        this.logger.error('Error cause:', error.cause);
+      }
+      throw error;
+    }
 
     await this.redis.del('users:all');
 
@@ -136,10 +151,12 @@ export class UserService {
       UserEventType.CREATED,
       payload
     );
-    await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
-      this.db,
-      recommendationProfilePayload,
-    );
+    if (dto.role !== 'admin') {
+      await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
+        this.db,
+        recommendationProfilePayload,
+      );
+    }
 
     return plainToInstance(
       UserResponseDTO,
@@ -176,6 +193,8 @@ export class UserService {
             school: true,
             interests: true,
             privacySettings: true,
+            postCount: true,
+            friendCount: true,
           },
         },
       },
@@ -225,6 +244,8 @@ export class UserService {
             school: true,
             interests: true,
             privacySettings: true,
+            postCount: true,
+            friendCount: true,
           },
         },
       },
@@ -487,14 +508,22 @@ export class UserService {
       UserEventType.UPDATED,
       payload
     );
-    await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
-      this.db,
-      this.buildRecommendationProfileEmbeddingRequestedPayload(
-        id,
-        finalProfile.semanticProfileText ?? null,
-        'user.updated',
-      ),
-    );
+    const userRolesResult = await this.db.select({ name: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, id));
+    const isAdmin = userRolesResult.some(r => r.name === 'admin');
+
+    if (!isAdmin) {
+      await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
+        this.db,
+        this.buildRecommendationProfileEmbeddingRequestedPayload(
+          id,
+          finalProfile.semanticProfileText ?? null,
+          'user.updated',
+        ),
+      );
+    }
 
     return this.findOne(id);
   }
@@ -513,14 +542,22 @@ export class UserService {
       UserEventType.REMOVED,
       payload
     );
-    await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
-      this.db,
-      this.buildRecommendationProfileEmbeddingRequestedPayload(
-        id,
-        null,
-        'user.removed',
-      ),
-    );
+    const userRolesResult = await this.db.select({ name: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, id));
+    const isAdmin = userRolesResult.some(r => r.name === 'admin');
+
+    if (!isAdmin) {
+      await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
+        this.db,
+        this.buildRecommendationProfileEmbeddingRequestedPayload(
+          id,
+          null,
+          'user.removed',
+        ),
+      );
+    }
 
     return { success: true };
   }
@@ -572,6 +609,27 @@ export class UserService {
       return acc;
     }, {});
     return result;
+  }
+
+  async searchUserIds(ids: string[], search: string, limit: number = 20): Promise<string[]> {
+    if (!ids.length || !search.trim()) return [];
+
+    const searchLower = `%${search.toLowerCase().trim()}%`;
+
+    const rows = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .innerJoin(profiles, eq(users.id, profiles.userId))
+      .where(
+        and(
+          inArray(users.id, ids),
+          eq(users.status, USER_STATUS.ACTIVE),
+          sql`LOWER(${profiles.firstName} || ' ' || ${profiles.lastName}) LIKE ${searchLower}`
+        )
+      )
+      .limit(limit);
+
+    return rows.map((r) => r.id);
   }
 
 

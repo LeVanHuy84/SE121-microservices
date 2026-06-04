@@ -229,10 +229,12 @@ export class RecommendationClientService {
     return {
       baseUrl,
       internalKey,
-      timeoutMs: this.configService.get<number>(
-        'RECOMMENDATION_SERVICE_TIMEOUT_MS',
-        30000,
-      ),
+      timeoutMs: Number(
+        this.configService.get<string | number>(
+          'RECOMMENDATION_SERVICE_TIMEOUT_MS',
+          30000,
+        )
+      ) || 30000,
     };
   }
 }
