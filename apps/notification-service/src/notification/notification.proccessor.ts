@@ -1,5 +1,5 @@
 // src/notification/notification.processor.ts
-import { Processor, Process } from '@nestjs/bull';
+import { Processor, Process, OnQueueFailed, OnQueueError } from '@nestjs/bull';
 import type { Job } from 'bull';
 import { NotificationService } from './notification.service';
 import { Injectable, Logger } from '@nestjs/common';
@@ -87,5 +87,18 @@ export class NotificationProcessor {
     }
 
     throw error;
+  }
+
+  @OnQueueFailed()
+  onJobFailed(job: Job, err: Error) {
+    this.logger.error(
+      `🚨 Job ${job.name} (ID: ${job.id}) đã thất bại hoàn toàn sau ${job.attemptsMade} lần thử.`,
+      err.stack,
+    );
+  }
+
+  @OnQueueError()
+  onQueueError(error: Error) {
+    this.logger.error(`🔥 Lỗi từ Bull Queue:`, error);
   }
 }

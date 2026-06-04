@@ -97,9 +97,9 @@ export class FriendshipController {
 
   @MessagePattern('get_friends')
   async getFriends(
-    @Payload() data: { userId: string; query: CursorPaginationDTO },
+    @Payload() data: { requesterId: string; targetId: string; query: CursorPaginationDTO },
   ) {
-    return this.friendshipService.getFriends(data.userId, data.query);
+    return this.friendshipService.getFriends(data.requesterId, data.targetId, data.query);
   }
 
   @MessagePattern('get_blocked_users')

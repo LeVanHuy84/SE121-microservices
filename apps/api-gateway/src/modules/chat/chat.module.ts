@@ -23,6 +23,28 @@ import { PresenceTrackerService } from "./services/presence-tracker.service";
           },
         }),
       },
+      {
+        name: MICROSERVICES_CLIENTS.USER_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>("USER_SERVICE_PORT"),
+          },
+        }),
+      },
+      {
+        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            port: config.get<number>("SOCIAL_SERVICE_PORT"),
+          },
+        }),
+      },
     ]),
     RedisModule.forRoot({
       type: "single",

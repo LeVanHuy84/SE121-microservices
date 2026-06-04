@@ -34,14 +34,37 @@ export class UserController {
     }
 
     // 3️⃣ Lấy trạng thái quan hệ từ Social Service
-    const relation = await firstValueFrom(
+    const relation: any = await firstValueFrom(
       this.socialClient.send('get_relationship_status', {
         userId: data.userId,
         targetId: data.targetId,
       })
     );
 
-    return { ...profile, relation };
+    // 4️⃣ Kiểm tra quyền riêng tư (Privacy) của Profile
+    const profileVisibility = profile.privacySettings?.profileVisibility || 'PUBLIC';
+    let shouldStripProfile = false;
+
+    if (profileVisibility === 'PRIVATE') {
+      shouldStripProfile = true;
+    } else if (profileVisibility === 'FRIENDS' && relation?.status !== 'FRIEND') {
+      shouldStripProfile = true;
+    }
+
+    let finalProfile = profile;
+    if (shouldStripProfile) {
+      finalProfile = {
+        ...profile,
+        bio: null,
+        location: null,
+        jobTitle: null,
+        company: null,
+        school: null,
+        interests: [],
+      } as any;
+    }
+
+    return { ...finalProfile, relation };
   }
 
   @MessagePattern('updateUser')

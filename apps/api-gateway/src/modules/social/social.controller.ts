@@ -90,7 +90,7 @@ export class SocialController {
     @CurrentUserId() userId: string,
     @Query() query: CursorPaginationDTO
   ) {
-    return this.socialClient.send('get_friends', { userId, query });
+    return this.socialClient.send('get_friends', { requesterId: userId, targetId: userId, query });
   }
 
   @Get('friends/recommend')
@@ -137,10 +137,11 @@ export class SocialController {
 
   @Get('friends/:userId')
   async getUserFriends(
-    @Param('userId') userId: string,
+    @CurrentUserId() requesterId: string,
+    @Param('userId') targetId: string,
     @Query() query: CursorPaginationDTO
   ) {
-    return this.socialClient.send('get_friends', { userId, query });
+    return this.socialClient.send('get_friends', { requesterId, targetId, query });
   }
 
   @Get('blocked')

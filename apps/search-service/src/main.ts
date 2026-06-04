@@ -27,6 +27,9 @@ async function bootstrap() {
         consumer: {
           groupId: process.env.KAFKA_SEARCH_ID!,
         },
+        subscribe: {
+          fromBeginning: true,
+        },
       },
     },
   );

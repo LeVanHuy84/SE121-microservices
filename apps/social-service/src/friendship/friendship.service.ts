@@ -269,14 +269,36 @@ export class FriendshipService {
     };
   }
 
+  async getMutualFriends(
+    userId1: string, 
+    userId2: string,
+    query: CursorPaginationDTO
+  ): Promise<CursorPageResponse<string>> {
+    const [friends1, friends2] = await Promise.all([
+      this.getFriendIds(userId1, 2000),
+      this.getFriendIds(userId2, 2000)
+    ]);
+    const set1 = new Set(friends1);
+    const mutualFriendIds = (friends2 || []).filter(id => set1.has(id));
+
+    const offset = query.cursor ? parseInt(query.cursor, 10) : 0;
+    const limit = query.limit;
+    const data = mutualFriendIds.slice(offset, offset + limit);
+    const hasNextPage = offset + limit < mutualFriendIds.length;
+    const nextCursor = hasNextPage ? (offset + limit).toString() : null;
+
+    return { data, nextCursor, hasNextPage };
+  }
+
   async getFriends(
-    userId: string,
+    requesterId: string,
+    targetId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
     const normalizedQuery = this.normalizeCursorQuery(query);
 
     if (query.search?.trim()) {
-      const allFriendIds = await this.socialGraphRepo.getFriendIds(userId, 2000);
+      const allFriendIds = await this.socialGraphRepo.getFriendIds(targetId, 2000);
       
       if (!allFriendIds || allFriendIds.length === 0) {
         return { data: [], nextCursor: null, hasNextPage: false };
@@ -291,8 +313,24 @@ export class FriendshipService {
       return { data: matchedIds, nextCursor: null, hasNextPage: false };
     }
 
+    if (requesterId !== targetId) {
+      const users = await this.userClientService.getUsers([targetId], 'full');
+      const targetUser = users[targetId] as any;
+      if (targetUser && targetUser.privacySettings) {
+        const visibility = targetUser.privacySettings.friendListVisibility || 'PUBLIC';
+        if (visibility === 'PRIVATE') {
+          return this.getMutualFriends(requesterId, targetId, normalizedQuery);
+        } else if (visibility === 'FRIENDS') {
+          const relation = await this.getRelationshipStatus(requesterId, targetId);
+          if (relation.status !== 'FRIEND') {
+             return this.getMutualFriends(requesterId, targetId, normalizedQuery);
+          }
+        }
+      }
+    }
+
     return this.socialGraphRepo.getFriends(
-      userId,
+      targetId,
       normalizedQuery,
     );
   }

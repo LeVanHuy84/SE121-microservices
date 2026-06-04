@@ -14,6 +14,8 @@ import {
   RootType,
   StatsEventType,
   TargetType,
+  NotiOutboxPayload,
+  NotiTargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { OutboxEvent } from 'src/entities/outbox.entity';
@@ -23,6 +25,10 @@ import { CommentStat } from 'src/entities/comment-stat.entity';
 import { PostStat } from 'src/entities/post-stat.entity';
 import { ReactionFieldMap } from 'src/constant';
 import { ShareStat } from 'src/entities/share-stat.entity';
+import { Post } from 'src/entities/post.entity';
+import { Comment } from 'src/entities/comment.entity';
+import { Share } from 'src/entities/share.entity';
+import { UserClientService } from '../client/user/user-client.service';
 import { StatsBufferService } from '../stats/stats.buffer.service';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 
@@ -40,6 +46,7 @@ export class ReactionService {
     private readonly dataSource: DataSource,
     private readonly statBuffer: StatsBufferService,
     private readonly recentActivityBuffer: RecentActivityBufferService,
+    private readonly userClient: UserClientService,
   ) {}
 
   // --------------------------------------------------
@@ -119,6 +126,14 @@ export class ReactionService {
 
           await manager.save(interactionOutbox);
         }
+
+        await this.createReactionNotificationEvent(
+          manager,
+          userId,
+          dto.targetType,
+          dto.targetId,
+        );
+
         return {
           buffer: [{ delta: +1, type: dto.reactionType }],
           isNew: true,
@@ -304,5 +319,68 @@ export class ReactionService {
       })
       .where(`${targetType.toLowerCase()}Id = :id`, { id: targetId })
       .execute();
+  }
+
+  private async createReactionNotificationEvent(
+    manager: EntityManager,
+    userId: string,
+    targetType: TargetType,
+    targetId: string,
+  ): Promise<OutboxEvent | null> {
+    let ownerId: string | undefined;
+
+    switch (targetType) {
+      case TargetType.POST: {
+        const post = await manager.findOne(Post, {
+          where: { id: targetId },
+          select: ['userId'],
+        });
+        ownerId = post?.userId;
+        break;
+      }
+      case TargetType.COMMENT: {
+        const comment = await manager.findOne(Comment, {
+          where: { id: targetId },
+          select: ['userId'],
+        });
+        ownerId = comment?.userId;
+        break;
+      }
+      case TargetType.SHARE: {
+        const share = await manager.findOne(Share, {
+          where: { id: targetId },
+          select: ['userId'],
+        });
+        ownerId = share?.userId;
+        break;
+      }
+    }
+
+    if (!ownerId || ownerId === userId) return null; // Không tự thông báo cho mình
+
+    const actor = await this.userClient.getUserInfo(userId);
+
+    const notiPayload: NotiOutboxPayload = {
+      targetId,
+      targetType:
+        targetType === TargetType.POST
+          ? NotiTargetType.POST
+          : targetType === TargetType.SHARE
+            ? NotiTargetType.SHARE
+            : NotiTargetType.POST,
+      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorAvatar: actor?.avatarUrl,
+      content: '', // Template service có thể tự build content
+      receivers: [ownerId],
+    };
+
+    const outbox = manager.create(OutboxEvent, {
+      topic: 'notification',
+      eventType: 'reaction',
+      destination: EventDestination.RABBITMQ,
+      payload: notiPayload,
+    });
+
+    return manager.save(outbox);
   }
 }
