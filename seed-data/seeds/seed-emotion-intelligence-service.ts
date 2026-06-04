@@ -995,12 +995,12 @@ async function main(): Promise<void> {
   const snapshotService = new LocalSnapshotCalculator();
   const profileService = new LocalProfileCalculator();
 
-  await mongoose.connect(mongoUri, {
+  const mongooseInstance = await mongoose.connect(mongoUri, {
     dbName: 'emotion_intelligence_service',
   });
 
   try {
-    const db = mongoose.connection.db;
+    const db = mongooseInstance.connection.db;
 
     if (!db) {
       throw new Error('MongoDB connection did not expose a database handle');
@@ -1104,7 +1104,7 @@ async function main(): Promise<void> {
       `Seed completed for emotion-intelligence-service using ${envFile}`,
     );
   } finally {
-    await mongoose.disconnect();
+    await mongooseInstance.disconnect();
   }
 }
 
