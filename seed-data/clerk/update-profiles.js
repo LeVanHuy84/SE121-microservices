@@ -35,67 +35,242 @@ const DEFAULT_SEED = process.env.SEED || `${Date.now()}`;
 const DEFAULT_CSV = path.resolve(__dirname, 'demo-clerk-users.csv');
 
 const FIRST_NAME_POOL = [
-  'An', 'Bình', 'Chi', 'Dũng', 'Giang', 'Hà', 'Hải', 'Hương',
-  'Khánh', 'Lan', 'Linh', 'Mai', 'Minh', 'My', 'Nam', 'Ngân',
-  'Ngọc', 'Nhung', 'Phúc', 'Phương', 'Quang', 'Quỳnh', 'Sơn',
-  'Thanh', 'Thảo', 'Thu', 'Trang', 'Trúc', 'Tuấn', 'Việt', 'Vy', 'Yến',
+  'An',
+  'Bình',
+  'Chi',
+  'Dũng',
+  'Giang',
+  'Hà',
+  'Hải',
+  'Hương',
+  'Khánh',
+  'Lan',
+  'Linh',
+  'Mai',
+  'Minh',
+  'My',
+  'Nam',
+  'Ngân',
+  'Ngọc',
+  'Nhung',
+  'Phúc',
+  'Phương',
+  'Quang',
+  'Quỳnh',
+  'Sơn',
+  'Thanh',
+  'Thảo',
+  'Thu',
+  'Trang',
+  'Trúc',
+  'Tuấn',
+  'Việt',
+  'Vy',
+  'Yến',
 ];
 
 const LAST_NAME_POOL = [
-  'Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Phan', 'Vũ', 'Võ',
-  'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý',
+  'Nguyễn',
+  'Trần',
+  'Lê',
+  'Phạm',
+  'Hoàng',
+  'Phan',
+  'Vũ',
+  'Võ',
+  'Đặng',
+  'Bùi',
+  'Đỗ',
+  'Hồ',
+  'Ngô',
+  'Dương',
+  'Lý',
 ];
 
 const CITY_POOL = [
-  'TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Huế',
-  'Hải Phòng', 'Nha Trang', 'Biên Hòa', 'Vũng Tàu', 'Quy Nhơn',
+  'TP. Hồ Chí Minh',
+  'Hà Nội',
+  'Đà Nẵng',
+  'Cần Thơ',
+  'Huế',
+  'Hải Phòng',
+  'Nha Trang',
+  'Biên Hòa',
+  'Vũng Tàu',
+  'Quy Nhơn',
 ];
 
 const DISTRICT_POOL = [
-  'Quận 1', 'Thủ Đức', 'Cầu Giấy', 'Hải Châu', 'Ninh Kiều',
-  'Hồng Bàng', 'Thanh Khê', 'Sơn Trà', 'Bình Thạnh', 'Nam Từ Liêm',
+  'Quận 1',
+  'Thủ Đức',
+  'Cầu Giấy',
+  'Hải Châu',
+  'Ninh Kiều',
+  'Hồng Bàng',
+  'Thanh Khê',
+  'Sơn Trà',
+  'Bình Thạnh',
+  'Nam Từ Liêm',
 ];
 
 const COMPANY_POOL = [
-  'Mạng Xã Hội Sen Việt', 'Công nghệ Tâm An', 'Phòng Lab Sông Xanh', 'Xưởng Bình Minh',
-  'Cộng Đồng Mở', 'Sóng Mới Digital', 'Kết Nối Đô Thị', 'Nền Tảng Hoa Sen',
-  'Mindful Health Lab', 'Emotion Insight Hub', 'Blue River Software', 'Wellbeing Data Studio',
-  'Sunrise Product House', 'VNG Corporation', 'FPT Software', 'Viettel', 'MoMo', 'Zalo',
-  'VNPAY', 'Shopee', 'Tiki', 'NashTech', 'KMS Technology', 'CyberLogitec', 'VNGGames',
-  'Gameloft', 'Be Group', 'VinAI', 'VNPT', 'Base.vn', 'Got It', 'Axie Infinity',
-  'Techcombank', 'MB Bank', 'Vinamilk', 'Masan Group', 'Thế Giới Di Động',
+  'Mạng Xã Hội Sen Việt',
+  'Công nghệ Tâm An',
+  'Phòng Lab Sông Xanh',
+  'Xưởng Bình Minh',
+  'Cộng Đồng Mở',
+  'Sóng Mới Digital',
+  'Kết Nối Đô Thị',
+  'Nền Tảng Hoa Sen',
+  'Mindful Health Lab',
+  'Emotion Insight Hub',
+  'Blue River Software',
+  'Wellbeing Data Studio',
+  'Sunrise Product House',
+  'VNG Corporation',
+  'FPT Software',
+  'Viettel',
+  'MoMo',
+  'Zalo',
+  'VNPAY',
+  'Shopee',
+  'Tiki',
+  'NashTech',
+  'KMS Technology',
+  'CyberLogitec',
+  'VNGGames',
+  'Gameloft',
+  'Be Group',
+  'VinAI',
+  'VNPT',
+  'Base.vn',
+  'Got It',
+  'Axie Infinity',
+  'Techcombank',
+  'MB Bank',
+  'Vinamilk',
+  'Masan Group',
+  'Thế Giới Di Động',
 ];
 
 const JOB_POOL = [
-  'Kỹ sư Backend', 'Kỹ sư Frontend', 'Kỹ sư Mobile', 'Thiết kế sản phẩm',
-  'Phân tích dữ liệu', 'Kỹ sư QA', 'Kỹ sư DevOps', 'Quản lý cộng đồng',
-  'Nhà nghiên cứu AI ứng dụng', 'Chuyên viên vận hành sản phẩm', 'Kỹ sư dữ liệu',
-  'Kỹ sư machine learning', 'Chuyên viên phân tích hành vi người dùng',
-  'Product Manager', 'UX/UI Designer', 'Data Scientist', 'Data Analyst',
-  'Scrum Master', 'Business Analyst', 'Marketing Executive', 'Content Creator',
-  'HR Specialist', 'Tester', 'IT Support', 'Game Developer', 'Blockchain Engineer',
-  'Fullstack Developer', 'System Administrator', 'Solution Architect', 'Technical Lead',
+  'Kỹ sư Backend',
+  'Kỹ sư Frontend',
+  'Kỹ sư Mobile',
+  'Thiết kế sản phẩm',
+  'Phân tích dữ liệu',
+  'Kỹ sư QA',
+  'Kỹ sư DevOps',
+  'Quản lý cộng đồng',
+  'Nhà nghiên cứu AI ứng dụng',
+  'Chuyên viên vận hành sản phẩm',
+  'Kỹ sư dữ liệu',
+  'Kỹ sư machine learning',
+  'Chuyên viên phân tích hành vi người dùng',
+  'Product Manager',
+  'UX/UI Designer',
+  'Data Scientist',
+  'Data Analyst',
+  'Scrum Master',
+  'Business Analyst',
+  'Marketing Executive',
+  'Content Creator',
+  'HR Specialist',
+  'Tester',
+  'IT Support',
+  'Game Developer',
+  'Blockchain Engineer',
+  'Fullstack Developer',
+  'System Administrator',
+  'Solution Architect',
+  'Technical Lead',
 ];
 
 const SCHOOL_POOL = [
-  'HCMUT', 'UIT', 'UEH', 'DUT', 'VNU', 'Đại học FPT', 'HUST', 'Đại học Cần Thơ',
-  'PTIT', 'HUFLIT', 'Đại học Khoa học Tự nhiên', 'Đại học Bách khoa Hà Nội',
-  'Đại học Ngoại thương (FTU)', 'Kinh tế Quốc dân (NEU)', 'Đại học Tôn Đức Thắng (TDTU)',
-  'RMIT Vietnam', 'Swinburne Vietnam', 'Đại học Quốc tế (IU)', 'Đại học Kinh tế - Luật (UEL)',
-  'Đại học Sư phạm Kỹ thuật (HCMUTE)', 'Học viện Ngân hàng', 'Đại học Y Dược',
-  'Học viện Tài chính', 'Đại học Ngoại ngữ', 'Đại học Công nghiệp',
+  'HCMUT',
+  'UIT',
+  'UEH',
+  'DUT',
+  'VNU',
+  'Đại học FPT',
+  'HUST',
+  'Đại học Cần Thơ',
+  'PTIT',
+  'HUFLIT',
+  'Đại học Khoa học Tự nhiên',
+  'Đại học Bách khoa Hà Nội',
+  'Đại học Ngoại thương (FTU)',
+  'Kinh tế Quốc dân (NEU)',
+  'Đại học Tôn Đức Thắng (TDTU)',
+  'RMIT Vietnam',
+  'Swinburne Vietnam',
+  'Đại học Quốc tế (IU)',
+  'Đại học Kinh tế - Luật (UEL)',
+  'Đại học Sư phạm Kỹ thuật (HCMUTE)',
+  'Học viện Ngân hàng',
+  'Đại học Y Dược',
+  'Học viện Tài chính',
+  'Đại học Ngoại ngữ',
+  'Đại học Công nghiệp',
 ];
 
 const INTEREST_POOL = [
-  'công nghệ', 'chạy bộ', 'âm nhạc', 'xem phim', 'thể hình', 'thiết kế',
-  'khởi nghiệp', 'du lịch', 'đọc sách', 'nhiếp ảnh', 'cộng đồng', 'chơi game',
-  'ẩm thực', 'cà phê', 'tình nguyện', 'sức khỏe tinh thần', 'thiền', 'podcast',
-  'viết blog', 'thảo luận công nghệ', 'tâm lý học ứng dụng', 'đá bóng', 'bơi lội',
-  'đạp xe', 'nấu ăn', 'học ngoại ngữ', 'AI', 'Machine Learning', 'Blockchain',
-  'Crypto', 'chứng khoán', 'đầu tư', 'kinh doanh', 'quản trị', 'tiếng Anh',
-  'tiếng Nhật', 'IELTS', 'guitar', 'piano', 'ca hát', 'nuôi mèo', 'nuôi chó',
-  'thú cưng', 'yoga', 'pilates', 'camping', 'trekking', 'nhiếp ảnh đường phố',
-  'quay phim', 'TikTok', 'chơi cờ', 'board game', 'eSports', 'cầu lông', 'tennis', 'võ thuật',
+  'công nghệ',
+  'chạy bộ',
+  'âm nhạc',
+  'xem phim',
+  'thể hình',
+  'thiết kế',
+  'khởi nghiệp',
+  'du lịch',
+  'đọc sách',
+  'nhiếp ảnh',
+  'cộng đồng',
+  'chơi game',
+  'ẩm thực',
+  'cà phê',
+  'tình nguyện',
+  'sức khỏe tinh thần',
+  'thiền',
+  'podcast',
+  'viết blog',
+  'thảo luận công nghệ',
+  'tâm lý học ứng dụng',
+  'đá bóng',
+  'bơi lội',
+  'đạp xe',
+  'nấu ăn',
+  'học ngoại ngữ',
+  'AI',
+  'Machine Learning',
+  'Blockchain',
+  'Crypto',
+  'chứng khoán',
+  'đầu tư',
+  'kinh doanh',
+  'quản trị',
+  'tiếng Anh',
+  'tiếng Nhật',
+  'IELTS',
+  'guitar',
+  'piano',
+  'ca hát',
+  'nuôi mèo',
+  'nuôi chó',
+  'thú cưng',
+  'yoga',
+  'pilates',
+  'camping',
+  'trekking',
+  'nhiếp ảnh đường phố',
+  'quay phim',
+  'TikTok',
+  'chơi cờ',
+  'board game',
+  'eSports',
+  'cầu lông',
+  'tennis',
+  'võ thuật',
 ];
 
 const GOAL_POOL = [
@@ -121,7 +296,8 @@ const GOAL_POOL = [
 function parseCliOptions() {
   const args = process.argv.slice(2);
   let csvArg = DEFAULT_CSV;
-  let limit = Number.isFinite(DEFAULT_LIMIT) && DEFAULT_LIMIT > 0 ? DEFAULT_LIMIT : 70;
+  let limit =
+    Number.isFinite(DEFAULT_LIMIT) && DEFAULT_LIMIT > 0 ? DEFAULT_LIMIT : 70;
   let seed = DEFAULT_SEED;
 
   for (const arg of args) {
@@ -194,7 +370,10 @@ function pickOne(pool, random) {
 function pickManyUnique(pool, minItems, maxItems, random) {
   const desired = Math.max(
     minItems,
-    Math.min(maxItems, minItems + Math.floor(random() * (maxItems - minItems + 1))),
+    Math.min(
+      maxItems,
+      minItems + Math.floor(random() * (maxItems - minItems + 1)),
+    ),
   );
   const copy = [...pool];
   const picked = [];
@@ -238,7 +417,9 @@ function buildRichProfilePayload(record, random) {
     255,
   );
 
-  const avatarSeed = encodeURIComponent(`${record.email || ''}-${firstName}-${lastName}`);
+  const avatarSeed = encodeURIComponent(
+    `${record.email || ''}-${firstName}-${lastName}`,
+  );
 
   return {
     firstName,
@@ -249,7 +430,7 @@ function buildRichProfilePayload(record, random) {
     company: clipText(company, 120),
     school: clipText(school, 120),
     interests,
-    avatarUrl: `https://api.dicebear.com/9.x/lorelei/svg?seed=${avatarSeed}`,
+    avatarUrl: `https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMmppaFZQNUFvSXBhY2xGNTMxeERheWF0V1IiLCJyaWQiOiJ1c2VyXzNFY1ptQmVTakhmbHVyMUc2NmdhSFNjWFRCVyIsImluaXRpYWxzIjoiTcSQIn0`,
   };
 }
 
@@ -270,12 +451,15 @@ function buildCreateUserPayload(clerkUser, profilePayload) {
 }
 
 async function checkUserExistsInAppDatabase(authToken, userId) {
-  const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${authToken}`,
+  const response = await fetch(
+    `${API_BASE_URL}/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
     },
-  });
+  );
 
   if (response.ok) {
     return { exists: true, detail: '' };
@@ -302,14 +486,19 @@ async function ensureUserInAppDatabase(createPayload, authToken) {
   }
 
   const bodyText = await response.text();
-  const duplicateHint = /duplicate|already exists|unique|conflict/i.test(bodyText);
+  const duplicateHint = /duplicate|already exists|unique|conflict/i.test(
+    bodyText,
+  );
 
   if (response.status === 409 || response.status === 422 || duplicateHint) {
     return { status: 'exists', detail: bodyText.slice(0, 200) };
   }
 
   if (authToken && createPayload?.id) {
-    const existenceCheck = await checkUserExistsInAppDatabase(authToken, createPayload.id);
+    const existenceCheck = await checkUserExistsInAppDatabase(
+      authToken,
+      createPayload.id,
+    );
     if (existenceCheck.exists) {
       return {
         status: 'exists',
@@ -385,7 +574,9 @@ async function run() {
     if (DRY_RUN) {
       processed += 1;
       if (processed <= 3) {
-        console.log(`DRYRUN  ${record.email} | ${JSON.stringify(profilePayload)}`);
+        console.log(
+          `DRYRUN  ${record.email} | ${JSON.stringify(profilePayload)}`,
+        );
       } else {
         console.log(`DRYRUN  ${record.email} | rich profile generated`);
       }
@@ -396,7 +587,9 @@ async function run() {
       const clerkUser = await getClerkUserByEmail(clerkClient, record.email);
       if (!clerkUser) {
         failed += 1;
-        console.log(`THẤT BẠI ${record.email} | không tìm thấy user trên Clerk`);
+        console.log(
+          `THẤT BẠI ${record.email} | không tìm thấy user trên Clerk`,
+        );
         continue;
       }
 
@@ -405,7 +598,9 @@ async function run() {
       const syncResult = await ensureUserInAppDatabase(createPayload, jwt);
       if (syncResult.status === 'failed') {
         failed += 1;
-        console.log(`THẤT BẠI ${record.email} | đồng bộ user lỗi: ${syncResult.detail}`);
+        console.log(
+          `THẤT BẠI ${record.email} | đồng bộ user lỗi: ${syncResult.detail}`,
+        );
         continue;
       }
 
@@ -420,14 +615,20 @@ async function run() {
       processed += 1;
       if (updateResult.status === 'updated') {
         updated += 1;
-        console.log(`ĐÃ CẬP NHẬT ${record.email} | đồng bộ=${syncResult.status}`);
+        console.log(
+          `ĐÃ CẬP NHẬT ${record.email} | đồng bộ=${syncResult.status}`,
+        );
       } else {
         failed += 1;
-        console.log(`THẤT BẠI ${record.email} | cập nhật profile lỗi: ${updateResult.detail}`);
+        console.log(
+          `THẤT BẠI ${record.email} | cập nhật profile lỗi: ${updateResult.detail}`,
+        );
       }
     } catch (error) {
       failed += 1;
-      console.log(`THẤT BẠI ${record.email} | ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `THẤT BẠI ${record.email} | ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

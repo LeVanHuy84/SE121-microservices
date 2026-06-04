@@ -24,13 +24,13 @@
     "members": 5,
     "reports": 1,
     "owner": {
-      "id": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
-      "fullName": "Demo User 001",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20001"
+      "id": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+      "fullName": "Lan Hồ",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqUXNJb2FBeklKbWs5c0JxVjYxbkJrRSIsImluaXRpYWxzIjoiTEgifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
-    "updatedBy": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+    "createdBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+    "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
     "createdAt": "2026-04-02T08:15:00.000Z",
     "updatedAt": "2026-05-20T09:10:00.000Z",
     "groupSetting": {
@@ -38,15 +38,15 @@
       "requiredPostApproval": true,
       "allowMemberInvite": true,
       "maxMembers": 2500,
-      "createdBy": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
-      "updatedBy": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+      "createdBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+      "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
       "createdAt": "2026-04-02T08:20:00.000Z",
       "updatedAt": "2026-05-20T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000001",
-        "userId": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+        "userId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "role": "OWNER",
         "customPermissions": [
@@ -69,7 +69,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000002",
-        "userId": "user_3D11cgEAiHNhMjwq6yqfvy49ceD",
+        "userId": "user_3EfwhpuffzaoHJfwPoHEzgk3m6X",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "role": "ADMIN",
         "customPermissions": [
@@ -87,7 +87,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000003",
-        "userId": "user_3D11cop0UckJ9p1Fzz8AzjmBhML",
+        "userId": "user_3EfwjV9x8hyRzlGrm7dcQGLQFBy",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "role": "MODERATOR",
         "customPermissions": [
@@ -102,7 +102,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000004",
-        "userId": "user_3D11cmMHZeiROBRkElNC0CmIMsZ",
+        "userId": "user_3EfwiDeMEJYkCoywpHHXzonqcDv",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "role": "MEMBER",
         "customPermissions": [],
@@ -112,7 +112,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000005",
-        "userId": "user_3D11ctQlecJaknLGwABVcP57ze0",
+        "userId": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "role": "MEMBER",
         "customPermissions": [],
@@ -124,11 +124,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000001",
-        "userId": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "status": "APPROVED",
-        "createdBy": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
-        "updatedBy": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+        "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+        "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
         "createdAt": "2026-05-01T12:00:00.000Z",
         "updatedAt": "2026-05-01T12:20:00.000Z"
       }
@@ -137,10 +137,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000001",
         "inviters": [
-          "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
-          "user_3D11cgEAiHNhMjwq6yqfvy49ceD"
+          "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+          "user_3EfwhpuffzaoHJfwPoHEzgk3m6X"
         ],
-        "inviteeId": "user_3D11dIugiG9JymdzYIZZ9hcZ2sY",
+        "inviteeId": "user_3Efwha4InxatlOyWzJQt9kXCMXb",
         "status": "ACCEPTED",
         "expiredAt": "2026-05-27T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000001",
@@ -151,7 +151,7 @@
     "groupReports": [
       {
         "id": "66666666-6666-4666-8666-000000000001",
-        "reporterId": "user_3D11d6YiOt9Gvb39DdI6BEYfqnw",
+        "reporterId": "user_3EfwinPabcPn5rYayl0kPA0t2uq",
         "groupId": "11111111-1111-4111-8111-000000000001",
         "reason": "Noi dung chia se co chieu huong qua cai le, can xem lai cach kiem duyet bai viet.",
         "status": "PENDING",
@@ -163,7 +163,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000001",
         "groupId": "11111111-1111-4111-8111-000000000001",
-        "userId": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+        "userId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
         "eventType": "GROUP_UPDATED",
         "content": "Cap nhat mo ta nhom va bo sung quyen kiem duyet bai viet.",
         "createdAt": "2026-05-20T09:05:00.000Z",
@@ -172,7 +172,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000002",
         "groupId": "11111111-1111-4111-8111-000000000001",
-        "userId": "user_3D11cgEAiHNhMjwq6yqfvy49ceD",
+        "userId": "user_3EfwhpuffzaoHJfwPoHEzgk3m6X",
         "eventType": "INVITE_SENT",
         "content": "Moi thanh vien moi tham gia chu de phuc hoi sau sang chan.",
         "createdAt": "2026-05-20T10:05:00.000Z",
@@ -223,13 +223,13 @@
     "members": 5,
     "reports": 1,
     "owner": {
-      "id": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
-      "fullName": "Demo User 006",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20006"
+      "id": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+      "fullName": "Thu Nguyễn",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqZEppMnpiYUVMRE1LS1Q5eVJTRzVJRCIsImluaXRpYWxzIjoiVE4ifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
-    "updatedBy": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
+    "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+    "updatedBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
     "createdAt": "2026-04-05T08:15:00.000Z",
     "updatedAt": "2026-05-21T09:10:00.000Z",
     "groupSetting": {
@@ -237,15 +237,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 1800,
-      "createdBy": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
-      "updatedBy": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
+      "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+      "updatedBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
       "createdAt": "2026-04-05T08:20:00.000Z",
       "updatedAt": "2026-05-21T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000006",
-        "userId": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "role": "OWNER",
         "customPermissions": [
@@ -268,7 +268,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000007",
-        "userId": "user_3D11d1GGxVSs408JrXKTQW4SXnv",
+        "userId": "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "role": "ADMIN",
         "customPermissions": [
@@ -286,7 +286,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000008",
-        "userId": "user_3D11d6YiOt9Gvb39DdI6BEYfqnw",
+        "userId": "user_3EfwinPabcPn5rYayl0kPA0t2uq",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "role": "MODERATOR",
         "customPermissions": [
@@ -301,7 +301,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000009",
-        "userId": "user_3D11d7qxZ9Jch1N0pRyxNuojBqJ",
+        "userId": "user_3EfwjdUMBk4FTFbPpdWqFztY5CE",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "role": "MEMBER",
         "customPermissions": [],
@@ -311,7 +311,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000010",
-        "userId": "user_3D11dCsjjsklE3pEUg1E0gJSHuZ",
+        "userId": "user_3EfwiuSg27i5JFv3NSAo1xKT8cd",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "role": "MEMBER",
         "customPermissions": [],
@@ -323,11 +323,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000002",
-        "userId": "user_3D11dTT04BE6CjwlcfgRAFUW7Ol",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "status": "PENDING",
-        "createdBy": "user_3D11dTT04BE6CjwlcfgRAFUW7Ol",
-        "updatedBy": "user_3D11dTT04BE6CjwlcfgRAFUW7Ol",
+        "createdBy": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "updatedBy": "user_3EfwhvgONfn8nEzqT38pTHghfES",
         "createdAt": "2026-05-02T12:00:00.000Z",
         "updatedAt": "2026-05-02T12:00:00.000Z"
       }
@@ -336,10 +336,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000002",
         "inviters": [
-          "user_3D11czIx6mnKqgFwPNi1yznVmbr",
-          "user_3D11d1GGxVSs408JrXKTQW4SXnv"
+          "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+          "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr"
         ],
-        "inviteeId": "user_3D11e4BApBYZwWRygstnFJhvd8X",
+        "inviteeId": "user_3EfwhTx7PpdGkdMOPBFTh0xYFQ5",
         "status": "PENDING",
         "expiredAt": "2026-05-28T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000002",
@@ -350,7 +350,7 @@
     "groupReports": [
       {
         "id": "66666666-6666-4666-8666-000000000002",
-        "reporterId": "user_3D11e3jaByAw1AG1LDuCED4q6dj",
+        "reporterId": "user_3EfwjkrwmrP9HjhUMBm8XsfX1Yh",
         "groupId": "11111111-1111-4111-8111-000000000002",
         "reason": "Mot so thao luan ve bug dang bi de nham thanh cãi nhau qua gay gat.",
         "status": "RESOLVED",
@@ -362,7 +362,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000003",
         "groupId": "11111111-1111-4111-8111-000000000002",
-        "userId": "user_3D11czIx6mnKqgFwPNi1yznVmbr",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
         "eventType": "GROUP_SETTING_CHANGED",
         "content": "Bat che do duyet bai viet cho cac chu de confidence thap.",
         "createdAt": "2026-05-21T09:05:00.000Z",
@@ -371,7 +371,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000004",
         "groupId": "11111111-1111-4111-8111-000000000002",
-        "userId": "user_3D11d1GGxVSs408JrXKTQW4SXnv",
+        "userId": "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr",
         "eventType": "MEMBER_ROLE_CHANGED",
         "content": "Nang cap thanh vien thanh moderator de co them quyen kiem duyet.",
         "createdAt": "2026-05-21T10:05:00.000Z",
@@ -422,13 +422,13 @@
     "members": 5,
     "reports": 0,
     "owner": {
-      "id": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
-      "fullName": "Demo User 011",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20011"
+      "id": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+      "fullName": "Thảo Hoàng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndoVGxlOEZ5dm5qdnRScjllOW16aHNFVyIsImluaXRpYWxzIjoiVEgifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
-    "updatedBy": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
+    "createdBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+    "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
     "createdAt": "2026-04-08T08:15:00.000Z",
     "updatedAt": "2026-05-18T09:10:00.000Z",
     "groupSetting": {
@@ -436,15 +436,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 1200,
-      "createdBy": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
-      "updatedBy": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
+      "createdBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+      "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
       "createdAt": "2026-04-08T08:20:00.000Z",
       "updatedAt": "2026-05-18T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000011",
-        "userId": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
+        "userId": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "role": "OWNER",
         "customPermissions": [
@@ -467,7 +467,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000012",
-        "userId": "user_3D11dTT04BE6CjwlcfgRAFUW7Ol",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "role": "ADMIN",
         "customPermissions": [
@@ -485,7 +485,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000013",
-        "userId": "user_3D11dO8RtxCpNd2y2cD3iM9Govm",
+        "userId": "user_3Efwj92SHAbYNu2PcOOUzuP61rQ",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "role": "MODERATOR",
         "customPermissions": [
@@ -500,7 +500,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000014",
-        "userId": "user_3D11dXCCaVZj3Wf43GbpbOxZ1q5",
+        "userId": "user_3Efwj5aZ2PNQ6V5PR6SXmR9T2W3",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "role": "MEMBER",
         "customPermissions": [],
@@ -510,7 +510,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000015",
-        "userId": "user_3D11da7l7v60vAcBq18Iu5dD5Pn",
+        "userId": "user_3EfwhowuJEmGCl2wX9xdpKaQHg5",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "role": "MEMBER",
         "customPermissions": [],
@@ -522,11 +522,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000003",
-        "userId": "user_3D11dg9j8DO0PQLkYuplrqR6ykS",
+        "userId": "user_3EfwjWtihr3CCzkSW4CXUb14ntF",
         "groupId": "11111111-1111-4111-8111-000000000003",
         "status": "REJECTED",
-        "createdBy": "user_3D11dg9j8DO0PQLkYuplrqR6ykS",
-        "updatedBy": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
+        "createdBy": "user_3EfwjWtihr3CCzkSW4CXUb14ntF",
+        "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
         "createdAt": "2026-05-03T12:00:00.000Z",
         "updatedAt": "2026-05-03T12:30:00.000Z"
       }
@@ -535,10 +535,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000003",
         "inviters": [
-          "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
-          "user_3D11dTT04BE6CjwlcfgRAFUW7Ol"
+          "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+          "user_3EfwhvgONfn8nEzqT38pTHghfES"
         ],
-        "inviteeId": "user_3D11eoROgABujkrsfsbPEmcCWYz",
+        "inviteeId": "user_3EfwiS30vBnkYk6YhV66gNIKTGJ",
         "status": "DECLINED",
         "expiredAt": "2026-05-29T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000003",
@@ -551,7 +551,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000005",
         "groupId": "11111111-1111-4111-8111-000000000003",
-        "userId": "user_3D11dQYUHD1DvOwecbOxNBrM5YL",
+        "userId": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
         "eventType": "GROUP_UPDATED",
         "content": "Dieu chinh thong diep nhom de tap trung vao phuc hoi va van dong nhe.",
         "createdAt": "2026-05-18T09:05:00.000Z",
@@ -560,7 +560,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000006",
         "groupId": "11111111-1111-4111-8111-000000000003",
-        "userId": "user_3D11dTT04BE6CjwlcfgRAFUW7Ol",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
         "eventType": "MEMBER_JOINED",
         "content": "Them thanh vien moi co kinh nghiem chay bo buoi sang.",
         "createdAt": "2026-05-18T10:05:00.000Z",
@@ -611,13 +611,13 @@
     "members": 5,
     "reports": 0,
     "owner": {
-      "id": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
-      "fullName": "Demo User 016",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20016"
+      "id": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+      "fullName": "Vy Phạm",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqQ1VjMk40NDJPY0VaTVUzNGFZc08yUCIsImluaXRpYWxzIjoiVlAifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
-    "updatedBy": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
+    "createdBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+    "updatedBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
     "createdAt": "2026-04-11T08:15:00.000Z",
     "updatedAt": "2026-05-22T09:10:00.000Z",
     "groupSetting": {
@@ -625,15 +625,15 @@
       "requiredPostApproval": true,
       "allowMemberInvite": false,
       "maxMembers": 900,
-      "createdBy": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
-      "updatedBy": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
+      "createdBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+      "updatedBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
       "createdAt": "2026-04-11T08:20:00.000Z",
       "updatedAt": "2026-05-22T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000016",
-        "userId": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
+        "userId": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "role": "OWNER",
         "customPermissions": [
@@ -656,7 +656,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000017",
-        "userId": "user_3D11eCLfNlM6DE24ONE1xZCImG3",
+        "userId": "user_3EfwiLu18bWN19ByEamnk9MHmg1",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "role": "ADMIN",
         "customPermissions": [
@@ -674,7 +674,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000018",
-        "userId": "user_3D11eGCZ7KdoTsSOeEE0OsPb5jv",
+        "userId": "user_3Efwi4duTT3mdgIdGVjBJYdxmae",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "role": "MODERATOR",
         "customPermissions": [
@@ -689,7 +689,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000019",
-        "userId": "user_3D11eNYu1EpDoHXJySWqZx5h5mm",
+        "userId": "user_3EfwjLdtuKRLd5khIepfd9QJDTB",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "role": "MEMBER",
         "customPermissions": [],
@@ -699,7 +699,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000020",
-        "userId": "user_3D11eSQp3P7KMfyLoBjily0YLxU",
+        "userId": "user_3Efwhlnywj5CLIhzPOcBhvEnqXK",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "role": "MEMBER",
         "customPermissions": [],
@@ -711,11 +711,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000004",
-        "userId": "user_3D11eSopfyF0h8c9oWJ5IFmRcvM",
+        "userId": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
         "groupId": "11111111-1111-4111-8111-000000000004",
         "status": "CANCELLED",
-        "createdBy": "user_3D11eSopfyF0h8c9oWJ5IFmRcvM",
-        "updatedBy": "user_3D11eSopfyF0h8c9oWJ5IFmRcvM",
+        "createdBy": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
+        "updatedBy": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
         "createdAt": "2026-05-04T12:00:00.000Z",
         "updatedAt": "2026-05-04T12:45:00.000Z"
       }
@@ -724,10 +724,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000004",
         "inviters": [
-          "user_3D11eA3HmUqENsiBmG1SxheAMqi",
-          "user_3D11eCLfNlM6DE24ONE1xZCImG3"
+          "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+          "user_3EfwiLu18bWN19ByEamnk9MHmg1"
         ],
-        "inviteeId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "inviteeId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "status": "ACCEPTED",
         "expiredAt": "2026-05-30T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000004",
@@ -740,7 +740,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000007",
         "groupId": "11111111-1111-4111-8111-000000000004",
-        "userId": "user_3D11eA3HmUqENsiBmG1SxheAMqi",
+        "userId": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
         "eventType": "GROUP_SETTING_CHANGED",
         "content": "Tat che do moi thanh vien tu moi nguoi khac, chi owner moi co the moi.",
         "createdAt": "2026-05-22T09:05:00.000Z",
@@ -749,7 +749,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000008",
         "groupId": "11111111-1111-4111-8111-000000000004",
-        "userId": "user_3D11eCLfNlM6DE24ONE1xZCImG3",
+        "userId": "user_3EfwiLu18bWN19ByEamnk9MHmg1",
         "eventType": "POST_APPROVED",
         "content": "Duyet bai chia se ve hue sac va layout he thong.",
         "createdAt": "2026-05-22T10:05:00.000Z",
@@ -800,13 +800,13 @@
     "members": 5,
     "reports": 1,
     "owner": {
-      "id": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
-      "fullName": "Demo User 021",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20021"
+      "id": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+      "fullName": "Chi Đặng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndpSDd5WHlmbHFCY3Q5UUFaN0FKMjZMWSIsImluaXRpYWxzIjoiQ8SQIn0"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
-    "updatedBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
+    "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+    "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
     "createdAt": "2026-04-14T08:15:00.000Z",
     "updatedAt": "2026-05-23T09:10:00.000Z",
     "groupSetting": {
@@ -814,15 +814,15 @@
       "requiredPostApproval": true,
       "allowMemberInvite": true,
       "maxMembers": 3000,
-      "createdBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
-      "updatedBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
+      "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+      "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
       "createdAt": "2026-04-14T08:20:00.000Z",
       "updatedAt": "2026-05-23T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000021",
-        "userId": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
+        "userId": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "role": "OWNER",
         "customPermissions": [
@@ -845,7 +845,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000022",
-        "userId": "user_3D11evRA5Mz1B9RjdfP0qq6daFH",
+        "userId": "user_3EfwhIcXZsW9wDCzT5XEc65HmEp",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "role": "ADMIN",
         "customPermissions": [
@@ -863,7 +863,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000023",
-        "userId": "user_3D11f5TjwFD8BG1Rcg2NLNzxGca",
+        "userId": "user_3Efwil1XBDSeu6xHtpnhB38qbLo",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "role": "MODERATOR",
         "customPermissions": [
@@ -878,7 +878,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000024",
-        "userId": "user_3D11f7hvWRbMsowhuX7tbgju00v",
+        "userId": "user_3EfwidS2BRNXpcfVFdPAUC5lIux",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "role": "MEMBER",
         "customPermissions": [],
@@ -888,7 +888,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000025",
-        "userId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "role": "MEMBER",
         "customPermissions": [],
@@ -900,11 +900,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000005",
-        "userId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "status": "APPROVED",
-        "createdBy": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
-        "updatedBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
+        "createdBy": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
         "createdAt": "2026-05-05T12:00:00.000Z",
         "updatedAt": "2026-05-05T12:20:00.000Z"
       }
@@ -913,10 +913,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000005",
         "inviters": [
-          "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
-          "user_3D11evRA5Mz1B9RjdfP0qq6daFH"
+          "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+          "user_3EfwhIcXZsW9wDCzT5XEc65HmEp"
         ],
-        "inviteeId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "inviteeId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "status": "PENDING",
         "expiredAt": "2026-05-30T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000005",
@@ -927,7 +927,7 @@
     "groupReports": [
       {
         "id": "66666666-6666-4666-8666-000000000005",
-        "reporterId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "reporterId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000005",
         "reason": "Mot so bai viet hoc tap co noi dung khong phu hop voi muc dich on tap tai lieu.",
         "status": "REJECTED",
@@ -939,7 +939,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000009",
         "groupId": "11111111-1111-4111-8111-000000000005",
-        "userId": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
+        "userId": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
         "eventType": "GROUP_UPDATED",
         "content": "Chinh lai lich hoc va quy dinh dang bai theo khung gio tap trung.",
         "createdAt": "2026-05-23T09:05:00.000Z",
@@ -948,7 +948,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000010",
         "groupId": "11111111-1111-4111-8111-000000000005",
-        "userId": "user_3D11evRA5Mz1B9RjdfP0qq6daFH",
+        "userId": "user_3EfwhIcXZsW9wDCzT5XEc65HmEp",
         "eventType": "JOIN_REQUEST_APPROVED",
         "content": "Duyet yeu cau tham gia cua thanh vien moi co khung hoc tap on dinh.",
         "createdAt": "2026-05-23T10:05:00.000Z",
@@ -999,13 +999,13 @@
     "members": 5,
     "reports": 0,
     "owner": {
-      "id": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-      "fullName": "Demo User 026",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20026"
+      "id": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+      "fullName": "Nhung Hoàng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqUUlzOERMa3RObW0zS2ZoN1lmek5KRyIsImluaXRpYWxzIjoiTkgifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-    "updatedBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+    "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+    "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
     "createdAt": "2026-04-17T08:15:00.000Z",
     "updatedAt": "2026-05-24T09:10:00.000Z",
     "groupSetting": {
@@ -1013,15 +1013,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 1500,
-      "createdBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-      "updatedBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+      "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+      "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
       "createdAt": "2026-04-17T08:20:00.000Z",
       "updatedAt": "2026-05-24T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000026",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "role": "OWNER",
         "customPermissions": [
@@ -1044,7 +1044,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000027",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "role": "ADMIN",
         "customPermissions": [
@@ -1062,7 +1062,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000028",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "role": "MODERATOR",
         "customPermissions": [
@@ -1077,7 +1077,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000029",
-        "userId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1087,7 +1087,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000030",
-        "userId": "user_3D11fHCdDKfY5oRL1hW7WzCdVdC",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1099,11 +1099,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000006",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000006",
         "status": "PENDING",
-        "createdBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-        "updatedBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "createdAt": "2026-05-06T12:00:00.000Z",
         "updatedAt": "2026-05-06T12:00:00.000Z"
       }
@@ -1112,10 +1112,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000006",
         "inviters": [
-          "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-          "user_3D11fUHMyRlCBzylzajP9EfrUmP"
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+          "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo"
         ],
-        "inviteeId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "inviteeId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "status": "CANCELLED",
         "expiredAt": "2026-05-31T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000006",
@@ -1128,7 +1128,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000011",
         "groupId": "11111111-1111-4111-8111-000000000006",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "eventType": "GROUP_UPDATED",
         "content": "Tinh chinh quy dinh chia se anh de giu chat luong album chung.",
         "createdAt": "2026-05-24T09:05:00.000Z",
@@ -1137,7 +1137,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000012",
         "groupId": "11111111-1111-4111-8111-000000000006",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "eventType": "INVITE_SENT",
         "content": "Gui loi moi toi mot thanh vien co nhieu anh du lich dep.",
         "createdAt": "2026-05-24T10:05:00.000Z",
@@ -1188,13 +1188,13 @@
     "members": 5,
     "reports": 1,
     "owner": {
-      "id": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
-      "fullName": "Demo User 031",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20031"
+      "id": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+      "fullName": "An Đặng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndpSU1IQXZxZFBETVNCNlpQcWNsdzNxbyIsImluaXRpYWxzIjoiQcSQIn0"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
-    "updatedBy": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+    "createdBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+    "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
     "createdAt": "2026-04-20T08:15:00.000Z",
     "updatedAt": "2026-05-25T09:10:00.000Z",
     "groupSetting": {
@@ -1202,15 +1202,15 @@
       "requiredPostApproval": true,
       "allowMemberInvite": false,
       "maxMembers": 800,
-      "createdBy": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
-      "updatedBy": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+      "createdBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+      "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
       "createdAt": "2026-04-20T08:20:00.000Z",
       "updatedAt": "2026-05-25T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000031",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "role": "OWNER",
         "customPermissions": [
@@ -1233,7 +1233,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000032",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "role": "ADMIN",
         "customPermissions": [
@@ -1251,7 +1251,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000033",
-        "userId": "user_3D11fHCdDKfY5oRL1hW7WzCdVdC",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "role": "MODERATOR",
         "customPermissions": [
@@ -1266,7 +1266,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000034",
-        "userId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1276,7 +1276,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000035",
-        "userId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1288,11 +1288,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000007",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "status": "APPROVED",
-        "createdBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-        "updatedBy": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "createdAt": "2026-05-07T12:00:00.000Z",
         "updatedAt": "2026-05-07T12:15:00.000Z"
       }
@@ -1301,10 +1301,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000007",
         "inviters": [
-          "user_3D11fUHMyRlCBzylzajP9EfrUmP",
-          "user_3D11fNnL1DU96FkGDkPXn7gfhSv"
+          "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC"
         ],
-        "inviteeId": "user_3D11f5TjwFD8BG1Rcg2NLNzxGca",
+        "inviteeId": "user_3Efwil1XBDSeu6xHtpnhB38qbLo",
         "status": "REJECTED",
         "expiredAt": "2026-06-01T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000007",
@@ -1315,7 +1315,7 @@
     "groupReports": [
       {
         "id": "66666666-6666-4666-8666-000000000007",
-        "reporterId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "reporterId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000007",
         "reason": "Xuat hien mot vai binh luan nay cam can duoc xu ly som de giu an toan cho nhom.",
         "status": "PENDING",
@@ -1327,7 +1327,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000013",
         "groupId": "11111111-1111-4111-8111-000000000007",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "eventType": "GROUP_UPDATED",
         "content": "Bo sung huong dan trao doi ve tam ly va cham soc gia dinh.",
         "createdAt": "2026-05-25T09:05:00.000Z",
@@ -1336,7 +1336,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000014",
         "groupId": "11111111-1111-4111-8111-000000000007",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "eventType": "MEMBER_BANNED",
         "content": "Tam khoa mot tai khoan co hanh vi kich dong trong luong chat rieng.",
         "createdAt": "2026-05-25T10:05:00.000Z",
@@ -1387,13 +1387,13 @@
     "members": 5,
     "reports": 0,
     "owner": {
-      "id": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-      "fullName": "Demo User 036",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20036"
+      "id": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "fullName": "Quang Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqbThQejlFclRnaXVmVDVwd052aVhLQyIsImluaXRpYWxzIjoiUVQifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-    "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+    "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+    "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
     "createdAt": "2026-04-23T08:15:00.000Z",
     "updatedAt": "2026-05-26T09:10:00.000Z",
     "groupSetting": {
@@ -1401,15 +1401,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 2200,
-      "createdBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-      "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+      "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
       "createdAt": "2026-04-23T08:20:00.000Z",
       "updatedAt": "2026-05-26T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000036",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "role": "OWNER",
         "customPermissions": [
@@ -1432,7 +1432,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000037",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "role": "ADMIN",
         "customPermissions": [
@@ -1450,7 +1450,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000038",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "role": "MODERATOR",
         "customPermissions": [
@@ -1465,7 +1465,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000039",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1475,7 +1475,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000040",
-        "userId": "user_3D11eoROgABujkrsfsbPEmcCWYz",
+        "userId": "user_3EfwiS30vBnkYk6YhV66gNIKTGJ",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1487,11 +1487,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000008",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000008",
         "status": "APPROVED",
-        "createdBy": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
-        "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "createdAt": "2026-05-08T12:00:00.000Z",
         "updatedAt": "2026-05-08T12:20:00.000Z"
       }
@@ -1500,10 +1500,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000008",
         "inviters": [
-          "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-          "user_3D11fIdPzWfaQg7wFjLtiydjLwV"
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG"
         ],
-        "inviteeId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "inviteeId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "status": "ACCEPTED",
         "expiredAt": "2026-06-02T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000008",
@@ -1516,7 +1516,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000015",
         "groupId": "11111111-1111-4111-8111-000000000008",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "eventType": "GROUP_UPDATED",
         "content": "Cap nhat playlist chu de va bo sung quy tac chia se am nhac.",
         "createdAt": "2026-05-26T09:05:00.000Z",
@@ -1525,7 +1525,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000016",
         "groupId": "11111111-1111-4111-8111-000000000008",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "eventType": "INVITE_SENT",
         "content": "Moi mot thanh vien co khau vi am nhac da dang tham gia.",
         "createdAt": "2026-05-26T10:05:00.000Z",
@@ -1576,13 +1576,13 @@
     "members": 5,
     "reports": 1,
     "owner": {
-      "id": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-      "fullName": "Demo User 041",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20041"
+      "id": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "fullName": "Quang Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqbThQejlFclRnaXVmVDVwd052aVhLQyIsImluaXRpYWxzIjoiUVQifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11ezeBBD3jFCsf7kYEopbZUs3",
-    "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+    "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+    "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
     "createdAt": "2026-04-26T08:15:00.000Z",
     "updatedAt": "2026-05-27T09:10:00.000Z",
     "groupSetting": {
@@ -1590,15 +1590,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 1400,
-      "createdBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-      "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+      "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
       "createdAt": "2026-04-26T08:20:00.000Z",
       "updatedAt": "2026-05-27T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000041",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "role": "OWNER",
         "customPermissions": [
@@ -1621,7 +1621,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000042",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "role": "ADMIN",
         "customPermissions": [
@@ -1639,7 +1639,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000043",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "role": "MODERATOR",
         "customPermissions": [
@@ -1654,7 +1654,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000044",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1664,7 +1664,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000045",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1676,11 +1676,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000009",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "status": "REJECTED",
-        "createdBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-        "updatedBy": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "createdAt": "2026-05-09T12:00:00.000Z",
         "updatedAt": "2026-05-09T12:20:00.000Z"
       }
@@ -1689,10 +1689,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000009",
         "inviters": [
-          "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
-          "user_3D11fIdPzWfaQg7wFjLtiydjLwV"
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG"
         ],
-        "inviteeId": "user_3D11elITbdh86fhEOHUg3767bNy",
+        "inviteeId": "user_3EfwiMxs8laoRDrd7xvXf8wq2XD",
         "status": "DECLINED",
         "expiredAt": "2026-06-03T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000009",
@@ -1703,7 +1703,7 @@
     "groupReports": [
       {
         "id": "66666666-6666-4666-8666-000000000009",
-        "reporterId": "user_3D11e3jaByAw1AG1LDuCED4q6dj",
+        "reporterId": "user_3EfwjkrwmrP9HjhUMBm8XsfX1Yh",
         "groupId": "11111111-1111-4111-8111-000000000009",
         "reason": "Mot so cong thuc co noi dung khong ro nguon va can duoc dieu chinh lai phan trich dan.",
         "status": "RESOLVED",
@@ -1715,7 +1715,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000017",
         "groupId": "11111111-1111-4111-8111-000000000009",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "eventType": "GROUP_UPDATED",
         "content": "Chinh lai bo quy tac ve nguon goc cong thuc va cach gui anh thuc an.",
         "createdAt": "2026-05-27T09:05:00.000Z",
@@ -1724,7 +1724,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000018",
         "groupId": "11111111-1111-4111-8111-000000000009",
-        "userId": "user_3D11fIdPzWfaQg7wFjLtiydjLwV",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
         "eventType": "POST_REJECTED",
         "content": "Tu choi mot bai viet khong ro nguon va co noi dung lap lai.",
         "createdAt": "2026-05-27T10:05:00.000Z",
@@ -1775,13 +1775,13 @@
     "members": 5,
     "reports": 0,
     "owner": {
-      "id": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
-      "fullName": "Demo User 046",
-      "avatarUrl": "https://api.dicebear.com/7.x/initials/svg?seed=Demo%20User%20046"
+      "id": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+      "fullName": "Vy Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndoUFB5a0tnblZXSFNTMnN6U0dmMmpXYyIsImluaXRpYWxzIjoiVlQifQ"
     },
     "status": "ACTIVE",
-    "createdBy": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
-    "updatedBy": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+    "createdBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+    "updatedBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
     "createdAt": "2026-05-01T08:15:00.000Z",
     "updatedAt": "2026-05-28T09:10:00.000Z",
     "groupSetting": {
@@ -1789,15 +1789,15 @@
       "requiredPostApproval": false,
       "allowMemberInvite": true,
       "maxMembers": 1100,
-      "createdBy": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
-      "updatedBy": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+      "createdBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+      "updatedBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
       "createdAt": "2026-05-01T08:20:00.000Z",
       "updatedAt": "2026-05-28T09:10:00.000Z"
     },
     "groupMembers": [
       {
         "id": "22222222-2222-4222-8222-000000000046",
-        "userId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "role": "OWNER",
         "customPermissions": [
@@ -1820,7 +1820,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000047",
-        "userId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "role": "ADMIN",
         "customPermissions": [
@@ -1838,7 +1838,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000048",
-        "userId": "user_3D11fHCdDKfY5oRL1hW7WzCdVdC",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "role": "MODERATOR",
         "customPermissions": [
@@ -1853,7 +1853,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000049",
-        "userId": "user_3D11fNnL1DU96FkGDkPXn7gfhSv",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1863,7 +1863,7 @@
       },
       {
         "id": "22222222-2222-4222-8222-000000000050",
-        "userId": "user_3D11fUHMyRlCBzylzajP9EfrUmP",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "role": "MEMBER",
         "customPermissions": [],
@@ -1875,11 +1875,11 @@
     "groupJoinRequests": [
       {
         "id": "77777777-7777-4777-8777-000000000010",
-        "userId": "user_3D11fBCBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
         "groupId": "11111111-1111-4111-8111-000000000010",
         "status": "PENDING",
-        "createdBy": "user_3D11fBCBXwPQGK6pSdFYvSbyR5k",
-        "updatedBy": "user_3D11fBCBXwPQGK6pSdFYvSbyR5k",
+        "createdBy": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
+        "updatedBy": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
         "createdAt": "2026-05-10T12:00:00.000Z",
         "updatedAt": "2026-05-10T12:00:00.000Z"
       }
@@ -1888,10 +1888,10 @@
       {
         "id": "44444444-4444-4444-8444-000000000010",
         "inviters": [
-          "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
-          "user_3D11fBcBXwPQGK6pSdFYvSbyR5k"
+          "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+          "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ"
         ],
-        "inviteeId": "user_3D11cgEdQ4ax0oPgIx134paPtIQ",
+        "inviteeId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
         "status": "PENDING",
         "expiredAt": "2026-06-04T08:20:00.000Z",
         "groupId": "11111111-1111-4111-8111-000000000010",
@@ -1904,7 +1904,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000019",
         "groupId": "11111111-1111-4111-8111-000000000010",
-        "userId": "user_3D11fEEYOnaTQSuwiz58RVfuF7Z",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
         "eventType": "GROUP_UPDATED",
         "content": "Bo sung quy tac ve su an toan khi chia se hinh anh thu cung.",
         "createdAt": "2026-05-28T09:05:00.000Z",
@@ -1913,7 +1913,7 @@
       {
         "id": "55555555-5555-4555-8555-000000000020",
         "groupId": "11111111-1111-4111-8111-000000000010",
-        "userId": "user_3D11fBcBXwPQGK6pSdFYvSbyR5k",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
         "eventType": "MEMBER_PERMISSION_CHANGED",
         "content": "Cap nhat quyen cua admin de them van de duyet loi moi.",
         "createdAt": "2026-05-28T10:05:00.000Z",

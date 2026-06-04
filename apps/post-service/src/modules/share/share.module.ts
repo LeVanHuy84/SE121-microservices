@@ -10,20 +10,20 @@ import { ShareQueryService } from './service/share-query.service';
 import { ShareCacheService } from './service/share-cache.service';
 import { SocialClientModule } from '../client/social/social-client.module';
 import { GroupClientModule } from '../client/group/group-client.module';
-import { OutboxService } from '../event/outbox.service';
+import { EventModule } from '../event/event.module';
+import { StatsModule } from '../stats/stats.module';
+import { UserClientModule } from '../client/user/user-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Share, ShareStat, Reaction, OutboxEvent]),
     SocialClientModule,
     GroupClientModule,
+    EventModule,
+    StatsModule,
+    UserClientModule,
   ],
   controllers: [ShareController],
-  providers: [
-    ShareCommandService,
-    ShareQueryService,
-    ShareCacheService,
-    OutboxService,
-  ],
+  providers: [ShareCommandService, ShareQueryService, ShareCacheService],
 })
 export class ShareModule {}

@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 import { Client } from '@elastic/elasticsearch';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Client as PgClient } from 'pg';
 import {
   GROUP_INDEX,
   GroupIndexMapping,
@@ -15,17 +16,6 @@ import {
   UserIndexMapping,
 } from '../../apps/search-service/src/modules/user/user.mapping';
 
-type RawGeneratedUser = {
-  userId: string;
-  email: string;
-};
-
-type RawGroupOwner = {
-  id: string;
-  fullName: string;
-  avatarUrl?: string;
-};
-
 type RawGroupSeed = {
   id: string;
   name: string;
@@ -36,7 +26,9 @@ type RawGroupSeed = {
   privacy: string;
   members: number;
   createdAt: string;
-  owner?: RawGroupOwner;
+  owner?: {
+    avatarUrl?: string;
+  };
 };
 
 type RawEmotionFeature = {
@@ -54,12 +46,22 @@ type RawPost = {
 type UserSeedDoc = {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;
+  lastName: string | null;
   fullName: string;
-  avatarUrl: string;
-  bio: string;
+  avatarUrl: string | null;
+  bio: string | null;
   createdAt: Date;
+};
+
+type UserDbRow = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  created_at: Date;
 };
 
 type PostSeedDoc = {
@@ -82,16 +84,19 @@ type GroupSeedDoc = {
 };
 
 const ROOT_DIR = resolve(__dirname, '../..');
-const USERS_FILE = resolve(__dirname, '../data/generated-users.json');
 const POSTS_FILE = resolve(__dirname, '../data/post-full.json');
 const GROUPS_FILE = resolve(__dirname, '../data/group-seed.json');
-const ENV_CANDIDATES = [
+const SEARCH_ENV_CANDIDATES = [
   resolve(ROOT_DIR, 'apps/search-service/.env'),
   resolve(ROOT_DIR, 'apps/search-service/.env.local'),
 ];
+const USER_ENV_CANDIDATES = [
+  resolve(ROOT_DIR, 'apps/user-service/.env'),
+  resolve(ROOT_DIR, 'apps/user-service/.env.local'),
+];
 
 function loadSearchServiceEnv(): string {
-  for (const envFile of ENV_CANDIDATES) {
+  for (const envFile of SEARCH_ENV_CANDIDATES) {
     if (!existsSync(envFile)) {
       continue;
     }
@@ -108,6 +113,24 @@ function loadSearchServiceEnv(): string {
   );
 }
 
+function loadUserServiceEnv(): string {
+  for (const envFile of USER_ENV_CANDIDATES) {
+    if (!existsSync(envFile)) {
+      continue;
+    }
+
+    dotenv.config({ path: envFile });
+
+    if (process.env.DATABASE_URL) {
+      return envFile;
+    }
+  }
+
+  throw new Error(
+    'Unable to find DATABASE_URL. Expected apps/user-service/.env or .env.local',
+  );
+}
+
 function loadJsonFile<T>(filePath: string, errorMessage: string): T {
   const content = readFileSync(filePath, 'utf-8');
   const parsed = JSON.parse(content) as unknown;
@@ -117,13 +140,6 @@ function loadJsonFile<T>(filePath: string, errorMessage: string): T {
   }
 
   return parsed as T;
-}
-
-function loadGeneratedUsers(): RawGeneratedUser[] {
-  return loadJsonFile<RawGeneratedUser[]>(
-    USERS_FILE,
-    'generated-users.json must contain an array of users',
-  );
 }
 
 function loadRawPosts(): RawPost[] {
@@ -140,69 +156,24 @@ function loadRawGroups(): RawGroupSeed[] {
   );
 }
 
-function buildGroupOwnerLookup(
-  rawGroups: RawGroupSeed[],
-): Map<string, RawGroupOwner> {
-  const lookup = new Map<string, RawGroupOwner>();
+function buildUserDocuments(rows: UserDbRow[]): UserSeedDoc[] {
+  return rows.map((row) => {
+    const firstName = row.first_name?.trim() || null;
+    const lastName = row.last_name?.trim() || null;
+    const fullName =
+      [firstName, lastName].filter(Boolean).join(' ') || row.email;
 
-  for (const group of rawGroups) {
-    if (group.owner) {
-      lookup.set(group.owner.id, group.owner);
-    }
-  }
-
-  return lookup;
-}
-
-function splitFullName(fullName: string): {
-  firstName: string;
-  lastName: string;
-} {
-  const [firstName = 'Demo', ...rest] = fullName.trim().split(/\s+/);
-
-  return {
-    firstName,
-    lastName: rest.length > 0 ? rest.join(' ') : 'User',
-  };
-}
-
-function buildUserDoc(
-  rawUser: RawGeneratedUser,
-  index: number,
-  ownerLookup: Map<string, RawGroupOwner>,
-): UserSeedDoc {
-  const owner = ownerLookup.get(rawUser.userId);
-  const localPart = rawUser.email.split('@')[0] ?? rawUser.userId;
-  const numericSuffixMatch = localPart.match(/(\d+)$/);
-  const numericSuffix =
-    numericSuffixMatch?.[1] ?? String(index + 1).padStart(3, '0');
-  const fullName = owner?.fullName ?? `Demo User ${numericSuffix}`;
-  const { firstName, lastName } = splitFullName(fullName);
-  const createdAt = new Date(Date.UTC(2026, 3, 1 + index, 9, 0, 0));
-
-  return {
-    id: rawUser.userId,
-    email: rawUser.email,
-    firstName,
-    lastName,
-    fullName,
-    avatarUrl:
-      owner?.avatarUrl ??
-      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullName)}`,
-    bio: `Ho so demo cua ${fullName} phuc vu tim kiem trong search-service.`,
-    createdAt,
-  };
-}
-
-function buildUserDocuments(
-  rawUsers: RawGeneratedUser[],
-  rawGroups: RawGroupSeed[],
-): UserSeedDoc[] {
-  const ownerLookup = buildGroupOwnerLookup(rawGroups);
-
-  return rawUsers.map((rawUser, index) =>
-    buildUserDoc(rawUser, index, ownerLookup),
-  );
+    return {
+      id: row.id,
+      email: row.email,
+      firstName,
+      lastName,
+      fullName,
+      avatarUrl: row.avatar_url,
+      bio: row.bio,
+      createdAt: row.created_at,
+    };
+  });
 }
 
 function buildPostDocuments(rawPosts: RawPost[]): PostSeedDoc[] {
@@ -261,6 +232,39 @@ function buildElasticClient(): Client {
       password: process.env.ES_PASS ?? 'password',
     },
   });
+}
+
+function buildUserDbClient(): PgClient {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is missing after loading user-service env');
+  }
+
+  return new PgClient({
+    connectionString: databaseUrl,
+  });
+}
+
+async function fetchUserDocuments(pgClient: PgClient): Promise<UserSeedDoc[]> {
+  const result = await pgClient.query<UserDbRow>(`
+    SELECT
+      u.id,
+      u.email,
+      p.first_name,
+      p.last_name,
+      p.avatar_url,
+      p.bio,
+      u.created_at
+    FROM users u
+    LEFT JOIN profiles p ON p.user_id = u.id
+    WHERE u.deleted_at IS NULL
+      AND u.is_active = true
+      AND u.user_status = 'ACTIVE'
+    ORDER BY u.created_at ASC, u.id ASC
+  `);
+
+  return buildUserDocuments(result.rows);
 }
 
 async function resetIndex(
@@ -322,26 +326,30 @@ async function seedIndex(
 }
 
 async function main(): Promise<void> {
-  const envFile = loadSearchServiceEnv();
+  const searchEnvFile = loadSearchServiceEnv();
+  const userEnvFile = loadUserServiceEnv();
   const client = buildElasticClient();
+  const pgClient = buildUserDbClient();
 
-  const rawUsers = loadGeneratedUsers();
   const rawPosts = loadRawPosts();
   const rawGroups = loadRawGroups();
 
-  const userDocs = buildUserDocuments(rawUsers, rawGroups);
-  const postDocs = buildPostDocuments(rawPosts);
-  const groupDocs = buildGroupDocuments(rawGroups);
-
   try {
+    await pgClient.connect();
+
+    const userDocs = await fetchUserDocuments(pgClient);
+    const postDocs = buildPostDocuments(rawPosts);
+    const groupDocs = buildGroupDocuments(rawGroups);
+
     await seedIndex(client, USER_INDEX, UserIndexMapping, userDocs);
     await seedIndex(client, POST_INDEX, PostMapping, postDocs);
     await seedIndex(client, GROUP_INDEX, GroupIndexMapping, groupDocs);
 
     console.log(
-      `Seeded search-service from ${envFile}: ${userDocs.length} users, ${postDocs.length} posts, ${groupDocs.length} groups`,
+      `Seeded search-service from ${searchEnvFile} and users from ${userEnvFile}: ${userDocs.length} users, ${postDocs.length} posts, ${groupDocs.length} groups`,
     );
   } finally {
+    await pgClient.end();
     await client.close();
   }
 }
