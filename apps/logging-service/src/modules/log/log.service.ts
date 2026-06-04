@@ -88,6 +88,8 @@ export class LogService {
   ): Promise<CursorPageResponse<UserActivityLogResponseDTO>> {
     const {
       activityType,
+      fromDate,
+      toDate,
       limit = 10,
       cursor,
       sortBy = 'createdAt',
@@ -99,6 +101,14 @@ export class LogService {
 
     if (activityType) {
       filter.activityType = activityType;
+    }
+
+    if (fromDate) {
+      filter.createdAt = { ...filter.createdAt, $gte: fromDate };
+    }
+
+    if (toDate) {
+      filter.createdAt = { ...filter.createdAt, $lte: toDate };
     }
 
     if (cursor) {

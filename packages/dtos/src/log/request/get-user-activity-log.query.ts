@@ -6,4 +6,10 @@ export class GetUserActivityLogQuery extends CursorPaginationDTO {
   @IsOptional()
   @IsEnum(ActivityType)
   activityType?: ActivityType;
+
+  @IsOptional()
+  fromDate?: Date;
+
+  @IsOptional()
+  toDate?: Date;
 }
