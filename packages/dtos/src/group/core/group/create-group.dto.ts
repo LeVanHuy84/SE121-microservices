@@ -17,9 +17,9 @@ export class CreateGroupDTO {
   @IsString()
   description?: string;
 
-  @IsDefined()
+  @IsOptional()
   @Type(() => MediaItemDTO)
-  avatar: MediaItemDTO;
+  avatar?: MediaItemDTO;
 
   @Type(() => MediaItemDTO)
   @IsOptional()

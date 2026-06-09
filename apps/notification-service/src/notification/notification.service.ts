@@ -296,6 +296,13 @@ export class NotificationService {
     return { success: true };
   }
 
+  async countUnread(userId: string): Promise<number> {
+    return this.notificationModel.countDocuments({
+      userId,
+      status: 'unread',
+    });
+  }
+
 
 
   private async cacheNotifications(userId: string, items: any[]) {

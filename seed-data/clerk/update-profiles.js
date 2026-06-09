@@ -238,7 +238,7 @@ function buildRichProfilePayload(record, random) {
     255,
   );
 
-  const avatarSeed = encodeURIComponent(`${record.email || ''}-${firstName}-${lastName}`);
+
 
   return {
     firstName,
@@ -249,7 +249,6 @@ function buildRichProfilePayload(record, random) {
     company: clipText(company, 120),
     school: clipText(school, 120),
     interests,
-    avatarUrl: `https://api.dicebear.com/9.x/lorelei/svg?seed=${avatarSeed}`,
   };
 }
 
@@ -265,7 +264,6 @@ function buildCreateUserPayload(clerkUser, profilePayload) {
     company: profilePayload.company,
     school: profilePayload.school,
     interests: profilePayload.interests,
-    avatarUrl: profilePayload.avatarUrl,
   };
 }
 

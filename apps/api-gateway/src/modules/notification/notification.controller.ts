@@ -28,6 +28,11 @@ export class NotificationController {
     return this.client.send('get_notifications', { userId, query });
   }
 
+  @Get('unread-count')
+  getUnreadCount(@CurrentUserId() userId: string) {
+    return this.client.send('get_unread_count', userId);
+  }
+
   @Patch(':id/read')
   markAsRead(@Param('id') id: string) {
     return this.client.send('mark_read', id);

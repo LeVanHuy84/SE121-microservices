@@ -100,6 +100,11 @@ export class NotificationController {
     return this.notificationService.findByUser(data.userId, data.query);
   }
 
+  @MessagePattern('get_unread_count')
+  getUnreadCount(@Payload() userId: string) {
+    return this.notificationService.countUnread(userId);
+  }
+
   @MessagePattern('mark_read')
   markAsRead(@Payload() id: string) {
     return this.notificationService.markRead(id);

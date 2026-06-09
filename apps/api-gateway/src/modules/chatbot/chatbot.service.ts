@@ -4,10 +4,11 @@
   Logger,
   ServiceUnavailableException,
   GatewayTimeoutException,
+  MessageEvent,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { AxiosError } from 'axios';
 
 import {
@@ -35,14 +36,8 @@ type LatencySummary = {
 @Injectable()
 export class ChatbotService {
   private readonly logger = new Logger(ChatbotService.name);
-  private readonly respondCache = new Map<string, RespondCacheEntry>();
-  private readonly respondInflight = new Map<
-    string,
-    Promise<AssistantRespondDataDto>
-  >();
   private readonly metricsLatencies = new Map<string, number[]>();
   private readonly metricsCounters = new Map<string, number>();
-  private metricsRespondCount = 0;
 
   constructor(
     private readonly configService: ConfigService,
@@ -50,91 +45,100 @@ export class ChatbotService {
     private readonly contextService: AssistantContextService,
   ) {}
 
-  async respond(
+  respondStream(
     userId: string,
     dto: AssistantMessageDto,
-  ): Promise<AssistantRespondDataDto> {
-    const startedAt = Date.now();
-    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
-    const normalizedMessage = this.normalizeMessage(dto.message);
-    const cacheKey = this.buildRespondCacheKey(
-      userId,
-      normalizedMessage,
-      dto.clientMessageId,
-    );
-    const contextTimeoutMs = this.configService.get<number>(
-      'CHATBOT_CONTEXT_BUILD_TIMEOUT_MS',
-      1200,
-    );
-    const cacheEnabled = this.configService.get<boolean>(
-      'CHATBOT_RESPOND_CACHE_ENABLED',
-      false,
-    );
-    const inflightDedupEnabled = this.configService.get<boolean>(
-      'CHATBOT_RESPOND_INFLIGHT_DEDUP_ENABLED',
-      true,
-    );
-    const cacheTtlMs = this.configService.get<number>(
-      'CHATBOT_RESPOND_CACHE_TTL_MS',
-      20000,
-    );
+  ): Observable<MessageEvent> {
+    const { baseUrl, internalKey } = this.resolveClientConfig();
 
-    if (cacheEnabled) {
-      const cached = this.getCachedRespond(cacheKey);
-      if (cached) {
-        this.incrementMetricCounter('respond_cache_hit');
-        this.recordLatency('respond.total_ms', Date.now() - startedAt);
-        this.maybeLogMetricsSnapshot('cache_hit');
-        return cached;
-      }
-    }
+    return new Observable<MessageEvent>((subscriber) => {
+      let isCancelled = false;
 
-    if (inflightDedupEnabled) {
-      const inflight = this.respondInflight.get(cacheKey);
-      if (inflight) {
-        this.incrementMetricCounter('respond_inflight_join');
-        this.recordLatency('respond.total_ms', Date.now() - startedAt);
-        this.maybeLogMetricsSnapshot('inflight_join');
-        return await inflight;
-      }
-    }
+      const run = async () => {
+        try {
+          const contexts = await this.resolveContextsWithinBudget(
+            userId,
+            dto.message,
+            this.configService.get<number>('CHATBOT_CONTEXT_BUILD_TIMEOUT_MS', 1200),
+          );
 
-    const execution = this.executeRespond({
-      userId,
-      message: dto.message,
-      clientMessageId: dto.clientMessageId,
-      normalizedMessage,
-      baseUrl,
-      internalKey,
-      timeoutMs,
-      contextTimeoutMs,
-      startedAt,
-    });
+          if (isCancelled) return;
 
-    if (inflightDedupEnabled) {
-      this.respondInflight.set(cacheKey, execution);
-      try {
-        const result = await execution;
-        if (cacheEnabled) {
-          this.setCachedRespond(cacheKey, result, cacheTtlMs);
+          const response = await firstValueFrom(
+            this.httpService.post(
+              `${baseUrl}/assistant/respond-stream`,
+              {
+                userId,
+                message: dto.message,
+                clientMessageId: dto.clientMessageId,
+                contexts,
+              },
+              {
+                headers: {
+                  'x-internal-key': internalKey,
+                  Accept: 'text/event-stream',
+                },
+                responseType: 'stream',
+              },
+            ),
+          );
+
+          const stream = response.data;
+          let buffer = '';
+
+          stream.on('data', (chunk: Buffer) => {
+            if (isCancelled) return;
+            
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            
+            // Keep the last partial line in buffer
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (trimmedLine.startsWith('data: ')) {
+                const dataStr = trimmedLine.replace('data: ', '').trim();
+                if (dataStr) {
+                  try {
+                    const data = JSON.parse(dataStr);
+                    subscriber.next({ data });
+                  } catch (e) {
+                    // This might happen if a JSON is split across lines (though SSE usually doesn't do that)
+                    // Or if there's noise in the stream
+                    this.logger.debug('Failed to parse SSE line, keeping in buffer', trimmedLine);
+                    // If parse fails, it might be a split JSON across lines, 
+                    // but SSE spec says data: should contain the full JSON per line for our backend.
+                    // We'll ignore noise for now.
+                  }
+                }
+              }
+            }
+          });
+
+          stream.on('end', () => {
+            if (isCancelled) return;
+            subscriber.complete();
+          });
+
+          stream.on('error', (err) => {
+            if (isCancelled) return;
+            this.logger.error('Assistant stream error', err);
+            subscriber.error(err);
+          });
+        } catch (error) {
+          if (isCancelled) return;
+          this.logger.error('Assistant stream setup failed', error);
+          subscriber.error(error);
         }
-        return result;
-      } catch (error) {
-        throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
-      } finally {
-        this.respondInflight.delete(cacheKey);
-      }
-    }
+      };
 
-    try {
-      const result = await execution;
-      if (cacheEnabled) {
-        this.setCachedRespond(cacheKey, result, cacheTtlMs);
-      }
-      return result;
-    } catch (error) {
-      throw this.mapGatewayError(error, userId, startedAt, 'assistant.respond');
-    }
+      run();
+
+      return () => {
+        isCancelled = true;
+      };
+    });
   }
 
   async getHistory(
@@ -188,7 +192,6 @@ export class ChatbotService {
         ),
       );
 
-      this.clearRespondCacheByUser(userId);
       return res.data.data;
     } catch (error) {
       throw this.mapGatewayError(
@@ -198,76 +201,6 @@ export class ChatbotService {
         'assistant.history.clear',
       );
     }
-  }
-
-  private async executeRespond(params: {
-    userId: string;
-    message: string;
-    clientMessageId?: string;
-    normalizedMessage: string;
-    baseUrl: string;
-    internalKey: string;
-    timeoutMs: number;
-    contextTimeoutMs: number;
-    startedAt: number;
-  }): Promise<AssistantRespondDataDto> {
-    const {
-      userId,
-      message,
-      clientMessageId,
-      normalizedMessage,
-      baseUrl,
-      internalKey,
-      timeoutMs,
-      contextTimeoutMs,
-      startedAt,
-    } = params;
-
-    const contextsStartedAt = Date.now();
-    const contexts = await this.resolveContextsWithinBudget(
-      userId,
-      message,
-      contextTimeoutMs,
-    );
-    const contextsDurationMs = Date.now() - contextsStartedAt;
-    const elapsedMs = Date.now() - startedAt;
-    const minDownstreamTimeoutMs = this.configService.get<number>(
-      'CHATBOT_DOWNSTREAM_MIN_TIMEOUT_MS',
-      1000,
-    );
-    const remainingBudgetMs = Math.max(
-      minDownstreamTimeoutMs,
-      timeoutMs - elapsedMs,
-    );
-
-    const downstreamStartedAt = Date.now();
-    const res = await firstValueFrom(
-      this.httpService.post<AssistantRespondResponseDto>(
-        `${baseUrl}/assistant/respond`,
-        {
-          userId,
-          message,
-          clientMessageId,
-          contexts,
-        },
-        {
-          headers: {
-            'x-internal-key': internalKey,
-          },
-          timeout: remainingBudgetMs,
-        },
-      ),
-    );
-    const downstreamDurationMs = Date.now() - downstreamStartedAt;
-    const totalDurationMs = Date.now() - startedAt;
-
-    this.incrementMetricCounter('respond_success');
-    this.recordLatency('respond.context_ms', contextsDurationMs);
-    this.recordLatency('respond.downstream_ms', downstreamDurationMs);
-    this.recordLatency('respond.total_ms', totalDurationMs);
-    this.maybeLogMetricsSnapshot('respond_success');
-
-    return res.data.data;
   }
 
   private async resolveContextsWithinBudget(
@@ -304,75 +237,6 @@ export class ChatbotService {
           resolve([]);
         });
     });
-  }
-
-  private buildRespondCacheKey(
-    userId: string,
-    normalizedMessage: string,
-    clientMessageId?: string,
-  ): string {
-    if (clientMessageId) {
-      return `${userId}:idempotency:${clientMessageId}`;
-    }
-    return `${userId}:message:${normalizedMessage}`;
-  }
-
-  private normalizeMessage(message: string): string {
-    return String(message ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
-  }
-
-  private getCachedRespond(key: string): AssistantRespondDataDto | null {
-    const entry = this.respondCache.get(key);
-    if (!entry) return null;
-    if (entry.expiresAt <= Date.now()) {
-      this.respondCache.delete(key);
-      return null;
-    }
-    return entry.value;
-  }
-
-  private setCachedRespond(
-    key: string,
-    value: AssistantRespondDataDto,
-    ttlMs: number,
-  ) {
-    const maxEntries = this.configService.get<number>(
-      'CHATBOT_RESPOND_CACHE_MAX_ENTRIES',
-      1000,
-    );
-    this.evictExpiredRespondCache();
-    if (this.respondCache.size >= maxEntries) {
-      const oldestKey = this.respondCache.keys().next().value;
-      if (typeof oldestKey === 'string') {
-        this.respondCache.delete(oldestKey);
-      }
-    }
-
-    this.respondCache.set(key, {
-      value,
-      expiresAt: Date.now() + Math.max(1000, ttlMs),
-    });
-  }
-
-  private clearRespondCacheByUser(userId: string) {
-    const prefix = `${userId}:`;
-    for (const key of this.respondCache.keys()) {
-      if (key.startsWith(prefix)) {
-        this.respondCache.delete(key);
-      }
-    }
-  }
-
-  private evictExpiredRespondCache() {
-    const now = Date.now();
-    for (const [key, entry] of this.respondCache.entries()) {
-      if (entry.expiresAt <= now) {
-        this.respondCache.delete(key);
-      }
-    }
   }
 
   private resolveClientConfig() {

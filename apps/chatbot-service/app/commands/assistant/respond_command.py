@@ -10,7 +10,8 @@ from uuid import uuid4
 from app.commands.assistant.persist_history_command import PersistHistoryCommand
 from app.core.config import settings
 from app.memory.session_memory import SessionMemory, session_memory
-from app.providers.base import LlmGeneration, LlmProvider
+from typing import AsyncIterator
+from app.providers.base import LlmGeneration, LlmProvider, LlmChunk
 from app.providers.groq_provider import GroqProvider
 from app.schemas.assistant_schema import (
     AssistantHistoryItem,
@@ -559,4 +560,173 @@ class RespondCommand:
             suggestedActions=[],
             model="community-guard",
             provider="chatbot-service",
+        )
+
+    async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
+        started_at = time.perf_counter()
+        request_id = str(uuid4())
+        session_key = self._session_key(request)
+        history = self._resolve_history(request, session_key)
+        last_intent = request.intent or self.memory.get_last_intent(session_key)
+        memory_facts = self.memory.get_facts(session_key)
+        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+            request.message,
+            history,
+            memory_facts,
+        )
+        working_request = (
+            request.model_copy(update={"message": effective_message})
+            if effective_message != request.message
+            else request
+        )
+
+        community_decision = self.community_guard.evaluate(request.message)
+        if not community_decision.allowed:
+            data = self._community_response(community_decision.reason)
+            yield self._finalize_stream_data(data, request_id, started_at, request)
+            await self._after_generation(request, data.reply, [], "community_guard")
+            return
+
+        scope_decision = self.scope_guard.evaluate_scope(
+            working_request,
+            last_intent=last_intent,
+            recent_history=history,
+        )
+
+        if scope_decision.reason == "greeting":
+            data = self._greeting_response()
+            yield self._finalize_stream_data(data, request_id, started_at, request)
+            await self._after_generation(request, data.reply, [], "greeting")
+            return
+
+        if not scope_decision.in_scope:
+            intent = "out_of_scope"
+            if "privacy" in scope_decision.matched_domains:
+                data = self._privacy_policy_response()
+                intent = "privacy"
+            elif scope_decision.state == "in_domain_unknown":
+                data = self._in_domain_unknown_response(scope_decision.matched_domains)
+                intent = "in_domain_unknown"
+            elif scope_decision.state == "ambiguous":
+                data = self._ambiguous_scope_response(scope_decision.matched_domains)
+                intent = "clarify"
+            else:
+                data = self._out_of_scope_response()
+            
+            yield self._finalize_stream_data(data, request_id, started_at, request)
+            await self._after_generation(request, data.reply, [], intent)
+            return
+
+        memory_summary = self.memory.get_summary(session_key)
+        memory_context = self._build_memory_context(memory_summary, memory_facts)
+        candidate_contexts = (
+            self._dedupe_contexts(working_request.contexts)
+            if working_request.contexts
+            else await self._resolve_contexts_with_budget(
+                working_request,
+                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+            )
+        )
+        prompt_limits = resolve_prompt_limits(request.userId)
+        final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+        
+        if not final_contexts and scope_decision.matched_domains and not has_follow_up_anchor:
+            data = self._in_domain_unknown_response(scope_decision.matched_domains)
+            yield self._finalize_stream_data(data, request_id, started_at, request)
+            await self._after_generation(request, data.reply, [], "in_domain_unknown")
+            return
+
+        resolved_request = working_request.model_copy(update={"contexts": final_contexts})
+        prompt = self.prompt_builder.build(
+            resolved_request,
+            history,
+            memory_context,
+            context_char_limit=prompt_limits.context_char_limit,
+            max_history_items=prompt_limits.max_history_items,
+            history_item_char_limit=prompt_limits.history_item_char_limit,
+            context_total_char_limit=prompt_limits.context_total_char_limit,
+        )
+        prompt = self._prepend_turn_policy(prompt)
+
+        sources = [
+            AssistantSource(
+                type=item.type,
+                id=item.id,
+                title=item.title,
+                source=item.source,
+                score=item.score,
+            )
+            for item in final_contexts
+        ]
+
+        full_reply_parts = []
+        try:
+            async with _LLM_SEMAPHORE:
+                async for chunk in self.provider.stream(prompt, resolved_request):
+                    full_reply_parts.append(chunk.content)
+                    yield AssistantRespondData(
+                        reply=chunk.content,
+                        sources=sources if len(full_reply_parts) == 1 else [],
+                        suggestedActions=[],
+                        model=chunk.model or settings.GROQ_MODEL,
+                        provider=chunk.provider or "groq",
+                        requestId=request_id,
+                        latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                        conversationId=request.conversationId or "default",
+                    )
+        except Exception:
+            logger.exception("Assistant stream generation failed")
+            yield AssistantRespondData(
+                reply="Hệ thống gặp lỗi khi tạo phản hồi. Bạn thử lại sau nhé.",
+                sources=[],
+                suggestedActions=[],
+                model="error-guard",
+                provider="chatbot-service",
+                requestId=request_id,
+                latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                conversationId=request.conversationId or "default",
+            )
+            return
+
+        full_reply = "".join(full_reply_parts)
+        resolved_intent = request.intent or self._infer_intent(
+            final_contexts,
+            fallback_domains=scope_decision.matched_domains,
+        )
+        await self._after_generation(request, full_reply, sources, resolved_intent)
+
+    def _finalize_stream_data(
+        self, 
+        data: AssistantRespondData, 
+        request_id: str, 
+        started_at: float, 
+        request: AssistantRespondRequest
+    ) -> AssistantRespondData:
+        return data.model_copy(
+            update={
+                "requestId": request_id,
+                "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                "conversationId": request.conversationId or "default",
+            }
+        )
+
+    async def _after_generation(
+        self, 
+        request: AssistantRespondRequest, 
+        reply: str, 
+        sources: list[AssistantSource], 
+        intent: str | None
+    ):
+        reply_content = self._sanitize_assistant_reply(reply)
+        self._persist_session_memory(
+            request=request,
+            assistant_reply=reply_content,
+            sources=sources,
+            intent=intent,
+        )
+        await self.persist_history.execute(
+            request=request,
+            assistant_reply=reply_content,
+            sources=sources,
+            intent=intent,
         )
