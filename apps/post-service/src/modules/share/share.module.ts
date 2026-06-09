@@ -24,6 +24,10 @@ import { UserClientModule } from '../client/user/user-client.module';
     UserClientModule,
   ],
   controllers: [ShareController],
-  providers: [ShareCommandService, ShareQueryService, ShareCacheService],
+  providers: [
+    ShareCommandService,
+    ShareQueryService,
+    ShareCacheService,
+  ],
 })
 export class ShareModule {}

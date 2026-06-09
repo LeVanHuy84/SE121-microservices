@@ -37,6 +37,7 @@ export class GroupMemberService {
     return this.dataSource.transaction(async (manager) => {
       const member = await manager.findOne(GroupMember, {
         where: { userId, groupId },
+        relations: ['group'],
       });
       if (!member)
         throw new RpcException({

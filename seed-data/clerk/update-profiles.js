@@ -446,7 +446,6 @@ function buildCreateUserPayload(clerkUser, profilePayload) {
     company: profilePayload.company,
     school: profilePayload.school,
     interests: profilePayload.interests,
-    avatarUrl: profilePayload.avatarUrl,
   };
 }
 
