@@ -95,3 +95,4 @@ class GroqProvider:
         if request.intent or request.contexts:
             return settings.GROQ_TEMPERATURE_TASK
         return settings.GROQ_TEMPERATURE
+

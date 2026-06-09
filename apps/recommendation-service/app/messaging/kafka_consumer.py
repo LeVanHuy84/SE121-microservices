@@ -17,6 +17,7 @@ class KafkaConsumerService:
         self._running = False
 
     async def start(self):
+        # 1. Tối ưu hóa các tham số để tránh lỗi timeout khi bắt tay kết nối ban đầu
         self.consumer = AIOKafkaConsumer(
             self.topic,
             bootstrap_servers=self.brokers,
@@ -24,11 +25,10 @@ class KafkaConsumerService:
             enable_auto_commit=False,
             auto_offset_reset="earliest",
             value_deserializer=lambda value: json.loads(value.decode("utf-8")),
-            session_timeout_ms=30000,
-            heartbeat_interval_ms=10000,
-            request_timeout_ms=40000,
-            max_poll_interval_ms=300000,
-            retry_backoff_ms=1000,
+            session_timeout_ms=10000,      # Giảm xuống 10s để phát hiện sập nhanh hơn
+            heartbeat_interval_ms=3000,    # Gửi heartbeat đều đặn mỗi 3s để giữ kết nối ổn định
+            max_poll_interval_ms=300000,   # Giữ nguyên 5 phút xử lý logic tối đa
+            # ĐÃ XÓA: request_timeout_ms và retry_backoff_ms để thư viện tự tối ưu theo hệ thống
         )
 
         await self.consumer.start()
