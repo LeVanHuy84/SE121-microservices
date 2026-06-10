@@ -488,56 +488,28 @@ export class CallService {
       return this.toCallResponse(call.toObject());
     });
 
-    // Phase 3.4: Tell Stream to tear down the call room after RINGING cancel
+    // Phase 3.4: Tell Stream to tear down the call room
+    const isEnded =
+      callDto.status === CallSessionStatus.ENDED ||
+      callDto.status === CallSessionStatus.CANCELLED ||
+      callDto.status === CallSessionStatus.REJECTED;
+    if (isEnded) {
+      void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
+        this.logger.warn(`[endCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
+      );
+    }
+
     const wasRingingCancel =
       callDto.status === CallSessionStatus.CANCELLED ||
       callDto.status === CallSessionStatus.REJECTED;
     if (wasRingingCancel) {
-      void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
-        this.logger.warn(`[endCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
-      );
       void this.triggerCallCancelPush(userId, callDto);
     }
 
     return callDto;
   }
 
-  async sendCallSignal(userId: string, dto: SendCallSignalDTO) {
-    const call = await this.findAuthorizedCall(dto.callId, userId);
-    if (call.status !== CallSessionStatus.RINGING && call.status !== CallSessionStatus.ACCEPTED) {
-      throw new RpcException('Call is not active');
-    }
-    if (!call.participants.includes(dto.targetUserId)) {
-      throw new RpcException('Target user is not in this call');
-    }
 
-    const payload = {
-      callId: dto.callId,
-      fromUserId: userId,
-      targetUserId: dto.targetUserId,
-      signalType: dto.signalType,
-      sdp: dto.sdp,
-      candidate: dto.candidate,
-      sdpMid: dto.sdpMid,
-      sdpMLineIndex: dto.sdpMLineIndex,
-      conversationId: call.conversationId.toString(),
-    };
-
-    if (call.status === CallSessionStatus.ACCEPTED) {
-      const reconnectDeadlineAt = new Date(
-        Date.now() + DEFAULT_CALL_RECONNECT_TIMEOUT_MS,
-      );
-      await this.callSessionModel.updateOne(
-        { _id: call._id, status: CallSessionStatus.ACCEPTED },
-        { $set: { reconnectDeadlineAt } },
-      );
-      await this.scheduleReconnectTimeout(call._id.toString(), reconnectDeadlineAt);
-    }
-
-    await this.outboxService.enqueueChatEvent('call.signal', payload, dto.callId);
-
-    return payload;
-  }
 
   async joinCall(userId: string, dto: JoinCallDTO) {
     const call = await this.findAuthorizedCall(dto.callId, userId);
@@ -692,6 +664,9 @@ export class CallService {
           now,
         );
       });
+      void this.streamProvider.endCallOnStream(callId).catch((e) =>
+        this.logger.warn(`[markMissedCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
+      );
       return true;
     } catch (error) {
       this.logger.warn(
@@ -766,6 +741,9 @@ export class CallService {
           now,
         );
       });
+      void this.streamProvider.endCallOnStream(callId).catch((e) =>
+        this.logger.warn(`[markReconnectTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
+      );
       return true;
     } catch (error) {
       this.logger.warn(
@@ -841,10 +819,80 @@ export class CallService {
           now,
         );
       });
+      void this.streamProvider.endCallOnStream(callId).catch((e) =>
+        this.logger.warn(`[markEmptyRoomTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
+      );
       return true;
     } catch (error) {
       this.logger.warn(
         `markEmptyRoomTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  async handleStreamCallEndedWebhook(callId: string): Promise<boolean> {
+    try {
+      this.logger.log(`[Stream Webhook] Handling call end for callId=${callId}`);
+      await this.withTransaction(async (session) => {
+        if (!Types.ObjectId.isValid(callId)) return;
+        const call = await this.callSessionModel
+          .findById(callId)
+          .session(session)
+          .exec();
+        
+        if (!call) return;
+        if (
+          call.status === CallSessionStatus.ENDED ||
+          call.status === CallSessionStatus.MISSED ||
+          call.status === CallSessionStatus.REJECTED ||
+          call.status === CallSessionStatus.CANCELLED
+        ) {
+          return; // Already ended
+        }
+
+        const now = new Date();
+        call.status = CallSessionStatus.ENDED;
+        call.endReason = CallEndReason.TIMEOUT;
+        call.endedAt = now;
+        call.ringTimeoutAt = null;
+        call.reconnectDeadlineAt = null;
+        
+        await call.save({ session });
+        await this.clearAllTimeoutSchedules(call._id.toString());
+        await this.clearEmptyRoomTimeout(call._id.toString());
+        await this.redis.del(this.groupOnlineSetKey(call._id.toString()));
+
+        const durationSec =
+          call.startedAt && call.endedAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,
+                ),
+              )
+            : 0;
+
+        await this.createTerminalCallMessage(
+          call,
+          call.initiatorId,
+          durationSec,
+          session,
+        );
+        await this.clearConversationActiveCall(call, session);
+        await this.emitCallEndedEvent(
+          session,
+          call,
+          call.initiatorId,
+          CallEndReason.TIMEOUT,
+          durationSec,
+          now,
+        );
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `handleStreamCallEndedWebhook failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return false;
     }

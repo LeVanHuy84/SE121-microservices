@@ -294,16 +294,6 @@ export class ChatController {
     return this.chatClient.send('endCall', { userId, dto });
   }
 
-  @Post('calls/:callId/signal')
-  @Throttle({ default: { limit: 100, ttl: 60000 } })
-  sendCallSignal(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<SendCallSignalDTO, 'callId'>
-  ) {
-    const dto: SendCallSignalDTO = { callId, ...body };
-    return this.chatClient.send('sendCallSignal', { userId, dto });
-  }
 
   @Post('calls/:callId/join')
   @Throttle({ default: { limit: 30, ttl: 60000 } })

@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import {
   AcceptCallDTO,
   CreateCallDTO,
@@ -75,16 +75,6 @@ export class CallController {
     return this.callService.endCall(data.userId, data.dto);
   }
 
-  @MessagePattern('sendCallSignal')
-  async sendCallSignal(
-    @Payload()
-    data: {
-      userId: string;
-      dto: SendCallSignalDTO;
-    },
-  ) {
-    return this.callService.sendCallSignal(data.userId, data.dto);
-  }
 
   @MessagePattern('joinCall')
   async joinCall(
@@ -128,5 +118,14 @@ export class CallController {
   ): Promise<StreamUserTokenResponseDTO> {
     const token = await this.streamMediaProvider.issueUserToken(data.userId);
     return { token };
+  }
+  @EventPattern('handleStreamCallEndedWebhook')
+  async handleStreamCallEndedWebhook(
+    @Payload()
+    data: {
+      callId: string;
+    },
+  ) {
+    return this.callService.handleStreamCallEndedWebhook(data.callId);
   }
 }

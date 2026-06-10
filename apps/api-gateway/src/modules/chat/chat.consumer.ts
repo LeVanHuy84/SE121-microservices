@@ -387,16 +387,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallEnded(data);
           break;
         }
-        case 'call.signal': {
-          const data: {
-            callId: string;
-            conversationId?: string;
-            targetUserId?: string;
-            [key: string]: any;
-          } = JSON.parse(payload);
-          this.chatGateway.emitCallSignal(data);
-          break;
-        }
+
         case 'call.participantJoined': {
           const data: {
             callId: string;
