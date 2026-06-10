@@ -24,6 +24,7 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     try {
       const tokenPayload = await verifyToken(token, {
         secretKey: this.configService.get('CLERK_SECRET_KEY'),
+        clockSkewInMs: 60000,
       });
 
       // gắn externalId để dùng ngay

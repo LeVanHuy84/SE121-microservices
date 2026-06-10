@@ -16,40 +16,31 @@ export class DeviceTokenService {
   async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
     try {
       const provider = dto.provider ?? 'fcm';
-      const existingToken = await this.deviceTokenModel.findOne({
-        userId: dto.userId,
-        token: dto.token,
-        provider,
-      });
 
-      if (existingToken) {
-        // Update existing token
-        existingToken.lastUsed = new Date();
-        existingToken.isActive = true;
-        existingToken.platform = dto.platform;
-        existingToken.provider = provider;
-        if (dto.appId) existingToken.appId = dto.appId;
-        if (dto.deviceId) existingToken.deviceId = dto.deviceId;
-        if (dto.deviceName) existingToken.deviceName = dto.deviceName;
-        await existingToken.save();
-        return existingToken;
-      }
+      const tokenDoc = await this.deviceTokenModel.findOneAndUpdate(
+        {
+          userId: dto.userId,
+          token: dto.token,
+        },
+        {
+          $set: {
+            platform: dto.platform,
+            provider,
+            appId: dto.appId,
+            deviceId: dto.deviceId,
+            deviceName: dto.deviceName,
+            lastUsed: new Date(),
+            isActive: true,
+          },
+        },
+        {
+          new: true,
+          upsert: true,
+        }
+      );
 
-      // Create new token
-      const newToken = await this.deviceTokenModel.create({
-        userId: dto.userId,
-        token: dto.token,
-        platform: dto.platform,
-        provider,
-        appId: dto.appId,
-        deviceId: dto.deviceId,
-        deviceName: dto.deviceName,
-        lastUsed: new Date(),
-        isActive: true,
-      });
-
-      this.logger.log(`Registered new device token for user ${dto.userId}`);
-      return newToken;
+      this.logger.log(`Registered/Updated device token for user ${dto.userId}`);
+      return tokenDoc;
     } catch (error) {
       this.logger.error('Error registering device token', error);
       throw error;
