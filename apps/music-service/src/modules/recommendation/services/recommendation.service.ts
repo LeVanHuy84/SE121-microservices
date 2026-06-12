@@ -42,6 +42,11 @@ async getRecommendations(
   const analysis = await this.getEmotionAnalysis(userId);
   const target = this.computeTarget(analysis);
 
+  console.log('Emotion analysis for user', userId, {
+    analysis,
+    target,
+  });
+
   const RANGE = 0.15;
 
   const query: InternalMusicQueryDto = {

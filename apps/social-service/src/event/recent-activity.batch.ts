@@ -62,12 +62,13 @@ export class RecentActivityBatch {
           const message: NotificationSample = {
             id: this.buildNotificationRequestId(activityKey),
             eventType: type,
+            userId: targetId,
             payload: {
               targetType: NotiTargetType.USER,
               actorName:
                 `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
               actorAvatar: actor.avatarUrl,
-              targetId,
+              targetId: actorId,
               content: '',
             },
           };

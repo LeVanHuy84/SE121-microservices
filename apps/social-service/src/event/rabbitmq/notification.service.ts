@@ -7,6 +7,7 @@ export type NotificationSample = {
   id: string;
   eventType: string;
   payload: NotificationPayload;
+  userId: string;
 };
 
 @Injectable()
@@ -20,7 +21,7 @@ export class NotificationService {
   async sendNotification(dto: NotificationSample) {
     const createNotificationDto: CreateNotificationDto = {
       requestId: dto.id,
-      userId: dto.payload?.targetId,
+      userId: dto.userId,
       type: dto.eventType,
       payload: dto.payload,
       sendAt: new Date(),

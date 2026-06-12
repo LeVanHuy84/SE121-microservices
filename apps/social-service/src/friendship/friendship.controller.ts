@@ -9,6 +9,7 @@ export class FriendshipController {
 
   @MessagePattern('get_relationship_status')
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
+    console.log('Received get_relationship_status request with data:', data);
     return this.friendshipService.getRelationshipStatus(
       data.userId,
       data.targetId,

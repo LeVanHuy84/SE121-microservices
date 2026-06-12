@@ -420,6 +420,7 @@ function buildRichProfilePayload(record, random) {
   const avatarSeed = encodeURIComponent(
     `${record.email || ''}-${firstName}-${lastName}`,
   );
+  const avatarId = Math.floor(random() * 70) + 1;
 
   return {
     firstName,
@@ -430,7 +431,8 @@ function buildRichProfilePayload(record, random) {
     company: clipText(company, 120),
     school: clipText(school, 120),
     interests,
-    avatarUrl: `https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMmppaFZQNUFvSXBhY2xGNTMxeERheWF0V1IiLCJyaWQiOiJ1c2VyXzNFY1ptQmVTakhmbHVyMUc2NmdhSFNjWFRCVyIsImluaXRpYWxzIjoiTcSQIn0`,
+    avatarUrl: `https://i.pravatar.cc/300?img=${avatarId}`,
+    // avatarUrl: `https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMmppaFZQNUFvSXBhY2xGNTMxeERheWF0V1IiLCJyaWQiOiJ1c2VyXzNFY1ptQmVTakhmbHVyMUc2NmdhSFNjWFRCVyIsImluaXRpYWxzIjoiTcSQIn0`,
   };
 }
 

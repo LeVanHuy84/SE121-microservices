@@ -198,8 +198,9 @@ export class SeedService {
 
   private resolveSeedUsersFilePath(): string {
     const candidatePaths = [
-      path.resolve(process.cwd(), 'seed-data/data/generated-users.json'),
-      path.resolve(process.cwd(), '../../seed-data/data/generated-users.json'),
+      // path.resolve(process.cwd(), 'seed-data/data/generated-users.json'),
+      // path.resolve(process.cwd(), '../../seed-data/data/generated-users.json'),
+      path.join(__dirname, 'users.json'),
     ];
 
     for (const candidatePath of candidatePaths) {

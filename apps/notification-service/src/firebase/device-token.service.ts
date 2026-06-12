@@ -13,9 +13,17 @@ export class DeviceTokenService {
     private deviceTokenModel: Model<DeviceToken>
   ) {}
 
-  async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
+
+    async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
     try {
       const provider = dto.provider ?? 'fcm';
+
+      // Đảm bảo token này chỉ thuộc về user hiện tại
+      // Xoá token này khỏi tất cả các user khác (xảy ra khi đổi acc trên cùng 1 máy)
+      await this.deviceTokenModel.deleteMany({
+        token: dto.token,
+        userId: { $ne: dto.userId },
+      });
 
       const tokenDoc = await this.deviceTokenModel.findOneAndUpdate(
         {

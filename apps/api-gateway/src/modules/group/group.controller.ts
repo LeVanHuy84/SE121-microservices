@@ -50,6 +50,7 @@ export class GroupController {
     @Query() query: CursorPaginationDTO,
     @CurrentUserId() userId: string,
   ) {
+    console.log('Sending recommend_groups message with data:', { userId, query });
     return this.client.send('recommend_groups', { userId, query });
   }
 

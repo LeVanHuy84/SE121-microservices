@@ -29,11 +29,11 @@ export class WarningProcessor {
 
   async evaluateUsers(userIds: string[]): Promise<void> {
     for (const userId of userIds) {
-      await this.processUserRisk(userId);
+      await this.processUserRisk(userId, true);
     }
   }
 
-  private async processUserRisk(userId: string): Promise<void> {
+  private async processUserRisk(userId: string, force = false): Promise<void> {
     if (this.processingUsers.has(userId)) {
       return;
     }
@@ -43,7 +43,7 @@ export class WarningProcessor {
     const now = Date.now();
     const last = this.lastProcessedAt.get(userId);
 
-    if (last && now - last < this.MIN_INTERVAL_MS) {
+    if (!force && last && now - last < this.MIN_INTERVAL_MS) {
       this.processingUsers.delete(userId);
       return;
     }

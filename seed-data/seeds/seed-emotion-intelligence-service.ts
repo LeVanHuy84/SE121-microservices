@@ -312,15 +312,12 @@ class LocalSnapshotCalculator {
       Math.pow(this.clamp01(negativeRatio), 1.3),
     );
     const trendUp = this.clamp01(Math.max(0, trend));
-    const baselineGap = this.clamp01(
-      Math.max(0, nonlinearNegativity - baseline),
-    );
 
     const weighted =
-      0.5 * nonlinearNegativity +
-      0.2 * volatility +
-      0.15 * trendUp +
-      0.15 * baselineGap;
+      0.65 * nonlinearNegativity +
+      0.15 * this.clamp01(baseline) +
+      0.10 * volatility +
+      0.10 * trendUp;
 
     return this.clamp01(weighted);
   }
@@ -471,10 +468,9 @@ class LocalProfileCalculator {
         lastStrongNegativeAt = eventTime;
       }
 
-      const currentDelta = this.calculateVectorDistance(
-        emotionVectorEMA,
-        previousEmaState,
-      );
+      const currentDelta =
+        this.calculateVectorDistance(emotionVectorEMA, previousEmaState) /
+        (2 * this.alpha);
       emotionMomentum = this.clampSigned(
         emotionMomentum * this.momentumSmoothPrevWeight +
           currentDelta * this.momentumSmoothDeltaWeight,
@@ -634,7 +630,7 @@ class LocalProfileCalculator {
     previousVector: EmotionVector,
   ): number {
     return PROFILE_EMOTIONS.reduce((acc, emotion) => {
-      return acc + (currentVector[emotion] - previousVector[emotion]);
+      return acc + Math.abs(currentVector[emotion] - previousVector[emotion]);
     }, 0);
   }
 
