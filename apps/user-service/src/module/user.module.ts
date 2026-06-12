@@ -5,11 +5,10 @@ import { UserEventController } from './user-event.controller';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { OutboxService } from './event/outbox.service';
-import { UserRecommendationService } from './recommendation/user-recommendation.service';
 
 @Module({
   controllers: [UserController, UserEventController],
-  providers: [UserService, OutboxService, UserRecommendationService],
+  providers: [UserService, OutboxService],
   exports: [UserService],
   imports: [
     DrizzleModule,

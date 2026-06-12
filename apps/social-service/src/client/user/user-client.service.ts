@@ -3,11 +3,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import {
   BaseUserDTO,
-  ProfileRecommendationCandidateDTO,
-  UserResponseDTO,
+  UserResponseDTO
 } from '@repo/dtos';
 import Redis from 'ioredis';
-import { lastValueFrom } from 'rxjs';
+import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 
 type UserProjection = 'base' | 'full';
 
@@ -74,36 +73,18 @@ export class UserClientService {
   async searchUserIds(ids: string[], search: string, limit?: number): Promise<string[]> {
     if (!ids.length || !search.trim()) return [];
     const matchedIds = await lastValueFrom(
-      this.userClient.send<string[]>('searchUserIds', { ids, search, limit }),
+      this.userClient.send<string[]>('searchUserIds', { ids, search, limit }).pipe(
+        timeout(3000),
+        catchError((error) => {
+          this.logger.error(`searchUserIds timeout/error: ${error?.message || error}`);
+          return of([]);
+        })
+      ),
     );
     return Array.isArray(matchedIds) ? matchedIds : [];
   }
 
-  async getProfileRecommendationCandidates(
-    userId: string,
-    limit: number,
-  ): Promise<ProfileRecommendationCandidateDTO[]> {
-    if (!userId || !Number.isFinite(limit) || limit <= 0) {
-      return [];
-    }
 
-    const startedAt = Date.now();
-    const candidates = await lastValueFrom(
-      this.userClient.send<ProfileRecommendationCandidateDTO[]>(
-        'getProfileRecommendationCandidates',
-        {
-          userId,
-          limit,
-        },
-      ),
-    );
-
-    this.logger.debug(
-      `USER_SERVICE profile recommendation candidates resolved: userId=${userId} limit=${limit} returned=${candidates?.length ?? 0} durationMs=${Date.now() - startedAt}`,
-    );
-
-    return Array.isArray(candidates) ? candidates : [];
-  }
 
   private async getCachedBaseUsers(
     userIds: string[],
@@ -215,7 +196,13 @@ export class UserClientService {
       this.userClient.send<Record<string, BaseUserDTO>>(
         'getBaseUsersBatch',
         userIds,
-      ),
+      ).pipe(
+        timeout(3000),
+        catchError((error) => {
+          this.logger.error(`fetchBaseUsers timeout/error: ${error?.message || error}`);
+          return of({});
+        })
+      )
     );
     const writePipeline = this.redis.pipeline();
 
@@ -239,7 +226,13 @@ export class UserClientService {
     userIds: string[],
   ): Promise<Record<string, UserResponseDTO>> {
     const profiles = await lastValueFrom(
-      this.userClient.send<UserResponseDTO[]>('getUsersBatch', userIds),
+      this.userClient.send<UserResponseDTO[]>('getUsersBatch', userIds).pipe(
+        timeout(3000),
+        catchError((error) => {
+          this.logger.error(`fetchFullUsers timeout/error: ${error?.message || error}`);
+          return of([]);
+        })
+      )
     );
     const profilesById: Record<string, UserResponseDTO> = {};
     const fullWritePipeline = this.redis.pipeline();

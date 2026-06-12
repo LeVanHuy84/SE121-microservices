@@ -331,18 +331,6 @@ export class ChatGateway
     }
   }
 
-  emitCallSignal(payload: {
-    conversationId?: string;
-    targetUserId?: string;
-    [key: string]: any;
-  }) {
-    if (payload.targetUserId) {
-      this.server.to(`user:${payload.targetUserId}`).emit("call.signal", payload);
-    }
-    if (payload.conversationId) {
-      this.broadcastToConversation(payload.conversationId, "call.signal", payload);
-    }
-  }
 
   emitCallParticipantJoined(payload: {
     conversationId: string;
