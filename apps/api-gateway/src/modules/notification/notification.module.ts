@@ -15,7 +15,7 @@ import { NotificationController } from './notification.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('NOTIFICATION_SERVICE_PORT'),
+            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
           },
         }),
       },
