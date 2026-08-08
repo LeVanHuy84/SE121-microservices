@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, AsyncIterator, Optional
 
 from app.schemas.assistant_schema import AssistantRespondRequest
-
 
 @dataclass(frozen=True)
 class LlmGeneration:
@@ -10,6 +9,11 @@ class LlmGeneration:
     model: str
     provider: str
 
+@dataclass(frozen=True)
+class LlmChunk:
+    content: str
+    model: Optional[str] = None
+    provider: Optional[str] = None
 
 class LlmProvider(Protocol):
     async def generate(
@@ -17,4 +21,11 @@ class LlmProvider(Protocol):
         prompt: str,
         request: AssistantRespondRequest,
     ) -> LlmGeneration:
+        ...
+
+    def stream(
+        self,
+        prompt: str,
+        request: AssistantRespondRequest,
+    ) -> AsyncIterator[LlmChunk]:
         ...

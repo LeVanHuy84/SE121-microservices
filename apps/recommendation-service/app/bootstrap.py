@@ -13,7 +13,17 @@ from app.services.global_fallback_batch_service import GlobalFallbackBatchServic
 from app.services.query_service import QueryService
 from app.services.rerank_service import rerank_service
 
+import os
+
 state_repository = RecommendationStateRepository(settings.DATABASE_URL)
+
+if state_repository.engine.dialect.name != "postgresql":
+    if os.environ.get("PYTEST_CURRENT_TEST") is None:
+        raise RuntimeError(
+            "Production environment MUST use PostgreSQL with pgvector for semantic search. "
+            f"Current dialect: {state_repository.engine.dialect.name}"
+        )
+
 global_fallback_batch_service = GlobalFallbackBatchService(state_repository)
 recommendation_query_service = QueryService(
     state_repository,

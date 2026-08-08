@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Emotion } from '@repo/dtos';
+import { CallEndReason, CallSessionStatus, CallType, Emotion } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ timestamps: true })
@@ -17,6 +17,9 @@ export class Message {
 
   @Prop({ type: String, default: '' })
   content?: string;
+
+  @Prop({ type: String, enum: ['text', 'system_call'], default: 'text' })
+  messageType: 'text' | 'system_call';
 
   @Prop({ default: 'sent', enum: ['sent', 'delivered', 'seen'] })
   status: 'sent' | 'delivered' | 'seen';
@@ -56,6 +59,40 @@ export class Message {
 
   @Prop({ type: Date, default: null })
   deletedAt?: Date;
+
+  @Prop({
+    type: {
+      kind: { type: String, default: null },
+      callId: { type: String, default: null },
+      callType: {
+        type: String,
+        enum: Object.values(CallType),
+        default: null,
+      },
+      callStatus: {
+        type: String,
+        enum: Object.values(CallSessionStatus),
+        default: null,
+      },
+      endedReason: {
+        type: String,
+        enum: Object.values(CallEndReason),
+        default: null,
+      },
+      durationSec: { type: Number, default: null },
+      actorId: { type: String, default: null },
+    },
+    default: null,
+  })
+  systemMeta?: {
+    kind?: 'call';
+    callId?: string;
+    callType?: CallType;
+    callStatus?: CallSessionStatus;
+    endedReason?: CallEndReason;
+    durationSec?: number;
+    actorId?: string;
+  } | null;
 
   @Prop({ type: Number, default: 0 })
   syncVersion: number;

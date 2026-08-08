@@ -5,9 +5,13 @@ import {
   AdminAppealQuery,
   AdminModerationQuery,
   AppealStatus,
+  CommentResponseDTO,
   CreateAdminReviewAppealDTO,
   CreateAppealRequestDTO,
   GetMyModerationQuery,
+  PostResponseDTO,
+  SystemRole,
+  TargetType,
 } from '@repo/dtos';
 import { ModerationAppealService } from './appeal.service';
 
@@ -22,18 +26,16 @@ export class ModerationController {
   async getMyModerationRecords(
     @Payload() payload: { userId: string; query: GetMyModerationQuery },
   ) {
-    console.log(
-      'Received get-my-moderation-records message with payload:',
-      payload,
-    );
     const { userId, query } = payload;
     return this.moderationService.getMyModerationRecords(userId, query);
   }
 
   @MessagePattern('moderation.get-record-detail')
-  async getModerationRecordDetail(@Payload() payload: { id: string }) {
-    const { id } = payload;
-    return this.moderationService.getModerationRecordDetail(id);
+  async getModerationRecordDetail(
+    @Payload() payload: { id: string; userId?: string; role?: SystemRole },
+  ) {
+    const { id, userId, role } = payload;
+    return this.moderationService.getModerationRecordDetail(id, userId, role);
   }
 
   @MessagePattern('moderation.admin.get-records')
@@ -87,5 +89,13 @@ export class ModerationController {
       false,
       adminId,
     );
+  }
+
+  @MessagePattern('internal.get_target_content')
+  async getTargetContent(
+    @Payload() payload: { targetId: string; targetType: TargetType },
+  ): Promise<PostResponseDTO | CommentResponseDTO | null> {
+    const { targetId, targetType } = payload;
+    return this.moderationService.getTargetContent(targetId, targetType);
   }
 }

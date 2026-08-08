@@ -7,9 +7,16 @@ import {
 } from 'typeorm';
 
 @Entity({ name: 'friend_recommendation_events' })
-@Index('idx_friend_recommendation_event_user_created_at', ['userId', 'createdAt'])
-@Index('idx_friend_recommendation_event_recommendation_id', ['recommendationId'])
-@Index('idx_friend_recommendation_event_request_id', ['recommendationRequestId'])
+@Index('idx_friend_recommendation_event_user_created_at', [
+  'userId',
+  'createdAt',
+])
+@Index('idx_friend_recommendation_event_recommendation_id', [
+  'recommendationId',
+])
+@Index('idx_friend_recommendation_event_request_id', [
+  'recommendationRequestId',
+])
 export class FriendRecommendationEventEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

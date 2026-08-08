@@ -28,6 +28,8 @@ export class ClerkWebhookService {
         return;
       }
 
+      const role = data?.public_metadata?.role;
+
       await firstValueFrom(
         this.userClient.send('createUser', {
           id: userId,
@@ -35,6 +37,7 @@ export class ClerkWebhookService {
           firstName: data?.first_name ?? '',
           lastName: data?.last_name ?? '',
           avatarUrl: data?.image_url ?? undefined,
+          role: role,
         })
       );
 
@@ -46,6 +49,50 @@ export class ClerkWebhookService {
       }
 
       this.logger.error('Error handling user created:', error);
+    }
+  }
+
+  /**
+   * Handle user updated event
+   * Sync Clerk user updates to user-service profile store
+   */
+  async handleUserUpdated(data: any) {
+    try {
+      const userId = data?.id;
+
+      if (!userId) {
+        this.logger.warn('User updated event missing id');
+        return;
+      }
+
+      const updateUserDto: Record<string, any> = {};
+
+      if (data?.first_name !== undefined) {
+        updateUserDto.firstName = data.first_name;
+      }
+      
+      if (data?.last_name !== undefined) {
+        updateUserDto.lastName = data.last_name;
+      }
+      
+      if (data?.image_url !== undefined) {
+        updateUserDto.avatarUrl = data.image_url;
+      }
+
+      if (Object.keys(updateUserDto).length === 0) {
+        return;
+      }
+
+      await firstValueFrom(
+        this.userClient.send('updateUser', {
+          id: userId,
+          updateUserDto,
+        })
+      );
+
+      this.logger.log(`Synced updated user ${userId} to user-service`);
+    } catch (error) {
+      this.logger.error('Error handling user updated:', error);
     }
   }
 

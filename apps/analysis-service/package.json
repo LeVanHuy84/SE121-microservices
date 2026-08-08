@@ -9,7 +9,7 @@
     "venv": "powershell.exe -NoExit -Command .\\venv\\Scripts\\Activate.ps1",
     "install": "pip install -r requirements.txt",
     "download-models": "venv\\Scripts\\python.exe download_models.py",
-    "start:dev": "venv\\Scripts\\python.exe -m app.main",
+    "start:dev": "venv\\Scripts\\uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1",
     "health": "curl http://localhost:4011/health",
     "start:prod": "venv\\Scripts\\uvicorn app.main:app --host 0.0.0.0 --port 4011 --workers 1"
   }

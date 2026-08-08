@@ -15,6 +15,8 @@ import {
   InteractionEventPayload,
   InteractionType,
   ActivityType,
+  NotiOutboxPayload,
+  NotiTargetType,
 } from '@repo/dtos';
 import { plainToInstance } from 'class-transformer';
 import { PostStat } from 'src/entities/post-stat.entity';
@@ -30,6 +32,7 @@ import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
 import { ShareShortenMapper } from '../share-shorten.mapper';
 import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
 import { OutboxService } from 'src/modules/event/outbox.service';
+import { UserClientService } from 'src/modules/client/user/user-client.service';
 
 @Injectable()
 export class ShareCommandService {
@@ -41,6 +44,7 @@ export class ShareCommandService {
     private readonly recentActivityBuffer: RecentActivityBufferService,
     private readonly dataSource: DataSource,
     private readonly outboxService: OutboxService,
+    private readonly userClient: UserClientService,
   ) {}
 
   /**
@@ -131,6 +135,7 @@ export class ShareCommandService {
         );
 
         promises.push(userActivityOutbox);
+        promises.push(this.createShareNotificationEvent(manager, post, userId));
 
         // ✅ Chạy tất cả các tác vụ song song (trong transaction)
         await Promise.all(promises);
@@ -327,5 +332,36 @@ export class ShareCommandService {
       .set({ shares: () => `"shares" + ${delta}` })
       .where('postId = :postId', { postId })
       .execute();
+  }
+
+  /**
+   * Tạo outbox event cho lượt share bài viết.
+   */
+  private async createShareNotificationEvent(
+    manager: EntityManager,
+    post: Post,
+    actorId: string,
+  ): Promise<OutboxEvent | null> {
+    if (!post.userId || post.userId === actorId) return null; // Không thông báo cho chính mình
+
+    const actor = await this.userClient.getUserInfo(actorId);
+
+    const notiPayload: NotiOutboxPayload = {
+      targetId: post.id,
+      targetType: NotiTargetType.POST,
+      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorAvatar: actor?.avatarUrl,
+      content: post.content.slice(0, 100),
+      receivers: [post.userId],
+    };
+
+    const outbox = manager.create(OutboxEvent, {
+      topic: 'notification',
+      eventType: 'share',
+      destination: EventDestination.RABBITMQ,
+      payload: notiPayload,
+    });
+
+    return manager.save(outbox);
   }
 }

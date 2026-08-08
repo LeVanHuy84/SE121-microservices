@@ -48,6 +48,12 @@ export class Conversation {
 
   @Prop({ type: Number, default: 0 })
   syncVersion: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'CallSession', default: null })
+  activeCallId?: Types.ObjectId | null;
+
+  @Prop({ type: Date, default: null })
+  lastCallAt?: Date | null;
 }
 
 export type ConversationDocument = HydratedDocument<Conversation>;
@@ -57,8 +63,8 @@ export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 // Index cho query participants nhanh
 ConversationSchema.index({ participants: 1, updatedAt: -1 });
 
-// Index cho query 1-1 cực nhanh
-ConversationSchema.index({ isGroup: 1, participants: 1 });
+// Index tối ưu hóa việc tìm kiếm hội thoại (kết hợp lọc participants và scan regex trên groupName)
+ConversationSchema.index({ participants: 1, groupName: 1, updatedAt: -1 });
 
 
 

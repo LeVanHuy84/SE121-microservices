@@ -44,7 +44,12 @@ CLIP_MODERATION_PROMPTS = {
     "safe": [
         "a normal everyday photo with people fully clothed",
         "a peaceful non violent daily life scene",
-        "a harmless ordinary image with no sexual or violent content"
+        "a harmless ordinary image with no sexual or violent content",
+        "a computer screen showing code in an editor",
+        "a laptop displaying a software project or terminal",
+        "a person working at a computer desk in an office",
+        "a screenshot of a programming workspace or IDE",
+        "a clean desktop workspace with a monitor and keyboard"
     ],
 }
 

@@ -1,5 +1,5 @@
 import { InjectRedis } from "@nestjs-modules/ioredis";
-import { Inject, Logger, OnModuleDestroy } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import {
   ConnectedSocket,
@@ -11,19 +11,23 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import type {
-  PresenceDisconnectEvent,
-  PresenceHeartbeatEvent,
-  PresenceInfo,
-  PresenceStatus,
-  PresenceUpdateEvent,
-} from "@repo/dtos";
 import { ConversationResponseDTO, MessageResponseDTO } from "@repo/dtos";
 import Redis from "ioredis";
 import { lastValueFrom } from "rxjs";
 import { Server, Socket } from "socket.io";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { clerkWsMiddleware } from "src/common/middlewares/clerk-ws.middleware";
+import { PresenceTrackerService } from "./services/presence-tracker.service";
+import type {
+  AcceptCallDTO,
+  CreateCallDTO,
+  EndCallDTO,
+  JoinCallDTO,
+  KickCallParticipantDTO,
+  LeaveCallDTO,
+  RejectCallDTO,
+  SendCallSignalDTO,
+} from "@repo/dtos";
 
 @WebSocketGateway({
   namespace: "/chat",
@@ -36,22 +40,10 @@ export class ChatGateway
   implements
     OnGatewayInit,
     OnGatewayConnection,
-    OnGatewayDisconnect,
-    OnModuleDestroy
+    OnGatewayDisconnect
 {
-  private readonly logger = new Logger(ChatGateway.name);
-  private readonly presenceEventsChannel = "presence:events";
-  private readonly presenceUpdatesChannel = "presence:updates";
-  private sub: Redis;
   @WebSocketServer() server: Server;
-
-  private serverId =
-    process.env.GATEWAY_INSTANCE_ID ||
-    process.env.HOSTNAME ||
-    `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
-  private readonly HEARTBEAT_MIN_INTERVAL_MS = Number(
-    process.env.PRESENCE_HEARTBEAT_MIN_INTERVAL_MS ?? 5000,
-  );
+  private readonly logger = new Logger(ChatGateway.name);
   private readonly ACTIVE_CONVERSATION_TTL_SECONDS = Number(
     process.env.CHAT_ACTIVE_CONVERSATION_TTL_SECONDS ?? 60,
   );
@@ -59,30 +51,12 @@ export class ChatGateway
     @InjectRedis() private readonly redis: Redis,
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
     private readonly chatClient: ClientProxy,
+    private readonly presenceTracker: PresenceTrackerService,
   ) {}
-
-  async onModuleInit() {
-    this.sub = this.redis.duplicate();
-
-    await this.sub.subscribe(this.presenceUpdatesChannel);
-    this.sub.on("message", (channel, message) => {
-      if (channel !== this.presenceUpdatesChannel) return;
-      this.handlePresenceUpdateMessage(message);
-    });
-
-    this.logger.log("PresenceGateway subscribed to presence:updates");
-  }
-
-  async onModuleDestroy() {
-    if (this.sub) {
-      this.sub.removeAllListeners();
-      this.sub.disconnect();
-    }
-  }
 
   afterInit(server: Server) {
     server.use(clerkWsMiddleware);
-    this.logger.log("✅ WS Gateway initialized");
+    this.presenceTracker.setServer(server);
   }
 
   async handleConnection(client: Socket) {
@@ -101,42 +75,13 @@ export class ChatGateway
     const userId = client.user?.id as string | undefined;
     if (!userId) return;
     await this.clearActiveConversation(client);
-    const evt: PresenceDisconnectEvent = {
-      type: "DISCONNECT",
-      userId,
-      serverId: this.serverId,
-      connectionId: client.id,
-      ts: Date.now(),
-    };
-
-    await this.redis.publish(this.presenceEventsChannel, JSON.stringify(evt));
+    await this.presenceTracker.handleDisconnect(client);
     this.logger.log(`❌ Client disconnected: ${client.user?.id}`);
   }
 
   @SubscribeMessage("heartbeat")
-  handleHeartbeat(@ConnectedSocket() client: Socket) {
-    const userId = client.user?.id as string;
-    if (!userId) return;
-    const now = Date.now();
-    const lastHeartbeatAt = client.data.lastHeartbeatAt as number | undefined;
-    if (
-      lastHeartbeatAt &&
-      now - lastHeartbeatAt < this.HEARTBEAT_MIN_INTERVAL_MS
-    ) {
-      return;
-    }
-    client.data.lastHeartbeatAt = now;
-    const evt: PresenceHeartbeatEvent = {
-      type: "HEARTBEAT",
-      userId,
-      serverId: this.serverId,
-      connectionId: client.id,
-      ts: now,
-    };
-
-    this.redis.publish(this.presenceEventsChannel, JSON.stringify(evt));
-    void this.refreshActiveConversation(client);
-    // this.logger.debug(`Received heartbeat from user ${userId}`);
+  async handleHeartbeat(@ConnectedSocket() client: Socket) {
+    await this.presenceTracker.handleHeartbeat(client, this.refreshActiveConversation.bind(this));
   }
 
   // ========== Client subscribe / unsubscribe presence của người khác ==========
@@ -146,19 +91,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: string[] },
   ) {
-    const { userIds } = data || {};
-    if (!Array.isArray(userIds) || !userIds.length) return;
-
-    const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
-    if (!uniqueIds.length) return;
-    uniqueIds.forEach((id) => client.join(`presence:${id}`));
-    this.logger.debug(
-      `Client ${client.id} subscribed presence of [${uniqueIds.join(", ")}]`,
-    );
-    const snapshot = await this.getPresenceSnapshot(uniqueIds);
-
-    // trả về map: { [userId]: { status, lastSeen } }
-    client.emit("presence.snapshot", snapshot);
+    await this.presenceTracker.handleSubscribe(client, data?.userIds);
   }
 
   @SubscribeMessage("presence.unsubscribe")
@@ -166,15 +99,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: string[] },
   ) {
-    const { userIds } = data || {};
-    if (!Array.isArray(userIds) || !userIds.length) return;
-
-    const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
-    if (!uniqueIds.length) return;
-    uniqueIds.forEach((id) => client.leave(`presence:${id}`));
-    this.logger.debug(
-      `Client ${client.id} unsubscribed presence of [${uniqueIds.join(", ")}]`,
-    );
+    this.presenceTracker.handleUnsubscribe(client, data?.userIds);
   }
 
   @SubscribeMessage("conversation.join")
@@ -256,6 +181,7 @@ export class ChatGateway
       isTyping: false,
     });
   }
+
 
   private broadcastToConversation(
     conversationId: string,
@@ -353,69 +279,105 @@ export class ChatGateway
     this.emitToUsers(participants, "conversation.memberJoined", conversation);
   }
 
-  // ========== Handle presence update từ presence-service ==========
-  private handlePresenceUpdateMessage(message: string) {
-    let evt: PresenceUpdateEvent;
-    try {
-      evt = JSON.parse(message);
-    } catch (e) {
-      this.logger.error("Invalid presence update message", e);
-      return;
+  emitCallCreated(payload: {
+    conversationId: string;
+    participants: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.invite", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(payload.conversationId, "call.invite", payload);
     }
-
-    if (evt.type !== "PRESENCE_UPDATE") return;
-
-    // Broadcast cho tất cả client đang subscribe presence của user này
-    this.server.to(`presence:${evt.userId}`).emit("presence.update", {
-      userId: evt.userId,
-      status: evt.status,
-      lastSeen: evt.lastSeen,
-    });
   }
 
-  private async getPresenceSnapshot(
-    userIds: string[],
-  ): Promise<Record<string, PresenceInfo>> {
-    if (!userIds.length) return {};
-
-    const pipeline = this.redis.pipeline();
-    userIds.forEach((id) => pipeline.hgetall(`presence:user:${id}`));
-
-    const results = await pipeline.exec(); // [[err, value], [err, value], ...]
-
-    const snapshot: Record<string, PresenceInfo> = {};
-
-    if (!results) return snapshot;
-
-    results.forEach(([err, raw], idx) => {
-      const userId = userIds[idx];
-
-      // Nếu có lỗi hoặc không có dữ liệu → coi như offline
-      if (err || !raw || Object.keys(raw as any).length === 0) {
-        snapshot[userId] = {
-          status: "offline",
-          lastSeen: null,
-        };
-        return;
-      }
-
-      const hash = raw as Record<string, string>;
-
-      const status = (hash.status ?? "offline") as PresenceStatus;
-      const lastSeen =
-        hash.lastSeen !== undefined && hash.lastSeen !== null
-          ? Number(hash.lastSeen)
-          : null;
-
-      snapshot[userId] = {
-        status,
-        lastSeen,
-        serverId: hash.lastServerId ?? null,
-      };
-    });
-
-    return snapshot;
+  emitCallAccepted(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.accepted", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.accepted",
+        payload,
+      );
+    }
   }
+
+  emitCallRejected(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.rejected", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.rejected",
+        payload,
+      );
+    }
+  }
+
+  emitCallEnded(payload: {
+    conversationId: string;
+    participants?: string[];
+    [key: string]: any;
+  }) {
+    this.emitToUsers(payload.participants || [], "call.ended", payload);
+    if (payload.conversationId) {
+      this.broadcastToConversation(payload.conversationId, "call.ended", payload);
+    }
+  }
+
+
+  emitCallParticipantJoined(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantJoined",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantLeft(payload: {
+    conversationId: string;
+    [key: string]: any;
+  }) {
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantLeft",
+        payload,
+      );
+    }
+  }
+
+  emitCallParticipantKicked(payload: {
+    conversationId: string;
+    targetUserId?: string;
+    [key: string]: any;
+  }) {
+    if (payload.targetUserId) {
+      this.server
+        .to(`user:${payload.targetUserId}`)
+        .emit("call.participantKicked", payload);
+    }
+    if (payload.conversationId) {
+      this.broadcastToConversation(
+        payload.conversationId,
+        "call.participantKicked",
+        payload,
+      );
+    }
+  }
+
+
 
   private getVisibleUsers(conv: ConversationResponseDTO): string[] {
     const participants = conv.participants ?? [];

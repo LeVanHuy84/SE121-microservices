@@ -1,30 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   ActivityType,
-  CursorPaginationDTO,
   CursorPageResponse,
+  CursorPaginationDTO,
   RecommendationGraphEventType,
 } from '@repo/dtos';
-import { DataSource, MoreThan, Repository } from 'typeorm';
+import Redis from 'ioredis';
+import { OutboxService } from 'src/event/outbox.service';
+import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { FriendRecommendationEventEntity } from 'src/postgres/entities/friend-recommendation-event.entity';
 import { FriendRequestEntity } from 'src/postgres/entities/friend-request.entity';
 import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
-import { FriendRecommendationDismissalEntity } from 'src/postgres/entities/friend-recommendation-dismissal.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
-import { OutboxService } from 'src/event/outbox.service';
+import { DataSource, MoreThan, Repository } from 'typeorm';
 import {
   AcceptedFriendRequestAttribution,
+  FriendRecommendation,
   FriendRecommendationAnalyticsCandidateSourceMode,
   FriendRecommendationAnalyticsSource,
   FriendRecommendationAttribution,
   FriendRecommendationEvent,
-  FriendRecommendation,
   SocialGraphRepository,
 } from './social-graph.repository';
 
 @Injectable()
 export class PostgresSocialGraphRepository implements SocialGraphRepository {
+  private readonly logger = new Logger(PostgresSocialGraphRepository.name);
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(FriendRecommendationEventEntity)
@@ -38,7 +41,18 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     @InjectRepository(FriendRecommendationDismissalEntity)
     private readonly recommendationDismissalRepo: Repository<FriendRecommendationDismissalEntity>,
     private readonly outboxService: OutboxService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
+
+  private getFriendsKey(userId: string) {
+    return `friends:${userId}`;
+  }
+
+  private getBlocksKey(userId: string) {
+    return `blocks:${userId}`;
+  }
+
+  private readonly EMPTY_FLAG = '__EMPTY__';
 
   async getRelationshipStatus(userId: string, targetId: string) {
     const [row] = await this.dataSource.query(
@@ -68,7 +82,14 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     );
 
     if (row?.status) {
-      return { status: row.status as 'BLOCKED' | 'FRIEND' | 'REQUESTED_OUT' | 'REQUESTED_IN' | 'NONE' };
+      return {
+        status: row.status as
+          | 'BLOCKED'
+          | 'FRIEND'
+          | 'REQUESTED_OUT'
+          | 'REQUESTED_IN'
+          | 'NONE',
+      };
     }
 
     return { status: 'NONE' as const };
@@ -193,6 +214,15 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         .orIgnore()
         .execute();
 
+      const timestamp = Date.now();
+      await this.redis
+        .pipeline()
+        .zadd(this.getFriendsKey(userId), timestamp, requesterId)
+        .zadd(this.getFriendsKey(requesterId), timestamp, userId)
+        .zrem(this.getFriendsKey(userId), this.EMPTY_FLAG)
+        .zrem(this.getFriendsKey(requesterId), this.EMPTY_FLAG)
+        .exec();
+
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.FRIEND_REQUEST_ACCEPTED,
@@ -277,6 +307,12 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         return { removed: false };
       }
 
+      await this.redis
+        .pipeline()
+        .zrem(this.getFriendsKey(userId), friendId)
+        .zrem(this.getFriendsKey(friendId), userId)
+        .exec();
+
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.FRIENDSHIP_REMOVED,
@@ -329,6 +365,15 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         return { created: false };
       }
 
+      const timestamp = Date.now();
+      await this.redis
+        .pipeline()
+        .zrem(this.getFriendsKey(userId), targetId)
+        .zrem(this.getFriendsKey(targetId), userId)
+        .zadd(this.getBlocksKey(userId), timestamp, targetId)
+        .zrem(this.getBlocksKey(userId), this.EMPTY_FLAG)
+        .exec();
+
       await this.outboxService.createRecommendationGraphEvent(
         manager,
         RecommendationGraphEventType.USER_BLOCKED,
@@ -367,6 +412,8 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       if (!deleteResult.affected) {
         return { removed: false };
       }
+
+      await this.redis.zrem(this.getBlocksKey(userId), targetId);
 
       await this.outboxService.createRecommendationGraphEvent(
         manager,
@@ -407,22 +454,61 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    const rows = await this.friendshipRepo.find({
-      where: {
-        userId,
-        ...(query.cursor ? { friendId: MoreThan(query.cursor) } : {}),
-      },
-      order: { friendId: 'ASC' },
-      take: query.limit + 1,
-      select: {
-        friendId: true,
-      },
+    const cacheKey = this.getFriendsKey(userId);
+    const cacheExists = await this.redis.exists(cacheKey);
+
+    if (!cacheExists) {
+      await this.rebuildFriendsCache(userId);
+    }
+
+    const limit = query.limit;
+    // ZREVRANGEBYSCORE with max, min, LIMIT offset, count
+    let cachedFriends: string[];
+
+    if (query.cursor) {
+      // Find the score of the cursor to paginate from
+      const cursorScore = await this.redis.zscore(cacheKey, query.cursor);
+      if (cursorScore) {
+        // Exclude the cursor itself by subtracting a tiny amount, but Redis ZREVRANGEBYSCORE allows exclusive ranges using '('
+        cachedFriends = await this.redis.zrevrangebyscore(
+          cacheKey,
+          `(${cursorScore}`,
+          '-inf',
+          'LIMIT',
+          0,
+          limit + 1,
+        );
+      } else {
+        cachedFriends = [];
+      }
+    } else {
+      cachedFriends = await this.redis.zrevrange(cacheKey, 0, limit);
+    }
+
+    cachedFriends = cachedFriends.filter((id) => id !== this.EMPTY_FLAG);
+
+    return this.buildStringPage(cachedFriends, limit);
+  }
+
+  private async rebuildFriendsCache(userId: string): Promise<void> {
+    const allFriends = await this.friendshipRepo.find({
+      where: { userId },
+      select: { friendId: true, since: true },
     });
 
-    return this.buildStringPage(
-      rows.map((row) => row.friendId),
-      query.limit,
-    );
+    const pipeline = this.redis.pipeline();
+    const cacheKey = this.getFriendsKey(userId);
+
+    if (allFriends.length === 0) {
+      pipeline.zadd(cacheKey, 0, this.EMPTY_FLAG);
+    } else {
+      for (const f of allFriends) {
+        pipeline.zadd(cacheKey, f.since.getTime(), f.friendId);
+      }
+    }
+
+    pipeline.expire(cacheKey, 604800); // 7 days TTL
+    await pipeline.exec();
   }
 
   async getFriendRequests(
@@ -509,22 +595,58 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     userId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
-    const rows = await this.userBlockRepo.find({
-      where: {
-        blockerId: userId,
-        ...(query.cursor ? { blockedId: MoreThan(query.cursor) } : {}),
-      },
-      order: { blockedId: 'ASC' },
-      take: query.limit + 1,
-      select: {
-        blockedId: true,
-      },
+    const cacheKey = this.getBlocksKey(userId);
+    const cacheExists = await this.redis.exists(cacheKey);
+
+    if (!cacheExists) {
+      await this.rebuildBlocksCache(userId);
+    }
+
+    const limit = query.limit;
+    let cachedBlocks: string[];
+
+    if (query.cursor) {
+      const cursorScore = await this.redis.zscore(cacheKey, query.cursor);
+      if (cursorScore) {
+        cachedBlocks = await this.redis.zrevrangebyscore(
+          cacheKey,
+          `(${cursorScore}`,
+          '-inf',
+          'LIMIT',
+          0,
+          limit + 1,
+        );
+      } else {
+        cachedBlocks = [];
+      }
+    } else {
+      cachedBlocks = await this.redis.zrevrange(cacheKey, 0, limit);
+    }
+
+    cachedBlocks = cachedBlocks.filter((id) => id !== this.EMPTY_FLAG);
+
+    return this.buildStringPage(cachedBlocks, limit);
+  }
+
+  private async rebuildBlocksCache(userId: string): Promise<void> {
+    const allBlocks = await this.userBlockRepo.find({
+      where: { blockerId: userId },
+      select: { blockedId: true, createdAt: true },
     });
 
-    return this.buildStringPage(
-      rows.map((row) => row.blockedId),
-      query.limit,
-    );
+    const pipeline = this.redis.pipeline();
+    const cacheKey = this.getBlocksKey(userId);
+
+    if (allBlocks.length === 0) {
+      pipeline.zadd(cacheKey, 0, this.EMPTY_FLAG);
+    } else {
+      for (const b of allBlocks) {
+        pipeline.zadd(cacheKey, b.createdAt.getTime(), b.blockedId);
+      }
+    }
+
+    pipeline.expire(cacheKey, 604800); // 7 days TTL
+    await pipeline.exec();
   }
 
   async recordRecommendationEvents(events: FriendRecommendationEvent[]) {

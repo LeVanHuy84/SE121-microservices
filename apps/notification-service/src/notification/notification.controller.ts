@@ -6,7 +6,7 @@ import {
   Payload,
   RmqContext,
 } from '@nestjs/microservices';
-import { CursorPaginationDTO } from '@repo/dtos';
+import { CursorPaginationDTO, GetNotificationQueryDto } from '@repo/dtos';
 
 import { ChatPushService } from './chat-push.service';
 import { NotificationService } from './notification.service';
@@ -48,6 +48,34 @@ export class NotificationController {
     }
   }
 
+  @EventPattern('send_call_push')
+  async handleSendCallPush(@Payload() data: any, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.chatPushService.enqueueCallPush(data.sendCallPushDto);
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error('Error processing call push message:', err);
+      channel.nack(originalMsg, false, false);
+    }
+  }
+
+  @EventPattern('send_call_cancel_push')
+  async handleSendCallCancelPush(@Payload() data: any, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      await this.chatPushService.enqueueCallCancelPush(data);
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error('Error processing call cancel push message:', err);
+      channel.nack(originalMsg, false, false);
+    }
+  }
+
   @EventPattern('clear_chat_push_state')
   async handleClearChatPushState(
     @Payload() data: any,
@@ -68,8 +96,13 @@ export class NotificationController {
   }
 
   @MessagePattern('get_notifications')
-  findAll(@Payload() data: { userId: string; query: CursorPaginationDTO }) {
+  findAll(@Payload() data: { userId: string; query: GetNotificationQueryDto }) {
     return this.notificationService.findByUser(data.userId, data.query);
+  }
+
+  @MessagePattern('get_unread_count')
+  getUnreadCount(@Payload() userId: string) {
+    return this.notificationService.countUnread(userId);
   }
 
   @MessagePattern('mark_read')

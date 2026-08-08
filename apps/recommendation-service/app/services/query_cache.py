@@ -71,6 +71,7 @@ class RedisRecommendationQueryCache:
         )
         self._client = client or self._create_client()
         self._unavailable_until = 0.0
+        self._failure_count = 0
 
     def get(
         self,
@@ -240,7 +241,6 @@ class RedisRecommendationQueryCache:
             self._client.hincrby(self._stats_key, name, amount)
         except Exception:
             logger.debug("Failed to increment Redis cache stat=%s", name)
-            self._mark_unavailable()
 
     def store_candidate_session(
         self,
@@ -306,10 +306,23 @@ class RedisRecommendationQueryCache:
             return None
 
     def _is_unavailable(self) -> bool:
-        return monotonic() < self._unavailable_until
+        from time import monotonic
+        if monotonic() < self._unavailable_until:
+            return True
+        if self._failure_count > 0:
+            try:
+                self._client.ping()
+                self._failure_count = 0
+            except Exception:
+                self._mark_unavailable()
+                return True
+        return False
 
     def _mark_unavailable(self):
-        self._unavailable_until = monotonic() + 5.0
+        from time import monotonic
+        self._failure_count += 1
+        backoff = min(30.0, 1.0 * (2 ** (self._failure_count - 1)))
+        self._unavailable_until = monotonic() + backoff
 
     def _unavailable_stats(self) -> dict[str, int | float | str | bool]:
         return {

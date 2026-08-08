@@ -42,8 +42,6 @@ export class ModerationController {
     @CurrentUserId() userId: string,
     @Query() query: GetMyModerationQuery,
   ) {
-    this.logger.log(`Get moderation records for userId=${userId}`);
-
     return this.postClient.send('moderation.get-my-records', {
       userId,
       query,
@@ -55,6 +53,12 @@ export class ModerationController {
     @CurrentUserId() userId: string,
     @Param('id') id: string,
   ) {
+    console.log(
+      'Fetching moderation record detail for id:',
+      id,
+      'and userId:',
+      userId,
+    );
     return this.postClient.send('moderation.get-record-detail', {
       id,
       userId,
@@ -81,19 +85,30 @@ export class ModerationController {
   // =========================================================
 
   @Get('admin/records')
-  @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async getAdminModerationRecords(@Query() query: AdminModerationQuery) {
     return this.postClient.send('moderation.admin.get-records', query);
   }
 
+  @Get('admin/records/:id')
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
+  async getAdminModerationRecordDetail(@Param('id') id: string) {
+    console.log(`Admin fetching moderation record detail for id=${id}`);
+    return this.postClient.send('moderation.get-record-detail', {
+      id,
+      userId: null,
+      role: SystemRole.ADMIN,
+    });
+  }
+
   @Get('admin/appeals')
-  @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async getAdminAppeals(@Query() query: AdminAppealQuery) {
     return this.postClient.send('moderation.admin.get-appeals', query);
   }
 
   @Patch('admin/appeals/:appealId')
-  @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async reviewAppeal(
     @CurrentUserId() userId: string,
     @Param('appealId') appealId: string,
@@ -107,17 +122,12 @@ export class ModerationController {
   }
 
   @Post(':moderationId/restore')
-  @RequireRole(SystemRole.ADMIN)
+  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async restoreModeratedContent(
     @CurrentUserId() adminId: string,
     @Param('moderationId') moderationId: string,
     @Body() body: { status: AppealStatus },
   ) {
-    console.log('restoreModeratedContent called with:', {
-      adminId,
-      moderationId,
-      status: body.status,
-    });
     return this.postClient.send('moderation.admin.restore-content', {
       moderationId,
       adminId,

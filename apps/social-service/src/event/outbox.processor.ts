@@ -79,12 +79,37 @@ export class OutboxProcessor {
           type: event.eventType,
           payload: event.payload,
         },
-        event.id,
+        this.getPartitionKey(event),
       );
     } catch (error) {
       await this.outboxRepo.update({ id: event.id }, { processed: false });
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to publish social outbox event ${event.id}: ${message}`);
+      this.logger.error(
+        `Failed to publish social outbox event ${event.id}: ${message}`,
+      );
     }
+  }
+
+  private getPartitionKey(event: OutboxEventEntity): string {
+    const payload = event.payload as any;
+    if (!payload || typeof payload !== 'object') {
+      return event.id;
+    }
+
+    const userId = payload.userId;
+    const targetUserId = payload.targetUserId || payload.candidateId;
+
+    if (userId && targetUserId) {
+      // Sort IDs to ensure the pair always hashes to the same partition
+      // regardless of who sent the request and who received it
+      const ids = [String(userId), String(targetUserId)].sort();
+      return ids.join('::');
+    }
+
+    if (userId) {
+      return String(userId);
+    }
+
+    return event.id;
   }
 }

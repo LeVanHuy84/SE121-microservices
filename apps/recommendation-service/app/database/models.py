@@ -34,6 +34,16 @@ class ProfileEmbedding(Base):
         DateTime(timezone=True), nullable=False
     )
 
+    __table_args__ = (
+        Index(
+            "idx_profile_embeddings_vector",
+            "embedding_vector",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding_vector": "vector_cosine_ops"},
+        ),
+    )
+
 
 class RecommendationFriendship(Base):
     __tablename__ = "recommendation_friendships"

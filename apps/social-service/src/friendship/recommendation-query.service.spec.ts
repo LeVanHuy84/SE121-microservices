@@ -1,25 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecommendationClientService } from '../client/recommendation/recommendation-client.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
-import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
+import { UserClientService } from '../client/user/user-client.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
-import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
 
 describe('RecommendationQueryService', () => {
   let service: RecommendationQueryService;
 
   const queryCandidates = jest.fn();
-  const hydrateRecommendationUsers = jest.fn();
-  const attachRecommendationTrackingIds = jest.fn();
-  const recordServedEvents = jest.fn();
+  const getUsers = jest.fn();
   const summarizeCandidates = jest.fn();
+  const recordRecommendationEvents = jest.fn();
 
   beforeEach(async () => {
     queryCandidates.mockReset();
-    hydrateRecommendationUsers.mockReset();
-    attachRecommendationTrackingIds.mockReset();
-    recordServedEvents.mockReset();
+    getUsers.mockReset();
     summarizeCandidates.mockReset();
+    recordRecommendationEvents.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -31,22 +28,16 @@ describe('RecommendationQueryService', () => {
           },
         },
         {
-          provide: RecommendationHydrationService,
+          provide: UserClientService,
           useValue: {
-            hydrateRecommendationUsers,
-          },
-        },
-        {
-          provide: RecommendationTrackingService,
-          useValue: {
-            attachRecommendationTrackingIds,
-            recordServedEvents,
+            getUsers,
           },
         },
         {
           provide: SOCIAL_GRAPH_REPOSITORY,
           useValue: {
             summarizeCandidates,
+            recordRecommendationEvents,
           },
         },
       ],
@@ -88,9 +79,12 @@ describe('RecommendationQueryService', () => {
         mutualFriendIds: ['mutual-1', 'mutual-2'],
       },
     ]);
-    attachRecommendationTrackingIds.mockImplementation((rows) => rows);
-    hydrateRecommendationUsers.mockImplementation(async (rows) => rows);
-    recordServedEvents.mockResolvedValue(undefined);
+    getUsers.mockResolvedValue({
+      'candidate-1': { id: 'candidate-1', name: 'Alice' },
+      'mutual-1': { id: 'mutual-1', name: 'Bob' },
+      'mutual-2': { id: 'mutual-2', name: 'Charlie' },
+    });
+    recordRecommendationEvents.mockResolvedValue(undefined);
 
     const result = await service.recommendFriends('viewer-1', {
       limit: 10,
@@ -101,13 +95,8 @@ describe('RecommendationQueryService', () => {
     expect(summarizeCandidates).toHaveBeenCalledWith('viewer-1', [
       'candidate-1',
     ]);
-    expect(attachRecommendationTrackingIds).toHaveBeenCalledTimes(1);
-    expect(hydrateRecommendationUsers).toHaveBeenCalledTimes(1);
-    expect(recordServedEvents).toHaveBeenCalledWith(
-      'viewer-1',
-      expect.any(Array),
-      0,
-    );
+    expect(getUsers).toHaveBeenCalledTimes(1);
+    expect(recordRecommendationEvents).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       data: [
         expect.objectContaining({
@@ -139,7 +128,7 @@ describe('RecommendationQueryService', () => {
       nextCursor: null,
       hasNextPage: false,
     });
-    expect(hydrateRecommendationUsers).not.toHaveBeenCalled();
-    expect(recordServedEvents).not.toHaveBeenCalled();
+    expect(getUsers).not.toHaveBeenCalled();
+    expect(recordRecommendationEvents).not.toHaveBeenCalled();
   });
 });

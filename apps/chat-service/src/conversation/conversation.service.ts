@@ -41,23 +41,42 @@ export class ConversationService {
 
   private async withTransaction<T>(
     work: (session: ClientSession) => Promise<T>,
+    maxRetries = 3,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    session.startTransaction();
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      const session = await this.connection.startSession();
+      session.startTransaction();
 
-    try {
-      const result = await work(session);
-      await session.commitTransaction();
-      await this.outboxService.flushPendingChatEvents(session);
-      return result;
-    } catch (error) {
-      await session.abortTransaction();
-      this.outboxService.clearPendingChatEvents(session);
-      throw error;
-    } finally {
-      this.outboxService.clearPendingChatEvents(session);
-      await session.endSession();
+      try {
+        const result = await work(session);
+        await session.commitTransaction();
+        await this.outboxService.flushPendingChatEvents(session);
+        return result;
+      } catch (error) {
+        await session.abortTransaction();
+        this.outboxService.clearPendingChatEvents(session);
+
+        const isWriteConflict =
+          error.message?.includes('Write conflict') || error.code === 112;
+        if (isWriteConflict && attempts < maxRetries - 1) {
+          attempts++;
+          this.logger.warn(
+            `WriteConflict occurred, retrying transaction (attempt ${attempts + 1}/${maxRetries})...`,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.random() * 50 + 10),
+          ); // Jitter 10-60ms
+          continue;
+        }
+
+        throw error;
+      } finally {
+        this.outboxService.clearPendingChatEvents(session);
+        await session.endSession();
+      }
     }
+    throw new Error('Transaction failed after retries'); // Should not reach here
   }
 
   // ==================== GET BY ID ====================
@@ -263,6 +282,12 @@ export class ConversationService {
         );
       }
 
+      if (groupName || dto.groupAvatar) {
+        throw new RpcException(
+          'Direct conversation cannot have group name or group avatar',
+        );
+      }
+
       const sorted = [...participants].sort();
       const directKey = sorted.join(':');
 
@@ -443,6 +468,16 @@ export class ConversationService {
         conv.participants = conv.participants.filter((p) => !rm.has(p));
         conv.admins = (conv.admins || []).filter((a) => !rm.has(a));
         conv.hiddenFor = (conv.hiddenFor || []).filter((u) => !rm.has(u));
+
+        if (conv.participants.length < 2) {
+          throw new RpcException(
+            'Group conversation must have at least 2 participants remaining',
+          );
+        }
+
+        if (!conv.admins.length && conv.participants.length > 0) {
+          conv.admins = [conv.participants[0]];
+        }
       }
 
       // // Thêm admin

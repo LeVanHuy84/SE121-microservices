@@ -94,7 +94,8 @@ export class GroupClientService {
         }
       },
       encodeCachedValue: (value) => JSON.stringify(value),
-      normalizeFetchedValue: (value) => this.normalizeGroupNames(value, safeLimit),
+      normalizeFetchedValue: (value) =>
+        this.normalizeGroupNames(value, safeLimit),
       fetchUncached: async (uncachedCandidateIds) => {
         const response = await this.sendGroupRequest<Record<string, string[]>>(
           'get_common_group_names_batch',
@@ -224,10 +225,14 @@ export class GroupClientService {
       `GROUP_SERVICE ${options.metricLabel} resolved: requested=${options.candidateIds.length} cacheHits=${options.candidateIds.length - uncachedCandidateIds.length} cacheMisses=${uncachedCandidateIds.length}${options.extraLogData ? ` ${options.extraLogData}` : ''} durationMs=${Date.now() - startedAt}`,
     );
 
-    return options.candidateIds.reduce<Record<string, T>>((acc, candidateId) => {
-      acc[candidateId] = valuesByCandidate[candidateId] ?? options.defaultValue;
-      return acc;
-    }, {});
+    return options.candidateIds.reduce<Record<string, T>>(
+      (acc, candidateId) => {
+        acc[candidateId] =
+          valuesByCandidate[candidateId] ?? options.defaultValue;
+        return acc;
+      },
+      {},
+    );
   }
 
   private async sendGroupRequest<T>(

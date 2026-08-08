@@ -26,7 +26,7 @@ class GlobalFallbackBatchService:
             int(top_k or settings.RECOMMENDATION_GLOBAL_FALLBACK_TOP_K),
         )
 
-        rows = self.repository.list_profile_embeddings()
+        rows = self.repository.list_profile_metadata_for_fallback()
         if not rows:
             self.repository.replace_global_fallback_candidates(
                 candidates=[],

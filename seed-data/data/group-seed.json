@@ -1,0 +1,1942 @@
+[
+  {
+    "id": "11111111-1111-4111-8111-000000000001",
+    "name": "Mindful Circle Vietnam",
+    "description": "Cong dong chia se kien thuc ve suc khoe tinh than, thoi quen phuc hoi va cach tu cham soc ban than hang ngay.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_mindful_circle_avatar",
+      "fileName": "mindful-circle-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 184512
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_mindful_circle_cover",
+      "fileName": "mindful-circle-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 624811
+    },
+    "privacy": "PUBLIC",
+    "rules": "Ton trong nhau, khong spam, khong phan xet, noi chuyen truoc khi chia se noi dung nay cam.",
+    "members": 5,
+    "reports": 1,
+    "owner": {
+      "id": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+      "fullName": "Lan Hồ",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqUXNJb2FBeklKbWs5c0JxVjYxbkJrRSIsImluaXRpYWxzIjoiTEgifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+    "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+    "createdAt": "2026-04-02T08:15:00.000Z",
+    "updatedAt": "2026-05-20T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000001",
+      "requiredPostApproval": true,
+      "allowMemberInvite": true,
+      "maxMembers": 2500,
+      "createdBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+      "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+      "createdAt": "2026-04-02T08:20:00.000Z",
+      "updatedAt": "2026-05-20T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000001",
+        "userId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-02T08:15:00.000Z",
+        "updatedAt": "2026-05-20T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000002",
+        "userId": "user_3EfwhpuffzaoHJfwPoHEzgk3m6X",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-03T09:00:00.000Z",
+        "updatedAt": "2026-05-20T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000003",
+        "userId": "user_3EfwjV9x8hyRzlGrm7dcQGLQFBy",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-04T09:30:00.000Z",
+        "updatedAt": "2026-05-20T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000004",
+        "userId": "user_3EfwiDeMEJYkCoywpHHXzonqcDv",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-05T10:00:00.000Z",
+        "updatedAt": "2026-05-20T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000005",
+        "userId": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-06T10:15:00.000Z",
+        "updatedAt": "2026-05-20T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000001",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "status": "APPROVED",
+        "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+        "updatedBy": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+        "createdAt": "2026-05-01T12:00:00.000Z",
+        "updatedAt": "2026-05-01T12:20:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000001",
+        "inviters": [
+          "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+          "user_3EfwhpuffzaoHJfwPoHEzgk3m6X"
+        ],
+        "inviteeId": "user_3Efwha4InxatlOyWzJQt9kXCMXb",
+        "status": "ACCEPTED",
+        "expiredAt": "2026-05-27T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "createdAt": "2026-05-20T08:20:00.000Z",
+        "updatedAt": "2026-05-21T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [
+      {
+        "id": "66666666-6666-4666-8666-000000000001",
+        "reporterId": "user_3EfwinPabcPn5rYayl0kPA0t2uq",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "reason": "Noi dung chia se co chieu huong qua cai le, can xem lai cach kiem duyet bai viet.",
+        "status": "PENDING",
+        "createdAt": "2026-05-22T14:10:00.000Z",
+        "updatedAt": "2026-05-22T14:10:00.000Z"
+      }
+    ],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000001",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "userId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+        "eventType": "GROUP_UPDATED",
+        "content": "Cap nhat mo ta nhom va bo sung quyen kiem duyet bai viet.",
+        "createdAt": "2026-05-20T09:05:00.000Z",
+        "updatedAt": "2026-05-20T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000002",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "userId": "user_3EfwhpuffzaoHJfwPoHEzgk3m6X",
+        "eventType": "INVITE_SENT",
+        "content": "Moi thanh vien moi tham gia chu de phuc hoi sau sang chan.",
+        "createdAt": "2026-05-20T10:05:00.000Z",
+        "updatedAt": "2026-05-20T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000001",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "date": "2026-05-19",
+        "postCount": 18,
+        "joinCount": 4,
+        "leaveCount": 1
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000002",
+        "groupId": "11111111-1111-4111-8111-000000000001",
+        "date": "2026-05-20",
+        "postCount": 21,
+        "joinCount": 2,
+        "leaveCount": 0
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000002",
+    "name": "Midnight Coders Club",
+    "description": "Noi ve code, bug, architecture va tinh than song sot trong nhung dem deadline.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_midnight_coders_avatar",
+      "fileName": "midnight-coders-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 192410
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_midnight_coders_cover",
+      "fileName": "midnight-coders-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 701233
+    },
+    "privacy": "PRIVATE",
+    "rules": "Tap trung vao chia se kinh nghiem, khong flame war, khong spam AI-generated nhay cam.",
+    "members": 5,
+    "reports": 1,
+    "owner": {
+      "id": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+      "fullName": "Thu Nguyễn",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqZEppMnpiYUVMRE1LS1Q5eVJTRzVJRCIsImluaXRpYWxzIjoiVE4ifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+    "updatedBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+    "createdAt": "2026-04-05T08:15:00.000Z",
+    "updatedAt": "2026-05-21T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000002",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 1800,
+      "createdBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+      "updatedBy": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+      "createdAt": "2026-04-05T08:20:00.000Z",
+      "updatedAt": "2026-05-21T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000006",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-05T08:15:00.000Z",
+        "updatedAt": "2026-05-21T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000007",
+        "userId": "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-06T09:00:00.000Z",
+        "updatedAt": "2026-05-21T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000008",
+        "userId": "user_3EfwinPabcPn5rYayl0kPA0t2uq",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-07T09:30:00.000Z",
+        "updatedAt": "2026-05-21T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000009",
+        "userId": "user_3EfwjdUMBk4FTFbPpdWqFztY5CE",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-08T10:00:00.000Z",
+        "updatedAt": "2026-05-21T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000010",
+        "userId": "user_3EfwiuSg27i5JFv3NSAo1xKT8cd",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-09T10:15:00.000Z",
+        "updatedAt": "2026-05-21T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000002",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "status": "PENDING",
+        "createdBy": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "updatedBy": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "createdAt": "2026-05-02T12:00:00.000Z",
+        "updatedAt": "2026-05-02T12:00:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000002",
+        "inviters": [
+          "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+          "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr"
+        ],
+        "inviteeId": "user_3EfwhTx7PpdGkdMOPBFTh0xYFQ5",
+        "status": "PENDING",
+        "expiredAt": "2026-05-28T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "createdAt": "2026-05-21T08:20:00.000Z",
+        "updatedAt": "2026-05-21T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [
+      {
+        "id": "66666666-6666-4666-8666-000000000002",
+        "reporterId": "user_3EfwjkrwmrP9HjhUMBm8XsfX1Yh",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "reason": "Mot so thao luan ve bug dang bi de nham thanh cãi nhau qua gay gat.",
+        "status": "RESOLVED",
+        "createdAt": "2026-05-23T14:10:00.000Z",
+        "updatedAt": "2026-05-24T14:10:00.000Z"
+      }
+    ],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000003",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "userId": "user_3EfwjdJi2zbaELDMKKT9yRSG5ID",
+        "eventType": "GROUP_SETTING_CHANGED",
+        "content": "Bat che do duyet bai viet cho cac chu de confidence thap.",
+        "createdAt": "2026-05-21T09:05:00.000Z",
+        "updatedAt": "2026-05-21T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000004",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "userId": "user_3EfwhZ1FM7B3dICqpf9hWfjNGUr",
+        "eventType": "MEMBER_ROLE_CHANGED",
+        "content": "Nang cap thanh vien thanh moderator de co them quyen kiem duyet.",
+        "createdAt": "2026-05-21T10:05:00.000Z",
+        "updatedAt": "2026-05-21T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000003",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "date": "2026-05-19",
+        "postCount": 29,
+        "joinCount": 5,
+        "leaveCount": 2
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000004",
+        "groupId": "11111111-1111-4111-8111-000000000002",
+        "date": "2026-05-20",
+        "postCount": 34,
+        "joinCount": 3,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000003",
+    "name": "Morning Run & Recovery",
+    "description": "Nhom cho nguoi yeu van dong nhe, chay bo buoi sang va phuc hoi nhan thuc sau tap.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_morning_run_avatar",
+      "fileName": "morning-run-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 175903
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1486218119243-13883505764c?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_morning_run_cover",
+      "fileName": "morning-run-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 588120
+    },
+    "privacy": "PUBLIC",
+    "rules": "Khuyen khich van dong an toan, chia se tran thanh, khong ap luc thanh tich.",
+    "members": 5,
+    "reports": 0,
+    "owner": {
+      "id": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+      "fullName": "Thảo Hoàng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndoVGxlOEZ5dm5qdnRScjllOW16aHNFVyIsImluaXRpYWxzIjoiVEgifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+    "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+    "createdAt": "2026-04-08T08:15:00.000Z",
+    "updatedAt": "2026-05-18T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000003",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 1200,
+      "createdBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+      "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+      "createdAt": "2026-04-08T08:20:00.000Z",
+      "updatedAt": "2026-05-18T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000011",
+        "userId": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-08T08:15:00.000Z",
+        "updatedAt": "2026-05-18T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000012",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-09T09:00:00.000Z",
+        "updatedAt": "2026-05-18T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000013",
+        "userId": "user_3Efwj92SHAbYNu2PcOOUzuP61rQ",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-10T09:30:00.000Z",
+        "updatedAt": "2026-05-18T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000014",
+        "userId": "user_3Efwj5aZ2PNQ6V5PR6SXmR9T2W3",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-11T10:00:00.000Z",
+        "updatedAt": "2026-05-18T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000015",
+        "userId": "user_3EfwhowuJEmGCl2wX9xdpKaQHg5",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-12T10:15:00.000Z",
+        "updatedAt": "2026-05-18T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000003",
+        "userId": "user_3EfwjWtihr3CCzkSW4CXUb14ntF",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "status": "REJECTED",
+        "createdBy": "user_3EfwjWtihr3CCzkSW4CXUb14ntF",
+        "updatedBy": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+        "createdAt": "2026-05-03T12:00:00.000Z",
+        "updatedAt": "2026-05-03T12:30:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000003",
+        "inviters": [
+          "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+          "user_3EfwhvgONfn8nEzqT38pTHghfES"
+        ],
+        "inviteeId": "user_3EfwiS30vBnkYk6YhV66gNIKTGJ",
+        "status": "DECLINED",
+        "expiredAt": "2026-05-29T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "createdAt": "2026-05-18T08:20:00.000Z",
+        "updatedAt": "2026-05-19T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000005",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "userId": "user_3EfwhTle8FyvnjvtRr9e9mzhsEW",
+        "eventType": "GROUP_UPDATED",
+        "content": "Dieu chinh thong diep nhom de tap trung vao phuc hoi va van dong nhe.",
+        "createdAt": "2026-05-18T09:05:00.000Z",
+        "updatedAt": "2026-05-18T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000006",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "userId": "user_3EfwhvgONfn8nEzqT38pTHghfES",
+        "eventType": "MEMBER_JOINED",
+        "content": "Them thanh vien moi co kinh nghiem chay bo buoi sang.",
+        "createdAt": "2026-05-18T10:05:00.000Z",
+        "updatedAt": "2026-05-18T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000005",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "date": "2026-05-19",
+        "postCount": 11,
+        "joinCount": 2,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000006",
+        "groupId": "11111111-1111-4111-8111-000000000003",
+        "date": "2026-05-20",
+        "postCount": 13,
+        "joinCount": 1,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000004",
+    "name": "Design Therapy Lab",
+    "description": "Khong gian chia se ve UI, branding, tipography va routine de giam burnout.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_design_therapy_avatar",
+      "fileName": "design-therapy-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 188104
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_design_therapy_cover",
+      "fileName": "design-therapy-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 655103
+    },
+    "privacy": "PUBLIC",
+    "rules": "Nhan xet co can cu, uu tien chia se screen va feedback mang tinh xay dung.",
+    "members": 5,
+    "reports": 0,
+    "owner": {
+      "id": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+      "fullName": "Vy Phạm",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqQ1VjMk40NDJPY0VaTVUzNGFZc08yUCIsImluaXRpYWxzIjoiVlAifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+    "updatedBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+    "createdAt": "2026-04-11T08:15:00.000Z",
+    "updatedAt": "2026-05-22T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000004",
+      "requiredPostApproval": true,
+      "allowMemberInvite": false,
+      "maxMembers": 900,
+      "createdBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+      "updatedBy": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+      "createdAt": "2026-04-11T08:20:00.000Z",
+      "updatedAt": "2026-05-22T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000016",
+        "userId": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-11T08:15:00.000Z",
+        "updatedAt": "2026-05-22T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000017",
+        "userId": "user_3EfwiLu18bWN19ByEamnk9MHmg1",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-12T09:00:00.000Z",
+        "updatedAt": "2026-05-22T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000018",
+        "userId": "user_3Efwi4duTT3mdgIdGVjBJYdxmae",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-13T09:30:00.000Z",
+        "updatedAt": "2026-05-22T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000019",
+        "userId": "user_3EfwjLdtuKRLd5khIepfd9QJDTB",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-14T10:00:00.000Z",
+        "updatedAt": "2026-05-22T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000020",
+        "userId": "user_3Efwhlnywj5CLIhzPOcBhvEnqXK",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-15T10:15:00.000Z",
+        "updatedAt": "2026-05-22T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000004",
+        "userId": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "status": "CANCELLED",
+        "createdBy": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
+        "updatedBy": "user_3Efwi9mwMrJ4AWwhDSlT1UvEHTu",
+        "createdAt": "2026-05-04T12:00:00.000Z",
+        "updatedAt": "2026-05-04T12:45:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000004",
+        "inviters": [
+          "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+          "user_3EfwiLu18bWN19ByEamnk9MHmg1"
+        ],
+        "inviteeId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "status": "ACCEPTED",
+        "expiredAt": "2026-05-30T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "createdAt": "2026-05-22T08:20:00.000Z",
+        "updatedAt": "2026-05-23T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000007",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "userId": "user_3EfwjCUc2N442OcEZMU34aYsO2P",
+        "eventType": "GROUP_SETTING_CHANGED",
+        "content": "Tat che do moi thanh vien tu moi nguoi khac, chi owner moi co the moi.",
+        "createdAt": "2026-05-22T09:05:00.000Z",
+        "updatedAt": "2026-05-22T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000008",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "userId": "user_3EfwiLu18bWN19ByEamnk9MHmg1",
+        "eventType": "POST_APPROVED",
+        "content": "Duyet bai chia se ve hue sac va layout he thong.",
+        "createdAt": "2026-05-22T10:05:00.000Z",
+        "updatedAt": "2026-05-22T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000007",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "date": "2026-05-19",
+        "postCount": 9,
+        "joinCount": 1,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000008",
+        "groupId": "11111111-1111-4111-8111-000000000004",
+        "date": "2026-05-20",
+        "postCount": 12,
+        "joinCount": 2,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000005",
+    "name": "Study With Me After Dark",
+    "description": "Nhom dong hanh hoc tap va chia se routine tap trung cho hoc sinh, sinh vien, nguoi di lam.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_study_avatar",
+      "fileName": "study-with-me-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 165402
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_study_cover",
+      "fileName": "study-with-me-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 622901
+    },
+    "privacy": "PRIVATE",
+    "rules": "Giu im lang lap, khong lan man, khong spam link va phai ton trong nhung nguoi dang can tap trung.",
+    "members": 5,
+    "reports": 1,
+    "owner": {
+      "id": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+      "fullName": "Chi Đặng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndpSDd5WHlmbHFCY3Q5UUFaN0FKMjZMWSIsImluaXRpYWxzIjoiQ8SQIn0"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+    "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+    "createdAt": "2026-04-14T08:15:00.000Z",
+    "updatedAt": "2026-05-23T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000005",
+      "requiredPostApproval": true,
+      "allowMemberInvite": true,
+      "maxMembers": 3000,
+      "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+      "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+      "createdAt": "2026-04-14T08:20:00.000Z",
+      "updatedAt": "2026-05-23T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000021",
+        "userId": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-14T08:15:00.000Z",
+        "updatedAt": "2026-05-23T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000022",
+        "userId": "user_3EfwhIcXZsW9wDCzT5XEc65HmEp",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-15T09:00:00.000Z",
+        "updatedAt": "2026-05-23T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000023",
+        "userId": "user_3Efwil1XBDSeu6xHtpnhB38qbLo",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-16T09:30:00.000Z",
+        "updatedAt": "2026-05-23T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000024",
+        "userId": "user_3EfwidS2BRNXpcfVFdPAUC5lIux",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-17T10:00:00.000Z",
+        "updatedAt": "2026-05-23T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000025",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-18T10:15:00.000Z",
+        "updatedAt": "2026-05-23T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000005",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "status": "APPROVED",
+        "createdBy": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "updatedBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+        "createdAt": "2026-05-05T12:00:00.000Z",
+        "updatedAt": "2026-05-05T12:20:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000005",
+        "inviters": [
+          "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+          "user_3EfwhIcXZsW9wDCzT5XEc65HmEp"
+        ],
+        "inviteeId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "status": "PENDING",
+        "expiredAt": "2026-05-30T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "createdAt": "2026-05-23T08:20:00.000Z",
+        "updatedAt": "2026-05-23T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [
+      {
+        "id": "66666666-6666-4666-8666-000000000005",
+        "reporterId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "reason": "Mot so bai viet hoc tap co noi dung khong phu hop voi muc dich on tap tai lieu.",
+        "status": "REJECTED",
+        "createdAt": "2026-05-24T14:10:00.000Z",
+        "updatedAt": "2026-05-25T14:10:00.000Z"
+      }
+    ],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000009",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "userId": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+        "eventType": "GROUP_UPDATED",
+        "content": "Chinh lai lich hoc va quy dinh dang bai theo khung gio tap trung.",
+        "createdAt": "2026-05-23T09:05:00.000Z",
+        "updatedAt": "2026-05-23T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000010",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "userId": "user_3EfwhIcXZsW9wDCzT5XEc65HmEp",
+        "eventType": "JOIN_REQUEST_APPROVED",
+        "content": "Duyet yeu cau tham gia cua thanh vien moi co khung hoc tap on dinh.",
+        "createdAt": "2026-05-23T10:05:00.000Z",
+        "updatedAt": "2026-05-23T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000009",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "date": "2026-05-19",
+        "postCount": 40,
+        "joinCount": 6,
+        "leaveCount": 3
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000010",
+        "groupId": "11111111-1111-4111-8111-000000000005",
+        "date": "2026-05-20",
+        "postCount": 44,
+        "joinCount": 4,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000006",
+    "name": "Photo Walk Society",
+    "description": "Nhom di bo chup anh, chia se bo cuc, mau sac va cau chuyen dang sau tung khung hinh.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1502920917128-1aa5007642b6?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_photo_walk_avatar",
+      "fileName": "photo-walk-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 181120
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_photo_walk_cover",
+      "fileName": "photo-walk-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 609822
+    },
+    "privacy": "PUBLIC",
+    "rules": "Chia se anh va cau chuyen co chu y, khong lech chu de, khong repost khong ghi nguon.",
+    "members": 5,
+    "reports": 0,
+    "owner": {
+      "id": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+      "fullName": "Nhung Hoàng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqUUlzOERMa3RObW0zS2ZoN1lmek5KRyIsImluaXRpYWxzIjoiTkgifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+    "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+    "createdAt": "2026-04-17T08:15:00.000Z",
+    "updatedAt": "2026-05-24T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000006",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 1500,
+      "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+      "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+      "createdAt": "2026-04-17T08:20:00.000Z",
+      "updatedAt": "2026-05-24T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000026",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-17T08:15:00.000Z",
+        "updatedAt": "2026-05-24T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000027",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-18T09:00:00.000Z",
+        "updatedAt": "2026-05-24T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000028",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-19T09:30:00.000Z",
+        "updatedAt": "2026-05-24T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000029",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-20T10:00:00.000Z",
+        "updatedAt": "2026-05-24T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000030",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-21T10:15:00.000Z",
+        "updatedAt": "2026-05-24T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000006",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "status": "PENDING",
+        "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "updatedBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "createdAt": "2026-05-06T12:00:00.000Z",
+        "updatedAt": "2026-05-06T12:00:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000006",
+        "inviters": [
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+          "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo"
+        ],
+        "inviteeId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "status": "CANCELLED",
+        "expiredAt": "2026-05-31T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "createdAt": "2026-05-24T08:20:00.000Z",
+        "updatedAt": "2026-05-24T09:20:00.000Z"
+      }
+    ],
+    "groupReports": [],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000011",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "eventType": "GROUP_UPDATED",
+        "content": "Tinh chinh quy dinh chia se anh de giu chat luong album chung.",
+        "createdAt": "2026-05-24T09:05:00.000Z",
+        "updatedAt": "2026-05-24T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000012",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "eventType": "INVITE_SENT",
+        "content": "Gui loi moi toi mot thanh vien co nhieu anh du lich dep.",
+        "createdAt": "2026-05-24T10:05:00.000Z",
+        "updatedAt": "2026-05-24T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000011",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "date": "2026-05-19",
+        "postCount": 15,
+        "joinCount": 2,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000012",
+        "groupId": "11111111-1111-4111-8111-000000000006",
+        "date": "2026-05-20",
+        "postCount": 17,
+        "joinCount": 1,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000007",
+    "name": "Family Support Hub",
+    "description": "Noi an toan cho cha me, nguoi cham soc va nhung ai muon noi ve ap luc gia dinh.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_family_support_avatar",
+      "fileName": "family-support-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 173445
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_family_support_cover",
+      "fileName": "family-support-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 592210
+    },
+    "privacy": "PRIVATE",
+    "rules": "Bao mat noi dung, khong chia se thong tin nhay cam cua nguoi khac, uu tien su ton trong.",
+    "members": 5,
+    "reports": 1,
+    "owner": {
+      "id": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+      "fullName": "An Đặng",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndpSU1IQXZxZFBETVNCNlpQcWNsdzNxbyIsImluaXRpYWxzIjoiQcSQIn0"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+    "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+    "createdAt": "2026-04-20T08:15:00.000Z",
+    "updatedAt": "2026-05-25T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000007",
+      "requiredPostApproval": true,
+      "allowMemberInvite": false,
+      "maxMembers": 800,
+      "createdBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+      "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+      "createdAt": "2026-04-20T08:20:00.000Z",
+      "updatedAt": "2026-05-25T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000031",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-20T08:15:00.000Z",
+        "updatedAt": "2026-05-25T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000032",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-21T09:00:00.000Z",
+        "updatedAt": "2026-05-25T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000033",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-22T09:30:00.000Z",
+        "updatedAt": "2026-05-25T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000034",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-23T10:00:00.000Z",
+        "updatedAt": "2026-05-25T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000035",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-24T10:15:00.000Z",
+        "updatedAt": "2026-05-25T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000007",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "status": "APPROVED",
+        "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "updatedBy": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "createdAt": "2026-05-07T12:00:00.000Z",
+        "updatedAt": "2026-05-07T12:15:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000007",
+        "inviters": [
+          "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC"
+        ],
+        "inviteeId": "user_3Efwil1XBDSeu6xHtpnhB38qbLo",
+        "status": "REJECTED",
+        "expiredAt": "2026-06-01T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "createdAt": "2026-05-25T08:20:00.000Z",
+        "updatedAt": "2026-05-25T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [
+      {
+        "id": "66666666-6666-4666-8666-000000000007",
+        "reporterId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "reason": "Xuat hien mot vai binh luan nay cam can duoc xu ly som de giu an toan cho nhom.",
+        "status": "PENDING",
+        "createdAt": "2026-05-25T14:10:00.000Z",
+        "updatedAt": "2026-05-25T14:10:00.000Z"
+      }
+    ],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000013",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "eventType": "GROUP_UPDATED",
+        "content": "Bo sung huong dan trao doi ve tam ly va cham soc gia dinh.",
+        "createdAt": "2026-05-25T09:05:00.000Z",
+        "updatedAt": "2026-05-25T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000014",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "eventType": "MEMBER_BANNED",
+        "content": "Tam khoa mot tai khoan co hanh vi kich dong trong luong chat rieng.",
+        "createdAt": "2026-05-25T10:05:00.000Z",
+        "updatedAt": "2026-05-25T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000013",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "date": "2026-05-19",
+        "postCount": 8,
+        "joinCount": 1,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000014",
+        "groupId": "11111111-1111-4111-8111-000000000007",
+        "date": "2026-05-20",
+        "postCount": 10,
+        "joinCount": 0,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000008",
+    "name": "Music Healing Room",
+    "description": "Nghe nhac, chia se playlist, va dung am nhac de giup nhau on dinh cam xuc.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_music_healing_avatar",
+      "fileName": "music-healing-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 170818
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_music_healing_cover",
+      "fileName": "music-healing-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 641772
+    },
+    "privacy": "PUBLIC",
+    "rules": "Chia se ban nhac co chu de ro rang, ton trong ban quyen va khong noi xau gu am nhac cua nguoi khac.",
+    "members": 5,
+    "reports": 0,
+    "owner": {
+      "id": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "fullName": "Quang Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqbThQejlFclRnaXVmVDVwd052aVhLQyIsImluaXRpYWxzIjoiUVQifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+    "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+    "createdAt": "2026-04-23T08:15:00.000Z",
+    "updatedAt": "2026-05-26T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000008",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 2200,
+      "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "createdAt": "2026-04-23T08:20:00.000Z",
+      "updatedAt": "2026-05-26T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000036",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-23T08:15:00.000Z",
+        "updatedAt": "2026-05-26T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000037",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-24T09:00:00.000Z",
+        "updatedAt": "2026-05-26T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000038",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-25T09:30:00.000Z",
+        "updatedAt": "2026-05-26T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000039",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-26T10:00:00.000Z",
+        "updatedAt": "2026-05-26T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000040",
+        "userId": "user_3EfwiS30vBnkYk6YhV66gNIKTGJ",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-27T10:15:00.000Z",
+        "updatedAt": "2026-05-26T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000008",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "status": "APPROVED",
+        "createdBy": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "createdAt": "2026-05-08T12:00:00.000Z",
+        "updatedAt": "2026-05-08T12:20:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000008",
+        "inviters": [
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG"
+        ],
+        "inviteeId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "status": "ACCEPTED",
+        "expiredAt": "2026-06-02T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "createdAt": "2026-05-26T08:20:00.000Z",
+        "updatedAt": "2026-05-26T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000015",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "eventType": "GROUP_UPDATED",
+        "content": "Cap nhat playlist chu de va bo sung quy tac chia se am nhac.",
+        "createdAt": "2026-05-26T09:05:00.000Z",
+        "updatedAt": "2026-05-26T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000016",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "eventType": "INVITE_SENT",
+        "content": "Moi mot thanh vien co khau vi am nhac da dang tham gia.",
+        "createdAt": "2026-05-26T10:05:00.000Z",
+        "updatedAt": "2026-05-26T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000015",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "date": "2026-05-19",
+        "postCount": 22,
+        "joinCount": 2,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000016",
+        "groupId": "11111111-1111-4111-8111-000000000008",
+        "date": "2026-05-20",
+        "postCount": 24,
+        "joinCount": 1,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000009",
+    "name": "Vegan Kitchen Stories",
+    "description": "Cong dong nau an chay, chia se cong thuc, va benh vuc mot nhap song cham, lanh.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_vegan_kitchen_avatar",
+      "fileName": "vegan-kitchen-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 169884
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_vegan_kitchen_cover",
+      "fileName": "vegan-kitchen-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 612498
+    },
+    "privacy": "PUBLIC",
+    "rules": "Uu tien cong thuc de lam, ngon, la va co nguon ro rang. Khong tranh luan gay gat ve cach an.",
+    "members": 5,
+    "reports": 1,
+    "owner": {
+      "id": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "fullName": "Quang Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndqbThQejlFclRnaXVmVDVwd052aVhLQyIsImluaXRpYWxzIjoiUVQifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwiH7yXyflqBct9QAZ7AJ26LY",
+    "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+    "createdAt": "2026-04-26T08:15:00.000Z",
+    "updatedAt": "2026-05-27T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000009",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 1400,
+      "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+      "createdAt": "2026-04-26T08:20:00.000Z",
+      "updatedAt": "2026-05-27T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000041",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-26T08:15:00.000Z",
+        "updatedAt": "2026-05-27T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000042",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-27T09:00:00.000Z",
+        "updatedAt": "2026-05-27T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000043",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-28T09:30:00.000Z",
+        "updatedAt": "2026-05-27T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000044",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-29T10:00:00.000Z",
+        "updatedAt": "2026-05-27T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000045",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-04-30T10:15:00.000Z",
+        "updatedAt": "2026-05-27T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000009",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "status": "REJECTED",
+        "createdBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "updatedBy": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "createdAt": "2026-05-09T12:00:00.000Z",
+        "updatedAt": "2026-05-09T12:20:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000009",
+        "inviters": [
+          "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+          "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG"
+        ],
+        "inviteeId": "user_3EfwiMxs8laoRDrd7xvXf8wq2XD",
+        "status": "DECLINED",
+        "expiredAt": "2026-06-03T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "createdAt": "2026-05-27T08:20:00.000Z",
+        "updatedAt": "2026-05-27T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [
+      {
+        "id": "66666666-6666-4666-8666-000000000009",
+        "reporterId": "user_3EfwjkrwmrP9HjhUMBm8XsfX1Yh",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "reason": "Mot so cong thuc co noi dung khong ro nguon va can duoc dieu chinh lai phan trich dan.",
+        "status": "RESOLVED",
+        "createdAt": "2026-05-27T14:10:00.000Z",
+        "updatedAt": "2026-05-28T14:10:00.000Z"
+      }
+    ],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000017",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "eventType": "GROUP_UPDATED",
+        "content": "Chinh lai bo quy tac ve nguon goc cong thuc va cach gui anh thuc an.",
+        "createdAt": "2026-05-27T09:05:00.000Z",
+        "updatedAt": "2026-05-27T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000018",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "userId": "user_3EfwjQIs8DLktNmm3Kfh7YfzNJG",
+        "eventType": "POST_REJECTED",
+        "content": "Tu choi mot bai viet khong ro nguon va co noi dung lap lai.",
+        "createdAt": "2026-05-27T10:05:00.000Z",
+        "updatedAt": "2026-05-27T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000017",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "date": "2026-05-19",
+        "postCount": 26,
+        "joinCount": 3,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000018",
+        "groupId": "11111111-1111-4111-8111-000000000009",
+        "date": "2026-05-20",
+        "postCount": 28,
+        "joinCount": 2,
+        "leaveCount": 1
+      }
+    ]
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000010",
+    "name": "Pet Companions Corner",
+    "description": "Noi chia se ve vat nuoi, cham soc, cung voi nhung ngay co the thuong phai can su nguoi.",
+    "avatar": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
+      "publicId": "group_pet_companions_avatar",
+      "fileName": "pet-companions-avatar.jpg",
+      "mimeType": "image/jpeg",
+      "size": 176701
+    },
+    "coverImage": {
+      "type": "image",
+      "url": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=1600&q=80",
+      "publicId": "group_pet_companions_cover",
+      "fileName": "pet-companions-cover.jpg",
+      "mimeType": "image/jpeg",
+      "size": 633416
+    },
+    "privacy": "PRIVATE",
+    "rules": "Khong dang noi dung gay soc, giu an toan cho nguoi yeu dong vat va khong khai thac thu cung sai muc dich.",
+    "members": 5,
+    "reports": 0,
+    "owner": {
+      "id": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+      "fullName": "Vy Trần",
+      "avatarUrl": "https://img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdCIsImlpZCI6Imluc18zMktIZXpaRkxMMUFHYzIxSENmTG9OR3FNNWYiLCJyaWQiOiJ1c2VyXzNFZndoUFB5a0tnblZXSFNTMnN6U0dmMmpXYyIsImluaXRpYWxzIjoiVlQifQ"
+    },
+    "status": "ACTIVE",
+    "createdBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+    "updatedBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+    "createdAt": "2026-05-01T08:15:00.000Z",
+    "updatedAt": "2026-05-28T09:10:00.000Z",
+    "groupSetting": {
+      "groupId": "11111111-1111-4111-8111-000000000010",
+      "requiredPostApproval": false,
+      "allowMemberInvite": true,
+      "maxMembers": 1100,
+      "createdBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+      "updatedBy": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+      "createdAt": "2026-05-01T08:20:00.000Z",
+      "updatedAt": "2026-05-28T09:10:00.000Z"
+    },
+    "groupMembers": [
+      {
+        "id": "22222222-2222-4222-8222-000000000046",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "role": "OWNER",
+        "customPermissions": [
+          "MANAGE_GROUP",
+          "MANAGE_MEMBERS",
+          "UPDATE_GROUP",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "VIEW_SETTINGS",
+          "UPDATE_GROUP_SETTINGS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS",
+          "MANAGE_EVENTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-05-01T08:15:00.000Z",
+        "updatedAt": "2026-05-28T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000047",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "role": "ADMIN",
+        "customPermissions": [
+          "MANAGE_MEMBERS",
+          "APPROVE_POST",
+          "DELETE_POST",
+          "BAN_MEMBER",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS",
+          "INVITE_MEMBERS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-05-02T09:00:00.000Z",
+        "updatedAt": "2026-05-28T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000048",
+        "userId": "user_3EfwhDuK8n4ht0lKPFk56Ag5Dar",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "role": "MODERATOR",
+        "customPermissions": [
+          "APPROVE_POST",
+          "DELETE_POST",
+          "VIEW_REPORTS",
+          "MANAGE_JOIN_REQUESTS"
+        ],
+        "status": "ACTIVE",
+        "createdAt": "2026-05-03T09:30:00.000Z",
+        "updatedAt": "2026-05-28T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000049",
+        "userId": "user_3Efwjm8Pz9ErTgiufT5pwNviXKC",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-05-04T10:00:00.000Z",
+        "updatedAt": "2026-05-28T09:10:00.000Z"
+      },
+      {
+        "id": "22222222-2222-4222-8222-000000000050",
+        "userId": "user_3EfwiIMHAvqdPDMSB6ZPqclw3qo",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "role": "MEMBER",
+        "customPermissions": [],
+        "status": "ACTIVE",
+        "createdAt": "2026-05-05T10:15:00.000Z",
+        "updatedAt": "2026-05-28T09:10:00.000Z"
+      }
+    ],
+    "groupJoinRequests": [
+      {
+        "id": "77777777-7777-4777-8777-000000000010",
+        "userId": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "status": "PENDING",
+        "createdBy": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
+        "updatedBy": "user_3Efwhbyq1amNAZjn0mBQnIS82l0",
+        "createdAt": "2026-05-10T12:00:00.000Z",
+        "updatedAt": "2026-05-10T12:00:00.000Z"
+      }
+    ],
+    "groupInvites": [
+      {
+        "id": "44444444-4444-4444-8444-000000000010",
+        "inviters": [
+          "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+          "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ"
+        ],
+        "inviteeId": "user_3EfwjQsIoaAzIJmk9sBqV61nBkE",
+        "status": "PENDING",
+        "expiredAt": "2026-06-04T08:20:00.000Z",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "createdAt": "2026-05-28T08:20:00.000Z",
+        "updatedAt": "2026-05-28T08:20:00.000Z"
+      }
+    ],
+    "groupReports": [],
+    "groupLogs": [
+      {
+        "id": "55555555-5555-4555-8555-000000000019",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "userId": "user_3EfwhPPykKgnVWHSS2szSGf2jWc",
+        "eventType": "GROUP_UPDATED",
+        "content": "Bo sung quy tac ve su an toan khi chia se hinh anh thu cung.",
+        "createdAt": "2026-05-28T09:05:00.000Z",
+        "updatedAt": "2026-05-28T09:05:00.000Z"
+      },
+      {
+        "id": "55555555-5555-4555-8555-000000000020",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "userId": "user_3EfwiYbw6JYR52SUqQtG9y2NNCQ",
+        "eventType": "MEMBER_PERMISSION_CHANGED",
+        "content": "Cap nhat quyen cua admin de them van de duyet loi moi.",
+        "createdAt": "2026-05-28T10:05:00.000Z",
+        "updatedAt": "2026-05-28T10:05:00.000Z"
+      }
+    ],
+    "statistics": [
+      {
+        "id": "88888888-8888-4888-8888-000000000019",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "date": "2026-05-19",
+        "postCount": 14,
+        "joinCount": 2,
+        "leaveCount": 0
+      },
+      {
+        "id": "88888888-8888-4888-8888-000000000020",
+        "groupId": "11111111-1111-4111-8111-000000000010",
+        "date": "2026-05-20",
+        "postCount": 16,
+        "joinCount": 1,
+        "leaveCount": 1
+      }
+    ]
+  }
+]

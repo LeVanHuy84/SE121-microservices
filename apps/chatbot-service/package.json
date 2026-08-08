@@ -9,7 +9,7 @@
     "venv": "powershell.exe -NoExit -Command .\\.venv\\Scripts\\Activate.ps1",
     "install": "pip install -r requirements.txt",
     "start:dev": ".venv\\Scripts\\python.exe -m app.main",
-    "build": "python -m compileall app",
+    "start:prod": ".venv\\Scripts\\python.exe -m app.main",
     "db:migrate": ".venv\\Scripts\\alembic.exe -c alembic.ini upgrade head",
     "db:current": ".venv\\Scripts\\alembic.exe -c alembic.ini current",
     "db:history": ".venv\\Scripts\\alembic.exe -c alembic.ini history",

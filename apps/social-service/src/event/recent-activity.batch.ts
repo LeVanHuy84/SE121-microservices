@@ -41,7 +41,11 @@ export class RecentActivityBatch {
     this.logger.log(`Flushing ${count} recent activities`);
 
     const actorsById = await this.userClient.getUsers(
-      [...new Set(Object.values(activities).map((activity) => activity.actorId))],
+      [
+        ...new Set(
+          Object.values(activities).map((activity) => activity.actorId),
+        ),
+      ],
       'base',
     );
     const limit = pLimit(20);
@@ -58,12 +62,13 @@ export class RecentActivityBatch {
           const message: NotificationSample = {
             id: this.buildNotificationRequestId(activityKey),
             eventType: type,
+            userId: targetId,
             payload: {
               targetType: NotiTargetType.USER,
               actorName:
                 `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
               actorAvatar: actor.avatarUrl,
-              targetId,
+              targetId: actorId,
               content: '',
             },
           };

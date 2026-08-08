@@ -12,8 +12,8 @@ from app.models.rerank_request import (
 )
 
 
-class RecommendationApiTestCase(unittest.TestCase):
-    def test_query_candidates_returns_query_contract_payload(self):
+class RecommendationApiTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_query_candidates_returns_query_contract_payload(self):
         request = RecommendationQueryRequest(
             viewerId="viewer-1",
             limit=3,
@@ -43,7 +43,7 @@ class RecommendationApiTestCase(unittest.TestCase):
                 ],
             },
         ) as query:
-            response = query_candidates(request)
+            response = await query_candidates(request)
 
         self.assertTrue(response["success"])
         self.assertEqual(response["data"].viewerId, "viewer-1")
@@ -81,7 +81,7 @@ class RecommendationApiTestCase(unittest.TestCase):
         self.assertEqual(response["data"]["hits"], 2)
         get_stats.assert_called_once_with()
 
-    def test_query_candidates_raises_bad_request_for_invalid_cursor(self):
+    async def test_query_candidates_raises_bad_request_for_invalid_cursor(self):
         request = RecommendationQueryRequest(
             viewerId="viewer-1",
             limit=3,
@@ -92,7 +92,7 @@ class RecommendationApiTestCase(unittest.TestCase):
             side_effect=ValueError("Invalid cursor"),
         ):
             with self.assertRaises(HTTPException) as context:
-                query_candidates(request)
+                await query_candidates(request)
 
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail, "Invalid cursor")

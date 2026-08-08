@@ -1,6 +1,9 @@
 import { Expose, Type } from 'class-transformer';
 import { ReactionStatsDTO } from './message-reaction-stats.dto';
 import { MediaType } from '../../common';
+import { CallEndReason } from '../call/call-end-reason.enum';
+import { CallSessionStatus } from '../call/call-session-status.enum';
+import { CallType } from '../call/call-type.enum';
 
 export class ReactionDTO {
   @Expose()
@@ -50,6 +53,9 @@ export class MessageResponseDTO {
   content?: string;
 
   @Expose()
+  messageType?: 'text' | 'system_call';
+
+  @Expose()
   @Type(() => AttachmentResponseDTO)
   attachments?: AttachmentResponseDTO[];
 
@@ -81,4 +87,15 @@ export class MessageResponseDTO {
 
   @Expose()
   syncVersion?: number;
+
+  @Expose()
+  systemMeta?: {
+    kind?: 'call';
+    callId?: string;
+    callType?: CallType;
+    callStatus?: CallSessionStatus;
+    endedReason?: CallEndReason;
+    durationSec?: number;
+    actorId?: string;
+  };
 }

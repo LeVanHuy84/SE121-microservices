@@ -1,4 +1,5 @@
 import {
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -10,6 +11,8 @@ import {
 import { users } from "./users.schema";
 import { relations, sql } from "drizzle-orm";
 import { PRIVACY_LEVEL } from "src/constants";
+import { UserPrivacySettings } from "@repo/dtos";
+
 export const privacyLevelEnum = pgEnum(
   "privacy_level",
   ...[Object.values(PRIVACY_LEVEL) as [string, ...string[]]]
@@ -32,9 +35,14 @@ export const profiles = pgTable("profiles", {
   interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   semanticProfileText: text("semantic_profile_text"),
 
-  stats: jsonb("stats").default({ friends: 0, posts: 0 }).notNull(),
+  postCount: integer("post_count").default(0).notNull(),
+  friendCount: integer("friend_count").default(0).notNull(),
   privacyLevel: privacyLevelEnum("privacy_level")
     .default(PRIVACY_LEVEL.PUBLIC)
+    .notNull(),
+  privacySettings: jsonb("privacy_settings")
+    .$type<UserPrivacySettings>()
+    .default(sql`'{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC"}'::jsonb`)
     .notNull(),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),

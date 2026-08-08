@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationService } from '@repo/common';
+import { SendCallPushDto } from '@repo/dtos';
 import { UserClientService } from 'src/client/user/user-client.service';
 import { ConversationActivityService } from 'src/presence/conversation-activity.service';
 
@@ -11,6 +12,17 @@ type SendMessagePushParams = {
   receiverIds: string[];
   messageId: string;
   preview?: string;
+};
+
+type SendCallPushParams = Omit<SendCallPushDto, 'userId'> & {
+  receiverIds: string[];
+};
+
+type SendCallCancelPushParams = {
+  callId: string;
+  conversationId: string;
+  actorId: string;
+  receiverIds: string[];
 };
 
 @Injectable()
@@ -56,6 +68,65 @@ export class ChatPushService {
     } catch (error) {
       this.logger.error(
         `Failed to dispatch chat push for conversationId=${params.conversationId}: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+  async sendCallPush(params: SendCallPushParams) {
+    try {
+      const receiverIds =
+        await this.conversationActivityService.filterReceiversOutsideConversation(
+          params.receiverIds,
+          params.conversationId,
+        );
+
+      if (!receiverIds.length) {
+        return;
+      }
+
+      await Promise.all(
+        receiverIds.map((userId) =>
+          this.notificationService.sendCallPush({
+            ...params,
+            userId,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+
+  async sendCallCancelPush(params: SendCallCancelPushParams) {
+    try {
+      const receiverIds =
+        await this.conversationActivityService.filterReceiversOutsideConversation(
+          params.receiverIds,
+          params.conversationId,
+        );
+
+      if (!receiverIds.length) {
+        return;
+      }
+
+      await Promise.all(
+        receiverIds.map((userId) =>
+          this.notificationService.sendCallCancelPush({
+            callId: params.callId,
+            conversationId: params.conversationId,
+            actorId: params.actorId,
+            userId,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error.message}`,
         error.stack,
       );
     }

@@ -1,7 +1,8 @@
-﻿﻿from __future__ import annotations
+from __future__ import annotations
+from typing import AsyncIterator
 
 from app.core.config import settings
-from app.providers.base import LlmGeneration
+from app.providers.base import LlmGeneration, LlmChunk
 from app.schemas.assistant_schema import AssistantRespondRequest
 
 
@@ -21,6 +22,23 @@ class GroqProvider:
             model=settings.GROQ_MODEL,
             provider="groq",
         )
+
+    async def stream(
+        self,
+        prompt: str,
+        request: AssistantRespondRequest,
+    ) -> AsyncIterator[LlmChunk]:
+        temperature = self._resolve_temperature(request)
+        if not settings.GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY is not set")
+
+        chain = self._get_chain(temperature)
+        async for chunk in chain.astream({"input": prompt}):
+            yield LlmChunk(
+                content=str(chunk or ""),
+                model=settings.GROQ_MODEL,
+                provider="groq",
+            )
 
     async def _generate_async(self, prompt: str, temperature: float) -> str:
         if not settings.GROQ_API_KEY:
@@ -77,3 +95,4 @@ class GroqProvider:
         if request.intent or request.contexts:
             return settings.GROQ_TEMPERATURE_TASK
         return settings.GROQ_TEMPERATURE
+

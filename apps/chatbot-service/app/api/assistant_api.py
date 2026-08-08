@@ -1,7 +1,9 @@
 import logging
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from app.commands.assistant import RespondCommand
 from app.core.security import verify_internal_key
@@ -56,6 +58,27 @@ async def respond(req: AssistantRespondRequest):
                 "Assistant could not complete this request.",
             ),
         ) from exc
+
+
+@assistant_router.post(
+    "/respond-stream",
+    dependencies=[Depends(verify_internal_key)],
+)
+async def respond_stream(req: AssistantRespondRequest):
+    async def event_generator():
+        try:
+            async for data in respond_command.execute_stream(req):
+                # Format as SSE
+                yield f"data: {data.model_dump_json()}\n\n"
+        except Exception as exc:
+            logger.exception("Assistant stream failed")
+            error_data = {
+                "success": False,
+                "error": _stable_client_error(502, "ASSISTANT_STREAM_FAILED", str(exc))
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @assistant_router.get(

@@ -89,10 +89,9 @@ export class ProfileService {
         lastStrongNegativeAt = eventTime;
       }
 
-      const currentDelta = this.calculateVectorDistance(
-        emotionVectorEMA,
-        previousEmaState,
-      );
+      const currentDelta =
+        this.calculateVectorDistance(emotionVectorEMA, previousEmaState) /
+        (2 * this.alpha);
       emotionMomentum = this.clampSigned(
         emotionMomentum * this.momentumSmoothPrevWeight +
           currentDelta * this.momentumSmoothDeltaWeight,
@@ -252,7 +251,7 @@ export class ProfileService {
     previousVector: EmotionVector,
   ): number {
     return PROFILE_EMOTIONS.reduce((acc, emotion) => {
-      return acc + (currentVector[emotion] - previousVector[emotion]);
+      return acc + Math.abs(currentVector[emotion] - previousVector[emotion]);
     }, 0);
   }
 

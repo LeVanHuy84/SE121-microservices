@@ -21,6 +21,7 @@ export const clerkWsMiddleware = async (socket, next) => {
     // 3️⃣ Verify token qua Clerk SDK
     const session = await verifyToken(token, {
       secretKey: process.env.CLERK_SECRET_KEY,
+      clockSkewInMs: 60000,
     });
 
     // guard against undefined session or missing subject to avoid "possibly undefined" errors

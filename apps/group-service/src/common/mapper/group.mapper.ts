@@ -11,8 +11,8 @@ export class GroupMapper {
     dto.id = entity.id;
     dto.name = entity.name;
     dto.description = entity.description;
-    dto.avatarUrl = entity.avatar.url;
-    dto.coverImageUrl = entity.coverImage.url;
+    dto.avatarUrl = entity.avatar?.url;
+    dto.coverImageUrl = entity.coverImage?.url;
     dto.privacy = entity.privacy;
     dto.rules = entity.rules;
     dto.members = entity.members;
@@ -34,7 +34,7 @@ export class GroupMapper {
     dto.id = entity.id;
     dto.name = entity.name;
     dto.owner = entity.owner;
-    dto.avatarUrl = entity.avatar.url;
+    dto.avatarUrl = entity.avatar?.url;
     dto.privacy = entity.privacy;
     dto.members = entity.members;
     dto.reports = entity.reports;

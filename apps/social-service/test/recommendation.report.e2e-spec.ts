@@ -141,7 +141,12 @@ describe('Recommendation query report', () => {
         lastName: 'Ngo',
         avatarUrl: '',
       },
-      'runner-a': { id: 'runner-a', firstName: 'An', lastName: 'Pham', avatarUrl: '' },
+      'runner-a': {
+        id: 'runner-a',
+        firstName: 'An',
+        lastName: 'Pham',
+        avatarUrl: '',
+      },
       'deep-graph': {
         id: 'deep-graph',
         firstName: 'Hoang',

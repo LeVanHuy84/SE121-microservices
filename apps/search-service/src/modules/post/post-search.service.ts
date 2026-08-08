@@ -2,7 +2,7 @@ import { Client } from '@elastic/elasticsearch';
 import { Injectable } from '@nestjs/common';
 import { BaseSearchService } from 'src/common/search/base-search.service';
 import { POST_INDEX } from './post.mapping';
-import { SearchPostDto, SortOrder } from '@repo/dtos';
+import { Emotion, SearchPostDto, SortOrder } from '@repo/dtos';
 
 @Injectable()
 export class PostSearchService extends BaseSearchService {
@@ -26,6 +26,10 @@ export class PostSearchService extends BaseSearchService {
         },
       });
     }
+
+    console.log('Search DTO:', dto);
+
+    console.log('Emotion: ', dto.emotion == Emotion.JOY);
 
     if (dto.userId) filter.push({ term: { userId: dto.userId } });
     if (dto.groupId) filter.push({ term: { groupId: dto.groupId } });

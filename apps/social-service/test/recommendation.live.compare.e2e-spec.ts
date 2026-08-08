@@ -75,10 +75,30 @@ liveDescribe('Recommendation live baseline vs live query comparison', () => {
     });
 
     const getUsers = jest.fn().mockResolvedValue({
-      'semantic-peer': { id: 'semantic-peer', firstName: 'Minh', lastName: 'Le', avatarUrl: '' },
-      'community-host': { id: 'community-host', firstName: 'Giang', lastName: 'Ngo', avatarUrl: '' },
-      'runner-a': { id: 'runner-a', firstName: 'An', lastName: 'Pham', avatarUrl: '' },
-      'deep-graph': { id: 'deep-graph', firstName: 'Hoang', lastName: 'Tran', avatarUrl: '' },
+      'semantic-peer': {
+        id: 'semantic-peer',
+        firstName: 'Minh',
+        lastName: 'Le',
+        avatarUrl: '',
+      },
+      'community-host': {
+        id: 'community-host',
+        firstName: 'Giang',
+        lastName: 'Ngo',
+        avatarUrl: '',
+      },
+      'runner-a': {
+        id: 'runner-a',
+        firstName: 'An',
+        lastName: 'Pham',
+        avatarUrl: '',
+      },
+      'deep-graph': {
+        id: 'deep-graph',
+        firstName: 'Hoang',
+        lastName: 'Tran',
+        avatarUrl: '',
+      },
     });
 
     const configValues = new Map<string, string | number | undefined>([

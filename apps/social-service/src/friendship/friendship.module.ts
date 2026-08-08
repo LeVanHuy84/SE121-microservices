@@ -12,9 +12,7 @@ import { FriendshipEntity } from 'src/postgres/entities/friendship.entity';
 import { UserBlockEntity } from 'src/postgres/entities/user-block.entity';
 import { PostgresSocialGraphRepository } from './repositories/postgres-social-graph.repository';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
-import { RecommendationHydrationService } from './recommendation/recommendation-hydration.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
-import { RecommendationTrackingService } from './recommendation/recommendation-tracking.service';
 
 @Module({
   imports: [
@@ -33,9 +31,7 @@ import { RecommendationTrackingService } from './recommendation/recommendation-t
   providers: [
     FriendshipService,
     PostgresSocialGraphRepository,
-    RecommendationHydrationService,
     RecommendationQueryService,
-    RecommendationTrackingService,
     {
       provide: SOCIAL_GRAPH_REPOSITORY,
       useExisting: PostgresSocialGraphRepository,

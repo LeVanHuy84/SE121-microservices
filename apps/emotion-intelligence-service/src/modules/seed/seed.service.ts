@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { existsSync } from 'fs';
+import * as path from 'path';
 import {
   AnalysisResultEventPayload,
   Emotion,
@@ -37,6 +39,12 @@ export interface SeedAllResult {
   users: SeedRunResult[];
 }
 
+const SEED_BEHAVIOR_PLAN: readonly SeedUserProfile['behavior'][] = [
+  'positive',
+  'downward',
+  'negative',
+];
+
 @Injectable()
 export class SeedService {
   private readonly logger = new Logger(SeedService.name);
@@ -60,14 +68,19 @@ export class SeedService {
 
     this.logger.log(`🌱 Start seeding (days=${days}, batch=${batchSize})`);
 
-    // LOAD JSON
-    const seedUsers = await await loadUsersFromJSON(
-      'src/modules/seed/users.json',
+    const seedUsers = (await loadUsersFromJSON(this.resolveSeedUsersFilePath()))
+      .slice(0, 3)
+      .map((seedUser, index) => ({
+        ...seedUser,
+        behavior:
+          SEED_BEHAVIOR_PLAN[index] ??
+          SEED_BEHAVIOR_PLAN[SEED_BEHAVIOR_PLAN.length - 1],
+      }));
+
+    this.logger.log(
+      `👥 Loaded ${seedUsers.length} users from seed-data/data/generated-users.json`,
     );
 
-    this.logger.log(`👥 Loaded ${seedUsers.length} users from JSON`);
-
-    // distribution
     const stats = { positive: 0, downward: 0, negative: 0 };
     seedUsers.forEach((u) => stats[u.behavior]++);
     this.logger.log(`Behavior distribution: ${JSON.stringify(stats)}`);
@@ -181,6 +194,22 @@ export class SeedService {
         );
       }
     }
+  }
+
+  private resolveSeedUsersFilePath(): string {
+    const candidatePaths = [
+      // path.resolve(process.cwd(), 'seed-data/data/generated-users.json'),
+      // path.resolve(process.cwd(), '../../seed-data/data/generated-users.json'),
+      path.join(__dirname, 'users.json'),
+    ];
+
+    for (const candidatePath of candidatePaths) {
+      if (existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    return candidatePaths[0];
   }
 
   private toAnalysisPayload(

@@ -119,6 +119,11 @@ export class CommentService {
           entity,
           dto.parentId,
         );
+      } else {
+        outboxPromise = this.createRootCommentNotificationEvent(
+          manager,
+          entity,
+        );
       }
 
       const analysisOutbox = this.outboxService.createAnalysisEvent(
@@ -420,6 +425,60 @@ export class CommentService {
     const outbox = manager.create(OutboxEvent, {
       topic: 'notification',
       eventType: 'reply_comment',
+      destination: EventDestination.RABBITMQ,
+      payload: notiPayload,
+    });
+
+    return manager.save(outbox);
+  }
+
+  /**
+   * Tạo outbox event cho bình luận vào bài viết gốc/share gốc.
+   */
+  private async createRootCommentNotificationEvent(
+    manager: EntityManager,
+    entity: Comment,
+  ): Promise<OutboxEvent | null> {
+    let ownerId: string | undefined;
+
+    switch (entity.rootType) {
+      case RootType.POST: {
+        const post = await manager.findOne(Post, {
+          where: { id: entity.rootId },
+          select: ['userId'],
+        });
+        ownerId = post?.userId;
+        break;
+      }
+      case RootType.SHARE: {
+        const share = await manager.findOne(Share, {
+          where: { id: entity.rootId },
+          select: ['userId'],
+        });
+        ownerId = share?.userId;
+        break;
+      }
+    }
+
+    if (!ownerId || ownerId === entity.userId) return null; // Không tự thông báo cho mình
+
+    const actor = await this.userClient.getUserInfo(entity.userId);
+
+    const notiPayload: NotiOutboxPayload = {
+      targetId: entity.rootId,
+      targetType:
+        entity.rootType === RootType.POST
+          ? NotiTargetType.POST
+          : NotiTargetType.SHARE,
+      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorAvatar: actor?.avatarUrl,
+      content: entity.content.slice(0, 100),
+      receivers: [ownerId],
+    };
+
+    const outbox = manager.create(OutboxEvent, {
+      topic: 'notification',
+      eventType: 'comment',
       destination: EventDestination.RABBITMQ,
       payload: notiPayload,
     });

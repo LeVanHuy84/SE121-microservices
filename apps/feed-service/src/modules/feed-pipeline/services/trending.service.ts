@@ -49,7 +49,7 @@ export class TrendingService {
     private readonly affinityService: AffinityService,
     private readonly combiner: ScoreCombinerService,
     @Inject('POST_SERVICE') private readonly postClient: ClientProxy,
-  ) {}
+  ) { }
 
   async getTrendingPosts(
     query: TrendingQuery,
@@ -57,7 +57,7 @@ export class TrendingService {
   ): Promise<CursorPageResponse<any>> {
     const { cursor, limit = this.DEFAULT_PAGE_SIZE, mainEmotion } = query;
 
-    const candidateSize = mainEmotion ? limit : limit * 5;
+    const candidateSize = mainEmotion ? limit : Math.max(limit * 10, 100);
 
     const key = mainEmotion
       ? `post:emotion:${mainEmotion.toLocaleLowerCase()}:score`
@@ -169,16 +169,23 @@ export class TrendingService {
       const affinityScore =
         affinity && item.feature.authorId
           ? this.affinityService.calcAffinityScore(affinity, {
-              category: item.feature.dominantScene || '',
-              authorId: item.feature.authorId,
-            })
+            category: item.feature.dominantScene || '',
+            authorId: item.feature.authorId,
+          })
           : 0;
 
       const finalScore = this.combiner.combine({
         base,
         emotion,
         affinity: affinityScore,
+        riskScore: emotionFeatures?.riskScore,
+        recentNegativityScore:
+          emotionFeatures?.recentNegativityScore,
       });
+
+      // this.logger.log(
+      //   `User ${userId} - Post ${item.postId} - Base score: ${1 / (1 + Math.exp(-(base - 200) / 50))}, Emotion: ${emotion}, Affinity: ${affinityScore}, Final score: ${finalScore}`,
+      // );
 
       return {
         postId: item.postId,
@@ -231,7 +238,7 @@ export class TrendingService {
             targetIds: orderedPosts.map((p) => p.postId),
           }),
         );
-      } catch {}
+      } catch { }
     }
 
     const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(orderedPosts, reactions);

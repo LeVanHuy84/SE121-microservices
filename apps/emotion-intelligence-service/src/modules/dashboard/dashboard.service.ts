@@ -30,7 +30,7 @@ export class DashboardService {
     private readonly dashboardRepo: DashboardRepository,
     private readonly insightFacade: InsightFacade,
     @InjectRedis() private readonly redis: Redis,
-  ) {}
+  ) { }
 
   // ================= SUMMARY =================
   async getSummary(userId: string): Promise<DashboardSummaryResponseDto> {
@@ -71,12 +71,15 @@ export class DashboardService {
     );
 
     const dominantEmotion = this.getDominantEmotion(profile.emotionVectorEMA);
+    const negativityScore = Math.round(
+      Number(snapshots.snapshot1d?.negativeRatio ?? 0) * 100,
+    );
 
     const res: DashboardSummaryResponseDto = {
       riskLevel: riskState.riskLevel || RiskLevel.NORMAL,
       riskScore: Number(riskState.riskScore ?? 0),
 
-      recentNegativityScore: Number(profile.recentNegativityScore ?? 0),
+      recentNegativityScore: Number(negativityScore),
       negativeEventStreak: Number(profile.negativeEventStreak ?? 0),
       emotionMomentum: Number(profile.emotionMomentum ?? 0),
 
@@ -108,19 +111,22 @@ export class DashboardService {
     );
 
     if (!snapshots.length) {
-      throw new RpcException({
-        statusCode: 404,
-        message: 'SNAPSHOT_NOT_FOUND',
-      });
+      return {
+        data: [],
+        current: 0,
+        previous: null,
+        trend: 0,
+        baseline: 0,
+      };
     }
 
     const latest = snapshots[0];
     const prev = snapshots[1] ?? null;
 
     const data: DashboardTrendPointDto[] = snapshots
-      .slice() // tránh mutate
+      .slice()
       .reverse()
-      .filter((s) => s.createdAt) // fix type undefined
+      .filter((s) => s.createdAt)
       .map((s) => ({
         timestamp: s.createdAt as Date,
         negativeRatio: Number(s.negativeRatio ?? 0),
@@ -138,6 +144,7 @@ export class DashboardService {
     };
 
     await this.setCached(cacheKey, res, 60);
+
     return res;
   }
 
@@ -146,8 +153,10 @@ export class DashboardService {
     payload: GetDashboardDistributionDto,
   ): Promise<DashboardDistributionResponseDto> {
     const cacheKey = `dashboard:v1:distribution:${payload.userId}:${payload.window}`;
+
     const cached =
       await this.getCached<DashboardDistributionResponseDto>(cacheKey);
+
     if (cached) return cached;
 
     const snapshot = await this.dashboardRepo.findLatestSnapshotByWindow(
@@ -156,15 +165,14 @@ export class DashboardService {
     );
 
     if (!snapshot) {
-      throw new RpcException({
-        statusCode: 404,
-        message: 'SNAPSHOT_NOT_FOUND',
-      });
+      return {
+        distribution: {},
+        dominantEmotion: "Chưa có dữ liệu",
+      };
     }
 
     const raw = snapshot.emotionDistribution ?? {};
 
-    // normalize về 0–1
     const total = Object.values(raw).reduce(
       (sum, v) => sum + Number(v || 0),
       0,
@@ -173,11 +181,14 @@ export class DashboardService {
     const distribution =
       total > 0
         ? Object.fromEntries(
-            Object.entries(raw).map(([k, v]) => [k, Number(v) / total]),
-          )
-        : raw;
+          Object.entries(raw).map(([k, v]) => [k, Number(v) / total]),
+        )
+        : {};
 
-    const dominantEmotion = this.pickDominantEmotion(distribution);
+    const dominantEmotion =
+      total > 0
+        ? this.pickDominantEmotion(distribution)
+        : "Chưa có dữ liệu";
 
     const res: DashboardDistributionResponseDto = {
       distribution,
@@ -185,6 +196,7 @@ export class DashboardService {
     };
 
     await this.setCached(cacheKey, res, 120);
+
     return res;
   }
 

@@ -6,23 +6,19 @@ import {
   CreateNotificationDto,
   CursorPageResponse,
   CursorPaginationDTO,
+  GetNotificationQueryDto,
   NotificationResponseDto,
 } from '@repo/dtos';
 import type { Queue } from 'bull';
 import { plainToInstance } from 'class-transformer';
 import Redis from 'ioredis';
 import { Model, ObjectId, Types } from 'mongoose';
-import { DeviceTokenService } from 'src/firebase/device-token.service';
-import { FirebaseService } from 'src/firebase/firebase.service';
 import {
   Notification,
   NotificationDocument,
 } from 'src/mongo/schema/notification.schema';
-import { UserPreferenceService } from 'src/user-preference/user-preference.service';
-import {
-  NOTIFICATION_QUEUE,
-  REGULAR_NOTIFICATION_DELIVERY_JOB,
-} from './notification.jobs';
+import { NotificationDispatcherService } from './services/notification-dispatcher.service';
+import { NotificationPolicyService } from './services/notification-policy.service';
 import { TemplateService } from './template.service';
 
 @Injectable()
@@ -35,13 +31,10 @@ export class NotificationService {
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<Notification>,
     private readonly templateService: TemplateService,
-    private readonly userPreferenceService: UserPreferenceService,
-    @InjectQueue(NOTIFICATION_QUEUE)
-    private readonly notificationQueue: Queue,
+    private readonly policyService: NotificationPolicyService,
+    private readonly dispatcherService: NotificationDispatcherService,
     @InjectRedis()
     private readonly redis: Redis,
-    private readonly firebaseService: FirebaseService,
-    private readonly deviceTokenService: DeviceTokenService,
   ) {}
 
   async createAndEnqueue(dto: CreateNotificationDto) {
@@ -54,55 +47,37 @@ export class NotificationService {
       }
     }
 
-    const prefs = await this.userPreferenceService.getUserPreferences(
-      dto.userId,
-    );
-    const allowedChannels =
-      dto.channels && dto.channels.length
-        ? dto.channels.filter((channel) =>
-            prefs.allowedChannels.includes(channel),
-          )
-        : prefs.allowedChannels;
+    const policyResult = await this.policyService.evaluatePolicy(dto.userId, dto.type);
 
-    if (!allowedChannels || allowedChannels.length === 0) {
-      this.logger.warn(`User ${dto.userId} has no allowed channels - skipping`);
-      return this.notificationModel.create({
-        requestId: dto.requestId,
-        userId: dto.userId,
-        type: dto.type,
-        payload: dto.payload,
-        message: null,
-        channels: [],
-        status: 'unread',
-        meta: { suppressed: true },
-      });
-    }
-
-    const limitResult = await this.userPreferenceService.reserveNotificationSlot(
-      dto.userId,
-      dto.type,
-      prefs.limits,
-    );
-
-    if (!limitResult.allowed) {
-      this.logger.warn(
-        `User ${dto.userId} exceeded ${limitResult.reason} limit for notification type ${dto.type}`,
-      );
-      return this.notificationModel.create({
-        requestId: dto.requestId,
-        userId: dto.userId,
-        type: dto.type,
-        payload: dto.payload,
-        message: null,
-        channels: [],
-        status: 'unread',
-        meta: {
-          rateLimited: true,
-          rateLimitReason: limitResult.reason,
-          dailyCount: limitResult.dailyCount,
-          burstCount: limitResult.burstCount,
-        },
-      });
+    if (!policyResult.allowed) {
+      if (policyResult.suppressed) {
+        return this.notificationModel.create({
+          requestId: dto.requestId,
+          userId: dto.userId,
+          type: dto.type,
+          payload: dto.payload,
+          message: null,
+          channels: [],
+          status: 'unread',
+          meta: { suppressed: true },
+        });
+      } else {
+        return this.notificationModel.create({
+          requestId: dto.requestId,
+          userId: dto.userId,
+          type: dto.type,
+          payload: dto.payload,
+          message: null,
+          channels: [],
+          status: 'unread',
+          meta: {
+            rateLimited: true,
+            rateLimitReason: policyResult.reason,
+            dailyCount: policyResult.dailyCount,
+            burstCount: policyResult.burstCount,
+          },
+        });
+      }
     }
 
     try {
@@ -118,7 +93,7 @@ export class NotificationService {
         type: dto.type,
         payload: dto.payload,
         message: renderedTemplate.body,
-        channels: allowedChannels,
+        channels: [], // Deprecated, we no longer store allowedChannels here
         sendAt,
         status: 'unread',
         meta: dto.meta || {},
@@ -132,45 +107,13 @@ export class NotificationService {
         );
       }
 
-      const delay =
-        sendAt && sendAt.getTime() > Date.now()
-          ? Math.max(0, sendAt.getTime() - Date.now())
-          : 0;
-
-      await this.notificationQueue.add(
-        REGULAR_NOTIFICATION_DELIVERY_JOB,
-        { id: doc._id.toString() },
-        {
-          jobId: `regular:${doc._id.toString()}`,
-          delay,
-          attempts: 5,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: true,
-        },
-      );
-
-      if (delay > 0) {
-        this.logger.log(`Notification ${doc._id} scheduled in ${delay}ms`);
-      } else {
-        this.logger.log(`Notification ${doc._id} enqueued for delivery`);
-      }
+      await this.dispatcherService.dispatchToQueue(doc as any, sendAt);
 
       return doc;
     } catch (error) {
-      await this.userPreferenceService.releaseNotificationSlot(
-        dto.userId,
-        dto.type,
-        prefs.limits,
-      );
+      await this.policyService.releaseSlot(dto.userId, dto.type);
       throw error;
     }
-  }
-
-  async publishToChannels(doc: NotificationDocument) {
-    await this.sendPushNotification(doc);
-    this.logger.log(
-      `Sent push notification ${doc._id} via FCM to user ${doc.userId}`,
-    );
   }
 
   async findById(id: string) {
@@ -180,15 +123,17 @@ export class NotificationService {
 
   async findByUser(
     userId: string,
-    query: CursorPaginationDTO,
+    query: GetNotificationQueryDto,
   ): Promise<CursorPageResponse<NotificationResponseDto>> {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
     const limit = query.limit;
+    const hasFilters = query.type !== undefined || query.isRead !== undefined;
 
-    const isEmpty = await this.redis.exists(emptyKey);
-    if (isEmpty) {
-      return new CursorPageResponse<NotificationResponseDto>([], null, false);
-    }
+    if (!hasFilters) {
+      const isEmpty = await this.redis.exists(emptyKey);
+      if (isEmpty) {
+        return new CursorPageResponse<NotificationResponseDto>([], null, false);
+      }
 
     let maxScore = '+inf';
     if (query.cursor) {
@@ -261,18 +206,29 @@ export class NotificationService {
       );
     }
 
-    const scoreFilter = query.cursor
-      ? { $lt: new Date(parseInt(query.cursor, 10)) }
-      : {};
+    }
+
+    const mongoQuery: any = { userId };
+    if (query.cursor) {
+      mongoQuery.createdAt = { $lt: new Date(parseInt(query.cursor, 10)) };
+    }
+    if (query.type) {
+      mongoQuery.type = query.type;
+    }
+    if (query.isRead !== undefined) {
+      mongoQuery.status = query.isRead ? 'read' : 'unread';
+    }
 
     const dbItems = await this.notificationModel
-      .find({ userId, ...(query.cursor ? { createdAt: scoreFilter } : {}) })
+      .find(mongoQuery)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .lean();
 
     if (dbItems.length > 0) {
-      await this.cacheNotifications(userId, dbItems);
+      if (!hasFilters) {
+        await this.cacheNotifications(userId, dbItems);
+      }
 
       const hasNext = dbItems.length > limit;
       const items = dbItems.slice(0, limit);
@@ -289,7 +245,9 @@ export class NotificationService {
       );
     }
 
-    await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+    if (!hasFilters) {
+      await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+    }
     return new CursorPageResponse([], null, false);
   }
 
@@ -317,7 +275,7 @@ export class NotificationService {
   async removeById(id: string) {
     const doc = await this.notificationModel.findByIdAndDelete(id);
     if (!doc) {
-      return;
+      return { success: true };
     }
 
     const { key, dataKey, emptyKey } = this.getCacheKeys(doc.userId);
@@ -326,6 +284,7 @@ export class NotificationService {
     multi.hdel(dataKey, id);
     multi.del(emptyKey);
     await multi.exec();
+    return { success: true };
   }
 
   async removeAll(userId: string) {
@@ -334,49 +293,17 @@ export class NotificationService {
     const multi = this.redis.multi();
     multi.del(key, dataKey, emptyKey);
     await multi.exec();
+    return { success: true };
   }
 
-  private async sendPushNotification(doc: NotificationDocument) {
-    const deviceTokens = await this.deviceTokenService.getActiveTokensByUserId(
-      doc.userId,
-    );
-
-    if (deviceTokens.length === 0) {
-      this.logger.warn(`No device tokens found for user ${doc.userId}`);
-      return;
-    }
-
-    const tokens = deviceTokens.map((deviceToken) => deviceToken.token);
-    const renderedTemplate = this.templateService.renderTemplate(
-      doc.type,
-      doc.payload as any,
-    );
-    const result = await this.firebaseService.sendToMultipleDevices(
-      tokens,
-      renderedTemplate.title,
-      renderedTemplate.body || doc.message || 'Bạn có thông báo mới',
-      {
-        notificationId: (doc._id as Types.ObjectId).toString(),
-        type: doc.type,
-        userId: doc.userId,
-        ...renderedTemplate.data,
-      },
-      {
-        androidChannelId: renderedTemplate.delivery.androidChannelId,
-      },
-    );
-
-    this.logger.log(
-      `FCM sent to ${result.successCount}/${tokens.length} devices for user ${doc.userId}`,
-    );
-
-    if (result.invalidTokens.length > 0) {
-      await this.deviceTokenService.markTokensAsInvalid(result.invalidTokens);
-      this.logger.warn(
-        `Marked ${result.invalidTokens.length} invalid tokens as inactive`,
-      );
-    }
+  async countUnread(userId: string): Promise<number> {
+    return this.notificationModel.countDocuments({
+      userId,
+      status: 'unread',
+    });
   }
+
+
 
   private async cacheNotifications(userId: string, items: any[]) {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);

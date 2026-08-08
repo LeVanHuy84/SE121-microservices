@@ -4,8 +4,10 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { FinalDecision, Severity, TargetType } from '@repo/dtos';
+import { ModerationAppeal } from './moderation-appeal.entity';
 
 @Entity('content_moderations')
 @Index(['targetId', 'targetType'])
@@ -22,6 +24,9 @@ export class ContentModeration {
 
   @Column({ type: 'enum', enum: TargetType, name: 'target_type' })
   targetType: TargetType;
+
+  @Column({ name: 'is_violation', default: true })
+  isViolation: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
   violations: {
@@ -53,4 +58,7 @@ export class ContentModeration {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @OneToMany(() => ModerationAppeal, (appeal) => appeal.moderation)
+  appeals: ModerationAppeal[];
 }

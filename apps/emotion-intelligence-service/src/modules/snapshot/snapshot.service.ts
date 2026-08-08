@@ -251,15 +251,12 @@ export class SnapshotService {
       Math.pow(this.clamp01(negativeRatio), 1.3),
     );
     const trendUp = this.clamp01(Math.max(0, trend));
-    const baselineGap = this.clamp01(
-      Math.max(0, nonlinearNegativity - baseline),
-    );
 
     const weighted =
-      0.5 * nonlinearNegativity +
-      0.2 * volatility +
-      0.15 * trendUp +
-      0.15 * baselineGap;
+      0.65 * nonlinearNegativity +
+      0.15 * this.clamp01(baseline) +
+      0.10 * volatility +
+      0.10 * trendUp;
 
     return this.clamp01(weighted);
   }

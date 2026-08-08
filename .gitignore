@@ -52,3 +52,5 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+docs/
+.agent/

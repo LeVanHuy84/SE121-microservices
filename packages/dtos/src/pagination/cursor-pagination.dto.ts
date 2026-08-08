@@ -8,6 +8,10 @@ export class CursorPaginationDTO {
   cursor?: string;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

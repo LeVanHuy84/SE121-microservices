@@ -26,12 +26,17 @@ describe('ChatPushService', () => {
     add: jest.fn().mockResolvedValue(undefined),
   };
 
+  const policyService = {
+    checkPreferencesOnly: jest.fn().mockResolvedValue({ allowed: true }),
+  };
+
   const createService = () =>
     new ChatPushService(
       notificationQueue as any,
       redis as any,
       firebaseService as any,
       deviceTokenService as any,
+      policyService as any,
     );
 
   beforeEach(() => {

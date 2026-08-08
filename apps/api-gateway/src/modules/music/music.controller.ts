@@ -35,6 +35,7 @@ export class MusicController {
     @CurrentUserId() userId: string,
     @Query() query: PaginationDTO,
   ) {
+    console.log('Received query in controller:', query);
     return this.client.send('get_music_recommendations', { userId, query });
   }
 
@@ -47,6 +48,7 @@ export class MusicController {
   @Post()
   @RequireRole(SystemRole.ADMIN)
   createMusicFeature(@Body() dto: CreateMusicFeatureDTO) {
+    console.log('Received DTO in controller:', dto);
     return this.client.send('create_music_feature', dto);
   }
 

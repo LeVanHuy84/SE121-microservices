@@ -25,10 +25,7 @@ export const DEFAULT_FRIEND_RECOMMENDATION_SCORING: FriendRecommendationScoringC
     sourceRepeatPenalty: 1,
   };
 
-function parsePositiveInt(
-  value: string | undefined,
-  fallback: number,
-): number {
+function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) {
     return fallback;
   }
@@ -82,7 +79,9 @@ export function loadFriendRecommendationScoringConfig(
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.diversityWindowSize,
     ),
     sharedMutualFriendPenalty: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_SHARED_MUTUAL_FRIEND_PENALTY'),
+      configService.get<string>(
+        'FRIEND_RECOMMEND_SHARED_MUTUAL_FRIEND_PENALTY',
+      ),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.sharedMutualFriendPenalty,
     ),
     sourceRepeatPenalty: parsePositiveInt(

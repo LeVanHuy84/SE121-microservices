@@ -15,7 +15,7 @@ export class EmotionFeatureService {
     @InjectRedis() private readonly redis: Redis,
     @Inject('EMOTION_INTELLIGENCE_SERVICE')
     private readonly emotionIntelligenceClient: ClientProxy,
-  ) {}
+  ) { }
 
   // =========================
   // PUBLIC API
@@ -33,18 +33,11 @@ export class EmotionFeatureService {
 
       const normalized = this.normalizeFeatures(fetched);
 
-      this.logger.debug(
-        `Normalized emotion features for user ${userId}: ${JSON.stringify(
-          normalized,
-        )}`,
-      );
-
       await this.cacheFeatures(userId, normalized);
       return normalized;
     } catch (error) {
       this.logger.warn(
-        `Failed to get emotion features for user ${userId}: ${
-          (error as Error).message
+        `Failed to get emotion features for user ${userId}: ${(error as Error).message
         }`,
       );
       return null;
@@ -68,29 +61,40 @@ export class EmotionFeatureService {
       riskHintLevel?: RiskHintLevel;
     },
   ): number {
-    const pref = this.calcPreferenceMatch(
-      features.userEmotionPreference,
-      post.scores,
-    );
+    this.logger.log(`User emotion Features: ${JSON.stringify(features)}`);
+    this.logger.log(`Post Scores: ${JSON.stringify(post.scores)}`);
 
-    const moodRaw = this.calcMoodMatch(
-      features.last24hEmotionDistribution,
-      post.scores,
-    );
+    const distress = this.calcDistress(features);
 
-    const mood = this.applyMoodBoost(moodRaw, post.scores, features);
+    const novelty = this.calcNoveltyScore(features, post.scores);
 
-    const risk = this.calcRiskPenalty(features, post.scores);
+    const baseline = this.calcContentBaseline(post.scores);
 
-    // intensity boost
-    const intensityBoost = 0.8 + (post.intensity || 0) * 0.4;
+    const recovery = this.calcRecoveryBoost(features, post.scores);
 
-    // confidence weight
-    const confidenceWeight = 0.7 + (post.confidence || 0) * 0.3;
+    const riskPenalty = this.calcRiskPenalty(features, post.scores);
 
-    let score =
-      (0.5 * pref + 0.4 * mood - 0.2 * risk) *
-      intensityBoost *
+    const intensityWeight = 0.8 + (post.intensity ?? 0) * 0.4;
+
+    const confidenceWeight = 0.7 + (post.confidence ?? 0) * 0.3;
+
+    const recoveryWeight =
+      distress > 0.7
+        ? 0.40
+        : distress > 0.5
+          ? 0.25
+          : 0.10;
+
+    const score =
+      (
+        0.55 * novelty +
+        0.15 * baseline +
+        recoveryWeight * recovery -
+        0.25 * riskPenalty
+      )
+      *
+      intensityWeight
+      *
       confidenceWeight;
 
     return this.clamp(score);
@@ -219,70 +223,98 @@ export class EmotionFeatureService {
   // SCORING LOGIC
   // =========================
 
-  private calcPreferenceMatch(
-    userPref: Record<string, number>,
-    postScores: Record<string, number>,
-  ): number {
-    let score = 0;
-
-    for (const key in userPref) {
-      score += (userPref[key] || 0) * (postScores[key] || 0);
-    }
-
-    return score;
-  }
-
-  private calcMoodMatch(
-    last24h: Record<string, number>,
-    postScores: Record<string, number>,
-  ): number {
-    let score = 0;
-
-    for (const key in last24h) {
-      score += (last24h[key] || 0) * (postScores[key] || 0);
-    }
-
-    return score;
-  }
-
-  private applyMoodBoost(
-    moodMatch: number,
-    postScores: Record<string, number>,
+  private calcDistress(
     features: EmotionRankingFeaturesDto,
   ): number {
-    let score = moodMatch;
+    return this.clamp(
+      features.riskScore * 0.4 +
+      features.recentNegativityScore * 0.4 +
+      features.negativeRatio7d * 0.2,
+    );
+  }
 
-    const sadness = features.last24hEmotionDistribution.sadness || 0;
-    const recent = features.recentNegativityScore || 0;
+  private calcContentBaseline(
+    postScores: Record<string, number>,
+  ): number {
+    const joy = postScores.joy || 0;
+    const neutral = postScores.neutral || 0;
+    const trust = postScores.trust || 0;
+    const calm = postScores.calm || 0;
 
-    const sadnessSignal = 0.7 * sadness + 0.3 * recent;
+    return this.clamp(
+      joy * 0.20 +
+      neutral * 0.35 +
+      trust * 0.25 +
+      calm * 0.20,
+    );
+  }
 
-    if (sadnessSignal > 0.5) {
-      const joy = postScores.joy || 0;
-      const boost = 1 + sadnessSignal * 0.5;
+  private calcNoveltyScore(
+    features: EmotionRankingFeaturesDto,
+    postScores: Record<string, number>,
+  ): number {
+    let score = 0;
 
-      score *= joy > 0.3 ? boost : 1 - sadnessSignal * 0.4;
+    const exposure = features.last24hEmotionDistribution;
+
+    for (const emotion in postScores) {
+      const postEmotion = postScores[emotion] || 0;
+      const exposureRate = exposure[emotion] || 0;
+
+      score += postEmotion * (1 - exposureRate);
     }
 
-    return score;
+    return this.clamp(score);
+  }
+
+  private calcRecoveryBoost(
+    features: EmotionRankingFeaturesDto,
+    postScores: Record<string, number>,
+  ): number {
+    const distress = this.calcDistress(features);
+
+    if (distress < 0.5) {
+      return 0;
+    }
+
+    const userState = features.userEmotionPreference;
+
+    const sadness = userState.sadness || 0;
+    const fear = userState.fear || 0;
+    const anger = userState.anger || 0;
+
+    const joy = postScores.joy || 0;
+    const trust = postScores.trust || 0;
+    const calm = postScores.calm || 0;
+    const neutral = postScores.neutral || 0;
+
+    let recovery = 0;
+
+    recovery += sadness * joy;
+    recovery += fear * trust;
+    recovery += anger * calm;
+
+    recovery +=
+      (sadness + fear + anger) *
+      neutral *
+      0.25;
+
+    return this.clamp(recovery * distress);
   }
 
   private calcRiskPenalty(
     features: EmotionRankingFeaturesDto,
     postScores: Record<string, number>,
   ): number {
+    const distress = this.calcDistress(features);
+
     const negative =
-      (postScores.sadness || 0) +
-      (postScores.anger || 0) +
-      (postScores.fear || 0);
+      (postScores.sadness || 0) * 0.4 +
+      (postScores.anger || 0) * 0.3 +
+      (postScores.fear || 0) * 0.3;
 
-    const baseRisk = features.riskScore;
-    const recent = features.recentNegativityScore || 0;
-    const momentum = features.emotionMomentum || 0;
-
-    const dynamicRisk =
-      baseRisk * 0.6 + recent * 0.3 + Math.max(0, momentum) * 0.1;
-
-    return dynamicRisk * negative;
+    return this.clamp(
+      distress * Math.pow(negative, 2),
+    );
   }
 }

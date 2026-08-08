@@ -9,6 +9,7 @@ export class FriendshipController {
 
   @MessagePattern('get_relationship_status')
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
+    console.log('Received get_relationship_status request with data:', data);
     return this.friendshipService.getRelationshipStatus(
       data.userId,
       data.targetId,
@@ -25,10 +26,14 @@ export class FriendshipController {
       recommendationRequestId?: string;
     },
   ) {
-    return this.friendshipService.sendFriendRequest(data.userId, data.targetId, {
-      recommendationId: data.recommendationId,
-      recommendationRequestId: data.recommendationRequestId,
-    });
+    return this.friendshipService.sendFriendRequest(
+      data.userId,
+      data.targetId,
+      {
+        recommendationId: data.recommendationId,
+        recommendationRequestId: data.recommendationRequestId,
+      },
+    );
   }
 
   @MessagePattern('cancel_friend_request')
@@ -93,9 +98,9 @@ export class FriendshipController {
 
   @MessagePattern('get_friends')
   async getFriends(
-    @Payload() data: { userId: string; query: CursorPaginationDTO },
+    @Payload() data: { requesterId: string; targetId: string; query: CursorPaginationDTO },
   ) {
-    return this.friendshipService.getFriends(data.userId, data.query);
+    return this.friendshipService.getFriends(data.requesterId, data.targetId, data.query);
   }
 
   @MessagePattern('get_blocked_users')

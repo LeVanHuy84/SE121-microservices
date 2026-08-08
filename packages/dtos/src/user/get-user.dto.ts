@@ -1,4 +1,16 @@
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
+import { PrivacyLevel, MessagePrivacy } from './enums';
+
+export class UserPrivacySettingsResponse {
+  @Expose()
+  profileVisibility: PrivacyLevel;
+  
+  @Expose()
+  messagePrivacy: MessagePrivacy;
+  
+  @Expose()
+  friendListVisibility: PrivacyLevel;
+}
 
 export class UserResponseDTO {
   @Expose()
@@ -32,6 +44,16 @@ export class UserResponseDTO {
   interests?: string[];
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  postCount: number;
+
+  @Expose()
+  friendCount: number;
+
+  @Expose()
+  @Type(() => UserPrivacySettingsResponse)
+  privacySettings: UserPrivacySettingsResponse;
 }
 
 export class BaseUserDTO {
