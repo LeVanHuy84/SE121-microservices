@@ -14,7 +14,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('SOCIAL_SERVICE_PORT'),
+            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
           },
         }),
       },
