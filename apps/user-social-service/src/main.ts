@@ -2,51 +2,10 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
-import { CommandService } from './modules/user/command/command.service';
-import { CommandModule } from './modules/user/command/command.module';
-import { Kafka } from 'kafkajs';
-import { EventTopic } from '@repo/dtos';
-
-async function ensureKafkaTopics() {
-  const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
-  const kafka = new Kafka({
-    clientId: 'user-service-admin',
-    brokers,
-  });
-  const admin = kafka.admin();
-  try {
-    await admin.connect();
-    const existingTopics = await admin.listTopics();
-    const requiredTopics = [
-      EventTopic.GROUP,
-      EventTopic.POST,
-      EventTopic.RECOMMENDATION_GRAPH,
-    ];
-    const topicsToCreate = requiredTopics
-      .filter((topic) => !existingTopics.includes(topic))
-      .map((topic) => ({ topic }));
-
-    if (topicsToCreate.length > 0) {
-      console.log(
-        `Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(', ')}`,
-      );
-      await admin.createTopics({
-        topics: topicsToCreate,
-      });
-    }
-  } catch (error: any) {
-    console.warn(
-      'Failed to ensure Kafka topics exist:',
-      error.message || error,
-    );
-  } finally {
-    await admin.disconnect().catch(() => {});
-  }
-}
+import { CommandService } from './module/command/command.service';
+import { CommandModule } from './module/command/command.module';
 
 async function bootstrap() {
-  await ensureKafkaTopics();
-
   const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
     {
@@ -76,13 +35,10 @@ async function bootstrap() {
         client: {
           brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
           clientId: process.env.KAFKA_CLIENT_ID || 'user-service',
-          retry: { retries: 3 },
         },
         consumer: {
           groupId: process.env.KAFKA_GROUP_ID || 'user-service-group',
-          allowAutoTopicCreation: true,
         },
-        subscribe: { fromBeginning: false },
       },
     },
   );
@@ -90,15 +46,7 @@ async function bootstrap() {
   tcpApp.useGlobalFilters(new ExceptionsFilter());
   redisApp.useGlobalFilters(new ExceptionsFilter());
   kafkaApp.useGlobalFilters(new ExceptionsFilter());
-
-  // Start TCP and Redis first (always required)
-  await Promise.all([tcpApp.listen(), redisApp.listen()]);
-  console.log('User service TCP/Redis transports started.');
-
-  // Start Kafka consumer independently — don't crash if Kafka unavailable
-  kafkaApp.listen().catch((err) => {
-    console.warn('[Kafka] Consumer failed to start:', err?.message ?? err);
-  });
+  await Promise.all([tcpApp.listen(), redisApp.listen(), kafkaApp.listen()]);
 
   // Use a dedicated module for startup commands so closing this context
   // does not tear down shared infra providers from AppModule (e.g. Redis).

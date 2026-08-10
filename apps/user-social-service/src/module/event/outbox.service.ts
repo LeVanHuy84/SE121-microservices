@@ -1,0 +1,91 @@
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  EventDestination,
+  EventTopic,
+  RecommendationProfileEmbeddingRequestedPayload,
+  RecommendationProfileEventType,
+} from '@repo/dtos';
+import { DRIZZLE } from 'src/drizzle/drizzle.module';
+import { outboxEvents } from 'src/drizzle/schema/schema';
+import type { DrizzleDB } from 'src/drizzle/types/drizzle';
+
+@Injectable()
+export class OutboxService {
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+
+  createOutboxEvent(
+    destination: EventDestination,
+    topic: string,
+    eventType: string,
+    payload: Record<string, any>
+  ) {
+    return this.db
+      .insert(outboxEvents)
+      .values({
+        destination,
+        topic,
+        eventType,
+        payload,
+      })
+      .returning();
+  }
+
+  createOutboxEventWithTransaction(
+    tx: any,
+    destination: EventDestination,
+    topic: string,
+    eventType: string,
+    payload: Record<string, any>
+  ) {
+    return tx
+      .insert(outboxEvents)
+      .values({
+        destination,
+        topic,
+        eventType,
+        payload,
+      })
+      .returning();
+  }
+
+  createUserOutboxEvent(
+    tx: any,
+    eventType: string,
+    payload: Record<string, any>
+  ) {
+    return this.createOutboxEventWithTransaction(
+      tx,
+      EventDestination.KAFKA,
+      EventTopic.USER,
+      eventType,
+      payload
+    );
+  }
+
+  createLoggingOutboxEvent(
+    tx: any,
+    eventType: string,
+    payload: Record<string, any>
+  ) {
+    return this.createOutboxEventWithTransaction(
+      tx,
+      EventDestination.KAFKA,
+      EventTopic.LOGGING,
+      eventType,
+      payload
+    );
+  }
+
+  createRecommendationProfileEmbeddingRequestedEvent(
+    tx: any,
+    payload: RecommendationProfileEmbeddingRequestedPayload
+  ) {
+    return this.createOutboxEventWithTransaction(
+      tx,
+      EventDestination.KAFKA,
+      EventTopic.RECOMMENDATION_PROFILE,
+      RecommendationProfileEventType.EMBEDDING_REQUESTED,
+      payload
+    );
+  }
+}
