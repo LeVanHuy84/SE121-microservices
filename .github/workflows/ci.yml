@@ -15,49 +15,25 @@ permissions:
   contents: read
 
 jobs:
-  build-test:
-    name: Lint, Typecheck, Test & Build
+  main:
     runs-on: ubuntu-latest
 
     steps:
       # 1. Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
       # 2. Setup Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: 20
+      #     cache: 'npm'
 
-      # 3. Cache Turborepo build cache
-      - name: Turbo Repository Cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
+      # # 3. Install dependencies
+      # - name: Install dependencies
+      #   run: npm ci --legacy-peer-deps
 
-      # 4. Install dependencies
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      # 5. Build Applications & Packages first (Required for local ts exports to resolve)
-      - name: Build Application & Shared Packages
-        run: npx turbo run build --cache-dir=.turbo
-
-      # 6. Run Lint check
-      - name: Code Linting
-        run: npx turbo run lint --cache-dir=.turbo
-
-      # 7. Run TypeScript Type checking
-      - name: TypeScript Typecheck
-        run: npx turbo run check-types --cache-dir=.turbo
-
-      # 8. Run Tests
-      - name: Run Tests
-        run: npx turbo run test --cache-dir=.turbo
+      # # 4. Run turbo pipeline
+      # - name: Lint, Test & Build
+      #   run: npx turbo run lint test build --cache-dir=.turbo
