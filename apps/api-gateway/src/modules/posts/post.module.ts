@@ -19,7 +19,7 @@ import { ReportController } from './report.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
+            port: config.get<number>('POST_SERVICE_PORT'),
           },
         }),
       },

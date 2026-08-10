@@ -19,7 +19,7 @@ import { GroupInviteController } from './group-invite.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+            port: config.get<number>('GROUP_SERVICE_PORT'),
           },
         }),
       },
