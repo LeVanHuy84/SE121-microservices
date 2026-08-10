@@ -17,17 +17,19 @@ export const eventDestinationEnum = pgEnum(
 
 export const outboxEvents = pgTable('outbox_events', {
   id: uuid('id').defaultRandom().primaryKey(),
-
   destination: eventDestinationEnum('destination').notNull(),
-
   topic: varchar('topic', { length: 255 }).notNull(),
-
   eventType: varchar('event_type', { length: 255 }).notNull(),
-
   payload: jsonb('payload').$type<Record<string, any>>().notNull(),
-
   processed: boolean('processed').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
+export const processedEvents = pgTable('processed_events', {
+  eventId: varchar('event_id', { length: 255 }).primaryKey(),
+  done: boolean('done').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
