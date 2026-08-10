@@ -63,7 +63,7 @@ import { ChatbotService } from './chatbot.service';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('SEARCH_RECOMMENDATION_SERVICE_PORT'),
+            port: config.get<number>('SEARCH_SERVICE_PORT'),
           },
         }),
       },

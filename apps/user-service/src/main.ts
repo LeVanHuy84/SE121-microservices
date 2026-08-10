@@ -43,6 +43,22 @@ async function bootstrap() {
     },
   );
 
+  const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+          clientId: process.env.KAFKA_CLIENT_ID || 'user-service',
+        },
+        consumer: {
+          groupId: process.env.KAFKA_GROUP_ID || 'user-service-group',
+        },
+      },
+    }
+  );
+
   tcpApp.useGlobalFilters(new ExceptionsFilter());
   redisApp.useGlobalFilters(new ExceptionsFilter());
   kafkaApp.useGlobalFilters(new ExceptionsFilter());

@@ -24,7 +24,7 @@ import { NotificationModule } from '../notification/notification.module';
                 useFactory: (config: ConfigService) => ({
                     transport: Transport.TCP,
                     options: {
-                        port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+                        port: config.get<number>('USER_SERVICE_PORT'),
                     },
                 }),
             },

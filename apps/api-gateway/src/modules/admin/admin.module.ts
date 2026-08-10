@@ -16,7 +16,7 @@ import { ModerationController } from './moderation.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
+            port: config.get<number>('POST_SERVICE_PORT'),
           },
         }),
       },
@@ -27,7 +27,7 @@ import { ModerationController } from './moderation.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+            port: config.get<number>('USER_SERVICE_PORT'),
           },
         }),
       },
@@ -38,7 +38,7 @@ import { ModerationController } from './moderation.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+            port: config.get<number>('GROUP_SERVICE_PORT'),
           },
         }),
       },
