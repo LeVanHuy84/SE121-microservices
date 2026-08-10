@@ -1,14 +1,16 @@
-name: CI
+name: CI (Disabled Temp)
 
-on:
-  push:
-    branches:
-      - develop
-      - master
-  pull_request:
-    branches:
-      - develop
-      - master
+# Tạm thời tắt trigger CI cho đến khi hoàn tất refactor
+on: []
+# on:
+#   push:
+#     branches:
+#       - develop
+#       - master
+#   pull_request:
+#     branches:
+#       - develop
+#       - master
 
 permissions:
   actions: read
