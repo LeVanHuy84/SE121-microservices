@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "ignoreDeprecations": "5.0",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "paths": {
+      "src/entities/*": ["./src/modules/post/entities/*", "./src/modules/media/entities/*"],
+      "src/modules/*": [
+        "./src/modules/post/*",
+        "./src/modules/feed/*",
+        "./src/modules/media/*",
+        "./src/modules/logging/*",
+        "./src/modules/notification/*"
+      ],
+      "src/common/*": ["./src/modules/feed/common/*"],
+      "src/utils/*": ["./src/modules/feed/utils/*"],
+      "src/constants": ["./src/modules/feed/constants"],
+      "src/*": ["./src/*"]
+    },
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": false,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false
+  }
+}
