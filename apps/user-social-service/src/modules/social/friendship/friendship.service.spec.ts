@@ -4,7 +4,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
-import { UserClientService } from '../services/user-client.service';
 import { FriendshipService } from './friendship.service';
 
 describe('FriendshipService', () => {
@@ -137,14 +136,6 @@ describe('FriendshipService', () => {
           provide: RecommendationQueryService,
           useValue: {
             recommendFriends,
-          },
-        },
-        {
-          provide: UserClientService,
-          useValue: {
-            getUserInfo: jest.fn(),
-            getUsers: jest.fn(),
-            searchUserIds: jest.fn(),
           },
         },
       ],

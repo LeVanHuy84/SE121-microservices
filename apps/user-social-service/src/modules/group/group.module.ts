@@ -35,8 +35,6 @@ import { GroupLogService } from './services/group-log.service';
 import { ReportService } from './services/group-report.service';
 import { GroupRecommendationService } from './services/group-recommendation.service';
 import { ConsumerService } from './services/group-consumer.service';
-import { UserClientService } from './services/user-client.service';
-import { SocialClientService } from './services/social-client.service';
 import { GroupBatchService } from './services/group-batch.service';
 import { GroupBufferService } from './services/group-buffer.service';
 
@@ -101,8 +99,6 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
     ReportService,
     GroupRecommendationService,
     ConsumerService,
-    UserClientService,
-    SocialClientService,
     GroupBatchService,
     GroupBufferService,
     KafkaConsumerHelper,

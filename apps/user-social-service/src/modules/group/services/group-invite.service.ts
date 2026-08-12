@@ -27,7 +27,7 @@ import {
 import { GroupLogService } from './group-log.service';
 import { GroupBufferService } from './group-buffer.service';
 import { hasPermission } from 'src/modules/group/common/constant/role-permission.constant';
-import { UserClientService } from './user-client.service';
+import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
 export class GroupInviteService {
@@ -35,7 +35,7 @@ export class GroupInviteService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly groupLogService: GroupLogService,
     private readonly groupBufferService: GroupBufferService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   // ==================================================
@@ -117,7 +117,7 @@ export class GroupInviteService {
         )
         .limit(1);
 
-      const invitee = await this.userClient.getUserInfo(inviteeId);
+      const invitee = await this.userService.findOne(inviteeId);
       const inviteeName =
         `${invitee?.firstName ?? ''} ${invitee?.lastName ?? ''}`.trim() ||
         'Người dùng';
@@ -341,11 +341,11 @@ export class GroupInviteService {
     let eventType: string;
 
     if (type === 'invite') {
-      const inviter = await this.userClient.getUserInfo(inviterId);
+      const inviter = await this.userService.findOne(inviterId);
       payload = {
         targetId: group.id,
         targetType: NotiTargetType.GROUP,
-        content: `${inviter?.firstName} ${inviter?.lastName} đã mời bạn tham gia nhóm ${group.name}`,
+        content: `${inviter?.firstName || ''} ${inviter?.lastName || ''}`.trim() + ` đã mời bạn tham gia nhóm ${group.name}`,
         receivers: [inviteeId],
       };
       eventType = 'group_invite';

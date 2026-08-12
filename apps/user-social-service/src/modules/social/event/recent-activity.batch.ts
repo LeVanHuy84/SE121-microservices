@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotiTargetType } from '@repo/dtos';
 import { createHash } from 'crypto';
 import pLimit from 'p-limit';
-import { UserClientService } from '../services/user-client.service';
+import { UserService } from '../../user/user.service';
 import {
   NotificationSample,
   NotificationService,
@@ -19,7 +19,7 @@ export class RecentActivityBatch {
 
   constructor(
     private readonly buffer: RecentActivityBufferService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
     private readonly notificationService: NotificationService,
   ) {
     this.logger.log('RecentActivityBatch initialized');
@@ -40,13 +40,12 @@ export class RecentActivityBatch {
 
     this.logger.log(`Flushing ${count} recent activities`);
 
-    const actorsById = await this.userClient.getUsers(
+    const actorsById = await this.userService.getBaseUsersBatch(
       [
         ...new Set(
           Object.values(activities).map((activity) => activity.actorId),
         ),
       ],
-      'base',
     );
     const limit = pLimit(20);
     const tasks = Object.entries(activities).map(([activityKey, activity]) =>

@@ -14,7 +14,7 @@ import type {
 } from './repositories/social-graph.repository';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
-import { UserClientService } from '../services/user-client.service';
+import { UserService } from '../../user/user.service';
 
 @Injectable()
 export class FriendshipService {
@@ -31,7 +31,7 @@ export class FriendshipService {
     private readonly socialGraphRepo: SocialGraphRepository,
     private readonly recommendationQueryService: RecommendationQueryService,
     private readonly buffer: RecentActivityBufferService,
-    private readonly userClientService: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   async getRelationshipStatus(userId: string, targetId: string) {
@@ -304,7 +304,7 @@ export class FriendshipService {
         return { data: [], nextCursor: null, hasNextPage: false };
       }
       
-      const matchedIds = await this.userClientService.searchUserIds(
+      const matchedIds = await this.userService.searchUserIds(
         allFriendIds, 
         query.search, 
         normalizedQuery.limit
@@ -314,8 +314,7 @@ export class FriendshipService {
     }
 
     if (requesterId !== targetId) {
-      const users = await this.userClientService.getUsers([targetId], 'full');
-      const targetUser = users[targetId] as any;
+      const targetUser = await this.userService.findOne(targetId) as any;
       if (targetUser && targetUser.privacySettings) {
         const visibility = targetUser.privacySettings.friendListVisibility || 'PUBLIC';
         if (visibility === 'PRIVATE') {

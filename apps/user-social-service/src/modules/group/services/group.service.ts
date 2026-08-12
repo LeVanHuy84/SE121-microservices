@@ -30,7 +30,7 @@ import {
   Group,
 } from 'src/drizzle/schema/schema';
 import { eq, sql } from 'drizzle-orm';
-import { UserClientService } from 'src/modules/group/services/user-client.service';
+import { UserService } from 'src/modules/user/user.service';
 import { GroupLogService } from 'src/modules/group/services/group-log.service';
 import { GroupCacheService } from './group-cache.service';
 
@@ -40,7 +40,7 @@ export class GroupService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly groupLogService: GroupLogService,
     private readonly groupCacheService: GroupCacheService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   // ==================================================
@@ -49,7 +49,7 @@ export class GroupService {
     userId: string,
     dto: CreateGroupDTO,
   ): Promise<GroupResponseDTO> {
-    const owner = await this.userClient.getUserInfo(userId);
+    const owner = await this.userService.findOne(userId);
     if (!owner) {
       throw new RpcException({
         statusCode: 404,

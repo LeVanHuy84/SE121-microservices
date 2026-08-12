@@ -3,7 +3,7 @@ import { KafkaProducerModule } from '@repo/common';
 import { RecentActivityBufferService } from './recent-activity.buffer.service';
 import { RecentActivityBatch } from './recent-activity.batch';
 import { NotificationModule } from './rabbitmq/notification.module';
-import { UserClientModule } from 'src/modules/social/services/user-client.module';
+import { UserModule } from '../../user/user.module';
 import { OutboxService } from 'src/modules/event/outbox.service';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 
@@ -13,7 +13,7 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
     DrizzleModule,
     KafkaProducerModule.registerAsync(),
     NotificationModule,
-    UserClientModule,
+    UserModule,
   ],
   providers: [
     OutboxService,

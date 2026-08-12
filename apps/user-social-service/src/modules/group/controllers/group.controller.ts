@@ -42,7 +42,6 @@ export class GroupController {
   async recommendGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
-    console.log('Received recommend_groups message with data:', data);
     return this.groupQueryService.recommendGroups(data.userId, data.query);
   }
 

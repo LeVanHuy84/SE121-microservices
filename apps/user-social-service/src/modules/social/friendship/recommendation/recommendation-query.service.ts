@@ -10,7 +10,7 @@ import {
   type SocialGraphRepository,
 } from '../repositories/social-graph.repository';
 import { randomUUID } from 'crypto';
-import { UserClientService } from '../../services/user-client.service';
+import { UserService } from '../../../../modules/user/user.service';
 
 @Injectable()
 export class RecommendationQueryService {
@@ -20,7 +20,7 @@ export class RecommendationQueryService {
 
   constructor(
     private readonly recommendationClient: RecommendationClientService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
     @Inject(SOCIAL_GRAPH_REPOSITORY)
     private readonly socialGraphRepo: SocialGraphRepository,
   ) {}
@@ -282,7 +282,7 @@ export class RecommendationQueryService {
       ),
     ];
 
-    const usersById = await this.userClient.getUsers(userIds, 'base');
+    const usersById = await this.userService.getBaseUsersBatch(userIds);
 
     return recommendations.map((recommendation) => ({
       ...recommendation,
