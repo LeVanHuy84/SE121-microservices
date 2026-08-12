@@ -35,9 +35,9 @@ import {
   sql,
 } from 'drizzle-orm';
 import { GroupCacheService } from './group-cache.service';
-import { SocialClientService } from 'src/modules/group/services/social-client.service';
 import { GroupMapper } from 'src/modules/group/common/mapper/group.mapper';
-import { UserClientService } from 'src/modules/group/services/user-client.service';
+import { UserService } from 'src/modules/user/user.service';
+import { FriendshipService } from 'src/modules/social/friendship/friendship.service';
 import type { CursorPaginationDTO } from '@repo/dtos';
 
 @Injectable()
@@ -47,8 +47,8 @@ export class GroupQueryService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly groupCacheService: GroupCacheService,
-    private readonly socialClientService: SocialClientService,
-    private readonly userClientService: UserClientService,
+    private readonly friendshipService: FriendshipService,
+    private readonly userService: UserService,
   ) {}
 
   // ---------- Public API ----------
@@ -115,8 +115,12 @@ export class GroupQueryService {
     const PAGE_LIMIT = query?.limit || 10;
 
     // 1) Get friend ids
-    const friends = await this.socialClientService.getFriendsIds(userId);
-    const friendIds = (friends || []).slice(0, this.DEFAULT_FRIENDS_LIMIT);
+    let friendIds: string[] = [];
+    try {
+      friendIds = await this.friendshipService.getFriendIds(userId, this.DEFAULT_FRIENDS_LIMIT);
+    } catch (err) {
+      // ignore
+    }
 
     // 2) Groups that friends joined
     let friendGroupIds: string[] = [];
@@ -230,10 +234,10 @@ export class GroupQueryService {
       (inv.inviters || []).forEach((id) => inviterIds.add(id));
     }
 
-    // 4) Batch load inviter profiles
+    // 4) Batch load inviter profiles directly via userService
     const inviterProfiles =
       inviterIds.size > 0
-        ? await this.userClientService.getUserInfos([...inviterIds])
+        ? await this.userService.getBaseUsersBatch([...inviterIds])
         : {};
 
     // 5) Paginate + map DTO

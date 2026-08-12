@@ -108,7 +108,9 @@ export class OutboxProcessor {
 
   private async toNotificationDtos(outbox: any): Promise<CreateNotificationDto[]> {
     const outboxPayload = outbox.payload as NotiOutboxPayload;
-    const receivers = outboxPayload.receivers;
+    const receivers = (outboxPayload?.receivers || []).filter(
+      (r): r is string => typeof r === 'string' && r.trim().length > 0,
+    );
 
     let actorName = outboxPayload.actorName;
     let actorAvatar = outboxPayload.actorAvatar;

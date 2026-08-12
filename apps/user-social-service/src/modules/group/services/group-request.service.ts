@@ -26,7 +26,7 @@ import {
 } from 'src/drizzle/schema/schema';
 import { GroupLogService } from './group-log.service';
 import { GroupBufferService } from './group-buffer.service';
-import { UserClientService } from './user-client.service';
+import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
 export class GroupJoinRequestService {
@@ -34,7 +34,7 @@ export class GroupJoinRequestService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly groupLogService: GroupLogService,
     private readonly groupBufferService: GroupBufferService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   // ==================================================
@@ -320,7 +320,7 @@ export class GroupJoinRequestService {
   }
 
   private async getUserName(userId: string): Promise<string> {
-    const userInfo = await this.userClient.getUserInfo(userId);
+    const userInfo = await this.userService.findOne(userId);
     return (
       `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
       'Người dùng'

@@ -41,7 +41,7 @@ import {
   groups,
   outboxEvents,
 } from 'src/drizzle/schema/schema';
-import { UserClientService } from './user-client.service';
+import { UserService } from 'src/modules/user/user.service';
 import { GroupMapper } from 'src/modules/group/common/mapper/group.mapper';
 
 @Injectable()
@@ -50,7 +50,7 @@ export class ReportService {
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   async getDashboard(
@@ -216,7 +216,7 @@ export class ReportService {
         .set({ reports: 0 })
         .where(eq(groups.id, groupId));
 
-      const actor = await this.userClient.getUserInfo(actorId);
+      const actor = await this.userService.findOne(actorId);
       const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
 
       await tx.insert(outboxEvents).values({
@@ -269,7 +269,7 @@ export class ReportService {
       };
       await this.createGroupOutboxEvent(tx, GroupEventType.REMOVED, payload);
 
-      const actor = await this.userClient.getUserInfo(actorId);
+      const actor = await this.userService.findOne(actorId);
       const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
 
       await tx.insert(outboxEvents).values([
@@ -320,7 +320,7 @@ export class ReportService {
         .set({ status: GroupStatus.ACTIVE })
         .where(eq(groups.id, groupId));
 
-      const actor = await this.userClient.getUserInfo(actorId);
+      const actor = await this.userService.findOne(actorId);
       const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
 
       const payload: InferGroupPayload<GroupEventType.CREATED> = {

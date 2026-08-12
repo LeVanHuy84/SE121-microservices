@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { UserClientService } from '../../services/user-client.service';
+import { UserService } from '../../../../modules/user/user.service';
 import type { FriendRecommendation } from '../repositories/social-graph.repository';
 
 @Injectable()
 export class RecommendationHydrationService {
-  constructor(private readonly userClient: UserClientService) {}
+  constructor(private readonly userService: UserService) {}
 
   async hydrateRecommendationUsers<T extends FriendRecommendation>(
     recommendations: T[],
@@ -22,7 +22,7 @@ export class RecommendationHydrationService {
       ),
     ];
 
-    const usersById = await this.userClient.getUsers(userIds, 'base');
+    const usersById = await this.userService.getBaseUsersBatch(userIds);
 
     return recommendations.map((recommendation) => ({
       ...recommendation,

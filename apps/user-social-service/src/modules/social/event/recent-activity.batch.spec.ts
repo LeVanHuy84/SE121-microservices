@@ -3,7 +3,7 @@ import { NotiTargetType } from '@repo/dtos';
 import { RecentActivityBatch } from './recent-activity.batch';
 import { NotificationService } from './rabbitmq/notification.service';
 import { RecentActivityBufferService } from './recent-activity.buffer.service';
-import { UserClientService } from '../services/user-client.service';
+import { UserService } from '../../user/user.service';
 
 describe('RecentActivityBatch', () => {
   let service: RecentActivityBatch;
@@ -12,7 +12,7 @@ describe('RecentActivityBatch', () => {
   const acknowledgeProcessingActivities = jest.fn();
   const requeueProcessingActivities = jest.fn();
   const sendNotification = jest.fn();
-  const getUsers = jest.fn();
+  const getBaseUsersBatch = jest.fn();
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -20,7 +20,7 @@ describe('RecentActivityBatch', () => {
     acknowledgeProcessingActivities.mockResolvedValue(undefined);
     requeueProcessingActivities.mockResolvedValue(undefined);
     sendNotification.mockResolvedValue(undefined);
-    getUsers.mockResolvedValue({});
+    getBaseUsersBatch.mockResolvedValue({});
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -34,9 +34,9 @@ describe('RecentActivityBatch', () => {
           },
         },
         {
-          provide: UserClientService,
+          provide: UserService,
           useValue: {
-            getUsers,
+            getBaseUsersBatch,
           },
         },
         {
@@ -59,7 +59,7 @@ describe('RecentActivityBatch', () => {
         type: 'friendship_request',
       },
     });
-    getUsers.mockResolvedValue({
+    getBaseUsersBatch.mockResolvedValue({
       'actor-1': {
         id: 'actor-1',
         firstName: 'An',
@@ -106,7 +106,7 @@ describe('RecentActivityBatch', () => {
         type: 'friendship_accept',
       },
     });
-    getUsers.mockResolvedValue({
+    getBaseUsersBatch.mockResolvedValue({
       'actor-1': {
         id: 'actor-1',
         firstName: 'An',

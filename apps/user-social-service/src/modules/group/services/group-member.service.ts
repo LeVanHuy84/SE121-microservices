@@ -24,14 +24,14 @@ import { and, asc, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
 import { RpcException } from '@nestjs/microservices';
 import { plainToInstance } from 'class-transformer';
 import { GroupLogService } from './group-log.service';
-import { UserClientService } from './user-client.service';
+import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
 export class GroupMemberService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly groupLogService: GroupLogService,
-    private readonly userClient: UserClientService,
+    private readonly userService: UserService,
   ) {}
 
   async leaveGroup(userId: string, groupId: string) {
@@ -415,7 +415,7 @@ export class GroupMemberService {
   }
 
   private async getUserName(userId: string): Promise<string> {
-    const userInfo = await this.userClient.getUserInfo(userId);
+    const userInfo = await this.userService.findOne(userId);
     return (
       `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
       'Người dùng'

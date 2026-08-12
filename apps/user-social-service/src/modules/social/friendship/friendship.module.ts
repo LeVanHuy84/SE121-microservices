@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RecommendationClientModule } from 'src/modules/social/services/recommendation-client.module';
-import { UserClientModule } from 'src/modules/social/services/user-client.module';
+import { UserModule } from '../../user/user.module';
 import { FriendshipController } from './friendship.controller';
 import { FriendshipService } from './friendship.service';
 import { PostgresSocialGraphRepository } from './repositories/postgres-social-graph.repository';
@@ -11,7 +11,7 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
 @Module({
   imports: [
     RecommendationClientModule,
-    UserClientModule,
+    UserModule,
     DrizzleModule,
   ],
   controllers: [FriendshipController],

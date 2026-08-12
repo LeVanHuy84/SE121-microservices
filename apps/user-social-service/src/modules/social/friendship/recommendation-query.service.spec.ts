@@ -1,20 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecommendationClientService } from '../services/recommendation-client.service';
 import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
-import { UserClientService } from '../services/user-client.service';
+import { UserService } from '../../user/user.service';
 import { RecommendationQueryService } from './recommendation/recommendation-query.service';
 
 describe('RecommendationQueryService', () => {
   let service: RecommendationQueryService;
 
   const queryCandidates = jest.fn();
-  const getUsers = jest.fn();
+  const getBaseUsersBatch = jest.fn();
   const summarizeCandidates = jest.fn();
   const recordRecommendationEvents = jest.fn();
 
   beforeEach(async () => {
     queryCandidates.mockReset();
-    getUsers.mockReset();
+    getBaseUsersBatch.mockReset();
     summarizeCandidates.mockReset();
     recordRecommendationEvents.mockReset();
 
@@ -28,9 +28,9 @@ describe('RecommendationQueryService', () => {
           },
         },
         {
-          provide: UserClientService,
+          provide: UserService,
           useValue: {
-            getUsers,
+            getBaseUsersBatch,
           },
         },
         {
@@ -79,7 +79,7 @@ describe('RecommendationQueryService', () => {
         mutualFriendIds: ['mutual-1', 'mutual-2'],
       },
     ]);
-    getUsers.mockResolvedValue({
+    getBaseUsersBatch.mockResolvedValue({
       'candidate-1': { id: 'candidate-1', name: 'Alice' },
       'mutual-1': { id: 'mutual-1', name: 'Bob' },
       'mutual-2': { id: 'mutual-2', name: 'Charlie' },
@@ -95,7 +95,7 @@ describe('RecommendationQueryService', () => {
     expect(summarizeCandidates).toHaveBeenCalledWith('viewer-1', [
       'candidate-1',
     ]);
-    expect(getUsers).toHaveBeenCalledTimes(1);
+    expect(getBaseUsersBatch).toHaveBeenCalledTimes(1);
     expect(recordRecommendationEvents).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       data: [
@@ -128,7 +128,7 @@ describe('RecommendationQueryService', () => {
       nextCursor: null,
       hasNextPage: false,
     });
-    expect(getUsers).not.toHaveBeenCalled();
+    expect(getBaseUsersBatch).not.toHaveBeenCalled();
     expect(recordRecommendationEvents).not.toHaveBeenCalled();
   });
 });

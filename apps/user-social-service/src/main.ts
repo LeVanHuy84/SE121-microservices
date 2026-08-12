@@ -57,17 +57,6 @@ async function bootstrap() {
     },
   );
 
-  const redisApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.REDIS,
-      options: {
-        port: 6379,
-        host: 'localhost',
-      },
-    },
-  );
-
   const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
     {
@@ -88,12 +77,11 @@ async function bootstrap() {
   );
 
   tcpApp.useGlobalFilters(new ExceptionsFilter());
-  redisApp.useGlobalFilters(new ExceptionsFilter());
   kafkaApp.useGlobalFilters(new ExceptionsFilter());
 
-  // Start TCP and Redis first (always required)
-  await Promise.all([tcpApp.listen(), redisApp.listen()]);
-  console.log('User service TCP/Redis transports started.');
+  // Start TCP (always required)
+  await tcpApp.listen();
+  console.log('User service TCP transport started.');
 
   // Start Kafka consumer independently — don't crash if Kafka unavailable
   kafkaApp.listen().catch((err) => {
@@ -107,6 +95,6 @@ async function bootstrap() {
   await commandService.run();
   await commandApp.close();
 
-  console.log('User service is running on port 6379');
+  console.log('User service is running on port 4001');
 }
 bootstrap();
