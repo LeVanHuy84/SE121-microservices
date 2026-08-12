@@ -29,7 +29,7 @@ export class ModerationController {
   private readonly logger = new Logger(ModerationController.name);
 
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private readonly postClient: ClientProxy,
   ) {}
 

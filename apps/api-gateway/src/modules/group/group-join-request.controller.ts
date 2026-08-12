@@ -7,7 +7,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('groups/:groupId/join-requests')
 export class GroupJoinRequestController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private readonly client: ClientProxy
   ) {}
 

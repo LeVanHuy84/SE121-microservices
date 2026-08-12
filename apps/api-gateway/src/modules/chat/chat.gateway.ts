@@ -1,6 +1,6 @@
-import { InjectRedis } from "@nestjs-modules/ioredis";
-import { Inject, Logger } from "@nestjs/common";
-import { ClientProxy } from "@nestjs/microservices";
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Inject, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import {
   ConnectedSocket,
   MessageBody,
@@ -10,37 +10,24 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-} from "@nestjs/websockets";
-import { ConversationResponseDTO, MessageResponseDTO } from "@repo/dtos";
-import Redis from "ioredis";
-import { lastValueFrom } from "rxjs";
-import { Server, Socket } from "socket.io";
-import { MICROSERVICES_CLIENTS } from "src/common/constants";
-import { clerkWsMiddleware } from "src/common/middlewares/clerk-ws.middleware";
-import { PresenceTrackerService } from "./services/presence-tracker.service";
-import type {
-  AcceptCallDTO,
-  CreateCallDTO,
-  EndCallDTO,
-  JoinCallDTO,
-  KickCallParticipantDTO,
-  LeaveCallDTO,
-  RejectCallDTO,
-  SendCallSignalDTO,
-} from "@repo/dtos";
+} from '@nestjs/websockets';
+import { ConversationResponseDTO, MessageResponseDTO } from '@repo/dtos';
+import Redis from 'ioredis';
+import { lastValueFrom } from 'rxjs';
+import { Server, Socket } from 'socket.io';
+import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { clerkWsMiddleware } from 'src/common/middlewares/clerk-ws.middleware';
+import { PresenceTrackerService } from './services/presence-tracker.service';
 
 @WebSocketGateway({
-  namespace: "/chat",
+  namespace: '/chat',
   cors: {
-    origin: "*",
+    origin: '*',
   },
-  transports: ["websocket"],
+  transports: ['websocket'],
 })
 export class ChatGateway
-  implements
-    OnGatewayInit,
-    OnGatewayConnection,
-    OnGatewayDisconnect
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(ChatGateway.name);
@@ -62,7 +49,7 @@ export class ChatGateway
   async handleConnection(client: Socket) {
     const userId = client.user?.id;
     if (!userId) {
-      this.logger.warn("❌ Unauthorized client tried to connect");
+      this.logger.warn('❌ Unauthorized client tried to connect');
       client.disconnect(true);
       return;
     }
@@ -79,14 +66,17 @@ export class ChatGateway
     this.logger.log(`❌ Client disconnected: ${client.user?.id}`);
   }
 
-  @SubscribeMessage("heartbeat")
+  @SubscribeMessage('heartbeat')
   async handleHeartbeat(@ConnectedSocket() client: Socket) {
-    await this.presenceTracker.handleHeartbeat(client, this.refreshActiveConversation.bind(this));
+    await this.presenceTracker.handleHeartbeat(
+      client,
+      this.refreshActiveConversation.bind(this),
+    );
   }
 
   // ========== Client subscribe / unsubscribe presence của người khác ==========
 
-  @SubscribeMessage("presence.subscribe")
+  @SubscribeMessage('presence.subscribe')
   async handleSubscribe(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: string[] },
@@ -94,7 +84,7 @@ export class ChatGateway
     await this.presenceTracker.handleSubscribe(client, data?.userIds);
   }
 
-  @SubscribeMessage("presence.unsubscribe")
+  @SubscribeMessage('presence.unsubscribe')
   handleUnsubscribe(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: string[] },
@@ -102,7 +92,7 @@ export class ChatGateway
     this.presenceTracker.handleUnsubscribe(client, data?.userIds);
   }
 
-  @SubscribeMessage("conversation.join")
+  @SubscribeMessage('conversation.join')
   async handleJoinConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
@@ -113,9 +103,9 @@ export class ChatGateway
       data.conversationId,
     );
     if (!allowed) {
-      client.emit("conversation.error", {
+      client.emit('conversation.error', {
         conversationId: data.conversationId,
-        message: "Forbidden conversation access",
+        message: 'Forbidden conversation access',
       });
       return;
     }
@@ -132,7 +122,7 @@ export class ChatGateway
     client.join(`conversation:${data.conversationId}`);
   }
 
-  @SubscribeMessage("conversation.leave")
+  @SubscribeMessage('conversation.leave')
   async handleLeaveConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
@@ -144,7 +134,7 @@ export class ChatGateway
 
   // ============= TYPING =============
 
-  @SubscribeMessage("typing.start")
+  @SubscribeMessage('typing.start')
   async handleTypingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
@@ -156,14 +146,14 @@ export class ChatGateway
       data.conversationId,
     );
     if (!allowed) return;
-    this.broadcastToConversation(data.conversationId, "typing", {
+    this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
       isTyping: true,
     });
   }
 
-  @SubscribeMessage("typing.stop")
+  @SubscribeMessage('typing.stop')
   async handleTypingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
@@ -175,13 +165,12 @@ export class ChatGateway
       data.conversationId,
     );
     if (!allowed) return;
-    this.broadcastToConversation(data.conversationId, "typing", {
+    this.broadcastToConversation(data.conversationId, 'typing', {
       conversationId: data.conversationId,
       userId,
       isTyping: false,
     });
   }
-
 
   private broadcastToConversation(
     conversationId: string,
@@ -191,24 +180,24 @@ export class ChatGateway
     this.server.to(`conversation:${conversationId}`).emit(event, payload);
   }
   broadcastNewMessage(msg: MessageResponseDTO) {
-    this.broadcastToConversation(msg.conversationId, "message.new", msg);
+    this.broadcastToConversation(msg.conversationId, 'message.new', msg);
     this.logger.debug(
       `Broadcasted new message ${msg._id} to conversation ${msg.conversationId}`,
     );
   }
 
   broadcastMessageUpdated(msg: MessageResponseDTO) {
-    this.broadcastToConversation(msg.conversationId, "message.updated", msg);
+    this.broadcastToConversation(msg.conversationId, 'message.updated', msg);
   }
 
   broadcastMessageDeleted(msg: MessageResponseDTO) {
-    this.broadcastToConversation(msg.conversationId, "message.deleted", msg);
+    this.broadcastToConversation(msg.conversationId, 'message.deleted', msg);
   }
 
   broadcastReactionUpdated(msg: MessageResponseDTO) {
     this.broadcastToConversation(
       msg.conversationId,
-      "message.reactionUpdated",
+      'message.reactionUpdated',
       msg,
     );
   }
@@ -218,7 +207,7 @@ export class ChatGateway
     userId: string,
     lastSeenMessageId: string | null,
   ) {
-    this.broadcastToConversation(conversationId, "conversation.read", {
+    this.broadcastToConversation(conversationId, 'conversation.read', {
       conversationId,
       userId,
       lastSeenMessageId,
@@ -233,21 +222,21 @@ export class ChatGateway
   }
 
   emitConversationCreated(conv: ConversationResponseDTO) {
-    this.emitToUsers(conv.participants, "conversation.created", conv);
+    this.emitToUsers(conv.participants, 'conversation.created', conv);
   }
 
   emitConversationUpdated(conv: ConversationResponseDTO) {
     const visibleUsers = this.getVisibleUsers(conv);
-    this.emitToUsers(visibleUsers, "conversation.updated", conv);
+    this.emitToUsers(visibleUsers, 'conversation.updated', conv);
   }
 
   emitConversationDeleted(convId: string, participants: string[]) {
-    this.emitToUsers(participants, "conversation.deleted", { id: convId });
+    this.emitToUsers(participants, 'conversation.deleted', { id: convId });
     void this.revokeConversationAccessForUsers(participants, convId);
   }
 
   emitConversationHidden(conversationId: string, userId: string) {
-    this.server.to(`user:${userId}`).emit("conversation.hidden", {
+    this.server.to(`user:${userId}`).emit('conversation.hidden', {
       id: conversationId,
     });
     void this.revokeConversationAccessForUsers([userId], conversationId);
@@ -259,16 +248,16 @@ export class ChatGateway
   ) {
     this.server
       .to(`user:${userId}`)
-      .emit("conversation.unhidden", conversation);
+      .emit('conversation.unhidden', conversation);
   }
 
   emitMemberLeft(conversationId: string, participants: string[]) {
-    this.emitToUsers(participants, "conversation.memberLeft", {
+    this.emitToUsers(participants, 'conversation.memberLeft', {
       conversationId,
     });
     void this.revokeConversationAccessForUsers(participants, conversationId);
     this.logger.debug(
-      `Emitted memberLeft for conversation ${conversationId} to [${participants.join(", ")}]`,
+      `Emitted memberLeft for conversation ${conversationId} to [${participants.join(', ')}]`,
     );
   }
 
@@ -276,7 +265,7 @@ export class ChatGateway
     conversation: ConversationResponseDTO,
     participants: string[],
   ) {
-    this.emitToUsers(participants, "conversation.memberJoined", conversation);
+    this.emitToUsers(participants, 'conversation.memberJoined', conversation);
   }
 
   emitCallCreated(payload: {
@@ -284,9 +273,13 @@ export class ChatGateway
     participants: string[];
     [key: string]: any;
   }) {
-    this.emitToUsers(payload.participants || [], "call.invite", payload);
+    this.emitToUsers(payload.participants || [], 'call.invite', payload);
     if (payload.conversationId) {
-      this.broadcastToConversation(payload.conversationId, "call.invite", payload);
+      this.broadcastToConversation(
+        payload.conversationId,
+        'call.invite',
+        payload,
+      );
     }
   }
 
@@ -295,11 +288,11 @@ export class ChatGateway
     participants?: string[];
     [key: string]: any;
   }) {
-    this.emitToUsers(payload.participants || [], "call.accepted", payload);
+    this.emitToUsers(payload.participants || [], 'call.accepted', payload);
     if (payload.conversationId) {
       this.broadcastToConversation(
         payload.conversationId,
-        "call.accepted",
+        'call.accepted',
         payload,
       );
     }
@@ -310,11 +303,11 @@ export class ChatGateway
     participants?: string[];
     [key: string]: any;
   }) {
-    this.emitToUsers(payload.participants || [], "call.rejected", payload);
+    this.emitToUsers(payload.participants || [], 'call.rejected', payload);
     if (payload.conversationId) {
       this.broadcastToConversation(
         payload.conversationId,
-        "call.rejected",
+        'call.rejected',
         payload,
       );
     }
@@ -325,12 +318,15 @@ export class ChatGateway
     participants?: string[];
     [key: string]: any;
   }) {
-    this.emitToUsers(payload.participants || [], "call.ended", payload);
+    this.emitToUsers(payload.participants || [], 'call.ended', payload);
     if (payload.conversationId) {
-      this.broadcastToConversation(payload.conversationId, "call.ended", payload);
+      this.broadcastToConversation(
+        payload.conversationId,
+        'call.ended',
+        payload,
+      );
     }
   }
-
 
   emitCallParticipantJoined(payload: {
     conversationId: string;
@@ -339,7 +335,7 @@ export class ChatGateway
     if (payload.conversationId) {
       this.broadcastToConversation(
         payload.conversationId,
-        "call.participantJoined",
+        'call.participantJoined',
         payload,
       );
     }
@@ -352,7 +348,7 @@ export class ChatGateway
     if (payload.conversationId) {
       this.broadcastToConversation(
         payload.conversationId,
-        "call.participantLeft",
+        'call.participantLeft',
         payload,
       );
     }
@@ -366,18 +362,16 @@ export class ChatGateway
     if (payload.targetUserId) {
       this.server
         .to(`user:${payload.targetUserId}`)
-        .emit("call.participantKicked", payload);
+        .emit('call.participantKicked', payload);
     }
     if (payload.conversationId) {
       this.broadcastToConversation(
         payload.conversationId,
-        "call.participantKicked",
+        'call.participantKicked',
         payload,
       );
     }
   }
-
-
 
   private getVisibleUsers(conv: ConversationResponseDTO): string[] {
     const participants = conv.participants ?? [];
@@ -408,7 +402,7 @@ export class ChatGateway
 
     try {
       await lastValueFrom(
-        this.chatClient.send("getConversationById", {
+        this.chatClient.send('getConversationById', {
           userId,
           conversationId,
         }),
@@ -451,10 +445,7 @@ export class ChatGateway
     const previousConversationId = client.data.activeConversationId as
       | string
       | undefined;
-    if (
-      previousConversationId &&
-      previousConversationId !== conversationId
-    ) {
+    if (previousConversationId && previousConversationId !== conversationId) {
       await this.clearActiveConversation(client, previousConversationId);
     }
 
@@ -464,7 +455,7 @@ export class ChatGateway
     pipeline.set(
       connKey,
       conversationId,
-      "EX",
+      'EX',
       this.ACTIVE_CONVERSATION_TTL_SECONDS,
     );
     pipeline.sadd(setKey, client.id);
@@ -484,7 +475,9 @@ export class ChatGateway
     const activeConversationId =
       conversationId ??
       (client.data.activeConversationId as string | undefined) ??
-      (await this.redis.get(this.getActiveConversationConnKey(userId, client.id)));
+      (await this.redis.get(
+        this.getActiveConversationConnKey(userId, client.id),
+      ));
 
     const connKey = this.getActiveConversationConnKey(userId, client.id);
     const pipeline = this.redis.pipeline();
@@ -497,14 +490,19 @@ export class ChatGateway
     }
     await pipeline.exec();
 
-    if (!conversationId || conversationId === client.data.activeConversationId) {
+    if (
+      !conversationId ||
+      conversationId === client.data.activeConversationId
+    ) {
       delete client.data.activeConversationId;
     }
   }
 
   private async refreshActiveConversation(client: Socket) {
     const userId = client.user?.id;
-    const conversationId = client.data.activeConversationId as string | undefined;
+    const conversationId = client.data.activeConversationId as
+      | string
+      | undefined;
     if (!userId || !conversationId) return;
 
     const connKey = this.getActiveConversationConnKey(userId, client.id);
@@ -513,7 +511,7 @@ export class ChatGateway
     pipeline.set(
       connKey,
       conversationId,
-      "EX",
+      'EX',
       this.ACTIVE_CONVERSATION_TTL_SECONDS,
     );
     pipeline.sadd(setKey, client.id);

@@ -25,18 +25,7 @@ import { StreamWebhookController } from "./stream-webhook.controller";
         }),
       },
       {
-        name: MICROSERVICES_CLIENTS.USER_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>("USER_SOCIAL_SERVICE_PORT"),
-          },
-        }),
-      },
-      {
-        name: MICROSERVICES_CLIENTS.SOCIAL_SERVICE,
+        name: MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({

@@ -14,7 +14,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('logs')
 export class LogController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.LOG_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private client: ClientProxy,
   ) {}
 

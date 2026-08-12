@@ -15,7 +15,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('social')
 export class SocialController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.SOCIAL_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private readonly socialClient: ClientProxy,
   ) {}
   @Post('request/:targetId')

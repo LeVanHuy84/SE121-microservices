@@ -22,8 +22,12 @@ describe("ChatGateway", () => {
     send: jest.fn(),
   };
 
+  const presenceTracker = {
+    setServer: jest.fn(),
+  };
+
   const createGateway = () => {
-    const gateway = new ChatGateway(redis as any, chatClient as any);
+    const gateway = new ChatGateway(redis as any, chatClient as any, presenceTracker as any);
     return gateway;
   };
 

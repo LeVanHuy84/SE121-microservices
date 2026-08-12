@@ -16,7 +16,7 @@ interface RegisterDeviceTokenDto {
 @Controller('notifications')
 export class NotificationController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.NOTIFICATION_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private readonly client: ClientProxy
   ) {}
 
