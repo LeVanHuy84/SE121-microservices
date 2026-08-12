@@ -10,7 +10,7 @@ import { ModerationController } from './moderation.controller';
   imports: [
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.POST_SERVICE,
+        name: MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
@@ -21,18 +21,7 @@ import { ModerationController } from './moderation.controller';
         }),
       },
       {
-        name: MICROSERVICES_CLIENTS.USER_SERVICE,
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (config: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
-          },
-        }),
-      },
-      {
-        name: MICROSERVICES_CLIENTS.GROUP_SERVICE,
+        name: MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({

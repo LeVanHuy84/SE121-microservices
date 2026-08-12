@@ -16,7 +16,7 @@ import { RequireRole } from 'src/common/decorators/require-role.decorator';
 @Controller('group-reports')
 export class GroupReportController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy,
   ) {}
 

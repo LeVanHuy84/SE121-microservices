@@ -13,7 +13,7 @@ import { RequireRole } from 'src/common/decorators/require-role.decorator';
 @Controller('reports/content')
 export class ReportController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private client: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE) private client: ClientProxy,
   ) {}
 
   @Post()

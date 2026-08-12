@@ -35,7 +35,6 @@ export class MusicController {
     @CurrentUserId() userId: string,
     @Query() query: PaginationDTO,
   ) {
-    console.log('Received query in controller:', query);
     return this.client.send('get_music_recommendations', { userId, query });
   }
 

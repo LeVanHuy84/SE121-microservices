@@ -18,7 +18,7 @@ import { NotificationModule } from '../notification/notification.module';
         NotificationModule,
         ClientsModule.registerAsync([
             {
-                name: MICROSERVICES_CLIENTS.USER_SERVICE,
+                name: MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE,
                 imports: [ConfigModule],
                 inject: [ConfigService],
                 useFactory: (config: ConfigService) => ({

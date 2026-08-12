@@ -7,7 +7,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('feeds')
 export class FeedController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.FEED_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private client: ClientProxy,
   ) {}
 

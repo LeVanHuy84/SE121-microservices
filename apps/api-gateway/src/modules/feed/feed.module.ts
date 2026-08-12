@@ -8,7 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.FEED_SERVICE,
+        name: MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({

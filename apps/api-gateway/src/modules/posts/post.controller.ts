@@ -17,7 +17,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('posts')
 export class PostController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private client: ClientProxy,
   ) {}
 

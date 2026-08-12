@@ -21,9 +21,9 @@ import { Public } from 'src/common/decorators/public.decorator';
 @Controller('users')
 export class UsersController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.MEDIA_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private readonly mediaClient: ClientProxy,
     @Inject('ClerkClient')
     private readonly clerkClient: ClerkClient

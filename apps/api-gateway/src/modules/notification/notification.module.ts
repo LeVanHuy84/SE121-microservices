@@ -9,7 +9,7 @@ import { NotificationController } from './notification.controller';
   imports: [
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.NOTIFICATION_SERVICE,
+        name: MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({

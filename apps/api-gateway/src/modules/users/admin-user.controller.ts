@@ -20,7 +20,7 @@ import { RequireRole } from 'src/common/decorators/require-role.decorator';
 @Controller('users/admin')
 export class AdminUserController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy
   ) {}
 

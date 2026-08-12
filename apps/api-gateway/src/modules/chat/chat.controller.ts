@@ -41,10 +41,8 @@ export class ChatController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
     private readonly chatClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
-    private readonly userClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.SOCIAL_SERVICE)
-    private readonly socialClient: ClientProxy
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
+    private readonly userSocialClient: ClientProxy
   ) {}
 
   @Get('conversations')
@@ -75,7 +73,7 @@ export class ChatController {
     
     if (targetIds.length > 0) {
       const targets: any[] = await lastValueFrom(
-        this.userClient.send('getUsersBatch', targetIds)
+        this.userSocialClient.send('getUsersBatch', targetIds)
       );
 
       for (const targetId of targetIds) {
@@ -86,7 +84,7 @@ export class ChatController {
         const messagePrivacy = target.privacySettings?.messagePrivacy || 'EVERYONE';
         if (messagePrivacy === 'FRIENDS') {
           const relation: any = await lastValueFrom(
-            this.socialClient.send('get_relationship_status', { userId, targetId })
+            this.userSocialClient.send('get_relationship_status', { userId, targetId })
           );
           if (relation.status !== 'FRIEND') {
             throw new ForbiddenException(`Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`);
@@ -113,7 +111,7 @@ export class ChatController {
     
     if (targetIds.length > 0) {
       const targets: any[] = await lastValueFrom(
-        this.userClient.send('getUsersBatch', targetIds)
+        this.userSocialClient.send('getUsersBatch', targetIds)
       );
 
       for (const targetId of targetIds) {
@@ -124,7 +122,7 @@ export class ChatController {
         const messagePrivacy = target.privacySettings?.messagePrivacy || 'EVERYONE';
         if (messagePrivacy === 'FRIENDS') {
           const relation: any = await lastValueFrom(
-            this.socialClient.send('get_relationship_status', { userId, targetId })
+            this.userSocialClient.send('get_relationship_status', { userId, targetId })
           );
           if (relation.status !== 'FRIEND') {
             throw new ForbiddenException(`Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`);

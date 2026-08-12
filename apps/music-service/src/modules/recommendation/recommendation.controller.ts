@@ -12,7 +12,6 @@ export class RecommendationController {
     @Payload() payload: { userId: string; query: PaginationDTO },
   ): Promise<PageResponse<MusicFeatureResponse>> {
     const { userId, query } = payload;
-    console.log('Received query in controller:', query);
     return this.recommendationService.getRecommendations(userId, query);
   }
 }

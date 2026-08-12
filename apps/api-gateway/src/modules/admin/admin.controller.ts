@@ -8,11 +8,9 @@ import { RequireRole } from 'src/common/decorators/require-role.decorator';
 @Controller('admin')
 export class AdminController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
-    private userClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE) private postClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
-    private groupClient: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
+    private userSocialClient: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE) private postClient: ClientProxy,
   ) {}
 
   // Content
@@ -26,9 +24,9 @@ export class AdminController {
   @RequireRole(SystemRole.ADMIN)
   async getDashboard(@Query() filter: DashboardQueryDTO) {
     const [userReport, postReport, groupReport] = await Promise.all([
-      lastValueFrom(this.userClient.send('user-dashboard', filter)),
+      lastValueFrom(this.userSocialClient.send('user-dashboard', filter)),
       lastValueFrom(this.postClient.send('get_post_dashboard', filter)),
-      lastValueFrom(this.groupClient.send('get_group_dashboard', filter)),
+      lastValueFrom(this.userSocialClient.send('get_group_dashboard', filter)),
     ]);
 
     return {
@@ -50,7 +48,7 @@ export class AdminController {
   async getReportChart(@Query() filter: DashboardQueryDTO) {
     const [contentReport, groupReport] = await Promise.all([
       lastValueFrom(this.postClient.send('get_content_report_chart', filter)),
-      lastValueFrom(this.groupClient.send('get_group_report_chart', filter)),
+      lastValueFrom(this.userSocialClient.send('get_group_report_chart', filter)),
     ]);
 
     const map = new Map<

@@ -25,7 +25,7 @@ import { RequireRole } from 'src/common/decorators/require-role.decorator';
 @Controller('groups')
 export class GroupController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy,
   ) {}
 
@@ -50,7 +50,6 @@ export class GroupController {
     @Query() query: CursorPaginationDTO,
     @CurrentUserId() userId: string,
   ) {
-    console.log('Sending recommend_groups message with data:', { userId, query });
     return this.client.send('recommend_groups', { userId, query });
   }
 

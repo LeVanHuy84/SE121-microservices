@@ -8,9 +8,9 @@ export class ClerkWebhookService {
   private readonly logger = new Logger(ClerkWebhookService.name);
 
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.USER_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private readonly userClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.NOTIFICATION_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private readonly notificationClient: ClientProxy
   ) {}
 

@@ -16,7 +16,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('reactions')
 export class ReactionController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private client: ClientProxy,
   ) {}
 

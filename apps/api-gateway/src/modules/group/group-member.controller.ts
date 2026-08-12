@@ -16,7 +16,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('groups/:groupId/members')
 export class GroupMemberController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.GROUP_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy
   ) {}
 

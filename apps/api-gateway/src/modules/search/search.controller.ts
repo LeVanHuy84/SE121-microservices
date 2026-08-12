@@ -10,7 +10,7 @@ export class SearchController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.SEARCH_SERVICE)
     private searchClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.POST_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private postClient: ClientProxy
   ) {}
 

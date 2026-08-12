@@ -13,7 +13,7 @@ import { GroupInviteController } from './group-invite.controller';
   imports: [
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.GROUP_SERVICE,
+        name: MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
