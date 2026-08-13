@@ -9,7 +9,6 @@ export class FriendshipController {
 
   @MessagePattern('get_relationship_status')
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
-    console.log('Received get_relationship_status request with data:', data);
     return this.friendshipService.getRelationshipStatus(
       data.userId,
       data.targetId,
@@ -98,9 +97,18 @@ export class FriendshipController {
 
   @MessagePattern('get_friends')
   async getFriends(
-    @Payload() data: { requesterId: string; targetId: string; query: CursorPaginationDTO },
+    @Payload()
+    data: {
+      requesterId: string;
+      targetId: string;
+      query: CursorPaginationDTO;
+    },
   ) {
-    return this.friendshipService.getFriends(data.requesterId, data.targetId, data.query);
+    return this.friendshipService.getFriends(
+      data.requesterId,
+      data.targetId,
+      data.query,
+    );
   }
 
   @MessagePattern('get_blocked_users')

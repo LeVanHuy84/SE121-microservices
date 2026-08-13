@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 export interface RecommendationQueryCandidate {
   candidateId: string;
@@ -26,36 +27,21 @@ export interface RecommendationQueryResult {
   candidates: RecommendationQueryCandidate[];
 }
 
-interface RecommendationQueryResponse {
-  success: boolean;
-  data?: {
-    viewerId?: unknown;
-    generatedAt?: unknown;
-    source?: unknown;
-    scoreVersion?: unknown;
-    candidateCount?: unknown;
-    nextCursor?: unknown;
-    hasNextPage?: unknown;
-    candidates?: Array<{
-      candidateId?: unknown;
-      source?: unknown;
-      retrievalScore?: unknown;
-      modelScore?: unknown;
-      finalScore?: unknown;
-      mutualFriendCount?: unknown;
-      commonGroupCount?: unknown;
-      scoreVersion?: unknown;
-      reasonCodes?: unknown;
-      rank?: unknown;
-    }>;
-  };
-}
-
 @Injectable()
 export class RecommendationClientService {
   private readonly logger = new Logger(RecommendationClientService.name);
+  private readonly client: ClientProxy;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    const port = Number(this.configService.get<string | number>('SEARCH_RECOMMENDATION_SERVICE_PORT', 4009)) || 4009;
+    this.client = ClientProxyFactory.create({
+      transport: Transport.TCP,
+      options: {
+        host: 'localhost',
+        port,
+      },
+    });
+  }
 
   async queryCandidates(
     viewerId: string,
@@ -66,29 +52,24 @@ export class RecommendationClientService {
       return null;
     }
 
-    const serviceConfig = this.resolveServiceConfig();
-    if (!serviceConfig) {
-      return null;
-    }
-
     try {
       const startedAt = Date.now();
-      const res = await axios.post<RecommendationQueryResponse>(
-        `${serviceConfig.baseUrl}/recommend/query`,
-        {
+      const response = await firstValueFrom(
+        this.client.send<any>('query_recommendation_candidates', {
           viewerId,
           limit,
           cursor: cursor ?? undefined,
-        },
-        {
-          headers: {
-            'x-internal-key': serviceConfig.internalKey,
-          },
-          timeout: serviceConfig.timeoutMs,
-        },
+        })
       );
 
-      const payload = res.data?.data;
+      if (!response || response.success !== true) {
+        this.logger.warn(
+          `RECOMMENDATION_SERVICE query returned unsuccessful payload or empty response: viewerId=${viewerId} requested=${limit}`,
+        );
+        return null;
+      }
+
+      const payload = response.data;
       const parsed: RecommendationQueryResult = {
         viewerId: String(payload?.viewerId ?? viewerId),
         generatedAt:
@@ -108,7 +89,7 @@ export class RecommendationClientService {
           typeof payload?.nextCursor === 'string' ? payload.nextCursor : null,
         hasNextPage: payload?.hasNextPage === true,
         candidates: Array.isArray(payload?.candidates)
-          ? payload.candidates.reduce<RecommendationQueryCandidate[]>(
+          ? (payload.candidates as any[]).reduce<RecommendationQueryCandidate[]>(
               (acc, item) => {
                 const candidateId = String(item?.candidateId ?? '').trim();
                 const source = String(item?.source ?? '').trim();
@@ -163,78 +144,16 @@ export class RecommendationClientService {
           : [],
       };
 
-      if (res.data?.success !== true) {
-        this.logger.warn(
-          `RECOMMENDATION_SERVICE query returned unsuccessful payload: viewerId=${viewerId} requested=${limit}`,
-        );
-      }
-
       this.logger.debug(
         `RECOMMENDATION_SERVICE query resolved: viewerId=${viewerId} requested=${limit} returned=${parsed.candidates.length} durationMs=${Date.now() - startedAt}`,
       );
 
       return parsed;
-    } catch (error) {
-      const failureReason = this.describeFailure(error);
+    } catch (error: any) {
       this.logger.error(
-        `RECOMMENDATION_SERVICE query failed: viewerId=${viewerId} requested=${limit} baseUrl=${serviceConfig.baseUrl} reason=${failureReason}`,
+        `RECOMMENDATION_SERVICE query failed: viewerId=${viewerId} requested=${limit} reason=${error.message}`,
       );
       return null;
     }
-  }
-
-  private describeFailure(error: unknown): string {
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        return `http_${error.response.status}`;
-      }
-
-      if (error.code === 'ECONNABORTED') {
-        return 'timeout';
-      }
-
-      if (error.code) {
-        return error.code;
-      }
-
-      return error.message;
-    }
-
-    return error instanceof Error ? error.message : String(error);
-  }
-
-  private resolveServiceConfig(): {
-    baseUrl: string;
-    internalKey: string;
-    timeoutMs: number;
-  } | null {
-    const baseUrl = this.configService.get<string>(
-      'RECOMMENDATION_SERVICE_URL',
-    );
-    const internalKey = this.configService.get<string>(
-      'RECOMMENDATION_INTERNAL_KEY',
-    );
-
-    if (!baseUrl || !internalKey) {
-      const missingConfig = [
-        !baseUrl ? 'RECOMMENDATION_SERVICE_URL' : null,
-        !internalKey ? 'RECOMMENDATION_INTERNAL_KEY' : null,
-      ].filter(Boolean);
-      this.logger.warn(
-        `RECOMMENDATION_SERVICE skipped: missing config ${missingConfig.join(', ')}`,
-      );
-      return null;
-    }
-
-    return {
-      baseUrl,
-      internalKey,
-      timeoutMs: Number(
-        this.configService.get<string | number>(
-          'RECOMMENDATION_SERVICE_TIMEOUT_MS',
-          30000,
-        )
-      ) || 30000,
-    };
   }
 }

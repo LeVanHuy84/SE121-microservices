@@ -1,14 +1,12 @@
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { of, throwError } from 'rxjs';
 import { RecommendationClientService } from './recommendation-client.service';
-
-jest.mock('axios');
+import { ClientProxy } from '@nestjs/microservices';
 
 describe('RecommendationClientService', () => {
   let service: RecommendationClientService;
   let configService: { get: jest.Mock };
-
-  const mockedAxios = jest.mocked(axios);
+  let mockClientProxy: { send: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -16,94 +14,70 @@ describe('RecommendationClientService', () => {
     configService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
         switch (key) {
-          case 'RECOMMENDATION_SERVICE_URL':
-            return 'http://127.0.0.1:4011';
-          case 'RECOMMENDATION_INTERNAL_KEY':
-            return 'internal-key';
-          case 'RECOMMENDATION_SERVICE_TIMEOUT_MS':
-            return defaultValue ?? 2000;
+          case 'SEARCH_RECOMMENDATION_SERVICE_PORT':
+            return 4009;
           default:
             return defaultValue;
         }
       }),
     };
 
+    mockClientProxy = {
+      send: jest.fn(),
+    };
+
     service = new RecommendationClientService(
       configService as unknown as ConfigService,
     );
-  });
-
-  it('should warn and skip query when recommendation config is missing', async () => {
-    configService.get.mockImplementation(
-      (key: string, defaultValue?: unknown) => {
-        switch (key) {
-          case 'RECOMMENDATION_SERVICE_URL':
-            return undefined;
-          case 'RECOMMENDATION_INTERNAL_KEY':
-            return 'internal-key';
-          case 'RECOMMENDATION_SERVICE_TIMEOUT_MS':
-            return defaultValue ?? 2000;
-          default:
-            return defaultValue;
-        }
-      },
-    );
-    const warnSpy = jest.spyOn(service['logger'], 'warn');
-
-    const result = await service.queryCandidates('viewer-1', 10, null);
-
-    expect(result).toBeNull();
-    expect(mockedAxios.post).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('missing config RECOMMENDATION_SERVICE_URL'),
-    );
-  });
-
-  it('should log classified timeout failures and return null', async () => {
-    const error = Object.assign(new Error('timeout exceeded'), {
-      isAxiosError: true,
-      code: 'ECONNABORTED',
+    Object.defineProperty(service, 'client', {
+      value: mockClientProxy,
+      writable: true,
     });
-    mockedAxios.isAxiosError.mockReturnValue(true);
-    mockedAxios.post.mockRejectedValue(error);
+  });
+
+  it('should return null when viewerId is empty', async () => {
+    const result = await service.queryCandidates('', 10, null);
+    expect(result).toBeNull();
+    expect(mockClientProxy.send).not.toHaveBeenCalled();
+  });
+
+  it('should log failures and return null when client send fails', async () => {
+    mockClientProxy.send.mockReturnValue(throwError(() => new Error('Connection failed')));
     const errorSpy = jest.spyOn(service['logger'], 'error');
 
     const result = await service.queryCandidates('viewer-1', 10, null);
 
     expect(result).toBeNull();
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('reason=timeout'),
+      expect.stringContaining('reason=Connection failed'),
     );
   });
 
   it('should parse successful query responses', async () => {
-    mockedAxios.isAxiosError.mockReturnValue(false);
-    mockedAxios.post.mockResolvedValue({
+    mockClientProxy.send.mockReturnValue(of({
+      success: true,
       data: {
-        success: true,
-        data: {
-          viewerId: 'viewer-1',
-          generatedAt: '2026-04-13T10:00:00.000Z',
-          source: 'semantic_online',
-          scoreVersion: 'recommendation-query-pipeline-v1',
-          candidateCount: 1,
-          nextCursor: 'next-cursor',
-          hasNextPage: true,
-          candidates: [
-            {
-              candidateId: 'candidate-1',
-              source: 'semantic_online',
-              retrievalScore: 0.81,
-              modelScore: 0.62,
-              finalScore: 0.7,
-              scoreVersion: 'recommendation-query-pipeline-v1',
-              reasonCodes: ['semantic_retrieval'],
-              rank: 1,
-            },
-          ],
-        },
+        viewerId: 'viewer-1',
+        generatedAt: '2026-04-13T10:00:00.000Z',
+        source: 'semantic_online',
+        scoreVersion: 'recommendation-query-pipeline-v1',
+        candidateCount: 1,
+        nextCursor: 'next-cursor',
+        hasNextPage: true,
+        candidates: [
+          {
+            candidateId: 'candidate-1',
+            source: 'semantic_online',
+            retrievalScore: 0.81,
+            modelScore: 0.62,
+            finalScore: 0.7,
+            scoreVersion: 'recommendation-query-pipeline-v1',
+            reasonCodes: ['semantic_retrieval'],
+            rank: 1,
+          },
+        ],
       },
-    });
+    }));
 
     const result = await service.queryCandidates('viewer-1', 10, null);
 
@@ -130,18 +104,13 @@ describe('RecommendationClientService', () => {
         },
       ],
     });
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      'http://127.0.0.1:4011/recommend/query',
+    expect(mockClientProxy.send).toHaveBeenCalledWith(
+      'query_recommendation_candidates',
       {
         viewerId: 'viewer-1',
         limit: 10,
         cursor: undefined,
       },
-      expect.objectContaining({
-        headers: {
-          'x-internal-key': 'internal-key',
-        },
-      }),
     );
   });
 });
