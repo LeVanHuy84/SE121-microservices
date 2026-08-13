@@ -18,7 +18,7 @@ export class AssistantContextService {
 
   constructor(
     private readonly configService: ConfigService,
-    @Inject(MICROSERVICES_CLIENTS.SEARCH_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE)
     private readonly searchClient: ClientProxy,
   ) {}
 

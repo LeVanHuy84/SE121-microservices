@@ -57,7 +57,7 @@ import { ChatbotService } from './chatbot.service';
     }),
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.SEARCH_SERVICE,
+        name: MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({

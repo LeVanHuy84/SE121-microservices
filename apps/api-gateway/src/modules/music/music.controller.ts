@@ -25,7 +25,7 @@ import { MusicAnalyzeService } from './music-analyze.service';
 @Controller('musics')
 export class MusicController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.MUSIC_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE)
     private client: ClientProxy,
     private readonly musicAnalyzeService: MusicAnalyzeService,
   ) {}

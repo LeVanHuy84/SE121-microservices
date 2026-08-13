@@ -8,7 +8,7 @@ import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 @Controller('search')
 export class SearchController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.SEARCH_SERVICE)
+    @Inject(MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE)
     private searchClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private postClient: ClientProxy
