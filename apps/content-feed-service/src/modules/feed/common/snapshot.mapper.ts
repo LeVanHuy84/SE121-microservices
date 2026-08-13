@@ -27,6 +27,7 @@ export class SnapshotMapper {
     return {
       postId: post.postId,
       userId: post.userId,
+      user: post.user || undefined,
       group: post.group || undefined,
       audience: post.audience,
       content: post.content,
@@ -59,11 +60,13 @@ export class SnapshotMapper {
     return {
       shareId: share.shareId,
       userId: share.userId,
+      user: share.user || undefined,
       content: share.content,
       audience: share.audience ? share.audience : Audience.PUBLIC,
       post: {
         postId: post.postId,
         userId: post.userId,
+        user: post.user || undefined,
         group: post.group || undefined,
         audience: post.audience || Audience.PUBLIC,
         content: post.content,

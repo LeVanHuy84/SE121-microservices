@@ -23,6 +23,7 @@ import { AffinityService } from 'src/modules/affinity/affinity.service';
 import { EmotionFeatureService } from 'src/modules/ranking/services/emotion-feature.service';
 import { ReactionService } from '../../../post/reaction/reaction.service';
 import { MICROSERVICES_CLIENT } from 'src/constant';
+import { UserClientService } from '../../../post/client/user-client.service';
 
 @Injectable()
 export class PersonalFeedService {
@@ -37,6 +38,7 @@ export class PersonalFeedService {
     private readonly reactionService: ReactionService,
     private readonly affinityService: AffinityService,
     private readonly emotionService: EmotionFeatureService,
+    private readonly userClient: UserClientService,
   ) {}
 
   async getUserFeed(
@@ -263,29 +265,54 @@ export class PersonalFeedService {
     ]);
 
     const groupIds = new Set<string>();
+    const userIds = new Set<string>();
 
     for (const p of posts) {
       if (p.groupId) groupIds.add(p.groupId);
+      if (p.userId) userIds.add(p.userId);
+    }
+    for (const s of shares) {
+      if (s.userId) userIds.add(s.userId);
     }
 
     const groupMap = new Map<string, any>();
+    let userMap: Record<string, any> = {};
+
+    const enrichmentPromises: Promise<any>[] = [];
 
     if (groupIds.size > 0) {
-      const groups = await firstValueFrom(
-        this.userSocialClient.send<any[]>(
-          'get_group_info_batch',
-          Array.from(groupIds),
-        ),
+      enrichmentPromises.push(
+        firstValueFrom(
+          this.userSocialClient.send<any[]>(
+            'get_group_info_batch',
+            Array.from(groupIds),
+          ),
+        ).then((groups) => {
+          for (const g of groups) {
+            groupMap.set(g.id, g);
+          }
+        }),
       );
+    }
 
-      for (const g of groups) {
-        groupMap.set(g.id, g);
-      }
+    if (userIds.size > 0) {
+      enrichmentPromises.push(
+        this.userClient.getUserInfos(Array.from(userIds)).then((users) => {
+          userMap = users;
+        }),
+      );
+    }
+
+    if (enrichmentPromises.length > 0) {
+      await Promise.all(enrichmentPromises);
     }
 
     for (const post of posts) {
       if (post.groupId) {
         (post as any).group = groupMap.get(post.groupId);
+      }
+      if (post.userId) {
+        (post as any).user = userMap[post.userId];
       }
     }
 
@@ -293,6 +320,9 @@ export class PersonalFeedService {
       const post = postMap.get(share.postId);
       if (post?.groupId) {
         (share as any).group = groupMap.get(post.groupId);
+      }
+      if (share.userId) {
+        (share as any).user = userMap[share.userId];
       }
     }
 

@@ -17,6 +17,9 @@ import { ScoreCombinerService } from 'src/modules/ranking/services/score-combine
 import { SnapshotRepository } from '../../mongo/repository/snapshot.repository';
 import { ReactionService } from '../../../post/reaction/reaction.service';
 
+import { UserClientService } from '../../../post/client/user-client.service';
+import { MICROSERVICES_CLIENT } from 'src/constant';
+
 type RankFeature = {
   label: string;
   scores: Record<string, number>;
@@ -50,6 +53,9 @@ export class TrendingService {
     private readonly affinityService: AffinityService,
     private readonly combiner: ScoreCombinerService,
     private readonly reactionService: ReactionService,
+    private readonly userClient: UserClientService,
+    @Inject(MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE)
+    private readonly userSocialClient: ClientProxy,
   ) {}
 
   async getTrendingPosts(
@@ -255,6 +261,55 @@ export class TrendingService {
     const orderedPosts = topIds
       .map((id) => postMap.get(id))
       .filter((p): p is any => !!p);
+
+    const groupIds = new Set<string>();
+    const userIds = new Set<string>();
+
+    for (const p of orderedPosts) {
+      if (p.groupId) groupIds.add(p.groupId);
+      if (p.userId) userIds.add(p.userId);
+    }
+
+    const groupMap = new Map<string, any>();
+    let userMap: Record<string, any> = {};
+
+    const enrichmentPromises: Promise<any>[] = [];
+
+    if (groupIds.size > 0) {
+      enrichmentPromises.push(
+        firstValueFrom(
+          this.userSocialClient.send<any[]>(
+            'get_group_info_batch',
+            Array.from(groupIds),
+          ),
+        ).then((groups) => {
+          for (const g of groups) {
+            groupMap.set(g.id, g);
+          }
+        }),
+      );
+    }
+
+    if (userIds.size > 0) {
+      enrichmentPromises.push(
+        this.userClient.getUserInfos(Array.from(userIds)).then((users) => {
+          userMap = users;
+        }),
+      );
+    }
+
+    if (enrichmentPromises.length > 0) {
+      await Promise.all(enrichmentPromises);
+    }
+
+    for (const post of orderedPosts) {
+      if (post.groupId) {
+        post.group = groupMap.get(post.groupId);
+      }
+      if (post.userId) {
+        post.user = userMap[post.userId];
+      }
+    }
 
     // ==============================
     // 9️⃣ Reactions
