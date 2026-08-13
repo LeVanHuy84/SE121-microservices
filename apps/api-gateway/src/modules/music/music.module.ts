@@ -9,7 +9,7 @@ import { MusicAnalyzeService } from './music-analyze.service';
   imports: [
     ClientsModule.registerAsync([
       {
-        name: MICROSERVICES_CLIENTS.MUSIC_SERVICE,
+        name: MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE,
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
