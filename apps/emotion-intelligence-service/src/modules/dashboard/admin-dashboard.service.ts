@@ -17,7 +17,7 @@ export class AdminDashboardService {
       const data = await this.repo.getOverview();
       return data as DashboardOverviewResponseDto;
     } catch (e) {
-      this.logger.error('Overview aggregate failed', e as any);
+      this.logger.error('Overview aggregate failed', e);
       throw new RpcException({ statusCode: 500, message: 'OVERVIEW_FAILED' });
     }
   }
@@ -30,7 +30,7 @@ export class AdminDashboardService {
       const data = await this.repo.getDashboardChart(payload);
       return data as EmotionDashboardChartItemDto[];
     } catch (e) {
-      this.logger.error('Dashboard chart failed', e as any);
+      this.logger.error('Dashboard chart failed', e);
 
       throw new RpcException({
         statusCode: 500,

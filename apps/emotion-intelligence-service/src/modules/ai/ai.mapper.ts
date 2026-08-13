@@ -91,7 +91,7 @@ export function mapAiContext(params: {
 
   const hasRecentStrongNegative = Boolean(
     lastStrongNegativeAt &&
-      now.getTime() - lastStrongNegativeAt.getTime() < TWO_DAYS_MS,
+    now.getTime() - lastStrongNegativeAt.getTime() < TWO_DAYS_MS,
   );
 
   return {

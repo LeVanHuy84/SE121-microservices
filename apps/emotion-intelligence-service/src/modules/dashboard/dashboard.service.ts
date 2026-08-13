@@ -30,7 +30,7 @@ export class DashboardService {
     private readonly dashboardRepo: DashboardRepository,
     private readonly insightFacade: InsightFacade,
     @InjectRedis() private readonly redis: Redis,
-  ) { }
+  ) {}
 
   // ================= SUMMARY =================
   async getSummary(userId: string): Promise<DashboardSummaryResponseDto> {
@@ -128,7 +128,7 @@ export class DashboardService {
       .reverse()
       .filter((s) => s.createdAt)
       .map((s) => ({
-        timestamp: s.createdAt as Date,
+        timestamp: s.createdAt,
         negativeRatio: Number(s.negativeRatio ?? 0),
       }));
 
@@ -167,7 +167,7 @@ export class DashboardService {
     if (!snapshot) {
       return {
         distribution: {},
-        dominantEmotion: "Chưa có dữ liệu",
+        dominantEmotion: 'Chưa có dữ liệu',
       };
     }
 
@@ -181,14 +181,12 @@ export class DashboardService {
     const distribution =
       total > 0
         ? Object.fromEntries(
-          Object.entries(raw).map(([k, v]) => [k, Number(v) / total]),
-        )
+            Object.entries(raw).map(([k, v]) => [k, Number(v) / total]),
+          )
         : {};
 
     const dominantEmotion =
-      total > 0
-        ? this.pickDominantEmotion(distribution)
-        : "Chưa có dữ liệu";
+      total > 0 ? this.pickDominantEmotion(distribution) : 'Chưa có dữ liệu';
 
     const res: DashboardDistributionResponseDto = {
       distribution,

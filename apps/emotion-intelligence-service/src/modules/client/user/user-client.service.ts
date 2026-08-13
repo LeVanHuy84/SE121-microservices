@@ -9,7 +9,7 @@ import { lastValueFrom } from 'rxjs';
 export class UserClientService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    @Inject('USER_SERVICE') private readonly userClient: ClientProxy
+    @Inject('USER_SERVICE') private readonly userClient: ClientProxy,
   ) {}
 
   async getUserInfo(userId: string): Promise<BaseUserDTO | null> {
@@ -30,7 +30,7 @@ export class UserClientService {
     const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
       this.userClient.send<Record<string, BaseUserDTO>>('getBaseUsersBatch', [
         userId,
-      ])
+      ]),
     );
 
     const profile = fetchedProfiles?.[userId];
@@ -82,8 +82,8 @@ export class UserClientService {
       const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
         this.userClient.send<Record<string, BaseUserDTO>>(
           'getBaseUsersBatch',
-          uncachedIds
-        )
+          uncachedIds,
+        ),
       );
 
       for (const [id, profile] of Object.entries(fetchedProfiles)) {

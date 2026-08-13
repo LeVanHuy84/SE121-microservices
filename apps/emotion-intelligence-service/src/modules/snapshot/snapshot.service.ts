@@ -255,8 +255,8 @@ export class SnapshotService {
     const weighted =
       0.65 * nonlinearNegativity +
       0.15 * this.clamp01(baseline) +
-      0.10 * volatility +
-      0.10 * trendUp;
+      0.1 * volatility +
+      0.1 * trendUp;
 
     return this.clamp01(weighted);
   }
