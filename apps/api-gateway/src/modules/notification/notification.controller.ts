@@ -1,6 +1,16 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { CursorPaginationDTO, PaginationDTO, UserPreferenceSettingsDto, GetNotificationQueryDto } from '@repo/dtos';
+import { UserPreferenceSettingsDto, GetNotificationQueryDto } from '@repo/dtos';
 import { MICROSERVICES_CLIENTS } from 'src/common/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
@@ -17,13 +27,13 @@ interface RegisterDeviceTokenDto {
 export class NotificationController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
-    private readonly client: ClientProxy
+    private readonly client: ClientProxy,
   ) {}
 
   @Get()
   getNotifications(
     @CurrentUserId() userId: string,
-    @Query() query: GetNotificationQueryDto
+    @Query() query: GetNotificationQueryDto,
   ) {
     return this.client.send('get_notifications', { userId, query });
   }
@@ -62,7 +72,7 @@ export class NotificationController {
   @Patch('preferences')
   updateUserPreferences(
     @CurrentUserId() userId: string,
-    @Body('settings') settings: UserPreferenceSettingsDto
+    @Body('settings') settings: UserPreferenceSettingsDto,
   ) {
     return this.client.send('update_user_preference', { userId, settings });
   }
@@ -71,7 +81,7 @@ export class NotificationController {
   @Post('device-tokens')
   registerDeviceToken(
     @CurrentUserId() userId: string,
-    @Body() dto: RegisterDeviceTokenDto
+    @Body() dto: RegisterDeviceTokenDto,
   ) {
     return this.client.send('register_device_token', { userId, ...dto });
   }
@@ -79,7 +89,7 @@ export class NotificationController {
   @Delete('device-tokens/:token')
   removeDeviceToken(
     @CurrentUserId() userId: string,
-    @Param('token') token: string
+    @Param('token') token: string,
   ) {
     return this.client.send('remove_device_token', { userId, token });
   }
@@ -94,4 +104,3 @@ export class NotificationController {
     return this.client.send('remove_all_user_tokens', userId);
   }
 }
-

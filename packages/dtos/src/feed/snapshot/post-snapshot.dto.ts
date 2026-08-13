@@ -7,6 +7,8 @@ import {
 import { MediaItemDTO } from '../../common/media.dto';
 import { PostStatDTO } from '../../common';
 
+import { BaseUserDTO } from '../../user/get-user.dto';
+
 export class GroupInfoDTO {
   @Expose()
   id: string;
@@ -22,6 +24,10 @@ export class PostSnapshotDTO {
 
   @Expose()
   userId: string;
+
+  @Expose()
+  @Type(() => BaseUserDTO)
+  user?: BaseUserDTO;
 
   groupId?: string;
 
