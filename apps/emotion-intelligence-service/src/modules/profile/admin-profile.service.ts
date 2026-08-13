@@ -43,7 +43,7 @@ export class AdminProfileService {
 
       return new PageResponse(data, result.total, result.page, result.limit);
     } catch (e) {
-      this.logger.error('listRiskUsers failed', e as any);
+      this.logger.error('listRiskUsers failed', e);
       throw new RpcException({ statusCode: 500, message: 'LIST_RISK_FAILED' });
     }
   }

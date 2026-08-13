@@ -30,7 +30,7 @@ export class AdminFeedbackService {
         res.limit,
       );
     } catch (e) {
-      this.logger.error('feedback list failed', e as any);
+      this.logger.error('feedback list failed', e);
       throw new RpcException({
         statusCode: 500,
         message: 'FEEDBACK_LIST_FAILED',
@@ -43,7 +43,7 @@ export class AdminFeedbackService {
       const res = await this.repo.accuracySummary();
       return res as FeedbackAccuracySummaryDto;
     } catch (e) {
-      this.logger.error('feedback accuracy failed', e as any);
+      this.logger.error('feedback accuracy failed', e);
       throw new RpcException({
         statusCode: 500,
         message: 'FEEDBACK_ACCURACY_FAILED',
