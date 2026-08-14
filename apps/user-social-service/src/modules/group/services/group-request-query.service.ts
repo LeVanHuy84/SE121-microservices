@@ -1,14 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   CursorPageResponse,
   JoinRequestResponseDTO,
   JoinRequestFilter,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { and, asc, desc, eq, gt, lt } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { groupJoinRequests } from 'src/drizzle/schema/schema';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupJoinRequests } from "src/drizzle/schema/schema";
 
 @Injectable()
 export class GroupJoinRequestQueryService {
@@ -19,8 +19,8 @@ export class GroupJoinRequestQueryService {
     filter: JoinRequestFilter,
   ): Promise<CursorPageResponse<JoinRequestResponseDTO>> {
     const {
-      sortBy = 'createdAt',
-      order = 'DESC',
+      sortBy = "createdAt",
+      order = "DESC",
       cursor,
       limit = 20,
       status,
@@ -33,15 +33,15 @@ export class GroupJoinRequestQueryService {
     }
 
     if (cursor) {
-      if (sortBy === 'createdAt') {
+      if (sortBy === "createdAt") {
         conditions.push(
-          order === 'DESC'
+          order === "DESC"
             ? lt(groupJoinRequests.createdAt, new Date(cursor))
             : gt(groupJoinRequests.createdAt, new Date(cursor)),
         );
-      } else if (sortBy === 'id') {
+      } else if (sortBy === "id") {
         conditions.push(
-          order === 'DESC'
+          order === "DESC"
             ? lt(groupJoinRequests.id, cursor)
             : gt(groupJoinRequests.id, cursor),
         );
@@ -49,7 +49,7 @@ export class GroupJoinRequestQueryService {
     }
 
     const orderExpr =
-      order.toUpperCase() === 'DESC'
+      order.toUpperCase() === "DESC"
         ? desc(groupJoinRequests[sortBy])
         : asc(groupJoinRequests[sortBy]);
 
@@ -64,8 +64,8 @@ export class GroupJoinRequestQueryService {
     const data = results.slice(0, limit);
 
     const nextCursor = hasNextPage
-      ? sortBy === 'createdAt'
-        ? (data[data.length - 1].createdAt as Date).toISOString()
+      ? sortBy === "createdAt"
+        ? data[data.length - 1].createdAt.toISOString()
         : data[data.length - 1].id
       : null;
 

@@ -1,16 +1,16 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { CursorPaginationDTO, CursorPageResponse } from "@repo/dtos";
 import {
   RecommendationClientService,
   RecommendationQueryCandidate,
-} from '../../services/recommendation-client.service';
+} from "../../services/recommendation-client.service";
 import {
   SOCIAL_GRAPH_REPOSITORY,
   type FriendRecommendation,
   type SocialGraphRepository,
-} from '../repositories/social-graph.repository';
-import { randomUUID } from 'crypto';
-import { UserService } from '../../../../modules/user/user.service';
+} from "../repositories/social-graph.repository";
+import { randomUUID } from "crypto";
+import { UserService } from "../../../../modules/user/user.service";
 
 @Injectable()
 export class RecommendationQueryService {
@@ -33,7 +33,7 @@ export class RecommendationQueryService {
     const startIndex = this.resolveCursorOffset(normalizedCursor);
     const limit = this.normalizeLimit(query.limit);
     this.logger.debug(
-      `Recommendation query request: userId=${userId} limit=${limit} cursor=${normalizedCursor ?? 'none'} startIndex=${startIndex}`,
+      `Recommendation query request: userId=${userId} limit=${limit} cursor=${normalizedCursor ?? "none"} startIndex=${startIndex}`,
     );
     const resolved = await this.recommendationClient.queryCandidates(
       userId,
@@ -63,11 +63,13 @@ export class RecommendationQueryService {
       trackedRecommendations,
     );
 
-    void this.recordServedEvents(userId, trackedRecommendations, startIndex).catch(
-      (error) => {
-        this.logger.warn(`recordServedEvents failed: ${error.message}`);
-      },
-    );
+    void this.recordServedEvents(
+      userId,
+      trackedRecommendations,
+      startIndex,
+    ).catch((error) => {
+      this.logger.warn(`recordServedEvents failed: ${error.message}`);
+    });
 
     return {
       data: hydratedRecommendations,
@@ -89,7 +91,7 @@ export class RecommendationQueryService {
       modelScore: candidate.modelScore,
       score: candidate.finalScore,
       reasons: this.toHumanReasons(candidate.reasonCodes),
-      isEmotionMatched: candidate.reasonCodes.includes('emotion_affinity'),
+      isEmotionMatched: candidate.reasonCodes.includes("emotion_affinity"),
       candidateSourceMode: this.mapCandidateSourceMode(candidate.source),
     };
   }
@@ -98,47 +100,47 @@ export class RecommendationQueryService {
     const reasons = reasonCodes
       .map((reasonCode) => {
         switch (reasonCode) {
-          case 'semantic_retrieval':
-            return 'Semantic retrieval match';
-          case 'semantic_rerank':
-            return 'AI rerank boosted';
-          case 'graph_mutual_friend':
-            return 'Mutual friends';
-          case 'graph_rerank':
-            return 'Social graph boosted';
-          case 'graph_recent_unblock':
-          case 'graph_recent_request_canceled':
-          case 'graph_recent_friendship_removed':
-            return 'Recent graph update';
-          case 'global_fallback':
-            return 'Global fallback recommendation';
-          case 'emotion_affinity':
-            return 'Đồng điệu cảm xúc';
+          case "semantic_retrieval":
+            return "Semantic retrieval match";
+          case "semantic_rerank":
+            return "AI rerank boosted";
+          case "graph_mutual_friend":
+            return "Mutual friends";
+          case "graph_rerank":
+            return "Social graph boosted";
+          case "graph_recent_unblock":
+          case "graph_recent_request_canceled":
+          case "graph_recent_friendship_removed":
+            return "Recent graph update";
+          case "global_fallback":
+            return "Global fallback recommendation";
+          case "emotion_affinity":
+            return "Đồng điệu cảm xúc";
           default:
-            return '';
+            return "";
         }
       })
       .filter(Boolean);
 
-    return reasons.length > 0 ? reasons : ['Suggested for you'];
+    return reasons.length > 0 ? reasons : ["Suggested for you"];
   }
 
   private mapCandidateSourceMode(
     source: string,
-  ): FriendRecommendation['candidateSourceMode'] {
-    if (source === 'semantic_online') {
-      return 'online';
+  ): FriendRecommendation["candidateSourceMode"] {
+    if (source === "semantic_online") {
+      return "online";
     }
 
-    if (source === 'hybrid') {
-      return 'hybrid';
+    if (source === "hybrid") {
+      return "hybrid";
     }
 
-    if (source === 'global_fallback') {
-      return 'fallback';
+    if (source === "global_fallback") {
+      return "fallback";
     }
 
-    return 'fallback';
+    return "fallback";
   }
 
   private async enrichGraphContext(
@@ -167,8 +169,8 @@ export class RecommendationQueryService {
         summary?.mutualFriends ?? 0,
       );
       const reasons = [...(recommendation.reasons ?? [])];
-      if (resolvedMutualFriends > 0 && !reasons.includes('Mutual friends')) {
-        reasons.push('Mutual friends');
+      if (resolvedMutualFriends > 0 && !reasons.includes("Mutual friends")) {
+        reasons.push("Mutual friends");
       }
 
       return {
@@ -190,7 +192,7 @@ export class RecommendationQueryService {
   }
 
   private normalizeLimit(limit: number | undefined): number {
-    if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+    if (typeof limit !== "number" || !Number.isFinite(limit)) {
       return this.defaultLimit;
     }
 
@@ -200,7 +202,7 @@ export class RecommendationQueryService {
   private normalizeCursor(
     cursor: string | null | undefined,
   ): string | undefined {
-    if (typeof cursor !== 'string') {
+    if (typeof cursor !== "string") {
       return undefined;
     }
 
@@ -226,14 +228,14 @@ export class RecommendationQueryService {
 
   private tryResolveOffsetFromCursor(cursor: string): number | null {
     try {
-      const decodedPayload = Buffer.from(cursor, 'base64url').toString('utf8');
+      const decodedPayload = Buffer.from(cursor, "base64url").toString("utf8");
       const parsedPayload = JSON.parse(decodedPayload) as {
         source?: unknown;
         offset?: unknown;
       };
-      const source = String(parsedPayload.source ?? '').trim();
+      const source = String(parsedPayload.source ?? "").trim();
       if (
-        !['semantic_online', 'global_fallback', 'semantic_session'].includes(
+        !["semantic_online", "global_fallback", "semantic_session"].includes(
           source,
         )
       ) {
@@ -301,12 +303,12 @@ export class RecommendationQueryService {
   ): Promise<void> {
     await this.socialGraphRepo.recordRecommendationEvents(
       recommendations.map((recommendation, index) => {
-        const sourceMode = recommendation.candidateSourceMode ?? 'fallback';
+        const sourceMode = recommendation.candidateSourceMode ?? "fallback";
 
         return {
           userId,
           candidateId: recommendation.id,
-          eventType: 'served' as const,
+          eventType: "served" as const,
           recommendationId: recommendation.recommendationId ?? null,
           recommendationRequestId:
             recommendation.recommendationRequestId ?? null,

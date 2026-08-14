@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
 import {
   StatsPayload,
   StatsEventType,
@@ -8,17 +8,17 @@ import {
   StatsReactionDelta,
   StatsCommentDelta,
   StatsShareDelta,
-} from '@repo/dtos';
-import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
+} from "@repo/dtos";
+import { InjectModel } from "@nestjs/mongoose";
+import { ClientSession, Model } from "mongoose";
 import {
   PostSnapshot,
   PostSnapshotDocument,
-} from '../../mongo/schema/post-snapshot.schema';
+} from "../../mongo/schema/post-snapshot.schema";
 import {
   ShareSnapshot,
   ShareSnapshotDocument,
-} from '../../mongo/schema/share-snapshot.schema';
+} from "../../mongo/schema/share-snapshot.schema";
 
 @Injectable()
 export class StatsIngestionService {
@@ -49,17 +49,17 @@ export class StatsIngestionService {
 
         for (const delta of deltas) {
           if (delta.type === StatsEventType.REACTION) {
-            pipeline.hincrby(engagementKey, 'reactions', delta.delta);
+            pipeline.hincrby(engagementKey, "reactions", delta.delta);
           } else if (delta.type === StatsEventType.COMMENT) {
-            pipeline.hincrby(engagementKey, 'comments', delta.delta);
+            pipeline.hincrby(engagementKey, "comments", delta.delta);
           } else if (delta.type === StatsEventType.SHARE) {
-            pipeline.hincrby(engagementKey, 'shares', delta.delta);
+            pipeline.hincrby(engagementKey, "shares", delta.delta);
           }
         }
 
         // mark dirty
-        pipeline.sadd('post:dirty', targetId);
-        pipeline.hset(metaKey, 'lastStatAt', timestamp);
+        pipeline.sadd("post:dirty", targetId);
+        pipeline.hset(metaKey, "lastStatAt", timestamp);
         pipeline.expire(metaKey, 2592000); // 30 ngày
         pipeline.expire(engagementKey, 2592000); // 30 ngày
       }
@@ -90,13 +90,13 @@ export class StatsIngestionService {
         updates[field] = (updates[field] ?? 0) + delta.delta;
 
         // Tổng số reaction cũng tăng
-        updates['stats.reactions'] =
-          (updates['stats.reactions'] ?? 0) + delta.delta;
+        updates["stats.reactions"] =
+          (updates["stats.reactions"] ?? 0) + delta.delta;
       } else if (delta.type === StatsEventType.COMMENT) {
-        updates['stats.comments'] =
-          (updates['stats.comments'] ?? 0) + delta.delta;
+        updates["stats.comments"] =
+          (updates["stats.comments"] ?? 0) + delta.delta;
       } else if (delta.type === StatsEventType.SHARE) {
-        updates['stats.shares'] = (updates['stats.shares'] ?? 0) + delta.delta;
+        updates["stats.shares"] = (updates["stats.shares"] ?? 0) + delta.delta;
       }
     }
 

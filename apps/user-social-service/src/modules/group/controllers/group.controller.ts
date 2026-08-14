@@ -1,19 +1,19 @@
-import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { GroupService } from '../services/group.service';
+import { Controller } from "@nestjs/common";
+import { MessagePattern, Payload } from "@nestjs/microservices";
+import { GroupService } from "../services/group.service";
 import {
   CreateGroupDTO,
   CursorPaginationDTO,
   GroupPermission,
   GroupRole,
   UpdateGroupDTO,
-} from '@repo/dtos';
-import { RequireGroupPermission } from 'src/modules/group/decorators/require-group-permission.decorator';
-import { RequireGroupRole } from 'src/modules/group/decorators/require-group-role.decatator';
-import { GroupQueryService } from '../services/group-query.service';
-import { GroupHelperService } from '../services/group-helper.service';
+} from "@repo/dtos";
+import { RequireGroupPermission } from "src/modules/group/decorators/require-group-permission.decorator";
+import { RequireGroupRole } from "src/modules/group/decorators/require-group-role.decatator";
+import { GroupQueryService } from "../services/group-query.service";
+import { GroupHelperService } from "../services/group-helper.service";
 
-@Controller('group')
+@Controller("group")
 export class GroupController {
   constructor(
     private readonly groupService: GroupService,
@@ -21,44 +21,44 @@ export class GroupController {
     private readonly groupHelperService: GroupHelperService,
   ) {}
 
-  @MessagePattern('health_check')
+  @MessagePattern("health_check")
   async healthCheck() {
-    return { status: 'ok' };
+    return { status: "ok" };
   }
 
-  @MessagePattern('find_group_by_id')
+  @MessagePattern("find_group_by_id")
   async getGroup(@Payload() data: { userId: string; groupId: string }) {
     return this.groupQueryService.findById(data.groupId, data.userId);
   }
 
-  @MessagePattern('get_my_groups')
+  @MessagePattern("get_my_groups")
   async searchGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.getMyGroups(data.userId, data.query);
   }
 
-  @MessagePattern('recommend_groups')
+  @MessagePattern("recommend_groups")
   async recommendGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.recommendGroups(data.userId, data.query);
   }
 
-  @MessagePattern('get_invited_groups')
+  @MessagePattern("get_invited_groups")
   async getInvitedGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.getInvitedGroups(data.userId, data.query);
   }
 
-  @MessagePattern('create_group')
+  @MessagePattern("create_group")
   async createGroup(@Payload() data: { userId: string; dto: CreateGroupDTO }) {
     return this.groupService.createGroup(data.userId, data.dto);
   }
 
   @RequireGroupPermission(GroupPermission.UPDATE_GROUP)
-  @MessagePattern('update_group')
+  @MessagePattern("update_group")
   async updateGroup(
     @Payload()
     data: {
@@ -70,7 +70,7 @@ export class GroupController {
     return this.groupService.updateGroup(data.userId, data.groupId, data.dto);
   }
 
-  @MessagePattern('delete_group')
+  @MessagePattern("delete_group")
   @RequireGroupRole(GroupRole.ADMIN)
   async deleteGroup(
     @Payload()
@@ -82,7 +82,7 @@ export class GroupController {
     return this.groupService.deleteGroup(data.userId, data.groupId);
   }
 
-  @MessagePattern('get_group_user_permissions')
+  @MessagePattern("get_group_user_permissions")
   async getGroupUserPermissions(
     @Payload() data: { userId: string; groupId: string },
   ) {
@@ -92,7 +92,7 @@ export class GroupController {
     );
   }
 
-  @MessagePattern('get_group_info_batch')
+  @MessagePattern("get_group_info_batch")
   async getGroupInfoBatch(@Payload() groupIds: string[]) {
     return this.groupHelperService.getGroupsBatchInfo(groupIds);
   }

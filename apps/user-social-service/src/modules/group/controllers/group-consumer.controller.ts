@@ -1,14 +1,14 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger } from "@nestjs/common";
 import {
   EventPattern,
   Payload,
   Ctx,
   KafkaContext,
-} from '@nestjs/microservices';
-import { EventTopic, PostGroupEventType } from '@repo/dtos';
-import type { PostGroupEvent } from '@repo/dtos';
-import { ConsumerService } from '../services/group-consumer.service';
-import { KafkaConsumerHelper } from '@repo/common';
+} from "@nestjs/microservices";
+import { EventTopic, PostGroupEventType } from "@repo/dtos";
+import type { PostGroupEvent } from "@repo/dtos";
+import { ConsumerService } from "../services/group-consumer.service";
+import { KafkaConsumerHelper } from "@repo/common";
 
 @Controller()
 export class ConsumerController {

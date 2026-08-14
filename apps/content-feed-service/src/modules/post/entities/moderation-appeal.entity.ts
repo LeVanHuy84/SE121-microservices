@@ -1,4 +1,4 @@
-import { AppealStatus } from '@repo/dtos';
+import { AppealStatus } from "@repo/dtos";
 import {
   Column,
   CreateDateColumn,
@@ -6,43 +6,43 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-} from 'typeorm';
-import { ContentModeration } from './content-moderation.entity';
+} from "typeorm";
+import { ContentModeration } from "./content-moderation.entity";
 
-@Entity('moderation_appeals')
+@Entity("moderation_appeals")
 export class ModerationAppeal {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'moderation_id' })
+  @Column({ name: "moderation_id" })
   moderationId: string;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: "user_id" })
   userId: string;
 
-  @Column('text')
+  @Column("text")
   reason: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: AppealStatus,
     default: AppealStatus.PENDING,
   })
   status: AppealStatus;
 
-  @Column({ name: 'reviewed_by', nullable: true })
+  @Column({ name: "reviewed_by", nullable: true })
   reviewedBy: string;
 
-  @Column({ name: 'review_note', nullable: true })
+  @Column({ name: "review_note", nullable: true })
   reviewNote: string;
 
-  @Column({ name: 'reviewed_at', nullable: true })
+  @Column({ name: "reviewed_at", nullable: true })
   reviewedAt: Date;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @ManyToOne(() => ContentModeration, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'moderation_id' })
+  @ManyToOne(() => ContentModeration, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "moderation_id" })
   moderation: ContentModeration;
 }

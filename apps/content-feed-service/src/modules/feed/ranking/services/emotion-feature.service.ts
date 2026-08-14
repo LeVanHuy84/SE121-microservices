@@ -1,9 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
-import { EmotionRankingFeaturesDto, RiskHintLevel } from '@repo/dtos';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { ClientProxy } from "@nestjs/microservices";
+import { firstValueFrom } from "rxjs";
+import { EmotionRankingFeaturesDto, RiskHintLevel } from "@repo/dtos";
 
 const CACHE_TTL_SECONDS = 900; // 15 min
 
@@ -13,9 +13,9 @@ export class EmotionFeatureService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    @Inject('EMOTION_INTELLIGENCE_SERVICE')
+    @Inject("EMOTION_INTELLIGENCE_SERVICE")
     private readonly emotionIntelligenceClient: ClientProxy,
-  ) { }
+  ) {}
 
   // =========================
   // PUBLIC API
@@ -37,7 +37,8 @@ export class EmotionFeatureService {
       return normalized;
     } catch (error) {
       this.logger.warn(
-        `Failed to get emotion features for user ${userId}: ${(error as Error).message
+        `Failed to get emotion features for user ${userId}: ${
+          (error as Error).message
         }`,
       );
       return null;
@@ -78,23 +79,14 @@ export class EmotionFeatureService {
 
     const confidenceWeight = 0.7 + (post.confidence ?? 0) * 0.3;
 
-    const recoveryWeight =
-      distress > 0.7
-        ? 0.40
-        : distress > 0.5
-          ? 0.25
-          : 0.10;
+    const recoveryWeight = distress > 0.7 ? 0.4 : distress > 0.5 ? 0.25 : 0.1;
 
     const score =
-      (
-        0.55 * novelty +
+      (0.55 * novelty +
         0.15 * baseline +
         recoveryWeight * recovery -
-        0.25 * riskPenalty
-      )
-      *
-      intensityWeight
-      *
+        0.25 * riskPenalty) *
+      intensityWeight *
       confidenceWeight;
 
     return this.clamp(score);
@@ -141,7 +133,7 @@ export class EmotionFeatureService {
   ): Promise<EmotionRankingFeaturesDto | null> {
     try {
       const response = await firstValueFrom(
-        this.emotionIntelligenceClient.send('get_emotion_ranking_features', {
+        this.emotionIntelligenceClient.send("get_emotion_ranking_features", {
           userId,
         }),
       );
@@ -223,30 +215,21 @@ export class EmotionFeatureService {
   // SCORING LOGIC
   // =========================
 
-  private calcDistress(
-    features: EmotionRankingFeaturesDto,
-  ): number {
+  private calcDistress(features: EmotionRankingFeaturesDto): number {
     return this.clamp(
       features.riskScore * 0.4 +
-      features.recentNegativityScore * 0.4 +
-      features.negativeRatio7d * 0.2,
+        features.recentNegativityScore * 0.4 +
+        features.negativeRatio7d * 0.2,
     );
   }
 
-  private calcContentBaseline(
-    postScores: Record<string, number>,
-  ): number {
+  private calcContentBaseline(postScores: Record<string, number>): number {
     const joy = postScores.joy || 0;
     const neutral = postScores.neutral || 0;
     const trust = postScores.trust || 0;
     const calm = postScores.calm || 0;
 
-    return this.clamp(
-      joy * 0.20 +
-      neutral * 0.35 +
-      trust * 0.25 +
-      calm * 0.20,
-    );
+    return this.clamp(joy * 0.2 + neutral * 0.35 + trust * 0.25 + calm * 0.2);
   }
 
   private calcNoveltyScore(
@@ -294,10 +277,7 @@ export class EmotionFeatureService {
     recovery += fear * trust;
     recovery += anger * calm;
 
-    recovery +=
-      (sadness + fear + anger) *
-      neutral *
-      0.25;
+    recovery += (sadness + fear + anger) * neutral * 0.25;
 
     return this.clamp(recovery * distress);
   }
@@ -313,8 +293,6 @@ export class EmotionFeatureService {
       (postScores.anger || 0) * 0.3 +
       (postScores.fear || 0) * 0.3;
 
-    return this.clamp(
-      distress * Math.pow(negative, 2),
-    );
+    return this.clamp(distress * Math.pow(negative, 2));
   }
 }

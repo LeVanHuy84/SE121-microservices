@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { GroupInfoDTO, ReactionType, ShareSnapshotDTO } from '@repo/dtos';
-import { Share } from 'src/entities/share.entity';
+import { Injectable } from "@nestjs/common";
+import { GroupInfoDTO, ReactionType, ShareSnapshotDTO } from "@repo/dtos";
+import { Share } from "src/entities/share.entity";
 
 @Injectable()
 export class ShareShortenMapper {

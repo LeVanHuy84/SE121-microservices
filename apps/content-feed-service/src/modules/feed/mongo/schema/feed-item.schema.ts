@@ -1,8 +1,8 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
-import { FeedEventType } from '@repo/dtos';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, Types } from "mongoose";
+import { FeedEventType } from "@repo/dtos";
 
-@Schema({ collection: 'feed_items', timestamps: true })
+@Schema({ collection: "feed_items", timestamps: true })
 export class FeedItem {
   _id?: Types.ObjectId;
 

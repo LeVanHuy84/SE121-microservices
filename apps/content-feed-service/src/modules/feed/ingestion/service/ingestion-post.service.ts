@@ -1,24 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { ClientSession, Model } from "mongoose";
 import {
   PostSnapshot,
   PostSnapshotDocument,
-} from '../../mongo/schema/post-snapshot.schema';
+} from "../../mongo/schema/post-snapshot.schema";
 import {
   ShareSnapshot,
   ShareSnapshotDocument,
-} from '../../mongo/schema/share-snapshot.schema';
+} from "../../mongo/schema/share-snapshot.schema";
 import {
   Audience,
   Emotion,
   FeedEventType,
   InferPostPayload,
   PostEventType,
-} from '@repo/dtos';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { DistributionService } from './distribution.service';
+} from "@repo/dtos";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { DistributionService } from "./distribution.service";
 
 @Injectable()
 export class IngestionPostService {
@@ -77,11 +77,11 @@ export class IngestionPostService {
         lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
       });
       await this.redis.expire(metaKey, this.META_TTL_SECONDS);
-      await this.redis.zadd('post:score', 1, payload.postId);
+      await this.redis.zadd("post:score", 1, payload.postId);
       const ttlFreshMs = 48 * 60 * 60 * 1000; // 48h
       const expireAt = createdAt.getTime() + ttlFreshMs;
 
-      await this.redis.zadd('post:fresh', expireAt, payload.postId);
+      await this.redis.zadd("post:fresh", expireAt, payload.postId);
     }
 
     // ------------------------------
@@ -133,7 +133,7 @@ export class IngestionPostService {
     payload: InferPostPayload<PostEventType.REMOVED>,
     session?: ClientSession,
   ) {
-    if (!('postId' in payload)) return;
+    if (!("postId" in payload)) return;
 
     const snapshot = await this.postModel.findOneAndDelete(
       {
@@ -151,7 +151,7 @@ export class IngestionPostService {
     // ------------------------------
 
     // 1. Xóa trending score chính
-    await this.redis.zrem('post:score', postId);
+    await this.redis.zrem("post:score", postId);
 
     // 2. Xóa meta
     await this.redis.del(`post:meta:${postId}`);

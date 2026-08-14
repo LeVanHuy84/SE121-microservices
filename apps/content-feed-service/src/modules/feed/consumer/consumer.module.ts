@@ -1,24 +1,24 @@
-import { Module } from '@nestjs/common';
+import { Module } from "@nestjs/common";
 
-import { ConsumerController } from './consumer.controller';
-import { ConsumerService } from './consumer.service';
-import { MongooseModule } from '@nestjs/mongoose';
+import { ConsumerController } from "./consumer.controller";
+import { ConsumerService } from "./consumer.service";
+import { MongooseModule } from "@nestjs/mongoose";
 import {
   PostSnapshot,
   PostSnapshotSchema,
-} from '../mongo/schema/post-snapshot.schema';
-import { AffinityModule } from '../affinity/affinity.module';
-import { FeedItem, FeedItemSchema } from '../mongo/schema/feed-item.schema';
+} from "../mongo/schema/post-snapshot.schema";
+import { AffinityModule } from "../affinity/affinity.module";
+import { FeedItem, FeedItemSchema } from "../mongo/schema/feed-item.schema";
 import {
   ShareSnapshot,
   ShareSnapshotSchema,
-} from '../mongo/schema/share-snapshot.schema';
+} from "../mongo/schema/share-snapshot.schema";
 import {
   IdempotencyModule,
   KafkaConsumerHelper,
   KafkaDLQService,
   KafkaProducerModule,
-} from '@repo/common';
+} from "@repo/common";
 
 @Module({
   imports: [

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { NotificationPayload } from '@repo/dtos';
+import { Injectable } from "@nestjs/common";
+import { NotificationPayload } from "@repo/dtos";
 
 type TemplatePayload = NotificationPayload & Record<string, any>;
 
@@ -16,57 +16,60 @@ type TemplateRenderer = {
   title: (payload: TemplatePayload) => string;
   body: (payload: TemplatePayload) => string;
   data?: (payload: TemplatePayload) => Record<string, string>;
-  delivery?: (payload: TemplatePayload) => RenderedNotificationTemplate['delivery'];
+  delivery?: (
+    payload: TemplatePayload,
+  ) => RenderedNotificationTemplate["delivery"];
 };
 
 @Injectable()
 export class TemplateService {
   private readonly templates: Record<string, TemplateRenderer> = {
     reaction: {
-      title: () => 'Tương tác mới',
+      title: () => "Tương tác mới",
       body: (payload) =>
         `${this.getActorName(payload)} đã thả cảm xúc cho bài đăng: ${this.getContentSnippet(payload)}`,
     },
     comment: {
-      title: () => 'Bình luận mới',
+      title: () => "Bình luận mới",
       body: (payload) =>
         `${this.getActorName(payload)} đã bình luận tại bài đăng: ${this.getContentSnippet(payload)}`,
     },
     reply_comment: {
-      title: () => 'Phản hồi mới',
+      title: () => "Phản hồi mới",
       body: (payload) =>
         `${this.getActorName(payload)} đã phản hồi bình luận: ${this.getContentSnippet(payload)}`,
     },
     share: {
-      title: () => 'Lượt chia sẻ mới',
+      title: () => "Lượt chia sẻ mới",
       body: (payload) =>
         `${this.getActorName(payload)} đã chia sẻ bài đăng: ${this.getContentSnippet(payload)}`,
     },
     follow: {
-      title: () => 'Người theo dõi mới',
-      body: (payload) => `${this.getActorName(payload)} đã bắt đầu theo dõi bạn`,
+      title: () => "Người theo dõi mới",
+      body: (payload) =>
+        `${this.getActorName(payload)} đã bắt đầu theo dõi bạn`,
     },
     friendship_request: {
-      title: () => 'Lời mời kết bạn',
+      title: () => "Lời mời kết bạn",
       body: (payload) =>
         `${this.getActorName(payload)} đã gửi lời mời kết bạn tới bạn`,
     },
     friendship_accept: {
-      title: () => 'Đã chấp nhận kết bạn',
+      title: () => "Đã chấp nhận kết bạn",
       body: (payload) =>
         `${this.getActorName(payload)} đã chấp nhận lời mời kết bạn của bạn`,
     },
     group_noti: {
-      title: () => 'Thông báo nhóm',
+      title: () => "Thông báo nhóm",
       body: (payload) =>
         `Nhóm ${this.getActorName(payload)}: ${this.getContentSnippet(payload)}`,
     },
     group_invite: {
-      title: () => 'Lời mời vào nhóm',
+      title: () => "Lời mời vào nhóm",
       body: (payload) => this.getContentSnippet(payload),
     },
     base_noti: {
-      title: () => 'Thông báo',
+      title: () => "Thông báo",
       body: (payload) => this.getContentSnippet(payload),
     },
   };
@@ -89,14 +92,14 @@ export class TemplateService {
       title: template.title(payload),
       body: template.body(payload),
       data: {
-        targetId: payload.targetId ?? '',
-        targetType: payload.targetType ?? '',
-        actorName: payload.actorName ?? '',
-        actorAvatar: payload.actorAvatar ?? '',
+        targetId: payload.targetId ?? "",
+        targetType: payload.targetType ?? "",
+        actorName: payload.actorName ?? "",
+        actorAvatar: payload.actorAvatar ?? "",
         ...this.stringifyRecord(template.data?.(payload) ?? {}),
       },
       delivery: {
-        androidChannelId: 'general',
+        androidChannelId: "general",
         ...(template.delivery?.(payload) ?? {}),
       },
     };
@@ -110,32 +113,32 @@ export class TemplateService {
       title: this.humanizeType(type),
       body: this.getContentSnippet(payload),
       data: {
-        targetId: payload.targetId ?? '',
-        targetType: payload.targetType ?? '',
-        actorName: payload.actorName ?? '',
-        actorAvatar: payload.actorAvatar ?? '',
+        targetId: payload.targetId ?? "",
+        targetType: payload.targetType ?? "",
+        actorName: payload.actorName ?? "",
+        actorAvatar: payload.actorAvatar ?? "",
       },
       delivery: {
-        androidChannelId: 'general',
+        androidChannelId: "general",
       },
     };
   }
 
   private getActorName(payload: TemplatePayload) {
-    return payload.actorName?.trim() || 'Ai đó';
+    return payload.actorName?.trim() || "Ai đó";
   }
 
   private getContentSnippet(payload: TemplatePayload) {
     const rawValue =
-      typeof payload.content === 'string'
+      typeof payload.content === "string"
         ? payload.content
         : payload.text
           ? String(payload.text)
-          : '';
-    const normalized = rawValue.replace(/\s+/g, ' ').trim();
+          : "";
+    const normalized = rawValue.replace(/\s+/g, " ").trim();
 
     if (!normalized) {
-      return 'Bạn có thông báo mới';
+      return "Bạn có thông báo mới";
     }
 
     return normalized.length > 120
@@ -145,24 +148,24 @@ export class TemplateService {
 
   private humanizeType(type: string) {
     if (!type?.trim()) {
-      return 'Thông báo';
+      return "Thông báo";
     }
 
     return type
       .split(/[_-]/g)
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
+      .join(" ");
   }
 
   private stringifyRecord(record: Record<string, unknown>) {
     return Object.fromEntries(
       Object.entries(record).map(([key, value]) => [
         key,
-        typeof value === 'string'
+        typeof value === "string"
           ? value
           : value === undefined || value === null
-            ? ''
+            ? ""
             : JSON.stringify(value),
       ]),
     );

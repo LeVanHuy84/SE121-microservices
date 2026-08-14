@@ -1,14 +1,14 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { Post } from 'src/entities/post.entity';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
-import { PostPermissionDTO } from '@repo/dtos';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+import { Injectable, Inject } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { In, Repository } from "typeorm";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { Post } from "src/entities/post.entity";
+import { PostStat } from "src/entities/post-stat.entity";
+import { ClientProxy } from "@nestjs/microservices";
+import { lastValueFrom } from "rxjs";
+import { PostPermissionDTO } from "@repo/dtos";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Injectable()
 export class PostCacheService {
@@ -42,7 +42,7 @@ export class PostCacheService {
 
     const post = await this.postRepo.findOne({
       where: { id: postId },
-      relations: ['postStat'],
+      relations: ["postStat"],
     });
 
     if (!post) return null;
@@ -84,7 +84,7 @@ export class PostCacheService {
     if (missingIds.length > 0) {
       const dbPosts = await this.postRepo.find({
         where: { id: In(missingIds) },
-        relations: ['postStat'],
+        relations: ["postStat"],
       });
 
       const pipeline = this.redis.pipeline();
@@ -206,10 +206,10 @@ export class PostCacheService {
 
   private reverseRelation(relation: string): string {
     switch (relation) {
-      case 'BLOCKED':
-        return 'BLOCKED_BY';
-      case 'BLOCKED_BY':
-        return 'BLOCKED';
+      case "BLOCKED":
+        return "BLOCKED_BY";
+      case "BLOCKED_BY":
+        return "BLOCKED";
       default:
         return relation;
     }
@@ -221,7 +221,7 @@ export class PostCacheService {
     groupId: string,
   ): Promise<PostPermissionDTO> {
     const permission = await lastValueFrom(
-      this.groupClient.send('get_group_user_permissions', {
+      this.groupClient.send("get_group_user_permissions", {
         userId,
         groupId,
       }),

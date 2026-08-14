@@ -1,14 +1,14 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model, Types } from 'mongoose';
-import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { lastValueFrom, timeout } from 'rxjs';
+import { Injectable, Logger, Inject } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { ClientSession, Model, Types } from "mongoose";
+import { ClientProxy, RpcException } from "@nestjs/microservices";
+import { lastValueFrom, timeout } from "rxjs";
 import {
   FeedItem,
   FeedItemDocument,
-} from '../../mongo/schema/feed-item.schema';
-import { FeedEventType } from '@repo/dtos';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+} from "../../mongo/schema/feed-item.schema";
+import { FeedEventType } from "@repo/dtos";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Injectable()
 export class DistributionService {
@@ -40,13 +40,13 @@ export class DistributionService {
       if (groupId) {
         receiver = await lastValueFrom(
           this.userSocialClient
-            .send('get_group_member_user_ids', { groupId })
+            .send("get_group_member_user_ids", { groupId })
             .pipe(timeout(5000)),
         );
       } else {
         receiver = await lastValueFrom(
           this.userSocialClient
-            .send({ cmd: 'get_friend_ids' }, { userId: actorId, limit: 200 })
+            .send({ cmd: "get_friend_ids" }, { userId: actorId, limit: 200 })
             .pipe(timeout(5000)),
         );
       }
@@ -79,7 +79,7 @@ export class DistributionService {
         throw new RpcException(error.message);
       }
 
-      throw new RpcException('Unknown error');
+      throw new RpcException("Unknown error");
     }
   }
 
@@ -105,7 +105,7 @@ export class DistributionService {
         throw new RpcException(error.message);
       }
 
-      throw new RpcException('Unknown error');
+      throw new RpcException("Unknown error");
     }
   }
 }

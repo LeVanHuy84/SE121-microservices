@@ -1,17 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import type { Queue } from 'bull';
-import { Types } from 'mongoose';
-import { NotificationDocument } from '../../mongo/schema/notification.schema';
-import { FirebaseService } from '../../firebase/firebase.service';
-import { DeviceTokenService } from '../../firebase/device-token.service';
-import { TemplateService } from '../template.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bull";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import type { Queue } from "bull";
+import { Types } from "mongoose";
+import { NotificationDocument } from "../../mongo/schema/notification.schema";
+import { FirebaseService } from "../../firebase/firebase.service";
+import { DeviceTokenService } from "../../firebase/device-token.service";
+import { TemplateService } from "../template.service";
 import {
   NOTIFICATION_QUEUE,
   REGULAR_NOTIFICATION_DELIVERY_JOB,
-} from '../notification.jobs';
+} from "../notification.jobs";
 
 @Injectable()
 export class NotificationDispatcherService {
@@ -39,7 +39,7 @@ export class NotificationDispatcherService {
         jobId: `regular:${doc._id.toString()}`,
         delay,
         attempts: 5,
-        backoff: { type: 'exponential', delay: 5000 },
+        backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: true,
       },
     );
@@ -76,9 +76,9 @@ export class NotificationDispatcherService {
     const result = await this.firebaseService.sendToMultipleDevices(
       tokens,
       renderedTemplate.title,
-      renderedTemplate.body || doc.message || 'Bạn có thông báo mới',
+      renderedTemplate.body || doc.message || "Bạn có thông báo mới",
       {
-        notificationId: (doc._id as Types.ObjectId).toString(),
+        notificationId: doc._id.toString(),
         type: doc.type,
         userId: doc.userId,
         ...renderedTemplate.data,

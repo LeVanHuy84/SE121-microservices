@@ -1,20 +1,20 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { InteractionType } from '@repo/dtos';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { InteractionType } from "@repo/dtos";
 import {
   REDIS_KEYS,
   INTERACTION_WEIGHTS,
   CACHE_TTL_SECONDS,
   VIEW_THRESHOLDS,
   AFFINITY_WEIGHT,
-} from './affinity.constants';
+} from "./affinity.constants";
 
 type InteractionInput = {
   userId: string;
   category: string;
   authorId: string;
-  type: InteractionType | 'view' | 'view_long';
+  type: InteractionType | "view" | "view_long";
 };
 
 type ViewEvent = {
@@ -65,7 +65,7 @@ export class AffinityService {
     for (const e of events) {
       if (e.viewMs < VIEW_THRESHOLDS.MIN) continue;
 
-      const type = e.viewMs >= VIEW_THRESHOLDS.LONG ? 'view_long' : 'view';
+      const type = e.viewMs >= VIEW_THRESHOLDS.LONG ? "view_long" : "view";
 
       const weight = INTERACTION_WEIGHTS[type];
 
@@ -87,8 +87,8 @@ export class AffinityService {
   // ------------------------------
   async getAffinity(userId: string): Promise<AffinityResult> {
     const [catZset, authorZset] = await Promise.all([
-      this.redis.zrevrange(REDIS_KEYS.CATEGORY(userId), 0, 20, 'WITHSCORES'),
-      this.redis.zrevrange(REDIS_KEYS.AUTHOR(userId), 0, 20, 'WITHSCORES'),
+      this.redis.zrevrange(REDIS_KEYS.CATEGORY(userId), 0, 20, "WITHSCORES"),
+      this.redis.zrevrange(REDIS_KEYS.AUTHOR(userId), 0, 20, "WITHSCORES"),
     ]);
 
     return {

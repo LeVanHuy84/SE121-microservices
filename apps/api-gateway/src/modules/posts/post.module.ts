@@ -1,13 +1,13 @@
-import { Module } from '@nestjs/common';
-import { PostController } from './post.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ReactionController } from './reaction.controller';
-import { CommentController } from './comment.controller';
-import { ShareController } from './share.controller';
-import { GroupPostController } from './group-post.controller';
-import { ReportController } from './report.controller';
+import { Module } from "@nestjs/common";
+import { PostController } from "./post.controller";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ReactionController } from "./reaction.controller";
+import { CommentController } from "./comment.controller";
+import { ShareController } from "./share.controller";
+import { GroupPostController } from "./group-post.controller";
+import { ReportController } from "./report.controller";
 
 @Module({
   imports: [
@@ -19,7 +19,7 @@ import { ReportController } from './report.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
+            port: config.get<number>("CONTENT_FEED_SERVICE_PORT"),
           },
         }),
       },

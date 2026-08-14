@@ -5,11 +5,11 @@ import {
   ServiceUnavailableException,
   GatewayTimeoutException,
   MessageEvent,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom, Observable } from 'rxjs';
-import { AxiosError } from 'axios';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom, Observable } from "rxjs";
+import { AxiosError } from "axios";
 
 import {
   AssistantContextItemDto,
@@ -18,8 +18,8 @@ import {
   AssistantRespondResponseDto,
   ChatbotClearHistoryResponseDto,
   ChatbotHistoryResponseDto,
-} from '@repo/dtos';
-import { AssistantContextService } from './assistant-context.service';
+} from "@repo/dtos";
+import { AssistantContextService } from "./assistant-context.service";
 
 type RespondCacheEntry = {
   value: AssistantRespondDataDto;
@@ -59,7 +59,10 @@ export class ChatbotService {
           const contexts = await this.resolveContextsWithinBudget(
             userId,
             dto.message,
-            this.configService.get<number>('CHATBOT_CONTEXT_BUILD_TIMEOUT_MS', 1200),
+            this.configService.get<number>(
+              "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+              1200,
+            ),
           );
 
           if (isCancelled) return;
@@ -75,30 +78,30 @@ export class ChatbotService {
               },
               {
                 headers: {
-                  'x-internal-key': internalKey,
-                  Accept: 'text/event-stream',
+                  "x-internal-key": internalKey,
+                  Accept: "text/event-stream",
                 },
-                responseType: 'stream',
+                responseType: "stream",
               },
             ),
           );
 
           const stream = response.data;
-          let buffer = '';
+          let buffer = "";
 
-          stream.on('data', (chunk: Buffer) => {
+          stream.on("data", (chunk: Buffer) => {
             if (isCancelled) return;
-            
+
             buffer += chunk.toString();
-            const lines = buffer.split('\n');
-            
+            const lines = buffer.split("\n");
+
             // Keep the last partial line in buffer
-            buffer = lines.pop() || '';
+            buffer = lines.pop() || "";
 
             for (const line of lines) {
               const trimmedLine = line.trim();
-              if (trimmedLine.startsWith('data: ')) {
-                const dataStr = trimmedLine.replace('data: ', '').trim();
+              if (trimmedLine.startsWith("data: ")) {
+                const dataStr = trimmedLine.replace("data: ", "").trim();
                 if (dataStr) {
                   try {
                     const data = JSON.parse(dataStr);
@@ -106,8 +109,11 @@ export class ChatbotService {
                   } catch (e) {
                     // This might happen if a JSON is split across lines (though SSE usually doesn't do that)
                     // Or if there's noise in the stream
-                    this.logger.debug('Failed to parse SSE line, keeping in buffer', trimmedLine);
-                    // If parse fails, it might be a split JSON across lines, 
+                    this.logger.debug(
+                      "Failed to parse SSE line, keeping in buffer",
+                      trimmedLine,
+                    );
+                    // If parse fails, it might be a split JSON across lines,
                     // but SSE spec says data: should contain the full JSON per line for our backend.
                     // We'll ignore noise for now.
                   }
@@ -116,19 +122,19 @@ export class ChatbotService {
             }
           });
 
-          stream.on('end', () => {
+          stream.on("end", () => {
             if (isCancelled) return;
             subscriber.complete();
           });
 
-          stream.on('error', (err) => {
+          stream.on("error", (err) => {
             if (isCancelled) return;
-            this.logger.error('Assistant stream error', err);
+            this.logger.error("Assistant stream error", err);
             subscriber.error(err);
           });
         } catch (error) {
           if (isCancelled) return;
-          this.logger.error('Assistant stream setup failed', error);
+          this.logger.error("Assistant stream setup failed", error);
           subscriber.error(error);
         }
       };
@@ -161,7 +167,7 @@ export class ChatbotService {
           `${baseUrl}/assistant/history/${encodeURIComponent(userId)}`,
           {
             headers: {
-              'x-internal-key': internalKey,
+              "x-internal-key": internalKey,
             },
             params,
             timeout: timeoutMs,
@@ -171,7 +177,12 @@ export class ChatbotService {
 
       return res.data.data;
     } catch (error) {
-      throw this.mapGatewayError(error, userId, startedAt, 'assistant.history.get');
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.history.get",
+      );
     }
   }
 
@@ -185,7 +196,7 @@ export class ChatbotService {
           `${baseUrl}/assistant/history/${encodeURIComponent(userId)}`,
           {
             headers: {
-              'x-internal-key': internalKey,
+              "x-internal-key": internalKey,
             },
             timeout: timeoutMs,
           },
@@ -198,7 +209,7 @@ export class ChatbotService {
         error,
         userId,
         startedAt,
-        'assistant.history.clear',
+        "assistant.history.clear",
       );
     }
   }
@@ -210,14 +221,17 @@ export class ChatbotService {
   ): Promise<AssistantContextItemDto[]> {
     return await new Promise<AssistantContextItemDto[]>((resolve) => {
       let settled = false;
-      const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        this.logger.warn(
-          `assistant.context timeout userId=${userId} timeoutMs=${timeoutMs}`,
-        );
-        resolve([]);
-      }, Math.max(timeoutMs, 1));
+      const timer = setTimeout(
+        () => {
+          if (settled) return;
+          settled = true;
+          this.logger.warn(
+            `assistant.context timeout userId=${userId} timeoutMs=${timeoutMs}`,
+          );
+          resolve([]);
+        },
+        Math.max(timeoutMs, 1),
+      );
 
       this.contextService
         .buildContexts(userId, message)
@@ -240,19 +254,27 @@ export class ChatbotService {
   }
 
   private resolveClientConfig() {
-    const baseUrl = this.configService.get<string>('AI_CHATBOT_SERVICE_URL') || this.configService.get<string>('CHATBOT_SERVICE_URL');
-    const internalKey = this.configService.get<string>('AI_CHATBOT_INTERNAL_KEY') || this.configService.get<string>('CHATBOT_INTERNAL_KEY');
+    const baseUrl =
+      this.configService.get<string>("AI_CHATBOT_SERVICE_URL") ||
+      this.configService.get<string>("CHATBOT_SERVICE_URL");
+    const internalKey =
+      this.configService.get<string>("AI_CHATBOT_INTERNAL_KEY") ||
+      this.configService.get<string>("CHATBOT_INTERNAL_KEY");
     const timeoutMs = this.configService.get<number>(
-      'CHATBOT_SERVICE_TIMEOUT_MS',
+      "CHATBOT_SERVICE_TIMEOUT_MS",
       12000,
     );
 
     if (!baseUrl) {
-      throw new ServiceUnavailableException('AI Chatbot service URL is missing');
+      throw new ServiceUnavailableException(
+        "AI Chatbot service URL is missing",
+      );
     }
 
     if (!internalKey) {
-      throw new ServiceUnavailableException('AI Chatbot internal key is missing');
+      throw new ServiceUnavailableException(
+        "AI Chatbot internal key is missing",
+      );
     }
 
     return {
@@ -277,12 +299,12 @@ export class ChatbotService {
           `${action} downstream_error userId=${userId} status=${error.response.status} durationMs=${durationMs}`,
         );
         return new HttpException(
-          this.normalizeErrorBody(error.response.data, 'Chatbot service error'),
+          this.normalizeErrorBody(error.response.data, "Chatbot service error"),
           error.response.status,
         );
       }
 
-      if (error.code === 'ECONNABORTED') {
+      if (error.code === "ECONNABORTED") {
         this.incrementMetricCounter(`${action}_timeout`);
         this.logger.error(
           `${action} timeout userId=${userId} durationMs=${durationMs}`,
@@ -290,8 +312,8 @@ export class ChatbotService {
         return new GatewayTimeoutException(
           this.createStableErrorBody(
             504,
-            'ASSISTANT_GATEWAY_TIMEOUT',
-            'Chatbot service timeout',
+            "ASSISTANT_GATEWAY_TIMEOUT",
+            "Chatbot service timeout",
             true,
           ),
         );
@@ -304,8 +326,8 @@ export class ChatbotService {
       return new ServiceUnavailableException(
         this.createStableErrorBody(
           503,
-          'ASSISTANT_GATEWAY_UNAVAILABLE',
-          'Chatbot service unavailable',
+          "ASSISTANT_GATEWAY_UNAVAILABLE",
+          "Chatbot service unavailable",
           true,
         ),
       );
@@ -318,8 +340,8 @@ export class ChatbotService {
     return new HttpException(
       this.createStableErrorBody(
         500,
-        'ASSISTANT_GATEWAY_ERROR',
-        'Chatbot gateway error',
+        "ASSISTANT_GATEWAY_ERROR",
+        "Chatbot gateway error",
         false,
       ),
       500,
@@ -341,7 +363,7 @@ export class ChatbotService {
   }
 
   private metricsEnabled(): boolean {
-    return this.configService.get<boolean>('CHATBOT_METRICS_ENABLED', true);
+    return this.configService.get<boolean>("CHATBOT_METRICS_ENABLED", true);
   }
 
   private incrementMetricCounter(key: string) {
@@ -354,7 +376,7 @@ export class ChatbotService {
     if (!this.metricsEnabled()) return;
     const windowSize = Math.max(
       10,
-      this.configService.get<number>('CHATBOT_METRICS_WINDOW_SIZE', 200),
+      this.configService.get<number>("CHATBOT_METRICS_WINDOW_SIZE", 200),
     );
     const values = this.metricsLatencies.get(metric) ?? [];
     values.push(Math.max(0, Number(valueMs)));
@@ -395,8 +417,8 @@ export class ChatbotService {
     value: unknown,
     fallback: string,
   ): string | Record<string, unknown> {
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
       return value as Record<string, unknown>;
     }
     return fallback;

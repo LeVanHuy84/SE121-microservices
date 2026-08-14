@@ -37,7 +37,7 @@ describe('OutboxProcessor', () => {
         lockedAt: expect.any(Date),
         lockedBy: expect.any(String),
       }),
-      { new: true }
+      { new: true },
     );
   });
 
@@ -60,7 +60,7 @@ describe('OutboxProcessor', () => {
     expect(kafkaProducer.sendMessage).toHaveBeenCalledWith(
       'chat',
       { type: 'conversation.updated', payload: { ok: true } },
-      'agg-1'
+      'agg-1',
     );
     expect(event.processed).toBe(true);
     expect(event.processing).toBe(false);
@@ -92,7 +92,7 @@ describe('OutboxProcessor', () => {
         retryCount: 1,
         nextRetryAt: expect.any(Date),
         lastError: 'kafka down',
-      })
+      }),
     );
   });
 

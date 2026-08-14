@@ -21,7 +21,7 @@ export class NotificationDeliveryError extends Error {
     }: NotificationDeliveryErrorOptions = {},
   ) {
     super(message);
-    this.name = 'NotificationDeliveryError';
+    this.name = "NotificationDeliveryError";
     this.code = code;
     this.retryable = retryable;
     this.invalidTokens = invalidTokens;
@@ -30,7 +30,5 @@ export class NotificationDeliveryError extends Error {
 }
 
 export function isRetryableDeliveryError(error: unknown): boolean {
-  return (
-    error instanceof NotificationDeliveryError && error.retryable === true
-  );
+  return error instanceof NotificationDeliveryError && error.retryable === true;
 }

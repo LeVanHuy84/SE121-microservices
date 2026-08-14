@@ -7,54 +7,54 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
-} from 'typeorm';
-import { Share } from './share.entity';
-import { EditHistory } from './edit-history.entity';
-import { Audience, Emotion, MediaItemDTO } from '@repo/dtos';
-import { PostStat } from './post-stat.entity';
-import { PostGroupInfo } from './post-group-info.entity';
+} from "typeorm";
+import { Share } from "./share.entity";
+import { EditHistory } from "./edit-history.entity";
+import { Audience, Emotion, MediaItemDTO } from "@repo/dtos";
+import { PostStat } from "./post-stat.entity";
+import { PostGroupInfo } from "./post-group-info.entity";
 
-@Entity('posts')
-@Index('idx_posts_userid_createdat', ['userId', 'createdAt'])
+@Entity("posts")
+@Index("idx_posts_userid_createdat", ["userId", "createdAt"])
 export class Post {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column('varchar', { name: 'user_id', nullable: false })
+  @Column("varchar", { name: "user_id", nullable: false })
   userId: string;
 
-  @Column('text', { name: 'group_id', nullable: true })
+  @Column("text", { name: "group_id", nullable: true })
   groupId: string;
 
-  @Column({ type: 'enum', enum: Emotion, nullable: true })
+  @Column({ type: "enum", enum: Emotion, nullable: true })
   feeling: Emotion;
 
-  @Column({ type: 'varchar', length: 10000 })
+  @Column({ type: "varchar", length: 10000 })
   content: string;
 
-  @Column('jsonb', { nullable: true })
+  @Column("jsonb", { nullable: true })
   media: MediaItemDTO[];
 
-  @Column({ type: 'enum', enum: Audience, default: Audience.PUBLIC })
+  @Column({ type: "enum", enum: Audience, default: Audience.PUBLIC })
   audience: Audience;
 
-  @Column({ type: 'enum', enum: Emotion, nullable: true })
+  @Column({ type: "enum", enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
-  @Column({ type: 'boolean', name: 'is_deleted', default: false })
+  @Column({ type: "boolean", name: "is_deleted", default: false })
   isDeleted: boolean;
 
   @CreateDateColumn({
-    name: 'created_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
+    name: "created_at",
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
   })
   createdAt: Date;
 
   @UpdateDateColumn({
-    name: 'updated_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
+    name: "updated_at",
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
   })
   updatedAt: Date;
 

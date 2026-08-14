@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   CreatePostDTO,
   EventDestination,
@@ -15,16 +15,16 @@ import {
   PostGroupStatus,
   PostSnapshotDTO,
   TargetType,
-} from '@repo/dtos';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { Post } from 'src/entities/post.entity';
-import { DataSource, EntityManager } from 'typeorm';
-import { PostShortenMapper } from '../post-shorten.mapper';
-import { PostGroupInfo } from 'src/entities/post-group-info.entity';
-import { RpcException } from '@nestjs/microservices';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { PostCacheService } from './post-cache.service';
-import { OutboxService } from 'src/modules/event/outbox.service';
+} from "@repo/dtos";
+import { PostStat } from "src/entities/post-stat.entity";
+import { Post } from "src/entities/post.entity";
+import { DataSource, EntityManager } from "typeorm";
+import { PostShortenMapper } from "../post-shorten.mapper";
+import { PostGroupInfo } from "src/entities/post-group-info.entity";
+import { RpcException } from "@nestjs/microservices";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { PostCacheService } from "./post-cache.service";
+import { OutboxService } from "src/modules/event/outbox.service";
 
 @Injectable()
 export class PostGroupService {
@@ -58,7 +58,7 @@ export class PostGroupService {
       if (!groupId) {
         throw new RpcException({
           statusCode: 400,
-          message: 'Group ID is required for group posts',
+          message: "Group ID is required for group posts",
         });
       }
 
@@ -67,7 +67,7 @@ export class PostGroupService {
       if (!info.isMember) {
         throw new RpcException({
           statusCode: 403,
-          message: 'User is not a member of the group',
+          message: "User is not a member of the group",
         });
       }
 
@@ -137,8 +137,8 @@ export class PostGroupService {
         status: entity.postGroupInfo.status,
         message:
           entity.postGroupInfo.status === PostGroupStatus.PUBLISHED
-            ? 'Your post has been published.'
-            : 'Your post is pending approval by group admins.',
+            ? "Your post has been published."
+            : "Your post is pending approval by group admins.",
       };
     });
   }
@@ -151,25 +151,25 @@ export class PostGroupService {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
-        relations: ['postGroupInfo'],
+        relations: ["postGroupInfo"],
       });
       if (!post || !post.postGroupInfo)
         throw new RpcException({
           statusCode: 404,
-          message: 'Post not found',
+          message: "Post not found",
         });
 
       if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
         throw new RpcException({
           statusCode: 409,
-          message: 'Post is not pending approval',
+          message: "Post is not pending approval",
         });
       }
 
       if (post.groupId !== groupId) {
         throw new RpcException({
           statusCode: 400,
-          message: 'Post does not belong to the specified group',
+          message: "Post does not belong to the specified group",
         });
       }
 
@@ -184,7 +184,7 @@ export class PostGroupService {
       ) {
         throw new RpcException({
           statusCode: 403,
-          message: 'No permission to approve post',
+          message: "No permission to approve post",
         });
       }
 
@@ -219,24 +219,24 @@ export class PostGroupService {
     return this.dataSource.transaction(async (manager) => {
       const post = await manager.findOne(Post, {
         where: { id: postId },
-        relations: ['postGroupInfo'],
+        relations: ["postGroupInfo"],
       });
       if (!post || !post.postGroupInfo)
         throw new RpcException({
           statusCode: 404,
-          message: 'Post not found',
+          message: "Post not found",
         });
       if (post.postGroupInfo.status !== PostGroupStatus.PENDING) {
         throw new RpcException({
           statusCode: 409,
-          message: 'Post is not pending approval',
+          message: "Post is not pending approval",
         });
       }
 
       if (post.groupId !== groupId) {
         throw new RpcException({
           statusCode: 400,
-          message: 'Post does not belong to the specified group',
+          message: "Post does not belong to the specified group",
         });
       }
 
@@ -251,7 +251,7 @@ export class PostGroupService {
       ) {
         throw new RpcException({
           statusCode: 403,
-          message: 'No permission to approve post',
+          message: "No permission to approve post",
         });
       }
 

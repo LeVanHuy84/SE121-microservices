@@ -8,17 +8,17 @@ import {
   Post,
   Put,
   Query,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
 import {
   CreateCommentDTO,
   GetCommentQueryDTO,
   UpdateCommentDTO,
-} from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+} from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('comments')
+@Controller("comments")
 export class CommentController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
@@ -27,7 +27,7 @@ export class CommentController {
 
   @Post()
   create(@Body() dto: CreateCommentDTO, @CurrentUserId() userId: string) {
-    return this.client.send('create_comment', { userId, dto });
+    return this.client.send("create_comment", { userId, dto });
   }
 
   @Get()
@@ -35,28 +35,28 @@ export class CommentController {
     @CurrentUserId() userRequestId: string,
     @Query() query: GetCommentQueryDTO,
   ) {
-    return this.client.send('find_comments_by_query', { userRequestId, query });
+    return this.client.send("find_comments_by_query", { userRequestId, query });
   }
 
-  @Get(':id')
-  findById(@CurrentUserId() userRequestId: string, @Param('id') id: string) {
-    return this.client.send('find_comment_by_id', {
+  @Get(":id")
+  findById(@CurrentUserId() userRequestId: string, @Param("id") id: string) {
+    return this.client.send("find_comment_by_id", {
       userRequestId,
       commentId: id,
     });
   }
 
-  @Put(':id')
+  @Put(":id")
   update(
     @CurrentUserId() userId: string,
-    @Param('id') commentId: string,
+    @Param("id") commentId: string,
     @Body() dto: UpdateCommentDTO,
   ) {
-    return this.client.send('update_comment', { userId, commentId, dto });
+    return this.client.send("update_comment", { userId, commentId, dto });
   }
 
-  @Delete(':id')
-  remove(@CurrentUserId() userId: string, @Param('id') commentId: string) {
-    return this.client.send('remove_comment', { userId, commentId });
+  @Delete(":id")
+  remove(@CurrentUserId() userId: string, @Param("id") commentId: string) {
+    return this.client.send("remove_comment", { userId, commentId });
   }
 }

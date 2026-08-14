@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   Audience,
   CreateShareDTO,
@@ -17,22 +17,22 @@ import {
   ActivityType,
   NotiOutboxPayload,
   NotiTargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { ShareStat } from 'src/entities/share-stat.entity';
-import { Share } from 'src/entities/share.entity';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { Post } from 'src/entities/post.entity';
-import { Reaction } from 'src/entities/reaction.entity';
-import { Comment } from 'src/entities/comment.entity';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-import { ShareCacheService } from './share-cache.service';
-import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
-import { ShareShortenMapper } from '../share-shorten.mapper';
-import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
-import { OutboxService } from 'src/modules/event/outbox.service';
-import { UserClientService } from '../../client/user-client.service';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { PostStat } from "src/entities/post-stat.entity";
+import { ShareStat } from "src/entities/share-stat.entity";
+import { Share } from "src/entities/share.entity";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { Post } from "src/entities/post.entity";
+import { Reaction } from "src/entities/reaction.entity";
+import { Comment } from "src/entities/comment.entity";
+import { DataSource, EntityManager, Repository } from "typeorm";
+import { ShareCacheService } from "./share-cache.service";
+import { StatsBufferService } from "src/modules/stats/stats.buffer.service";
+import { ShareShortenMapper } from "../share-shorten.mapper";
+import { RecentActivityBufferService } from "src/modules/event/recent-activity.buffer.service";
+import { OutboxService } from "src/modules/event/outbox.service";
+import { UserClientService } from "../../client/user-client.service";
 
 @Injectable()
 export class ShareCommandService {
@@ -58,7 +58,7 @@ export class ShareCommandService {
       async (manager) => {
         const post = await manager.findOne(Post, {
           where: { id: dto.postId },
-          relations: ['postGroupInfo'],
+          relations: ["postGroupInfo"],
         });
 
         if (
@@ -113,7 +113,7 @@ export class ShareCommandService {
         const interactionOutbox = manager.create(OutboxEvent, {
           topic: EventTopic.INTERACTION,
           destination: EventDestination.KAFKA,
-          eventType: 'user.interaction',
+          eventType: "user.interaction",
           payload: interactionPayload,
         });
 
@@ -153,7 +153,7 @@ export class ShareCommandService {
       .addRecentActivity({
         idempotentKey: savedShare.id,
         actorId: userId,
-        type: 'share',
+        type: "share",
         targetType: TargetType.POST,
         targetId: dto.postId,
       })
@@ -176,19 +176,19 @@ export class ShareCommandService {
     const result = await this.dataSource.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
-        relations: ['post', 'shareStat'],
+        relations: ["post", "shareStat"],
       });
 
       if (!share)
         throw new RpcException({
           statusCode: 404,
-          message: 'Share not found',
+          message: "Share not found",
         });
 
       if (share.userId !== userId)
         throw new RpcException({
           statusCode: 403,
-          message: 'Unauthorized',
+          message: "Unauthorized",
         });
 
       const oldAudience = share.audience;
@@ -255,18 +255,18 @@ export class ShareCommandService {
     return await this.shareRepo.manager.transaction(async (manager) => {
       const share = await manager.findOne(Share, {
         where: { id: shareId },
-        relations: ['post'],
+        relations: ["post"],
       });
 
       if (!share)
         throw new RpcException({
           statusCode: 404,
-          message: 'Share not found',
+          message: "Share not found",
         });
       if (share.userId !== userId)
         throw new RpcException({
           statusCode: 403,
-          message: 'Unauthorized',
+          message: "Unauthorized",
         });
 
       // Xóa reactions, comments thuộc share
@@ -274,7 +274,7 @@ export class ShareCommandService {
         .createQueryBuilder()
         .delete()
         .from(Reaction)
-        .where('target_id = :shareId AND target_type = :targetType', {
+        .where("target_id = :shareId AND target_type = :targetType", {
           shareId,
           targetType: TargetType.SHARE,
         })
@@ -284,7 +284,7 @@ export class ShareCommandService {
         .createQueryBuilder()
         .delete()
         .from(Comment)
-        .where('root_target_id = :shareId AND root_target_type = :rootType', {
+        .where("root_target_id = :shareId AND root_target_type = :rootType", {
           shareId,
           rootType: RootType.SHARE,
         })
@@ -330,7 +330,7 @@ export class ShareCommandService {
       .createQueryBuilder()
       .update()
       .set({ shares: () => `"shares" + ${delta}` })
-      .where('postId = :postId', { postId })
+      .where("postId = :postId", { postId })
       .execute();
   }
 
@@ -349,15 +349,15 @@ export class ShareCommandService {
     const notiPayload: NotiOutboxPayload = {
       targetId: post.id,
       targetType: NotiTargetType.POST,
-      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorName: `${actor?.lastName ?? ""} ${actor?.firstName ?? ""}`.trim(),
       actorAvatar: actor?.avatarUrl,
       content: post.content.slice(0, 100),
       receivers: [post.userId],
     };
 
     const outbox = manager.create(OutboxEvent, {
-      topic: 'notification',
-      eventType: 'share',
+      topic: "notification",
+      eventType: "share",
       destination: EventDestination.RABBITMQ,
       payload: notiPayload,
     });

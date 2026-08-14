@@ -1,13 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { PostSnapshot } from '../mongo/schema/post-snapshot.schema';
-import { ShareSnapshot } from '../mongo/schema/share-snapshot.schema';
+import { Injectable } from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { PostSnapshot } from "../mongo/schema/post-snapshot.schema";
+import { ShareSnapshot } from "../mongo/schema/share-snapshot.schema";
 
 @Injectable()
 export class CacheLayerService {
-  private readonly POST_PREFIX = 'cache:post';
-  private readonly SHARE_PREFIX = 'cache:share';
+  private readonly POST_PREFIX = "cache:post";
+  private readonly SHARE_PREFIX = "cache:share";
   private readonly TTL = 60 * 3; // 3 phút
 
   constructor(@InjectRedis() private readonly redis: Redis) {}

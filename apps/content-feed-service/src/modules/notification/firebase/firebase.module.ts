@@ -1,10 +1,13 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { DeviceToken, DeviceTokenSchema } from '../mongo/schema/device-token.schema';
-import { DeviceTokenController } from './device-token.controller';
-import { DeviceTokenService } from './device-token.service';
-import { FirebaseService } from './firebase.service';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { MongooseModule } from "@nestjs/mongoose";
+import {
+  DeviceToken,
+  DeviceTokenSchema,
+} from "../mongo/schema/device-token.schema";
+import { DeviceTokenController } from "./device-token.controller";
+import { DeviceTokenService } from "./device-token.service";
+import { FirebaseService } from "./firebase.service";
 
 @Module({
   imports: [

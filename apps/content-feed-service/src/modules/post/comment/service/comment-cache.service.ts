@@ -1,8 +1,8 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import Redis from 'ioredis';
-import { Comment } from 'src/entities/comment.entity';
-import { Repository, In } from 'typeorm';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import Redis from "ioredis";
+import { Comment } from "src/entities/comment.entity";
+import { Repository, In } from "typeorm";
 
 @Injectable()
 export class CommentCacheService {
@@ -20,7 +20,7 @@ export class CommentCacheService {
   private listKey(rootId?: string, parentId?: string | null): string {
     if (parentId) return `comment:list:parent:${parentId}`;
     if (rootId && !parentId) return `comment:list:root:${rootId}`;
-    return 'comment:list:unknown';
+    return "comment:list:unknown";
   }
 
   /** 🔹 Lấy cache comment đơn */
@@ -34,15 +34,15 @@ export class CommentCacheService {
     await this.redis.set(
       this.commentKey(comment.id),
       JSON.stringify(comment),
-      'EX',
-      this.COMMENT_TTL
+      "EX",
+      this.COMMENT_TTL,
     );
   }
 
   /** 🔹 Batch get comments (cache + DB fallback) */
   async getCachedCommentsBatch(
     ids: string[],
-    repo: Repository<Comment>
+    repo: Repository<Comment>,
   ): Promise<Comment[]> {
     if (!ids.length) return [];
     const keys = ids.map((id) => this.commentKey(id));
@@ -59,7 +59,7 @@ export class CommentCacheService {
     if (missingIds.length) {
       const fresh = await repo.find({
         where: { id: In(missingIds) },
-        relations: ['commentStat'],
+        relations: ["commentStat"],
       });
       if (fresh.length) {
         const pipeline = this.redis.pipeline();
@@ -67,8 +67,8 @@ export class CommentCacheService {
           pipeline.set(
             this.commentKey(c.id),
             JSON.stringify(c),
-            'EX',
-            this.COMMENT_TTL
+            "EX",
+            this.COMMENT_TTL,
           );
         }
         await pipeline.exec();
@@ -83,7 +83,7 @@ export class CommentCacheService {
   /** 🔹 Lấy cache danh sách comment */
   async getCachedCommentList(
     rootId?: string,
-    parentId?: string | null
+    parentId?: string | null,
   ): Promise<Comment[] | null> {
     const key = this.listKey(rootId, parentId);
     const json = await this.redis.get(key);
@@ -94,14 +94,14 @@ export class CommentCacheService {
   async setCachedCommentList(
     comments: Comment[],
     rootId?: string,
-    parentId?: string | null
+    parentId?: string | null,
   ): Promise<void> {
     const key = this.listKey(rootId, parentId);
     await this.redis.set(
       key,
       JSON.stringify(comments),
-      'EX',
-      this.COMMENT_LIST_TTL
+      "EX",
+      this.COMMENT_LIST_TTL,
     );
   }
 
@@ -109,7 +109,7 @@ export class CommentCacheService {
   async invalidateComment(
     id: string,
     rootId?: string,
-    parentId?: string | null
+    parentId?: string | null,
   ): Promise<void> {
     const pipeline = this.redis.pipeline();
     pipeline.del(this.commentKey(id));

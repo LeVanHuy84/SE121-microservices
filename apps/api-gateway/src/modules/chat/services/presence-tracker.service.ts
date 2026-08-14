@@ -1,20 +1,25 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import Redis from 'ioredis';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import Redis from "ioredis";
 import type {
   PresenceDisconnectEvent,
   PresenceHeartbeatEvent,
   PresenceInfo,
   PresenceStatus,
   PresenceUpdateEvent,
-} from '@repo/dtos';
+} from "@repo/dtos";
 
 @Injectable()
 export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PresenceTrackerService.name);
-  private readonly presenceEventsChannel = 'presence:events';
-  private readonly presenceUpdatesChannel = 'presence:updates';
+  private readonly presenceEventsChannel = "presence:events";
+  private readonly presenceUpdatesChannel = "presence:updates";
   private sub: Redis;
   private server: Server;
 
@@ -22,7 +27,7 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     process.env.GATEWAY_INSTANCE_ID ||
     process.env.HOSTNAME ||
     `${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
-  
+
   private readonly HEARTBEAT_MIN_INTERVAL_MS = Number(
     process.env.PRESENCE_HEARTBEAT_MIN_INTERVAL_MS ?? 5000,
   );
@@ -37,12 +42,12 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     this.sub = this.redis.duplicate();
 
     await this.sub.subscribe(this.presenceUpdatesChannel);
-    this.sub.on('message', (channel, message) => {
+    this.sub.on("message", (channel, message) => {
       if (channel !== this.presenceUpdatesChannel) return;
       this.handlePresenceUpdateMessage(message);
     });
 
-    this.logger.log('PresenceTrackerService subscribed to presence:updates');
+    this.logger.log("PresenceTrackerService subscribed to presence:updates");
   }
 
   async onModuleDestroy() {
@@ -53,11 +58,11 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async handleDisconnect(client: Socket) {
-    const userId = client.user?.id as string | undefined;
+    const userId = client.user?.id;
     if (!userId) return;
 
     const evt: PresenceDisconnectEvent = {
-      type: 'DISCONNECT',
+      type: "DISCONNECT",
       userId,
       serverId: this.serverId,
       connectionId: client.id,
@@ -67,7 +72,10 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     await this.redis.publish(this.presenceEventsChannel, JSON.stringify(evt));
   }
 
-  async handleHeartbeat(client: Socket, refreshActiveConversation: (client: Socket) => Promise<void>) {
+  async handleHeartbeat(
+    client: Socket,
+    refreshActiveConversation: (client: Socket) => Promise<void>,
+  ) {
     const userId = client.user?.id as string;
     if (!userId) return;
     const now = Date.now();
@@ -80,7 +88,7 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     }
     client.data.lastHeartbeatAt = now;
     const evt: PresenceHeartbeatEvent = {
-      type: 'HEARTBEAT',
+      type: "HEARTBEAT",
       userId,
       serverId: this.serverId,
       connectionId: client.id,
@@ -98,11 +106,11 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     if (!uniqueIds.length) return;
     uniqueIds.forEach((id) => client.join(`presence:${id}`));
     this.logger.debug(
-      `Client ${client.id} subscribed presence of [${uniqueIds.join(', ')}]`,
+      `Client ${client.id} subscribed presence of [${uniqueIds.join(", ")}]`,
     );
     const snapshot = await this.getPresenceSnapshot(uniqueIds);
 
-    client.emit('presence.snapshot', snapshot);
+    client.emit("presence.snapshot", snapshot);
   }
 
   handleUnsubscribe(client: Socket, userIds: string[]) {
@@ -112,7 +120,7 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     if (!uniqueIds.length) return;
     uniqueIds.forEach((id) => client.leave(`presence:${id}`));
     this.logger.debug(
-      `Client ${client.id} unsubscribed presence of [${uniqueIds.join(', ')}]`,
+      `Client ${client.id} unsubscribed presence of [${uniqueIds.join(", ")}]`,
     );
   }
 
@@ -121,14 +129,14 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
     try {
       evt = JSON.parse(message);
     } catch (e) {
-      this.logger.error('Invalid presence update message', e);
+      this.logger.error("Invalid presence update message", e);
       return;
     }
 
-    if (evt.type !== 'PRESENCE_UPDATE') return;
+    if (evt.type !== "PRESENCE_UPDATE") return;
 
     if (this.server) {
-      this.server.to(`presence:${evt.userId}`).emit('presence.update', {
+      this.server.to(`presence:${evt.userId}`).emit("presence.update", {
         userId: evt.userId,
         status: evt.status,
         lastSeen: evt.lastSeen,
@@ -155,7 +163,7 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
 
       if (err || !raw || Object.keys(raw as any).length === 0) {
         snapshot[userId] = {
-          status: 'offline',
+          status: "offline",
           lastSeen: null,
         };
         return;
@@ -163,7 +171,7 @@ export class PresenceTrackerService implements OnModuleInit, OnModuleDestroy {
 
       const hash = raw as Record<string, string>;
 
-      const status = (hash.status ?? 'offline') as PresenceStatus;
+      const status = (hash.status ?? "offline") as PresenceStatus;
       const lastSeen =
         hash.lastSeen !== undefined && hash.lastSeen !== null
           ? Number(hash.lastSeen)

@@ -21,10 +21,7 @@ import { PushModule } from 'src/push/push.module';
     PushModule,
   ],
   controllers: [ConversationController],
-  providers: [
-    ConversationService,
-    ConversationCacheService,
-  ],
+  providers: [ConversationService, ConversationCacheService],
   exports: [ConversationService],
 })
 export class ConversationModule {}

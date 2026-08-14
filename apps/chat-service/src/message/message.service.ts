@@ -218,122 +218,126 @@ export class MessageService {
   // ============= SEND MESSAGE =============
 
   async sendMessage(
-   userId: string,
-   dto: SendMessageDTO,
- ): Promise<MessageResponseDTO> {
-   const trimmedContent = dto.content?.trim();
-   if (!trimmedContent && !dto.attachments?.length) {
-     throw new RpcException('Message content or attachments must not be empty');
-   }
-
-   this.validateAttachments(dto.attachments);
-
-  const { conversation, dtoMsg } = await this.withTransaction(async (session) => {
-    const conversation = await this.conversationModel
-      .findOne({
-        _id: dto.conversationId,
-        participants: userId,
-      })
-      .session(session)
-      .exec();
-
-    if (!conversation) {
-      throw new RpcException('Conversation not found or access denied');
+    userId: string,
+    dto: SendMessageDTO,
+  ): Promise<MessageResponseDTO> {
+    const trimmedContent = dto.content?.trim();
+    if (!trimmedContent && !dto.attachments?.length) {
+      throw new RpcException(
+        'Message content or attachments must not be empty',
+      );
     }
 
-    let replyMessage: MessageDocument | null = null;
-    if (dto.replyTo) {
-      replyMessage = await this.messageModel
-        .findById(dto.replyTo)
-        .select('_id conversationId senderId content attachments createdAt')
-        .session(session)
-        .exec();
+    this.validateAttachments(dto.attachments);
 
-      if (!replyMessage) {
-        throw new RpcException('Reply message not found');
-      }
+    const { conversation, dtoMsg } = await this.withTransaction(
+      async (session) => {
+        const conversation = await this.conversationModel
+          .findOne({
+            _id: dto.conversationId,
+            participants: userId,
+          })
+          .session(session)
+          .exec();
 
-      if (replyMessage.conversationId.toString() !== dto.conversationId) {
-        throw new RpcException(
-          'Reply message does not belong to this conversation',
+        if (!conversation) {
+          throw new RpcException('Conversation not found or access denied');
+        }
+
+        let replyMessage: MessageDocument | null = null;
+        if (dto.replyTo) {
+          replyMessage = await this.messageModel
+            .findById(dto.replyTo)
+            .select('_id conversationId senderId content attachments createdAt')
+            .session(session)
+            .exec();
+
+          if (!replyMessage) {
+            throw new RpcException('Reply message not found');
+          }
+
+          if (replyMessage.conversationId.toString() !== dto.conversationId) {
+            throw new RpcException(
+              'Reply message does not belong to this conversation',
+            );
+          }
+        }
+
+        const msg = await new this.messageModel({
+          conversationId: conversation._id,
+          senderId: userId,
+          content: dto.content,
+          attachments: dto.attachments,
+          replyTo: replyMessage?._id,
+          seenBy: [userId],
+          status: 'sent',
+        }).save({ session });
+
+        await this.conversationModel.updateOne(
+          { _id: conversation._id },
+          {
+            $set: {
+              lastMessage: msg._id,
+              updatedAt: new Date(),
+            },
+          },
+          { session },
         );
-      }
+
+        const dtoMsg = populateAndMapMessage({
+          ...msg.toObject(),
+          replyTo: replyMessage ? replyMessage.toObject() : undefined,
+        })!;
+
+        await this.outboxService.enqueueChatEvent(
+          'message.created',
+          dtoMsg,
+          dto.conversationId,
+          session,
+        );
+
+        await this.outboxService.enqueueChatEvent(
+          'conversation.updated',
+          {
+            ...populateAndMapConversation(conversation),
+            lastMessage: dtoMsg,
+          },
+          conversation._id.toString(),
+          session,
+        );
+
+        if (dto.attachments?.length) {
+          await this.enqueueMediaAssignEvent(msg, msg._id.toString(), session);
+        }
+
+        return { conversation, dtoMsg };
+      },
+    );
+
+    await Promise.allSettled([
+      this.conversationService.updateConversationCache(conversation),
+      this.msgCache.setMessageDetail(dtoMsg),
+      this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
+    ]);
+
+    try {
+      await this.chatPushService.sendMessagePush({
+        senderId: userId,
+        conversationId: dto.conversationId,
+        conversationName: conversation.groupName,
+        isGroup: conversation.isGroup,
+        receiverIds: conversation.participants.filter(
+          (participantId) => participantId.toString() !== userId,
+        ),
+        messageId: dtoMsg._id,
+        preview: this.buildPushPreview(dtoMsg.content, dtoMsg.attachments),
+      });
+    } catch (error) {
+      this.logger.warn('Failed to send push notification', error);
     }
 
-    const msg = await new this.messageModel({
-      conversationId: conversation._id,
-      senderId: userId,
-      content: dto.content,
-      attachments: dto.attachments,
-      replyTo: replyMessage?._id,
-      seenBy: [userId],
-      status: 'sent',
-    }).save({ session });
-
-    await this.conversationModel.updateOne(
-      { _id: conversation._id },
-      {
-        $set: {
-          lastMessage: msg._id,
-          updatedAt: new Date(),
-        },
-      },
-      { session },
-    );
-
-    const dtoMsg = populateAndMapMessage({
-      ...msg.toObject(),
-      replyTo: replyMessage ? replyMessage.toObject() : undefined,
-    })!;
-
-    await this.outboxService.enqueueChatEvent(
-      'message.created',
-      dtoMsg,
-      dto.conversationId,
-      session,
-    );
-
-    await this.outboxService.enqueueChatEvent(
-      'conversation.updated',
-      {
-        ...populateAndMapConversation(conversation),
-        lastMessage: dtoMsg,
-      },
-      conversation._id.toString(),
-      session,
-    );
-
-    if (dto.attachments?.length) {
-      await this.enqueueMediaAssignEvent(msg, msg._id.toString(), session);
-    }
-
-    return { conversation, dtoMsg };
-  });
-
-  await Promise.allSettled([
-    this.conversationService.updateConversationCache(conversation),
-    this.msgCache.setMessageDetail(dtoMsg),
-    this.msgCache.upsertMessageToConversationList(dto.conversationId, dtoMsg),
-  ]);
-
-  try {
-    await this.chatPushService.sendMessagePush({
-      senderId: userId,
-      conversationId: dto.conversationId,
-      conversationName: conversation.groupName,
-      isGroup: conversation.isGroup,
-      receiverIds: conversation.participants.filter(
-        (participantId) => participantId.toString() !== userId,
-      ),
-      messageId: dtoMsg._id,
-      preview: this.buildPushPreview(dtoMsg.content, dtoMsg.attachments),
-    });
-  } catch (error) {
-    this.logger.warn('Failed to send push notification', error);
+    return dtoMsg;
   }
-
-  return dtoMsg;
-}
 
   private validateAttachments(attachments?: SendMessageDTO['attachments']) {
     if (!attachments?.length) {

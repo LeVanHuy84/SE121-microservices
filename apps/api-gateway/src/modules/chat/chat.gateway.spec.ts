@@ -27,7 +27,11 @@ describe("ChatGateway", () => {
   };
 
   const createGateway = () => {
-    const gateway = new ChatGateway(redis as any, chatClient as any, presenceTracker as any);
+    const gateway = new ChatGateway(
+      redis as any,
+      chatClient as any,
+      presenceTracker as any,
+    );
     return gateway;
   };
 

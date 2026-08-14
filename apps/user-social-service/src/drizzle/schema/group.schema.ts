@@ -9,9 +9,9 @@ import {
   timestamp,
   date,
   uniqueIndex,
-} from 'drizzle-orm/pg-core';
-import { pgEnum } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+} from "drizzle-orm/pg-core";
+import { pgEnum } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import {
   GroupPrivacy,
   GroupStatus,
@@ -21,49 +21,49 @@ import {
   JoinRequestStatus,
   GroupEventLog,
   ReportStatus,
-} from '@repo/dtos';
+} from "@repo/dtos";
 
 // ===================================================
 // ENUMS
 // ===================================================
 
 export const groupPrivacyEnum = pgEnum(
-  'group_privacy',
+  "group_privacy",
   Object.values(GroupPrivacy) as [string, ...string[]],
 );
 
 export const groupStatusEnum = pgEnum(
-  'group_status',
+  "group_status",
   Object.values(GroupStatus) as [string, ...string[]],
 );
 
 export const groupRoleEnum = pgEnum(
-  'group_role',
+  "group_role",
   Object.values(GroupRole) as [string, ...string[]],
 );
 
 export const groupMemberStatusEnum = pgEnum(
-  'group_member_status',
+  "group_member_status",
   Object.values(GroupMemberStatus) as [string, ...string[]],
 );
 
 export const inviteStatusEnum = pgEnum(
-  'invite_status',
+  "invite_status",
   Object.values(InviteStatus) as [string, ...string[]],
 );
 
 export const joinRequestStatusEnum = pgEnum(
-  'join_request_status',
+  "join_request_status",
   Object.values(JoinRequestStatus) as [string, ...string[]],
 );
 
 export const groupEventLogEnum = pgEnum(
-  'group_event_log',
+  "group_event_log",
   Object.values(GroupEventLog) as [string, ...string[]],
 );
 
 export const reportStatusEnum = pgEnum(
-  'report_status',
+  "report_status",
   Object.values(ReportStatus) as [string, ...string[]],
 );
 
@@ -71,143 +71,143 @@ export const reportStatusEnum = pgEnum(
 // TABLES
 // ===================================================
 
-export const groups = pgTable('groups', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: varchar('description', { length: 1000 }),
-  avatar: jsonb('avatar').$type<{ publicId?: string; url?: string }>(),
-  coverImage: jsonb('cover_image').$type<{ publicId?: string; url?: string }>(),
-  privacy: groupPrivacyEnum('privacy').default(GroupPrivacy.PUBLIC).notNull(),
-  rules: varchar('rules', { length: 10000 }),
-  members: integer('members').default(1).notNull(),
-  reports: integer('reports').default(0).notNull(),
-  owner: jsonb('owner').$type<{
+export const groups = pgTable("groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: varchar("description", { length: 1000 }),
+  avatar: jsonb("avatar").$type<{ publicId?: string; url?: string }>(),
+  coverImage: jsonb("cover_image").$type<{ publicId?: string; url?: string }>(),
+  privacy: groupPrivacyEnum("privacy").default(GroupPrivacy.PUBLIC).notNull(),
+  rules: varchar("rules", { length: 10000 }),
+  members: integer("members").default(1).notNull(),
+  reports: integer("reports").default(0).notNull(),
+  owner: jsonb("owner").$type<{
     id: string;
     fullName: string;
     avatarUrl?: string;
   }>(),
-  status: groupStatusEnum('status').default(GroupStatus.ACTIVE).notNull(),
-  createdBy: varchar('created_by', { length: 255 }),
-  updatedBy: varchar('updated_by', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  status: groupStatusEnum("status").default(GroupStatus.ACTIVE).notNull(),
+  createdBy: varchar("created_by", { length: 255 }),
+  updatedBy: varchar("updated_by", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-export const groupSettings = pgTable('group_settings', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  groupId: uuid('group_id').notNull(),
-  requiredPostApproval: boolean('required_post_approval').default(false).notNull(),
-  allowMemberInvite: boolean('allow_member_invite').default(true).notNull(),
-  maxMembers: integer('max_members').default(1000).notNull(),
-  createdBy: varchar('created_by', { length: 255 }),
-  updatedBy: varchar('updated_by', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
 
-export const groupMembers = pgTable('group_members', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: varchar('user_id', { length: 255 }).notNull(),
-  groupId: uuid('group_id').notNull(),
-  role: groupRoleEnum('role').default(GroupRole.MEMBER).notNull(),
-  customPermissions: jsonb('custom_permissions').$type<string[]>(),
-  status: groupMemberStatusEnum('status')
+export const groupSettings = pgTable("group_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").notNull(),
+  requiredPostApproval: boolean("required_post_approval")
+    .default(false)
+    .notNull(),
+  allowMemberInvite: boolean("allow_member_invite").default(true).notNull(),
+  maxMembers: integer("max_members").default(1000).notNull(),
+  createdBy: varchar("created_by", { length: 255 }),
+  updatedBy: varchar("updated_by", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const groupMembers = pgTable("group_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  groupId: uuid("group_id").notNull(),
+  role: groupRoleEnum("role").default(GroupRole.MEMBER).notNull(),
+  customPermissions: jsonb("custom_permissions").$type<string[]>(),
+  status: groupMemberStatusEnum("status")
     .default(GroupMemberStatus.ACTIVE)
     .notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-export const groupInvites = pgTable('group_invites', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  groupId: uuid('group_id').notNull(),
-  inviteeId: varchar('invitee_id', { length: 255 }).notNull(),
-  inviters: text('inviters').array(),
-  status: inviteStatusEnum('status').default(InviteStatus.PENDING).notNull(),
-  expiredAt: timestamp('expired_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
 
-export const groupJoinRequests = pgTable('group_join_requests', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  groupId: uuid('group_id').notNull(),
-  userId: varchar('user_id', { length: 255 }).notNull(),
-  status: joinRequestStatusEnum('status')
+export const groupInvites = pgTable("group_invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").notNull(),
+  inviteeId: varchar("invitee_id", { length: 255 }).notNull(),
+  inviters: text("inviters").array(),
+  status: inviteStatusEnum("status").default(InviteStatus.PENDING).notNull(),
+  expiredAt: timestamp("expired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const groupJoinRequests = pgTable("group_join_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").notNull(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  status: joinRequestStatusEnum("status")
     .default(JoinRequestStatus.PENDING)
     .notNull(),
-  createdBy: varchar('created_by', { length: 255 }),
-  updatedBy: varchar('updated_by', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  createdBy: varchar("created_by", { length: 255 }),
+  updatedBy: varchar("updated_by", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
 
-export const groupLogs = pgTable('group_logs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  groupId: uuid('group_id').notNull(),
-  userId: varchar('user_id', { length: 255 }).notNull(),
-  eventType: groupEventLogEnum('event_type').notNull(),
-  content: text('content'),
-  createdAt: timestamp('created_at', { withTimezone: true })
+export const groupLogs = pgTable("group_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").notNull(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  eventType: groupEventLogEnum("event_type").notNull(),
+  content: text("content"),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
 
 export const groupReports = pgTable(
-  'group_reports',
+  "group_reports",
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    reporterId: varchar('reporter_id', { length: 255 }).notNull(),
-    groupId: uuid('group_id').notNull(),
-    reason: text('reason'),
-    status: reportStatusEnum('status')
-      .default(ReportStatus.PENDING)
-      .notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    id: uuid("id").defaultRandom().primaryKey(),
+    reporterId: varchar("reporter_id", { length: 255 }).notNull(),
+    groupId: uuid("group_id").notNull(),
+    reason: text("reason"),
+    status: reportStatusEnum("status").default(ReportStatus.PENDING).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (t) => ({
-    uniqueReporterGroup: uniqueIndex('unique_reporter_group').on(
+    uniqueReporterGroup: uniqueIndex("unique_reporter_group").on(
       t.reporterId,
       t.groupId,
     ),
   }),
 );
 
-export const groupStatistics = pgTable('group_statistics', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  groupId: uuid('group_id').notNull(),
-  date: date('date').notNull(),
-  postCount: integer('post_count').default(0).notNull(),
-  joinCount: integer('join_count').default(0).notNull(),
-  leaveCount: integer('leave_count').default(0).notNull(),
+export const groupStatistics = pgTable("group_statistics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").notNull(),
+  date: date("date").notNull(),
+  postCount: integer("post_count").default(0).notNull(),
+  joinCount: integer("join_count").default(0).notNull(),
+  leaveCount: integer("leave_count").default(0).notNull(),
 });
 
 // ===================================================

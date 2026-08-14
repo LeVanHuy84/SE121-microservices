@@ -1,8 +1,8 @@
-import { Global, Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { NotificationController } from './notification.controller';
+import { Global, Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { NotificationController } from "./notification.controller";
 
 @Global()
 @Module({
@@ -15,7 +15,7 @@ import { NotificationController } from './notification.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
+            port: config.get<number>("CONTENT_FEED_SERVICE_PORT"),
           },
         }),
       },

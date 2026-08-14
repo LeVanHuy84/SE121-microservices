@@ -1,14 +1,14 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ExceptionsFilter } from '@repo/common';
-import { Kafka } from 'kafkajs';
-import { EventTopic } from '@repo/dtos';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { MicroserviceOptions, Transport } from "@nestjs/microservices";
+import { ExceptionsFilter } from "@repo/common";
+import { Kafka } from "kafkajs";
+import { EventTopic } from "@repo/dtos";
 
 async function ensureKafkaTopics() {
-  const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
+  const brokers = (process.env.KAFKA_BROKERS || "localhost:9092").split(",");
   const kafka = new Kafka({
-    clientId: 'content-feed-service-admin',
+    clientId: "content-feed-service-admin",
     brokers,
   });
   const admin = kafka.admin();
@@ -33,7 +33,7 @@ async function ensureKafkaTopics() {
 
     if (topicsToCreate.length > 0) {
       console.log(
-        `Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(', ')}`,
+        `Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(", ")}`,
       );
       await admin.createTopics({
         topics: topicsToCreate,
@@ -41,7 +41,7 @@ async function ensureKafkaTopics() {
     }
   } catch (error: any) {
     console.warn(
-      'Failed to ensure Kafka topics exist:',
+      "Failed to ensure Kafka topics exist:",
       error.message || error,
     );
   } finally {
@@ -61,7 +61,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
     options: {
-      port: parseInt(process.env.PORT || '4002', 10),
+      port: parseInt(process.env.PORT || "4002", 10),
     },
   });
 
@@ -69,8 +69,8 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.REDIS,
     options: {
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || "6379", 10),
+      host: process.env.REDIS_HOST || "localhost",
     },
   });
 
@@ -79,10 +79,10 @@ async function bootstrap() {
     transport: Transport.RMQ,
     options: {
       urls: [
-        `amqp://${process.env.RABBITMQ_USER || 'guest'}:${process.env.RABBITMQ_PASS || 'guest'}` +
-          `@${process.env.RABBITMQ_HOST || 'localhost'}:${process.env.RABBITMQ_PORT || '5672'}`,
+        `amqp://${process.env.RABBITMQ_USER || "guest"}:${process.env.RABBITMQ_PASS || "guest"}` +
+          `@${process.env.RABBITMQ_HOST || "localhost"}:${process.env.RABBITMQ_PORT || "5672"}`,
       ],
-      queue: process.env.RABBITMQ_QUEUE || 'create_notification_queue',
+      queue: process.env.RABBITMQ_QUEUE || "create_notification_queue",
       queueOptions: {
         durable: true,
       },
@@ -91,16 +91,16 @@ async function bootstrap() {
   });
 
   // 4) Kafka Microservice for cross-domain Async Event Patterns
-  const kafkaFromBeginning = process.env.KAFKA_FROM_BEGINNING === 'true';
+  const kafkaFromBeginning = process.env.KAFKA_FROM_BEGINNING === "true";
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.KAFKA,
     options: {
       client: {
-        brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-        clientId: process.env.KAFKA_CLIENT_ID || 'content-feed-service',
+        brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+        clientId: process.env.KAFKA_CLIENT_ID || "content-feed-service",
       },
       consumer: {
-        groupId: process.env.KAFKA_GROUP_ID || 'content-feed-service-group',
+        groupId: process.env.KAFKA_GROUP_ID || "content-feed-service-group",
         sessionTimeout: 10000,
         heartbeatInterval: 3000,
       },
@@ -119,12 +119,14 @@ async function bootstrap() {
   await app.startAllMicroservices();
 
   // Listen HTTP on 4200 (Media upload gateway target)
-  const httpPort = parseInt(process.env.HTTP_PORT || '4200', 10);
+  const httpPort = parseInt(process.env.HTTP_PORT || "4200", 10);
   await app.listen(httpPort);
 
   console.log(`[Content Feed Service] Hybrid Application Started.`);
   console.log(` - HTTP API listening on port ${httpPort}`);
-  console.log(` - TCP Microservice listening on port ${process.env.PORT || '4002'}`);
+  console.log(
+    ` - TCP Microservice listening on port ${process.env.PORT || "4002"}`,
+  );
 }
 
 bootstrap();

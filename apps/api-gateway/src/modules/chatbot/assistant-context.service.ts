@@ -1,16 +1,16 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom, of, timeout, catchError } from 'rxjs';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { ClientProxy } from "@nestjs/microservices";
+import { lastValueFrom, of, timeout, catchError } from "rxjs";
 
-import { AssistantContextItemDto, SortOrder } from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { AssistantContextItemDto, SortOrder } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import {
   DEFAULT_RETRIEVAL_TARGETS,
   GROUP_RETRIEVAL_KEYWORDS,
   RetrievalTarget,
   USER_RETRIEVAL_KEYWORDS,
-} from './chatbot-keywords';
+} from "./chatbot-keywords";
 
 @Injectable()
 export class AssistantContextService {
@@ -30,19 +30,19 @@ export class AssistantContextService {
     if (!query) return [];
 
     const perSourceLimit = this.configService.get<number>(
-      'CHATBOT_RAG_PER_SOURCE_LIMIT',
+      "CHATBOT_RAG_PER_SOURCE_LIMIT",
       3,
     );
     const globalLimit = this.configService.get<number>(
-      'CHATBOT_RAG_GLOBAL_LIMIT',
+      "CHATBOT_RAG_GLOBAL_LIMIT",
       5,
     );
     const retrievalTimeoutMs = this.configService.get<number>(
-      'CHATBOT_RAG_RETRIEVAL_TIMEOUT_MS',
+      "CHATBOT_RAG_RETRIEVAL_TIMEOUT_MS",
       1800,
     );
     const maxContentLength = this.configService.get<number>(
-      'CHATBOT_RAG_MAX_CONTENT_LENGTH',
+      "CHATBOT_RAG_MAX_CONTENT_LENGTH",
       600,
     );
 
@@ -50,13 +50,13 @@ export class AssistantContextService {
 
     const tasks: Array<Promise<AssistantContextItemDto[]>> = [];
 
-    if (targets.has('group')) {
+    if (targets.has("group")) {
       tasks.push(
         this.retrieveGroupContexts(query, perSourceLimit, retrievalTimeoutMs),
       );
     }
 
-    if (targets.has('user')) {
+    if (targets.has("user")) {
       tasks.push(
         this.retrieveUserContexts(query, perSourceLimit, retrievalTimeoutMs),
       );
@@ -66,7 +66,7 @@ export class AssistantContextService {
 
     let contexts: AssistantContextItemDto[] = [];
     for (const result of settled) {
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         contexts.push(...result.value);
       } else {
         this.logger.warn(
@@ -90,7 +90,7 @@ export class AssistantContextService {
   ): Promise<AssistantContextItemDto[]> {
     const searchResult = await this.safeSend<any>(
       this.searchClient,
-      'search_groups',
+      "search_groups",
       {
         query,
         limit,
@@ -102,11 +102,11 @@ export class AssistantContextService {
 
     const groups = Array.isArray(searchResult?.data) ? searchResult.data : [];
     return groups.map((group: any) => ({
-      type: 'group',
+      type: "group",
       id: String(group.id),
-      title: String(group.name ?? 'Group'),
-      content: [group.name, group.description].filter(Boolean).join('\n'),
-      source: 'search_groups',
+      title: String(group.name ?? "Group"),
+      content: [group.name, group.description].filter(Boolean).join("\n"),
+      source: "search_groups",
       score: this.toNumericScore(group.score),
       metadata: {
         privacy: group.privacy,
@@ -123,7 +123,7 @@ export class AssistantContextService {
   ): Promise<AssistantContextItemDto[]> {
     const searchResult = await this.safeSend<any>(
       this.searchClient,
-      'search_users',
+      "search_users",
       {
         query,
         limit,
@@ -137,22 +137,22 @@ export class AssistantContextService {
     return users.map((user: any) => {
       const fullName = [user.firstName, user.lastName]
         .filter(Boolean)
-        .join(' ');
+        .join(" ");
       return {
-        type: 'user',
+        type: "user",
         id: String(user.id),
-        title: fullName || 'User',
+        title: fullName || "User",
         content: [
           fullName,
           user.bio,
           user.jobTitle,
           user.company,
           user.school,
-          Array.isArray(user.interests) ? user.interests.join(', ') : undefined,
+          Array.isArray(user.interests) ? user.interests.join(", ") : undefined,
         ]
           .filter(Boolean)
-          .join('\n'),
-        source: 'search_users',
+          .join("\n"),
+        source: "search_users",
         score: this.toNumericScore(user.score),
         metadata: {
           location: user.location,
@@ -205,7 +205,7 @@ export class AssistantContextService {
     item: AssistantContextItemDto,
     maxContentLength: number,
   ): AssistantContextItemDto {
-    const content = String(item.content ?? '');
+    const content = String(item.content ?? "");
     return {
       ...item,
       content:
@@ -219,15 +219,15 @@ export class AssistantContextService {
     contexts: AssistantContextItemDto[],
   ): AssistantContextItemDto[] {
     return [...contexts].sort((a, b) => {
-      const sa = typeof a.score === 'number' ? a.score : 0;
-      const sb = typeof b.score === 'number' ? b.score : 0;
+      const sa = typeof a.score === "number" ? a.score : 0;
+      const sb = typeof b.score === "number" ? b.score : 0;
       if (sa !== sb) return sb - sa;
       return String(a.id).localeCompare(String(b.id));
     });
   }
 
   private toNumericScore(value: unknown): number {
-    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
   }
 
   private resolveRetrievalTargets(message: string) {
@@ -235,8 +235,8 @@ export class AssistantContextService {
     const targets = new Set<RetrievalTarget>();
 
     if (this.hasAnyKeyword(value, GROUP_RETRIEVAL_KEYWORDS))
-      targets.add('group');
-    if (this.hasAnyKeyword(value, USER_RETRIEVAL_KEYWORDS)) targets.add('user');
+      targets.add("group");
+    if (this.hasAnyKeyword(value, USER_RETRIEVAL_KEYWORDS)) targets.add("user");
 
     if (!targets.size) {
       for (const target of DEFAULT_RETRIEVAL_TARGETS) {
@@ -249,12 +249,12 @@ export class AssistantContextService {
 
   private normalizeSearchText(value: string): string {
     return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\u0111/g, 'd')
-      .replace(/\u0110/g, 'd')
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\u0111/g, "d")
+      .replace(/\u0110/g, "d")
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/[^a-z0-9]+/g, " ")
       .trim();
   }
 
@@ -265,7 +265,7 @@ export class AssistantContextService {
   }
 
   private escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   private applyLexicalFallbackScore(
@@ -275,14 +275,14 @@ export class AssistantContextService {
     if (!contexts.length) return contexts;
 
     const weakResult = contexts.every(
-      (item) => typeof item.score !== 'number' || Number(item.score) <= 0,
+      (item) => typeof item.score !== "number" || Number(item.score) <= 0,
     );
 
     if (!weakResult) return contexts;
 
     return contexts.map((item) => {
       const lexical = this.computeLexicalScore(query, item);
-      const base = typeof item.score === 'number' ? Number(item.score) : 0;
+      const base = typeof item.score === "number" ? Number(item.score) : 0;
       return {
         ...item,
         score: Number((base + lexical).toFixed(6)),
@@ -297,13 +297,13 @@ export class AssistantContextService {
     const normalizedQuery = this.normalizeSearchText(query);
     if (!normalizedQuery) return 0;
 
-    const title = this.normalizeSearchText(String(item.title ?? ''));
-    const content = this.normalizeSearchText(String(item.content ?? ''));
+    const title = this.normalizeSearchText(String(item.title ?? ""));
+    const content = this.normalizeSearchText(String(item.content ?? ""));
     const doc = `${title} ${content}`.trim();
     if (!doc) return 0;
 
     const tokens = Array.from(
-      new Set(normalizedQuery.split(' ').filter((token) => token.length >= 2)),
+      new Set(normalizedQuery.split(" ").filter((token) => token.length >= 2)),
     );
 
     if (!tokens.length) {

@@ -13,4 +13,3 @@ export interface CallMediaProvider {
   getActiveParticipantsCount(callId: string): Promise<number>;
   endCallOnStream(callId: string): Promise<void>;
 }
-

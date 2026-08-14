@@ -7,62 +7,62 @@ import {
   Post,
   Put,
   Query,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { GroupMemberFilter, GroupPermission, GroupRole } from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { GroupMemberFilter, GroupPermission, GroupRole } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('groups/:groupId/members')
+@Controller("groups/:groupId/members")
 export class GroupMemberController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
-    private client: ClientProxy
+    private client: ClientProxy,
   ) {}
 
-  @Post('leave')
+  @Post("leave")
   async leaveGroup(
-    @Param('groupId') groupId: string,
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('leave-group', { groupId, userId });
+    return this.client.send("leave-group", { groupId, userId });
   }
 
-  @Post(':memberId/remove')
+  @Post(":memberId/remove")
   async removeMember(
-    @Param('groupId') groupId: string,
-    @Param('memberId') memberId: string,
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('remove-member', { groupId, memberId, userId });
+    return this.client.send("remove-member", { groupId, memberId, userId });
   }
 
-  @Post(':memberId/ban')
+  @Post(":memberId/ban")
   async banMember(
-    @Param('groupId') groupId: string,
-    @Param('memberId') memberId: string,
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('ban-member', { groupId, memberId, userId });
+    return this.client.send("ban-member", { groupId, memberId, userId });
   }
 
-  @Post(':memberId/unban')
+  @Post(":memberId/unban")
   async unbanMember(
-    @Param('groupId') groupId: string,
-    @Param('memberId') memberId: string,
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('unban-member', { groupId, memberId, userId });
+    return this.client.send("unban-member", { groupId, memberId, userId });
   }
 
-  @Put(':memberId/change-role')
+  @Put(":memberId/change-role")
   async changeRole(
-    @Param('groupId') groupId: string,
-    @Param('memberId') memberId: string,
-    @Body('newRole') newRole: GroupRole,
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @Body("newRole") newRole: GroupRole,
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('change-member-role', {
+    return this.client.send("change-member-role", {
       groupId,
       memberId,
       newRole,
@@ -70,14 +70,14 @@ export class GroupMemberController {
     });
   }
 
-  @Put(':memberId/change-permission')
+  @Put(":memberId/change-permission")
   async changePermission(
-    @Param('groupId') groupId: string,
-    @Param('memberId') memberId: string,
-    @Body('permissions') permissions: GroupPermission[],
-    @CurrentUserId() userId: string
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @Body("permissions") permissions: GroupPermission[],
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('change-member-permission', {
+    return this.client.send("change-member-permission", {
       groupId,
       memberId,
       permissions,
@@ -87,11 +87,11 @@ export class GroupMemberController {
 
   @Get()
   async getMembers(
-    @Param('groupId') groupId: string,
+    @Param("groupId") groupId: string,
     @Query() filter: GroupMemberFilter,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
-    return this.client.send('get-member-by-filter', {
+    return this.client.send("get-member-by-filter", {
       groupId,
       filter,
       userId,

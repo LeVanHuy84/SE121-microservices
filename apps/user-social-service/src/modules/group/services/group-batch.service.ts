@@ -1,15 +1,15 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
 import {
   EventDestination,
   EventTopic,
   GroupEventType,
   InferGroupPayload,
-} from '@repo/dtos';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { outboxEvents } from 'src/drizzle/schema/schema';
-import { GroupBufferService } from './group-buffer.service';
+} from "@repo/dtos";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { outboxEvents } from "src/drizzle/schema/schema";
+import { GroupBufferService } from "./group-buffer.service";
 
 @Injectable()
 export class GroupBatchService {
@@ -20,15 +20,15 @@ export class GroupBatchService {
     private readonly buffer: GroupBufferService,
   ) {}
 
-  @Cron('0 */10 * * * *') // chạy mỗi 10 phút
+  @Cron("0 */10 * * * *") // chạy mỗi 10 phút
   async handleMemberCountBatch() {
-    this.logger.log('🔃 MemberCountBatch: scanning buffer...');
+    this.logger.log("🔃 MemberCountBatch: scanning buffer...");
 
     const all = await this.buffer.getAll();
     const groupIds = Object.keys(all);
 
     if (groupIds.length === 0) {
-      this.logger.log('No member count changes found.');
+      this.logger.log("No member count changes found.");
       return;
     }
 

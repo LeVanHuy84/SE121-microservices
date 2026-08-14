@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, EntityManager } from 'typeorm';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { Media } from '../entities/media.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { In, Repository, EntityManager } from "typeorm";
+import { CloudinaryService } from "../cloudinary/cloudinary.service";
+import { Media } from "../entities/media.entity";
 
 @Injectable()
 export class MediaConsumerService {
@@ -20,13 +20,13 @@ export class MediaConsumerService {
   }
 
   async deleteMedia(
-    items: { publicId: string; resourceType?: 'image' | 'video' | 'raw' }[],
+    items: { publicId: string; resourceType?: "image" | "video" | "raw" }[],
     manager?: EntityManager,
   ) {
     const repo = this.getRepo(manager);
 
     for (const item of items) {
-      const resourceType = item.resourceType ?? 'image';
+      const resourceType = item.resourceType ?? "image";
 
       // external call → không nằm trong transaction
       await this.cloudinary.deleteFile(item.publicId, resourceType);
@@ -48,7 +48,7 @@ export class MediaConsumerService {
     items: {
       publicId: string;
       url?: string;
-      type?: 'image' | 'video' | 'audio' | 'file';
+      type?: "image" | "video" | "audio" | "file";
     }[],
     manager?: EntityManager,
   ) {
@@ -73,7 +73,7 @@ export class MediaConsumerService {
 
       if (found) {
         found.contentId = contentId;
-        found.status = 'READY';
+        found.status = "READY";
 
         if (item.url) found.url = item.url;
         if (item.type) found.type = item.type;
@@ -87,8 +87,8 @@ export class MediaConsumerService {
           publicId: item.publicId,
           contentId,
           url: item.url,
-          type: item.type ?? 'image',
-          status: 'READY',
+          type: item.type ?? "image",
+          status: "READY",
         }),
       );
     }

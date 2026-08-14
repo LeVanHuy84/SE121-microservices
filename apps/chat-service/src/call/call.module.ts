@@ -32,12 +32,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     RedisModule,
   ],
   controllers: [CallController],
-  providers: [
-    CallService,
-
-    StreamMediaProvider,
-    CallTimeoutWorker,
-  ],
+  providers: [CallService, StreamMediaProvider, CallTimeoutWorker],
   exports: [CallService],
 })
 export class CallModule {}

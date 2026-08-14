@@ -2,17 +2,19 @@ import {
   AdminGroupDTO,
   GroupResponseDTO,
   GroupSettingEmbbedDTO,
-} from '@repo/dtos';
-import type { Group } from 'src/drizzle/schema/group.schema';
+} from "@repo/dtos";
+import type { Group } from "src/drizzle/schema/group.schema";
 
 export class GroupMapper {
-  static toGroupResponseDTO(entity: Group & { groupSetting?: any }): GroupResponseDTO {
+  static toGroupResponseDTO(
+    entity: Group & { groupSetting?: any },
+  ): GroupResponseDTO {
     const dto = new GroupResponseDTO();
     dto.id = entity.id;
     dto.name = entity.name;
     dto.description = entity.description ?? undefined;
-    dto.avatarUrl = entity.avatar?.url || '';
-    dto.coverImageUrl = entity.coverImage?.url || '';
+    dto.avatarUrl = entity.avatar?.url || "";
+    dto.coverImageUrl = entity.coverImage?.url || "";
     dto.privacy = entity.privacy as any;
     dto.rules = entity.rules ?? undefined;
     dto.members = entity.members;
@@ -34,7 +36,7 @@ export class GroupMapper {
     dto.id = entity.id;
     dto.name = entity.name;
     dto.owner = entity.owner as any;
-    dto.avatarUrl = entity.avatar?.url || '';
+    dto.avatarUrl = entity.avatar?.url || "";
     dto.privacy = entity.privacy as any;
     dto.members = entity.members;
     dto.reports = entity.reports;

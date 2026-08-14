@@ -1,6 +1,6 @@
-import { GroupPermission, GroupRole } from '@repo/dtos';
-import { ROLE_PERMISSIONS } from 'src/modules/group/common/constant/role-permission.constant';
-import type { GroupMember } from 'src/drizzle/schema/group.schema';
+import { GroupPermission, GroupRole } from "@repo/dtos";
+import { ROLE_PERMISSIONS } from "src/modules/group/common/constant/role-permission.constant";
+import type { GroupMember } from "src/drizzle/schema/group.schema";
 
 export function canUserDo(
   member: GroupMember,

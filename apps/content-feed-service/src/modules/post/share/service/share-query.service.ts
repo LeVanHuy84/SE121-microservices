@@ -1,6 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Inject, Injectable } from "@nestjs/common";
+import { ClientProxy, RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   Audience,
   CursorPageResponse,
@@ -10,15 +10,15 @@ import {
   ShareResponseDTO,
   ShareSnapshotDTO,
   TargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { Reaction } from 'src/entities/reaction.entity';
-import { Share } from 'src/entities/share.entity';
-import { Repository, In } from 'typeorm';
-import { ShareCacheService } from './share-cache.service';
-import { ShareShortenMapper } from '../share-shorten.mapper';
-import { firstValueFrom } from 'rxjs';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { Reaction } from "src/entities/reaction.entity";
+import { Share } from "src/entities/share.entity";
+import { Repository, In } from "typeorm";
+import { ShareCacheService } from "./share-cache.service";
+import { ShareShortenMapper } from "../share-shorten.mapper";
+import { firstValueFrom } from "rxjs";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Injectable()
 export class ShareQueryService {
@@ -54,21 +54,21 @@ export class ShareQueryService {
           targetType: TargetType.SHARE,
           targetId: shareId,
         },
-        select: ['reactionType'],
+        select: ["reactionType"],
       }),
     ]);
 
     let group: GroupInfoDTO | undefined;
     if (share.post.groupId) {
       const groups = await firstValueFrom(
-        this.userSocialClient.send<GroupInfoDTO[]>('get_group_info_batch', [
+        this.userSocialClient.send<GroupInfoDTO[]>("get_group_info_batch", [
           share.post.groupId,
         ]),
       );
       if (groups.length === 0) {
         throw new RpcException({
           statusCode: 404,
-          message: 'Group not found',
+          message: "Group not found",
         });
       }
       group = groups[0];
@@ -90,12 +90,12 @@ export class ShareQueryService {
     currentUserId: string,
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
-    const qb = this.buildShareQuery(query).where('s.userId = :userId', {
+    const qb = this.buildShareQuery(query).where("s.userId = :userId", {
       userId: currentUserId,
     });
 
     const ids = await qb
-      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .select(["s.id", "s.createdAt", "s.isDeleted"])
       .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
@@ -120,7 +120,7 @@ export class ShareQueryService {
       userId,
       async () => {
         return await firstValueFrom(
-          this.userSocialClient.send('get_relationship_status', {
+          this.userSocialClient.send("get_relationship_status", {
             userId: currentUserId,
             targetId: userId,
           }),
@@ -128,24 +128,24 @@ export class ShareQueryService {
       },
     );
 
-    const qb = this.buildShareQuery(query).where('s.userId = :userId', {
+    const qb = this.buildShareQuery(query).where("s.userId = :userId", {
       userId,
     });
 
     if (userId === currentUserId) {
       // chính mình → xem hết
-    } else if (['BLOCKED', 'BLOCKED_BY'].includes(relation)) {
+    } else if (["BLOCKED", "BLOCKED_BY"].includes(relation)) {
       return new CursorPageResponse([], null, false);
-    } else if (relation === 'FRIENDS') {
-      qb.andWhere('s.audience IN (:...audiences)', {
+    } else if (relation === "FRIENDS") {
+      qb.andWhere("s.audience IN (:...audiences)", {
         audiences: [Audience.PUBLIC, Audience.FRIENDS],
       });
     } else {
-      qb.andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
+      qb.andWhere("s.audience = :audience", { audience: Audience.PUBLIC });
     }
 
     const ids = await qb
-      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .select(["s.id", "s.createdAt", "s.isDeleted"])
       .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
@@ -166,11 +166,11 @@ export class ShareQueryService {
     query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<ShareSnapshotDTO>> {
     const qb = this.buildShareQuery(query)
-      .where('s.postId = :postId', { postId })
-      .andWhere('s.audience = :audience', { audience: Audience.PUBLIC });
+      .where("s.postId = :postId", { postId })
+      .andWhere("s.audience = :audience", { audience: Audience.PUBLIC });
 
     const ids = await qb
-      .select(['s.id', 's.createdAt', 's.isDeleted'])
+      .select(["s.id", "s.createdAt", "s.isDeleted"])
       .getMany();
     const hasNextPage = ids.length > query.limit;
     if (hasNextPage) ids.pop(); // bỏ bản ghi dư ra
@@ -188,13 +188,13 @@ export class ShareQueryService {
   private buildShareQuery(query: CursorPaginationDTO) {
     const { cursor, limit } = query;
     const qb = this.shareRepo
-      .createQueryBuilder('s')
-      .where('s.isDeleted = false')
-      .orderBy('s.createdAt', 'DESC')
+      .createQueryBuilder("s")
+      .where("s.isDeleted = false")
+      .orderBy("s.createdAt", "DESC")
       .take(limit + 1); // lấy dư 1 record để xác định hasNextPage
 
     if (cursor) {
-      qb.andWhere('s.createdAt < :cursor', { cursor });
+      qb.andWhere("s.createdAt < :cursor", { cursor });
     }
     return qb;
   }
@@ -217,7 +217,7 @@ export class ShareQueryService {
       groupIds.length > 0
         ? firstValueFrom(
             this.userSocialClient.send<GroupInfoDTO[]>(
-              'get_group_info_batch',
+              "get_group_info_batch",
               groupIds,
             ),
           )
@@ -254,7 +254,7 @@ export class ShareQueryService {
     if (!shareIds.length) return new Map();
     const reactions = await this.reactionRepo.find({
       where: { userId, targetType: TargetType.SHARE, targetId: In(shareIds) },
-      select: ['targetId', 'reactionType'],
+      select: ["targetId", "reactionType"],
     });
     return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
   }
@@ -271,7 +271,7 @@ export class ShareQueryService {
       shareUserId,
       async () => {
         return await firstValueFrom(
-          this.userSocialClient.send('get_relationship_status', {
+          this.userSocialClient.send("get_relationship_status", {
             userId,
             targetId: shareUserId,
           }),
@@ -279,22 +279,22 @@ export class ShareQueryService {
       },
     );
 
-    if (['BLOCKED', 'BLOCKED_BY'].includes(relation))
+    if (["BLOCKED", "BLOCKED_BY"].includes(relation))
       throw new RpcException({
         statusCode: 403,
-        message: 'Forbidden: You are blocked',
+        message: "Forbidden: You are blocked",
       });
 
     if (audience === Audience.ONLY_ME)
       throw new RpcException({
         statusCode: 403,
-        message: 'Forbidden: Private post',
+        message: "Forbidden: Private post",
       });
 
-    if (audience === Audience.FRIENDS && relation !== 'FRIENDS')
+    if (audience === Audience.FRIENDS && relation !== "FRIENDS")
       throw new RpcException({
         statusCode: 403,
-        message: 'Forbidden: Friends only',
+        message: "Forbidden: Friends only",
       });
   }
 }

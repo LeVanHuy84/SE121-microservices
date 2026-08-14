@@ -44,4 +44,9 @@ export type OutboxEventDocument = HydratedDocument<OutboxEvent>;
 
 export const OutboxEventSchema = SchemaFactory.createForClass(OutboxEvent);
 
-OutboxEventSchema.index({ processed: 1, processing: 1, nextRetryAt: 1, createdAt: 1 });
+OutboxEventSchema.index({
+  processed: 1,
+  processing: 1,
+  nextRetryAt: 1,
+  createdAt: 1,
+});

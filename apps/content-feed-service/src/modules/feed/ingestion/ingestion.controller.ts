@@ -1,14 +1,14 @@
-import { Controller, Logger } from '@nestjs/common';
-import { EventPattern, Payload } from '@nestjs/microservices';
-import * as dtos from '@repo/dtos';
-import { IngestionPostService } from './service/ingestion-post.service';
-import { IngestionShareService } from './service/ingestion-share.service';
-import { StatsIngestionService } from './service/ingestion-stats.service';
-import { KafkaConsumerHelper } from '@repo/common';
-import { Ctx, KafkaContext } from '@nestjs/microservices';
-import { ClientSession } from 'mongoose';
+import { Controller, Logger } from "@nestjs/common";
+import { EventPattern, Payload } from "@nestjs/microservices";
+import * as dtos from "@repo/dtos";
+import { IngestionPostService } from "./service/ingestion-post.service";
+import { IngestionShareService } from "./service/ingestion-share.service";
+import { StatsIngestionService } from "./service/ingestion-stats.service";
+import { KafkaConsumerHelper } from "@repo/common";
+import { Ctx, KafkaContext } from "@nestjs/microservices";
+import { ClientSession } from "mongoose";
 
-@Controller('ingestion')
+@Controller("ingestion")
 export class IngestionController {
   private readonly logger = new Logger(IngestionController.name);
 
@@ -152,25 +152,25 @@ export class IngestionController {
 
         switch (message.type) {
           case dtos.TestEventType.CRASH_BEFORE:
-            console.log('CASE 1: Crash BEFORE transaction');
+            console.log("CASE 1: Crash BEFORE transaction");
             // process.exit(1);
-            console.log('Resuming processing after simulated crash...');
+            console.log("Resuming processing after simulated crash...");
             break;
 
           case dtos.TestEventType.CRASH_DURING:
-            console.log('Processing...');
+            console.log("Processing...");
             await new Promise((res) => setTimeout(res, 500));
 
-            console.log('CASE 2:Crash DURING transaction');
+            console.log("CASE 2:Crash DURING transaction");
             // process.exit(1);
             break;
 
           case dtos.TestEventType.FAIL:
-            console.log('CASE 4: Simulate failure');
-            throw new Error('Simulated failure for retry + DLQ');
+            console.log("CASE 4: Simulate failure");
+            throw new Error("Simulated failure for retry + DLQ");
 
           default:
-            console.log('Normal processing');
+            console.log("Normal processing");
         }
       },
     });

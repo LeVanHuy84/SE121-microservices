@@ -1,5 +1,5 @@
-import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Controller } from "@nestjs/common";
+import { MessagePattern, Payload } from "@nestjs/microservices";
 import {
   CreatePostDTO,
   CursorPageResponse,
@@ -8,39 +8,39 @@ import {
   PostResponseDTO,
   PostSnapshotDTO,
   TargetType,
-} from '@repo/dtos';
-import { PostQueryService } from '../service/post-query.service';
-import { PostCommandService } from '../service/post-command.service';
+} from "@repo/dtos";
+import { PostQueryService } from "../service/post-query.service";
+import { PostCommandService } from "../service/post-command.service";
 
-@Controller('posts')
+@Controller("posts")
 export class PostController {
   constructor(
     private postQuery: PostQueryService,
     private postCommand: PostCommandService,
   ) {}
 
-  @MessagePattern('create_post')
+  @MessagePattern("create_post")
   async create(
     @Payload() payload: { userId: string; createPostDTO: CreatePostDTO },
   ): Promise<PostSnapshotDTO> {
     return this.postCommand.create(payload.userId, payload.createPostDTO);
   }
 
-  @MessagePattern('find_post_by_id')
+  @MessagePattern("find_post_by_id")
   async findById(
     @Payload() payload: { currentUserId: string; postId: string },
   ): Promise<PostResponseDTO> {
     return this.postQuery.findById(payload.currentUserId, payload.postId);
   }
 
-  @MessagePattern('get_my_posts')
+  @MessagePattern("get_my_posts")
   async getMyPosts(
     @Payload() payload: { currentUserId: string; query: GetPostQueryDTO },
   ): Promise<CursorPageResponse<PostSnapshotDTO>> {
     return this.postQuery.getMyPosts(payload.currentUserId, payload.query);
   }
 
-  @MessagePattern('find_posts_by_user_id')
+  @MessagePattern("find_posts_by_user_id")
   async findPostsByUserId(
     @Payload()
     payload: {
@@ -56,7 +56,7 @@ export class PostController {
     );
   }
 
-  @MessagePattern('get_group_posts')
+  @MessagePattern("get_group_posts")
   async getGroupPosts(
     @Payload()
     payload: {
@@ -72,7 +72,7 @@ export class PostController {
     );
   }
 
-  @MessagePattern('update_post')
+  @MessagePattern("update_post")
   async updatePost(
     @Payload() payload: { userId: string; postId: string; updatePostDTO: any },
   ): Promise<PostSnapshotDTO> {
@@ -83,21 +83,21 @@ export class PostController {
     );
   }
 
-  @MessagePattern('remove_post')
+  @MessagePattern("remove_post")
   async remove(
     @Payload() payload: { id: string; userId: string },
   ): Promise<boolean> {
     return this.postCommand.remove(payload.userId, payload.id);
   }
 
-  @MessagePattern('get_posts_batch')
+  @MessagePattern("get_posts_batch")
   async getPostsBatch(
     @Payload() payload: { currentUserId: string; postIds: string[] },
   ): Promise<PostSnapshotDTO[]> {
     return this.postQuery.getPostBatch(payload.currentUserId, payload.postIds);
   }
 
-  @MessagePattern('get_post_edit_histories')
+  @MessagePattern("get_post_edit_histories")
   async getPostEditHistories(
     @Payload() payload: { userId: string; postId: string },
   ) {

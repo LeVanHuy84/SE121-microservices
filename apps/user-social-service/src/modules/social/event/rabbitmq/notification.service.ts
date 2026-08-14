@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { CreateNotificationDto, NotificationPayload } from '@repo/dtos';
-import { lastValueFrom } from 'rxjs';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { CreateNotificationDto, NotificationPayload } from "@repo/dtos";
+import { lastValueFrom } from "rxjs";
 
 export type NotificationSample = {
   id: string;
@@ -14,8 +14,8 @@ export type NotificationSample = {
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(@Inject('NOTIFICATION_SERVICE') private client: ClientProxy) {
-    this.logger.log('NotificationService initialized');
+  constructor(@Inject("NOTIFICATION_SERVICE") private client: ClientProxy) {
+    this.logger.log("NotificationService initialized");
   }
 
   async sendNotification(dto: NotificationSample) {
@@ -34,9 +34,9 @@ export class NotificationService {
 
     const message = {
       createNotificationDto,
-      origin: 'social-service',
+      origin: "social-service",
     };
 
-    await lastValueFrom(this.client.emit('create_notification', message));
+    await lastValueFrom(this.client.emit("create_notification", message));
   }
 }

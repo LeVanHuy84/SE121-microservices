@@ -1,11 +1,11 @@
-import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UsersController } from './users.controller';
-import { MediaModule } from '../media/media.module';
-import { ClerkClientProvider } from 'src/providers/clerk-client.provider';
-import { AdminUserController } from './admin-user.controller';
+import { Module } from "@nestjs/common";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { UsersController } from "./users.controller";
+import { MediaModule } from "../media/media.module";
+import { ClerkClientProvider } from "src/providers/clerk-client.provider";
+import { AdminUserController } from "./admin-user.controller";
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { AdminUserController } from './admin-user.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+            port: config.get<number>("USER_SOCIAL_SERVICE_PORT"),
           },
         }),
       },

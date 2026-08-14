@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class ScoreCombinerService {
@@ -12,16 +12,13 @@ export class ScoreCombinerService {
     const normalizeBaseScore = this.normalize(input.base);
 
     const distress =
-      (input.riskScore ?? 0) * 0.4 +
-      (input.recentNegativityScore ?? 0) * 0.6;
+      (input.riskScore ?? 0) * 0.4 + (input.recentNegativityScore ?? 0) * 0.6;
 
-    const emotionWeight =
-      0.30 + distress * 0.30;
+    const emotionWeight = 0.3 + distress * 0.3;
 
     const affinityWeight = 0.15;
 
-    const baseWeight =
-      1 - emotionWeight - affinityWeight;
+    const baseWeight = 1 - emotionWeight - affinityWeight;
 
     return (
       baseWeight * normalizeBaseScore +

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   ActivityType,
   CommentResponseDTO,
@@ -18,22 +18,22 @@ import {
   StatsEventType,
   TargetType,
   UpdateCommentDTO,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { CommentStat } from 'src/entities/comment-stat.entity';
-import { Comment } from 'src/entities/comment.entity';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { Reaction } from 'src/entities/reaction.entity';
-import { ShareStat } from 'src/entities/share-stat.entity';
-import { DataSource, EntityManager } from 'typeorm';
-import { CommentCacheService } from './comment-cache.service';
-import { StatsBufferService } from 'src/modules/stats/stats.buffer.service';
-import { RecentActivityBufferService } from 'src/modules/event/recent-activity.buffer.service';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { UserClientService } from '../../client/user-client.service';
-import { OutboxService } from 'src/modules/event/outbox.service';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { CommentStat } from "src/entities/comment-stat.entity";
+import { Comment } from "src/entities/comment.entity";
+import { PostStat } from "src/entities/post-stat.entity";
+import { Reaction } from "src/entities/reaction.entity";
+import { ShareStat } from "src/entities/share-stat.entity";
+import { DataSource, EntityManager } from "typeorm";
+import { CommentCacheService } from "./comment-cache.service";
+import { StatsBufferService } from "src/modules/stats/stats.buffer.service";
+import { RecentActivityBufferService } from "src/modules/event/recent-activity.buffer.service";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { UserClientService } from "../../client/user-client.service";
+import { OutboxService } from "src/modules/event/outbox.service";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
 
 @Injectable()
 export class CommentService {
@@ -98,7 +98,7 @@ export class CommentService {
       const interactionOutbox = manager.create(OutboxEvent, {
         topic: EventTopic.INTERACTION,
         destination: EventDestination.KAFKA,
-        eventType: 'user.interaction',
+        eventType: "user.interaction",
         payload: interactionPayload,
       });
 
@@ -167,7 +167,7 @@ export class CommentService {
       .addRecentActivity({
         idempotentKey: savedComment.id,
         actorId: userId,
-        type: 'comment',
+        type: "comment",
         targetId: dto.rootId,
         targetType:
           dto.rootType === RootType.POST ? TargetType.POST : TargetType.SHARE,
@@ -209,7 +209,7 @@ export class CommentService {
       if (comment.userId !== userId) {
         throw new RpcException({
           statusCode: 403,
-          message: 'You are not allowed to update this comment',
+          message: "You are not allowed to update this comment",
         });
       }
 
@@ -259,7 +259,7 @@ export class CommentService {
           case RootType.POST: {
             const post = await manager.findOne(Post, {
               where: { id: comment.rootId },
-              select: ['userId'],
+              select: ["userId"],
             });
             ownerId = post?.userId;
             break;
@@ -268,7 +268,7 @@ export class CommentService {
           case RootType.SHARE: {
             const share = await manager.findOne(Share, {
               where: { id: comment.rootId },
-              select: ['userId'],
+              select: ["userId"],
             });
             ownerId = share?.userId;
             break;
@@ -277,14 +277,14 @@ export class CommentService {
           default:
             throw new RpcException({
               statusCode: 403,
-              message: 'You are not allowed to delete this comment',
+              message: "You are not allowed to delete this comment",
             });
         }
 
         if (ownerId !== userId) {
           throw new RpcException({
             statusCode: 403,
-            message: 'You are not allowed to delete this comment',
+            message: "You are not allowed to delete this comment",
           });
         }
       }
@@ -297,7 +297,7 @@ export class CommentService {
         const item: MediaDeleteItem = {
           publicId: comment.media.publicId,
           resourceType:
-            comment.media.type === MediaType.IMAGE ? 'image' : 'video',
+            comment.media.type === MediaType.IMAGE ? "image" : "video",
         };
 
         mediaPayload = { items: [item] };
@@ -361,7 +361,7 @@ export class CommentService {
         .set({
           replies: () => `"replies" + ${delta}`,
         })
-        .where('commentId = :commentId', { commentId: parentId })
+        .where("commentId = :commentId", { commentId: parentId })
         .execute();
     }
 
@@ -374,7 +374,7 @@ export class CommentService {
           .set({
             comments: () => `"comments" + ${delta}`,
           })
-          .where('postId = :postId', { postId: rootId })
+          .where("postId = :postId", { postId: rootId })
           .execute();
         break;
       case RootType.SHARE:
@@ -385,7 +385,7 @@ export class CommentService {
           .set({
             comments: () => `"comments" + ${delta}`,
           })
-          .where('shareId = :shareId', { shareId: rootId })
+          .where("shareId = :shareId", { shareId: rootId })
           .execute();
         break;
       default:
@@ -404,10 +404,10 @@ export class CommentService {
   ): Promise<OutboxEvent | null> {
     const [actor, parentComment] = await Promise.all([
       this.userClient.getUserInfo(entity.userId),
-      manager.findOne(Comment, { select: ['userId'], where: { id: parentId } }),
+      manager.findOne(Comment, { select: ["userId"], where: { id: parentId } }),
     ]);
 
-    if (!parentComment?.userId) throw new Error('Parent comment not found');
+    if (!parentComment?.userId) throw new Error("Parent comment not found");
     if (parentComment.userId === entity.userId) return null; // Không tự thông báo cho mình
 
     const notiPayload: NotiOutboxPayload = {
@@ -416,15 +416,15 @@ export class CommentService {
         entity.rootType === RootType.POST
           ? NotiTargetType.POST
           : NotiTargetType.SHARE,
-      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorName: `${actor?.lastName ?? ""} ${actor?.firstName ?? ""}`.trim(),
       actorAvatar: actor?.avatarUrl,
       content: entity.content.slice(0, 100),
       receivers: [parentComment.userId],
     };
 
     const outbox = manager.create(OutboxEvent, {
-      topic: 'notification',
-      eventType: 'reply_comment',
+      topic: "notification",
+      eventType: "reply_comment",
       destination: EventDestination.RABBITMQ,
       payload: notiPayload,
     });
@@ -445,7 +445,7 @@ export class CommentService {
       case RootType.POST: {
         const post = await manager.findOne(Post, {
           where: { id: entity.rootId },
-          select: ['userId'],
+          select: ["userId"],
         });
         ownerId = post?.userId;
         break;
@@ -453,7 +453,7 @@ export class CommentService {
       case RootType.SHARE: {
         const share = await manager.findOne(Share, {
           where: { id: entity.rootId },
-          select: ['userId'],
+          select: ["userId"],
         });
         ownerId = share?.userId;
         break;
@@ -470,15 +470,15 @@ export class CommentService {
         entity.rootType === RootType.POST
           ? NotiTargetType.POST
           : NotiTargetType.SHARE,
-      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorName: `${actor?.lastName ?? ""} ${actor?.firstName ?? ""}`.trim(),
       actorAvatar: actor?.avatarUrl,
       content: entity.content.slice(0, 100),
       receivers: [ownerId],
     };
 
     const outbox = manager.create(OutboxEvent, {
-      topic: 'notification',
-      eventType: 'comment',
+      topic: "notification",
+      eventType: "comment",
       destination: EventDestination.RABBITMQ,
       payload: notiPayload,
     });

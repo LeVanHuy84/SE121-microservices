@@ -1,8 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-
-
 @Schema({ timestamps: true })
 export class Conversation {
   @Prop({ type: Boolean, default: false })
@@ -29,7 +27,6 @@ export class Conversation {
     url: string;
     publicId?: string;
   };
-  
 
   @Prop({ type: [String] })
   admins?: string[];
@@ -65,8 +62,6 @@ ConversationSchema.index({ participants: 1, updatedAt: -1 });
 
 // Index tối ưu hóa việc tìm kiếm hội thoại (kết hợp lọc participants và scan regex trên groupName)
 ConversationSchema.index({ participants: 1, groupName: 1, updatedAt: -1 });
-
-
 
 /**
  * Normalizer: bỏ trùng & sort participants/admins

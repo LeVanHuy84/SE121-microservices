@@ -1,5 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { CallEndReason, CallSessionStatus, CallType, Emotion } from '@repo/dtos';
+import {
+  CallEndReason,
+  CallSessionStatus,
+  CallType,
+  Emotion,
+} from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ timestamps: true })
@@ -116,7 +121,6 @@ MessageSchema.pre('findOneAndUpdate', function (next) {
   update.$set.syncVersion = Date.now();
   next();
 });
-
 
 // Paginate trong 1 conversation: sort theo _id mới nhất
 MessageSchema.index({ conversationId: 1, _id: -1 });

@@ -1,10 +1,10 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { BaseUserDTO } from '@repo/dtos';
-import Redis from 'ioredis';
-import { lastValueFrom } from 'rxjs';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Inject, Injectable } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { BaseUserDTO } from "@repo/dtos";
+import Redis from "ioredis";
+import { lastValueFrom } from "rxjs";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Injectable()
 export class UserClientService {
@@ -22,15 +22,15 @@ export class UserClientService {
     if (cached && Object.keys(cached).length > 0) {
       return {
         id: userId,
-        firstName: cached.firstName ?? '',
-        lastName: cached.lastName ?? '',
-        avatarUrl: cached.avatarUrl ?? '',
+        firstName: cached.firstName ?? "",
+        lastName: cached.lastName ?? "",
+        avatarUrl: cached.avatarUrl ?? "",
       };
     }
 
     // 2️⃣ Gọi batch API (với 1 userId)
     const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
-      this.userClient.send<Record<string, BaseUserDTO>>('getBaseUsersBatch', [
+      this.userClient.send<Record<string, BaseUserDTO>>("getBaseUsersBatch", [
         userId,
       ]),
     );
@@ -40,9 +40,9 @@ export class UserClientService {
 
     // 3️⃣ Cache lại
     const cacheData = {
-      firstName: profile.firstName ?? '',
-      lastName: profile.lastName ?? '',
-      avatarUrl: profile.avatarUrl ?? '',
+      firstName: profile.firstName ?? "",
+      lastName: profile.lastName ?? "",
+      avatarUrl: profile.avatarUrl ?? "",
     };
     await this.redis.hmset(`user:profile:${userId}`, cacheData);
     await this.redis.expire(`user:profile:${userId}`, 60 * 5);
@@ -72,9 +72,9 @@ export class UserClientService {
       } else {
         profiles[userId] = {
           id: userId,
-          firstName: hash.firstName ?? '',
-          lastName: hash.lastName ?? '',
-          avatarUrl: hash.avatarUrl ?? '',
+          firstName: hash.firstName ?? "",
+          lastName: hash.lastName ?? "",
+          avatarUrl: hash.avatarUrl ?? "",
         };
       }
     });
@@ -83,7 +83,7 @@ export class UserClientService {
     if (uncachedIds.length > 0) {
       const fetchedProfiles: Record<string, BaseUserDTO> = await lastValueFrom(
         this.userClient.send<Record<string, BaseUserDTO>>(
-          'getBaseUsersBatch',
+          "getBaseUsersBatch",
           uncachedIds,
         ),
       );
@@ -91,9 +91,9 @@ export class UserClientService {
       for (const [id, profile] of Object.entries(fetchedProfiles)) {
         profiles[id] = profile;
         const cacheData = {
-          firstName: profile.firstName ?? '',
-          lastName: profile.lastName ?? '',
-          avatarUrl: profile.avatarUrl ?? '',
+          firstName: profile.firstName ?? "",
+          lastName: profile.lastName ?? "",
+          avatarUrl: profile.avatarUrl ?? "",
         };
         await this.redis.hmset(`user:profile:${id}`, cacheData);
         await this.redis.expire(`user:profile:${id}`, 60 * 5);

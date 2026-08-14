@@ -1,17 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   GroupEventLog,
   GroupSettingResponseDTO,
   UpdateGroupSettingDTO,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { formatValue, SETTING_LABELS } from 'src/modules/group/common/constant/constant';
-import { GroupLogService } from 'src/modules/group/services/group-log.service';
-import { and, eq } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { groupSettings } from 'src/drizzle/schema/schema';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import {
+  formatValue,
+  SETTING_LABELS,
+} from "src/modules/group/common/constant/constant";
+import { GroupLogService } from "src/modules/group/services/group-log.service";
+import { and, eq } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupSettings } from "src/drizzle/schema/schema";
 
 @Injectable()
 export class GroupSettingService {
@@ -30,7 +33,7 @@ export class GroupSettingService {
       .limit(1);
 
     if (!setting) {
-      throw new Error('Group setting not found');
+      throw new Error("Group setting not found");
     }
 
     return plainToInstance(GroupSettingResponseDTO, setting, {
@@ -53,7 +56,7 @@ export class GroupSettingService {
       if (!setting) {
         throw new RpcException({
           statusCode: 404,
-          message: 'Group setting not found',
+          message: "Group setting not found",
         });
       }
 
@@ -81,7 +84,7 @@ export class GroupSettingService {
           eventType: GroupEventLog.GROUP_SETTING_CHANGED,
           content: `Cập nhật cài đặt nhóm:\n${changes
             .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
-            .join('\n')}`,
+            .join("\n")}`,
         });
       }
 

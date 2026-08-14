@@ -15,13 +15,14 @@ import { UserPrivacySettings } from "@repo/dtos";
 
 export const privacyLevelEnum = pgEnum(
   "privacy_level",
-  ...[Object.values(PRIVACY_LEVEL) as [string, ...string[]]]
+  ...[Object.values(PRIVACY_LEVEL) as [string, ...string[]]],
 );
 
 export const profiles = pgTable("profiles", {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: varchar("user_id", { length: 255 })
-    .references(() => users.id, { onDelete: "cascade" }),
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 255 }).references(() => users.id, {
+    onDelete: "cascade",
+  }),
 
   firstName: varchar("first_name", { length: 100 }),
   lastName: varchar("last_name", { length: 100 }),
@@ -32,7 +33,10 @@ export const profiles = pgTable("profiles", {
   jobTitle: varchar("job_title", { length: 120 }),
   company: varchar("company", { length: 120 }),
   school: varchar("school", { length: 120 }),
-  interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  interests: jsonb("interests")
+    .$type<string[]>()
+    .default(sql`'[]'::jsonb`)
+    .notNull(),
   semanticProfileText: text("semantic_profile_text"),
 
   postCount: integer("post_count").default(0).notNull(),
@@ -42,7 +46,9 @@ export const profiles = pgTable("profiles", {
     .notNull(),
   privacySettings: jsonb("privacy_settings")
     .$type<UserPrivacySettings>()
-    .default(sql`'{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC"}'::jsonb`)
+    .default(
+      sql`'{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC"}'::jsonb`,
+    )
     .notNull(),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -52,6 +58,6 @@ export const profiles = pgTable("profiles", {
 export const profileRelations = relations(profiles, ({ one }) => ({
   user: one(users, {
     fields: [profiles.userId],
-    references: [users.id]
-  })
-}))
+    references: [users.id],
+  }),
+}));

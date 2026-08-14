@@ -1,5 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { RedisTrendingWarmupService } from './redis-trending-warmup.service';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { RedisTrendingWarmupService } from "./redis-trending-warmup.service";
 
 @Injectable()
 export class AppInitService implements OnModuleInit {
@@ -10,9 +10,12 @@ export class AppInitService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.logger.log('Scheduling startup trending warmup check (asynchronous).');
+    this.logger.log("Scheduling startup trending warmup check (asynchronous).");
     this.redisTrendingWarmupService.ensureTrendingIndex().catch((err) => {
-      this.logger.error('Startup trending warmup check failed asynchronously', err);
+      this.logger.error(
+        "Startup trending warmup check failed asynchronously",
+        err,
+      );
     });
   }
 }

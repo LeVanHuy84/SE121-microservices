@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   AdminModerationQuery,
   AppealStatus,
@@ -15,14 +15,14 @@ import {
   ShareResponseDTO,
   SystemRole,
   TargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { Comment } from 'src/entities/comment.entity';
-import { ContentModeration } from 'src/entities/content-moderation.entity';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
-import { In, Repository } from 'typeorm';
-import { LogService } from './log.service';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { Comment } from "src/entities/comment.entity";
+import { ContentModeration } from "src/entities/content-moderation.entity";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
+import { In, Repository } from "typeorm";
+import { LogService } from "./log.service";
 
 @Injectable()
 export class ModerationService {
@@ -46,7 +46,7 @@ export class ModerationService {
     const [records, total] =
       await this.contentModerationRepository.findAndCount({
         where: { userId, targetType },
-        order: { createdAt: 'DESC' },
+        order: { createdAt: "DESC" },
         skip: (page - 1) * limit,
         take: limit,
       });
@@ -96,7 +96,7 @@ export class ModerationService {
 
     // build response
     const items = records.map((r) => {
-      let preview: ContentModerationDTO['targetPreview'] | undefined;
+      let preview: ContentModerationDTO["targetPreview"] | undefined;
 
       if (r.targetType === TargetType.POST) {
         const post = postMap.get(r.targetId);
@@ -142,16 +142,16 @@ export class ModerationService {
   ): Promise<ModerationRecordDetailDTO> {
     const moderation = await this.contentModerationRepository.findOne({
       where: { id },
-      relations: ['appeals'],
+      relations: ["appeals"],
     });
 
     if (!moderation) {
-      throw new RpcException('Moderation record not found');
+      throw new RpcException("Moderation record not found");
     }
 
     if (moderation.userId !== userId) {
       if (role !== SystemRole.ADMIN && role !== SystemRole.MODERATOR) {
-        throw new RpcException('Access denied');
+        throw new RpcException("Access denied");
       }
     }
 
@@ -199,29 +199,29 @@ export class ModerationService {
       limit = 10,
     } = query;
 
-    const qb = this.contentModerationRepository.createQueryBuilder('cm');
+    const qb = this.contentModerationRepository.createQueryBuilder("cm");
 
     if (targetType) {
-      qb.andWhere('cm.target_type = :targetType', { targetType });
+      qb.andWhere("cm.target_type = :targetType", { targetType });
     }
 
     if (maxSeverity) {
-      qb.andWhere('cm.max_severity = :maxSeverity', { maxSeverity });
+      qb.andWhere("cm.max_severity = :maxSeverity", { maxSeverity });
     }
 
     if (finalDecision) {
-      qb.andWhere('cm.final_decision = :finalDecision', { finalDecision });
+      qb.andWhere("cm.final_decision = :finalDecision", { finalDecision });
     }
 
     if (fromDate) {
-      qb.andWhere('cm.created_at >= :fromDate', { fromDate });
+      qb.andWhere("cm.created_at >= :fromDate", { fromDate });
     }
 
     if (toDate) {
-      qb.andWhere('cm.created_at <= :toDate', { toDate });
+      qb.andWhere("cm.created_at <= :toDate", { toDate });
     }
 
-    qb.orderBy('cm.created_at', 'DESC')
+    qb.orderBy("cm.created_at", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -266,7 +266,7 @@ export class ModerationService {
     );
 
     const items = records.map((r) => {
-      let preview: ContentModerationDTO['targetPreview'] | undefined;
+      let preview: ContentModerationDTO["targetPreview"] | undefined;
 
       if (r.targetType === TargetType.POST) {
         const post = postMap.get(r.targetId);
@@ -316,7 +316,7 @@ export class ModerationService {
     });
 
     if (!moderation) {
-      throw new RpcException('Moderation record not found');
+      throw new RpcException("Moderation record not found");
     }
 
     // =========================================================

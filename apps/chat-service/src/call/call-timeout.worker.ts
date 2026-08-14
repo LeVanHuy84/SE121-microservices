@@ -45,9 +45,8 @@ export class CallTimeoutWorker {
       }
     }
 
-    const reconnectExpired = await this.callService.popDueReconnectTimeoutCallIds(
-      this.batchSize,
-    );
+    const reconnectExpired =
+      await this.callService.popDueReconnectTimeoutCallIds(this.batchSize);
 
     if (reconnectExpired.length) {
       this.logger.debug(
@@ -58,9 +57,8 @@ export class CallTimeoutWorker {
       }
     }
 
-    const emptyRoomExpired = await this.callService.popDueEmptyRoomTimeoutCallIds(
-      this.batchSize,
-    );
+    const emptyRoomExpired =
+      await this.callService.popDueEmptyRoomTimeoutCallIds(this.batchSize);
     if (emptyRoomExpired.length) {
       this.logger.debug(
         `Found ${emptyRoomExpired.length} empty-room-timeout calls`,

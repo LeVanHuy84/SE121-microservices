@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { LogEventPayload, LogType, UserActivityLogPayload } from '@repo/dtos';
-import { ClientSession, Model } from 'mongoose';
-import { AuditLog, AuditLogDocument } from '../mongo/schema/audit-log.schema';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { LogEventPayload, LogType, UserActivityLogPayload } from "@repo/dtos";
+import { ClientSession, Model } from "mongoose";
+import { AuditLog, AuditLogDocument } from "../mongo/schema/audit-log.schema";
 import {
   UserActivityLog,
   UserActivityLogDocument,
-} from '../mongo/schema/user-activity.schema';
+} from "../mongo/schema/user-activity.schema";
 
 @Injectable()
 export class ConsumerService {

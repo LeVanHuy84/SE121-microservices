@@ -1,7 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { outboxEvents } from 'src/drizzle/schema/schema';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle';
+import { Inject, Injectable } from "@nestjs/common";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import { outboxEvents } from "src/drizzle/schema/schema";
+import type { DrizzleDB } from "src/drizzle/types/drizzle";
 import {
   ActivityType,
   EventDestination,
@@ -12,7 +12,7 @@ import {
   RecommendationProfileEmbeddingRequestedPayload,
   RecommendationProfileEventType,
   UserActivityLogPayload,
-} from '@repo/dtos';
+} from "@repo/dtos";
 
 @Injectable()
 export class OutboxService {
@@ -22,7 +22,7 @@ export class OutboxService {
     destination: EventDestination,
     topic: string,
     eventType: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ) {
     return this.db
       .insert(outboxEvents)
@@ -40,7 +40,7 @@ export class OutboxService {
     destination: EventDestination,
     topic: string,
     eventType: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ) {
     return tx
       .insert(outboxEvents)
@@ -59,41 +59,41 @@ export class OutboxService {
   createUserOutboxEvent(
     tx: any,
     eventType: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ) {
     return this.createOutboxEventWithTransaction(
       tx,
       EventDestination.KAFKA,
       EventTopic.USER,
       eventType,
-      payload
+      payload,
     );
   }
 
   createLoggingOutboxEvent(
     tx: any,
     eventType: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ) {
     return this.createOutboxEventWithTransaction(
       tx,
       EventDestination.KAFKA,
       EventTopic.LOGGING,
       eventType,
-      payload
+      payload,
     );
   }
 
   createRecommendationProfileEmbeddingRequestedEvent(
     tx: any,
-    payload: RecommendationProfileEmbeddingRequestedPayload
+    payload: RecommendationProfileEmbeddingRequestedPayload,
   ) {
     return this.createOutboxEventWithTransaction(
       tx,
       EventDestination.KAFKA,
       EventTopic.RECOMMENDATION_PROFILE,
       RecommendationProfileEventType.EMBEDDING_REQUESTED,
-      payload
+      payload,
     );
   }
 

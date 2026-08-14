@@ -4,14 +4,14 @@ import {
   Inject,
   Query,
   UnauthorizedException,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { AuditLogQuery, SystemRole, GetUserActivityLogQuery } from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { RequireRole } from 'src/common/decorators/require-role.decorator';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { AuditLogQuery, SystemRole, GetUserActivityLogQuery } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { RequireRole } from "src/common/decorators/require-role.decorator";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('logs')
+@Controller("logs")
 export class LogController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
@@ -21,10 +21,10 @@ export class LogController {
   @Get()
   @RequireRole(SystemRole.ADMIN)
   getAuditLog(@Query() query: AuditLogQuery) {
-    return this.client.send('get_audit_log', query);
+    return this.client.send("get_audit_log", query);
   }
 
-  @Get('user-activities')
+  @Get("user-activities")
   getUserActivityLog(
     @CurrentUserId() userId: string,
     @Query() query: GetUserActivityLogQuery,
@@ -35,6 +35,6 @@ export class LogController {
 
     // Ensure actorId is the authenticated user
     const payload = { ...query, actorId: userId } as any;
-    return this.client.send('get_user_activity_log', payload);
+    return this.client.send("get_user_activity_log", payload);
   }
 }

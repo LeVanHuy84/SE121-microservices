@@ -1,7 +1,7 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import { StatsEventType, TargetType } from '@repo/dtos';
-import Redis from 'ioredis';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import { StatsEventType, TargetType } from "@repo/dtos";
+import Redis from "ioredis";
 
 @Injectable()
 export class StatsBufferService {
@@ -15,7 +15,7 @@ export class StatsBufferService {
     targetId: string,
     type: StatsEventType,
     delta: number,
-    subType?: string
+    subType?: string,
   ) {
     const key = `stats:buffer:${targetType}:${targetId}`;
     const field = subType ? `${type}:${subType}` : type;
@@ -35,7 +35,7 @@ export class StatsBufferService {
   async updateMultipleStats(
     targetType: TargetType,
     targetId: string,
-    updates: { type: StatsEventType; delta: number; subType?: string }[]
+    updates: { type: StatsEventType; delta: number; subType?: string }[],
   ) {
     const key = `stats:buffer:${targetType}:${targetId}`;
     const pipeline = this.redis.pipeline();
@@ -62,23 +62,23 @@ export class StatsBufferService {
   async getAllBufferedStats(): Promise<
     Record<TargetType, Record<string, Record<string, number>>>
   > {
-    const keys = await this.redis.keys('stats:buffer:*');
+    const keys = await this.redis.keys("stats:buffer:*");
 
     // 🔹 Khởi tạo rỗng cho mọi TargetType trong enum
     const results = Object.values(TargetType).reduce(
       (acc, type) => ({ ...acc, [type]: {} }),
-      {} as Record<TargetType, Record<string, Record<string, number>>>
+      {} as Record<TargetType, Record<string, Record<string, number>>>,
     );
 
     for (const key of keys) {
-      const [, , targetType, targetId] = key.split(':');
+      const [, , targetType, targetId] = key.split(":");
       const data = await this.redis.hgetall(key);
 
       // Nếu Redis chứa key của loại mà enum chưa có (phòng lỗi)
       if (!(targetType in results)) continue;
 
       results[targetType as TargetType][targetId] = Object.fromEntries(
-        Object.entries(data).map(([k, v]) => [k, Number(v)])
+        Object.entries(data).map(([k, v]) => [k, Number(v)]),
       );
     }
 
@@ -90,7 +90,7 @@ export class StatsBufferService {
   }
 
   async clearMultipleBuffers(
-    entries: { targetType: TargetType; targetId: string }[]
+    entries: { targetType: TargetType; targetId: string }[],
   ) {
     const pipeline = this.redis.pipeline();
     for (const { targetType, targetId } of entries) {

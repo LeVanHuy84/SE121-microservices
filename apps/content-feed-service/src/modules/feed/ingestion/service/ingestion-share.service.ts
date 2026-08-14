@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
-import { FeedEventType, InferSharePayload, ShareEventType } from '@repo/dtos';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { ClientSession, Model } from "mongoose";
+import { FeedEventType, InferSharePayload, ShareEventType } from "@repo/dtos";
 import {
   ShareSnapshot,
   ShareSnapshotDocument,
-} from '../../mongo/schema/share-snapshot.schema';
-import { DistributionService } from './distribution.service';
+} from "../../mongo/schema/share-snapshot.schema";
+import { DistributionService } from "./distribution.service";
 
 @Injectable()
 export class IngestionShareService {

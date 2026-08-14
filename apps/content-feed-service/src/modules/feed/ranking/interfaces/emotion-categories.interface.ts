@@ -2,16 +2,16 @@
  * Emotion categories cho safety rules
  */
 
-export const POSITIVE_EMOTIONS = ['joy', 'surprise'] as const;
+export const POSITIVE_EMOTIONS = ["joy", "surprise"] as const;
 
 export const NEGATIVE_EMOTIONS = [
-  'sadness',
-  'anger',
-  'fear',
-  'disgust',
+  "sadness",
+  "anger",
+  "fear",
+  "disgust",
 ] as const;
 
-export const NEUTRAL_EMOTIONS = ['neutral'] as const;
+export const NEUTRAL_EMOTIONS = ["neutral"] as const;
 
 export const ALL_EMOTIONS = [
   ...POSITIVE_EMOTIONS,

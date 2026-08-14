@@ -1,15 +1,15 @@
-import { Controller } from '@nestjs/common';
-import { GroupSettingService } from '../services/group-setting.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { GroupPermission, UpdateGroupSettingDTO } from '@repo/dtos';
-import { RequireGroupPermission } from 'src/modules/group/decorators/require-group-permission.decorator';
+import { Controller } from "@nestjs/common";
+import { GroupSettingService } from "../services/group-setting.service";
+import { MessagePattern, Payload } from "@nestjs/microservices";
+import { GroupPermission, UpdateGroupSettingDTO } from "@repo/dtos";
+import { RequireGroupPermission } from "src/modules/group/decorators/require-group-permission.decorator";
 
-@Controller('group-settings')
+@Controller("group-settings")
 export class GroupSettingController {
   constructor(private readonly groupSettingService: GroupSettingService) {}
 
   @RequireGroupPermission(GroupPermission.VIEW_SETTINGS)
-  @MessagePattern('get-group-setting')
+  @MessagePattern("get-group-setting")
   async getGroupSetting(
     @Payload() payload: { userId: string; groupId: string },
   ) {
@@ -18,7 +18,7 @@ export class GroupSettingController {
   }
 
   @RequireGroupPermission(GroupPermission.UPDATE_GROUP_SETTINGS)
-  @MessagePattern('update-group-setting')
+  @MessagePattern("update-group-setting")
   async updateGroupSetting(
     @Payload()
     payload: {

@@ -1,8 +1,8 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import { GroupInfoDTO } from '@repo/dtos';
-import Redis from 'ioredis';
-import type { Group } from 'src/drizzle/schema/group.schema';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import { GroupInfoDTO } from "@repo/dtos";
+import Redis from "ioredis";
+import type { Group } from "src/drizzle/schema/group.schema";
 
 @Injectable()
 export class GroupCacheService {
@@ -19,12 +19,12 @@ export class GroupCacheService {
     return `group:summary:${id}`;
   }
 
-  async get(groupId: string): Promise<Group | null | 'NOT_FOUND'> {
+  async get(groupId: string): Promise<Group | null | "NOT_FOUND"> {
     const raw = await this.redis.get(this.getKey(groupId));
 
     if (!raw) return null;
 
-    if (raw === 'NOT_FOUND') return 'NOT_FOUND';
+    if (raw === "NOT_FOUND") return "NOT_FOUND";
 
     return JSON.parse(raw);
   }
@@ -33,7 +33,7 @@ export class GroupCacheService {
     await this.redis.set(
       this.getKey(groupId),
       JSON.stringify(data),
-      'EX',
+      "EX",
       this.TTL,
     );
   }
@@ -42,8 +42,8 @@ export class GroupCacheService {
     // chống spam query vào DB nếu group ko tồn tại
     await this.redis.set(
       this.getKey(groupId),
-      'NOT_FOUND',
-      'EX',
+      "NOT_FOUND",
+      "EX",
       this.NEGATIVE_TTL,
     );
   }
@@ -57,18 +57,18 @@ export class GroupCacheService {
   // ===============================
   async getBatch(
     groupIds: string[],
-  ): Promise<Map<string, GroupInfoDTO | 'NOT_FOUND'>> {
+  ): Promise<Map<string, GroupInfoDTO | "NOT_FOUND">> {
     const keys = groupIds.map((id) => this.getSummaryKey(id));
     const raws = await this.redis.mget(...keys);
 
-    const map = new Map<string, GroupInfoDTO | 'NOT_FOUND'>();
+    const map = new Map<string, GroupInfoDTO | "NOT_FOUND">();
 
     raws.forEach((raw, index) => {
       if (!raw) return;
 
       const groupId = groupIds[index];
-      if (raw === 'NOT_FOUND') {
-        map.set(groupId, 'NOT_FOUND');
+      if (raw === "NOT_FOUND") {
+        map.set(groupId, "NOT_FOUND");
       } else {
         map.set(groupId, JSON.parse(raw));
       }
@@ -86,7 +86,7 @@ export class GroupCacheService {
       pipeline.set(
         this.getSummaryKey(dto.id),
         JSON.stringify(dto),
-        'EX',
+        "EX",
         this.TTL,
       );
     }
@@ -102,8 +102,8 @@ export class GroupCacheService {
     for (const id of groupIds) {
       pipeline.set(
         this.getSummaryKey(id),
-        'NOT_FOUND',
-        'EX',
+        "NOT_FOUND",
+        "EX",
         this.NEGATIVE_TTL,
       );
     }

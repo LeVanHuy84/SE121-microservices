@@ -1,6 +1,8 @@
 export class ProfileHelper {
-  static normalizeOptionalText(value: string | null | undefined): string | null {
-    if (typeof value !== 'string') {
+  static normalizeOptionalText(
+    value: string | null | undefined,
+  ): string | null {
+    if (typeof value !== "string") {
       return value ?? null;
     }
 
@@ -13,14 +15,13 @@ export class ProfileHelper {
       return [];
     }
 
-    return [...new Set(interests.map((item) => item.trim()).filter(Boolean))].slice(
-      0,
-      10,
-    );
+    return [
+      ...new Set(interests.map((item) => item.trim()).filter(Boolean)),
+    ].slice(0, 10);
   }
 
   static normalizeComparableText(value: string | null | undefined): string {
-    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return typeof value === "string" ? value.trim().toLowerCase() : "";
   }
 
   static matchesNormalizedText(

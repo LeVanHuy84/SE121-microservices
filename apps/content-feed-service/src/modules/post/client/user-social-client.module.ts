@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { UserClientService } from './user-client.service';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { UserClientService } from "./user-client.service";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Module({
   imports: [
@@ -14,8 +14,8 @@ import { MICROSERVICES_CLIENT } from 'src/constant';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: config.get<string>('USER_SOCIAL_SERVICE_HOST', 'localhost'),
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT', 4001),
+            host: config.get<string>("USER_SOCIAL_SERVICE_HOST", "localhost"),
+            port: config.get<number>("USER_SOCIAL_SERVICE_PORT", 4001),
           },
         }),
       },

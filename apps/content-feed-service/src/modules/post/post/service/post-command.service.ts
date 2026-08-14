@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
+import { DataSource, Repository } from "typeorm";
 
-import { EditHistory } from 'src/entities/edit-history.entity';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { Post } from 'src/entities/post.entity';
-import { Reaction } from 'src/entities/reaction.entity';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { Comment } from 'src/entities/comment.entity'; // nhớ import nếu chưa có
+import { EditHistory } from "src/entities/edit-history.entity";
+import { PostStat } from "src/entities/post-stat.entity";
+import { Post } from "src/entities/post.entity";
+import { Reaction } from "src/entities/reaction.entity";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { Comment } from "src/entities/comment.entity"; // nhớ import nếu chưa có
 
 import {
   ActivityType,
@@ -25,10 +25,10 @@ import {
   RootType,
   TargetType,
   UpdatePostDTO,
-} from '@repo/dtos';
-import { PostCacheService } from './post-cache.service';
-import { PostShortenMapper } from '../post-shorten.mapper';
-import { OutboxService } from 'src/modules/event/outbox.service';
+} from "@repo/dtos";
+import { PostCacheService } from "./post-cache.service";
+import { PostShortenMapper } from "../post-shorten.mapper";
+import { OutboxService } from "src/modules/event/outbox.service";
 
 @Injectable()
 export class PostCommandService {
@@ -136,12 +136,12 @@ export class PostCommandService {
     if (!post)
       throw new RpcException({
         statusCode: 404,
-        message: 'Post not found',
+        message: "Post not found",
       });
     if (post.userId !== userId)
       throw new RpcException({
         statusCode: 403,
-        message: 'Unauthorized',
+        message: "Unauthorized",
       });
 
     return this.dataSource.transaction(async (manager) => {
@@ -198,14 +198,14 @@ export class PostCommandService {
     if (!post) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Post not found',
+        message: "Post not found",
       });
     }
 
     if (post.userId !== userId) {
       throw new RpcException({
         statusCode: 403,
-        message: 'Unauthorized',
+        message: "Unauthorized",
       });
     }
 
@@ -223,8 +223,8 @@ export class PostCommandService {
           publicId: m.publicId,
           resourceType:
             m.type === MediaType.IMAGE
-              ? ('image' as const)
-              : ('video' as const),
+              ? ("image" as const)
+              : ("video" as const),
         }));
 
       if (items.length > 0) {
@@ -241,7 +241,7 @@ export class PostCommandService {
         .createQueryBuilder()
         .delete()
         .from(Reaction)
-        .where('target_id = :postId AND target_type = :targetType', {
+        .where("target_id = :postId AND target_type = :targetType", {
           postId,
           targetType: TargetType.POST,
         })
@@ -252,7 +252,7 @@ export class PostCommandService {
         .createQueryBuilder()
         .delete()
         .from(Comment)
-        .where('root_target_id = :postId AND root_target_type = :rootType', {
+        .where("root_target_id = :postId AND root_target_type = :rootType", {
           postId,
           rootType: RootType.POST,
         })

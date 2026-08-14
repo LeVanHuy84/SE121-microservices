@@ -5,14 +5,14 @@ import {
   Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
-} from 'typeorm';
+} from "typeorm";
 
-export type MediaType = 'image' | 'video' | 'audio' | 'file';
-export type MediaStatus = 'UPLOADED' | 'READY' | 'FAILED';
+export type MediaType = "image" | "video" | "audio" | "file";
+export type MediaStatus = "UPLOADED" | "READY" | "FAILED";
 
-@Entity('media')
+@Entity("media")
 export class Media {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Index({ unique: true })
@@ -22,7 +22,7 @@ export class Media {
   @Column({ nullable: true })
   url?: string;
 
-  @Column({ type: 'enum', enum: ['image', 'video', 'audio', 'file'] })
+  @Column({ type: "enum", enum: ["image", "video", "audio", "file"] })
   type: MediaType;
 
   @Column({ nullable: true })
@@ -35,19 +35,19 @@ export class Media {
   contentId?: string;
 
   @Column({
-    type: 'enum',
-    enum: ['UPLOADED', 'READY', 'FAILED'],
-    default: 'UPLOADED',
+    type: "enum",
+    enum: ["UPLOADED", "READY", "FAILED"],
+    default: "UPLOADED",
   })
   status: MediaStatus;
 
   @Column({ nullable: true })
   format?: string;
 
-  @Column({ nullable: true, type: 'int' })
+  @Column({ nullable: true, type: "int" })
   size?: number;
 
-  @Column({ nullable: true, type: 'int' })
+  @Column({ nullable: true, type: "int" })
   duration?: number;
 
   @Column({ nullable: true })

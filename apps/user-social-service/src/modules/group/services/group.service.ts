@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   ActivityType,
   CreateGroupDTO,
@@ -17,22 +17,25 @@ import {
   MediaItemDTO,
   MediaType,
   UpdateGroupDTO,
-} from '@repo/dtos';
-import { formatValue, GROUP_FIELD_LABELS } from 'src/modules/group/common/constant/constant';
-import { GroupMapper } from 'src/modules/group/common/mapper/group.mapper';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
+} from "@repo/dtos";
+import {
+  formatValue,
+  GROUP_FIELD_LABELS,
+} from "src/modules/group/common/constant/constant";
+import { GroupMapper } from "src/modules/group/common/mapper/group.mapper";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
 import {
   groups,
   groupMembers,
   groupSettings,
   outboxEvents,
   Group,
-} from 'src/drizzle/schema/schema';
-import { eq, sql } from 'drizzle-orm';
-import { UserService } from 'src/modules/user/user.service';
-import { GroupLogService } from 'src/modules/group/services/group-log.service';
-import { GroupCacheService } from './group-cache.service';
+} from "src/drizzle/schema/schema";
+import { eq, sql } from "drizzle-orm";
+import { UserService } from "src/modules/user/user.service";
+import { GroupLogService } from "src/modules/group/services/group-log.service";
+import { GroupCacheService } from "./group-cache.service";
 
 @Injectable()
 export class GroupService {
@@ -53,7 +56,7 @@ export class GroupService {
     if (!owner) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Owner not found',
+        message: "Owner not found",
       });
     }
 
@@ -85,7 +88,10 @@ export class GroupService {
       });
 
       // 🔹 Media assign
-      await this.emitMediaAssign(tx, saved.id, [saved.avatar, saved.coverImage]);
+      await this.emitMediaAssign(tx, saved.id, [
+        saved.avatar,
+        saved.coverImage,
+      ]);
 
       // 🔹 Group created event
       await this.emitGroupEvent(tx, GroupEventType.CREATED, {
@@ -112,7 +118,9 @@ export class GroupService {
         },
       });
 
-      await this.groupCacheService.set(saved.id, saved as any).catch(() => void 0);
+      await this.groupCacheService
+        .set(saved.id, saved as any)
+        .catch(() => void 0);
 
       return GroupMapper.toGroupResponseDTO(saved as any);
     });
@@ -136,7 +144,7 @@ export class GroupService {
         if (!group) {
           throw new RpcException({
             statusCode: 404,
-            message: 'Group not found',
+            message: "Group not found",
           });
         }
 
@@ -168,12 +176,17 @@ export class GroupService {
             eventType: GroupEventLog.GROUP_UPDATED,
             content: `Cập nhật thông tin nhóm:\n${changes
               .map((c) => `- ${c.field}: ${c.from} → ${c.to}`)
-              .join('\n')}`,
+              .join("\n")}`,
           });
         }
 
         // 🔹 Media diff
-        await this.diffAndEmitMedia(tx, updated.id, before as any, updated as any);
+        await this.diffAndEmitMedia(
+          tx,
+          updated.id,
+          before as any,
+          updated as any,
+        );
 
         // 🔹 Event
         await this.emitGroupEvent(tx, GroupEventType.UPDATED, {
@@ -205,13 +218,17 @@ export class GroupService {
       if (!group) {
         throw new RpcException({
           statusCode: 404,
-          message: 'Group not found',
+          message: "Group not found",
         });
       }
 
       await tx
         .update(groups)
-        .set({ status: GroupStatus.DELETED, updatedBy: userId, updatedAt: new Date() })
+        .set({
+          status: GroupStatus.DELETED,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        })
         .where(eq(groups.id, groupId));
 
       // 🔹 Media delete
@@ -229,7 +246,7 @@ export class GroupService {
   // ==================================================
   // ================== MEDIA CORE ====================
   private async emitMediaAssign(
-    tx: Parameters<Parameters<DrizzleDB['transaction']>[0]>[0],
+    tx: Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0],
     contentId: string,
     medias: ({ publicId?: string; url?: string } | undefined | null)[],
   ) {
@@ -257,14 +274,14 @@ export class GroupService {
   }
 
   private async emitMediaDelete(
-    tx: Parameters<Parameters<DrizzleDB['transaction']>[0]>[0],
+    tx: Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0],
     medias: ({ publicId?: string } | undefined | null)[],
   ) {
     const items: MediaDeleteItem[] = medias
       .filter((m): m is { publicId: string } => !!m?.publicId)
       .map((m) => ({
         publicId: m.publicId,
-        resourceType: 'image',
+        resourceType: "image",
       }));
 
     if (!items.length) return;
@@ -282,7 +299,7 @@ export class GroupService {
   }
 
   private async diffAndEmitMedia(
-    tx: Parameters<Parameters<DrizzleDB['transaction']>[0]>[0],
+    tx: Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0],
     contentId: string,
     before: {
       avatar?: MediaItemDTO;
@@ -313,7 +330,7 @@ export class GroupService {
   // ==================================================
   // ================== GROUP EVENT ===================
   private async emitGroupEvent(
-    tx: Parameters<Parameters<DrizzleDB['transaction']>[0]>[0],
+    tx: Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0],
     type: GroupEventType,
     payload: InferGroupPayload<any>,
   ) {

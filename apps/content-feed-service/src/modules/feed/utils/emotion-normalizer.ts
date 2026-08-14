@@ -1,9 +1,9 @@
-import { Emotion } from '@repo/dtos';
+import { Emotion } from "@repo/dtos";
 import {
   POSITIVE_EMOTIONS,
   NEGATIVE_EMOTIONS,
   NEUTRAL_EMOTIONS,
-} from '../ranking/interfaces/emotion-categories.interface';
+} from "../ranking/interfaces/emotion-categories.interface";
 
 /**
  * Canonical lowercase emotion keys
@@ -22,7 +22,7 @@ export type CanonicalEmotion = (typeof CANONICAL_EMOTIONS)[number];
  * Example: Emotion.JOY → "joy"
  */
 export function normalizeEmotionEnum(emotion: Emotion | string): string {
-  if (!emotion) return '';
+  if (!emotion) return "";
   return emotion.toLowerCase();
 }
 
@@ -32,7 +32,7 @@ export function normalizeEmotionEnum(emotion: Emotion | string): string {
  * Example: "JOY" → "joy", "love" → (invalid, returns empty)
  */
 export function normalizeEmotionKey(key: string | undefined): string {
-  if (!key) return '';
+  if (!key) return "";
 
   const normalized = key.toLowerCase();
 
@@ -55,14 +55,14 @@ export function normalizeEmotionKey(key: string | undefined): string {
 export function normalizeEmotionScores(
   scores: Record<string, number> | undefined,
 ): Record<string, number> {
-  if (!scores || typeof scores !== 'object') {
+  if (!scores || typeof scores !== "object") {
     return {};
   }
 
   const normalized: Record<string, number> = {};
 
   for (const [key, value] of Object.entries(scores)) {
-    if (typeof value === 'number' && isFinite(value)) {
+    if (typeof value === "number" && isFinite(value)) {
       const lowercaseKey = key.toLowerCase();
 
       // Only include canonical emotions
@@ -87,7 +87,7 @@ export function normalizeEmotionScores(
 export function normalizeUserAffinity(
   affinity: Record<string, number> | undefined,
 ): Record<string, number> {
-  if (!affinity || typeof affinity !== 'object') {
+  if (!affinity || typeof affinity !== "object") {
     return {};
   }
 
@@ -95,7 +95,7 @@ export function normalizeUserAffinity(
   let removedInvalidKeys = false;
 
   for (const [key, value] of Object.entries(affinity)) {
-    if (typeof value === 'number' && isFinite(value)) {
+    if (typeof value === "number" && isFinite(value)) {
       const lowercaseKey = key.toLowerCase();
 
       if (isCanonicalEmotion(lowercaseKey)) {
@@ -151,7 +151,7 @@ export function getSafeEmotionMultiplier(
  * Used defensively before any emotion-based operations
  */
 export function ensureCanonicalEmotion(emotion: string | undefined): string {
-  if (!emotion) return '';
+  if (!emotion) return "";
 
   const normalized = normalizeEmotionKey(emotion);
 
@@ -159,7 +159,7 @@ export function ensureCanonicalEmotion(emotion: string | undefined): string {
     console.error(
       `Critical: Non-canonical emotion encountered: "${emotion}" (normalized: "${normalized}")`,
     );
-    return '';
+    return "";
   }
 
   return normalized;

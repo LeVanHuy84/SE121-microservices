@@ -1,4 +1,4 @@
-import type { ClerkClient } from '@clerk/backend';
+import type { ClerkClient } from "@clerk/backend";
 import {
   Body,
   Controller,
@@ -10,39 +10,39 @@ import {
   Post,
   UploadedFiles,
   UseInterceptors,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from '@repo/dtos';
-import { lastValueFrom, Observable } from 'rxjs';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { Public } from 'src/common/decorators/public.decorator';
-@Controller('users')
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { FileFieldsInterceptor } from "@nestjs/platform-express";
+import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from "@repo/dtos";
+import { lastValueFrom, Observable } from "rxjs";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
+import { Public } from "src/common/decorators/public.decorator";
+@Controller("users")
 export class UsersController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private readonly mediaClient: ClientProxy,
-    @Inject('ClerkClient')
-    private readonly clerkClient: ClerkClient
+    @Inject("ClerkClient")
+    private readonly clerkClient: ClerkClient,
   ) {}
 
   @Public()
   @Post()
   create(@Body() createUserDto: CreateUserDTO) {
-    return this.client.send('createUser', createUserDto);
+    return this.client.send("createUser", createUserDto);
   }
 
   @Get()
   findAll(): Observable<UserResponseDTO[]> {
-    return this.client.send<UserResponseDTO[]>('findAllUser', {});
+    return this.client.send<UserResponseDTO[]>("findAllUser", {});
   }
 
-  @Get(':id')
-  findOne(@Param('id') targetId: string, @CurrentUserId() userId: string) {
-    return this.client.send<UserResponseDTO>('findOneUser', {
+  @Get(":id")
+  findOne(@Param("id") targetId: string, @CurrentUserId() userId: string) {
+    return this.client.send<UserResponseDTO>("findOneUser", {
       userId,
       targetId,
     });
@@ -52,15 +52,15 @@ export class UsersController {
   @UseInterceptors(
     FileFieldsInterceptor(
       [
-        { name: 'avatarUrl', maxCount: 1 },
-        { name: 'coverImageUrl', maxCount: 1 },
+        { name: "avatarUrl", maxCount: 1 },
+        { name: "coverImageUrl", maxCount: 1 },
       ],
       {
         limits: {
           fileSize: 2 * 1024 * 1024, // 2MB
         },
-      }
-    )
+      },
+    ),
   )
   async update(
     @CurrentUserId() id: string,
@@ -69,7 +69,7 @@ export class UsersController {
       avatarUrl?: Express.Multer.File[];
       coverImageUrl?: Express.Multer.File[];
     },
-    @Body() updateUserDto: UpdateUserDTO
+    @Body() updateUserDto: UpdateUserDTO,
   ) {
     if (files?.avatarUrl?.[0]) {
       const multerFile = files.avatarUrl[0];
@@ -79,7 +79,7 @@ export class UsersController {
         multerFile.originalname,
         {
           type: multerFile.mimetype,
-        }
+        },
       );
 
       await this.clerkClient.users.updateUserProfileImage(id, {
@@ -94,20 +94,20 @@ export class UsersController {
     }
     if (files?.coverImageUrl?.[0]) {
       const uploaded = await lastValueFrom(
-        this.mediaClient.send('upload', {
+        this.mediaClient.send("upload", {
           file: files.coverImageUrl[0].buffer,
           userId: id,
-          folder: 'cover-image',
-          type: 'image',
-        })
+          folder: "cover-image",
+          type: "image",
+        }),
       );
-      console.log('Uploaded cover image:', uploaded);
+      console.log("Uploaded cover image:", uploaded);
       updateUserDto.coverImage = {
         url: uploaded.url,
         publicId: uploaded.publicId,
       };
     }
-    const user = this.client.send('updateUser', {
+    const user = this.client.send("updateUser", {
       id,
       updateUserDto,
     });
@@ -119,8 +119,8 @@ export class UsersController {
     return user;
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.client.send('removeUser', id);
+  @Delete(":id")
+  remove(@Param("id") id: string) {
+    return this.client.send("removeUser", id);
   }
 }

@@ -1,25 +1,25 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { InjectQueue } from "@nestjs/bull";
+import { Injectable, Logger } from "@nestjs/common";
 import {
   ClearChatPushStateDto,
   SendCallPushDto,
   SendChatPushDto,
-} from '@repo/dtos';
-import type { Queue } from 'bull';
-import Redis from 'ioredis';
-import { DeviceTokenService } from '../firebase/device-token.service';
-import { FirebaseService } from '../firebase/firebase.service';
+} from "@repo/dtos";
+import type { Queue } from "bull";
+import Redis from "ioredis";
+import { DeviceTokenService } from "../firebase/device-token.service";
+import { FirebaseService } from "../firebase/firebase.service";
 import {
   CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   NOTIFICATION_QUEUE,
-} from './notification.jobs';
-import { NotificationPolicyService } from './services/notification-policy.service';
+} from "./notification.jobs";
+import { NotificationPolicyService } from "./services/notification-policy.service";
 
 type ActiveDeviceToken = Awaited<
-  ReturnType<DeviceTokenService['getActiveTokensByUserId']>
+  ReturnType<DeviceTokenService["getActiveTokensByUserId"]>
 >[number];
 
 @Injectable()
@@ -29,7 +29,7 @@ export class ChatPushService {
     process.env.CHAT_PUSH_STATE_TTL_SECONDS ?? 7 * 24 * 60 * 60,
   );
   private readonly nativeAndroidAppId =
-    process.env.NATIVE_ANDROID_APP_ID ?? 'com.sentimeta.app';
+    process.env.NATIVE_ANDROID_APP_ID ?? "com.sentimeta.app";
 
   constructor(
     @InjectQueue(NOTIFICATION_QUEUE) private readonly notificationQueue: Queue,
@@ -46,7 +46,7 @@ export class ChatPushService {
       {
         jobId: `chat:${dto.userId}:${dto.messageId}`,
         attempts: 5,
-        backoff: { type: 'exponential', delay: 3000 },
+        backoff: { type: "exponential", delay: 3000 },
         removeOnComplete: true,
       },
     );
@@ -59,7 +59,7 @@ export class ChatPushService {
       {
         jobId: `call:${dto.userId}:${dto.callId}`,
         attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
+        backoff: { type: "exponential", delay: 2000 },
         removeOnComplete: true,
       },
     );
@@ -71,28 +71,34 @@ export class ChatPushService {
     actorId: string;
     userId: string;
   }) {
-    await this.notificationQueue.add(
-      CALL_CANCEL_PUSH_DELIVERY_JOB,
-      dto,
-      {
-        jobId: `call-cancel:${dto.userId}:${dto.callId}`,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
-        removeOnComplete: true,
-      },
-    );
+    await this.notificationQueue.add(CALL_CANCEL_PUSH_DELIVERY_JOB, dto, {
+      jobId: `call-cancel:${dto.userId}:${dto.callId}`,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
+      removeOnComplete: true,
+    });
   }
 
   async sendChatPush(dto: SendChatPushDto) {
-    const policy = await this.policyService.checkPreferencesOnly(dto.userId, dto.isGroup ? 'group_message' : 'chat_message');
+    const policy = await this.policyService.checkPreferencesOnly(
+      dto.userId,
+      dto.isGroup ? "group_message" : "chat_message",
+    );
     if (!policy.allowed) {
-      this.logger.debug(`Skip chat push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      this.logger.debug(
+        `Skip chat push for user ${dto.userId}: suppressed by policy (${policy.reason})`,
+      );
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
-    const isFocused = await this.checkUserFocused(dto.userId, dto.conversationId);
+    const isFocused = await this.checkUserFocused(
+      dto.userId,
+      dto.conversationId,
+    );
     if (isFocused) {
-      this.logger.debug(`Skip chat push for user ${dto.userId}: user is focused on conversation`);
+      this.logger.debug(
+        `Skip chat push for user ${dto.userId}: user is focused on conversation`,
+      );
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
@@ -131,7 +137,7 @@ export class ChatPushService {
           ...data,
           displayTitle: title,
           displayBody: body,
-          channelId: 'messages',
+          channelId: "messages",
           conversationTag,
         },
         {
@@ -146,11 +152,11 @@ export class ChatPushService {
         {
           collapseKey: conversationTag,
           androidTag: conversationTag,
-          androidChannelId: 'messages',
+          androidChannelId: "messages",
           apnsCollapseId: conversationTag,
           apnsThreadId: conversationTag,
           apnsSummaryArg: dto.isGroup
-            ? dto.conversationName || 'Nhóm chat'
+            ? dto.conversationName || "Nhóm chat"
             : dto.senderName,
           apnsSummaryArgCount: unreadCount,
         },
@@ -176,9 +182,14 @@ export class ChatPushService {
   }
 
   async sendCallPush(dto: SendCallPushDto) {
-    const policy = await this.policyService.checkPreferencesOnly(dto.userId, 'call');
+    const policy = await this.policyService.checkPreferencesOnly(
+      dto.userId,
+      "call",
+    );
     if (!policy.allowed) {
-      this.logger.debug(`Skip call push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      this.logger.debug(
+        `Skip call push for user ${dto.userId}: suppressed by policy (${policy.reason})`,
+      );
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
@@ -197,22 +208,22 @@ export class ChatPushService {
     }
 
     const title = dto.isGroup
-      ? dto.conversationName || 'Cuộc gọi nhóm'
+      ? dto.conversationName || "Cuộc gọi nhóm"
       : dto.callerName;
-    const callLabel = dto.callType === 'video' ? 'video' : 'audio';
+    const callLabel = dto.callType === "video" ? "video" : "audio";
     const body = `Cuộc gọi ${callLabel} đến từ ${dto.callerName}`;
 
     const data = {
-      type: 'call',
+      type: "call",
       userId: dto.userId,
       callId: dto.callId,
       callType: dto.callType,
       conversationId: dto.conversationId,
       callerId: dto.callerId,
       callerName: dto.callerName,
-      callerAvatar: dto.callerAvatar || '',
-      conversationName: dto.conversationName || '',
-      isGroup: dto.isGroup ? 'true' : 'false',
+      callerAvatar: dto.callerAvatar || "",
+      conversationName: dto.conversationName || "",
+      isGroup: dto.isGroup ? "true" : "false",
     };
 
     const conversationTag = `call:${dto.conversationId}`;
@@ -232,13 +243,13 @@ export class ChatPushService {
           ...data,
           displayTitle: title,
           displayBody: body,
-          channelId: 'calls',
-          priority: 'high',
+          channelId: "calls",
+          priority: "high",
         },
         {
           collapseKey: conversationTag,
           apnsPriority: 10,
-          apnsPushType: 'background',
+          apnsPushType: "background",
           contentAvailable: true,
         },
       ),
@@ -251,11 +262,11 @@ export class ChatPushService {
         {
           collapseKey: conversationTag,
           androidTag: conversationTag,
-          androidChannelId: 'calls',
+          androidChannelId: "calls",
           apnsCollapseId: conversationTag,
           apnsThreadId: conversationTag,
           apnsPriority: 10,
-          apnsPushType: 'alert',
+          apnsPushType: "alert",
         },
       ),
     ]);
@@ -284,9 +295,14 @@ export class ChatPushService {
     actorId: string;
     userId: string;
   }) {
-    const policy = await this.policyService.checkPreferencesOnly(dto.userId, 'call');
+    const policy = await this.policyService.checkPreferencesOnly(
+      dto.userId,
+      "call",
+    );
     if (!policy.allowed) {
-      this.logger.debug(`Skip call cancel push for user ${dto.userId}: suppressed by policy (${policy.reason})`);
+      this.logger.debug(
+        `Skip call cancel push for user ${dto.userId}: suppressed by policy (${policy.reason})`,
+      );
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
@@ -296,7 +312,7 @@ export class ChatPushService {
     if (!deviceTokens.length) return;
 
     const data = {
-      type: 'call_cancelled',
+      type: "call_cancelled",
       callId: dto.callId,
       conversationId: dto.conversationId,
       actorId: dto.actorId,
@@ -313,7 +329,7 @@ export class ChatPushService {
       {
         collapseKey: conversationTag,
         apnsPriority: 10,
-        apnsPushType: 'background',
+        apnsPushType: "background",
         contentAvailable: true,
       },
     );
@@ -332,16 +348,23 @@ export class ChatPushService {
 
   private isNativeAndroidTarget(token: ActiveDeviceToken) {
     return (
-      token.platform === 'android' && token.appId === this.nativeAndroidAppId
+      token.platform === "android" && token.appId === this.nativeAndroidAppId
     );
   }
 
-  private async checkUserFocused(userId: string, conversationId: string): Promise<boolean> {
+  private async checkUserFocused(
+    userId: string,
+    conversationId: string,
+  ): Promise<boolean> {
     try {
-      const count = await this.redis.scard(`chat:activeConv:user:${userId}:${conversationId}`);
+      const count = await this.redis.scard(
+        `chat:activeConv:user:${userId}:${conversationId}`,
+      );
       return count > 0;
     } catch (e) {
-      this.logger.warn(`Failed to check focus for user ${userId}: ${e.message}`);
+      this.logger.warn(
+        `Failed to check focus for user ${userId}: ${e.message}`,
+      );
       return false;
     }
   }
@@ -350,11 +373,11 @@ export class ChatPushService {
     const keys = this.getStateKeys(dto.userId, dto.conversationId);
     const multi = this.redis.multi();
     multi.incr(keys.unread);
-    multi.set(keys.lastSender, dto.senderName, 'EX', this.stateTtlSeconds);
+    multi.set(keys.lastSender, dto.senderName, "EX", this.stateTtlSeconds);
     multi.set(
       keys.lastPreview,
       this.sanitizePreview(dto.preview),
-      'EX',
+      "EX",
       this.stateTtlSeconds,
     );
     multi.expire(keys.unread, this.stateTtlSeconds);
@@ -370,7 +393,7 @@ export class ChatPushService {
         return `${unreadCount} tin nhắn mới`;
       }
 
-      return dto.conversationName || 'Tin nhắn nhóm mới';
+      return dto.conversationName || "Tin nhắn nhóm mới";
     }
 
     if (unreadCount > 1) {
@@ -387,7 +410,7 @@ export class ChatPushService {
   ): string {
     if (dto.isGroup) {
       if (unreadCount > 1) {
-        return `Trong ${dto.conversationName || 'nhóm chat'}`;
+        return `Trong ${dto.conversationName || "nhóm chat"}`;
       }
 
       return preview ? `${dto.senderName}: ${preview}` : dto.senderName;
@@ -397,7 +420,7 @@ export class ChatPushService {
       return `Từ ${dto.senderName}`;
     }
 
-    return preview || 'Bạn có tin nhắn mới';
+    return preview || "Bạn có tin nhắn mới";
   }
 
   private buildData(
@@ -406,15 +429,15 @@ export class ChatPushService {
     preview: string,
   ): Record<string, string> {
     return {
-      type: 'message',
+      type: "message",
       userId: dto.userId,
       messageId: dto.messageId,
       conversationId: dto.conversationId,
       senderId: dto.senderId,
       senderName: dto.senderName,
-      senderAvatar: dto.senderAvatar || '',
-      conversationName: dto.conversationName || '',
-      isGroup: dto.isGroup ? 'true' : 'false',
+      senderAvatar: dto.senderAvatar || "",
+      conversationName: dto.conversationName || "",
+      isGroup: dto.isGroup ? "true" : "false",
       preview,
       unreadCount: String(unreadCount),
     };
@@ -431,10 +454,10 @@ export class ChatPushService {
 
   private sanitizePreview(value?: string) {
     if (!value?.trim()) {
-      return 'Bạn có tin nhắn mới';
+      return "Bạn có tin nhắn mới";
     }
 
-    const normalized = value.replace(/\s+/g, ' ').trim();
+    const normalized = value.replace(/\s+/g, " ").trim();
     return normalized.length > 120
       ? `${normalized.slice(0, 117).trim()}...`
       : normalized;

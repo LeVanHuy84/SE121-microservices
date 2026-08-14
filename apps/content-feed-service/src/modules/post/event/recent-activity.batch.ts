@@ -1,18 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { RecentActivityBufferService } from './recent-activity.buffer.service';
-import { UserClientService } from '../client/user-client.service';
-import { DataSource } from 'typeorm';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { RecentActivityBufferService } from "./recent-activity.buffer.service";
+import { UserClientService } from "../client/user-client.service";
+import { DataSource } from "typeorm";
 import {
   CreateNotificationDto,
   NotificationPayload,
   NotiTargetType,
   TargetType,
-} from '@repo/dtos';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
-import pLimit from 'p-limit';
-import { NotificationService } from '@repo/common';
+} from "@repo/dtos";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
+import pLimit from "p-limit";
+import { NotificationService } from "@repo/common";
 
 @Injectable()
 export class RecentActivityBatch {
@@ -22,12 +22,12 @@ export class RecentActivityBatch {
     private readonly buffer: RecentActivityBufferService,
     private readonly userClient: UserClientService,
     private readonly dataSource: DataSource,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
   ) {
-    this.logger.log('🚀 RecentActivityBatch initialized');
+    this.logger.log("🚀 RecentActivityBatch initialized");
   }
 
-  @Cron('*/15 * * * * *')
+  @Cron("*/15 * * * * *")
   async flushRecentActivities() {
     const activities = await this.buffer.snapshotAndGetAll();
     const count = Object.keys(activities).length;
@@ -49,12 +49,12 @@ export class RecentActivityBatch {
           let target: { userId: string; content?: string } | null = null;
           if (targetType === TargetType.POST) {
             target = await manager.findOne(Post, {
-              select: ['userId', 'content'],
+              select: ["userId", "content"],
               where: { id: targetId },
             });
           } else if (targetType === TargetType.SHARE) {
             target = await manager.findOne(Share, {
-              select: ['userId', 'content'],
+              select: ["userId", "content"],
               where: { id: targetId },
             });
           }
@@ -68,9 +68,9 @@ export class RecentActivityBatch {
                 ? NotiTargetType.POST
                 : NotiTargetType.SHARE,
             actorName:
-              `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim(),
+              `${actor.lastName ?? ""} ${actor.firstName ?? ""}`.trim(),
             actorAvatar: actor.avatarUrl,
-            content: target.content?.slice(0, 50) ?? '',
+            content: target.content?.slice(0, 50) ?? "",
           };
 
           const createNotificationDto: CreateNotificationDto = {
@@ -87,16 +87,16 @@ export class RecentActivityBatch {
           };
 
           await this.notificationService.sendNotification(
-            createNotificationDto
+            createNotificationDto,
             // 'post-service'
           );
           this.logger.debug(`✅ Sent ${type} for ${targetType}:${targetId}`);
         } catch (err) {
           this.logger.error(
-            `❌ Failed ${type} for ${targetType}:${targetId}: ${err.message}`
+            `❌ Failed ${type} for ${targetType}:${targetId}: ${err.message}`,
           );
         }
-      })
+      }),
     );
 
     await Promise.allSettled(tasks);

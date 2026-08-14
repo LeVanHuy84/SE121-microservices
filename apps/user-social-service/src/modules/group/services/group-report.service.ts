@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   AdminGroupDTO,
   AdminGroupQuery,
@@ -20,8 +20,8 @@ import {
   NotiTargetType,
   PageResponse,
   ReportStatus,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
 import {
   and,
   asc,
@@ -33,16 +33,12 @@ import {
   ilike,
   lt,
   sql,
-} from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import {
-  groupReports,
-  groups,
-  outboxEvents,
-} from 'src/drizzle/schema/schema';
-import { UserService } from 'src/modules/user/user.service';
-import { GroupMapper } from 'src/modules/group/common/mapper/group.mapper';
+} from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupReports, groups, outboxEvents } from "src/drizzle/schema/schema";
+import { UserService } from "src/modules/user/user.service";
+import { GroupMapper } from "src/modules/group/common/mapper/group.mapper";
 
 @Injectable()
 export class ReportService {
@@ -112,7 +108,7 @@ export class ReportService {
       if (existing) {
         throw new RpcException({
           statusCode: 409,
-          message: 'You have already reported this group.',
+          message: "You have already reported this group.",
         });
       }
 
@@ -140,14 +136,14 @@ export class ReportService {
     if (status) conditions.push(eq(groupReports.status, status as any));
     if (cursor) {
       conditions.push(
-        order === 'ASC'
+        order === "ASC"
           ? gt(groupReports[sortBy], cursor)
           : lt(groupReports[sortBy], cursor),
       );
     }
 
     const orderExpr =
-      order === 'ASC' ? asc(groupReports[sortBy]) : desc(groupReports[sortBy]);
+      order === "ASC" ? asc(groupReports[sortBy]) : desc(groupReports[sortBy]);
 
     const reports = await this.db
       .select()
@@ -195,7 +191,10 @@ export class ReportService {
         .limit(1);
 
       if (!group)
-        throw new RpcException({ statusCode: 404, message: 'Group not found!' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Group not found!",
+        });
 
       const result = await tx
         .update(groupReports)
@@ -208,16 +207,17 @@ export class ReportService {
         );
 
       if (!result.rowCount) {
-        throw new RpcException({ statusCode: 404, message: 'No pending reports to ignore' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "No pending reports to ignore",
+        });
       }
 
-      await tx
-        .update(groups)
-        .set({ reports: 0 })
-        .where(eq(groups.id, groupId));
+      await tx.update(groups).set({ reports: 0 }).where(eq(groups.id, groupId));
 
       const actor = await this.userService.findOne(actorId);
-      const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
+      const actorName =
+        (actor?.firstName ?? "") + " " + (actor?.lastName ?? "");
 
       await tx.insert(outboxEvents).values({
         topic: EventTopic.LOGGING,
@@ -226,7 +226,7 @@ export class ReportService {
         payload: {
           actorId,
           targetId: groupId,
-          action: 'IGNORE_GROUP_REPORTS',
+          action: "IGNORE_GROUP_REPORTS",
           detail: `Kiểm duyệt viên "${actorName}" đã bỏ qua báo cáo của nhóm ${group.name}`,
           timestamp: new Date(),
         },
@@ -245,9 +245,15 @@ export class ReportService {
         .limit(1);
 
       if (!group)
-        throw new RpcException({ statusCode: 404, message: 'Group not found!' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Group not found!",
+        });
       if (group.status === GroupStatus.BANNED)
-        throw new RpcException({ statusCode: 409, message: 'Group has been banned!' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Group has been banned!",
+        });
 
       await tx
         .update(groupReports)
@@ -270,7 +276,8 @@ export class ReportService {
       await this.createGroupOutboxEvent(tx, GroupEventType.REMOVED, payload);
 
       const actor = await this.userService.findOne(actorId);
-      const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
+      const actorName =
+        (actor?.firstName ?? "") + " " + (actor?.lastName ?? "");
 
       await tx.insert(outboxEvents).values([
         {
@@ -280,19 +287,19 @@ export class ReportService {
           payload: {
             actorId,
             targetId: groupId,
-            action: 'BAN_GROUP',
+            action: "BAN_GROUP",
             detail: `Nhóm "${group.name}" đã bị cấm bởi "${actorName}"`,
             timestamp: new Date(),
           },
         },
         {
           destination: EventDestination.RABBITMQ,
-          topic: 'notification',
-          eventType: 'group_noti',
+          topic: "notification",
+          eventType: "group_noti",
           payload: {
             targetId: groupId,
             targetType: NotiTargetType.GROUP,
-            content: 'đã bị ban bởi quản trị hệ thống',
+            content: "đã bị ban bởi quản trị hệ thống",
             receivers: [group.owner?.id],
           } as NotiOutboxPayload,
         },
@@ -311,9 +318,12 @@ export class ReportService {
         .limit(1);
 
       if (!group)
-        throw new RpcException({ statusCode: 404, message: 'Group not found' });
+        throw new RpcException({ statusCode: 404, message: "Group not found" });
       if (group.status !== GroupStatus.BANNED)
-        throw new RpcException({ statusCode: 409, message: 'The group has not been banned.' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "The group has not been banned.",
+        });
 
       await tx
         .update(groups)
@@ -321,7 +331,8 @@ export class ReportService {
         .where(eq(groups.id, groupId));
 
       const actor = await this.userService.findOne(actorId);
-      const actorName = (actor?.firstName ?? '') + ' ' + (actor?.lastName ?? '');
+      const actorName =
+        (actor?.firstName ?? "") + " " + (actor?.lastName ?? "");
 
       const payload: InferGroupPayload<GroupEventType.CREATED> = {
         groupId: group.id,
@@ -342,19 +353,19 @@ export class ReportService {
           payload: {
             actorId,
             targetId: groupId,
-            action: 'UNBAN_GROUP',
+            action: "UNBAN_GROUP",
             detail: `Nhóm "${group.name}" đã được khôi phục bởi "${actorName}"`,
             timestamp: new Date(),
           },
         },
         {
           destination: EventDestination.RABBITMQ,
-          topic: 'notification',
-          eventType: 'group_noti',
+          topic: "notification",
+          eventType: "group_noti",
           payload: {
             targetId: groupId,
             targetType: NotiTargetType.GROUP,
-            content: 'đã được khôi phục bởi quản trị hệ thống',
+            content: "đã được khôi phục bởi quản trị hệ thống",
             receivers: [group.owner?.id],
           } as NotiOutboxPayload,
         },
@@ -364,7 +375,9 @@ export class ReportService {
     });
   }
 
-  async getGroupByAdmin(filter: AdminGroupQuery): Promise<PageResponse<AdminGroupDTO>> {
+  async getGroupByAdmin(
+    filter: AdminGroupQuery,
+  ): Promise<PageResponse<AdminGroupDTO>> {
     const { name, status, memberRange, page, limit } = filter;
     const conditions: any[] = [];
 
@@ -436,7 +449,9 @@ export class ReportService {
 
     const buildDateKeys = (from: Date, to: Date) => {
       const keys: string[] = [];
-      const startVN = new Date(from.getTime() + this.VN_OFFSET_HOURS * 3600_000);
+      const startVN = new Date(
+        from.getTime() + this.VN_OFFSET_HOURS * 3600_000,
+      );
       const endVN = new Date(to.getTime() + this.VN_OFFSET_HOURS * 3600_000);
       const cur = new Date(startVN);
       cur.setHours(0, 0, 0, 0);
@@ -448,8 +463,23 @@ export class ReportService {
     };
 
     const dateKeys = buildDateKeys(fromDate, toDate);
-    const map = new Map<string, { date: string; pendingCount: number; resolvedCount: number; rejectedCount: number }>();
-    dateKeys.forEach((k) => map.set(k, { date: k, pendingCount: 0, resolvedCount: 0, rejectedCount: 0 }));
+    const map = new Map<
+      string,
+      {
+        date: string;
+        pendingCount: number;
+        resolvedCount: number;
+        rejectedCount: number;
+      }
+    >();
+    dateKeys.forEach((k) =>
+      map.set(k, {
+        date: k,
+        pendingCount: 0,
+        resolvedCount: 0,
+        rejectedCount: 0,
+      }),
+    );
 
     const reports = await this.db.execute<{
       date: string;
@@ -493,18 +523,26 @@ export class ReportService {
     });
   }
 
-  private normalizeToVNDate(value: string | Date): { y: number; m: number; d: number } {
+  private normalizeToVNDate(value: string | Date): {
+    y: number;
+    m: number;
+    d: number;
+  } {
     let vnDate: Date;
     if (value instanceof Date) {
       vnDate = new Date(value);
-    } else if (String(value).includes('T')) {
+    } else if (String(value).includes("T")) {
       vnDate = new Date(value);
     } else {
-      const [y, m, d] = String(value).split('-').map(Number);
+      const [y, m, d] = String(value).split("-").map(Number);
       return { y, m, d };
     }
     vnDate = new Date(vnDate.getTime() + this.VN_OFFSET_HOURS * 60 * 60 * 1000);
-    return { y: vnDate.getFullYear(), m: vnDate.getMonth() + 1, d: vnDate.getDate() };
+    return {
+      y: vnDate.getFullYear(),
+      m: vnDate.getMonth() + 1,
+      d: vnDate.getDate(),
+    };
   }
 
   private vnDateToUtcStart(value?: Date | string): Date | undefined {
@@ -516,6 +554,8 @@ export class ReportService {
   private vnDateToUtcEnd(value?: Date | string): Date | undefined {
     if (!value) return undefined;
     const { y, m, d } = this.normalizeToVNDate(value);
-    return new Date(Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999));
+    return new Date(
+      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999),
+    );
   }
 }

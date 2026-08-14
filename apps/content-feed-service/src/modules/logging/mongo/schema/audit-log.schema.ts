@@ -1,8 +1,8 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { LogType } from '@repo/dtos';
-import { HydratedDocument, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { LogType } from "@repo/dtos";
+import { HydratedDocument, Types } from "mongoose";
 
-@Schema({ collection: 'audit_logs' })
+@Schema({ collection: "audit_logs" })
 export class AuditLog {
   _id?: Types.ObjectId;
 

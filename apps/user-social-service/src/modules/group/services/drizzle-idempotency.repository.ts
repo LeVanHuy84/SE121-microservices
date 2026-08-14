@@ -1,9 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { processedEvents } from 'src/drizzle/schema/outbox.schema';
-import type { IdempotencyContext, IdempotencyRepository } from '@repo/common';
+import { Inject, Injectable } from "@nestjs/common";
+import { and, eq } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { processedEvents } from "src/drizzle/schema/outbox.schema";
+import type { IdempotencyContext, IdempotencyRepository } from "@repo/common";
 
 @Injectable()
 export class DrizzleIdempotencyRepository implements IdempotencyRepository {
@@ -16,7 +16,7 @@ export class DrizzleIdempotencyRepository implements IdempotencyRepository {
 
   async tryStart(
     context: IdempotencyContext,
-  ): Promise<'STARTED' | 'DONE' | 'BUSY'> {
+  ): Promise<"STARTED" | "DONE" | "BUSY"> {
     const { eventId, manager } = context;
     const db = this.getDb(manager);
 
@@ -25,10 +25,10 @@ export class DrizzleIdempotencyRepository implements IdempotencyRepository {
         eventId,
         done: false,
       });
-      return 'STARTED';
+      return "STARTED";
     } catch (err: any) {
       // Postgres unique constraint violation state is code 23505
-      if (err.code === '23505') {
+      if (err.code === "23505") {
         const [event] = await db
           .select()
           .from(processedEvents)
@@ -36,10 +36,10 @@ export class DrizzleIdempotencyRepository implements IdempotencyRepository {
           .limit(1);
 
         if (event?.done) {
-          return 'DONE';
+          return "DONE";
         }
 
-        return 'BUSY';
+        return "BUSY";
       }
       throw err;
     }

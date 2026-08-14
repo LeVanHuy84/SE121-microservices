@@ -3,18 +3,18 @@ import {
   Inject,
   Injectable,
   Logger,
-} from '@nestjs/common';
-import { CursorPaginationDTO, CursorPageResponse } from '@repo/dtos';
-import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
+} from "@nestjs/common";
+import { CursorPaginationDTO, CursorPageResponse } from "@repo/dtos";
+import { RecentActivityBufferService } from "../event/recent-activity.buffer.service";
 import type {
   FriendRecommendationAnalytics,
   FriendRecommendationAttribution,
   FriendRecommendation,
   SocialGraphRepository,
-} from './repositories/social-graph.repository';
-import { SOCIAL_GRAPH_REPOSITORY } from './repositories/social-graph.repository';
-import { RecommendationQueryService } from './recommendation/recommendation-query.service';
-import { UserService } from '../../user/user.service';
+} from "./repositories/social-graph.repository";
+import { SOCIAL_GRAPH_REPOSITORY } from "./repositories/social-graph.repository";
+import { RecommendationQueryService } from "./recommendation/recommendation-query.service";
+import { UserService } from "../../user/user.service";
 
 @Injectable()
 export class FriendshipService {
@@ -44,18 +44,18 @@ export class FriendshipService {
     attribution?: FriendRecommendationAttribution,
   ) {
     if (userId === targetId) {
-      throw new BadRequestException('Cannot send request to yourself');
+      throw new BadRequestException("Cannot send request to yourself");
     }
 
     const status = await this.getRelationshipStatus(userId, targetId);
-    if (status.status === 'FRIEND') {
-      throw new BadRequestException('Already friends');
+    if (status.status === "FRIEND") {
+      throw new BadRequestException("Already friends");
     }
-    if (status.status === 'REQUESTED_OUT') {
-      throw new BadRequestException('Friend request already sent');
+    if (status.status === "REQUESTED_OUT") {
+      throw new BadRequestException("Friend request already sent");
     }
-    if (status.status === 'BLOCKED') {
-      throw new BadRequestException('Cannot send request to a blocked user');
+    if (status.status === "BLOCKED") {
+      throw new BadRequestException("Cannot send request to a blocked user");
     }
 
     const result = await this.socialGraphRepo.sendFriendRequest(
@@ -65,7 +65,7 @@ export class FriendshipService {
     );
 
     if (!result.created) {
-      throw new BadRequestException('Friend request already sent');
+      throw new BadRequestException("Friend request already sent");
     }
 
     if (attribution?.recommendationId || attribution?.recommendationRequestId) {
@@ -73,7 +73,7 @@ export class FriendshipService {
         {
           userId,
           candidateId: targetId,
-          eventType: 'request_sent',
+          eventType: "request_sent",
           recommendationId: attribution?.recommendationId ?? null,
           recommendationRequestId: attribution?.recommendationRequestId ?? null,
         },
@@ -83,16 +83,16 @@ export class FriendshipService {
     await this.buffer.addRecentActivity({
       actorId: userId,
       targetId,
-      type: 'friendship_request',
+      type: "friendship_request",
     });
 
-    return { message: 'Friend request sent successfully' };
+    return { message: "Friend request sent successfully" };
   }
 
   async cancelFriendRequest(userId: string, targetId: string) {
     const status = await this.getRelationshipStatus(userId, targetId);
-    if (status.status !== 'REQUESTED_OUT') {
-      throw new BadRequestException('No outgoing friend request to cancel');
+    if (status.status !== "REQUESTED_OUT") {
+      throw new BadRequestException("No outgoing friend request to cancel");
     }
 
     const result = await this.socialGraphRepo.cancelFriendRequest(
@@ -101,22 +101,22 @@ export class FriendshipService {
     );
 
     if (!result.removed) {
-      throw new BadRequestException('No outgoing friend request to cancel');
+      throw new BadRequestException("No outgoing friend request to cancel");
     }
 
-    await this.buffer.clearActivity('friendship_request', targetId, userId);
+    await this.buffer.clearActivity("friendship_request", targetId, userId);
 
-    return { message: 'Friend request canceled successfully' };
+    return { message: "Friend request canceled successfully" };
   }
 
   async acceptFriendRequest(userId: string, requesterId: string) {
     if (userId === requesterId) {
-      throw new BadRequestException('Cannot accept your own request');
+      throw new BadRequestException("Cannot accept your own request");
     }
 
     const status = await this.getRelationshipStatus(userId, requesterId);
-    if (status.status !== 'REQUESTED_IN') {
-      throw new BadRequestException('No pending friend request to accept');
+    if (status.status !== "REQUESTED_IN") {
+      throw new BadRequestException("No pending friend request to accept");
     }
 
     const attribution = await this.socialGraphRepo.acceptFriendRequest(
@@ -125,7 +125,7 @@ export class FriendshipService {
     );
 
     if (!attribution) {
-      throw new BadRequestException('No pending friend request to accept');
+      throw new BadRequestException("No pending friend request to accept");
     }
 
     if (attribution?.recommendationId || attribution?.recommendationRequestId) {
@@ -133,32 +133,32 @@ export class FriendshipService {
         {
           userId: requesterId,
           candidateId: userId,
-          eventType: 'accepted',
+          eventType: "accepted",
           recommendationId: attribution.recommendationId,
           recommendationRequestId: attribution.recommendationRequestId,
         },
       ]);
     }
 
-    await this.buffer.clearActivity('friendship_request', userId, requesterId);
+    await this.buffer.clearActivity("friendship_request", userId, requesterId);
 
     await this.buffer.addRecentActivity({
       actorId: userId,
       targetId: requesterId,
-      type: 'friendship_accept',
+      type: "friendship_accept",
     });
 
-    return { message: 'Friend request accepted' };
+    return { message: "Friend request accepted" };
   }
 
   async declineFriendRequest(userId: string, requesterId: string) {
     if (userId === requesterId) {
-      throw new BadRequestException('Cannot decline your own request');
+      throw new BadRequestException("Cannot decline your own request");
     }
 
     const status = await this.getRelationshipStatus(userId, requesterId);
-    if (status.status !== 'REQUESTED_IN') {
-      throw new BadRequestException('No pending friend request to decline');
+    if (status.status !== "REQUESTED_IN") {
+      throw new BadRequestException("No pending friend request to decline");
     }
 
     const result = await this.socialGraphRepo.declineFriendRequest(
@@ -167,69 +167,69 @@ export class FriendshipService {
     );
 
     if (!result.removed) {
-      throw new BadRequestException('No pending friend request to decline');
+      throw new BadRequestException("No pending friend request to decline");
     }
 
-    await this.buffer.clearActivity('friendship_request', userId, requesterId);
+    await this.buffer.clearActivity("friendship_request", userId, requesterId);
 
-    return { message: 'Friend request declined' };
+    return { message: "Friend request declined" };
   }
 
   async removeFriend(userId: string, friendId: string) {
     if (userId === friendId) {
-      throw new BadRequestException('Cannot remove yourself');
+      throw new BadRequestException("Cannot remove yourself");
     }
 
     const status = await this.getRelationshipStatus(userId, friendId);
-    if (status.status !== 'FRIEND') {
-      throw new BadRequestException('Not friends');
+    if (status.status !== "FRIEND") {
+      throw new BadRequestException("Not friends");
     }
 
     const result = await this.socialGraphRepo.removeFriend(userId, friendId);
 
     if (!result.removed) {
-      throw new BadRequestException('Not friends');
+      throw new BadRequestException("Not friends");
     }
 
-    return { message: 'Friend removed successfully' };
+    return { message: "Friend removed successfully" };
   }
 
   async blockUser(userId: string, targetId: string) {
     if (userId === targetId) {
-      throw new BadRequestException('Cannot block yourself');
+      throw new BadRequestException("Cannot block yourself");
     }
 
     const status = await this.getRelationshipStatus(userId, targetId);
-    if (status.status === 'BLOCKED') {
-      throw new BadRequestException('User already blocked');
+    if (status.status === "BLOCKED") {
+      throw new BadRequestException("User already blocked");
     }
 
     const result = await this.socialGraphRepo.blockUser(userId, targetId);
 
     if (!result.created) {
-      throw new BadRequestException('User already blocked');
+      throw new BadRequestException("User already blocked");
     }
 
-    return { message: 'User blocked successfully' };
+    return { message: "User blocked successfully" };
   }
 
   async unblockUser(userId: string, targetId: string) {
     if (userId === targetId) {
-      throw new BadRequestException('Cannot unblock yourself');
+      throw new BadRequestException("Cannot unblock yourself");
     }
 
     const status = await this.getRelationshipStatus(userId, targetId);
-    if (status.status !== 'BLOCKED') {
-      throw new BadRequestException('User is not blocked');
+    if (status.status !== "BLOCKED") {
+      throw new BadRequestException("User is not blocked");
     }
 
     const result = await this.socialGraphRepo.unblockUser(userId, targetId);
 
     if (!result.removed) {
-      throw new BadRequestException('User is not blocked');
+      throw new BadRequestException("User is not blocked");
     }
 
-    return { message: 'User unblocked successfully' };
+    return { message: "User unblocked successfully" };
   }
 
   async dismissFriendRecommendation(
@@ -238,7 +238,7 @@ export class FriendshipService {
     attribution?: FriendRecommendationAttribution,
   ) {
     if (userId === targetId) {
-      throw new BadRequestException('Cannot dismiss yourself');
+      throw new BadRequestException("Cannot dismiss yourself");
     }
 
     const expiresAt = new Date(
@@ -254,7 +254,7 @@ export class FriendshipService {
       {
         userId,
         candidateId: targetId,
-        eventType: 'dismissed',
+        eventType: "dismissed",
         recommendationId: attribution?.recommendationId ?? null,
         recommendationRequestId: attribution?.recommendationRequestId ?? null,
         metadata: {
@@ -264,22 +264,22 @@ export class FriendshipService {
     ]);
 
     return {
-      message: 'Friend recommendation dismissed successfully',
+      message: "Friend recommendation dismissed successfully",
       expiresAt,
     };
   }
 
   async getMutualFriends(
-    userId1: string, 
+    userId1: string,
     userId2: string,
-    query: CursorPaginationDTO
+    query: CursorPaginationDTO,
   ): Promise<CursorPageResponse<string>> {
     const [friends1, friends2] = await Promise.all([
       this.getFriendIds(userId1, 2000),
-      this.getFriendIds(userId2, 2000)
+      this.getFriendIds(userId2, 2000),
     ]);
     const set1 = new Set(friends1);
-    const mutualFriendIds = (friends2 || []).filter(id => set1.has(id));
+    const mutualFriendIds = (friends2 || []).filter((id) => set1.has(id));
 
     const offset = query.cursor ? parseInt(query.cursor, 10) : 0;
     const limit = query.limit;
@@ -298,40 +298,48 @@ export class FriendshipService {
     const normalizedQuery = this.normalizeCursorQuery(query);
 
     if (query.search?.trim()) {
-      const allFriendIds = await this.socialGraphRepo.getFriendIds(targetId, 2000);
-      
+      const allFriendIds = await this.socialGraphRepo.getFriendIds(
+        targetId,
+        2000,
+      );
+
       if (!allFriendIds || allFriendIds.length === 0) {
         return { data: [], nextCursor: null, hasNextPage: false };
       }
-      
+
       const matchedIds = await this.userService.searchUserIds(
-        allFriendIds, 
-        query.search, 
-        normalizedQuery.limit
+        allFriendIds,
+        query.search,
+        normalizedQuery.limit,
       );
-      
+
       return { data: matchedIds, nextCursor: null, hasNextPage: false };
     }
 
     if (requesterId !== targetId) {
-      const targetUser = await this.userService.findOne(targetId) as any;
+      const targetUser = (await this.userService.findOne(targetId)) as any;
       if (targetUser && targetUser.privacySettings) {
-        const visibility = targetUser.privacySettings.friendListVisibility || 'PUBLIC';
-        if (visibility === 'PRIVATE') {
+        const visibility =
+          targetUser.privacySettings.friendListVisibility || "PUBLIC";
+        if (visibility === "PRIVATE") {
           return this.getMutualFriends(requesterId, targetId, normalizedQuery);
-        } else if (visibility === 'FRIENDS') {
-          const relation = await this.getRelationshipStatus(requesterId, targetId);
-          if (relation.status !== 'FRIEND') {
-             return this.getMutualFriends(requesterId, targetId, normalizedQuery);
+        } else if (visibility === "FRIENDS") {
+          const relation = await this.getRelationshipStatus(
+            requesterId,
+            targetId,
+          );
+          if (relation.status !== "FRIEND") {
+            return this.getMutualFriends(
+              requesterId,
+              targetId,
+              normalizedQuery,
+            );
           }
         }
       }
     }
 
-    return this.socialGraphRepo.getFriends(
-      targetId,
-      normalizedQuery,
-    );
+    return this.socialGraphRepo.getFriends(targetId, normalizedQuery);
   }
 
   async getFriendRequests(
@@ -405,7 +413,7 @@ export class FriendshipService {
 
   async getFriendIds(userId: string, limit?: number) {
     const normalizedLimit =
-      typeof limit === 'number' && Number.isFinite(limit)
+      typeof limit === "number" && Number.isFinite(limit)
         ? Math.min(this.maxFriendIdsLimit, Math.max(1, Math.floor(limit)))
         : undefined;
 
@@ -426,12 +434,12 @@ export class FriendshipService {
     query: CursorPaginationDTO,
   ): CursorPaginationDTO {
     const normalizedCursor =
-      typeof query?.cursor === 'string' && query.cursor.trim().length > 0
+      typeof query?.cursor === "string" && query.cursor.trim().length > 0
         ? query.cursor.trim()
         : undefined;
 
     const resolvedLimit =
-      typeof query?.limit === 'number' && Number.isFinite(query.limit)
+      typeof query?.limit === "number" && Number.isFinite(query.limit)
         ? Math.floor(query.limit)
         : this.defaultCursorLimit;
 
@@ -448,7 +456,7 @@ export class FriendshipService {
   }
 
   private normalizeAnalyticsWindowDays(days: number | undefined): number {
-    if (typeof days !== 'number' || !Number.isFinite(days)) {
+    if (typeof days !== "number" || !Number.isFinite(days)) {
       return this.defaultAnalyticsWindowDays;
     }
 

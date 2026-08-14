@@ -75,7 +75,6 @@ export class CallController {
     return this.callService.endCall(data.userId, data.dto);
   }
 
-
   @MessagePattern('joinCall')
   async joinCall(
     @Payload()

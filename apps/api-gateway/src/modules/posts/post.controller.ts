@@ -8,13 +8,13 @@ import {
   Patch,
   Post,
   Query,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { CreatePostDTO, GetPostQueryDTO } from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { CreatePostDTO, GetPostQueryDTO } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('posts')
+@Controller("posts")
 export class PostController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
@@ -26,57 +26,57 @@ export class PostController {
     @Body() createPostDTO: CreatePostDTO,
     @CurrentUserId() userId: string,
   ) {
-    return this.client.send('create_post', { userId, createPostDTO });
+    return this.client.send("create_post", { userId, createPostDTO });
   }
 
-  @Get('user/:id')
+  @Get("user/:id")
   findByUserId(
-    @Param('id') userId: string,
+    @Param("id") userId: string,
     @Query() pagination: GetPostQueryDTO,
     @CurrentUserId() currentUserId: string,
   ) {
-    return this.client.send('find_posts_by_user_id', {
+    return this.client.send("find_posts_by_user_id", {
       userId,
       pagination,
       currentUserId,
     });
   }
 
-  @Get('me')
+  @Get("me")
   getMyPosts(
     @Query() query: GetPostQueryDTO,
     @CurrentUserId() currentUserId: string,
   ) {
-    return this.client.send('get_my_posts', { currentUserId, query });
+    return this.client.send("get_my_posts", { currentUserId, query });
   }
 
-  @Get(':postId/edit-histories')
+  @Get(":postId/edit-histories")
   getPostEditHistories(
-    @Param('postId') postId: string,
+    @Param("postId") postId: string,
     @CurrentUserId() userId: string,
   ) {
-    return this.client.send('get_post_edit_histories', { userId, postId });
+    return this.client.send("get_post_edit_histories", { userId, postId });
   }
 
-  @Get(':id')
+  @Get(":id")
   findById(
-    @Param('id') postId: string,
+    @Param("id") postId: string,
     @CurrentUserId() currentUserId: string,
   ) {
-    return this.client.send('find_post_by_id', { currentUserId, postId });
+    return this.client.send("find_post_by_id", { currentUserId, postId });
   }
 
-  @Patch(':id')
+  @Patch(":id")
   update(
-    @Param('id') postId: string,
+    @Param("id") postId: string,
     @Body() updatePostDTO: Partial<CreatePostDTO>,
     @CurrentUserId() userId: string,
   ) {
-    return this.client.send('update_post', { userId, postId, updatePostDTO });
+    return this.client.send("update_post", { userId, postId, updatePostDTO });
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUserId() userId: string) {
-    return this.client.send('remove_post', { id, userId });
+  @Delete(":id")
+  remove(@Param("id") id: string, @CurrentUserId() userId: string) {
+    return this.client.send("remove_post", { id, userId });
   }
 }

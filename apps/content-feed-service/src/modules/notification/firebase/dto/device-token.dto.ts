@@ -1,8 +1,8 @@
 export class RegisterDeviceTokenDto {
   userId: string;
   token: string;
-  platform: 'ios' | 'android' | 'web';
-  provider?: 'fcm';
+  platform: "ios" | "android" | "web";
+  provider?: "fcm";
   appId?: string;
   deviceId?: string;
   deviceName?: string;

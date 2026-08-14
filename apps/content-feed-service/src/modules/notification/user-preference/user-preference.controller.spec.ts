@@ -1,8 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { UserPreferenceController } from './user-preference.controller';
-import { UserPreferenceService } from './user-preference.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { UserPreferenceController } from "./user-preference.controller";
+import { UserPreferenceService } from "./user-preference.service";
 
-describe('UserPreferenceController', () => {
+describe("UserPreferenceController", () => {
   let controller: UserPreferenceController;
 
   beforeEach(async () => {
@@ -14,7 +14,7 @@ describe('UserPreferenceController', () => {
     controller = module.get<UserPreferenceController>(UserPreferenceController);
   });
 
-  it('should be defined', () => {
+  it("should be defined", () => {
     expect(controller).toBeDefined();
   });
 });

@@ -1,9 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, IsNull, Repository } from 'typeorm';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { Media } from '../entities/media.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { InjectRepository } from "@nestjs/typeorm";
+import { LessThan, IsNull, Repository } from "typeorm";
+import { CloudinaryService } from "../cloudinary/cloudinary.service";
+import { Media } from "../entities/media.entity";
 
 @Injectable()
 export class MediaCleanupService {
@@ -12,29 +12,29 @@ export class MediaCleanupService {
   constructor(
     @InjectRepository(Media)
     private readonly mediaRepo: Repository<Media>,
-    private readonly cloudinary: CloudinaryService
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   private toCloudinaryResourceType(
-    type: Media['type']
-  ): 'image' | 'video' | 'raw' {
+    type: Media["type"],
+  ): "image" | "video" | "raw" {
     switch (type) {
-      case 'image':
-        return 'image';
-      case 'video':
-      case 'audio':
-        return 'video';
-      case 'file':
+      case "image":
+        return "image";
+      case "video":
+      case "audio":
+        return "video";
+      case "file":
       default:
-        return 'raw';
+        return "raw";
     }
   }
 
-  @Cron(process.env.MEDIA_CLEANUP_CRON || '0 */10 * * * *')
+  @Cron(process.env.MEDIA_CLEANUP_CRON || "0 */10 * * * *")
   async cleanupOrphanedMedia() {
     const ttlMinutes = parseInt(
-      process.env.MEDIA_ORPHAN_TTL_MINUTES || '30',
-      10
+      process.env.MEDIA_ORPHAN_TTL_MINUTES || "30",
+      10,
     );
     const cutoff = new Date(Date.now() - ttlMinutes * 60 * 1000);
 
@@ -50,20 +50,20 @@ export class MediaCleanupService {
     }
 
     this.logger.log(
-      `Found ${orphans.length} orphaned media older than ${ttlMinutes} minutes`
+      `Found ${orphans.length} orphaned media older than ${ttlMinutes} minutes`,
     );
 
     for (const media of orphans) {
       try {
         await this.cloudinary.deleteFile(
           media.publicId,
-          this.toCloudinaryResourceType(media.type)
+          this.toCloudinaryResourceType(media.type),
         );
         await this.mediaRepo.delete(media.id);
         this.logger.log(`Deleted orphaned media publicId=${media.publicId}`);
       } catch (error) {
         this.logger.warn(
-          `Failed to delete orphaned media publicId=${media.publicId}: ${error.message}`
+          `Failed to delete orphaned media publicId=${media.publicId}: ${error.message}`,
         );
       }
     }

@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  CallEndReason,
-  CallSessionStatus,
-  CallType,
-} from '@repo/dtos';
+import { CallEndReason, CallSessionStatus, CallType } from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ timestamps: true })

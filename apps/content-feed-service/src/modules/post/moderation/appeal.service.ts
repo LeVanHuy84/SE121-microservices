@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   AdminAppealQuery,
   AdminAppealQueueItemDTO,
@@ -13,17 +13,17 @@ import {
   ModerationAppealResponseDTO,
   PageResponse,
   TargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { ContentModeration } from 'src/entities/content-moderation.entity';
-import { ModerationAppeal } from 'src/entities/moderation-appeal.entity';
-import { In, Repository } from 'typeorm';
-import { ModerationService } from './moderation.service';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
-import { Comment } from 'src/entities/comment.entity';
-import { ModerationAppealMapper } from './moderation.mapper';
-import { LogService } from './log.service';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { ContentModeration } from "src/entities/content-moderation.entity";
+import { ModerationAppeal } from "src/entities/moderation-appeal.entity";
+import { In, Repository } from "typeorm";
+import { ModerationService } from "./moderation.service";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
+import { Comment } from "src/entities/comment.entity";
+import { ModerationAppealMapper } from "./moderation.mapper";
+import { LogService } from "./log.service";
 
 @Injectable()
 export class ModerationAppealService {
@@ -51,11 +51,11 @@ export class ModerationAppealService {
     });
 
     if (!moderation) {
-      throw new RpcException('Moderation record not found');
+      throw new RpcException("Moderation record not found");
     }
 
     if (moderation.userId !== userId) {
-      throw new RpcException('You are not authorized to appeal this record');
+      throw new RpcException("You are not authorized to appeal this record");
     }
 
     const existingAppeal = await this.moderationAppealRepository.findOne({
@@ -64,7 +64,7 @@ export class ModerationAppealService {
 
     if (existingAppeal) {
       throw new RpcException(
-        'You already have a pending appeal for this moderation record',
+        "You already have a pending appeal for this moderation record",
       );
     }
 
@@ -90,7 +90,7 @@ export class ModerationAppealService {
     });
 
     if (!appeal) {
-      throw new RpcException('Appeal not found');
+      throw new RpcException("Appeal not found");
     }
 
     await this.moderationService.applyFinalDecision(
@@ -100,7 +100,7 @@ export class ModerationAppealService {
     );
 
     appeal.status = status;
-    appeal.reviewNote = reviewNote ?? '';
+    appeal.reviewNote = reviewNote ?? "";
     appeal.reviewedAt = new Date();
     appeal.reviewedBy = moderatorId;
 
@@ -122,36 +122,36 @@ export class ModerationAppealService {
     // =====================================
 
     const qb = this.moderationAppealRepository
-      .createQueryBuilder('appeal')
+      .createQueryBuilder("appeal")
       .leftJoin(
         ContentModeration,
-        'moderation',
-        'moderation.id = appeal.moderation_id',
+        "moderation",
+        "moderation.id = appeal.moderation_id",
       )
       .select([
-        'appeal.id AS appeal_id',
-        'appeal.moderation_id AS moderation_id',
-        'appeal.user_id AS user_id',
-        'appeal.reason AS reason',
-        'appeal.status AS status',
-        'appeal.reviewed_by AS reviewed_by',
-        'appeal.review_note AS review_note',
-        'appeal.reviewed_at AS reviewed_at',
-        'appeal.created_at AS created_at',
+        "appeal.id AS appeal_id",
+        "appeal.moderation_id AS moderation_id",
+        "appeal.user_id AS user_id",
+        "appeal.reason AS reason",
+        "appeal.status AS status",
+        "appeal.reviewed_by AS reviewed_by",
+        "appeal.review_note AS review_note",
+        "appeal.reviewed_at AS reviewed_at",
+        "appeal.created_at AS created_at",
 
-        'moderation.target_id AS target_id',
-        'moderation.target_type AS target_type',
-        'moderation.max_severity AS max_severity',
-        'moderation.confidence AS confidence',
-        'moderation.display_message AS display_message',
-        'moderation.final_decision AS final_decision',
+        "moderation.target_id AS target_id",
+        "moderation.target_type AS target_type",
+        "moderation.max_severity AS max_severity",
+        "moderation.confidence AS confidence",
+        "moderation.display_message AS display_message",
+        "moderation.final_decision AS final_decision",
       ]);
 
     if (status) {
-      qb.andWhere('appeal.status = :status', { status });
+      qb.andWhere("appeal.status = :status", { status });
     }
 
-    qb.orderBy('appeal.created_at', 'DESC')
+    qb.orderBy("appeal.created_at", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -162,10 +162,10 @@ export class ModerationAppealService {
     // =====================================
 
     const countQb =
-      this.moderationAppealRepository.createQueryBuilder('appeal');
+      this.moderationAppealRepository.createQueryBuilder("appeal");
 
     if (status) {
-      countQb.andWhere('appeal.status = :status', { status });
+      countQb.andWhere("appeal.status = :status", { status });
     }
 
     const total = await countQb.getCount();
@@ -246,13 +246,13 @@ export class ModerationAppealService {
 
     const appealCountsRaw = moderationIds.length
       ? await this.moderationAppealRepository
-          .createQueryBuilder('appeal')
-          .select('appeal.moderation_id', 'moderationId')
-          .addSelect('COUNT(*)', 'count')
-          .where('appeal.moderation_id IN (:...moderationIds)', {
+          .createQueryBuilder("appeal")
+          .select("appeal.moderation_id", "moderationId")
+          .addSelect("COUNT(*)", "count")
+          .where("appeal.moderation_id IN (:...moderationIds)", {
             moderationIds,
           })
-          .groupBy('appeal.moderation_id')
+          .groupBy("appeal.moderation_id")
           .getRawMany()
       : [];
 

@@ -52,16 +52,16 @@ describe('CallService', () => {
 
   const createService = () =>
     new CallService(
-      callSessionModel as any,
-      conversationModel as any,
-      messageModel as any,
-      redis as any,
-      outboxService as any,
+      callSessionModel,
+      conversationModel,
+      messageModel,
+      redis,
+      outboxService,
       connection as any,
-      configService as any,
-      chatPushService as any,
-      userClientService as any,
-      streamProvider as any,
+      configService,
+      chatPushService,
+      userClientService,
+      streamProvider,
     );
 
   beforeEach(() => {
@@ -171,13 +171,17 @@ describe('CallService', () => {
   describe('getCallById', () => {
     it('throws on invalid ObjectId', async () => {
       const service = createService();
-      await expect(service.getCallById('not-valid')).rejects.toThrow('Invalid call id');
+      await expect(service.getCallById('not-valid')).rejects.toThrow(
+        'Invalid call id',
+      );
     });
 
     it('throws when call not found', async () => {
       const service = createService();
       callSessionModel.findById.mockReturnValue(createQuery(null));
-      await expect(service.getCallById(CALL_ID)).rejects.toThrow('Call session not found');
+      await expect(service.getCallById(CALL_ID)).rejects.toThrow(
+        'Call session not found',
+      );
     });
   });
 
@@ -205,9 +209,9 @@ describe('CallService', () => {
         session,
       );
       expect(redis.zadd).toHaveBeenCalled();
-      
+
       // Wait for async push trigger
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(chatPushService.sendCallPush).toHaveBeenCalled();
     });
 
@@ -215,14 +219,16 @@ describe('CallService', () => {
       const service = createService();
       const conv = makeConv();
       conversationModel.findById.mockReturnValue(createQuery(conv));
-      
+
       // 1. hasActiveCallInConversation -> null
       // 2. recipientHasActiveCall -> null
       // 3. userHasActiveCall -> true
       callSessionModel.exists
         .mockReturnValueOnce({ session: jest.fn().mockReturnValue(null) })
         .mockReturnValueOnce({ session: jest.fn().mockReturnValue(null) })
-        .mockReturnValueOnce({ session: jest.fn().mockReturnValue({ _id: 'other-call' }) });
+        .mockReturnValueOnce({
+          session: jest.fn().mockReturnValue({ _id: 'other-call' }),
+        });
 
       await expect(
         service.createCall(USER_1, { conversationId: CONV_ID, type: 'audio' }),
@@ -289,9 +295,9 @@ describe('CallService', () => {
       const call = makeCall({ status: CallSessionStatus.ENDED });
       callSessionModel.findById.mockReturnValue(createQuery(call));
 
-      await expect(service.acceptCall(USER_2, { callId: CALL_ID })).rejects.toThrow(
-        'Call is not in ringing state',
-      );
+      await expect(
+        service.acceptCall(USER_2, { callId: CALL_ID }),
+      ).rejects.toThrow('Call is not in ringing state');
     });
   });
 
@@ -336,9 +342,9 @@ describe('CallService', () => {
       const call = makeCall({ status: CallSessionStatus.ACCEPTED });
       callSessionModel.findById.mockReturnValue(createQuery(call));
 
-      await expect(service.rejectCall(USER_2, { callId: CALL_ID })).rejects.toThrow(
-        'Call is not in ringing state',
-      );
+      await expect(
+        service.rejectCall(USER_2, { callId: CALL_ID }),
+      ).rejects.toThrow('Call is not in ringing state');
     });
   });
 
@@ -458,9 +464,9 @@ describe('CallService', () => {
       callSessionModel.findById.mockReturnValue(createQuery(call));
       redis.scard.mockResolvedValue(5);
 
-      await expect(service.joinCall('user-3', { callId: CALL_ID })).rejects.toThrow(
-        'CALL_ROOM_FULL',
-      );
+      await expect(
+        service.joinCall('user-3', { callId: CALL_ID }),
+      ).rejects.toThrow('CALL_ROOM_FULL');
     });
 
     it('throws when call is not ACCEPTED', async () => {
@@ -468,9 +474,9 @@ describe('CallService', () => {
       const call = makeCall({ status: CallSessionStatus.RINGING });
       callSessionModel.findById.mockReturnValue(createQuery(call));
 
-      await expect(service.joinCall(USER_2, { callId: CALL_ID })).rejects.toThrow(
-        'Call is not joinable',
-      );
+      await expect(
+        service.joinCall(USER_2, { callId: CALL_ID }),
+      ).rejects.toThrow('Call is not joinable');
     });
   });
 
@@ -479,7 +485,10 @@ describe('CallService', () => {
   describe('leaveCall', () => {
     it('removes user and schedules emptyRoomTimeout when last leaves', async () => {
       const service = createService();
-      const call = makeCall({ status: CallSessionStatus.ACCEPTED, isGroupCall: true });
+      const call = makeCall({
+        status: CallSessionStatus.ACCEPTED,
+        isGroupCall: true,
+      });
       callSessionModel.findById.mockReturnValue(createQuery(call));
       redis.scard.mockResolvedValue(0);
 
@@ -521,7 +530,9 @@ describe('CallService', () => {
         participants: ['other-initiator', USER_1, USER_2],
       });
       callSessionModel.findById.mockReturnValue(createQuery(call));
-      conversationModel.findById.mockReturnValue(createQuery(makeConv({ admins: [USER_1] })));
+      conversationModel.findById.mockReturnValue(
+        createQuery(makeConv({ admins: [USER_1] })),
+      );
 
       const result = await service.kickCallParticipant(USER_1, {
         callId: CALL_ID,
@@ -539,14 +550,18 @@ describe('CallService', () => {
         initiatorId: 'other-initiator',
       });
       callSessionModel.findById.mockReturnValue(createQuery(call));
-      conversationModel.findById.mockReturnValue(createQuery(makeConv({ admins: [] })));
+      conversationModel.findById.mockReturnValue(
+        createQuery(makeConv({ admins: [] })),
+      );
 
       await expect(
         service.kickCallParticipant(USER_1, {
           callId: CALL_ID,
           targetUserId: USER_2,
         }),
-      ).rejects.toThrow('Only call initiator or group admins can kick participant');
+      ).rejects.toThrow(
+        'Only call initiator or group admins can kick participant',
+      );
     });
 
     it('rejects kick in non-group call', async () => {

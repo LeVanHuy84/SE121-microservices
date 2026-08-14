@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { UserService } from './user.service';
-import { UserController } from './user.controller';
-import { UserEventController } from './user-event.controller';
-import { DrizzleModule } from 'src/drizzle/drizzle.module';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { Module } from "@nestjs/common";
+import { UserService } from "./user.service";
+import { UserController } from "./user.controller";
+import { UserEventController } from "./user-event.controller";
+import { DrizzleModule } from "src/drizzle/drizzle.module";
+import { ClientsModule, Transport } from "@nestjs/microservices";
 
 @Module({
   controllers: [UserController, UserEventController],
@@ -13,10 +13,10 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     DrizzleModule,
     ClientsModule.register([
       {
-        name: 'SOCIAL_SERVICE',
+        name: "SOCIAL_SERVICE",
         transport: Transport.REDIS,
         options: {
-          host: 'localhost',
+          host: "localhost",
           port: 6379,
         },
       },

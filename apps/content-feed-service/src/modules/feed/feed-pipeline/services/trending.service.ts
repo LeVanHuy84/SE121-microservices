@@ -1,24 +1,24 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
 import {
   CursorPageResponse,
   ReactionType,
   RiskHintLevel,
   TargetType,
   TrendingQuery,
-} from '@repo/dtos';
-import Redis from 'ioredis';
-import { firstValueFrom } from 'rxjs';
-import { SnapshotMapper } from 'src/common/snapshot.mapper';
-import { AffinityService } from 'src/modules/affinity/affinity.service';
-import { EmotionFeatureService } from 'src/modules/ranking/services/emotion-feature.service';
-import { ScoreCombinerService } from 'src/modules/ranking/services/score-combiner.service';
-import { SnapshotRepository } from '../../mongo/repository/snapshot.repository';
-import { ReactionService } from '../../../post/reaction/reaction.service';
+} from "@repo/dtos";
+import Redis from "ioredis";
+import { firstValueFrom } from "rxjs";
+import { SnapshotMapper } from "src/common/snapshot.mapper";
+import { AffinityService } from "src/modules/affinity/affinity.service";
+import { EmotionFeatureService } from "src/modules/ranking/services/emotion-feature.service";
+import { ScoreCombinerService } from "src/modules/ranking/services/score-combiner.service";
+import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
+import { ReactionService } from "../../../post/reaction/reaction.service";
 
-import { UserClientService } from '../../../post/client/user-client.service';
-import { MICROSERVICES_CLIENT } from 'src/constant';
+import { UserClientService } from "../../../post/client/user-client.service";
+import { MICROSERVICES_CLIENT } from "src/constant";
 
 type RankFeature = {
   label: string;
@@ -68,7 +68,7 @@ export class TrendingService {
 
     const key = mainEmotion
       ? `post:emotion:${mainEmotion.toLocaleLowerCase()}:score`
-      : 'post:score';
+      : "post:score";
 
     // ==============================
     // 1️⃣ Decode cursor (BASE ONLY)
@@ -82,21 +82,21 @@ export class TrendingService {
     // ==============================
     // 2️⃣ Query Redis (SOURCE OF TRUTH)
     // ==============================
-    const max = cursorData ? `(${cursorData.baseScore}` : '+inf';
+    const max = cursorData ? `(${cursorData.baseScore}` : "+inf";
 
     const zset = await this.redis.zrevrangebyscore(
       key,
       max,
-      '-inf',
-      'WITHSCORES',
-      'LIMIT',
+      "-inf",
+      "WITHSCORES",
+      "LIMIT",
       0,
       candidateSize,
     );
 
     const candidatesRaw = this.parseZset(zset);
 
-    console.log('Candidates raw count:', candidatesRaw.length);
+    console.log("Candidates raw count:", candidatesRaw.length);
 
     if (!candidatesRaw.length) {
       return new CursorPageResponse([], null, false);
@@ -126,7 +126,7 @@ export class TrendingService {
           postId: c.postId,
           baseScore: c.score,
           feature: {
-            label: '',
+            label: "",
             scores: {},
             intensity: 0,
             confidence: 0,
@@ -141,7 +141,7 @@ export class TrendingService {
           postId: c.postId,
           baseScore: c.score,
           feature: {
-            label: rank.label || '',
+            label: rank.label || "",
             scores: JSON.parse(rank.scores),
             intensity: Number(rank.intensity || 0),
             confidence: Number(rank.confidence || 0),
@@ -156,7 +156,7 @@ export class TrendingService {
           postId: c.postId,
           baseScore: c.score,
           feature: {
-            label: '',
+            label: "",
             scores: {},
             intensity: 0,
             confidence: 0,
@@ -208,7 +208,7 @@ export class TrendingService {
       const affinityScore =
         affinity && item.feature.authorId
           ? this.affinityService.calcAffinityScore(affinity, {
-              category: item.feature.dominantScene || '',
+              category: item.feature.dominantScene || "",
               authorId: item.feature.authorId,
             })
           : 0;
@@ -279,7 +279,7 @@ export class TrendingService {
       enrichmentPromises.push(
         firstValueFrom(
           this.userSocialClient.send<any[]>(
-            'get_group_info_batch',
+            "get_group_info_batch",
             Array.from(groupIds),
           ),
         ).then((groups) => {
@@ -372,7 +372,7 @@ export class TrendingService {
   }
 
   private decodeCursor(cursor: string): CursorPayload {
-    const [baseScore, postId] = cursor.split('_');
+    const [baseScore, postId] = cursor.split("_");
 
     return {
       baseScore: Number(baseScore),

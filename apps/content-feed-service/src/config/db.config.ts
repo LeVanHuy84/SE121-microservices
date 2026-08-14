@@ -1,15 +1,15 @@
-import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
-import * as path from 'path';
-import { registerAs } from '@nestjs/config';
-import { PostgresProcessedEvent } from '@repo/common';
+import { PostgresConnectionOptions } from "typeorm/driver/postgres/PostgresConnectionOptions";
+import * as path from "path";
+import { registerAs } from "@nestjs/config";
+import { PostgresProcessedEvent } from "@repo/common";
 
 export default registerAs(
-  'dbconfig.dev',
+  "dbconfig.dev",
   (): PostgresConnectionOptions => ({
     url: process.env.POSTGRES_URL,
-    type: 'postgres',
+    type: "postgres",
     entities: [
-      path.resolve(__dirname, '..') + '/**/*.entity{.ts,.js}',
+      path.resolve(__dirname, "..") + "/**/*.entity{.ts,.js}",
       PostgresProcessedEvent,
     ],
 
