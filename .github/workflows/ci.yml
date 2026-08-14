@@ -33,6 +33,14 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      # 2.1 Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          cache: 'pip'
+          cache-dependency-path: 'apps/ai-chatbot-service/requirements.txt'
+
       # 3. Cache Turborepo build cache
       - name: Turbo Repository Cache
         uses: actions/cache@v4
