@@ -1,4 +1,4 @@
-﻿import {
+import {
   HttpException,
   Injectable,
   Logger,
@@ -240,19 +240,19 @@ export class ChatbotService {
   }
 
   private resolveClientConfig() {
-    const baseUrl = this.configService.get<string>('CHATBOT_SERVICE_URL');
-    const internalKey = this.configService.get<string>('CHATBOT_INTERNAL_KEY');
+    const baseUrl = this.configService.get<string>('AI_CHATBOT_SERVICE_URL') || this.configService.get<string>('CHATBOT_SERVICE_URL');
+    const internalKey = this.configService.get<string>('AI_CHATBOT_INTERNAL_KEY') || this.configService.get<string>('CHATBOT_INTERNAL_KEY');
     const timeoutMs = this.configService.get<number>(
       'CHATBOT_SERVICE_TIMEOUT_MS',
       12000,
     );
 
     if (!baseUrl) {
-      throw new ServiceUnavailableException('Chatbot service URL is missing');
+      throw new ServiceUnavailableException('AI Chatbot service URL is missing');
     }
 
     if (!internalKey) {
-      throw new ServiceUnavailableException('Chatbot internal key is missing');
+      throw new ServiceUnavailableException('AI Chatbot internal key is missing');
     }
 
     return {

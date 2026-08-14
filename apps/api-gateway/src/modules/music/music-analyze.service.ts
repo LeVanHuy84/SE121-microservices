@@ -8,18 +8,17 @@ export class MusicAnalyzeService {
   private readonly internalKey: string;
 
   constructor(private readonly configService: ConfigService) {
-    const baseUrl = this.configService.get<string>('ANALYSIS_SERVICE_URL', {
-      infer: true,
-    });
-    const internalKey = this.configService.get<string>(
-      'ANALYSIS_INTERNAL_KEY',
-      {
-        infer: true,
-      },
-    );
+    const baseUrl = this.configService.get<string>('AI_CHATBOT_SERVICE_URL', { infer: true })
+      || this.configService.get<string>('CHATBOT_SERVICE_URL', { infer: true })
+      || this.configService.get<string>('ANALYSIS_SERVICE_URL', { infer: true })
+      || 'http://localhost:4015';
+
+    const internalKey = this.configService.get<string>('AI_CHATBOT_INTERNAL_KEY', { infer: true })
+      || this.configService.get<string>('CHATBOT_INTERNAL_KEY', { infer: true })
+      || this.configService.get<string>('ANALYSIS_INTERNAL_KEY', { infer: true });
 
     if (!baseUrl || !internalKey) {
-      throw new Error('Missing ANALYSIS_SERVICE_URL or ANALYSIS_INTERNAL_KEY');
+      throw new Error('Missing AI_CHATBOT_SERVICE_URL or internal key');
     }
 
     this.baseUrl = baseUrl;
