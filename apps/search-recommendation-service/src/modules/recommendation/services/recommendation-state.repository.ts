@@ -176,7 +176,10 @@ export class RecommendationStateRepository implements OnModuleInit {
 
       return this.postFilterSemanticCandidates(viewerId, ranked, safeLimit);
     } catch (err: any) {
-      console.error('[RecommendationStateRepository] searchSemanticCandidates SQL query failed:', err.message || err);
+      console.error(
+        '[RecommendationStateRepository] searchSemanticCandidates SQL query failed:',
+        err.message || err,
+      );
       // Fallback in case vector database is not available or non-pg environment
       const allProfiles = await this.profileEmbeddingRepo.find();
       const ranked: any[] = [];

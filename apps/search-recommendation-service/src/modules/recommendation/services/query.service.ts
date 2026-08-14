@@ -64,8 +64,12 @@ export class QueryService {
     }
 
     const viewerProfile = await this.repository.getProfileEmbedding(viewerId);
-    const viewerProfileText = viewerProfile ? viewerProfile.semanticProfileText : null;
-    const viewerQueryEmbedding = viewerProfile ? viewerProfile.queryEmbedding : null;
+    const viewerProfileText = viewerProfile
+      ? viewerProfile.semanticProfileText
+      : null;
+    const viewerQueryEmbedding = viewerProfile
+      ? viewerProfile.queryEmbedding
+      : null;
 
     const windowSize = this.resolveSessionWindowSize(limit);
     const pageSpan = Math.max(windowSize, this.rerankTopK);
@@ -73,9 +77,15 @@ export class QueryService {
     let primaryBatch: any = null;
     if (cursorSource === '' || cursorSource === 'semantic_online') {
       try {
-        primaryBatch = await this.retrievalService.getSemanticOnlineBatch(viewerId, cursorOffset, pageSpan);
+        primaryBatch = await this.retrievalService.getSemanticOnlineBatch(
+          viewerId,
+          cursorOffset,
+          pageSpan,
+        );
       } catch (err) {
-        this.logger.warn(`Failed to retrieve semantic online batch: ${err.message}`);
+        this.logger.warn(
+          `Failed to retrieve semantic online batch: ${err.message}`,
+        );
       }
       if (primaryBatch && primaryBatch.candidates.length === 0) {
         primaryBatch = null;

@@ -164,7 +164,11 @@ export class RankingService {
     candidates: any[],
     viewerQueryEmbedding?: number[] | null,
   ): Promise<Record<string, number>> {
-    if (!viewerProfileText || candidates.length === 0 || !this.embeddingService.isReady()) {
+    if (
+      !viewerProfileText ||
+      candidates.length === 0 ||
+      !this.embeddingService.isReady()
+    ) {
       return {};
     }
 
