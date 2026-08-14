@@ -1,0 +1,23 @@
+{
+  "name": "ai-chatbot-service",
+  "version": "0.0.1",
+  "description": "AI assistant service for SE121 social network",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "venv": "powershell.exe -NoExit -Command .\\.venv\\Scripts\\Activate.ps1",
+    "install": "pip install -r requirements.txt",
+    "start:dev": ".venv\\Scripts\\python.exe -m app.main",
+    "start:prod": ".venv\\Scripts\\python.exe -m app.main",
+    "db:migrate": ".venv\\Scripts\\alembic.exe -c alembic.ini upgrade head",
+    "db:current": ".venv\\Scripts\\alembic.exe -c alembic.ini current",
+    "db:history": ".venv\\Scripts\\alembic.exe -c alembic.ini history",
+    "db:revision": ".venv\\Scripts\\alembic.exe -c alembic.ini revision --autogenerate -m",
+    "rag:index-docs": ".venv\\Scripts\\python.exe -m app.tools.index_assistant_docs --force",
+    "loadtest:assistant": ".venv\\Scripts\\python.exe tools\\loadtest_assistant.py",
+    "lint": ".venv\\Scripts\\python.exe -m ruff check app tests",
+    "format": ".venv\\Scripts\\python.exe -m ruff format app tests",
+    "test": ".venv\\Scripts\\python.exe -m unittest discover -s tests -p \"test_*.py\""
+  }
+}

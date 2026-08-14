@@ -1,0 +1,40 @@
+fastapi==0.115.2
+uvicorn[standard]==0.32.0
+python-dotenv==1.0.1
+pydantic==2.8.2
+langchain-core>=0.3.0,<1.0.0
+langchain-groq>=0.3.0,<1.0.0
+langchain-text-splitters>=0.3.0,<1.0.0
+groq>=0.37.0,<1.0.0
+transformers==4.41.2
+torch==2.2.2
+torchvision==0.17.2
+numpy==1.26.4
+elasticsearch==9.1.0
+aiohttp==3.12.15
+redis==5.2.1
+httpx==0.28.1
+ruff==0.7.2
+
+# Image processing
+opencv-python==4.9.0.80
+pillow==10.3.0
+
+# Image emotion (FER)
+setuptools==70.0.0
+pandas==2.2.2
+fer==22.4.0
+tensorflow==2.14.0
+
+# Text analysis - PhoBERT
+sentencepiece==0.2.0
+
+# Language detection
+langdetect==1.0.9
+
+# Infra
+aiokafka==0.10.0
+motor==3.4.0
+pymongo==4.6.1
+librosa
+
