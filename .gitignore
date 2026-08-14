@@ -54,3 +54,23 @@ yarn-error.log*
 *.swo
 docs/
 .agent/
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+python_env/
+
+# Python Caches and Models
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+**/models/
+**/model/
+*.model
+*.onnx
+*.bin
+*.pt
+*.pth
