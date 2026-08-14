@@ -1,18 +1,18 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   CommentResponseDTO,
   GetCommentQueryDTO,
   PageResponse,
   ReactionType,
   TargetType,
-} from '@repo/dtos';
-import { Comment } from 'src/entities/comment.entity';
-import { Reaction } from 'src/entities/reaction.entity';
-import { Repository, In } from 'typeorm';
-import { CommentCacheService } from './comment-cache.service';
-import { plainToInstance } from 'class-transformer';
+} from "@repo/dtos";
+import { Comment } from "src/entities/comment.entity";
+import { Reaction } from "src/entities/reaction.entity";
+import { Repository, In } from "typeorm";
+import { CommentCacheService } from "./comment-cache.service";
+import { plainToInstance } from "class-transformer";
 
 @Injectable()
 export class CommentQueryService {
@@ -21,25 +21,25 @@ export class CommentQueryService {
     private readonly commentRepo: Repository<Comment>,
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
-    private readonly commentCache: CommentCacheService
+    private readonly commentCache: CommentCacheService,
   ) {}
 
   /** 🔹 Tìm comment theo ID (ưu tiên cache) */
   async findById(
     userRequestId: string,
-    commentId: string
+    commentId: string,
   ): Promise<CommentResponseDTO> {
     // ⚡ Lấy từ cache nếu có
     let comment = await this.commentCache.getCachedComment(commentId);
     if (!comment) {
       comment = await this.commentRepo.findOne({
         where: { id: commentId },
-        relations: ['commentStat'],
+        relations: ["commentStat"],
       });
       if (!comment || comment.isDeleted)
         throw new RpcException({
           statusCode: 404,
-          message: 'Comment not found',
+          message: "Comment not found",
         });
       await this.commentCache.setCachedComment(comment);
     }
@@ -51,7 +51,7 @@ export class CommentQueryService {
         targetType: TargetType.COMMENT,
         targetId: commentId,
       },
-      select: ['reactionType'],
+      select: ["reactionType"],
     });
 
     const dto = plainToInstance(CommentResponseDTO, comment, {
@@ -66,7 +66,7 @@ export class CommentQueryService {
   /** 🔹 Lấy danh sách comment (theo rootId hoặc parentId) */
   async findByQuery(
     userRequestId: string,
-    query: GetCommentQueryDTO
+    query: GetCommentQueryDTO,
   ): Promise<PageResponse<CommentResponseDTO>> {
     const { page, limit, rootId, rootType, parentId } = query;
 
@@ -74,15 +74,15 @@ export class CommentQueryService {
     if (page === 1) {
       const cachedList = await this.commentCache.getCachedCommentList(
         rootId,
-        parentId
+        parentId,
       );
       if (cachedList) {
         const reactionMap = await this.getReactionMap(
           userRequestId,
-          cachedList.map((c) => c.id)
+          cachedList.map((c) => c.id),
         );
         const dtoList = cachedList.map((c) =>
-          this.mapToCommentDTO(c, userRequestId, reactionMap)
+          this.mapToCommentDTO(c, userRequestId, reactionMap),
         );
         return new PageResponse(dtoList, cachedList.length, page, limit);
       }
@@ -90,19 +90,19 @@ export class CommentQueryService {
 
     // 🔹 Query DB
     const qb = this.commentRepo
-      .createQueryBuilder('c')
-      .where('c.isDeleted = false')
-      .leftJoinAndSelect('c.commentStat', 'stat')
-      .orderBy('c.createdAt', 'DESC')
+      .createQueryBuilder("c")
+      .where("c.isDeleted = false")
+      .leftJoinAndSelect("c.commentStat", "stat")
+      .orderBy("c.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
     if (parentId) {
-      qb.andWhere('c.parentId = :parentId', { parentId });
+      qb.andWhere("c.parentId = :parentId", { parentId });
     } else if (rootId && rootType !== undefined && rootType !== null) {
-      qb.andWhere('c.rootId = :rootId', { rootId })
-        .andWhere('c.rootType = :rootType', { rootType })
-        .andWhere('c.parentId IS NULL');
+      qb.andWhere("c.rootId = :rootId", { rootId })
+        .andWhere("c.rootType = :rootType", { rootType })
+        .andWhere("c.parentId IS NULL");
     } else {
       // Không đủ điều kiện → trả rỗng
       return new PageResponse([], 0, page, limit);
@@ -120,7 +120,7 @@ export class CommentQueryService {
     const reactionMap = await this.getReactionMap(userRequestId, commentIds);
 
     const dtoList = comments.map((c) =>
-      this.mapToCommentDTO(c, userRequestId, reactionMap)
+      this.mapToCommentDTO(c, userRequestId, reactionMap),
     );
 
     return new PageResponse(dtoList, total, page, limit);
@@ -130,7 +130,7 @@ export class CommentQueryService {
   private mapToCommentDTO(
     comment: Comment,
     userId: string,
-    reactionMap: Map<string, ReactionType | undefined>
+    reactionMap: Map<string, ReactionType | undefined>,
   ): CommentResponseDTO {
     return {
       id: comment.id,
@@ -151,12 +151,12 @@ export class CommentQueryService {
   /** 🔹 Helper: Lấy reaction hàng loạt */
   private async getReactionMap(
     userId: string,
-    ids: string[]
+    ids: string[],
   ): Promise<Map<string, ReactionType | undefined>> {
     if (!ids.length) return new Map();
     const reactions = await this.reactionRepo.find({
       where: { userId, targetType: TargetType.COMMENT, targetId: In(ids) },
-      select: ['targetId', 'reactionType'],
+      select: ["targetId", "reactionType"],
     });
     return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
   }

@@ -1,6 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Audience, MediaType, RiskHintLevel } from '@repo/dtos';
-import { HydratedDocument, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Audience, MediaType, RiskHintLevel } from "@repo/dtos";
+import { HydratedDocument, Types } from "mongoose";
 
 @Schema({ _id: false })
 export class MediaPreview {
@@ -51,7 +51,7 @@ export class EmotionFeature {
   riskHintLevel?: RiskHintLevel;
 }
 
-@Schema({ collection: 'post_snapshots', timestamps: true })
+@Schema({ collection: "post_snapshots", timestamps: true })
 export class PostSnapshot {
   _id?: Types.ObjectId;
 

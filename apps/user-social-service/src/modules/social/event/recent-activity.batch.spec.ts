@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotiTargetType } from '@repo/dtos';
-import { RecentActivityBatch } from './recent-activity.batch';
-import { NotificationService } from './rabbitmq/notification.service';
-import { RecentActivityBufferService } from './recent-activity.buffer.service';
-import { UserService } from '../../user/user.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { NotiTargetType } from "@repo/dtos";
+import { RecentActivityBatch } from "./recent-activity.batch";
+import { NotificationService } from "./rabbitmq/notification.service";
+import { RecentActivityBufferService } from "./recent-activity.buffer.service";
+import { UserService } from "../../user/user.service";
 
-describe('RecentActivityBatch', () => {
+describe("RecentActivityBatch", () => {
   let service: RecentActivityBatch;
 
   const snapshotAndGetAll = jest.fn();
@@ -51,20 +51,20 @@ describe('RecentActivityBatch', () => {
     service = moduleRef.get(RecentActivityBatch);
   });
 
-  it('should acknowledge successful notifications with a stable request id', async () => {
+  it("should acknowledge successful notifications with a stable request id", async () => {
     snapshotAndGetAll.mockResolvedValue({
-      'friendship_request:target-1:actor-1': {
-        actorId: 'actor-1',
-        targetId: 'target-1',
-        type: 'friendship_request',
+      "friendship_request:target-1:actor-1": {
+        actorId: "actor-1",
+        targetId: "target-1",
+        type: "friendship_request",
       },
     });
     getBaseUsersBatch.mockResolvedValue({
-      'actor-1': {
-        id: 'actor-1',
-        firstName: 'An',
-        lastName: 'Tran',
-        avatarUrl: 'avatar-1',
+      "actor-1": {
+        id: "actor-1",
+        firstName: "An",
+        lastName: "Tran",
+        avatarUrl: "avatar-1",
       },
     });
 
@@ -72,18 +72,18 @@ describe('RecentActivityBatch', () => {
 
     expect(sendNotification).toHaveBeenCalledWith({
       id: expect.any(String),
-      eventType: 'friendship_request',
-      userId: 'target-1',
+      eventType: "friendship_request",
+      userId: "target-1",
       payload: {
         targetType: NotiTargetType.USER,
-        actorName: 'Tran An',
-        actorAvatar: 'avatar-1',
-        targetId: 'actor-1',
-        content: '',
+        actorName: "Tran An",
+        actorAvatar: "avatar-1",
+        targetId: "actor-1",
+        content: "",
       },
     });
     expect(acknowledgeProcessingActivities).toHaveBeenCalledWith([
-      'friendship_request:target-1:actor-1',
+      "friendship_request:target-1:actor-1",
     ]);
     expect(requeueProcessingActivities).toHaveBeenCalledWith([]);
 
@@ -93,41 +93,41 @@ describe('RecentActivityBatch', () => {
     expect(secondRequestId).toBe(firstRequestId);
   });
 
-  it('should requeue failed notifications and drop activities with missing actors', async () => {
+  it("should requeue failed notifications and drop activities with missing actors", async () => {
     snapshotAndGetAll.mockResolvedValue({
-      'friendship_request:target-1:actor-1': {
-        actorId: 'actor-1',
-        targetId: 'target-1',
-        type: 'friendship_request',
+      "friendship_request:target-1:actor-1": {
+        actorId: "actor-1",
+        targetId: "target-1",
+        type: "friendship_request",
       },
-      'friendship_accept:target-2:actor-2': {
-        actorId: 'actor-2',
-        targetId: 'target-2',
-        type: 'friendship_accept',
+      "friendship_accept:target-2:actor-2": {
+        actorId: "actor-2",
+        targetId: "target-2",
+        type: "friendship_accept",
       },
     });
     getBaseUsersBatch.mockResolvedValue({
-      'actor-1': {
-        id: 'actor-1',
-        firstName: 'An',
-        lastName: 'Tran',
-        avatarUrl: 'avatar-1',
+      "actor-1": {
+        id: "actor-1",
+        firstName: "An",
+        lastName: "Tran",
+        avatarUrl: "avatar-1",
       },
     });
     sendNotification.mockRejectedValueOnce(
-      new Error('notification unavailable'),
+      new Error("notification unavailable"),
     );
 
     await service.flushRecentActivities();
 
     expect(acknowledgeProcessingActivities).toHaveBeenCalledWith([
-      'friendship_accept:target-2:actor-2',
+      "friendship_accept:target-2:actor-2",
     ]);
     expect(requeueProcessingActivities).toHaveBeenCalledWith([
       {
-        actorId: 'actor-1',
-        targetId: 'target-1',
-        type: 'friendship_request',
+        actorId: "actor-1",
+        targetId: "target-1",
+        type: "friendship_request",
       },
     ]);
   });

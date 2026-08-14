@@ -1,10 +1,10 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import Redis from 'ioredis';
-import { ShareStat } from 'src/entities/share-stat.entity';
-import { Share } from 'src/entities/share.entity';
-import { In, Repository } from 'typeorm';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import Redis from "ioredis";
+import { ShareStat } from "src/entities/share-stat.entity";
+import { Share } from "src/entities/share.entity";
+import { In, Repository } from "typeorm";
 
 @Injectable()
 export class ShareCacheService {
@@ -16,7 +16,7 @@ export class ShareCacheService {
     @InjectRedis() private readonly redis: Redis,
     @InjectRepository(Share) private readonly shareRepo: Repository<Share>,
     @InjectRepository(ShareStat)
-    private readonly shareStatRepo: Repository<ShareStat>
+    private readonly shareStatRepo: Repository<ShareStat>,
   ) {}
 
   private shareKey(id: string) {
@@ -42,7 +42,7 @@ export class ShareCacheService {
 
     const share = await this.shareRepo.findOne({
       where: { id: shareId },
-      relations: ['post', 'shareStat'],
+      relations: ["post", "shareStat"],
     });
 
     if (!share) return null;
@@ -53,13 +53,13 @@ export class ShareCacheService {
     pipeline.setex(
       this.shareKey(share.id),
       this.SHARE_TTL,
-      JSON.stringify(shareData)
+      JSON.stringify(shareData),
     );
     if (shareStat)
       pipeline.setex(
         this.statKey(share.id),
         this.SHARE_STAT_TTL,
-        JSON.stringify(shareStat)
+        JSON.stringify(shareStat),
       );
 
     await pipeline.exec();
@@ -89,7 +89,7 @@ export class ShareCacheService {
     if (missingIds.length > 0) {
       const dbShares = await this.shareRepo.find({
         where: { id: In(missingIds) },
-        relations: ['post', 'shareStat'],
+        relations: ["post", "shareStat"],
       });
 
       const pipeline = this.redis.pipeline();
@@ -98,13 +98,13 @@ export class ShareCacheService {
         pipeline.setex(
           this.shareKey(share.id),
           this.SHARE_TTL,
-          JSON.stringify(shareData)
+          JSON.stringify(shareData),
         );
         if (shareStat)
           pipeline.setex(
             this.statKey(share.id),
             this.SHARE_STAT_TTL,
-            JSON.stringify(shareStat)
+            JSON.stringify(shareStat),
           );
       }
       await pipeline.exec();
@@ -131,7 +131,7 @@ export class ShareCacheService {
   // 📊 Cache Stat
   // ----------------------------------------
   private async getStatsBatch(
-    shareIds: string[]
+    shareIds: string[],
   ): Promise<Map<string, ShareStat>> {
     if (!shareIds.length) return new Map();
 
@@ -158,7 +158,7 @@ export class ShareCacheService {
         pipe.setex(
           this.statKey(s.shareId),
           this.SHARE_STAT_TTL,
-          JSON.stringify(s)
+          JSON.stringify(s),
         );
       }
       await pipe.exec();
@@ -176,7 +176,7 @@ export class ShareCacheService {
       await this.redis.setex(
         this.statKey(shareId),
         this.SHARE_STAT_TTL,
-        JSON.stringify(stat)
+        JSON.stringify(stat),
       );
     return stat;
   }
@@ -195,7 +195,7 @@ export class ShareCacheService {
   async getRelationship(
     userId: string,
     targetId: string,
-    fetchFn: () => Promise<string>
+    fetchFn: () => Promise<string>,
   ): Promise<string> {
     const key = `relationship:${userId}:${targetId}`;
     const cached = await this.redis.get(key);
@@ -208,7 +208,7 @@ export class ShareCacheService {
     pipeline.setex(
       `relationship:${targetId}:${userId}`,
       this.RELATION_TTL,
-      this.reverseRelation(relation)
+      this.reverseRelation(relation),
     );
     await pipeline.exec();
 
@@ -217,10 +217,10 @@ export class ShareCacheService {
 
   private reverseRelation(relation: string): string {
     switch (relation) {
-      case 'BLOCKED':
-        return 'BLOCKED_BY';
-      case 'BLOCKED_BY':
-        return 'BLOCKED';
+      case "BLOCKED":
+        return "BLOCKED_BY";
+      case "BLOCKED_BY":
+        return "BLOCKED";
       default:
         return relation;
     }

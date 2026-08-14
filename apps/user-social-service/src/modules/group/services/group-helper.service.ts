@@ -1,12 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { GroupInfoDTO, GroupRole, PostPermissionDTO } from '@repo/dtos';
-import { and, eq, inArray } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { groupMembers, groupSettings, groups } from 'src/drizzle/schema/schema';
-import { GroupCacheService } from './group-cache.service';
-import { ROLE_PERMISSIONS } from 'src/modules/group/common/constant/role-permission.constant';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { GroupInfoDTO, GroupRole, PostPermissionDTO } from "@repo/dtos";
+import { and, eq, inArray } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupMembers, groupSettings, groups } from "src/drizzle/schema/schema";
+import { GroupCacheService } from "./group-cache.service";
+import { ROLE_PERMISSIONS } from "src/modules/group/common/constant/role-permission.constant";
 
 @Injectable()
 export class GroupHelperService {
@@ -26,7 +26,7 @@ export class GroupHelperService {
       .limit(1);
 
     if (!group)
-      throw new RpcException({ statusCode: 404, message: 'Group not found' });
+      throw new RpcException({ statusCode: 404, message: "Group not found" });
 
     const [setting] = await this.db
       .select()
@@ -38,10 +38,7 @@ export class GroupHelperService {
       .select()
       .from(groupMembers)
       .where(
-        and(
-          eq(groupMembers.userId, userId),
-          eq(groupMembers.groupId, groupId),
-        ),
+        and(eq(groupMembers.userId, userId), eq(groupMembers.groupId, groupId)),
       )
       .limit(1);
 
@@ -75,13 +72,15 @@ export class GroupHelperService {
     const result: GroupInfoDTO[] = [];
     dbGroups.forEach((g) => result.push(g));
     cached.forEach((v) => {
-      if (v !== 'NOT_FOUND') result.push(v as any);
+      if (v !== "NOT_FOUND") result.push(v as any);
     });
 
     return result;
   }
 
-  private async getSummaryGroupsFromDB(groupIds: string[]): Promise<GroupInfoDTO[]> {
+  private async getSummaryGroupsFromDB(
+    groupIds: string[],
+  ): Promise<GroupInfoDTO[]> {
     if (!groupIds.length) return [];
 
     const rows = await this.db
@@ -93,10 +92,13 @@ export class GroupHelperService {
       .from(groups)
       .where(inArray(groups.id, groupIds));
 
-    return rows.map((g) => ({
-      id: g.id,
-      name: g.name,
-      avatarUrl: (g.avatar as any)?.url,
-    }) as GroupInfoDTO);
+    return rows.map(
+      (g) =>
+        ({
+          id: g.id,
+          name: g.name,
+          avatarUrl: (g.avatar as any)?.url,
+        }) as GroupInfoDTO,
+    );
   }
 }

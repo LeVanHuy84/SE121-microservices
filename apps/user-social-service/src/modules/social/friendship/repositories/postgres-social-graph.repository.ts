@@ -1,30 +1,30 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
   ActivityType,
   CursorPageResponse,
   CursorPaginationDTO,
   RecommendationGraphEventType,
-} from '@repo/dtos';
-import Redis from 'ioredis';
-import { OutboxService } from 'src/modules/event/outbox.service';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
+} from "@repo/dtos";
+import Redis from "ioredis";
+import { OutboxService } from "src/modules/event/outbox.service";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
 import {
   friendships,
   friendRequests,
   userBlocks,
   friendRecommendationDismissals,
   friendRecommendationEvents,
-} from 'src/drizzle/schema/schema';
-import { and, asc, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+} from "src/drizzle/schema/schema";
+import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import {
   AcceptedFriendRequestAttribution,
   FriendRecommendation,
   FriendRecommendationAttribution,
   FriendRecommendationEvent,
   SocialGraphRepository,
-} from './social-graph.repository';
+} from "./social-graph.repository";
 
 @Injectable()
 export class PostgresSocialGraphRepository implements SocialGraphRepository {
@@ -43,7 +43,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     return `blocks:${userId}`;
   }
 
-  private readonly EMPTY_FLAG = '__EMPTY__';
+  private readonly EMPTY_FLAG = "__EMPTY__";
 
   async getRelationshipStatus(userId: string, targetId: string) {
     const rows = await this.db.execute<{ status: string }>(
@@ -75,15 +75,15 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     if (row?.status) {
       return {
         status: row.status as
-          | 'BLOCKED'
-          | 'FRIEND'
-          | 'REQUESTED_OUT'
-          | 'REQUESTED_IN'
-          | 'NONE',
+          | "BLOCKED"
+          | "FRIEND"
+          | "REQUESTED_OUT"
+          | "REQUESTED_IN"
+          | "NONE",
       };
     }
 
-    return { status: 'NONE' as const };
+    return { status: "NONE" as const };
   }
 
   async sendFriendRequest(
@@ -118,7 +118,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId,
           targetOwnerId: targetId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -161,7 +161,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId,
           targetOwnerId: targetId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -233,7 +233,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId: requesterId,
           targetOwnerId: requesterId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -279,7 +279,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId: requesterId,
           targetOwnerId: requesterId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -325,7 +325,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId: friendId,
           targetOwnerId: friendId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -353,7 +353,9 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         );
 
       try {
-        await tx.insert(userBlocks).values({ blockerId: userId, blockedId: targetId });
+        await tx
+          .insert(userBlocks)
+          .values({ blockerId: userId, blockedId: targetId });
       } catch (err) {
         return { created: false };
       }
@@ -382,7 +384,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           targetId,
           targetOwnerId: targetId,
           metadata: {
-            targetType: 'user',
+            targetType: "user",
           },
           createdAt: new Date(),
         },
@@ -443,13 +445,10 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
           set: { expiresAt },
         });
 
-      await this.outboxService.createRecommendationGraphDismissedEvent(
-        tx,
-        {
-          ...this.buildGraphEventPayload(userId, candidateId),
-          expiresAt: expiresAt.toISOString(),
-        } as any,
-      );
+      await this.outboxService.createRecommendationGraphDismissedEvent(tx, {
+        ...this.buildGraphEventPayload(userId, candidateId),
+        expiresAt: expiresAt.toISOString(),
+      } as any);
     });
   }
 
@@ -473,8 +472,8 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         cachedFriends = await this.redis.zrevrangebyscore(
           cacheKey,
           `(${cursorScore}`,
-          '-inf',
-          'LIMIT',
+          "-inf",
+          "LIMIT",
           0,
           limit + 1,
         );
@@ -588,7 +587,7 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       .where(and(...conditions))
       .orderBy(desc(friendships.since));
 
-    if (typeof limit === 'number') {
+    if (typeof limit === "number") {
       query.limit(Math.max(0, Math.floor(limit)));
     }
 
@@ -616,8 +615,8 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
         cachedBlocks = await this.redis.zrevrangebyscore(
           cacheKey,
           `(${cursorScore}`,
-          '-inf',
-          'LIMIT',
+          "-inf",
+          "LIMIT",
           0,
           limit + 1,
         );
@@ -635,7 +634,10 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
 
   private async rebuildBlocksCache(userId: string): Promise<void> {
     const allBlocks = await this.db
-      .select({ blockedId: userBlocks.blockedId, createdAt: userBlocks.createdAt })
+      .select({
+        blockedId: userBlocks.blockedId,
+        createdAt: userBlocks.createdAt,
+      })
       .from(userBlocks)
       .where(eq(userBlocks.blockerId, userId));
 
@@ -846,14 +848,18 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       {} as Record<string, number>,
     );
 
-    const servedTotal = mappedTotals['served'] || 0;
-    const requestsTotal = mappedTotals['request_sent'] || 0;
+    const servedTotal = mappedTotals["served"] || 0;
+    const requestsTotal = mappedTotals["request_sent"] || 0;
 
     const rates = {
-      dismissFromServed: servedTotal > 0 ? (mappedTotals['dismissed'] || 0) / servedTotal : 0,
-      requestSentFromServed: servedTotal > 0 ? (mappedTotals['request_sent'] || 0) / servedTotal : 0,
-      acceptFromServed: servedTotal > 0 ? (mappedTotals['accepted'] || 0) / servedTotal : 0,
-      acceptFromRequests: requestsTotal > 0 ? (mappedTotals['accepted'] || 0) / requestsTotal : 0,
+      dismissFromServed:
+        servedTotal > 0 ? (mappedTotals["dismissed"] || 0) / servedTotal : 0,
+      requestSentFromServed:
+        servedTotal > 0 ? (mappedTotals["request_sent"] || 0) / servedTotal : 0,
+      acceptFromServed:
+        servedTotal > 0 ? (mappedTotals["accepted"] || 0) / servedTotal : 0,
+      acceptFromRequests:
+        requestsTotal > 0 ? (mappedTotals["accepted"] || 0) / requestsTotal : 0,
     };
 
     return {
@@ -861,9 +867,9 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
       windowEnd: new Date().toISOString(),
       totals: {
         served: servedTotal,
-        dismissed: mappedTotals['dismissed'] || 0,
+        dismissed: mappedTotals["dismissed"] || 0,
         requestSent: requestsTotal,
-        accepted: mappedTotals['accepted'] || 0,
+        accepted: mappedTotals["accepted"] || 0,
       },
       rates,
       sources: sourceRows.rows.map((row) => ({
@@ -883,14 +889,11 @@ export class PostgresSocialGraphRepository implements SocialGraphRepository {
     };
   }
 
-  private buildGraphEventPayload(
-    userId: string,
-    targetId: string,
-  ) {
+  private buildGraphEventPayload(userId: string, targetId: string) {
     return {
-      schemaVersion: '1.0',
+      schemaVersion: "1.0",
       occurredAt: new Date().toISOString(),
-      source: 'social-graph',
+      source: "social-graph",
       userId,
       targetUserId: targetId,
     };

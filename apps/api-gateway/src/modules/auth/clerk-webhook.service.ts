@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { firstValueFrom } from 'rxjs';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { firstValueFrom } from "rxjs";
 
 @Injectable()
 export class ClerkWebhookService {
@@ -11,7 +11,7 @@ export class ClerkWebhookService {
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private readonly userClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
-    private readonly notificationClient: ClientProxy
+    private readonly notificationClient: ClientProxy,
   ) {}
 
   /**
@@ -24,31 +24,31 @@ export class ClerkWebhookService {
       const email = this.extractPrimaryEmail(data);
 
       if (!userId || !email) {
-        this.logger.warn('User created event missing id or email');
+        this.logger.warn("User created event missing id or email");
         return;
       }
 
       const role = data?.public_metadata?.role;
 
       await firstValueFrom(
-        this.userClient.send('createUser', {
+        this.userClient.send("createUser", {
           id: userId,
           email,
-          firstName: data?.first_name ?? '',
-          lastName: data?.last_name ?? '',
+          firstName: data?.first_name ?? "",
+          lastName: data?.last_name ?? "",
           avatarUrl: data?.image_url ?? undefined,
           role: role,
-        })
+        }),
       );
 
       this.logger.log(`Synced created user ${userId} to user-service`);
     } catch (error) {
       if (this.isAlreadyExistsError(error)) {
-        this.logger.warn('User already exists in user-service, skip create');
+        this.logger.warn("User already exists in user-service, skip create");
         return;
       }
 
-      this.logger.error('Error handling user created:', error);
+      this.logger.error("Error handling user created:", error);
     }
   }
 
@@ -61,7 +61,7 @@ export class ClerkWebhookService {
       const userId = data?.id;
 
       if (!userId) {
-        this.logger.warn('User updated event missing id');
+        this.logger.warn("User updated event missing id");
         return;
       }
 
@@ -70,11 +70,11 @@ export class ClerkWebhookService {
       if (data?.first_name !== undefined) {
         updateUserDto.firstName = data.first_name;
       }
-      
+
       if (data?.last_name !== undefined) {
         updateUserDto.lastName = data.last_name;
       }
-      
+
       if (data?.image_url !== undefined) {
         updateUserDto.avatarUrl = data.image_url;
       }
@@ -84,15 +84,15 @@ export class ClerkWebhookService {
       }
 
       await firstValueFrom(
-        this.userClient.send('updateUser', {
+        this.userClient.send("updateUser", {
           id: userId,
           updateUserDto,
-        })
+        }),
       );
 
       this.logger.log(`Synced updated user ${userId} to user-service`);
     } catch (error) {
-      this.logger.error('Error handling user updated:', error);
+      this.logger.error("Error handling user updated:", error);
     }
   }
 
@@ -104,7 +104,7 @@ export class ClerkWebhookService {
     try {
       const userId = data?.user_id;
       if (!userId) {
-        this.logger.warn('Session ended event missing user_id');
+        this.logger.warn("Session ended event missing user_id");
         return;
       }
 
@@ -117,7 +117,7 @@ export class ClerkWebhookService {
       this.logger.log(`Session ended for user ${userId}`);
       // Optionally clean up device tokens here
     } catch (error) {
-      this.logger.error('Error handling session ended:', error);
+      this.logger.error("Error handling session ended:", error);
     }
   }
 
@@ -129,23 +129,23 @@ export class ClerkWebhookService {
     try {
       const userId = data?.id;
       if (!userId) {
-        this.logger.warn('User deleted event missing id');
+        this.logger.warn("User deleted event missing id");
         return;
       }
 
       // Remove all device tokens
       await firstValueFrom(
-        this.notificationClient.send('remove_all_user_tokens', userId)
+        this.notificationClient.send("remove_all_user_tokens", userId),
       );
 
       // Remove all notifications
       await firstValueFrom(
-        this.notificationClient.send('delete_all_notifications', userId)
+        this.notificationClient.send("delete_all_notifications", userId),
       );
 
       this.logger.log(`Cleaned up data for deleted user ${userId}`);
     } catch (error) {
-      this.logger.error('Error handling user deleted:', error);
+      this.logger.error("Error handling user deleted:", error);
     }
   }
 
@@ -157,15 +157,15 @@ export class ClerkWebhookService {
     const primaryEmailAddressId = data?.primary_email_address_id;
 
     const primaryEmail = emailAddresses.find(
-      (item: any) => item?.id === primaryEmailAddressId
+      (item: any) => item?.id === primaryEmailAddressId,
     );
 
-    if (typeof primaryEmail?.email_address === 'string') {
+    if (typeof primaryEmail?.email_address === "string") {
       return primaryEmail.email_address;
     }
 
     const fallbackEmail = emailAddresses.find(
-      (item: any) => typeof item?.email_address === 'string'
+      (item: any) => typeof item?.email_address === "string",
     );
 
     return fallbackEmail?.email_address ?? null;
@@ -173,16 +173,16 @@ export class ClerkWebhookService {
 
   private isAlreadyExistsError(error: unknown): boolean {
     const message =
-      typeof error === 'object' && error !== null && 'message' in error
-        ? String((error as { message?: unknown }).message ?? '')
-        : String(error ?? '');
+      typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
 
     const normalized = message.toLowerCase();
     return (
-      normalized.includes('duplicate') ||
-      normalized.includes('already exists') ||
-      normalized.includes('unique constraint') ||
-      normalized.includes('23505')
+      normalized.includes("duplicate") ||
+      normalized.includes("already exists") ||
+      normalized.includes("unique constraint") ||
+      normalized.includes("23505")
     );
   }
 }

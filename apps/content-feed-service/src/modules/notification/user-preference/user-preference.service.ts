@@ -1,10 +1,10 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { ChannelNotification } from '@repo/dtos';
-import Redis from 'ioredis';
-import { Model } from 'mongoose';
-import { UserPreference } from '../mongo/schema/user-preference.schema';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { ChannelNotification } from "@repo/dtos";
+import Redis from "ioredis";
+import { Model } from "mongoose";
+import { UserPreference } from "../mongo/schema/user-preference.schema";
 
 type NotificationLimitConfig = {
   dailyLimit?: number;
@@ -14,7 +14,7 @@ type NotificationLimitConfig = {
 
 type ReserveNotificationSlotResult = {
   allowed: boolean;
-  reason?: 'daily' | 'burst';
+  reason?: "daily" | "burst";
   dailyCount: number;
   burstCount: number;
 };
@@ -35,7 +35,7 @@ export class UserPreferenceService {
     if (raw) return JSON.parse(raw);
     const doc = await this.userPreferenceModel.findOne({ userId }).lean();
     if (doc) {
-      await this.redis.set(key, JSON.stringify(doc), 'EX', 60 * 5); // cache 5 minutes
+      await this.redis.set(key, JSON.stringify(doc), "EX", 60 * 5); // cache 5 minutes
       return doc;
     }
     // default preference
@@ -47,24 +47,36 @@ export class UserPreferenceService {
         pushMessages: true,
         pushGroupMessages: true,
         pushFriendRequests: true,
-        doNotDisturb: { enabled: false, from: '22:00', to: '07:00' },
+        doNotDisturb: { enabled: false, from: "22:00", to: "07:00" },
       },
     };
-    await this.redis.set(key, JSON.stringify(def), 'EX', 60 * 5);
+    await this.redis.set(key, JSON.stringify(def), "EX", 60 * 5);
     return def;
   }
   async setUserPreferences(userId: string, prefs: Partial<UserPreference>) {
     const updateData: any = {};
     if (prefs.limits) updateData.limits = prefs.limits;
     if (prefs.settings) {
-      if (prefs.settings.pushMentions !== undefined) updateData['settings.pushMentions'] = prefs.settings.pushMentions;
-      if (prefs.settings.pushMessages !== undefined) updateData['settings.pushMessages'] = prefs.settings.pushMessages;
-      if (prefs.settings.pushGroupMessages !== undefined) updateData['settings.pushGroupMessages'] = prefs.settings.pushGroupMessages;
-      if (prefs.settings.pushFriendRequests !== undefined) updateData['settings.pushFriendRequests'] = prefs.settings.pushFriendRequests;
+      if (prefs.settings.pushMentions !== undefined)
+        updateData["settings.pushMentions"] = prefs.settings.pushMentions;
+      if (prefs.settings.pushMessages !== undefined)
+        updateData["settings.pushMessages"] = prefs.settings.pushMessages;
+      if (prefs.settings.pushGroupMessages !== undefined)
+        updateData["settings.pushGroupMessages"] =
+          prefs.settings.pushGroupMessages;
+      if (prefs.settings.pushFriendRequests !== undefined)
+        updateData["settings.pushFriendRequests"] =
+          prefs.settings.pushFriendRequests;
       if (prefs.settings.doNotDisturb) {
-        if (prefs.settings.doNotDisturb.enabled !== undefined) updateData['settings.doNotDisturb.enabled'] = prefs.settings.doNotDisturb.enabled;
-        if (prefs.settings.doNotDisturb.from !== undefined) updateData['settings.doNotDisturb.from'] = prefs.settings.doNotDisturb.from;
-        if (prefs.settings.doNotDisturb.to !== undefined) updateData['settings.doNotDisturb.to'] = prefs.settings.doNotDisturb.to;
+        if (prefs.settings.doNotDisturb.enabled !== undefined)
+          updateData["settings.doNotDisturb.enabled"] =
+            prefs.settings.doNotDisturb.enabled;
+        if (prefs.settings.doNotDisturb.from !== undefined)
+          updateData["settings.doNotDisturb.from"] =
+            prefs.settings.doNotDisturb.from;
+        if (prefs.settings.doNotDisturb.to !== undefined)
+          updateData["settings.doNotDisturb.to"] =
+            prefs.settings.doNotDisturb.to;
       }
     }
 
@@ -79,7 +91,7 @@ export class UserPreferenceService {
     await this.redis.set(
       this.cacheKey(userId),
       JSON.stringify(updated),
-      'EX',
+      "EX",
       60 * 5,
     );
     return updated;
@@ -89,7 +101,7 @@ export class UserPreferenceService {
     userId: string,
     limit: number,
   ): Promise<boolean> {
-    const result = await this.reserveNotificationSlot(userId, 'default', {
+    const result = await this.reserveNotificationSlot(userId, "default", {
       dailyLimit: limit,
       burstLimit: Number.MAX_SAFE_INTEGER,
       burstWindowSeconds: 300,
@@ -124,7 +136,7 @@ export class UserPreferenceService {
     if (dailyCount > dailyLimit) {
       return {
         allowed: false,
-        reason: 'daily',
+        reason: "daily",
         dailyCount,
         burstCount,
       };
@@ -133,7 +145,7 @@ export class UserPreferenceService {
     if (burstCount > burstLimit) {
       return {
         allowed: false,
-        reason: 'burst',
+        reason: "burst",
         dailyCount,
         burstCount,
       };

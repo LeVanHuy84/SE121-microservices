@@ -1,16 +1,16 @@
 // src/notification/schemas/user-preference.schema.ts
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document } from "mongoose";
 export type UserPreferenceDocument = UserPreference & Document;
 
 export class DndSettings {
   @Prop({ default: false })
   enabled: boolean;
 
-  @Prop({ default: '22:00' })
+  @Prop({ default: "22:00" })
   from: string;
 
-  @Prop({ default: '07:00' })
+  @Prop({ default: "07:00" })
   to: string;
 }
 
@@ -27,7 +27,10 @@ export class Settings {
   @Prop({ default: true })
   pushFriendRequests: boolean;
 
-  @Prop({ type: DndSettings, default: () => ({ enabled: false, from: '22:00', to: '07:00' }) })
+  @Prop({
+    type: DndSettings,
+    default: () => ({ enabled: false, from: "22:00", to: "07:00" }),
+  })
   doNotDisturb: DndSettings;
 }
 
@@ -35,8 +38,16 @@ export class Settings {
 export class UserPreference {
   @Prop({ required: true, unique: true }) userId: string;
   @Prop({ type: Object, default: { dailyLimit: 100 } }) limits: any; // customize
-  
-  @Prop({ type: Settings, default: () => ({ pushMentions: true, pushMessages: true, pushFriendRequests: true, doNotDisturb: { enabled: false, from: '22:00', to: '07:00' } }) })
+
+  @Prop({
+    type: Settings,
+    default: () => ({
+      pushMentions: true,
+      pushMessages: true,
+      pushFriendRequests: true,
+      doNotDisturb: { enabled: false, from: "22:00", to: "07:00" },
+    }),
+  })
   settings: Settings;
 }
 

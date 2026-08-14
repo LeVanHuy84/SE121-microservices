@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   ContentEntryDTO,
   ContentEntryQuery,
@@ -12,14 +12,14 @@ import {
   ReportResponseDTO,
   ReportStatus,
   TargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { TARGET_CONFIG } from 'src/constant';
-import { Comment as CommentEntity } from 'src/entities/comment.entity';
-import { Post } from 'src/entities/post.entity';
-import { Report } from 'src/entities/report.entity';
-import { Share } from 'src/entities/share.entity';
-import { Between, DataSource, Repository } from 'typeorm';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { TARGET_CONFIG } from "src/constant";
+import { Comment as CommentEntity } from "src/entities/comment.entity";
+import { Post } from "src/entities/post.entity";
+import { Report } from "src/entities/report.entity";
+import { Share } from "src/entities/share.entity";
+import { Between, DataSource, Repository } from "typeorm";
 
 @Injectable()
 export class ReadReportService {
@@ -87,22 +87,22 @@ export class ReadReportService {
       status,
       limit = 10,
       cursor,
-      order = 'DESC',
-      sortBy = 'createdAt',
+      order = "DESC",
+      sortBy = "createdAt",
     } = filter;
 
-    const query = this.reportRepo.createQueryBuilder('report');
+    const query = this.reportRepo.createQueryBuilder("report");
 
-    if (groupId) query.andWhere('report.groupId = :groupId', { groupId });
+    if (groupId) query.andWhere("report.groupId = :groupId", { groupId });
     if (reporterId)
-      query.andWhere('report.reporterId = :reporterId', { reporterId });
+      query.andWhere("report.reporterId = :reporterId", { reporterId });
     if (targetType)
-      query.andWhere('report.targetType = :targetType', { targetType });
-    if (targetId) query.andWhere('report.targetId = :targetId', { targetId });
-    if (status) query.andWhere('report.status = :status', { status });
+      query.andWhere("report.targetType = :targetType", { targetType });
+    if (targetId) query.andWhere("report.targetId = :targetId", { targetId });
+    if (status) query.andWhere("report.status = :status", { status });
 
     if (cursor) {
-      const operator = order === 'ASC' ? '>' : '<';
+      const operator = order === "ASC" ? ">" : "<";
       query.andWhere(`report.${sortBy} ${operator} :cursor`, { cursor });
     }
 
@@ -145,7 +145,7 @@ export class ReadReportService {
     if (!targetType) {
       throw new RpcException({
         statusCode: 400,
-        message: 'targetType is required',
+        message: "targetType is required",
       });
     }
 
@@ -153,7 +153,7 @@ export class ReadReportService {
     if (!config) {
       throw new RpcException({
         statusCode: 400,
-        message: 'Invalid targetType',
+        message: "Invalid targetType",
       });
     }
 
@@ -206,8 +206,8 @@ export class ReadReportService {
     const rawData = await baseQb
       .clone()
       .select(selects)
-      .addSelect(`'${targetType}'`, 'type')
-      .orderBy('"reportCount"', 'DESC')
+      .addSelect(`'${targetType}'`, "type")
+      .orderBy('"reportCount"', "DESC")
       .offset(offset)
       .limit(limit)
       .getRawMany();
@@ -318,7 +318,7 @@ export class ReadReportService {
     // 5. QUERY HELPERS
     // ===============================
 
-    const groupByVNDate = (alias: string, col = 'created_at') =>
+    const groupByVNDate = (alias: string, col = "created_at") =>
       `to_char(timezone('Asia/Ho_Chi_Minh', ${alias}.${col}), 'YYYY-MM-DD')`;
 
     // ===============================
@@ -327,15 +327,15 @@ export class ReadReportService {
 
     const posts = await this.dataSource
       .getRepository(Post)
-      .createQueryBuilder('p')
-      .select(groupByVNDate('p'), 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('p.created_at BETWEEN :from AND :to', {
+      .createQueryBuilder("p")
+      .select(groupByVNDate("p"), "date")
+      .addSelect("COUNT(*)", "count")
+      .where("p.created_at BETWEEN :from AND :to", {
         from: fromDate,
         to: toDate,
       })
-      .andWhere('p.is_deleted = false')
-      .groupBy('date')
+      .andWhere("p.is_deleted = false")
+      .groupBy("date")
       .getRawMany();
 
     // ===============================
@@ -344,15 +344,15 @@ export class ReadReportService {
 
     const comments = await this.dataSource
       .getRepository(CommentEntity)
-      .createQueryBuilder('c')
-      .select(groupByVNDate('c'), 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('c.created_at BETWEEN :from AND :to', {
+      .createQueryBuilder("c")
+      .select(groupByVNDate("c"), "date")
+      .addSelect("COUNT(*)", "count")
+      .where("c.created_at BETWEEN :from AND :to", {
         from: fromDate,
         to: toDate,
       })
-      .andWhere('c.is_deleted = false')
-      .groupBy('date')
+      .andWhere("c.is_deleted = false")
+      .groupBy("date")
       .getRawMany();
 
     // ===============================
@@ -361,14 +361,14 @@ export class ReadReportService {
 
     const shares = await this.dataSource
       .getRepository(Share)
-      .createQueryBuilder('s')
-      .select(groupByVNDate('s'), 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('s.created_at BETWEEN :from AND :to', {
+      .createQueryBuilder("s")
+      .select(groupByVNDate("s"), "date")
+      .addSelect("COUNT(*)", "count")
+      .where("s.created_at BETWEEN :from AND :to", {
         from: fromDate,
         to: toDate,
       })
-      .groupBy('date')
+      .groupBy("date")
       .getRawMany();
 
     // ===============================
@@ -482,19 +482,19 @@ export class ReadReportService {
 
     const reports = await this.dataSource
       .getRepository(Report)
-      .createQueryBuilder('r')
+      .createQueryBuilder("r")
       .select(
         `to_char(timezone('Asia/Ho_Chi_Minh', r.created_at), 'YYYY-MM-DD')`,
-        'date',
+        "date",
       )
-      .addSelect('r.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('r.created_at BETWEEN :from AND :to', {
+      .addSelect("r.status", "status")
+      .addSelect("COUNT(*)", "count")
+      .where("r.created_at BETWEEN :from AND :to", {
         from: fromDate,
         to: toDate,
       })
-      .groupBy('date')
-      .addGroupBy('r.status')
+      .groupBy("date")
+      .addGroupBy("r.status")
       .getRawMany();
 
     // ===============================
@@ -532,12 +532,12 @@ export class ReadReportService {
 
     if (value instanceof Date) {
       vnDate = new Date(value);
-    } else if (value.includes('T')) {
+    } else if (value.includes("T")) {
       // ISO string → Date
       vnDate = new Date(value);
     } else {
       // YYYY-MM-DD → coi là VN
-      const [y, m, d] = value.split('-').map(Number);
+      const [y, m, d] = value.split("-").map(Number);
       return { y, m, d };
     }
 

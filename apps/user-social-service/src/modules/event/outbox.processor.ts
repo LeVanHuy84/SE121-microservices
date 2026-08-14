@@ -1,16 +1,16 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import {
   CreateNotificationDto,
   EventDestination,
   NotificationPayload,
   NotiOutboxPayload,
-} from '@repo/dtos';
-import { KafkaProducerService, NotificationService } from '@repo/common';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle';
-import { outboxEvents, groups } from 'src/drizzle/schema/schema';
-import { and, asc, eq } from 'drizzle-orm';
+} from "@repo/dtos";
+import { KafkaProducerService, NotificationService } from "@repo/common";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle";
+import { outboxEvents, groups } from "src/drizzle/schema/schema";
+import { and, asc, eq } from "drizzle-orm";
 
 @Injectable()
 export class OutboxProcessor {
@@ -22,13 +22,13 @@ export class OutboxProcessor {
     private readonly kafkaProducer: KafkaProducerService,
     private readonly notificationService: NotificationService,
   ) {
-    this.logger.log('🧩 Unified OutboxProcessor initialized (Drizzle)');
+    this.logger.log("🧩 Unified OutboxProcessor initialized (Drizzle)");
   }
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleOutboxBatch() {
     if (this.running) {
-      this.logger.debug('⏳ Outbox job still running, skipping...');
+      this.logger.debug("⏳ Outbox job still running, skipping...");
       return;
     }
 
@@ -87,14 +87,18 @@ export class OutboxProcessor {
         case EventDestination.RABBITMQ: {
           const notis = await this.toNotificationDtos(event);
           await Promise.all(
-            notis.map((noti) => this.notificationService.sendNotification(noti)),
+            notis.map((noti) =>
+              this.notificationService.sendNotification(noti),
+            ),
           );
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
           break;
         }
 
         default:
-          this.logger.warn(`⚠️ Unknown destination "${destination}" for event ${id}`);
+          this.logger.warn(
+            `⚠️ Unknown destination "${destination}" for event ${id}`,
+          );
           break;
       }
     } catch (err: any) {
@@ -106,10 +110,12 @@ export class OutboxProcessor {
     }
   }
 
-  private async toNotificationDtos(outbox: any): Promise<CreateNotificationDto[]> {
+  private async toNotificationDtos(
+    outbox: any,
+  ): Promise<CreateNotificationDto[]> {
     const outboxPayload = outbox.payload as NotiOutboxPayload;
     const receivers = (outboxPayload?.receivers || []).filter(
-      (r): r is string => typeof r === 'string' && r.trim().length > 0,
+      (r): r is string => typeof r === "string" && r.trim().length > 0,
     );
 
     let actorName = outboxPayload.actorName;
@@ -117,7 +123,7 @@ export class OutboxProcessor {
 
     if (
       !actorName &&
-      (outboxPayload.targetType as string) === 'group' &&
+      (outboxPayload.targetType as string) === "group" &&
       outboxPayload.targetId
     ) {
       const [group] = await this.db
@@ -152,8 +158,8 @@ export class OutboxProcessor {
   }
 
   private getPartitionKey(event: any): string {
-    const payload = event.payload as any;
-    if (!payload || typeof payload !== 'object') {
+    const payload = event.payload;
+    if (!payload || typeof payload !== "object") {
       return event.id;
     }
 
@@ -162,7 +168,7 @@ export class OutboxProcessor {
 
     if (userId && targetUserId) {
       const ids = [String(userId), String(targetUserId)].sort();
-      return ids.join('::');
+      return ids.join("::");
     }
 
     if (userId) {

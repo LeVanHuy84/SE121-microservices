@@ -165,7 +165,10 @@ export class CallService {
             },
             $or: [
               { status: CallSessionStatus.INITIATED },
-              { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+              {
+                status: CallSessionStatus.RINGING,
+                ringTimeoutAt: { $gt: now },
+              },
               { status: CallSessionStatus.ACCEPTED },
             ],
           })
@@ -174,9 +177,14 @@ export class CallService {
           ? this.callSessionModel
               .exists({
                 participants: recipientId,
-                status: { $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED] },
+                status: {
+                  $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED],
+                },
                 $or: [
-                  { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+                  {
+                    status: CallSessionStatus.RINGING,
+                    ringTimeoutAt: { $gt: now },
+                  },
                   { status: CallSessionStatus.ACCEPTED },
                 ],
               })
@@ -185,20 +193,29 @@ export class CallService {
         this.callSessionModel
           .exists({
             participants: userId,
-            status: { $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED] },
+            status: {
+              $in: [CallSessionStatus.RINGING, CallSessionStatus.ACCEPTED],
+            },
             $or: [
-              { status: CallSessionStatus.RINGING, ringTimeoutAt: { $gt: now } },
+              {
+                status: CallSessionStatus.RINGING,
+                ringTimeoutAt: { $gt: now },
+              },
               { status: CallSessionStatus.ACCEPTED },
             ],
           })
           .session(session),
       ]);
 
-      if (hasActiveInConv) throw new RpcException('Conversation already has an active call');
-      if (recipientBusy) throw new RpcException('Receiver is busy in another call');
+      if (hasActiveInConv)
+        throw new RpcException('Conversation already has an active call');
+      if (recipientBusy)
+        throw new RpcException('Receiver is busy in another call');
       if (callerBusy) throw new RpcException('Caller is busy in another call');
 
-      const ringTimeoutAt = new Date(now.getTime() + DEFAULT_CALL_RING_TIMEOUT_MS);
+      const ringTimeoutAt = new Date(
+        now.getTime() + DEFAULT_CALL_RING_TIMEOUT_MS,
+      );
 
       const call = new this.callSessionModel({
         conversationId: conversation._id,
@@ -233,9 +250,10 @@ export class CallService {
 
     // Phase 2: Register with Stream OUTSIDE the transaction (non-blocking for DB)
     // If this fails, immediately cancel the call so the caller is not stuck in BUSY state.
-    const moderatorUserIds = [userId, ...(result.conversation?.admins || [])].filter(
-      (id, index, self) => self.indexOf(id) === index,
-    );
+    const moderatorUserIds = [
+      userId,
+      ...(result.conversation?.admins || []),
+    ].filter((id, index, self) => self.indexOf(id) === index);
     try {
       await this.streamProvider.registerCall({
         callId: result.callDto._id,
@@ -250,9 +268,13 @@ export class CallService {
       );
       // Best-effort cancel so the user is not stuck in BUSY state
       void this.rejectCall(userId, { callId: result.callDto._id }).catch((e) =>
-        this.logger.error(`[createCall] Auto-cancel after Stream failure also failed: ${e?.message}`),
+        this.logger.error(
+          `[createCall] Auto-cancel after Stream failure also failed: ${e?.message}`,
+        ),
       );
-      throw new RpcException('Failed to register call with media infrastructure');
+      throw new RpcException(
+        'Failed to register call with media infrastructure',
+      );
     }
 
     // Trigger Push Notification outside transaction
@@ -269,10 +291,14 @@ export class CallService {
     try {
       const caller = await this.userClientService.getUserInfo(callerId);
       const callerName =
-        [caller?.firstName, caller?.lastName].filter(Boolean).join(' ').trim() ||
-        callerId;
+        [caller?.firstName, caller?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || callerId;
 
-      const receiverIds = conversation.participants.filter((id) => id !== callerId);
+      const receiverIds = conversation.participants.filter(
+        (id) => id !== callerId,
+      );
 
       await this.chatPushService.sendCallPush({
         conversationId: conversation._id.toString(),
@@ -367,16 +393,22 @@ export class CallService {
 
       const endReason =
         dto.reason ??
-        (call.initiatorId === userId ? CallEndReason.HANGUP : CallEndReason.REJECTED);
+        (call.initiatorId === userId
+          ? CallEndReason.HANGUP
+          : CallEndReason.REJECTED);
 
       await this.cancelRingingCall(call, userId, endReason, session);
       return this.toCallResponse(call.toObject());
     });
 
     // Phase 3.4: Tell Stream to end the call so it doesn't linger as a zombie room
-    void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
-      this.logger.warn(`[rejectCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
-    );
+    void this.streamProvider
+      .endCallOnStream(callDto._id)
+      .catch((e) =>
+        this.logger.warn(
+          `[rejectCall] Stream endCall failed for ${callDto._id}: ${e?.message}`,
+        ),
+      );
     void this.triggerCallCancelPush(userId, callDto);
 
     return callDto;
@@ -410,7 +442,9 @@ export class CallService {
   ) {
     const now = new Date();
     call.status =
-      call.initiatorId === userId ? CallSessionStatus.CANCELLED : CallSessionStatus.REJECTED;
+      call.initiatorId === userId
+        ? CallSessionStatus.CANCELLED
+        : CallSessionStatus.REJECTED;
     call.endReason = endReason;
     call.endedAt = now;
     call.ringTimeoutAt = null;
@@ -422,7 +456,10 @@ export class CallService {
     await this.emitCallEndedEvent(session, call, userId, endReason, 0, now);
   }
 
-  async endCall(userId: string, dto: EndCallDTO): Promise<CallSessionResponseDTO> {
+  async endCall(
+    userId: string,
+    dto: EndCallDTO,
+  ): Promise<CallSessionResponseDTO> {
     const callDto = await this.withTransaction(async (session) => {
       const call = await this.findAuthorizedCall(dto.callId, userId, session);
 
@@ -444,19 +481,33 @@ export class CallService {
 
       // If RINGING: use the shared cancel logic (Phase 1.1)
       if (call.status === CallSessionStatus.RINGING) {
-        await this.cancelRingingCall(call, userId, CallEndReason.HANGUP, session);
+        await this.cancelRingingCall(
+          call,
+          userId,
+          CallEndReason.HANGUP,
+          session,
+        );
         const cancelledDto = this.toCallResponse(call.toObject());
         return cancelledDto;
       }
 
       // ACCEPTED group call: check if other participants still active
       if (call.isGroupCall) {
-        const onlineCount = await this.streamProvider.getActiveParticipantsCount(dto.callId);
+        const onlineCount =
+          await this.streamProvider.getActiveParticipantsCount(dto.callId);
         if (onlineCount > 1) {
-          await this.redis.srem(this.groupOnlineSetKey(call._id.toString()), userId);
+          await this.redis.srem(
+            this.groupOnlineSetKey(call._id.toString()),
+            userId,
+          );
           await this.outboxService.enqueueChatEvent(
             'call.participantLeft',
-            { callId: call._id.toString(), conversationId: call.conversationId, userId, leftAt: new Date() },
+            {
+              callId: call._id.toString(),
+              conversationId: call.conversationId,
+              userId,
+              leftAt: new Date(),
+            },
             call._id.toString(),
             session,
           );
@@ -478,12 +529,24 @@ export class CallService {
 
       const durationSec =
         call.startedAt && call.endedAt
-          ? Math.max(0, Math.floor((call.endedAt.getTime() - call.startedAt.getTime()) / 1000))
+          ? Math.max(
+              0,
+              Math.floor(
+                (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,
+              ),
+            )
           : 0;
 
       await this.createTerminalCallMessage(call, userId, durationSec, session);
       await this.clearConversationActiveCall(call, session);
-      await this.emitCallEndedEvent(session, call, userId, endReason, durationSec, now);
+      await this.emitCallEndedEvent(
+        session,
+        call,
+        userId,
+        endReason,
+        durationSec,
+        now,
+      );
 
       return this.toCallResponse(call.toObject());
     });
@@ -494,9 +557,13 @@ export class CallService {
       callDto.status === CallSessionStatus.CANCELLED ||
       callDto.status === CallSessionStatus.REJECTED;
     if (isEnded) {
-      void this.streamProvider.endCallOnStream(callDto._id).catch((e) =>
-        this.logger.warn(`[endCall] Stream endCall failed for ${callDto._id}: ${e?.message}`),
-      );
+      void this.streamProvider
+        .endCallOnStream(callDto._id)
+        .catch((e) =>
+          this.logger.warn(
+            `[endCall] Stream endCall failed for ${callDto._id}: ${e?.message}`,
+          ),
+        );
     }
 
     const wasRingingCancel =
@@ -509,8 +576,6 @@ export class CallService {
     return callDto;
   }
 
-
-
   async joinCall(userId: string, dto: JoinCallDTO) {
     const call = await this.findAuthorizedCall(dto.callId, userId);
     if (call.status !== CallSessionStatus.ACCEPTED) {
@@ -518,7 +583,9 @@ export class CallService {
     }
 
     if (call.isGroupCall) {
-      const onlineCount = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+      const onlineCount = await this.redis.scard(
+        this.groupOnlineSetKey(call._id.toString()),
+      );
       const limit = call.maxParticipants ?? this.groupCallMaxParticipants;
       if (onlineCount >= limit) {
         throw new RpcException('CALL_ROOM_FULL');
@@ -526,7 +593,10 @@ export class CallService {
     }
 
     await this.redis.sadd(this.groupOnlineSetKey(call._id.toString()), userId);
-    await this.redis.expire(this.groupOnlineSetKey(call._id.toString()), 86_400);
+    await this.redis.expire(
+      this.groupOnlineSetKey(call._id.toString()),
+      86_400,
+    );
     await this.clearEmptyRoomTimeout(call._id.toString());
 
     const payload = {
@@ -550,7 +620,9 @@ export class CallService {
     }
 
     await this.redis.srem(this.groupOnlineSetKey(call._id.toString()), userId);
-    const remaining = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+    const remaining = await this.redis.scard(
+      this.groupOnlineSetKey(call._id.toString()),
+    );
     if (remaining === 0) {
       await this.scheduleEmptyRoomTimeout(
         call._id.toString(),
@@ -599,7 +671,9 @@ export class CallService {
       this.groupOnlineSetKey(call._id.toString()),
       dto.targetUserId,
     );
-    const remaining = await this.redis.scard(this.groupOnlineSetKey(call._id.toString()));
+    const remaining = await this.redis.scard(
+      this.groupOnlineSetKey(call._id.toString()),
+    );
     if (remaining === 0) {
       await this.scheduleEmptyRoomTimeout(
         call._id.toString(),
@@ -640,7 +714,10 @@ export class CallService {
         if (call.status !== CallSessionStatus.RINGING) return;
 
         const now = new Date();
-        if (!call.ringTimeoutAt || call.ringTimeoutAt.getTime() > now.getTime()) {
+        if (
+          !call.ringTimeoutAt ||
+          call.ringTimeoutAt.getTime() > now.getTime()
+        ) {
           return;
         }
 
@@ -652,7 +729,12 @@ export class CallService {
         await call.save({ session });
         await this.clearAllTimeoutSchedules(call._id.toString());
 
-        await this.createTerminalCallMessage(call, call.initiatorId, 0, session);
+        await this.createTerminalCallMessage(
+          call,
+          call.initiatorId,
+          0,
+          session,
+        );
         await this.clearConversationActiveCall(call, session);
 
         await this.emitCallEndedEvent(
@@ -664,9 +746,13 @@ export class CallService {
           now,
         );
       });
-      void this.streamProvider.endCallOnStream(callId).catch((e) =>
-        this.logger.warn(`[markMissedCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
-      );
+      void this.streamProvider
+        .endCallOnStream(callId)
+        .catch((e) =>
+          this.logger.warn(
+            `[markMissedCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+          ),
+        );
       return true;
     } catch (error) {
       this.logger.warn(
@@ -696,13 +782,17 @@ export class CallService {
         }
 
         // Before ending the call, double check if there are actual participants on GetStream
-        const onlineCount = await this.streamProvider.getActiveParticipantsCount(callId);
+        const onlineCount =
+          await this.streamProvider.getActiveParticipantsCount(callId);
         if (onlineCount > 0) {
           // If participants are still active in the call, extend the timeout by another 1 hour instead of ending it
           const nextDeadline = new Date(Date.now() + 60 * 60 * 1000);
           call.reconnectDeadlineAt = nextDeadline;
           await call.save({ session });
-          await this.scheduleReconnectTimeout(call._id.toString(), nextDeadline);
+          await this.scheduleReconnectTimeout(
+            call._id.toString(),
+            nextDeadline,
+          );
           return;
         }
 
@@ -741,9 +831,13 @@ export class CallService {
           now,
         );
       });
-      void this.streamProvider.endCallOnStream(callId).catch((e) =>
-        this.logger.warn(`[markReconnectTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
-      );
+      void this.streamProvider
+        .endCallOnStream(callId)
+        .catch((e) =>
+          this.logger.warn(
+            `[markReconnectTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+          ),
+        );
       return true;
     } catch (error) {
       this.logger.warn(
@@ -768,10 +862,11 @@ export class CallService {
         let onlineCount = await this.redis.scard(
           this.groupOnlineSetKey(call._id.toString()),
         );
-        
+
         // Fallback: query Stream SFU directly to see if participants are still in the room
         if (onlineCount === 0) {
-          onlineCount = await this.streamProvider.getActiveParticipantsCount(callId);
+          onlineCount =
+            await this.streamProvider.getActiveParticipantsCount(callId);
         }
 
         if (onlineCount > 0) {
@@ -819,9 +914,13 @@ export class CallService {
           now,
         );
       });
-      void this.streamProvider.endCallOnStream(callId).catch((e) =>
-        this.logger.warn(`[markEmptyRoomTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`)
-      );
+      void this.streamProvider
+        .endCallOnStream(callId)
+        .catch((e) =>
+          this.logger.warn(
+            `[markEmptyRoomTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+          ),
+        );
       return true;
     } catch (error) {
       this.logger.warn(
@@ -833,14 +932,16 @@ export class CallService {
 
   async handleStreamCallEndedWebhook(callId: string): Promise<boolean> {
     try {
-      this.logger.log(`[Stream Webhook] Handling call end for callId=${callId}`);
+      this.logger.log(
+        `[Stream Webhook] Handling call end for callId=${callId}`,
+      );
       await this.withTransaction(async (session) => {
         if (!Types.ObjectId.isValid(callId)) return;
         const call = await this.callSessionModel
           .findById(callId)
           .session(session)
           .exec();
-        
+
         if (!call) return;
         if (
           call.status === CallSessionStatus.ENDED ||
@@ -857,7 +958,7 @@ export class CallService {
         call.endedAt = now;
         call.ringTimeoutAt = null;
         call.reconnectDeadlineAt = null;
-        
+
         await call.save({ session });
         await this.clearAllTimeoutSchedules(call._id.toString());
         await this.clearEmptyRoomTimeout(call._id.toString());
@@ -1051,8 +1152,7 @@ export class CallService {
     return plainToInstance(CallSessionResponseDTO, {
       ...call,
       _id: call._id?.toString?.() ?? call._id,
-      conversationId:
-        call.conversationId?.toString?.() ?? call.conversationId,
+      conversationId: call.conversationId?.toString?.() ?? call.conversationId,
       callMessageId: call.callMessageId?.toString?.() ?? call.callMessageId,
     });
   }
@@ -1105,7 +1205,10 @@ export class CallService {
     return this.popDueTimeoutCallIds(this.emptyRoomTimeoutKey, limit);
   }
 
-  private async popDueTimeoutCallIds(key: string, limit: number): Promise<string[]> {
+  private async popDueTimeoutCallIds(
+    key: string,
+    limit: number,
+  ): Promise<string[]> {
     const now = Date.now();
     const script = `
       local zkey = KEYS[1]
@@ -1200,5 +1303,4 @@ export class CallService {
     }
     return fallback;
   }
-
 }

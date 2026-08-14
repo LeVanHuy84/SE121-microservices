@@ -1,13 +1,13 @@
-import { Module } from '@nestjs/common';
-import { GroupController } from './group.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { GroupMemberController } from './group-member.controller';
-import { GroupJoinRequestController } from './group-join-request.controller';
-import { GroupReportController } from './group-report.controller';
-import { GroupLogController } from './group-log.controller';
-import { GroupInviteController } from './group-invite.controller';
+import { Module } from "@nestjs/common";
+import { GroupController } from "./group.controller";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { GroupMemberController } from "./group-member.controller";
+import { GroupJoinRequestController } from "./group-join-request.controller";
+import { GroupReportController } from "./group-report.controller";
+import { GroupLogController } from "./group-log.controller";
+import { GroupInviteController } from "./group-invite.controller";
 
 @Module({
   imports: [
@@ -19,7 +19,7 @@ import { GroupInviteController } from './group-invite.controller';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('USER_SOCIAL_SERVICE_PORT'),
+            port: config.get<number>("USER_SOCIAL_SERVICE_PORT"),
           },
         }),
       },

@@ -1,10 +1,10 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument } from "mongoose";
 
 export type DeviceTokenDocument = HydratedDocument<DeviceToken>;
 
 @Schema({
-  collection: 'device-tokens',
+  collection: "device-tokens",
   timestamps: true,
   versionKey: false,
 })
@@ -15,11 +15,11 @@ export class DeviceToken {
   @Prop({ required: true })
   token: string;
 
-  @Prop({ required: true, enum: ['ios', 'android', 'web'] })
+  @Prop({ required: true, enum: ["ios", "android", "web"] })
   platform: string;
 
-  @Prop({ required: true, enum: ['fcm'], default: 'fcm' })
-  provider: 'fcm';
+  @Prop({ required: true, enum: ["fcm"], default: "fcm" })
+  provider: "fcm";
 
   @Prop({ type: String })
   appId?: string;

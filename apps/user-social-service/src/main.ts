@@ -1,16 +1,16 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ExceptionsFilter } from '@repo/common';
-import { CommandService } from './modules/user/command/command.service';
-import { CommandModule } from './modules/user/command/command.module';
-import { Kafka } from 'kafkajs';
-import { EventTopic } from '@repo/dtos';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { MicroserviceOptions, Transport } from "@nestjs/microservices";
+import { ExceptionsFilter } from "@repo/common";
+import { CommandService } from "./modules/user/command/command.service";
+import { CommandModule } from "./modules/user/command/command.module";
+import { Kafka } from "kafkajs";
+import { EventTopic } from "@repo/dtos";
 
 async function ensureKafkaTopics() {
-  const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
+  const brokers = (process.env.KAFKA_BROKERS || "localhost:9092").split(",");
   const kafka = new Kafka({
-    clientId: 'user-service-admin',
+    clientId: "user-service-admin",
     brokers,
   });
   const admin = kafka.admin();
@@ -28,7 +28,7 @@ async function ensureKafkaTopics() {
 
     if (topicsToCreate.length > 0) {
       console.log(
-        `Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(', ')}`,
+        `Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(", ")}`,
       );
       await admin.createTopics({
         topics: topicsToCreate,
@@ -36,7 +36,7 @@ async function ensureKafkaTopics() {
     }
   } catch (error: any) {
     console.warn(
-      'Failed to ensure Kafka topics exist:',
+      "Failed to ensure Kafka topics exist:",
       error.message || error,
     );
   } finally {
@@ -63,12 +63,12 @@ async function bootstrap() {
       transport: Transport.KAFKA,
       options: {
         client: {
-          brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-          clientId: process.env.KAFKA_CLIENT_ID || 'user-service',
+          brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+          clientId: process.env.KAFKA_CLIENT_ID || "user-service",
           retry: { retries: 3 },
         },
         consumer: {
-          groupId: process.env.KAFKA_GROUP_ID || 'user-service-group',
+          groupId: process.env.KAFKA_GROUP_ID || "user-service-group",
           allowAutoTopicCreation: true,
         },
         subscribe: { fromBeginning: false },
@@ -81,11 +81,11 @@ async function bootstrap() {
 
   // Start TCP (always required)
   await tcpApp.listen();
-  console.log('User service TCP transport started.');
+  console.log("User service TCP transport started.");
 
   // Start Kafka consumer independently — don't crash if Kafka unavailable
   kafkaApp.listen().catch((err) => {
-    console.warn('[Kafka] Consumer failed to start:', err?.message ?? err);
+    console.warn("[Kafka] Consumer failed to start:", err?.message ?? err);
   });
 
   // Use a dedicated module for startup commands so closing this context
@@ -95,6 +95,6 @@ async function bootstrap() {
   await commandService.run();
   await commandApp.close();
 
-  console.log('User service is running on port 4001');
+  console.log("User service is running on port 4001");
 }
 bootstrap();

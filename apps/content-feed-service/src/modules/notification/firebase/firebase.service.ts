@@ -1,9 +1,14 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as admin from 'firebase-admin';
-import type { ServiceAccount } from 'firebase-admin';
-import * as path from 'path';
-import { NotificationDeliveryError } from '../notification/notification-delivery.error';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as admin from "firebase-admin";
+import type { ServiceAccount } from "firebase-admin";
+import * as path from "path";
+import { NotificationDeliveryError } from "../notification/notification-delivery.error";
 
 export interface FirebasePushOptions {
   collapseKey?: string;
@@ -31,17 +36,17 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FirebaseService.name);
   private readonly partialRetryAttempts = 2;
   private readonly invalidTokenCodes = new Set([
-    'messaging/invalid-registration-token',
-    'messaging/registration-token-not-registered',
+    "messaging/invalid-registration-token",
+    "messaging/registration-token-not-registered",
   ]);
   private readonly retryableErrorCodes = new Set([
-    'app/network-error',
-    'messaging/internal-error',
-    'messaging/server-unavailable',
-    'messaging/unknown-error',
-    'messaging/quota-exceeded',
-    'messaging/device-message-rate-exceeded',
-    'messaging/topics-message-rate-exceeded',
+    "app/network-error",
+    "messaging/internal-error",
+    "messaging/server-unavailable",
+    "messaging/unknown-error",
+    "messaging/quota-exceeded",
+    "messaging/device-message-rate-exceeded",
+    "messaging/topics-message-rate-exceeded",
   ]);
   private firebaseApp?: admin.app.App;
 
@@ -55,10 +60,10 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     try {
       if (this.firebaseApp) {
         await this.firebaseApp.delete();
-        this.logger.log('Firebase Admin SDK instance destroyed');
+        this.logger.log("Firebase Admin SDK instance destroyed");
       }
     } catch (error) {
-      this.logger.error('Error destroying Firebase Admin SDK', error);
+      this.logger.error("Error destroying Firebase Admin SDK", error);
     }
   }
 
@@ -80,18 +85,18 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         data: data || {},
         token,
         android: {
-          priority: 'high',
+          priority: "high",
           collapseKey: options?.collapseKey,
           notification: {
-            sound: 'default',
-            channelId: options?.androidChannelId || 'default',
+            sound: "default",
+            channelId: options?.androidChannelId || "default",
             tag: options?.androidTag,
           },
         },
         apns: {
           headers: options?.apnsCollapseId
             ? {
-                'apns-collapse-id': options.apnsCollapseId,
+                "apns-collapse-id": options.apnsCollapseId,
               }
             : undefined,
           payload: {
@@ -100,11 +105,11 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
                 title,
                 body,
               },
-              sound: 'default',
+              sound: "default",
               badge: 1,
-              'thread-id': options?.apnsThreadId,
-              'summary-arg': options?.apnsSummaryArg,
-              'summary-arg-count': options?.apnsSummaryArgCount,
+              "thread-id": options?.apnsThreadId,
+              "summary-arg": options?.apnsSummaryArg,
+              "summary-arg-count": options?.apnsSummaryArgCount,
             },
           },
         },
@@ -114,7 +119,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return { success: true };
     } catch (error) {
       throw this.createDeliveryError(
-        'Error sending FCM message',
+        "Error sending FCM message",
         this.classifyMessagingError(error),
         error,
       );
@@ -139,43 +144,46 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
-        notification: {
-          title,
-          body,
-        },
-        data: data || {},
-        tokens: batch,
-        android: {
-          priority: 'high',
-          collapseKey: options?.collapseKey,
+      const deliveryResult = await this.sendMulticastWithRetry(
+        tokens,
+        (batch) => ({
           notification: {
-            sound: 'default',
-            channelId: options?.androidChannelId || 'default',
-            tag: options?.androidTag,
+            title,
+            body,
           },
-        },
-        apns: {
-          headers: options?.apnsCollapseId
-            ? {
-                'apns-collapse-id': options.apnsCollapseId,
-              }
-            : undefined,
-          payload: {
-            aps: {
-              alert: {
-                title,
-                body,
-              },
-              sound: 'default',
-              badge: 1,
-              'thread-id': options?.apnsThreadId,
-              'summary-arg': options?.apnsSummaryArg,
-              'summary-arg-count': options?.apnsSummaryArgCount,
+          data: data || {},
+          tokens: batch,
+          android: {
+            priority: "high",
+            collapseKey: options?.collapseKey,
+            notification: {
+              sound: "default",
+              channelId: options?.androidChannelId || "default",
+              tag: options?.androidTag,
             },
           },
-        },
-      }));
+          apns: {
+            headers: options?.apnsCollapseId
+              ? {
+                  "apns-collapse-id": options.apnsCollapseId,
+                }
+              : undefined,
+            payload: {
+              aps: {
+                alert: {
+                  title,
+                  body,
+                },
+                sound: "default",
+                badge: 1,
+                "thread-id": options?.apnsThreadId,
+                "summary-arg": options?.apnsSummaryArg,
+                "summary-arg-count": options?.apnsSummaryArgCount,
+              },
+            },
+          },
+        }),
+      );
       this.logger.log(
         `Sent to ${deliveryResult.successCount}/${tokens.length} devices`,
       );
@@ -183,7 +191,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return deliveryResult;
     } catch (error) {
       throw this.createDeliveryError(
-        'Error sending multicast FCM message',
+        "Error sending multicast FCM message",
         this.classifyMessagingError(error),
         error,
       );
@@ -195,7 +203,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     data: Record<string, string>,
     options?: Pick<
       FirebasePushOptions,
-      'collapseKey' | 'apnsPriority' | 'apnsPushType' | 'contentAvailable'
+      "collapseKey" | "apnsPriority" | "apnsPushType" | "contentAvailable"
     >,
   ): Promise<{
     successCount: number;
@@ -209,29 +217,32 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const deliveryResult = await this.sendMulticastWithRetry(tokens, (batch) => ({
-        data,
-        tokens: batch,
-        android: {
-          priority: 'high',
-          collapseKey: options?.collapseKey,
-        },
-        apns: {
-          headers: {
-            ...(options?.apnsPriority && {
-              'apns-priority': String(options.apnsPriority),
-            }),
-            ...(options?.apnsPushType && {
-              'apns-push-type': options.apnsPushType,
-            }),
+      const deliveryResult = await this.sendMulticastWithRetry(
+        tokens,
+        (batch) => ({
+          data,
+          tokens: batch,
+          android: {
+            priority: "high",
+            collapseKey: options?.collapseKey,
           },
-          payload: {
-            aps: {
-              contentAvailable: options?.contentAvailable ?? true,
+          apns: {
+            headers: {
+              ...(options?.apnsPriority && {
+                "apns-priority": String(options.apnsPriority),
+              }),
+              ...(options?.apnsPushType && {
+                "apns-push-type": options.apnsPushType,
+              }),
+            },
+            payload: {
+              aps: {
+                contentAvailable: options?.contentAvailable ?? true,
+              },
             },
           },
-        },
-      }));
+        }),
+      );
       this.logger.log(
         `Sent data-only push to ${deliveryResult.successCount}/${tokens.length} devices`,
       );
@@ -239,7 +250,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return deliveryResult;
     } catch (error) {
       throw this.createDeliveryError(
-        'Error sending data-only multicast FCM message',
+        "Error sending data-only multicast FCM message",
         this.classifyMessagingError(error),
         error,
       );
@@ -268,7 +279,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return { success: true };
     } catch (error) {
       throw this.createDeliveryError(
-        'Error sending FCM topic message',
+        "Error sending FCM topic message",
         this.classifyMessagingError(error),
         error,
       );
@@ -287,7 +298,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return { success: true };
     } catch (error) {
       throw this.createDeliveryError(
-        'Error subscribing to topic',
+        "Error subscribing to topic",
         this.classifyMessagingError(error),
         error,
       );
@@ -308,7 +319,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
       return { success: true };
     } catch (error) {
       throw this.createDeliveryError(
-        'Error unsubscribing from topic',
+        "Error unsubscribing from topic",
         this.classifyMessagingError(error),
         error,
       );
@@ -323,17 +334,19 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         try {
           existingApp.name;
           this.firebaseApp = existingApp;
-          this.logger.log('Using existing Firebase Admin SDK instance');
+          this.logger.log("Using existing Firebase Admin SDK instance");
           return;
         } catch {
-          this.logger.warn('Existing Firebase app is deleted, reinitializing...');
+          this.logger.warn(
+            "Existing Firebase app is deleted, reinitializing...",
+          );
         }
       }
 
       const serviceAccountPath = this.configService.get<string>(
-        'FIREBASE_SERVICE_ACCOUNT_PATH',
+        "FIREBASE_SERVICE_ACCOUNT_PATH",
       );
-      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
+      const projectId = this.configService.get<string>("FIREBASE_PROJECT_ID");
 
       if (serviceAccountPath) {
         const resolvedPath = path.isAbsolute(serviceAccountPath)
@@ -345,11 +358,11 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         });
       } else if (projectId) {
         const serviceAccount: ServiceAccount = {
-          projectId: this.configService.get<string>('FIREBASE_PROJECT_ID'),
-          clientEmail: this.configService.get<string>('FIREBASE_CLIENT_EMAIL'),
+          projectId: this.configService.get<string>("FIREBASE_PROJECT_ID"),
+          clientEmail: this.configService.get<string>("FIREBASE_CLIENT_EMAIL"),
           privateKey: this.configService
-            .get<string>('FIREBASE_PRIVATE_KEY')
-            ?.replace(/\\n/g, '\n'),
+            .get<string>("FIREBASE_PRIVATE_KEY")
+            ?.replace(/\\n/g, "\n"),
         };
 
         this.firebaseApp = admin.initializeApp({
@@ -357,22 +370,22 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
         });
       } else {
         this.logger.warn(
-          'Firebase credentials not configured. FCM notifications will be disabled.',
+          "Firebase credentials not configured. FCM notifications will be disabled.",
         );
       }
 
       if (this.firebaseApp) {
-        this.logger.log('Firebase Admin SDK initialized successfully');
+        this.logger.log("Firebase Admin SDK initialized successfully");
       }
     } catch (error) {
-      this.logger.error('Failed to initialize Firebase Admin SDK', error);
+      this.logger.error("Failed to initialize Firebase Admin SDK", error);
     }
   }
 
   private ensureInitialized() {
     if (!this.firebaseApp) {
-      throw new NotificationDeliveryError('Firebase not initialized', {
-        code: 'firebase/not-initialized',
+      throw new NotificationDeliveryError("Firebase not initialized", {
+        code: "firebase/not-initialized",
         retryable: false,
       });
     }
@@ -408,7 +421,8 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
 
     return {
       successCount: response.successCount,
-      failureCount: invalidTokens.length + retryableFailureCount + nonRetryableFailureCount,
+      failureCount:
+        invalidTokens.length + retryableFailureCount + nonRetryableFailureCount,
       invalidTokens,
       retryableTokens,
     };
@@ -424,9 +438,9 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     let pendingTokens = [...tokens];
 
     for (let attempt = 0; attempt <= this.partialRetryAttempts; attempt += 1) {
-      const response = await admin.messaging().sendEachForMulticast(
-        buildMessage(pendingTokens),
-      );
+      const response = await admin
+        .messaging()
+        .sendEachForMulticast(buildMessage(pendingTokens));
       const result = this.buildMulticastResult(pendingTokens, response);
 
       successCount += result.successCount;
@@ -446,7 +460,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
           throw new NotificationDeliveryError(
             `FCM multicast failed for all ${tokens.length} devices`,
             {
-              code: 'messaging/multicast-retryable-failure',
+              code: "messaging/multicast-retryable-failure",
               retryable: true,
               invalidTokens,
             },
@@ -478,7 +492,7 @@ export class FirebaseService implements OnModuleInit, OnModuleDestroy {
     const message =
       firebaseError?.message ??
       firebaseError?.errorInfo?.message ??
-      'Unknown Firebase messaging error';
+      "Unknown Firebase messaging error";
 
     return {
       code,

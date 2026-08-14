@@ -1,7 +1,7 @@
-import { AdminAppealQueueItemDTO, TargetType } from '@repo/dtos';
-import { Comment } from 'src/entities/comment.entity';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
+import { AdminAppealQueueItemDTO, TargetType } from "@repo/dtos";
+import { Comment } from "src/entities/comment.entity";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
 
 type TargetMaps = {
   postMap: Map<string, Post>;
@@ -14,7 +14,7 @@ export class ModerationAppealMapper {
     targetType: TargetType,
     targetId: string,
     maps: TargetMaps,
-  ): AdminAppealQueueItemDTO['targetPreview'] {
+  ): AdminAppealQueueItemDTO["targetPreview"] {
     const { postMap, commentMap, shareMap } = maps;
 
     // POST
@@ -51,7 +51,7 @@ export class ModerationAppealMapper {
 
   static toAdminAppealQueueItemDTO(
     row: any,
-    targetPreview: AdminAppealQueueItemDTO['targetPreview'],
+    targetPreview: AdminAppealQueueItemDTO["targetPreview"],
     appealCount: number,
   ): AdminAppealQueueItemDTO {
     return {

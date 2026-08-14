@@ -8,17 +8,17 @@ import {
   Query,
   Sse,
   MessageEvent,
-} from '@nestjs/common';
-import { AssistantMessageDto } from '@repo/dtos';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { ChatbotService } from './chatbot.service';
-import { Observable } from 'rxjs';
+} from "@nestjs/common";
+import { AssistantMessageDto } from "@repo/dtos";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
+import { ChatbotService } from "./chatbot.service";
+import { Observable } from "rxjs";
 
-@Controller('assistant')
+@Controller("assistant")
 export class ChatbotController {
   constructor(private readonly chatbotService: ChatbotService) {}
 
-  @Sse('messages-stream')
+  @Sse("messages-stream")
   respondStream(
     @CurrentUserId() userId: string,
     @Query() dto: AssistantMessageDto,
@@ -27,12 +27,12 @@ export class ChatbotController {
     return this.chatbotService.respondStream(userId, dto);
   }
 
-  @Get('chat-history/me')
+  @Get("chat-history/me")
   getHistory(
     @CurrentUserId() userId: string,
-    @Query('page_size') pageSize?: string,
-    @Query('before_created_at') beforeCreatedAt?: string,
-    @Query('before_id') beforeId?: string,
+    @Query("page_size") pageSize?: string,
+    @Query("before_created_at") beforeCreatedAt?: string,
+    @Query("before_id") beforeId?: string,
   ) {
     const resolvedPageSize = this.parsePageSize(pageSize);
     return this.chatbotService.getHistory(
@@ -43,7 +43,7 @@ export class ChatbotController {
     );
   }
 
-  @Delete('chat-history/me')
+  @Delete("chat-history/me")
   clearHistory(@CurrentUserId() userId: string) {
     return this.chatbotService.clearHistory(userId);
   }
@@ -55,7 +55,7 @@ export class ChatbotController {
 
     const parsed = Number(pageSize);
     if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw new BadRequestException('page_size must be a positive integer');
+      throw new BadRequestException("page_size must be a positive integer");
     }
 
     return parsed;

@@ -1,6 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { validate as isUUID } from 'uuid';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
+import { validate as isUUID } from "uuid";
 import {
   CursorPageResponse,
   GroupMemberStatus,
@@ -11,16 +11,16 @@ import {
   InvitedGroupDTO,
   InviteStatus,
   MembershipStatus,
-} from '@repo/dtos';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
+} from "@repo/dtos";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
 import {
   groups,
   groupMembers,
   groupInvites,
   groupJoinRequests,
   groupSettings,
-} from 'src/drizzle/schema/schema';
+} from "src/drizzle/schema/schema";
 import {
   and,
   asc,
@@ -33,12 +33,12 @@ import {
   lt,
   notInArray,
   sql,
-} from 'drizzle-orm';
-import { GroupCacheService } from './group-cache.service';
-import { GroupMapper } from 'src/modules/group/common/mapper/group.mapper';
-import { UserService } from 'src/modules/user/user.service';
-import { FriendshipService } from 'src/modules/social/friendship/friendship.service';
-import type { CursorPaginationDTO } from '@repo/dtos';
+} from "drizzle-orm";
+import { GroupCacheService } from "./group-cache.service";
+import { GroupMapper } from "src/modules/group/common/mapper/group.mapper";
+import { UserService } from "src/modules/user/user.service";
+import { FriendshipService } from "src/modules/social/friendship/friendship.service";
+import type { CursorPaginationDTO } from "@repo/dtos";
 
 @Injectable()
 export class GroupQueryService {
@@ -57,12 +57,12 @@ export class GroupQueryService {
     if (!isUUID(groupId))
       throw new RpcException({
         statusCode: 400,
-        message: 'Invalid group ID format',
+        message: "Invalid group ID format",
       });
 
     // 1) Try cache
     let entity = await this.groupCacheService.get(groupId);
-    if (!entity || entity === 'NOT_FOUND') {
+    if (!entity || entity === "NOT_FOUND") {
       const rows = await this.db
         .select()
         .from(groups)
@@ -74,14 +74,16 @@ export class GroupQueryService {
         await this.groupCacheService.setNotFound(groupId).catch(() => void 0);
         throw new RpcException({
           statusCode: 404,
-          message: 'Group not found',
+          message: "Group not found",
         });
       }
-      await this.groupCacheService.set(groupId, entity as any).catch(() => void 0);
+      await this.groupCacheService
+        .set(groupId, entity as any)
+        .catch(() => void 0);
     }
 
-    if (entity === 'NOT_FOUND') {
-      throw new RpcException({ statusCode: 404, message: 'Group not found' });
+    if (entity === "NOT_FOUND") {
+      throw new RpcException({ statusCode: 404, message: "Group not found" });
     }
 
     const dto = GroupMapper.toGroupResponseDTO(entity as any);
@@ -117,7 +119,10 @@ export class GroupQueryService {
     // 1) Get friend ids
     let friendIds: string[] = [];
     try {
-      friendIds = await this.friendshipService.getFriendIds(userId, this.DEFAULT_FRIENDS_LIMIT);
+      friendIds = await this.friendshipService.getFriendIds(
+        userId,
+        this.DEFAULT_FRIENDS_LIMIT,
+      );
     } catch (err) {
       // ignore
     }
@@ -136,9 +141,7 @@ export class GroupQueryService {
           ),
         );
 
-      friendGroupIds = friendGroupRows
-        .map((r) => r.groupId)
-        .filter(Boolean);
+      friendGroupIds = friendGroupRows.map((r) => r.groupId).filter(Boolean);
     }
 
     // 3) Groups user already joined
@@ -150,7 +153,7 @@ export class GroupQueryService {
     const myGroupIds = new Set(myGroupRows.map((r) => r.groupId));
 
     // 4) Initial candidates
-    let candidateIds = friendGroupIds.filter((id) => !myGroupIds.has(id));
+    const candidateIds = friendGroupIds.filter((id) => !myGroupIds.has(id));
 
     // 5) Fallback: PUBLIC groups
     if (candidateIds.length < MIN_RECOMMEND) {
@@ -209,7 +212,10 @@ export class GroupQueryService {
     }
 
     // 2) Query groups
-    const rows = await this.buildGroupQuery({ groupIds: invitedGroupIds }, query);
+    const rows = await this.buildGroupQuery(
+      { groupIds: invitedGroupIds },
+      query,
+    );
 
     // 3) Get matching invites
     const invites = await this.db
@@ -226,7 +232,7 @@ export class GroupQueryService {
         ),
       );
 
-    const inviteMap = new Map<string, typeof invites[0]>();
+    const inviteMap = new Map<string, (typeof invites)[0]>();
     const inviterIds = new Set<string>();
 
     for (const inv of invites) {
@@ -254,8 +260,8 @@ export class GroupQueryService {
       dto.inviterNames = invite
         ? (invite.inviters || [])
             .map((id) =>
-              `${inviterProfiles[id]?.firstName || ''} ${
-                inviterProfiles[id]?.lastName || ''
+              `${inviterProfiles[id]?.firstName || ""} ${
+                inviterProfiles[id]?.lastName || ""
               }`.trim(),
             )
             .filter(Boolean)
@@ -276,8 +282,8 @@ export class GroupQueryService {
     const {
       cursor,
       limit = 10,
-      sortBy = 'createdAt',
-      order = 'DESC',
+      sortBy = "createdAt",
+      order = "DESC",
     } = query || {};
 
     const conditions: any[] = [eq(groups.status, GroupStatus.ACTIVE)];
@@ -302,7 +308,7 @@ export class GroupQueryService {
     }
 
     const orderExpr =
-      order === 'DESC' ? desc(groups[sortBy]) : asc(groups[sortBy]);
+      order === "DESC" ? desc(groups[sortBy]) : asc(groups[sortBy]);
 
     return this.db
       .select()
@@ -315,7 +321,7 @@ export class GroupQueryService {
   private paginateGroups(
     rows: any[],
     limit = 10,
-    sortBy = 'createdAt',
+    sortBy = "createdAt",
   ): CursorPageResponse<GroupResponseDTO> {
     const hasNext = rows.length > limit;
     const data = rows.slice(0, limit);
@@ -332,10 +338,7 @@ export class GroupQueryService {
       .select({ status: groupMembers.status, role: groupMembers.role })
       .from(groupMembers)
       .where(
-        and(
-          eq(groupMembers.userId, userId),
-          eq(groupMembers.groupId, groupId),
-        ),
+        and(eq(groupMembers.userId, userId), eq(groupMembers.groupId, groupId)),
       )
       .limit(1);
 
@@ -356,13 +359,16 @@ export class GroupQueryService {
         and(
           eq(groupJoinRequests.userId, userId),
           eq(groupJoinRequests.groupId, groupId),
-          eq(groupJoinRequests.status, 'PENDING' as any),
+          eq(groupJoinRequests.status, "PENDING" as any),
         ),
       )
       .limit(1);
 
     if (joinRequest)
-      return { membershipStatus: MembershipStatus.PENDING_APPROVAL, role: null };
+      return {
+        membershipStatus: MembershipStatus.PENDING_APPROVAL,
+        role: null,
+      };
 
     const [invite] = await this.db
       .select({ id: groupInvites.id })

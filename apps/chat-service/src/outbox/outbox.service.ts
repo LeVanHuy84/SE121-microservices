@@ -51,7 +51,9 @@ export class OutboxService {
 
     if (session) {
       const pending = this.pendingChatPublishes.get(session) ?? [];
-      pending.push(() => this.chatStreamProducer.publishEvent(eventType, payload));
+      pending.push(() =>
+        this.chatStreamProducer.publishEvent(eventType, payload),
+      );
       this.pendingChatPublishes.set(session, pending);
       return;
     }

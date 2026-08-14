@@ -1,15 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   AppealStatus,
   EventDestination,
   EventTopic,
   LogEventPayload,
   LogType,
-} from '@repo/dtos';
-import { Repository } from 'typeorm';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { UserClientService } from '../client/user-client.service';
-import { InjectRepository } from '@nestjs/typeorm';
+} from "@repo/dtos";
+import { Repository } from "typeorm";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { UserClientService } from "../client/user-client.service";
+import { InjectRepository } from "@nestjs/typeorm";
 
 @Injectable()
 export class LogService {
@@ -24,11 +24,11 @@ export class LogService {
     appealId: string,
     status: AppealStatus,
   ): Promise<void> {
-    let detailMessage = '';
+    let detailMessage = "";
 
     const actor = await this.userClient.getUserInfo(moderatorId);
     const actorName =
-      `${actor?.firstName ?? ''} ${actor?.lastName ?? ''}`.trim();
+      `${actor?.firstName ?? ""} ${actor?.lastName ?? ""}`.trim();
 
     if (status === AppealStatus.APPROVED) {
       detailMessage = `Kiểm duyệt viên ${actorName} đã chấp thuận khiếu nại của người dùng và khôi phục nội dung`;
@@ -39,7 +39,7 @@ export class LogService {
     const logPayload: LogEventPayload = {
       actorId: moderatorId,
       targetId: appealId,
-      action: 'REVIEW_APPEAL',
+      action: "REVIEW_APPEAL",
       detail: detailMessage,
       createdAt: new Date(),
     };
@@ -58,11 +58,11 @@ export class LogService {
     moderationId: string,
     status: AppealStatus,
   ): Promise<void> {
-    let detailMessage = '';
+    let detailMessage = "";
 
     const actor = await this.userClient.getUserInfo(moderatorId);
     const actorName =
-      `${actor?.firstName ?? ''} ${actor?.lastName ?? ''}`.trim();
+      `${actor?.firstName ?? ""} ${actor?.lastName ?? ""}`.trim();
 
     if (status === AppealStatus.APPROVED) {
       detailMessage = `Kiểm duyệt viên ${actorName} đã xác nhận nội dung không vi phạm và khôi phục nội dung`;
@@ -73,7 +73,7 @@ export class LogService {
     const logPayload: LogEventPayload = {
       actorId: moderatorId,
       targetId: moderationId,
-      action: 'FINAL_DECISION',
+      action: "FINAL_DECISION",
       detail: detailMessage,
       createdAt: new Date(),
     };

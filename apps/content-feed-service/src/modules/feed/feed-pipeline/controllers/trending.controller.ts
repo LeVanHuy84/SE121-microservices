@@ -1,13 +1,13 @@
-import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { TrendingQuery } from '@repo/dtos';
-import { TrendingService } from '../services/trending.service';
+import { Controller } from "@nestjs/common";
+import { MessagePattern, Payload } from "@nestjs/microservices";
+import { TrendingQuery } from "@repo/dtos";
+import { TrendingService } from "../services/trending.service";
 
-@Controller('trending')
+@Controller("trending")
 export class TrendingController {
   constructor(private readonly trendingService: TrendingService) {}
 
-  @MessagePattern('get_trending')
+  @MessagePattern("get_trending")
   async getTrending(
     @Payload() payload: { query: TrendingQuery; userId: string },
   ) {

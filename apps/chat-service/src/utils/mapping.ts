@@ -15,7 +15,7 @@ function mapMessage(obj: any): MessageResponseDTO | undefined {
   const base = toPlain(obj);
 
   // Lấy raw replyTo từ cả doc lẫn plain
-  const rawReply = (obj as any).replyTo ?? base.replyTo;
+  const rawReply = obj.replyTo ?? base.replyTo;
 
   // Chỉ map replyTo nếu đã populate (là object, KHÔNG phải ObjectId)
   const hasPopulatedReply =

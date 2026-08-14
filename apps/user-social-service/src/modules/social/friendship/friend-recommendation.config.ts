@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import { ConfigService } from "@nestjs/config";
 
 export interface FriendRecommendationScoringConfig {
   mutualFriendCap: number;
@@ -51,41 +51,41 @@ export function loadFriendRecommendationScoringConfig(
 ): FriendRecommendationScoringConfig {
   return {
     mutualFriendCap: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_MUTUAL_FRIEND_CAP'),
+      configService.get<string>("FRIEND_RECOMMEND_MUTUAL_FRIEND_CAP"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.mutualFriendCap,
     ),
     commonGroupCap: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_COMMON_GROUP_CAP'),
+      configService.get<string>("FRIEND_RECOMMEND_COMMON_GROUP_CAP"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.commonGroupCap,
     ),
     profileMatchWeight: parsePositiveNumber(
-      configService.get<string>('FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT'),
+      configService.get<string>("FRIEND_RECOMMEND_PROFILE_MATCH_WEIGHT"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.profileMatchWeight,
     ),
     semanticMatchWeight: parsePositiveNumber(
-      configService.get<string>('FRIEND_RECOMMEND_SEMANTIC_MATCH_WEIGHT'),
+      configService.get<string>("FRIEND_RECOMMEND_SEMANTIC_MATCH_WEIGHT"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.semanticMatchWeight,
     ),
     aiWeight: parsePositiveNumber(
-      configService.get<string>('FRIEND_RECOMMEND_AI_WEIGHT'),
+      configService.get<string>("FRIEND_RECOMMEND_AI_WEIGHT"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiWeight,
     ),
     aiTopK: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_AI_TOP_K'),
+      configService.get<string>("FRIEND_RECOMMEND_AI_TOP_K"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.aiTopK,
     ),
     diversityWindowSize: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE'),
+      configService.get<string>("FRIEND_RECOMMEND_DIVERSITY_WINDOW_SIZE"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.diversityWindowSize,
     ),
     sharedMutualFriendPenalty: parsePositiveInt(
       configService.get<string>(
-        'FRIEND_RECOMMEND_SHARED_MUTUAL_FRIEND_PENALTY',
+        "FRIEND_RECOMMEND_SHARED_MUTUAL_FRIEND_PENALTY",
       ),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.sharedMutualFriendPenalty,
     ),
     sourceRepeatPenalty: parsePositiveInt(
-      configService.get<string>('FRIEND_RECOMMEND_SOURCE_REPEAT_PENALTY'),
+      configService.get<string>("FRIEND_RECOMMEND_SOURCE_REPEAT_PENALTY"),
       DEFAULT_FRIEND_RECOMMENDATION_SCORING.sourceRepeatPenalty,
     ),
   };

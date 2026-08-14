@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   CreateSystemUserDTO,
   DashboardQueryDTO,
@@ -9,8 +9,8 @@ import {
   SystemUserDTO,
   SystemUserQueryDTO,
   UserEventType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
 import {
   and,
   count,
@@ -23,31 +23,31 @@ import {
   or,
   sql,
   SQL,
-} from 'drizzle-orm';
-import { USER_STATUS } from 'src/constants';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
-import { profiles } from 'src/drizzle/schema/profiles.schema';
-import { users } from 'src/drizzle/schema/users.schema';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle';
-import { OutboxService } from 'src/modules/event/outbox.service';
-import { CLERK_CLIENT } from '../clerk/clerk.module';
-import { countDistinct } from 'drizzle-orm';
-import { toUtcEndOfDayVN, toUtcStartOfDayVN } from 'src/utils/time-convert';
+} from "drizzle-orm";
+import { USER_STATUS } from "src/constants";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import { roles, userRoles } from "src/drizzle/schema/authorize.schema";
+import { profiles } from "src/drizzle/schema/profiles.schema";
+import { users } from "src/drizzle/schema/users.schema";
+import type { DrizzleDB } from "src/drizzle/types/drizzle";
+import { OutboxService } from "src/modules/event/outbox.service";
+import { CLERK_CLIENT } from "../clerk/clerk.module";
+import { countDistinct } from "drizzle-orm";
+import { toUtcEndOfDayVN, toUtcStartOfDayVN } from "src/utils/time-convert";
 
 @Injectable()
 export class AdminService {
   constructor(
     @Inject(DRIZZLE) private db: DrizzleDB,
     private readonly outboxService: OutboxService,
-    @Inject(CLERK_CLIENT) private clerkClient
+    @Inject(CLERK_CLIENT) private clerkClient,
   ) {}
 
   private readonly VN_OFFSET_HOURS = 7;
 
   async createSystemUser(
     dto: CreateSystemUserDTO,
-    actorId: string
+    actorId: string,
   ): Promise<SystemUserDTO> {
     const sysUser = await this.clerkClient.users.createUser({
       emailAddress: [dto.email],
@@ -87,8 +87,8 @@ export class AdminService {
 
         await tx.insert(profiles).values({
           userId: user.id,
-          firstName: dto.firstName ?? '',
-          lastName: dto.lastName ?? '',
+          firstName: dto.firstName ?? "",
+          lastName: dto.lastName ?? "",
           postCount: 0,
           friendCount: 0,
         });
@@ -120,14 +120,14 @@ export class AdminService {
         const loggingPayload = {
           actorId: actorId,
           targetId: user.id,
-          action: 'Create system user',
+          action: "Create system user",
           detail: `Tài khoản quản trị ${dto.firstName} ${dto.lastName} được tạo bởi ${actor.firstName} ${actor.lastName} với quyền ${actor.role}`,
           timestamp: new Date(),
         };
         await this.outboxService.createLoggingOutboxEvent(
           tx,
           LogType.USER_LOG,
-          loggingPayload
+          loggingPayload,
         );
 
         return user;
@@ -145,13 +145,13 @@ export class AdminService {
   async updateSystemUserRole(
     userId: string,
     newRole: SystemRole,
-    actorId: string
+    actorId: string,
   ) {
     const clerkUser = await this.clerkClient.users.getUser(userId);
     if (clerkUser.publicMetadata.isSystemAdmin) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Cannot change role of a system admin user',
+        message: "Cannot change role of a system admin user",
       });
     }
 
@@ -179,7 +179,7 @@ export class AdminService {
     if (!actor || !user) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Actor or User not found.',
+        message: "Actor or User not found.",
       });
     }
 
@@ -198,21 +198,21 @@ export class AdminService {
       const loggingPayload = {
         actorId: actorId,
         targetId: userId,
-        action: 'Update user role',
+        action: "Update user role",
         detail: `Tài khoản ${user.firstName} ${user.lastName} được cấp quyền ${newRole} bởi ${actor.firstName} ${actor.lastName}`,
         timestamp: new Date(),
       };
       await this.outboxService.createLoggingOutboxEvent(
         tx,
         LogType.USER_LOG,
-        loggingPayload
+        loggingPayload,
       );
     });
     return true;
   }
 
   async getSystemUsers(
-    filter: SystemUserQueryDTO
+    filter: SystemUserQueryDTO,
   ): Promise<PageResponse<SystemUserDTO>> {
     const { query, limit = 10, page = 1, status, role } = filter;
     const offset = (page - 1) * limit;
@@ -224,7 +224,7 @@ export class AdminService {
       conditions.push(eq(roles.name, role));
     } else {
       conditions.push(
-        inArray(roles.name, [SystemRole.ADMIN, SystemRole.MODERATOR])
+        inArray(roles.name, [SystemRole.ADMIN, SystemRole.MODERATOR]),
       );
     }
 
@@ -233,7 +233,7 @@ export class AdminService {
       ? or(
           ilike(sql`coalesce(${profiles.firstName}, '')`, `%${query}%`),
           ilike(sql`coalesce(${profiles.lastName}, '')`, `%${query}%`),
-          ilike(users.email, `%${query}%`)
+          ilike(users.email, `%${query}%`),
         )
       : undefined;
 
@@ -308,25 +308,25 @@ export class AdminService {
     if (!target)
       throw new RpcException({
         statusCode: 404,
-        message: 'User not found',
+        message: "User not found",
       });
     if (!actor)
       throw new RpcException({
         statusCode: 404,
-        message: 'Actor not found',
+        message: "Actor not found",
       });
 
-    if (target.role !== 'user') {
+    if (target.role !== "user") {
       throw new RpcException({
         statusCode: 409,
-        message: 'Cannot ban non-user role',
+        message: "Cannot ban non-user role",
       });
     }
 
     if (target.status === USER_STATUS.BANNED) {
       throw new RpcException({
         statusCode: 409,
-        message: 'User already banned',
+        message: "User already banned",
       });
     }
 
@@ -348,7 +348,7 @@ export class AdminService {
         await this.outboxService.createUserOutboxEvent(
           tx,
           UserEventType.REMOVED,
-          { userId }
+          { userId },
         );
 
         await this.outboxService.createLoggingOutboxEvent(
@@ -357,10 +357,10 @@ export class AdminService {
           {
             actorId,
             targetId: userId,
-            action: 'Ban user',
+            action: "Ban user",
             detail: `Tài khoản ${target.firstName} ${target.lastName} bị cấm bởi ${actor.firstName} ${actor.lastName} (${actor.role})`,
             timestamp: new Date(),
-          }
+          },
         );
       });
       return true;
@@ -396,18 +396,18 @@ export class AdminService {
     if (!target)
       throw new RpcException({
         statusCode: 404,
-        message: 'User not found',
+        message: "User not found",
       });
     if (!actor)
       throw new RpcException({
         statusCode: 403,
-        message: 'Actor not found',
+        message: "Actor not found",
       });
 
     if (target.status !== USER_STATUS.BANNED) {
       throw new RpcException({
         statusCode: 409,
-        message: 'User is not banned',
+        message: "User is not banned",
       });
     }
 
@@ -432,13 +432,13 @@ export class AdminService {
           {
             userId,
             email: target.email,
-            firstName: target.firstName ?? '',
-            lastName: target.lastName ?? '',
-            avatarUrl: target.avatarUrl ?? '',
-            bio: target.bio ?? '',
+            firstName: target.firstName ?? "",
+            lastName: target.lastName ?? "",
+            avatarUrl: target.avatarUrl ?? "",
+            bio: target.bio ?? "",
             isActive: true,
             createdAt: new Date(),
-          }
+          },
         );
 
         await this.outboxService.createLoggingOutboxEvent(
@@ -447,10 +447,10 @@ export class AdminService {
           {
             actorId,
             targetId: userId,
-            action: 'Unban user',
+            action: "Unban user",
             detail: `Tài khoản ${target.firstName} ${target.lastName} được khôi phục bởi ${actor.firstName} ${actor.lastName} (${actor.role})`,
             timestamp: new Date(),
-          }
+          },
         );
       });
       return true;
@@ -462,7 +462,7 @@ export class AdminService {
   }
 
   async getDashboard(
-    filter: DashboardQueryDTO
+    filter: DashboardQueryDTO,
   ): Promise<{ activeUsers: number }> {
     // ===== TODAY (VN)
     const todayVN = new Date();
@@ -496,8 +496,8 @@ export class AdminService {
           eq(users.status, USER_STATUS.ACTIVE),
           eq(roles.name, SystemRole.USER as string),
           gte(users.updatedAt, fromDate),
-          lte(users.updatedAt, toDate)
-        )
+          lte(users.updatedAt, toDate),
+        ),
       );
 
     return {
@@ -514,12 +514,12 @@ export class AdminService {
 
     if (value instanceof Date) {
       vnDate = new Date(value);
-    } else if (value.includes('T')) {
+    } else if (value.includes("T")) {
       // ISO string → Date
       vnDate = new Date(value);
     } else {
       // YYYY-MM-DD → coi là VN
-      const [y, m, d] = value.split('-').map(Number);
+      const [y, m, d] = value.split("-").map(Number);
       return { y, m, d };
     }
 
@@ -547,7 +547,7 @@ export class AdminService {
     const { y, m, d } = this.normalizeToVNDate(value);
 
     return new Date(
-      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999)
+      Date.UTC(y, m - 1, d, 23 - this.VN_OFFSET_HOURS, 59, 59, 999),
     );
   }
 }

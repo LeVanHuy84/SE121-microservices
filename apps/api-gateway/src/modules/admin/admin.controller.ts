@@ -1,32 +1,33 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { ContentEntryQuery, DashboardQueryDTO, SystemRole } from '@repo/dtos';
-import { lastValueFrom } from 'rxjs';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { RequireRole } from 'src/common/decorators/require-role.decorator';
+import { Controller, Get, Inject, Query } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { ContentEntryQuery, DashboardQueryDTO, SystemRole } from "@repo/dtos";
+import { lastValueFrom } from "rxjs";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { RequireRole } from "src/common/decorators/require-role.decorator";
 
-@Controller('admin')
+@Controller("admin")
 export class AdminController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private userSocialClient: ClientProxy,
-    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE) private postClient: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
+    private postClient: ClientProxy,
   ) {}
 
   // Content
-  @Get('contents')
+  @Get("contents")
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   getContentEntry(@Query() filter: ContentEntryQuery) {
-    return this.postClient.send('get_content_entry', filter);
+    return this.postClient.send("get_content_entry", filter);
   }
 
-  @Get('dashboard')
+  @Get("dashboard")
   @RequireRole(SystemRole.ADMIN)
   async getDashboard(@Query() filter: DashboardQueryDTO) {
     const [userReport, postReport, groupReport] = await Promise.all([
-      lastValueFrom(this.userSocialClient.send('user-dashboard', filter)),
-      lastValueFrom(this.postClient.send('get_post_dashboard', filter)),
-      lastValueFrom(this.userSocialClient.send('get_group_dashboard', filter)),
+      lastValueFrom(this.userSocialClient.send("user-dashboard", filter)),
+      lastValueFrom(this.postClient.send("get_post_dashboard", filter)),
+      lastValueFrom(this.userSocialClient.send("get_group_dashboard", filter)),
     ]);
 
     return {
@@ -37,18 +38,20 @@ export class AdminController {
     };
   }
 
-  @Get('content-chart')
+  @Get("content-chart")
   @RequireRole(SystemRole.ADMIN)
   async getPostDashboard(@Query() filter: DashboardQueryDTO) {
-    return this.postClient.send('get_content_chart', filter);
+    return this.postClient.send("get_content_chart", filter);
   }
 
-  @Get('report-chart')
+  @Get("report-chart")
   @RequireRole(SystemRole.ADMIN)
   async getReportChart(@Query() filter: DashboardQueryDTO) {
     const [contentReport, groupReport] = await Promise.all([
-      lastValueFrom(this.postClient.send('get_content_report_chart', filter)),
-      lastValueFrom(this.userSocialClient.send('get_group_report_chart', filter)),
+      lastValueFrom(this.postClient.send("get_content_report_chart", filter)),
+      lastValueFrom(
+        this.userSocialClient.send("get_group_report_chart", filter),
+      ),
     ]);
 
     const map = new Map<

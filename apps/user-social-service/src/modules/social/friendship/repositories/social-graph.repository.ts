@@ -2,14 +2,14 @@ import {
   BaseUserDTO,
   CursorPaginationDTO,
   CursorPageResponse,
-} from '@repo/dtos';
+} from "@repo/dtos";
 
 export type RelationshipStatus =
-  | 'NONE'
-  | 'BLOCKED'
-  | 'FRIEND'
-  | 'REQUESTED_OUT'
-  | 'REQUESTED_IN';
+  | "NONE"
+  | "BLOCKED"
+  | "FRIEND"
+  | "REQUESTED_OUT"
+  | "REQUESTED_IN";
 
 export interface FriendRecommendation {
   id: string;
@@ -30,10 +30,10 @@ export interface FriendRecommendation {
 }
 
 export type FriendRecommendationEventType =
-  | 'served'
-  | 'dismissed'
-  | 'request_sent'
-  | 'accepted';
+  | "served"
+  | "dismissed"
+  | "request_sent"
+  | "accepted";
 
 export interface FriendRecommendationAttribution {
   recommendationId?: string;
@@ -58,9 +58,9 @@ export type FriendRecommendationAnalyticsSource =
   FriendRecommendationCandidateSourceMode;
 
 export type FriendRecommendationCandidateSourceMode =
-  | 'online'
-  | 'hybrid'
-  | 'fallback';
+  | "online"
+  | "hybrid"
+  | "fallback";
 
 export type FriendRecommendationAnalyticsCandidateSourceMode =
   FriendRecommendationCandidateSourceMode;
@@ -147,13 +147,13 @@ export interface SocialGraphRepository {
   getFriendRecommendationAnalytics(
     userId: string,
     since: Date,
-  ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
+  ): Promise<Omit<FriendRecommendationAnalytics, "windowDays">>;
   getGlobalFriendRecommendationAnalytics(
     since: Date,
-  ): Promise<Omit<FriendRecommendationAnalytics, 'windowDays'>>;
+  ): Promise<Omit<FriendRecommendationAnalytics, "windowDays">>;
   recordRecommendationEvents(
     events: FriendRecommendationEvent[],
   ): Promise<void>;
 }
 
-export const SOCIAL_GRAPH_REPOSITORY = 'SOCIAL_GRAPH_REPOSITORY';
+export const SOCIAL_GRAPH_REPOSITORY = "SOCIAL_GRAPH_REPOSITORY";

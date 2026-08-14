@@ -1,34 +1,34 @@
-import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { PersonalFeedQuery, TrendingQuery } from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { Body, Controller, Get, Inject, Post, Query } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { PersonalFeedQuery, TrendingQuery } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('feeds')
+@Controller("feeds")
 export class FeedController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
     private client: ClientProxy,
   ) {}
 
-  @Get('trending')
+  @Get("trending")
   getTrendingFeed(
     @Query() query: TrendingQuery,
     @CurrentUserId() userId: string,
   ) {
-    return this.client.send('get_trending', { query, userId });
+    return this.client.send("get_trending", { query, userId });
   }
 
-  @Get('my-feed')
+  @Get("my-feed")
   getMyFeed(
     @CurrentUserId() userId: string,
     @Query() query: PersonalFeedQuery,
   ) {
-    return this.client.send('get_my_feed', { userId, query });
+    return this.client.send("get_my_feed", { userId, query });
   }
 
-  @Post('views')
+  @Post("views")
   viewFeed(@Body() feedItemIds: string[]) {
-    this.client.emit('view_feed', feedItemIds);
+    this.client.emit("view_feed", feedItemIds);
   }
 }

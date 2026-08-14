@@ -1,10 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import {
   FriendRecommendation,
   SOCIAL_GRAPH_REPOSITORY,
-} from '../repositories/social-graph.repository';
-import type { SocialGraphRepository } from '../repositories/social-graph.repository';
+} from "../repositories/social-graph.repository";
+import type { SocialGraphRepository } from "../repositories/social-graph.repository";
 
 @Injectable()
 export class RecommendationTrackingService {
@@ -36,12 +36,12 @@ export class RecommendationTrackingService {
   ): Promise<void> {
     await this.socialGraphRepo.recordRecommendationEvents(
       recommendations.map((recommendation, index) => {
-        const sourceMode = recommendation.candidateSourceMode ?? 'fallback';
+        const sourceMode = recommendation.candidateSourceMode ?? "fallback";
 
         return {
           userId,
           candidateId: recommendation.id,
-          eventType: 'served' as const,
+          eventType: "served" as const,
           recommendationId: recommendation.recommendationId ?? null,
           recommendationRequestId:
             recommendation.recommendationRequestId ?? null,

@@ -1,7 +1,7 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { Redis } from 'ioredis';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { Redis } from "ioredis";
 
 type RedisHash = Record<string, string>;
 
@@ -21,7 +21,7 @@ export class TrendingWorker {
   // ================================
   private async recomputeScores(
     postIds: string[],
-    type?: 'dirty' | 'fresh' | 'top',
+    type?: "dirty" | "fresh" | "top",
   ) {
     if (!postIds.length) return;
 
@@ -80,7 +80,7 @@ export class TrendingWorker {
       // ------------------------------
       // 🧱 Update main score
       // ------------------------------
-      updates.zadd('post:score', score, postId);
+      updates.zadd("post:score", score, postId);
 
       // ------------------------------
       // 🎭 Emotion ranking
@@ -109,71 +109,71 @@ export class TrendingWorker {
   // ================================
   // ⚡ DIRTY WORKER (REALTIME)
   // ================================
-  @Cron('*/1 * * * *')
+  @Cron("*/1 * * * *")
   async handleDirty() {
-    const dirty = await this.redis.spop('post:dirty', this.DIRTY_BATCH);
+    const dirty = await this.redis.spop("post:dirty", this.DIRTY_BATCH);
 
     if (!dirty?.length) return;
 
-    await this.recomputeScores(dirty, 'dirty');
+    await this.recomputeScores(dirty, "dirty");
   }
 
   // ================================
   // 🌱 FRESH WORKER (DECAY)
   // ================================
-  @Cron('*/5 * * * *')
+  @Cron("*/5 * * * *")
   async handleFresh() {
     const now = Date.now();
 
     const fresh = await this.redis.zrangebyscore(
-      'post:fresh',
+      "post:fresh",
       now,
-      '+inf',
-      'LIMIT',
+      "+inf",
+      "LIMIT",
       0,
       this.FRESH_BATCH,
     );
 
     if (!fresh.length) return;
 
-    await this.recomputeScores(fresh, 'fresh');
+    await this.recomputeScores(fresh, "fresh");
   }
 
   // ================================
   // 👑 TOP WORKER (STABILITY)
   // ================================
-  @Cron('*/10 * * * *')
+  @Cron("*/10 * * * *")
   async handleTop() {
-    const top = await this.redis.zrevrange('post:score', 0, this.TOP_BATCH);
+    const top = await this.redis.zrevrange("post:score", 0, this.TOP_BATCH);
 
     if (!top.length) return;
 
-    await this.recomputeScores(top, 'top');
+    await this.recomputeScores(top, "top");
   }
 
   // ================================
   // 🧹 CLEANUP FRESH (TTL giả)
   // ================================
-  @Cron('0 * * * *') // mỗi giờ
+  @Cron("0 * * * *") // mỗi giờ
   async cleanupFresh() {
     const now = Date.now();
 
-    await this.redis.zremrangebyscore('post:fresh', 0, now);
+    await this.redis.zremrangebyscore("post:fresh", 0, now);
   }
 
   // ================================
   // 🧹 CLEANUP HARD (OLD POSTS)
   // ================================
-  @Cron('0 3 * * *') // 3h sáng
+  @Cron("0 3 * * *") // 3h sáng
   async cleanupOldPosts() {
     const threshold = Date.now() - 10 * 24 * 60 * 60 * 1000;
 
     while (true) {
       const oldPosts = await this.redis.zrangebyscore(
-        'post:fresh',
+        "post:fresh",
         0,
         threshold,
-        'LIMIT',
+        "LIMIT",
         0,
         500,
       );
@@ -183,8 +183,8 @@ export class TrendingWorker {
       const pipeline = this.redis.pipeline();
 
       for (const postId of oldPosts) {
-        pipeline.zrem('post:score', postId);
-        pipeline.zrem('post:fresh', postId);
+        pipeline.zrem("post:score", postId);
+        pipeline.zrem("post:fresh", postId);
         pipeline.del(`post:meta:${postId}`);
         pipeline.del(`post:engagement:${postId}`);
         pipeline.del(`post:rank:${postId}`);

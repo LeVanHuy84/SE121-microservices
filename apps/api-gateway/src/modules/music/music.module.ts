@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MusicController } from './music.controller';
-import { MusicAnalyzeService } from './music-analyze.service';
+import { Module } from "@nestjs/common";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { MusicController } from "./music.controller";
+import { MusicAnalyzeService } from "./music-analyze.service";
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { MusicAnalyzeService } from './music-analyze.service';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('SEARCH_RECOMMENDATION_SERVICE_PORT'),
+            port: config.get<number>("SEARCH_RECOMMENDATION_SERVICE_PORT"),
           },
         }),
       },

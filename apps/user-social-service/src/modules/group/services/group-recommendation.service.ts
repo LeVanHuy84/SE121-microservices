@@ -1,9 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { groupMembers, groups } from 'src/drizzle/schema/schema';
-import { GroupMemberStatus } from '@repo/dtos';
+import { Inject, Injectable } from "@nestjs/common";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupMembers, groups } from "src/drizzle/schema/schema";
+import { GroupMemberStatus } from "@repo/dtos";
 
 @Injectable()
 export class GroupRecommendationService {
@@ -14,9 +14,7 @@ export class GroupRecommendationService {
     candidateIds: string[],
   ): Promise<Record<string, number>> {
     const dedupedCandidateIds = [
-      ...new Set(
-        candidateIds.filter((id) => Boolean(id) && id !== userId),
-      ),
+      ...new Set(candidateIds.filter((id) => Boolean(id) && id !== userId)),
     ];
     if (!userId || dedupedCandidateIds.length === 0) return {};
 
@@ -33,13 +31,19 @@ export class GroupRecommendationService {
         ON vm."group_id" = cm."group_id"
       WHERE vm."user_id" = ${userId}
         AND vm."status" = ${GroupMemberStatus.ACTIVE}
-        AND cm."user_id" IN (${sql.join(dedupedCandidateIds.map((id) => sql`${id}`), sql`, `)})
+        AND cm."user_id" IN (${sql.join(
+          dedupedCandidateIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
         AND cm."status" = ${GroupMemberStatus.ACTIVE}
       GROUP BY cm."user_id"
     `);
 
     const counts = dedupedCandidateIds.reduce<Record<string, number>>(
-      (acc, id) => { acc[id] = 0; return acc; },
+      (acc, id) => {
+        acc[id] = 0;
+        return acc;
+      },
       {},
     );
     for (const row of rows.rows) {
@@ -54,9 +58,7 @@ export class GroupRecommendationService {
     limitPerCandidate = 3,
   ): Promise<Record<string, string[]>> {
     const dedupedCandidateIds = [
-      ...new Set(
-        candidateIds.filter((id) => Boolean(id) && id !== userId),
-      ),
+      ...new Set(candidateIds.filter((id) => Boolean(id) && id !== userId)),
     ];
     if (!userId || dedupedCandidateIds.length === 0) return {};
 
@@ -75,14 +77,20 @@ export class GroupRecommendationService {
       INNER JOIN ${groups} g ON g."id" = cm."group_id"
       WHERE vm."user_id" = ${userId}
         AND vm."status" = ${GroupMemberStatus.ACTIVE}
-        AND cm."user_id" IN (${sql.join(dedupedCandidateIds.map((id) => sql`${id}`), sql`, `)})
+        AND cm."user_id" IN (${sql.join(
+          dedupedCandidateIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
         AND cm."status" = ${GroupMemberStatus.ACTIVE}
       ORDER BY cm."user_id" ASC, g."members" DESC, g."name" ASC
     `);
 
     const safeLimit = Math.max(1, Math.floor(limitPerCandidate));
     const grouped = dedupedCandidateIds.reduce<Record<string, string[]>>(
-      (acc, id) => { acc[id] = []; return acc; },
+      (acc, id) => {
+        acc[id] = [];
+        return acc;
+      },
       {},
     );
 
@@ -102,7 +110,10 @@ export class GroupRecommendationService {
   ): Promise<Array<{ id: string; commonGroups: number }>> {
     if (!userId || !Number.isFinite(limit) || limit <= 0) return [];
 
-    const rows = await this.db.execute<{ id: string; commonGroups: string }>(sql`
+    const rows = await this.db.execute<{
+      id: string;
+      commonGroups: string;
+    }>(sql`
       SELECT
         cm."user_id" AS "id",
         COUNT(DISTINCT cm."group_id") AS "commonGroups"

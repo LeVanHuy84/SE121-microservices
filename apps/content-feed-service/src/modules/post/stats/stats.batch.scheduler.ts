@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { StatsBufferService } from './stats.buffer.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { StatsBufferService } from "./stats.buffer.service";
 import {
   Audience,
   EventDestination,
@@ -12,11 +12,11 @@ import {
   StatsReactionDelta,
   StatsShareDelta,
   TargetType,
-} from '@repo/dtos';
-import { InjectRepository } from '@nestjs/typeorm';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { In, Repository } from 'typeorm';
-import { Post } from 'src/entities/post.entity';
+} from "@repo/dtos";
+import { InjectRepository } from "@nestjs/typeorm";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { In, Repository } from "typeorm";
+import { Post } from "src/entities/post.entity";
 
 @Injectable()
 export class StatsBatchScheduler {
@@ -27,12 +27,12 @@ export class StatsBatchScheduler {
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     @InjectRepository(Post)
-    private readonly postRepo: Repository<Post>
+    private readonly postRepo: Repository<Post>,
   ) {
-    console.log('🔥 StatsBatchScheduler initialized');
+    console.log("🔥 StatsBatchScheduler initialized");
   }
 
-  @Cron('*/10 * * * * *') // mỗi 10 giây
+  @Cron("*/10 * * * * *") // mỗi 10 giây
   async flushStatsToKafka() {
     const allStats = await this.buffer.getAllBufferedStats();
     const payload: StatsPayload = {
@@ -58,7 +58,7 @@ export class StatsBatchScheduler {
             id: In(Array.from(postIdsToCheck)),
             isDeleted: false,
           },
-          select: ['id', 'groupId'],
+          select: ["id", "groupId"],
         })
       : [];
 
@@ -72,7 +72,7 @@ export class StatsBatchScheduler {
       for (const [targetId, fields] of Object.entries(entries)) {
         const deltas = Object.entries(fields).map(([key, value]) => {
           if (key.startsWith(StatsEventType.REACTION)) {
-            const [, reactionType] = key.split(':');
+            const [, reactionType] = key.split(":");
             return {
               type: StatsEventType.REACTION,
               reactionType: reactionType as ReactionType,
@@ -121,7 +121,7 @@ export class StatsBatchScheduler {
     const outboxEvent = this.outboxRepo.create({
       topic: EventTopic.STATS,
       destination: EventDestination.KAFKA,
-      eventType: 'stats.batch',
+      eventType: "stats.batch",
       payload,
     });
 
@@ -129,7 +129,7 @@ export class StatsBatchScheduler {
     await this.buffer.clearMultipleBuffers(clearedBuffers);
 
     this.logger.log(
-      `✅ Flushed ${payload.stats.length} stat records (${clearedBuffers.length} buffers) to Kafka.`
+      `✅ Flushed ${payload.stats.length} stat records (${clearedBuffers.length} buffers) to Kafka.`,
     );
   }
 }

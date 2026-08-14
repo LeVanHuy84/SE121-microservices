@@ -1,10 +1,10 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable } from '@nestjs/common';
-import { Redis } from 'ioredis';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable } from "@nestjs/common";
+import { Redis } from "ioredis";
 
 @Injectable()
 export class GroupBufferService {
-  private readonly PREFIX = 'group:memberCount:';
+  private readonly PREFIX = "group:memberCount:";
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
@@ -31,19 +31,19 @@ export class GroupBufferService {
   /** SCAN keys theo prefix (thay .keys để tối ưu Redis) */
   private async scanKeys(pattern: string): Promise<string[]> {
     const keys: string[] = [];
-    let cursor = '0';
+    let cursor = "0";
 
     do {
       const reply = await this.redis.scan(
         cursor,
-        'MATCH',
+        "MATCH",
         pattern,
-        'COUNT',
+        "COUNT",
         100,
       );
       cursor = reply[0];
       keys.push(...reply[1]);
-    } while (cursor !== '0');
+    } while (cursor !== "0");
 
     return keys;
   }
@@ -62,7 +62,7 @@ export class GroupBufferService {
       const values = await this.redis.mget(chunk);
 
       chunk.forEach((key, idx) => {
-        const groupId = key.replace(this.PREFIX, '');
+        const groupId = key.replace(this.PREFIX, "");
         result[groupId] = Number(values[idx] ?? 0);
       });
     }

@@ -3,7 +3,7 @@ import {
   ArgumentsHost,
   ExceptionFilter,
   HttpException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 
 @Catch()
 export class GatewayExceptionsFilter implements ExceptionFilter {
@@ -19,7 +19,7 @@ export class GatewayExceptionsFilter implements ExceptionFilter {
       return response
         .status(status)
         .json(
-          typeof res === 'string' ? { statusCode: status, message: res } : res
+          typeof res === "string" ? { statusCode: status, message: res } : res,
         );
     }
 
@@ -33,7 +33,7 @@ export class GatewayExceptionsFilter implements ExceptionFilter {
 
     // Các lỗi khác
     const status = 500;
-    const message = exception?.message || 'Internal server error';
+    const message = exception?.message || "Internal server error";
     response.status(status).json({ statusCode: status, message });
   }
 }

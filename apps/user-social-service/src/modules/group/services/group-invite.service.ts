@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   ActivityType,
   EventDestination,
@@ -12,10 +12,10 @@ import {
   JoinRequestStatus,
   NotiOutboxPayload,
   NotiTargetType,
-} from '@repo/dtos';
-import { and, eq } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
+} from "@repo/dtos";
+import { and, eq } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
 import {
   groupInvites,
   groupJoinRequests,
@@ -23,11 +23,11 @@ import {
   groupSettings,
   groups,
   outboxEvents,
-} from 'src/drizzle/schema/schema';
-import { GroupLogService } from './group-log.service';
-import { GroupBufferService } from './group-buffer.service';
-import { hasPermission } from 'src/modules/group/common/constant/role-permission.constant';
-import { UserService } from 'src/modules/user/user.service';
+} from "src/drizzle/schema/schema";
+import { GroupLogService } from "./group-log.service";
+import { GroupBufferService } from "./group-buffer.service";
+import { hasPermission } from "src/modules/group/common/constant/role-permission.constant";
+import { UserService } from "src/modules/user/user.service";
 
 @Injectable()
 export class GroupInviteService {
@@ -44,7 +44,10 @@ export class GroupInviteService {
   async invite(groupId: string, inviterId: string, inviteeId: string) {
     return this.db.transaction(async (tx) => {
       if (inviterId === inviteeId)
-        throw new RpcException({ statusCode: 400, message: 'Cannot invite yourself' });
+        throw new RpcException({
+          statusCode: 400,
+          message: "Cannot invite yourself",
+        });
 
       const [group] = await tx
         .select()
@@ -53,7 +56,7 @@ export class GroupInviteService {
         .limit(1);
 
       if (!group)
-        throw new RpcException({ statusCode: 404, message: 'Group not found' });
+        throw new RpcException({ statusCode: 404, message: "Group not found" });
 
       const [setting] = await tx
         .select()
@@ -75,7 +78,10 @@ export class GroupInviteService {
           .limit(1);
 
         if (!inviterMember)
-          throw new RpcException({ statusCode: 403, message: 'Inviter is not a member' });
+          throw new RpcException({
+            statusCode: 403,
+            message: "Inviter is not a member",
+          });
 
         if (
           !hasPermission(
@@ -84,7 +90,10 @@ export class GroupInviteService {
             GroupPermission.INVITE_MEMBERS,
           )
         )
-          throw new RpcException({ statusCode: 403, message: 'No permission to invite' });
+          throw new RpcException({
+            statusCode: 403,
+            message: "No permission to invite",
+          });
       }
 
       // INVITEE STATE CHECK
@@ -100,9 +109,12 @@ export class GroupInviteService {
         .limit(1);
 
       if (existingMember?.status === GroupMemberStatus.ACTIVE)
-        throw new RpcException({ statusCode: 409, message: 'User already a member' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "User already a member",
+        });
       if (existingMember?.status === GroupMemberStatus.BANNED)
-        throw new RpcException({ statusCode: 403, message: 'User is banned' });
+        throw new RpcException({ statusCode: 403, message: "User is banned" });
 
       // AUTO-APPROVE JOIN REQUEST
       const [joinRequest] = await tx
@@ -119,8 +131,8 @@ export class GroupInviteService {
 
       const invitee = await this.userService.findOne(inviteeId);
       const inviteeName =
-        `${invitee?.firstName ?? ''} ${invitee?.lastName ?? ''}`.trim() ||
-        'Người dùng';
+        `${invitee?.firstName ?? ""} ${invitee?.lastName ?? ""}`.trim() ||
+        "Người dùng";
 
       if (joinRequest) {
         await this.ensureGroupNotFull(group, setting);
@@ -128,7 +140,11 @@ export class GroupInviteService {
 
         await tx
           .update(groupJoinRequests)
-          .set({ status: JoinRequestStatus.APPROVED, updatedBy: inviterId, updatedAt: new Date() })
+          .set({
+            status: JoinRequestStatus.APPROVED,
+            updatedBy: inviterId,
+            updatedAt: new Date(),
+          })
           .where(eq(groupJoinRequests.id, joinRequest.id));
 
         await this.afterJoin(tx, group);
@@ -140,7 +156,7 @@ export class GroupInviteService {
           content: `Yêu cầu vào nhóm của ${inviteeName} được chấp thuận bởi lời mời`,
         });
 
-        await this.notify(tx, group, setting, inviteeId, inviterId, 'request');
+        await this.notify(tx, group, setting, inviteeId, inviterId, "request");
         return true;
       }
 
@@ -186,7 +202,7 @@ export class GroupInviteService {
         content: `Đã mời ${inviteeName} vào nhóm`,
       });
 
-      await this.notify(tx, group, setting, inviteeId, inviterId, 'invite');
+      await this.notify(tx, group, setting, inviteeId, inviterId, "invite");
       return true;
     });
   }
@@ -209,14 +225,17 @@ export class GroupInviteService {
         .limit(1);
 
       if (!invite)
-        throw new RpcException({ statusCode: 404, message: 'Invite not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Invite not found",
+        });
 
       if (invite.expiredAt && invite.expiredAt < new Date()) {
         await tx
           .update(groupInvites)
           .set({ status: InviteStatus.CANCELLED })
           .where(eq(groupInvites.id, invite.id));
-        throw new RpcException({ statusCode: 410, message: 'Invite expired' });
+        throw new RpcException({ statusCode: 410, message: "Invite expired" });
       }
 
       const [group] = await tx
@@ -225,7 +244,7 @@ export class GroupInviteService {
         .where(eq(groups.id, groupId))
         .limit(1);
       if (!group)
-        throw new RpcException({ statusCode: 404, message: 'Group not found' });
+        throw new RpcException({ statusCode: 404, message: "Group not found" });
 
       const [setting] = await tx
         .select()
@@ -245,9 +264,12 @@ export class GroupInviteService {
         .limit(1);
 
       if (existing?.status === GroupMemberStatus.ACTIVE)
-        throw new RpcException({ statusCode: 409, message: 'Already a member' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Already a member",
+        });
       if (existing?.status === GroupMemberStatus.BANNED)
-        throw new RpcException({ statusCode: 403, message: 'User is banned' });
+        throw new RpcException({ statusCode: 403, message: "User is banned" });
 
       await this.ensureGroupNotFull(group, setting);
       await this.insertMember(tx, group, userId);
@@ -293,7 +315,10 @@ export class GroupInviteService {
         .limit(1);
 
       if (!invite)
-        throw new RpcException({ statusCode: 404, message: 'Invite not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Invite not found",
+        });
 
       await tx
         .update(groupInvites)
@@ -318,7 +343,7 @@ export class GroupInviteService {
 
   private async ensureGroupNotFull(group: any, setting: any) {
     if (group.members >= (setting?.maxMembers ?? 1000))
-      throw new RpcException({ statusCode: 422, message: 'Group is full' });
+      throw new RpcException({ statusCode: 422, message: "Group is full" });
   }
 
   private async afterJoin(tx: any, group: any) {
@@ -335,20 +360,22 @@ export class GroupInviteService {
     setting: any,
     inviteeId: string,
     inviterId: string,
-    type: 'invite' | 'request',
+    type: "invite" | "request",
   ) {
     let payload: NotiOutboxPayload;
     let eventType: string;
 
-    if (type === 'invite') {
+    if (type === "invite") {
       const inviter = await this.userService.findOne(inviterId);
       payload = {
         targetId: group.id,
         targetType: NotiTargetType.GROUP,
-        content: `${inviter?.firstName || ''} ${inviter?.lastName || ''}`.trim() + ` đã mời bạn tham gia nhóm ${group.name}`,
+        content:
+          `${inviter?.firstName || ""} ${inviter?.lastName || ""}`.trim() +
+          ` đã mời bạn tham gia nhóm ${group.name}`,
         receivers: [inviteeId],
       };
-      eventType = 'group_invite';
+      eventType = "group_invite";
     } else {
       payload = {
         targetId: group.id,
@@ -356,12 +383,12 @@ export class GroupInviteService {
         content: `Yêu cầu tham gia nhóm ${group.name} của bạn đã được duyệt`,
         receivers: [inviteeId],
       };
-      eventType = 'join_request_approved';
+      eventType = "join_request_approved";
     }
 
     await tx.insert(outboxEvents).values({
       destination: EventDestination.RABBITMQ,
-      topic: 'notification',
+      topic: "notification",
       eventType,
       payload,
     });

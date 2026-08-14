@@ -1,15 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Audience } from '@repo/dtos';
-import { Model } from 'mongoose';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Audience } from "@repo/dtos";
+import { Model } from "mongoose";
 import {
   PostSnapshot,
   PostSnapshotDocument,
-} from '../schema/post-snapshot.schema';
+} from "../schema/post-snapshot.schema";
 import {
   ShareSnapshot,
   ShareSnapshotDocument,
-} from '../schema/share-snapshot.schema';
+} from "../schema/share-snapshot.schema";
 
 @Injectable()
 export class SnapshotRepository {
@@ -34,7 +34,7 @@ export class SnapshotRepository {
     if (!ids?.length) return [];
     const filter = {
       shareId: { $in: ids },
-      ...(mainEmotion ? { 'post.mainEmotion': mainEmotion } : {}),
+      ...(mainEmotion ? { "post.mainEmotion": mainEmotion } : {}),
     };
     return this.shareModel.find(filter).lean<ShareSnapshot[]>().exec();
   }
@@ -47,17 +47,17 @@ export class SnapshotRepository {
         {
           postId: { $in: ids },
           ...(mainEmotion && {
-            'emotionFeature.label': mainEmotion,
+            "emotionFeature.label": mainEmotion,
           }),
         },
         {
           postId: 1,
           userId: 1,
-          'emotionFeature.label': 1,
-          'emotionFeature.scores': 1,
-          'emotionFeature.intensity': 1,
-          'emotionFeature.confidence': 1,
-          'emotionFeature.riskHintLevel': 1,
+          "emotionFeature.label": 1,
+          "emotionFeature.scores": 1,
+          "emotionFeature.intensity": 1,
+          "emotionFeature.confidence": 1,
+          "emotionFeature.riskHintLevel": 1,
           stats: 1,
         },
       )
@@ -81,9 +81,9 @@ export class SnapshotRepository {
     return this.postModel
       .find(filter)
       .sort({
-        'stats.reactions': -1,
-        'stats.comments': -1,
-        'stats.shares': -1,
+        "stats.reactions": -1,
+        "stats.comments": -1,
+        "stats.shares": -1,
         postCreatedAt: -1,
       })
       .limit(limit)
@@ -93,8 +93,8 @@ export class SnapshotRepository {
 
   async findTrendingCandidatesBatch(limit: number, offset: number) {
     return this.postModel
-      .find({ audience: 'PUBLIC' })
-      .sort({ 'stats.reactions': -1 })
+      .find({ audience: "PUBLIC" })
+      .sort({ "stats.reactions": -1 })
       .skip(offset)
       .limit(limit)
       .lean();

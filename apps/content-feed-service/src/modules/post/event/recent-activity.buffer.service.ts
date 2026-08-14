@@ -1,9 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { TargetType } from '@repo/dtos';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { TargetType } from "@repo/dtos";
 
-export type ActivityType = 'reaction' | 'comment' | 'share';
+export type ActivityType = "reaction" | "comment" | "share";
 
 export interface RecentActivity {
   idempotentKey: string;
@@ -28,15 +28,15 @@ export class RecentActivityBufferService {
   /** 🆕 Lưu hoặc ghi đè activity gần nhất */
   async addRecentActivity(activity: RecentActivity) {
     const key = this.getRedisKey(activity);
-    await this.redis.set(key, JSON.stringify(activity), 'EX', this.TTL_SECONDS);
+    await this.redis.set(key, JSON.stringify(activity), "EX", this.TTL_SECONDS);
     this.logger.debug(
-      `💾 Cached ${activity.type} for ${activity.targetType}:${activity.targetId} (user ${activity.actorId})`
+      `💾 Cached ${activity.type} for ${activity.targetType}:${activity.targetId} (user ${activity.actorId})`,
     );
   }
 
   /** 📸 Snapshot tất cả activity và chuyển sang vùng processing */
   async snapshotAndGetAll(): Promise<Record<string, RecentActivity>> {
-    const keys = await this.redis.keys('recent:activity:*');
+    const keys = await this.redis.keys("recent:activity:*");
     const snapshot: Record<string, RecentActivity> = {};
     if (keys.length === 0) return snapshot;
 
@@ -44,8 +44,8 @@ export class RecentActivityBufferService {
 
     for (const key of keys) {
       const processingKey = key.replace(
-        'recent:activity:',
-        'recent:activity:processing:'
+        "recent:activity:",
+        "recent:activity:processing:",
       );
       // atomic rename + đặt TTL cho snapshot key (phòng crash)
       pipeline.rename(key, processingKey);
@@ -60,7 +60,7 @@ export class RecentActivityBufferService {
     for (let i = 0; i < keys.length; i++) {
       const getResult = results[i * 3 + 2]?.[1] as string | null;
       if (!getResult) continue;
-      const [, , , type, targetType, targetId] = keys[i].split(':');
+      const [, , , type, targetType, targetId] = keys[i].split(":");
       snapshot[`${type}:${targetType}:${targetId}`] = JSON.parse(getResult);
     }
 
@@ -69,7 +69,7 @@ export class RecentActivityBufferService {
 
   /** 🧹 Xoá toàn bộ snapshot key sau khi flush xong */
   async clearProcessingSnapshot() {
-    const keys = await this.redis.keys('recent:activity:processing:*');
+    const keys = await this.redis.keys("recent:activity:processing:*");
     if (keys.length > 0) {
       await this.redis.del(...keys);
       this.logger.debug(`🧹 Cleared ${keys.length} processing activities`);

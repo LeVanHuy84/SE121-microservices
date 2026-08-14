@@ -1,38 +1,38 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { SearchGroupDto, SearchPostDto, SearchUserDto } from '@repo/dtos';
-import { lastValueFrom } from 'rxjs';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { Controller, Get, Inject, Query } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
+import { SearchGroupDto, SearchPostDto, SearchUserDto } from "@repo/dtos";
+import { lastValueFrom } from "rxjs";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('search')
+@Controller("search")
 export class SearchController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.SEARCH_RECOMMENDATION_SERVICE)
     private searchClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
-    private postClient: ClientProxy
+    private postClient: ClientProxy,
   ) {}
 
   @Get()
   checkHealth() {
-    return 'check';
+    return "check";
   }
 
-  @Get('posts')
+  @Get("posts")
   async searchPosts(
     @CurrentUserId() currentUserId: string,
-    @Query() filter: SearchPostDto
+    @Query() filter: SearchPostDto,
   ) {
     const result = await lastValueFrom(
-      this.searchClient.send('search_posts', filter)
+      this.searchClient.send("search_posts", filter),
     );
     const postIds = result.postIds;
     const posts = await lastValueFrom(
-      this.postClient.send('get_posts_batch', {
+      this.postClient.send("get_posts_batch", {
         currentUserId,
         postIds,
-      })
+      }),
     );
     return {
       data: posts,
@@ -41,18 +41,18 @@ export class SearchController {
     };
   }
 
-  @Get('groups')
+  @Get("groups")
   async searchGroups(@Query() filter: SearchGroupDto) {
     const result = await lastValueFrom(
-      this.searchClient.send('search_groups', filter)
+      this.searchClient.send("search_groups", filter),
     );
     return result;
   }
 
-  @Get('users')
+  @Get("users")
   async searchUsers(@Query() filter: SearchUserDto) {
     const result = await lastValueFrom(
-      this.searchClient.send('search_users', filter)
+      this.searchClient.send("search_users", filter),
     );
     return result;
   }

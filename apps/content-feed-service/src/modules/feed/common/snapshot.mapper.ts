@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   Audience,
   MediaItemDTO,
@@ -6,8 +6,8 @@ import {
   PostSnapshotDTO,
   ReactionType,
   ShareSnapshotDTO,
-} from '@repo/dtos';
-import { MediaPreview } from '../mongo/schema/post-snapshot.schema';
+} from "@repo/dtos";
+import { MediaPreview } from "../mongo/schema/post-snapshot.schema";
 
 @Injectable()
 export class SnapshotMapper {
@@ -89,7 +89,7 @@ export class SnapshotMapper {
 
   static toMediaItemDTO(media: MediaPreview): MediaItemDTO {
     return {
-      type: media.type as MediaType,
+      type: media.type,
       url: media.url,
     };
   }

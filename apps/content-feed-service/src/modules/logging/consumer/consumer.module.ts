@@ -1,18 +1,18 @@
-import { Module } from '@nestjs/common';
-import { ConsumerController } from './consumer.controller';
-import { ConsumerService } from './consumer.service';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AuditLog, AuditLogSchema } from '../mongo/schema/audit-log.schema';
+import { Module } from "@nestjs/common";
+import { ConsumerController } from "./consumer.controller";
+import { ConsumerService } from "./consumer.service";
+import { MongooseModule } from "@nestjs/mongoose";
+import { AuditLog, AuditLogSchema } from "../mongo/schema/audit-log.schema";
 import {
   IdempotencyModule,
   KafkaConsumerHelper,
   KafkaDLQService,
   KafkaProducerModule,
-} from '@repo/common';
+} from "@repo/common";
 import {
   UserActivityLog,
   UserActivityLogSchema,
-} from '../mongo/schema/user-activity.schema';
+} from "../mongo/schema/user-activity.schema";
 
 @Module({
   imports: [

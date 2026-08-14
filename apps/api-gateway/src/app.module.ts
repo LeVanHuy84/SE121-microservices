@@ -1,30 +1,30 @@
-import { Module, ValidationPipe } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { Module, ValidationPipe } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 
-import { AuthModule } from './modules/auth/auth.module';
-import { ClerkAuthGuard } from './modules/auth/clerk-auth.guard';
-import { ChatModule } from './modules/chat/chat.module';
+import { AuthModule } from "./modules/auth/auth.module";
+import { ClerkAuthGuard } from "./modules/auth/clerk-auth.guard";
+import { ChatModule } from "./modules/chat/chat.module";
 
-import { RedisModule } from '@nestjs-modules/ioredis';
-import { RabbitmqModule } from '@repo/common';
-import { AdminModule } from './modules/admin/admin.module';
-import { EmotionModule } from './modules/emotion/emotion.module';
-import { FeedModule } from './modules/feed/feed.module';
-import { GroupModule } from './modules/group/group.module';
-import { LogModule } from './modules/log/log.module';
-import { MediaModule } from './modules/media/media.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { PostModule } from './modules/posts/post.module';
-import { SearchModule } from './modules/search/search.module';
-import { SocialModule } from './modules/social/social.module';
-import { UserModule } from './modules/users/users.module';
-import { ClerkClientProvider } from './providers/clerk-client.provider';
+import { RedisModule } from "@nestjs-modules/ioredis";
+import { RabbitmqModule } from "@repo/common";
+import { AdminModule } from "./modules/admin/admin.module";
+import { EmotionModule } from "./modules/emotion/emotion.module";
+import { FeedModule } from "./modules/feed/feed.module";
+import { GroupModule } from "./modules/group/group.module";
+import { LogModule } from "./modules/log/log.module";
+import { MediaModule } from "./modules/media/media.module";
+import { NotificationModule } from "./modules/notification/notification.module";
+import { PostModule } from "./modules/posts/post.module";
+import { SearchModule } from "./modules/search/search.module";
+import { SocialModule } from "./modules/social/social.module";
+import { UserModule } from "./modules/users/users.module";
+import { ClerkClientProvider } from "./providers/clerk-client.provider";
 
-import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { ChatbotModule } from "./modules/chatbot/chatbot.module";
 
-import { MusicModule } from './modules/music/music.module';
+import { MusicModule } from "./modules/music/music.module";
 
 @Module({
   imports: [
@@ -48,14 +48,14 @@ import { MusicModule } from './modules/music/music.module';
     }),
     NotificationModule,
     RabbitmqModule.register({
-      urls: ['amqp://guest:guest@localhost:5672'], // hoặc 'amqp://rabbitmq:5672' nếu docker
+      urls: ["amqp://guest:guest@localhost:5672"], // hoặc 'amqp://rabbitmq:5672' nếu docker
       exchanges: [
-        { name: 'notification', type: 'topic' },
-        { name: 'broadcast', type: 'fanout' },
+        { name: "notification", type: "topic" },
+        { name: "broadcast", type: "fanout" },
       ],
     }),
     RedisModule.forRoot({
-      type: 'single',
+      type: "single",
       options: {
         host: process.env.REDIS_HOST,
         port: process.env.REDIS_PORT
@@ -90,7 +90,7 @@ import { MusicModule } from './modules/music/music.module';
       useClass: ThrottlerGuard,
     },
     {
-      provide: 'APP_PIPE',
+      provide: "APP_PIPE",
       useValue: new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,

@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { EmotionFeatureService } from './services/emotion-feature.service';
-import { AffinityModule } from '../affinity/affinity.module';
-import { ScoreCombinerService } from './services/score-combiner.service';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { EmotionFeatureService } from "./services/emotion-feature.service";
+import { AffinityModule } from "../affinity/affinity.module";
+import { ScoreCombinerService } from "./services/score-combiner.service";
+import { ClientsModule, Transport } from "@nestjs/microservices";
 
 /**
  * RankingModule - Module quản lý ranking logic
@@ -19,16 +19,16 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     AffinityModule,
     ClientsModule.registerAsync([
       {
-        name: 'EMOTION_INTELLIGENCE_SERVICE',
+        name: "EMOTION_INTELLIGENCE_SERVICE",
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
             host:
-              config.get<string>('EMOTION_INTELLIGENCE_SERVICE_HOST') ||
-              'localhost',
-            port: config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT'),
+              config.get<string>("EMOTION_INTELLIGENCE_SERVICE_HOST") ||
+              "localhost",
+            port: config.get<number>("EMOTION_INTELLIGENCE_SERVICE_PORT"),
           },
         }),
       },

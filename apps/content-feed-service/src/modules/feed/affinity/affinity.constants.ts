@@ -1,4 +1,4 @@
-import { InteractionType } from '@repo/dtos';
+import { InteractionType } from "@repo/dtos";
 
 /**
  * Redis keys

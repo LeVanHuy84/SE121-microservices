@@ -1,14 +1,14 @@
-import { Controller, Logger } from '@nestjs/common';
-import { ConsumerService } from './consumer.service';
+import { Controller, Logger } from "@nestjs/common";
+import { ConsumerService } from "./consumer.service";
 import {
   EventPattern,
   Payload,
   Ctx,
   KafkaContext,
-} from '@nestjs/microservices';
-import { EventTopic, LogEvent, UserActivityLogEvent } from '@repo/dtos';
-import { KafkaConsumerHelper } from '@repo/common';
-import { ClientSession } from 'mongoose';
+} from "@nestjs/microservices";
+import { EventTopic, LogEvent, UserActivityLogEvent } from "@repo/dtos";
+import { KafkaConsumerHelper } from "@repo/common";
+import { ClientSession } from "mongoose";
 
 @Controller()
 export class ConsumerController {

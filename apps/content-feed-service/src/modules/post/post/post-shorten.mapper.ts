@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { GroupInfoDTO, PostSnapshotDTO, ReactionType } from '@repo/dtos';
-import { Post } from 'src/entities/post.entity';
+import { Injectable } from "@nestjs/common";
+import { GroupInfoDTO, PostSnapshotDTO, ReactionType } from "@repo/dtos";
+import { Post } from "src/entities/post.entity";
 
 @Injectable()
 export class PostShortenMapper {
   static toPostSnapshotDTOs(
     posts: Post[],
-    reactionMap: Map<string, ReactionType | undefined>
+    reactionMap: Map<string, ReactionType | undefined>,
   ): PostSnapshotDTO[] {
     return posts.map((post) => {
       const reactedType = reactionMap.get(post.id);
@@ -17,7 +17,7 @@ export class PostShortenMapper {
   static toPostSnapshotDTO(
     post: Post,
     reactedType?: ReactionType,
-    group?: GroupInfoDTO
+    group?: GroupInfoDTO,
   ): PostSnapshotDTO {
     return {
       postId: post.id,

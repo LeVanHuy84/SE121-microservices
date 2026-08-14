@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   ActivityType,
   CursorPageResponse,
@@ -12,19 +12,15 @@ import {
   GroupRole,
   NotiOutboxPayload,
   NotiTargetType,
-} from '@repo/dtos';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import {
-  groupMembers,
-  groups,
-  outboxEvents,
-} from 'src/drizzle/schema/schema';
-import { and, asc, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
-import { RpcException } from '@nestjs/microservices';
-import { plainToInstance } from 'class-transformer';
-import { GroupLogService } from './group-log.service';
-import { UserService } from 'src/modules/user/user.service';
+} from "@repo/dtos";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupMembers, groups, outboxEvents } from "src/drizzle/schema/schema";
+import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { RpcException } from "@nestjs/microservices";
+import { plainToInstance } from "class-transformer";
+import { GroupLogService } from "./group-log.service";
+import { UserService } from "src/modules/user/user.service";
 
 @Injectable()
 export class GroupMemberService {
@@ -48,11 +44,14 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.role === GroupRole.OWNER) {
         throw new RpcException({
           statusCode: 403,
-          message: 'Owner cannot leave the group',
+          message: "Owner cannot leave the group",
         });
       }
 
@@ -82,7 +81,7 @@ export class GroupMemberService {
           actorId: userId,
           activityType: ActivityType.GROUP_LEFT,
           targetId: groupId,
-          contentPreview: `Bạn đã rời khỏi nhóm ${group?.name ?? ''}`,
+          contentPreview: `Bạn đã rời khỏi nhóm ${group?.name ?? ""}`,
           createdAt: new Date(),
         },
       });
@@ -102,17 +101,32 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.role === GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Cannot remove the group owner' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Cannot remove the group owner",
+        });
 
       const executor = await this.getMemberWithRole(tx, groupId, userId);
       if (member.role === GroupRole.ADMIN && executor?.role !== GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Only owner can remove an admin' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Only owner can remove an admin",
+        });
       if (userId === member.userId)
-        throw new RpcException({ statusCode: 409, message: 'You cannot remove yourself' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "You cannot remove yourself",
+        });
       if (member.status !== GroupMemberStatus.ACTIVE)
-        throw new RpcException({ statusCode: 409, message: 'Member is not active' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Member is not active",
+        });
 
       await tx.delete(groupMembers).where(eq(groupMembers.id, member.id));
       const memberName = await this.getUserName(member.userId);
@@ -140,17 +154,32 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.role === GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Cannot ban the group owner' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Cannot ban the group owner",
+        });
 
       const executor = await this.getMemberWithRole(tx, groupId, userId);
       if (member.role === GroupRole.ADMIN && executor?.role !== GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Only owner can ban an admin' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Only owner can ban an admin",
+        });
       if (userId === member.userId)
-        throw new RpcException({ statusCode: 409, message: 'You cannot ban yourself' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "You cannot ban yourself",
+        });
       if (member.status !== GroupMemberStatus.ACTIVE)
-        throw new RpcException({ statusCode: 409, message: 'Member is not active' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Member is not active",
+        });
 
       await tx
         .update(groupMembers)
@@ -181,9 +210,15 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.status !== GroupMemberStatus.BANNED)
-        throw new RpcException({ statusCode: 409, message: 'Member is not banned' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Member is not banned",
+        });
 
       await tx.delete(groupMembers).where(eq(groupMembers.id, member.id));
       const memberName = await this.getUserName(member.userId);
@@ -207,7 +242,10 @@ export class GroupMemberService {
   ) {
     return this.db.transaction(async (tx) => {
       if (newRole === GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Cannot assign OWNER role' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Cannot assign OWNER role",
+        });
 
       const [member] = await tx
         .select()
@@ -218,13 +256,22 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.role === GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Cannot change role of the group owner' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Cannot change role of the group owner",
+        });
 
       const executor = await this.getMemberWithRole(tx, groupId, userId);
       if (member.role === GroupRole.ADMIN && executor?.role !== GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Only owner can change role of admin' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Only owner can change role of admin",
+        });
 
       await tx
         .update(groupMembers)
@@ -251,7 +298,7 @@ export class GroupMemberService {
         tx,
         group?.id ?? groupId,
         member.userId,
-        `Vai trò của bạn trong nhóm ${group?.name ?? ''} đã được cập nhật thành ${newRole}`,
+        `Vai trò của bạn trong nhóm ${group?.name ?? ""} đã được cập nhật thành ${newRole}`,
       );
 
       return member;
@@ -273,9 +320,15 @@ export class GroupMemberService {
         .limit(1);
 
       if (!member)
-        throw new RpcException({ statusCode: 404, message: 'Member not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Member not found",
+        });
       if (member.role === GroupRole.OWNER)
-        throw new RpcException({ statusCode: 403, message: 'Cannot change permissions of the group owner' });
+        throw new RpcException({
+          statusCode: 403,
+          message: "Cannot change permissions of the group owner",
+        });
 
       await tx
         .update(groupMembers)
@@ -288,7 +341,7 @@ export class GroupMemberService {
         groupId,
         userId: memberId,
         eventType: GroupEventLog.MEMBER_PERMISSION_CHANGED,
-        content: `Quyền hạn của thành viên ${memberName} đã được thay đổi thành ${permissions.join(', ')}`,
+        content: `Quyền hạn của thành viên ${memberName} đã được thay đổi thành ${permissions.join(", ")}`,
       });
 
       const [group] = await tx
@@ -301,7 +354,7 @@ export class GroupMemberService {
         tx,
         group?.id ?? groupId,
         member.userId,
-        `Quyền hạn của bạn trong nhóm ${group?.name ?? ''} đã được cập nhật`,
+        `Quyền hạn của bạn trong nhóm ${group?.name ?? ""} đã được cập nhật`,
       );
 
       return member;
@@ -320,9 +373,9 @@ export class GroupMemberService {
     if (cursor) conditions.push(lt(groupMembers.id, cursor));
 
     const orderExpr =
-      order === 'DESC'
-        ? desc(groupMembers[sortBy || 'createdAt'])
-        : asc(groupMembers[sortBy || 'createdAt']);
+      order === "DESC"
+        ? desc(groupMembers[sortBy || "createdAt"])
+        : asc(groupMembers[sortBy || "createdAt"]);
 
     const data = await this.db
       .select()
@@ -356,10 +409,7 @@ export class GroupMemberService {
       .select({ id: groupMembers.id })
       .from(groupMembers)
       .where(
-        and(
-          eq(groupMembers.groupId, groupId),
-          eq(groupMembers.userId, userId),
-        ),
+        and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)),
       )
       .limit(1);
     return !!member;
@@ -380,8 +430,8 @@ export class GroupMemberService {
 
     await tx.insert(outboxEvents).values({
       destination: EventDestination.RABBITMQ,
-      topic: 'notification',
-      eventType: 'group_noti',
+      topic: "notification",
+      eventType: "group_noti",
       payload,
     });
   }
@@ -393,7 +443,7 @@ export class GroupMemberService {
       .where(eq(groups.id, groupId))
       .limit(1);
     if (!group)
-      throw new RpcException({ statusCode: 404, message: 'Group not found' });
+      throw new RpcException({ statusCode: 404, message: "Group not found" });
     await tx
       .update(groups)
       .set({ members: group.members + delta })
@@ -405,10 +455,7 @@ export class GroupMemberService {
       .select()
       .from(groupMembers)
       .where(
-        and(
-          eq(groupMembers.groupId, groupId),
-          eq(groupMembers.userId, userId),
-        ),
+        and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)),
       )
       .limit(1);
     return m;
@@ -417,8 +464,8 @@ export class GroupMemberService {
   private async getUserName(userId: string): Promise<string> {
     const userInfo = await this.userService.findOne(userId);
     return (
-      `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
-      'Người dùng'
+      `${userInfo?.firstName ?? ""} ${userInfo?.lastName ?? ""}`.trim() ||
+      "Người dùng"
     );
   }
 }

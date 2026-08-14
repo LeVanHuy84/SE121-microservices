@@ -1,9 +1,9 @@
-import { Global, Module } from '@nestjs/common';
-import { KafkaProducerModule, NotificationModule } from '@repo/common';
-import { ConfigService } from '@nestjs/config';
-import { OutboxProcessor } from './outbox.processor';
-import { OutboxService } from './outbox.service';
-import { DrizzleModule } from 'src/drizzle/drizzle.module';
+import { Global, Module } from "@nestjs/common";
+import { KafkaProducerModule, NotificationModule } from "@repo/common";
+import { ConfigService } from "@nestjs/config";
+import { OutboxProcessor } from "./outbox.processor";
+import { OutboxService } from "./outbox.service";
+import { DrizzleModule } from "src/drizzle/drizzle.module";
 
 @Global()
 @Module({
@@ -13,10 +13,10 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
     NotificationModule.registerAsync({
       useFactory: async (config: ConfigService) => ({
         urls: [
-          `amqp://${config.get('RABBITMQ_USER')}:${config.get('RABBITMQ_PASS')}` +
-            `@${config.get('RABBITMQ_HOST')}:${config.get('RABBITMQ_PORT')}`,
+          `amqp://${config.get("RABBITMQ_USER")}:${config.get("RABBITMQ_PASS")}` +
+            `@${config.get("RABBITMQ_HOST")}:${config.get("RABBITMQ_PORT")}`,
         ],
-        queue: 'create_notification_queue',
+        queue: "create_notification_queue",
       }),
       inject: [ConfigService],
     }),

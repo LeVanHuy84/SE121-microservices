@@ -5,27 +5,27 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-} from 'typeorm';
-import { Post } from './post.entity';
+} from "typeorm";
+import { Post } from "./post.entity";
 
-@Entity('edit_histories')
+@Entity("edit_histories")
 export class EditHistory {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: 'text', name: 'old_content' })
+  @Column({ type: "text", name: "old_content" })
   oldContent: string;
 
   @CreateDateColumn({
-    name: 'edit_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
+    name: "edit_at",
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
   })
   editAt: Date;
 
   @ManyToOne(() => Post, (post) => post.editHistories, {
-    onDelete: 'CASCADE',
+    onDelete: "CASCADE",
   })
-  @JoinColumn({ name: 'post_id' })
+  @JoinColumn({ name: "post_id" })
   post: Post;
 }

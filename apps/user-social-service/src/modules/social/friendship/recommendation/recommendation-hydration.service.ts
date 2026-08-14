@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { UserService } from '../../../../modules/user/user.service';
-import type { FriendRecommendation } from '../repositories/social-graph.repository';
+import { Injectable } from "@nestjs/common";
+import { UserService } from "../../../../modules/user/user.service";
+import type { FriendRecommendation } from "../repositories/social-graph.repository";
 
 @Injectable()
 export class RecommendationHydrationService {

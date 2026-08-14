@@ -1,17 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { FeedEventType } from '@repo/dtos';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { Model, Types } from 'mongoose';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { FeedEventType } from "@repo/dtos";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { Model, Types } from "mongoose";
 import {
   PostSnapshot,
   PostSnapshotDocument,
-} from '../mongo/schema/post-snapshot.schema';
-import {
-  FeedItem,
-  FeedItemDocument,
-} from '../mongo/schema/feed-item.schema';
+} from "../mongo/schema/post-snapshot.schema";
+import { FeedItem, FeedItemDocument } from "../mongo/schema/feed-item.schema";
 
 type SeedPostRaw = {
   id: string;
@@ -52,7 +49,7 @@ export class SeedService {
   ) {}
 
   async seedDirect(): Promise<void> {
-    this.logger.log('Starting direct seed for feed-service');
+    this.logger.log("Starting direct seed for feed-service");
 
     const [rawPosts, rawUsers] = await Promise.all([
       this.loadPosts(),
@@ -69,24 +66,24 @@ export class SeedService {
   }
 
   private async loadPosts(): Promise<SeedPostRaw[]> {
-    const postsPath = join(this.seedDir, 'posts.json');
-    const fileContent = await readFile(postsPath, 'utf-8');
+    const postsPath = join(this.seedDir, "posts.json");
+    const fileContent = await readFile(postsPath, "utf-8");
     const parsed = JSON.parse(fileContent) as unknown;
 
     if (!Array.isArray(parsed)) {
-      throw new Error('posts.json must be an array');
+      throw new Error("posts.json must be an array");
     }
 
     return parsed as SeedPostRaw[];
   }
 
   private async loadUsers(): Promise<SeedUserRaw[]> {
-    const usersPath = join(this.seedDir, 'users.json');
-    const fileContent = await readFile(usersPath, 'utf-8');
+    const usersPath = join(this.seedDir, "users.json");
+    const fileContent = await readFile(usersPath, "utf-8");
     const parsed = JSON.parse(fileContent) as unknown;
 
     if (!Array.isArray(parsed)) {
-      throw new Error('users.json must be an array');
+      throw new Error("users.json must be an array");
     }
 
     return parsed as SeedUserRaw[];
@@ -148,7 +145,7 @@ export class SeedService {
       );
 
       const feedItems = pickedSnapshots.map((snapshot) => {
-        const snapshotId = (snapshot._id as Types.ObjectId).toString();
+        const snapshotId = snapshot._id.toString();
 
         return {
           userId: receiverUserId,
@@ -185,7 +182,7 @@ export class SeedService {
 
   private chunkArray<T>(array: T[], size: number): T[][] {
     if (size <= 0) {
-      throw new Error('Chunk size must be greater than 0');
+      throw new Error("Chunk size must be greater than 0");
     }
 
     const chunks: T[][] = [];
@@ -220,7 +217,7 @@ export class SeedService {
 
     for (let i = shuffled.length - 1; i > 0; i -= 1) {
       const j = this.randomInt(0, i);
-      [shuffled[i], shuffled[j]] = [shuffled[j] as T, shuffled[i] as T];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
   }

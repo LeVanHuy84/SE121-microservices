@@ -101,7 +101,6 @@ export class ChatPushService {
     }
   }
 
-
   async sendCallCancelPush(params: SendCallCancelPushParams) {
     try {
       const receiverIds =

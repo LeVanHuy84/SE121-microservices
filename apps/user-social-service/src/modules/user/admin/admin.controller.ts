@@ -1,23 +1,23 @@
-import { Controller } from '@nestjs/common';
-import { AdminService } from './admin.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Controller } from "@nestjs/common";
+import { AdminService } from "./admin.service";
+import { MessagePattern, Payload } from "@nestjs/microservices";
 import {
   CreateSystemUserDTO,
   DashboardQueryDTO,
   SystemRole,
   SystemUserQueryDTO,
-} from '@repo/dtos';
+} from "@repo/dtos";
 
-@Controller('admin')
+@Controller("admin")
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @MessagePattern('create-system-user')
+  @MessagePattern("create-system-user")
   async createSystemUser(data: { dto: CreateSystemUserDTO; actorId: string }) {
     return this.adminService.createSystemUser(data.dto, data.actorId);
   }
 
-  @MessagePattern('update-system-user-role')
+  @MessagePattern("update-system-user-role")
   async updateSystemUserRole(data: {
     userId: string;
     role: SystemRole;
@@ -26,26 +26,26 @@ export class AdminController {
     return this.adminService.updateSystemUserRole(
       data.userId,
       data.role,
-      data.actorId
+      data.actorId,
     );
   }
 
-  @MessagePattern('get-system-users')
+  @MessagePattern("get-system-users")
   async getSystemUsers(filter: SystemUserQueryDTO) {
     return this.adminService.getSystemUsers(filter);
   }
 
-  @MessagePattern('ban-user')
+  @MessagePattern("ban-user")
   async banUser(data: { userId: string; actorId: string }) {
     return this.adminService.banUser(data.userId, data.actorId);
   }
 
-  @MessagePattern('unban-user')
+  @MessagePattern("unban-user")
   async unbanUser(data: { userId: string; actorId: string }) {
     return this.adminService.unbanUser(data.userId, data.actorId);
   }
 
-  @MessagePattern('user-dashboard')
+  @MessagePattern("user-dashboard")
   async getDashboard(@Payload() filter: DashboardQueryDTO) {
     return this.adminService.getDashboard(filter);
   }

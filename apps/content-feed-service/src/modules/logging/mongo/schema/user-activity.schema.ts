@@ -1,9 +1,9 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { ActivityType } from '@repo/dtos';
-import { HydratedDocument, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { ActivityType } from "@repo/dtos";
+import { HydratedDocument, Types } from "mongoose";
 
 @Schema({
-  collection: 'user_activity_logs',
+  collection: "user_activity_logs",
   timestamps: true,
 })
 export class UserActivityLog {

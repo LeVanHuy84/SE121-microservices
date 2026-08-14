@@ -1,25 +1,25 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { InjectQueue } from "@nestjs/bull";
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
 import {
   CreateNotificationDto,
   CursorPageResponse,
   CursorPaginationDTO,
   GetNotificationQueryDto,
   NotificationResponseDto,
-} from '@repo/dtos';
-import type { Queue } from 'bull';
-import { plainToInstance } from 'class-transformer';
-import Redis from 'ioredis';
-import { Model, ObjectId, Types } from 'mongoose';
+} from "@repo/dtos";
+import type { Queue } from "bull";
+import { plainToInstance } from "class-transformer";
+import Redis from "ioredis";
+import { Model, ObjectId, Types } from "mongoose";
 import {
   Notification,
   NotificationDocument,
-} from '../mongo/schema/notification.schema';
-import { NotificationDispatcherService } from './services/notification-dispatcher.service';
-import { NotificationPolicyService } from './services/notification-policy.service';
-import { TemplateService } from './template.service';
+} from "../mongo/schema/notification.schema";
+import { NotificationDispatcherService } from "./services/notification-dispatcher.service";
+import { NotificationPolicyService } from "./services/notification-policy.service";
+import { TemplateService } from "./template.service";
 
 @Injectable()
 export class NotificationService {
@@ -47,7 +47,10 @@ export class NotificationService {
       }
     }
 
-    const policyResult = await this.policyService.evaluatePolicy(dto.userId, dto.type);
+    const policyResult = await this.policyService.evaluatePolicy(
+      dto.userId,
+      dto.type,
+    );
 
     if (!policyResult.allowed) {
       if (policyResult.suppressed) {
@@ -58,7 +61,7 @@ export class NotificationService {
           payload: dto.payload,
           message: null,
           channels: [],
-          status: 'unread',
+          status: "unread",
           meta: { suppressed: true },
         });
       } else {
@@ -69,7 +72,7 @@ export class NotificationService {
           payload: dto.payload,
           message: null,
           channels: [],
-          status: 'unread',
+          status: "unread",
           meta: {
             rateLimited: true,
             rateLimitReason: policyResult.reason,
@@ -95,7 +98,7 @@ export class NotificationService {
         message: renderedTemplate.body,
         channels: [], // Deprecated, we no longer store allowedChannels here
         sendAt,
-        status: 'unread',
+        status: "unread",
         meta: dto.meta || {},
       });
 
@@ -135,77 +138,79 @@ export class NotificationService {
         return new CursorPageResponse<NotificationResponseDto>([], null, false);
       }
 
-    let maxScore = '+inf';
-    if (query.cursor) {
-      maxScore = `(${query.cursor}`;
-    }
+      let maxScore = "+inf";
+      if (query.cursor) {
+        maxScore = `(${query.cursor}`;
+      }
 
-    try {
-      const ids = await this.redis.zrevrangebyscore(
-        key,
-        maxScore,
-        '-inf',
-        'LIMIT',
-        0,
-        limit + 1,
-      );
+      try {
+        const ids = await this.redis.zrevrangebyscore(
+          key,
+          maxScore,
+          "-inf",
+          "LIMIT",
+          0,
+          limit + 1,
+        );
 
-      if (ids.length > 0) {
-        const hasNext = ids.length > limit;
-        const selectedIds = ids.slice(0, limit);
+        if (ids.length > 0) {
+          const hasNext = ids.length > limit;
+          const selectedIds = ids.slice(0, limit);
 
-        const cached = await this.redis.hmget(dataKey, ...selectedIds);
-        const cachedItems = cached
-          .filter((item): item is string => item !== null)
-          .map((item) => JSON.parse(item));
+          const cached = await this.redis.hmget(dataKey, ...selectedIds);
+          const cachedItems = cached
+            .filter((item): item is string => item !== null)
+            .map((item) => JSON.parse(item));
 
-        const itemMap = new Map<string, any>();
-        for (const item of cachedItems) {
-          const id = item?._id?.toString() ?? item?.id;
-          if (id) {
-            itemMap.set(id, item);
+          const itemMap = new Map<string, any>();
+          for (const item of cachedItems) {
+            const id = item?._id?.toString() ?? item?.id;
+            if (id) {
+              itemMap.set(id, item);
+            }
           }
-        }
 
-        const missingIds = selectedIds.filter((id) => !itemMap.has(id));
-        const items = selectedIds
-          .map((id) => itemMap.get(id))
-          .filter(Boolean);
+          const missingIds = selectedIds.filter((id) => !itemMap.has(id));
+          const items = selectedIds
+            .map((id) => itemMap.get(id))
+            .filter(Boolean);
 
-        const lastItem = items.length > 0 ? items[items.length - 1] : null;
-        const nextCursor =
-          hasNext && (lastItem as any)?.createdAt
-            ? new Date((lastItem as any).createdAt).getTime().toString()
-            : null;
+          const lastItem = items.length > 0 ? items[items.length - 1] : null;
+          const nextCursor =
+            hasNext && lastItem?.createdAt
+              ? new Date(lastItem.createdAt).getTime().toString()
+              : null;
 
-        if (missingIds.length > 0) {
-          if (items.length > 0) {
-            this.refreshNotificationsCache(userId, query.cursor ?? null, limit)
-              .catch((error) =>
+          if (missingIds.length > 0) {
+            if (items.length > 0) {
+              this.refreshNotificationsCache(
+                userId,
+                query.cursor ?? null,
+                limit,
+              ).catch((error) =>
                 this.logger.warn(
                   `Failed to refresh notifications cache for userId=${userId}: ${error.message}`,
                 ),
               );
+              return new CursorPageResponse(
+                plainToInstance(NotificationResponseDto, items),
+                nextCursor,
+                hasNext,
+              );
+            }
+          } else {
             return new CursorPageResponse(
               plainToInstance(NotificationResponseDto, items),
               nextCursor,
               hasNext,
             );
           }
-        } else {
-          return new CursorPageResponse(
-            plainToInstance(NotificationResponseDto, items),
-            nextCursor,
-            hasNext,
-          );
         }
+      } catch (error) {
+        this.logger.warn(
+          `Notification cache read failed for userId=${userId}: ${error.message}`,
+        );
       }
-    } catch (error) {
-      this.logger.warn(
-        `Notification cache read failed for userId=${userId}: ${error.message}`,
-      );
-    }
-
     }
 
     const mongoQuery: any = { userId };
@@ -216,7 +221,7 @@ export class NotificationService {
       mongoQuery.type = query.type;
     }
     if (query.isRead !== undefined) {
-      mongoQuery.status = query.isRead ? 'read' : 'unread';
+      mongoQuery.status = query.isRead ? "read" : "unread";
     }
 
     const dbItems = await this.notificationModel
@@ -246,7 +251,7 @@ export class NotificationService {
     }
 
     if (!hasFilters) {
-      await this.redis.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+      await this.redis.set(emptyKey, "1", "EX", this.emptyCacheTtl);
     }
     return new CursorPageResponse([], null, false);
   }
@@ -254,7 +259,7 @@ export class NotificationService {
   async markRead(id: string) {
     const doc = await this.notificationModel.findByIdAndUpdate(
       id,
-      { status: 'read' },
+      { status: "read" },
       { new: true },
     );
     if (doc) {
@@ -265,8 +270,8 @@ export class NotificationService {
 
   async markAllRead(userId: string) {
     const result = await this.notificationModel.updateMany(
-      { userId, status: { $ne: 'read' } },
-      { status: 'read', updatedAt: new Date() },
+      { userId, status: { $ne: "read" } },
+      { status: "read", updatedAt: new Date() },
     );
     await this.refreshUserCache(userId);
     return { modifiedCount: result.modifiedCount };
@@ -299,11 +304,9 @@ export class NotificationService {
   async countUnread(userId: string): Promise<number> {
     return this.notificationModel.countDocuments({
       userId,
-      status: 'unread',
+      status: "unread",
     });
   }
-
-
 
   private async cacheNotifications(userId: string, items: any[]) {
     const { key, dataKey, emptyKey } = this.getCacheKeys(userId);
@@ -312,8 +315,8 @@ export class NotificationService {
 
     for (const item of items) {
       const member = item._id.toString();
-      const score = (item as any).createdAt
-        ? new Date((item as any).createdAt).getTime()
+      const score = item.createdAt
+        ? new Date(item.createdAt).getTime()
         : Date.now();
       multi.zadd(key, score, member);
       multi.hset(dataKey, member, JSON.stringify(item));
@@ -375,7 +378,7 @@ export class NotificationService {
       multi.del(emptyKey);
     } else {
       multi.del(key, dataKey);
-      multi.set(emptyKey, '1', 'EX', this.emptyCacheTtl);
+      multi.set(emptyKey, "1", "EX", this.emptyCacheTtl);
     }
 
     await multi.exec();
@@ -386,9 +389,7 @@ export class NotificationService {
     cursor: string | null,
     limit: number,
   ) {
-    const scoreFilter = cursor
-      ? { $lt: new Date(parseInt(cursor, 10)) }
-      : {};
+    const scoreFilter = cursor ? { $lt: new Date(parseInt(cursor, 10)) } : {};
 
     const dbItems = await this.notificationModel
       .find({ userId, ...(cursor ? { createdAt: scoreFilter } : {}) })

@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { EmotionController } from './emotion.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
+import { Module } from "@nestjs/common";
+import { EmotionController } from "./emotion.controller";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { MICROSERVICES_CLIENTS } from 'src/common/constants';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT'),
+            port: config.get<number>("EMOTION_INTELLIGENCE_SERVICE_PORT"),
           },
         }),
       },

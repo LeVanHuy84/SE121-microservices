@@ -9,10 +9,10 @@ import {
   Put,
   Query,
   ForbiddenException,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+} from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
 
-import { Throttle } from '@nestjs/throttler';
+import { Throttle } from "@nestjs/throttler";
 import {
   AcceptCallDTO,
   CallSessionResponseDTO,
@@ -30,309 +30,311 @@ import {
   SendCallSignalDTO,
   SendMessageDTO,
   StreamUserTokenResponseDTO,
-  UpdateConversationDTO
-} from '@repo/dtos';
-import { lastValueFrom } from 'rxjs';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+  UpdateConversationDTO,
+} from "@repo/dtos";
+import { lastValueFrom } from "rxjs";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
-@Controller('chats')
+@Controller("chats")
 export class ChatController {
   constructor(
     @Inject(MICROSERVICES_CLIENTS.CHAT_SERVICE)
     private readonly chatClient: ClientProxy,
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
-    private readonly userSocialClient: ClientProxy
+    private readonly userSocialClient: ClientProxy,
   ) {}
 
-  @Get('conversations')
+  @Get("conversations")
   getConversations(
     @CurrentUserId() userId: string,
-    @Query() query: GetConversationsQueryDTO
+    @Query() query: GetConversationsQueryDTO,
   ) {
-    return this.chatClient.send('getConversations', { userId, query });
+    return this.chatClient.send("getConversations", { userId, query });
   }
 
-  @Get('conversations/:conversationId')
+  @Get("conversations/:conversationId")
   getConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
+    @Param("conversationId") conversationId: string,
   ) {
-    return this.chatClient.send('getConversationById', {
+    return this.chatClient.send("getConversationById", {
       userId,
       conversationId,
     });
   }
 
-  @Post('conversations')
+  @Post("conversations")
   async createConversation(
     @CurrentUserId() userId: string,
-    @Body() dto: CreateConversationDTO
+    @Body() dto: CreateConversationDTO,
   ): Promise<ConversationResponseDTO> {
     const targetIds = dto.participants || [];
-    
+
     if (targetIds.length > 0) {
       const targets: any[] = await lastValueFrom(
-        this.userSocialClient.send('getUsersBatch', targetIds)
+        this.userSocialClient.send("getUsersBatch", targetIds),
       );
 
       for (const targetId of targetIds) {
         if (targetId === userId) continue;
         const target = targets.find((t: any) => t.id === targetId);
         if (!target) continue;
-        
-        const messagePrivacy = target.privacySettings?.messagePrivacy || 'EVERYONE';
-        if (messagePrivacy === 'FRIENDS') {
+
+        const messagePrivacy =
+          target.privacySettings?.messagePrivacy || "EVERYONE";
+        if (messagePrivacy === "FRIENDS") {
           const relation: any = await lastValueFrom(
-            this.userSocialClient.send('get_relationship_status', { userId, targetId })
+            this.userSocialClient.send("get_relationship_status", {
+              userId,
+              targetId,
+            }),
           );
-          if (relation.status !== 'FRIEND') {
-            throw new ForbiddenException(`Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`);
+          if (relation.status !== "FRIEND") {
+            throw new ForbiddenException(
+              `Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`,
+            );
           }
         }
       }
     }
 
     return await lastValueFrom(
-      this.chatClient.send<ConversationResponseDTO>('createConversation', {
+      this.chatClient.send<ConversationResponseDTO>("createConversation", {
         userId,
         dto,
-      })
+      }),
     );
   }
 
-  @Put('conversations/:conversationId')
+  @Put("conversations/:conversationId")
   async updateConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string,
-    @Body() dto: UpdateConversationDTO
+    @Param("conversationId") conversationId: string,
+    @Body() dto: UpdateConversationDTO,
   ) {
     const targetIds = dto.participantsToAdd || [];
-    
+
     if (targetIds.length > 0) {
       const targets: any[] = await lastValueFrom(
-        this.userSocialClient.send('getUsersBatch', targetIds)
+        this.userSocialClient.send("getUsersBatch", targetIds),
       );
 
       for (const targetId of targetIds) {
         if (targetId === userId) continue;
         const target = targets.find((t: any) => t.id === targetId);
         if (!target) continue;
-        
-        const messagePrivacy = target.privacySettings?.messagePrivacy || 'EVERYONE';
-        if (messagePrivacy === 'FRIENDS') {
+
+        const messagePrivacy =
+          target.privacySettings?.messagePrivacy || "EVERYONE";
+        if (messagePrivacy === "FRIENDS") {
           const relation: any = await lastValueFrom(
-            this.userSocialClient.send('get_relationship_status', { userId, targetId })
+            this.userSocialClient.send("get_relationship_status", {
+              userId,
+              targetId,
+            }),
           );
-          if (relation.status !== 'FRIEND') {
-            throw new ForbiddenException(`Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`);
+          if (relation.status !== "FRIEND") {
+            throw new ForbiddenException(
+              `Người dùng ${target.firstName} ${target.lastName} chỉ nhận tin nhắn từ bạn bè`,
+            );
           }
         }
       }
     }
 
     return await lastValueFrom(
-      this.chatClient.send('updateConversation', {
+      this.chatClient.send("updateConversation", {
         userId,
         conversationId,
         dto,
-      })
+      }),
     );
   }
 
-  @Post('conversations/:conversationId/hide')
+  @Post("conversations/:conversationId/hide")
   async hideConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
+    @Param("conversationId") conversationId: string,
   ) {
     return await lastValueFrom(
-      this.chatClient.send('hideConversation', {
+      this.chatClient.send("hideConversation", {
         userId,
         conversationId,
-      })
+      }),
     );
   }
 
-  @Post('conversations/:conversationId/unhide')
+  @Post("conversations/:conversationId/unhide")
   async unhideConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
+    @Param("conversationId") conversationId: string,
   ) {
     return await lastValueFrom(
-      this.chatClient.send('unhideConversation', {
+      this.chatClient.send("unhideConversation", {
         userId,
         conversationId,
-      })
+      }),
     );
   }
 
-  @Post('conversations/:conversationId/leave')
+  @Post("conversations/:conversationId/leave")
   leaveConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
+    @Param("conversationId") conversationId: string,
   ) {
-    return this.chatClient.send('leaveConversation', {
+    return this.chatClient.send("leaveConversation", {
       userId,
       conversationId,
     });
   }
 
-  @Delete('conversations/:conversationId')
+  @Delete("conversations/:conversationId")
   deleteConversation(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string
+    @Param("conversationId") conversationId: string,
   ) {
-    return this.chatClient.send('deleteConversation', {
+    return this.chatClient.send("deleteConversation", {
       userId,
       conversationId,
     });
   }
 
-  @Post('conversations/:conversationId/read')
+  @Post("conversations/:conversationId/read")
   markConversationAsRead(
     @CurrentUserId() userId: string,
-    @Param('conversationId') conversationId: string,
-    @Body() body: { lastMessageId?: string }
+    @Param("conversationId") conversationId: string,
+    @Body() body: { lastMessageId?: string },
   ) {
-    return this.chatClient.send('markConversationAsRead', {
+    return this.chatClient.send("markConversationAsRead", {
       userId,
       conversationId,
       lastMessageId: body.lastMessageId,
     });
   }
 
-  @Get('messages/:messageId')
+  @Get("messages/:messageId")
   getMessageById(
-    @Param('messageId') messageId: string,
-    @CurrentUserId() userId: string
+    @Param("messageId") messageId: string,
+    @CurrentUserId() userId: string,
   ) {
-    return this.chatClient.send('getMessageById', { userId, messageId });
+    return this.chatClient.send("getMessageById", { userId, messageId });
   }
 
-  @Get('conversations/:conversationId/messages')
+  @Get("conversations/:conversationId/messages")
   getMessages(
-    @Param('conversationId') conversationId: string,
+    @Param("conversationId") conversationId: string,
     @Query() query: CursorPaginationDTO,
-    @CurrentUserId() userId: string
+    @CurrentUserId() userId: string,
   ) {
-    return this.chatClient.send('getMessages', {
+    return this.chatClient.send("getMessages", {
       userId,
       conversationId,
       query,
     });
   }
 
-  @Post('messages')
+  @Post("messages")
   sendMessage(@CurrentUserId() userId: string, @Body() dto: SendMessageDTO) {
-    return this.chatClient.send<MessageResponseDTO>('sendMessage', {
+    return this.chatClient.send<MessageResponseDTO>("sendMessage", {
       userId,
       dto,
     });
   }
 
-  @Delete('messages/:messageId')
+  @Delete("messages/:messageId")
   deleteMessage(
     @CurrentUserId() userId: string,
-    @Param('messageId') messageId: string
+    @Param("messageId") messageId: string,
   ) {
-    return this.chatClient.send('deleteMessage', { userId, messageId });
+    return this.chatClient.send("deleteMessage", { userId, messageId });
   }
 
-  @Get('calls/:callId')
+  @Get("calls/:callId")
   getCallById(
     @CurrentUserId() userId: string,
-    @Param('callId') callId: string
+    @Param("callId") callId: string,
   ) {
-    return this.chatClient.send('getCallById', { userId, callId });
+    return this.chatClient.send("getCallById", { userId, callId });
   }
 
-  @Post('calls')
+  @Post("calls")
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async createCall(
     @CurrentUserId() userId: string,
-    @Body() dto: CreateCallDTO
+    @Body() dto: CreateCallDTO,
   ): Promise<CallSessionResponseDTO> {
     return await lastValueFrom(
-      this.chatClient.send<CallSessionResponseDTO>('createCall', {
+      this.chatClient.send<CallSessionResponseDTO>("createCall", {
         userId,
         dto,
-      })
+      }),
     );
   }
 
-  @Post('calls/:callId/accept')
+  @Post("calls/:callId/accept")
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  acceptCall(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string
-  ) {
+  acceptCall(@CurrentUserId() userId: string, @Param("callId") callId: string) {
     const dto: AcceptCallDTO = { callId };
-    return this.chatClient.send('acceptCall', { userId, dto });
+    return this.chatClient.send("acceptCall", { userId, dto });
   }
 
-  @Post('calls/:callId/reject')
+  @Post("calls/:callId/reject")
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   rejectCall(
     @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<RejectCallDTO, 'callId'>
+    @Param("callId") callId: string,
+    @Body() body: Omit<RejectCallDTO, "callId">,
   ) {
     const dto: RejectCallDTO = { callId, reason: body?.reason };
-    return this.chatClient.send('rejectCall', { userId, dto });
+    return this.chatClient.send("rejectCall", { userId, dto });
   }
 
-  @Post('calls/:callId/end')
+  @Post("calls/:callId/end")
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   endCall(
     @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<EndCallDTO, 'callId'>
+    @Param("callId") callId: string,
+    @Body() body: Omit<EndCallDTO, "callId">,
   ) {
     const dto: EndCallDTO = { callId, reason: body?.reason };
-    return this.chatClient.send('endCall', { userId, dto });
+    return this.chatClient.send("endCall", { userId, dto });
   }
 
-
-  @Post('calls/:callId/join')
+  @Post("calls/:callId/join")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  joinCall(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string
-  ) {
+  joinCall(@CurrentUserId() userId: string, @Param("callId") callId: string) {
     const dto: JoinCallDTO = { callId };
-    return this.chatClient.send('joinCall', { userId, dto });
+    return this.chatClient.send("joinCall", { userId, dto });
   }
 
-  @Post('calls/:callId/leave')
+  @Post("calls/:callId/leave")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  leaveCall(
-    @CurrentUserId() userId: string,
-    @Param('callId') callId: string
-  ) {
+  leaveCall(@CurrentUserId() userId: string, @Param("callId") callId: string) {
     const dto: LeaveCallDTO = { callId };
-    return this.chatClient.send('leaveCall', { userId, dto });
+    return this.chatClient.send("leaveCall", { userId, dto });
   }
 
-  @Post('calls/:callId/kick')
+  @Post("calls/:callId/kick")
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   kickCallParticipant(
     @CurrentUserId() userId: string,
-    @Param('callId') callId: string,
-    @Body() body: Omit<KickCallParticipantDTO, 'callId'>
+    @Param("callId") callId: string,
+    @Body() body: Omit<KickCallParticipantDTO, "callId">,
   ) {
     const dto: KickCallParticipantDTO = {
       callId,
       targetUserId: body.targetUserId,
     };
-    return this.chatClient.send('kickCallParticipant', { userId, dto });
+    return this.chatClient.send("kickCallParticipant", { userId, dto });
   }
 
-  @Post('calls/user-token')
+  @Post("calls/user-token")
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   issueUserMediaToken(@CurrentUserId() userId: string) {
     return this.chatClient.send<StreamUserTokenResponseDTO>(
-      'issueUserMediaToken',
-      { userId }
+      "issueUserMediaToken",
+      { userId },
     );
   }
 }

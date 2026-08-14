@@ -75,7 +75,9 @@ export class MessageCacheService {
     const payload = JSON.stringify(dto);
     const createdAt = (dto as any).createdAt;
     const inferredVersion = createdAt ? new Date(createdAt).getTime() : 0;
-    const syncVersion = Number((dto as any).syncVersion ?? inferredVersion ?? 0);
+    const syncVersion = Number(
+      (dto as any).syncVersion ?? inferredVersion ?? 0,
+    );
     await this.redis.eval(
       this.setIfNewerScript,
       1,

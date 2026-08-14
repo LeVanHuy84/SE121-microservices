@@ -1,23 +1,23 @@
-import { PersonalFeedQuery } from '@repo/dtos';
+import { PersonalFeedQuery } from "@repo/dtos";
 
 export class PersonalFeedHelper {
   private static readonly TAU = 1000 * 60 * 60 * 12; // 12h
 
   static getRankingCacheKey(userId: string, query: PersonalFeedQuery) {
-    return `feed:ranking:${userId}:${query.mainEmotion?.toLowerCase() || 'all'}`;
+    return `feed:ranking:${userId}:${query.mainEmotion?.toLowerCase() || "all"}`;
   }
 
   static encodeCursor(score: number, itemId: string) {
-    return Buffer.from(`${score}|${itemId}`).toString('base64');
+    return Buffer.from(`${score}|${itemId}`).toString("base64");
   }
 
   static decodeCursor(cursor?: string) {
     if (!cursor) return null;
 
     try {
-      const [score, itemId] = Buffer.from(cursor, 'base64')
+      const [score, itemId] = Buffer.from(cursor, "base64")
         .toString()
-        .split('|');
+        .split("|");
 
       return {
         score: Number(score),

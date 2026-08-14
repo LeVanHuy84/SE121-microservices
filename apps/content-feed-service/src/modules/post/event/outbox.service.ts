@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   ActivityType,
   AnalysisEventType,
@@ -9,8 +9,8 @@ import {
   TargetType,
   UpdatedAnalysisEventPayload,
   UserActivityLogPayload,
-} from '@repo/dtos';
-import { OutboxEvent } from 'src/entities/outbox.entity';
+} from "@repo/dtos";
+import { OutboxEvent } from "src/entities/outbox.entity";
 
 @Injectable()
 export class OutboxService {

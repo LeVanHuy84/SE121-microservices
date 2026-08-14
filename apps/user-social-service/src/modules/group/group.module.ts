@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   IdempotencyModule,
   IdempotencyService,
@@ -7,42 +7,42 @@ import {
   NotificationModule,
   KafkaConsumerHelper,
   KafkaDLQService,
-} from '@repo/common';
-import { DrizzleIdempotencyRepository } from './services/drizzle-idempotency.repository';
+} from "@repo/common";
+import { DrizzleIdempotencyRepository } from "./services/drizzle-idempotency.repository";
 
 // Controllers
-import { GroupController } from './controllers/group.controller';
-import { GroupSettingController } from './controllers/group-setting.controller';
-import { GroupMemberController } from './controllers/group-member.controller';
-import { GroupJoinRequestController } from './controllers/group-request.controller';
-import { GroupInviteController } from './controllers/group-invite.controller';
-import { GroupLogController } from './controllers/group-log.controller';
-import { ReportController } from './controllers/group-report.controller';
-import { GroupRecommendationController } from './controllers/group-recommendation.controller';
-import { ConsumerController } from './controllers/group-consumer.controller';
+import { GroupController } from "./controllers/group.controller";
+import { GroupSettingController } from "./controllers/group-setting.controller";
+import { GroupMemberController } from "./controllers/group-member.controller";
+import { GroupJoinRequestController } from "./controllers/group-request.controller";
+import { GroupInviteController } from "./controllers/group-invite.controller";
+import { GroupLogController } from "./controllers/group-log.controller";
+import { ReportController } from "./controllers/group-report.controller";
+import { GroupRecommendationController } from "./controllers/group-recommendation.controller";
+import { ConsumerController } from "./controllers/group-consumer.controller";
 
 // Services
-import { GroupService } from './services/group.service';
-import { GroupQueryService } from './services/group-query.service';
-import { GroupHelperService } from './services/group-helper.service';
-import { GroupCacheService } from './services/group-cache.service';
-import { GroupSettingService } from './services/group-setting.service';
-import { GroupMemberService } from './services/group-member.service';
-import { GroupJoinRequestService } from './services/group-request.service';
-import { GroupJoinRequestQueryService } from './services/group-request-query.service';
-import { GroupInviteService } from './services/group-invite.service';
-import { GroupLogService } from './services/group-log.service';
-import { ReportService } from './services/group-report.service';
-import { GroupRecommendationService } from './services/group-recommendation.service';
-import { ConsumerService } from './services/group-consumer.service';
-import { GroupBatchService } from './services/group-batch.service';
-import { GroupBufferService } from './services/group-buffer.service';
+import { GroupService } from "./services/group.service";
+import { GroupQueryService } from "./services/group-query.service";
+import { GroupHelperService } from "./services/group-helper.service";
+import { GroupCacheService } from "./services/group-cache.service";
+import { GroupSettingService } from "./services/group-setting.service";
+import { GroupMemberService } from "./services/group-member.service";
+import { GroupJoinRequestService } from "./services/group-request.service";
+import { GroupJoinRequestQueryService } from "./services/group-request-query.service";
+import { GroupInviteService } from "./services/group-invite.service";
+import { GroupLogService } from "./services/group-log.service";
+import { ReportService } from "./services/group-report.service";
+import { GroupRecommendationService } from "./services/group-recommendation.service";
+import { ConsumerService } from "./services/group-consumer.service";
+import { GroupBatchService } from "./services/group-batch.service";
+import { GroupBufferService } from "./services/group-buffer.service";
 
-import { UserModule } from '../user/user.module';
-import { FriendshipModule } from '../social/friendship/friendship.module';
+import { UserModule } from "../user/user.module";
+import { FriendshipModule } from "../social/friendship/friendship.module";
 
 // Drizzle
-import { DrizzleModule } from 'src/drizzle/drizzle.module';
+import { DrizzleModule } from "src/drizzle/drizzle.module";
 
 @Module({
   imports: [
@@ -55,7 +55,7 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
       providers: [
         DrizzleIdempotencyRepository,
         {
-          provide: 'IdempotencyRepository',
+          provide: "IdempotencyRepository",
           useExisting: DrizzleIdempotencyRepository,
         },
         IdempotencyService,
@@ -66,10 +66,10 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
     NotificationModule.registerAsync({
       useFactory: async (config: ConfigService) => ({
         urls: [
-          `amqp://${config.get('RABBITMQ_USER')}:${config.get('RABBITMQ_PASS')}` +
-            `@${config.get('RABBITMQ_HOST')}:${config.get('RABBITMQ_PORT')}`,
+          `amqp://${config.get("RABBITMQ_USER")}:${config.get("RABBITMQ_PASS")}` +
+            `@${config.get("RABBITMQ_HOST")}:${config.get("RABBITMQ_PORT")}`,
         ],
-        queue: 'create_notification_queue',
+        queue: "create_notification_queue",
       }),
       inject: [ConfigService],
     }),
@@ -104,10 +104,6 @@ import { DrizzleModule } from 'src/drizzle/drizzle.module';
     KafkaConsumerHelper,
     KafkaDLQService,
   ],
-  exports: [
-    GroupService,
-    GroupMemberService,
-    GroupLogService,
-  ],
+  exports: [GroupService, GroupMemberService, GroupLogService],
 })
 export class GroupModule {}

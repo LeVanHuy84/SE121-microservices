@@ -1,21 +1,21 @@
 // src/notification/notification.processor.ts
-import { Processor, Process, OnQueueFailed, OnQueueError } from '@nestjs/bull';
-import type { Job } from 'bull';
-import { NotificationService } from './notification.service';
-import { Injectable, Logger } from '@nestjs/common';
-import { ChatPushService } from './chat-push.service';
-import { NotificationDispatcherService } from './services/notification-dispatcher.service';
+import { Processor, Process, OnQueueFailed, OnQueueError } from "@nestjs/bull";
+import type { Job } from "bull";
+import { NotificationService } from "./notification.service";
+import { Injectable, Logger } from "@nestjs/common";
+import { ChatPushService } from "./chat-push.service";
+import { NotificationDispatcherService } from "./services/notification-dispatcher.service";
 import {
   CALL_CANCEL_PUSH_DELIVERY_JOB,
   CALL_PUSH_DELIVERY_JOB,
   CHAT_PUSH_DELIVERY_JOB,
   NOTIFICATION_QUEUE,
   REGULAR_NOTIFICATION_DELIVERY_JOB,
-} from './notification.jobs';
+} from "./notification.jobs";
 import {
   isRetryableDeliveryError,
   NotificationDeliveryError,
-} from './notification-delivery.error';
+} from "./notification-delivery.error";
 
 @Processor(NOTIFICATION_QUEUE)
 @Injectable()
@@ -28,14 +28,17 @@ export class NotificationProcessor {
     private readonly chatPushService: ChatPushService,
   ) {}
 
-
   @Process(REGULAR_NOTIFICATION_DELIVERY_JOB)
   async handleSend(job: Job<{ id: string }>) {
     await this.handleRegularNotificationJob(job);
   }
 
-  @Process(CHAT_PUSH_DELIVERY_JOB) 
-  async handleChatPush(job: Job<{ sendChatPushDto: Parameters<ChatPushService['sendChatPush']>[0] }>) {
+  @Process(CHAT_PUSH_DELIVERY_JOB)
+  async handleChatPush(
+    job: Job<{
+      sendChatPushDto: Parameters<ChatPushService["sendChatPush"]>[0];
+    }>,
+  ) {
     try {
       await this.chatPushService.sendChatPush(job.data.sendChatPushDto);
     } catch (error) {
@@ -43,9 +46,12 @@ export class NotificationProcessor {
     }
   }
 
- 
   @Process(CALL_PUSH_DELIVERY_JOB)
-  async handleCallPush(job: Job<{ sendCallPushDto: Parameters<ChatPushService['sendCallPush']>[0] }>) {
+  async handleCallPush(
+    job: Job<{
+      sendCallPushDto: Parameters<ChatPushService["sendCallPush"]>[0];
+    }>,
+  ) {
     try {
       await this.chatPushService.sendCallPush(job.data.sendCallPushDto);
     } catch (error) {
@@ -54,7 +60,14 @@ export class NotificationProcessor {
   }
 
   @Process(CALL_CANCEL_PUSH_DELIVERY_JOB)
-  async handleCallCancelPush(job: Job<{ callId: string; conversationId: string; actorId: string; userId: string }>) {
+  async handleCallCancelPush(
+    job: Job<{
+      callId: string;
+      conversationId: string;
+      actorId: string;
+      userId: string;
+    }>,
+  ) {
     try {
       await this.chatPushService.sendCallCancelPush(job.data);
     } catch (error) {
@@ -63,7 +76,6 @@ export class NotificationProcessor {
   }
 
   private async handleRegularNotificationJob(job: Job<{ id: string }>) {
-
     try {
       const id = job.data.id;
       const notification = await this.notificationService.findById(id);
@@ -81,7 +93,7 @@ export class NotificationProcessor {
 
     if (error instanceof NotificationDeliveryError) {
       this.logger.warn(
-        `Skip retry for job ${job.name} (${job.id ?? 'unknown'}): ${error.message}`,
+        `Skip retry for job ${job.name} (${job.id ?? "unknown"}): ${error.message}`,
       );
       return;
     }

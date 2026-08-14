@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   AnalysisResultEventPayload,
   Emotion,
@@ -8,19 +8,19 @@ import {
   ModerationEventPayload,
   PostEventType,
   TargetType,
-} from '@repo/dtos';
-import { Comment } from 'src/entities/comment.entity';
-import { ContentModeration } from 'src/entities/content-moderation.entity';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { Post } from 'src/entities/post.entity';
-import { Share } from 'src/entities/share.entity';
+} from "@repo/dtos";
+import { Comment } from "src/entities/comment.entity";
+import { ContentModeration } from "src/entities/content-moderation.entity";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { Post } from "src/entities/post.entity";
+import { Share } from "src/entities/share.entity";
 import {
   DataSource,
   EntityManager,
   EntityTarget,
   ObjectLiteral,
   Repository,
-} from 'typeorm';
+} from "typeorm";
 
 @Injectable()
 export class ConsumerService {
@@ -61,7 +61,7 @@ export class ConsumerService {
           id: payload.targetId,
         });
         if (post) {
-          post.mainEmotion = payload.finalEmotion as Emotion;
+          post.mainEmotion = payload.finalEmotion;
           await postRepository.save(post);
         }
         break;
@@ -70,7 +70,7 @@ export class ConsumerService {
           id: payload.targetId,
         });
         if (comment) {
-          comment.mainEmotion = payload.finalEmotion as Emotion;
+          comment.mainEmotion = payload.finalEmotion;
           await commentRepository.save(comment);
         }
         break;
@@ -91,21 +91,21 @@ export class ConsumerService {
         entity = await txManager.findOne(Post, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bài viết ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
+        notificationMessage = `Bài viết ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.COMMENT:
         entity = await txManager.findOne(Comment, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bình luận ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
+        notificationMessage = `Bình luận ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.SHARE:
         entity = await txManager.findOne(Share, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bài chia sẻ ""${(entity?.content ?? '').slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
+        notificationMessage = `Bài chia sẻ ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
     }
 
@@ -170,14 +170,14 @@ export class ConsumerService {
     // =====================================================
 
     const notiOutbox = txManager.create(OutboxEvent, {
-      topic: 'notification',
+      topic: "notification",
       destination: EventDestination.RABBITMQ,
-      eventType: 'base_noti',
+      eventType: "base_noti",
       payload: {
         targetId: payload.targetId,
         targetType: payload.targetType,
-        actorName: 'SentiMeta System',
-        actorAvatar: 'https://sentimeta.vercel.app/logo.svg',
+        actorName: "SentiMeta System",
+        actorAvatar: "https://sentimeta.vercel.app/logo.svg",
         content: notificationMessage,
         receivers: [entity.userId],
       },

@@ -1,15 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { Repository } from 'typeorm';
-import { OutboxEvent } from 'src/entities/outbox.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { Repository } from "typeorm";
+import { OutboxEvent } from "src/entities/outbox.entity";
 import {
   CreateNotificationDto,
   EventDestination,
   NotificationPayload,
   NotiOutboxPayload,
-} from '@repo/dtos';
-import { KafkaProducerService, NotificationService } from '@repo/common';
+} from "@repo/dtos";
+import { KafkaProducerService, NotificationService } from "@repo/common";
 
 @Injectable()
 export class OutboxProcessor {
@@ -20,9 +20,9 @@ export class OutboxProcessor {
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly kafkaProducer: KafkaProducerService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
   ) {
-    this.logger.log('🧩 OutboxProcessor initialized');
+    this.logger.log("🧩 OutboxProcessor initialized");
   }
 
   /**
@@ -31,7 +31,7 @@ export class OutboxProcessor {
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleOutboxBatch() {
     if (this.running) {
-      this.logger.debug('⏳ Outbox job still running, skipping...');
+      this.logger.debug("⏳ Outbox job still running, skipping...");
       return;
     }
 
@@ -47,9 +47,9 @@ export class OutboxProcessor {
 
   private async processBatch() {
     const events = await this.outboxRepo
-      .createQueryBuilder('e')
-      .where('e.processed = false')
-      .orderBy('e.createdAt', 'ASC')
+      .createQueryBuilder("e")
+      .where("e.processed = false")
+      .orderBy("e.createdAt", "ASC")
       .limit(100)
       .getMany();
 
@@ -73,7 +73,7 @@ export class OutboxProcessor {
       .createQueryBuilder()
       .update(OutboxEvent)
       .set({ processed: true })
-      .where('id = :id AND processed = false', { id })
+      .where("id = :id AND processed = false", { id })
       .execute();
 
     return result.affected === 1;
@@ -91,7 +91,7 @@ export class OutboxProcessor {
           await this.kafkaProducer.sendMessage(
             topic,
             { type: eventType, payload },
-            id
+            id,
           );
           this.logger.debug(`✅ [Kafka] Sent event ${id} -> ${topic}`);
           break;
@@ -100,14 +100,16 @@ export class OutboxProcessor {
           const notis = this.toNotificationDtos(event);
 
           await Promise.all(
-            notis.map((noti) => this.notificationService.sendNotification(noti))
+            notis.map((noti) =>
+              this.notificationService.sendNotification(noti),
+            ),
           );
           this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
           break;
 
         default:
           this.logger.warn(
-            `⚠️ Unknown destination "${destination}" for event ${id}`
+            `⚠️ Unknown destination "${destination}" for event ${id}`,
           );
           break;
       }

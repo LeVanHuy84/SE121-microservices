@@ -1,27 +1,27 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
 import {
   AnalysisResultEventPayload,
   InteractionEventPayload,
   RiskHintLevel,
   RootType,
   TargetType,
-} from '@repo/dtos';
-import { Redis } from 'ioredis';
-import { Model } from 'mongoose';
+} from "@repo/dtos";
+import { Redis } from "ioredis";
+import { Model } from "mongoose";
 import {
   EmotionFeature,
   PostSnapshot,
   PostSnapshotDocument,
-} from '../mongo/schema/post-snapshot.schema';
-import { ShareSnapshot } from '../mongo/schema/share-snapshot.schema';
+} from "../mongo/schema/post-snapshot.schema";
+import { ShareSnapshot } from "../mongo/schema/share-snapshot.schema";
 import {
   normalizeEmotionEnum,
   normalizeEmotionScores,
-} from 'src/utils/emotion-normalizer';
-import { AffinityService } from '../affinity/affinity.service';
-import { FeedItem } from '../mongo/schema/feed-item.schema';
+} from "src/utils/emotion-normalizer";
+import { AffinityService } from "../affinity/affinity.service";
+import { FeedItem } from "../mongo/schema/feed-item.schema";
 
 @Injectable()
 export class ConsumerService {
@@ -70,7 +70,7 @@ export class ConsumerService {
       },
       {
         new: true, // trả về doc sau update
-        projection: { userId: 1, groupId: 1, 'emotionFeature.label': 1 },
+        projection: { userId: 1, groupId: 1, "emotionFeature.label": 1 },
       },
     );
 
@@ -116,7 +116,7 @@ export class ConsumerService {
 
       const post = await this.postModel
         .findOne({ postId })
-        .select('userId emotionFeature.dominantScene')
+        .select("userId emotionFeature.dominantScene")
         .lean();
 
       if (!post) return;
@@ -131,7 +131,7 @@ export class ConsumerService {
         type: interactionType,
       });
     } catch (err) {
-      this.logger.error('handleInteraction error', err);
+      this.logger.error("handleInteraction error", err);
     }
   }
 
@@ -148,14 +148,14 @@ export class ConsumerService {
 
     const share = await this.shareModel
       .findOne({ shareId: targetId })
-      .select('postId')
+      .select("postId")
       .lean();
 
     if (!share) return null;
 
     postId = share.postId;
 
-    await this.redis.set(cacheKey, postId, 'EX', 86400);
+    await this.redis.set(cacheKey, postId, "EX", 86400);
 
     return postId;
   }
@@ -184,7 +184,7 @@ export class ConsumerService {
     userId: string,
     oldLabel?: string,
   ) {
-    const exists = await this.redis.zscore('post:score', postId);
+    const exists = await this.redis.zscore("post:score", postId);
     if (!exists) return;
 
     const {
@@ -226,8 +226,8 @@ export class ConsumerService {
       scores: JSON.stringify(scores || {}),
       intensity: intensity.toString(),
       confidence: confidence.toString(),
-      dominantScene: dominantScene || '',
-      riskHintLevel: riskHintLevel || '',
+      dominantScene: dominantScene || "",
+      riskHintLevel: riskHintLevel || "",
       authorId: userId,
     });
 
@@ -236,7 +236,7 @@ export class ConsumerService {
     // ------------------------------
     // 🔥 emotion index (optional filter)
     // ------------------------------
-    const score = await this.redis.zscore('post:score', postId);
+    const score = await this.redis.zscore("post:score", postId);
     if (score) {
       pipeline.zadd(
         `post:emotion:${normalizedLabel}:score`,

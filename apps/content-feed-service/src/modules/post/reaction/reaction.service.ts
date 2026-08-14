@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   CursorPageResponse,
   DisReactDTO,
@@ -16,21 +16,21 @@ import {
   TargetType,
   NotiOutboxPayload,
   NotiTargetType,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { OutboxEvent } from 'src/entities/outbox.entity';
-import { Reaction } from 'src/entities/reaction.entity';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
-import { CommentStat } from 'src/entities/comment-stat.entity';
-import { PostStat } from 'src/entities/post-stat.entity';
-import { ReactionFieldMap } from 'src/constant';
-import { ShareStat } from 'src/entities/share-stat.entity';
-import { Post } from 'src/entities/post.entity';
-import { Comment } from 'src/entities/comment.entity';
-import { Share } from 'src/entities/share.entity';
-import { UserClientService } from '../client/user-client.service';
-import { StatsBufferService } from '../stats/stats.buffer.service';
-import { RecentActivityBufferService } from '../event/recent-activity.buffer.service';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { OutboxEvent } from "src/entities/outbox.entity";
+import { Reaction } from "src/entities/reaction.entity";
+import { DataSource, EntityManager, In, Repository } from "typeorm";
+import { CommentStat } from "src/entities/comment-stat.entity";
+import { PostStat } from "src/entities/post-stat.entity";
+import { ReactionFieldMap } from "src/constant";
+import { ShareStat } from "src/entities/share-stat.entity";
+import { Post } from "src/entities/post.entity";
+import { Comment } from "src/entities/comment.entity";
+import { Share } from "src/entities/share.entity";
+import { UserClientService } from "../client/user-client.service";
+import { StatsBufferService } from "../stats/stats.buffer.service";
+import { RecentActivityBufferService } from "../event/recent-activity.buffer.service";
 
 @Injectable()
 export class ReactionService {
@@ -56,20 +56,20 @@ export class ReactionService {
     dto: GetReactionsDTO,
   ): Promise<CursorPageResponse<ReactionResponseDTO>> {
     const qb = this.reactionRepo
-      .createQueryBuilder('r')
-      .where('r.targetId = :targetId', { targetId: dto.targetId })
-      .andWhere('r.targetType = :targetType', { targetType: dto.targetType });
+      .createQueryBuilder("r")
+      .where("r.targetId = :targetId", { targetId: dto.targetId })
+      .andWhere("r.targetType = :targetType", { targetType: dto.targetType });
 
     if (dto.reactionType) {
-      qb.andWhere('r.reactionType = :reactionType', {
+      qb.andWhere("r.reactionType = :reactionType", {
         reactionType: dto.reactionType,
       });
     }
 
-    qb.orderBy('r.createdAt', 'DESC').take(dto.limit + 1);
+    qb.orderBy("r.createdAt", "DESC").take(dto.limit + 1);
 
     if (dto.cursor) {
-      qb.andWhere('r.createdAt < :cursor', { cursor: dto.cursor });
+      qb.andWhere("r.createdAt < :cursor", { cursor: dto.cursor });
     }
 
     const reactions = await qb.getMany();
@@ -120,7 +120,7 @@ export class ReactionService {
           const interactionOutbox = manager.create(OutboxEvent, {
             topic: EventTopic.INTERACTION,
             destination: EventDestination.KAFKA,
-            eventType: 'user.interaction',
+            eventType: "user.interaction",
             payload: interactionPayload,
           });
 
@@ -174,7 +174,7 @@ export class ReactionService {
         ? this.recentActivityBuffer.addRecentActivity({
             idempotentKey: `${userId}:${dto.targetType}:${dto.targetId}`,
             actorId: userId,
-            type: 'reaction',
+            type: "reaction",
             targetType: dto.targetType,
             targetId: dto.targetId,
           })
@@ -195,10 +195,10 @@ export class ReactionService {
         .createQueryBuilder()
         .delete()
         .from(Reaction)
-        .where('userId = :userId', { userId })
-        .andWhere('targetId = :targetId', { targetId: dto.targetId })
-        .andWhere('targetType = :targetType', { targetType: dto.targetType })
-        .returning('reaction_type')
+        .where("userId = :userId", { userId })
+        .andWhere("targetId = :targetId", { targetId: dto.targetId })
+        .andWhere("targetType = :targetType", { targetType: dto.targetType })
+        .returning("reaction_type")
         .execute();
 
       if (!deleted.affected || !deleted.raw[0]) return null;
@@ -333,7 +333,7 @@ export class ReactionService {
       case TargetType.POST: {
         const post = await manager.findOne(Post, {
           where: { id: targetId },
-          select: ['userId'],
+          select: ["userId"],
         });
         ownerId = post?.userId;
         break;
@@ -341,7 +341,7 @@ export class ReactionService {
       case TargetType.COMMENT: {
         const comment = await manager.findOne(Comment, {
           where: { id: targetId },
-          select: ['userId'],
+          select: ["userId"],
         });
         ownerId = comment?.userId;
         break;
@@ -349,7 +349,7 @@ export class ReactionService {
       case TargetType.SHARE: {
         const share = await manager.findOne(Share, {
           where: { id: targetId },
-          select: ['userId'],
+          select: ["userId"],
         });
         ownerId = share?.userId;
         break;
@@ -368,15 +368,15 @@ export class ReactionService {
           : targetType === TargetType.SHARE
             ? NotiTargetType.SHARE
             : NotiTargetType.POST,
-      actorName: `${actor?.lastName ?? ''} ${actor?.firstName ?? ''}`.trim(),
+      actorName: `${actor?.lastName ?? ""} ${actor?.firstName ?? ""}`.trim(),
       actorAvatar: actor?.avatarUrl,
-      content: '', // Template service có thể tự build content
+      content: "", // Template service có thể tự build content
       receivers: [ownerId],
     };
 
     const outbox = manager.create(OutboxEvent, {
-      topic: 'notification',
-      eventType: 'reaction',
+      topic: "notification",
+      eventType: "reaction",
       destination: EventDestination.RABBITMQ,
       payload: notiPayload,
     });

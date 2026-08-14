@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle';
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle";
 
 import {
   BaseUserDTO,
@@ -15,18 +15,18 @@ import {
   UpdateUserDTO,
   UserEventType,
   UserResponseDTO,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { roles, userRoles } from 'src/drizzle/schema/authorize.schema';
-import { profiles } from 'src/drizzle/schema/profiles.schema';
-import { users } from 'src/drizzle/schema/users.schema';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { OutboxService } from 'src/modules/event/outbox.service';
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
-import { USER_STATUS } from 'src/constants';
-import { randomUUID } from 'crypto';
-import { ProfileHelper } from './helpers/profile.helper';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { roles, userRoles } from "src/drizzle/schema/authorize.schema";
+import { profiles } from "src/drizzle/schema/profiles.schema";
+import { users } from "src/drizzle/schema/users.schema";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { OutboxService } from "src/modules/event/outbox.service";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { USER_STATUS } from "src/constants";
+import { randomUUID } from "crypto";
+import { ProfileHelper } from "./helpers/profile.helper";
 
 const CACHE_TTL = {
   USER: 300,
@@ -45,17 +45,18 @@ export class UserService {
 
   async create(dto: CreateUserDTO): Promise<UserResponseDTO> {
     const normalizedProfile = this.resolveProfileInput(dto);
-    const semanticProfileText = this.buildSemanticProfileText(normalizedProfile);
+    const semanticProfileText =
+      this.buildSemanticProfileText(normalizedProfile);
     const recommendationProfilePayload =
       this.buildRecommendationProfileEmbeddingRequestedPayload(
         dto.id,
         semanticProfileText,
-        'user.created',
+        "user.created",
       );
     let user;
     try {
       user = await this.db.transaction(async (tx) => {
-        let [newUser] = await tx
+        const [newUser] = await tx
           .insert(users)
           .values({
             id: dto.id,
@@ -76,8 +77,8 @@ export class UserService {
 
         await tx.insert(profiles).values({
           userId: user.id,
-          firstName: normalizedProfile.firstName ?? '',
-          lastName: normalizedProfile.lastName ?? '',
+          firstName: normalizedProfile.firstName ?? "",
+          lastName: normalizedProfile.lastName ?? "",
           avatarUrl: normalizedProfile.avatarUrl ?? null,
           coverImage: null,
           bio: normalizedProfile.bio,
@@ -94,15 +95,15 @@ export class UserService {
         const [defaultRole] = await tx
           .select()
           .from(roles)
-          .where(eq(roles.name, 'user'));
+          .where(eq(roles.name, "user"));
 
         let roleId = defaultRole?.id;
         if (!roleId) {
           const [newRole] = await tx
             .insert(roles)
             .values({
-              name: 'user',
-              description: 'Default user role',
+              name: "user",
+              description: "Default user role",
             })
             .returning();
           roleId = newRole.id;
@@ -116,20 +117,20 @@ export class UserService {
         return user;
       });
     } catch (error: any) {
-      this.logger.error('Database error in createUser:', error);
+      this.logger.error("Database error in createUser:", error);
       if (error.cause) {
-        this.logger.error('Error cause:', error.cause);
+        this.logger.error("Error cause:", error.cause);
       }
       throw error;
     }
 
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
 
     const payload: InferUserPayload<UserEventType.CREATED> = {
       userId: user.id,
       email: user.email,
-      firstName: normalizedProfile.firstName ?? '',
-      lastName: normalizedProfile.lastName ?? '',
+      firstName: normalizedProfile.firstName ?? "",
+      lastName: normalizedProfile.lastName ?? "",
       avatarUrl: normalizedProfile.avatarUrl ?? undefined,
       bio: normalizedProfile.bio ?? undefined,
       location: normalizedProfile.location ?? undefined,
@@ -140,18 +141,18 @@ export class UserService {
       isActive: true,
       createdAt: new Date(),
       privacySettings: {
-        profileVisibility: 'PUBLIC',
-        messagePrivacy: 'EVERYONE',
-        friendListVisibility: 'PUBLIC',
+        profileVisibility: "PUBLIC",
+        messagePrivacy: "EVERYONE",
+        friendListVisibility: "PUBLIC",
       } as any,
     };
 
     await this.outboxService.createUserOutboxEvent(
       this.db,
       UserEventType.CREATED,
-      payload
+      payload,
     );
-    if (dto.role !== 'admin') {
+    if (dto.role !== "admin") {
       await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
         this.db,
         recommendationProfilePayload,
@@ -172,10 +173,10 @@ export class UserService {
   }
 
   async findAll(): Promise<UserResponseDTO[]> {
-    const cacheKey = 'users:all';
+    const cacheKey = "users:all";
     const cached = await this.redis.get(cacheKey);
     if (cached) {
-      this.logger.debug('✅ Loaded users from Redis cache');
+      this.logger.debug("✅ Loaded users from Redis cache");
       return JSON.parse(cached);
     }
     const users = await this.db.query.users.findMany({
@@ -209,14 +210,14 @@ export class UserService {
         },
         {
           excludeExtraneousValues: true,
-        }
-      )
+        },
+      ),
     );
     await this.redis.set(
       cacheKey,
       JSON.stringify(dtos),
-      'EX',
-      CACHE_TTL.USERS_LIST
+      "EX",
+      CACHE_TTL.USERS_LIST,
     );
     return dtos;
   }
@@ -250,15 +251,15 @@ export class UserService {
         },
       },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
 
     const dto = plainToInstance(
       UserResponseDTO,
       { ...user, ...user.profile },
-      { excludeExtraneousValues: true }
+      { excludeExtraneousValues: true },
     );
 
-    await this.redis.set(cacheKey, JSON.stringify(dto), 'EX', CACHE_TTL.USER);
+    await this.redis.set(cacheKey, JSON.stringify(dto), "EX", CACHE_TTL.USER);
     return dto;
   }
 
@@ -310,7 +311,7 @@ export class UserService {
     await this.redis.set(
       `user:username:${username}`,
       JSON.stringify(dto),
-      'EX',
+      "EX",
       CACHE_TTL.USER,
     );
     return dto;
@@ -322,7 +323,7 @@ export class UserService {
       .set({ postCount: sql`${profiles.postCount} + 1` })
       .where(eq(profiles.userId, userId));
     await this.redis.del(`user:${userId}`);
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
   }
 
   async decrementPostCount(userId: string) {
@@ -331,7 +332,7 @@ export class UserService {
       .set({ postCount: sql`GREATEST(${profiles.postCount} - 1, 0)` })
       .where(eq(profiles.userId, userId));
     await this.redis.del(`user:${userId}`);
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
   }
 
   async incrementFriendCount(userIds: string[]) {
@@ -343,7 +344,7 @@ export class UserService {
     for (const userId of userIds) {
       await this.redis.del(`user:${userId}`);
     }
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
   }
 
   async decrementFriendCount(userIds: string[]) {
@@ -355,7 +356,7 @@ export class UserService {
     for (const userId of userIds) {
       await this.redis.del(`user:${userId}`);
     }
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
   }
 
   async update(id: string, dto: UpdateUserDTO) {
@@ -368,7 +369,7 @@ export class UserService {
         .from(users)
         .where(eq(users.id, id))
         .then((u) => u[0]);
-      if (!user) throw new NotFoundException('User not found');
+      if (!user) throw new NotFoundException("User not found");
 
       if (dto.email && dto.email !== user.email) {
         const existingUser = await tx
@@ -376,7 +377,7 @@ export class UserService {
           .from(users)
           .where(eq(users.email, dto.email))
           .then((u) => u[0]);
-        if (existingUser) throw new Error('Email already in use');
+        if (existingUser) throw new Error("Email already in use");
       }
 
       // Update users table
@@ -393,7 +394,7 @@ export class UserService {
         .from(profiles)
         .where(eq(profiles.userId, id))
         .then((p) => p[0]);
-      if (!profile) throw new NotFoundException('Profile not found');
+      if (!profile) throw new NotFoundException("Profile not found");
 
       const nextProfileInput = this.resolveProfileInput(dto);
       const semanticProfileText = this.buildSemanticProfileText({
@@ -418,8 +419,8 @@ export class UserService {
         school: nextProfileInput.school ?? profile.school,
         interests: nextProfileInput.interests ?? profile.interests ?? [],
         semanticProfileText,
-        privacySettings: dto.privacySettings 
-          ? { ...profile.privacySettings, ...dto.privacySettings } 
+        privacySettings: dto.privacySettings
+          ? { ...profile.privacySettings, ...dto.privacySettings }
           : profile.privacySettings,
         updatedAt: new Date(),
       };
@@ -441,19 +442,19 @@ export class UserService {
               {
                 publicId: dto.coverImage.publicId,
                 url: dto.coverImage.url,
-                type: 'image',
+                type: "image",
               },
             ],
-            source: 'user-service',
-          }
+            source: "user-service",
+          },
         );
       }
 
       if (
         dto.coverImage?.publicId !== undefined &&
         profile.coverImage &&
-        typeof profile.coverImage === 'object' &&
-        'publicId' in profile.coverImage &&
+        typeof profile.coverImage === "object" &&
+        "publicId" in profile.coverImage &&
         (profile.coverImage as any).publicId !== dto.coverImage?.publicId
       ) {
         await this.outboxService.createOutboxEventWithTransaction(
@@ -465,12 +466,12 @@ export class UserService {
             items: [
               {
                 publicId: (profile.coverImage as any).publicId,
-                resourceType: 'image',
+                resourceType: "image",
               },
             ],
-            source: 'user-service',
-            reason: 'user.cover.updated',
-          }
+            source: "user-service",
+            reason: "user.cover.updated",
+          },
         );
       }
 
@@ -485,7 +486,7 @@ export class UserService {
 
     // 🧹 Invalidate cache
     await this.redis.del(`user:${id}`);
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
 
     // ✅ FULL SNAPSHOT payload
     const payload: InferUserPayload<UserEventType.UPDATED> = {
@@ -506,13 +507,14 @@ export class UserService {
     await this.outboxService.createUserOutboxEvent(
       this.db,
       UserEventType.UPDATED,
-      payload
+      payload,
     );
-    const userRolesResult = await this.db.select({ name: roles.name })
+    const userRolesResult = await this.db
+      .select({ name: roles.name })
       .from(userRoles)
       .innerJoin(roles, eq(userRoles.roleId, roles.id))
       .where(eq(userRoles.userId, id));
-    const isAdmin = userRolesResult.some(r => r.name === 'admin');
+    const isAdmin = userRolesResult.some((r) => r.name === "admin");
 
     if (!isAdmin) {
       await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
@@ -520,7 +522,7 @@ export class UserService {
         this.buildRecommendationProfileEmbeddingRequestedPayload(
           id,
           finalProfile.semanticProfileText ?? null,
-          'user.updated',
+          "user.updated",
         ),
       );
     }
@@ -532,7 +534,7 @@ export class UserService {
     await this.db.delete(users).where(eq(users.id, id));
 
     await this.redis.del(`user:${id}`);
-    await this.redis.del('users:all');
+    await this.redis.del("users:all");
 
     const payload: InferUserPayload<UserEventType.REMOVED> = {
       userId: id,
@@ -540,13 +542,14 @@ export class UserService {
     await this.outboxService.createUserOutboxEvent(
       this.db,
       UserEventType.REMOVED,
-      payload
+      payload,
     );
-    const userRolesResult = await this.db.select({ name: roles.name })
+    const userRolesResult = await this.db
+      .select({ name: roles.name })
       .from(userRoles)
       .innerJoin(roles, eq(userRoles.roleId, roles.id))
       .where(eq(userRoles.userId, id));
-    const isAdmin = userRolesResult.some(r => r.name === 'admin');
+    const isAdmin = userRolesResult.some((r) => r.name === "admin");
 
     if (!isAdmin) {
       await this.outboxService.createRecommendationProfileEmbeddingRequestedEvent(
@@ -554,7 +557,7 @@ export class UserService {
         this.buildRecommendationProfileEmbeddingRequestedPayload(
           id,
           null,
-          'user.removed',
+          "user.removed",
         ),
       );
     }
@@ -597,7 +600,10 @@ export class UserService {
       .from(profiles)
       .innerJoin(users, eq(users.id, profiles.userId))
       .where(
-        and(inArray(profiles.userId, ids), eq(users.status, USER_STATUS.ACTIVE))
+        and(
+          inArray(profiles.userId, ids),
+          eq(users.status, USER_STATUS.ACTIVE),
+        ),
       );
 
     const dtos = plainToInstance(BaseUserDTO, rows, {
@@ -611,7 +617,11 @@ export class UserService {
     return result;
   }
 
-  async searchUserIds(ids: string[], search: string, limit: number = 20): Promise<string[]> {
+  async searchUserIds(
+    ids: string[],
+    search: string,
+    limit: number = 20,
+  ): Promise<string[]> {
     if (!ids.length || !search.trim()) return [];
 
     const searchLower = `%${search.toLowerCase().trim()}%`;
@@ -624,19 +634,15 @@ export class UserService {
         and(
           inArray(users.id, ids),
           eq(users.status, USER_STATUS.ACTIVE),
-          sql`LOWER(${profiles.firstName} || ' ' || ${profiles.lastName}) LIKE ${searchLower}`
-        )
+          sql`LOWER(${profiles.firstName} || ' ' || ${profiles.lastName}) LIKE ${searchLower}`,
+        ),
       )
       .limit(limit);
 
     return rows.map((r) => r.id);
   }
 
-
-
-  private resolveProfileInput(
-    dto: Partial<CreateUserDTO>,
-  ): Partial<{
+  private resolveProfileInput(dto: Partial<CreateUserDTO>): Partial<{
     firstName: string | null;
     lastName: string | null;
     avatarUrl: string | null;
@@ -663,8 +669,6 @@ export class UserService {
     };
   }
 
-
-
   private buildSemanticProfileText(profile: {
     firstName?: string | null;
     lastName?: string | null;
@@ -676,8 +680,8 @@ export class UserService {
     interests?: string[] | null;
   }): string | null {
     const fullName = [profile.firstName, profile.lastName]
-      .filter((value) => typeof value === 'string' && value.trim().length > 0)
-      .join(' ')
+      .filter((value) => typeof value === "string" && value.trim().length > 0)
+      .join(" ")
       .trim();
     const bio = ProfileHelper.normalizeOptionalText(profile.bio);
     const location = ProfileHelper.normalizeOptionalText(profile.location);
@@ -685,23 +689,23 @@ export class UserService {
     const jobTitle = ProfileHelper.normalizeOptionalText(profile.jobTitle);
     const company = ProfileHelper.normalizeOptionalText(profile.company);
     const interests = ProfileHelper.normalizeInterests(profile.interests ?? []);
-    const work = [jobTitle, company].filter(Boolean).join(' at ');
+    const work = [jobTitle, company].filter(Boolean).join(" at ");
     const segments = [
-      fullName ? `name: ${fullName}` : '',
-      bio ? `bio: ${bio}` : '',
-      location ? `location: ${location}` : '',
-      work ? `work: ${work}` : '',
-      school ? `school: ${school}` : '',
-      interests.length > 0 ? `interests: ${interests.join(', ')}` : '',
+      fullName ? `name: ${fullName}` : "",
+      bio ? `bio: ${bio}` : "",
+      location ? `location: ${location}` : "",
+      work ? `work: ${work}` : "",
+      school ? `school: ${school}` : "",
+      interests.length > 0 ? `interests: ${interests.join(", ")}` : "",
     ].filter(Boolean);
 
-    return segments.length > 0 ? segments.join('\n') : null;
+    return segments.length > 0 ? segments.join("\n") : null;
   }
 
   private buildRecommendationProfileEmbeddingRequestedPayload(
     userId: string,
     semanticProfileText: string | null,
-    triggeredBy: 'user.created' | 'user.updated' | 'user.removed',
+    triggeredBy: "user.created" | "user.updated" | "user.removed",
   ): RecommendationProfileEmbeddingRequestedPayload {
     return {
       userId,
@@ -737,7 +741,9 @@ export class UserService {
       return [];
     }
 
-    const viewerInterests = ProfileHelper.normalizeInterests(viewer.interests ?? []);
+    const viewerInterests = ProfileHelper.normalizeInterests(
+      viewer.interests ?? [],
+    );
     const hasViewerSignals =
       Boolean(viewer.location) ||
       Boolean(viewer.jobTitle) ||
@@ -765,7 +771,11 @@ export class UserService {
 
     const scoredCandidates = candidates
       .map((candidate) =>
-        this.buildProfileRecommendationCandidate(viewer, viewerInterests, candidate),
+        this.buildProfileRecommendationCandidate(
+          viewer,
+          viewerInterests,
+          candidate,
+        ),
       )
       .filter((candidate): candidate is ProfileRecommendationCandidateDTO =>
         Boolean(candidate),
@@ -783,9 +793,13 @@ export class UserService {
       })
       .slice(0, safeLimit);
 
-    return plainToInstance(ProfileRecommendationCandidateDTO, scoredCandidates, {
-      excludeExtraneousValues: true,
-    });
+    return plainToInstance(
+      ProfileRecommendationCandidateDTO,
+      scoredCandidates,
+      {
+        excludeExtraneousValues: true,
+      },
+    );
   }
 
   private buildProfileRecommendationCandidate(
@@ -812,33 +826,38 @@ export class UserService {
     let score = 0;
 
     if (this.matchesNormalizedText(viewer.location, candidate.location)) {
-      matchedSignals.push('location');
+      matchedSignals.push("location");
       score += 0.2;
     }
 
     if (this.matchesNormalizedText(viewer.school, candidate.school)) {
-      matchedSignals.push('school');
+      matchedSignals.push("school");
       score += 0.2;
     }
 
     if (this.matchesNormalizedText(viewer.company, candidate.company)) {
-      matchedSignals.push('company');
+      matchedSignals.push("company");
       score += 0.2;
     }
 
     if (this.matchesNormalizedText(viewer.jobTitle, candidate.jobTitle)) {
-      matchedSignals.push('jobTitle');
+      matchedSignals.push("jobTitle");
       score += 0.1;
     }
 
-    const candidateInterests = ProfileHelper.normalizeInterests(candidate.interests ?? []);
+    const candidateInterests = ProfileHelper.normalizeInterests(
+      candidate.interests ?? [],
+    );
     const viewerInterestSet = new Set(
       viewerInterests.map((interest) => this.normalizeComparableText(interest)),
     );
-    const sharedInterestsCount = candidateInterests.reduce((count, interest) => {
-      const normalized = this.normalizeComparableText(interest);
-      return count + (viewerInterestSet.has(normalized) ? 1 : 0);
-    }, 0);
+    const sharedInterestsCount = candidateInterests.reduce(
+      (count, interest) => {
+        const normalized = this.normalizeComparableText(interest);
+        return count + (viewerInterestSet.has(normalized) ? 1 : 0);
+      },
+      0,
+    );
 
     if (sharedInterestsCount > 0) {
       matchedSignals.push(`interests:${sharedInterestsCount}`);
@@ -868,7 +887,6 @@ export class UserService {
   }
 
   private normalizeComparableText(value: string | null | undefined): string {
-    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return typeof value === "string" ? value.trim().toLowerCase() : "";
   }
 }
-

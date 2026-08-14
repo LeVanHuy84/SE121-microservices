@@ -4,16 +4,16 @@ import {
   Logger,
   OnModuleInit,
   OnModuleDestroy,
-} from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
-import { ConversationResponseDTO, MessageResponseDTO } from '@repo/dtos';
-import { ChatGateway } from './chat.gateway';
+} from "@nestjs/common";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { ConversationResponseDTO, MessageResponseDTO } from "@repo/dtos";
+import { ChatGateway } from "./chat.gateway";
 
 @Injectable()
 export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatStreamConsumer.name);
-  private readonly streamKey = 'chat:events';
+  private readonly streamKey = "chat:events";
   private readonly batchSize = Number(
     process.env.CHAT_STREAM_BATCH_SIZE ?? 100,
   );
@@ -39,7 +39,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
   private running = false;
   private claimTimer?: NodeJS.Timeout;
-  private readonly groupName = 'chat-gateway';
+  private readonly groupName = "chat-gateway";
   private readonly consumerName: string;
 
   constructor(
@@ -57,7 +57,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
     try {
       await this.ensureGroup();
     } catch (e) {
-      this.logger.error('Failed to initialize consumer group, retrying...', e);
+      this.logger.error("Failed to initialize consumer group, retrying...", e);
       // Retry after delay
       await new Promise((r) => setTimeout(r, 2000));
       await this.ensureGroup();
@@ -67,14 +67,14 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
     // 1) Replay pending (message đã đọc nhưng chưa ack do crash)
     this.replayPending().catch((e) =>
-      this.logger.error('Error in replayPending', e),
+      this.logger.error("Error in replayPending", e),
     );
 
-    this.claimStale().catch((e) => this.logger.error('Error in claimStale', e));
+    this.claimStale().catch((e) => this.logger.error("Error in claimStale", e));
 
     this.claimTimer = setInterval(() => {
       this.claimStale().catch((e) =>
-        this.logger.error('Error in claimStale', e),
+        this.logger.error("Error in claimStale", e),
       );
     }, this.claimIntervalMs);
 
@@ -98,23 +98,23 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       // Ensure stream exists
       const streamExists = await this.streamKeyExists();
       if (!streamExists) {
-        await this.redis.xadd(this.streamKey, '*', 'init', 'true');
+        await this.redis.xadd(this.streamKey, "*", "init", "true");
         this.logger.log(`Created stream ${this.streamKey}`);
       }
 
       // Now create consumer group
       try {
-        await this.redis.xgroup('CREATE', this.streamKey, this.groupName, '$');
+        await this.redis.xgroup("CREATE", this.streamKey, this.groupName, "$");
         this.logger.log(`Created consumer group ${this.groupName}`);
       } catch (e: any) {
-        if (e?.message?.includes('BUSYGROUP')) {
+        if (e?.message?.includes("BUSYGROUP")) {
           this.logger.log(`Consumer group ${this.groupName} already exists`);
         } else {
           throw e;
         }
       }
     } catch (e) {
-      this.logger.error('Critical error ensuring consumer group', e);
+      this.logger.error("Critical error ensuring consumer group", e);
       throw e;
     }
   }
@@ -124,7 +124,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       const len = await this.redis.xlen(this.streamKey);
       return len > 0;
     } catch (e: any) {
-      if (e?.message?.includes('WRONGTYPE')) {
+      if (e?.message?.includes("WRONGTYPE")) {
         return false;
       }
       // Stream doesn't exist
@@ -137,17 +137,17 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
    * để không bị mất event khi gateway crash giữa chừng.
    */
   private async replayPending() {
-    this.logger.log('Replaying pending chat events (if any)...');
+    this.logger.log("Replaying pending chat events (if any)...");
     while (true) {
       const res = await this.redis.xreadgroup(
-        'GROUP',
+        "GROUP",
         this.groupName,
         this.consumerName,
-        'COUNT',
+        "COUNT",
         this.batchSize,
-        'STREAMS',
+        "STREAMS",
         this.streamKey,
-        '0', // đọc từ pending list
+        "0", // đọc từ pending list
       );
 
       if (!res) break;
@@ -155,7 +155,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
       let processedAny = false;
 
       for (const [, entries] of res as any) {
-        for (const [id, fields] of entries as any) {
+        for (const [id, fields] of entries) {
           processedAny = true;
           await this.processEntry(id, fields);
         }
@@ -163,7 +163,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
       if (!processedAny) break;
     }
-    this.logger.log('Replay pending done.');
+    this.logger.log("Replay pending done.");
   }
 
   private async claimStale() {
@@ -174,8 +174,8 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         this.groupName,
         this.consumerName,
         this.claimIdleMs,
-        '0-0',
-        'COUNT',
+        "0-0",
+        "COUNT",
         this.batchSize,
       );
 
@@ -184,7 +184,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         await this.processEntry(id, fields);
       }
     } catch (e) {
-      this.logger.error('Error in claimStale', e);
+      this.logger.error("Error in claimStale", e);
     }
   }
 
@@ -192,27 +192,27 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
     while (this.running) {
       try {
         const res = await this.redis.xreadgroup(
-          'GROUP',
+          "GROUP",
           this.groupName,
           this.consumerName,
-          'COUNT',
+          "COUNT",
           this.batchSize,
-          'BLOCK',
+          "BLOCK",
           this.blockMs,
-          'STREAMS',
+          "STREAMS",
           this.streamKey,
-          '>', // chỉ message mới
+          ">", // chỉ message mới
         );
 
         if (!res) continue;
 
         for (const [, entries] of res as any) {
-          for (const [id, fields] of entries as any) {
+          for (const [id, fields] of entries) {
             await this.processEntry(id, fields);
           }
         }
       } catch (e) {
-        this.logger.error('Error in chat messages consumeLoop', e);
+        this.logger.error("Error in chat messages consumeLoop", e);
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
@@ -236,14 +236,14 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
     try {
       switch (event) {
         // ===================== MESSAGE =====================
-        case 'message.created': {
+        case "message.created": {
           const msg: MessageResponseDTO = JSON.parse(payload);
           if (await this.shouldProcessMessageEvent(msg)) {
             this.chatGateway.broadcastNewMessage(msg);
           }
           break;
         }
-        case 'message.deleted': {
+        case "message.deleted": {
           const msg: MessageResponseDTO = JSON.parse(payload);
           if (await this.shouldProcessMessageEvent(msg)) {
             this.chatGateway.broadcastMessageDeleted(msg);
@@ -252,21 +252,21 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         // ===================== CONVERSATION =====================
-        case 'conversation.created': {
+        case "conversation.created": {
           const conv: ConversationResponseDTO = JSON.parse(payload);
           if (await this.shouldProcessConversationEvent(conv)) {
             this.chatGateway.emitConversationCreated(conv);
           }
           break;
         }
-        case 'conversation.updated': {
+        case "conversation.updated": {
           const conv: ConversationResponseDTO = JSON.parse(payload);
           if (await this.shouldProcessConversationEvent(conv)) {
             this.chatGateway.emitConversationUpdated(conv);
           }
           break;
         }
-        case 'conversation.memberJoined': {
+        case "conversation.memberJoined": {
           const data: {
             conversation: ConversationResponseDTO;
             joinedUserIds: string[];
@@ -280,7 +280,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           }
           break;
         }
-        case 'conversation.memberLeft': {
+        case "conversation.memberLeft": {
           const data: {
             conversationId: string;
             leftUserIds: string[];
@@ -292,7 +292,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           );
           break;
         }
-        case 'conversation.deleted': {
+        case "conversation.deleted": {
           const data: {
             conversationId: string;
             participants: string[];
@@ -304,7 +304,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           );
           break;
         }
-        case 'conversation.read': {
+        case "conversation.read": {
           const data: {
             conversationId: string;
             userId: string;
@@ -318,7 +318,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           );
           break;
         }
-        case 'conversation.hidden': {
+        case "conversation.hidden": {
           const data: {
             conversationId: string;
             userId: string;
@@ -330,7 +330,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           );
           break;
         }
-        case 'conversation.unhidden': {
+        case "conversation.unhidden": {
           const data: {
             userId: string;
             conversation: ConversationResponseDTO;
@@ -344,7 +344,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           }
           break;
         }
-        case 'call.created': {
+        case "call.created": {
           const data: {
             _id: string;
             conversationId: string;
@@ -354,7 +354,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallCreated(data);
           break;
         }
-        case 'call.accepted': {
+        case "call.accepted": {
           const data: {
             callId: string;
             conversationId: string;
@@ -365,7 +365,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallAccepted(data);
           break;
         }
-        case 'call.rejected': {
+        case "call.rejected": {
           const data: {
             callId: string;
             conversationId: string;
@@ -376,7 +376,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallRejected(data);
           break;
         }
-        case 'call.ended': {
+        case "call.ended": {
           const data: {
             callId: string;
             conversationId: string;
@@ -388,7 +388,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           break;
         }
 
-        case 'call.participantJoined': {
+        case "call.participantJoined": {
           const data: {
             callId: string;
             conversationId: string;
@@ -398,7 +398,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallParticipantJoined(data);
           break;
         }
-        case 'call.participantLeft': {
+        case "call.participantLeft": {
           const data: {
             callId: string;
             conversationId: string;
@@ -408,7 +408,7 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
           this.chatGateway.emitCallParticipantLeft(data);
           break;
         }
-        case 'call.participantKicked': {
+        case "call.participantKicked": {
           const data: {
             callId: string;
             conversationId: string;
@@ -426,41 +426,41 @@ export class ChatStreamConsumer implements OnModuleInit, OnModuleDestroy {
 
       await this.redis.xack(this.streamKey, this.groupName, id);
     } catch (e) {
-      this.logger.error('Failed to process payload from stream', e);
+      this.logger.error("Failed to process payload from stream", e);
       if (retries < this.maxRetries) {
         try {
           await this.redis.xadd(
             this.streamKey,
-            '*',
-            'event',
+            "*",
+            "event",
             event,
-            'payload',
+            "payload",
             payload,
-            'retries',
+            "retries",
             String(retries + 1),
           );
         } catch (requeueErr) {
-          this.logger.error('Failed to requeue chat event', requeueErr);
+          this.logger.error("Failed to requeue chat event", requeueErr);
         }
       } else {
         try {
           await this.redis.xadd(
             `${this.streamKey}:dlq`,
-            'MAXLEN',
-            '~',
+            "MAXLEN",
+            "~",
             this.dlqMaxLen,
-            '*',
-            'event',
+            "*",
+            "event",
             event,
-            'payload',
+            "payload",
             payload,
-            'retries',
+            "retries",
             String(retries),
-            'error',
-            (e as Error)?.message ?? 'unknown_error',
+            "error",
+            (e as Error)?.message ?? "unknown_error",
           );
         } catch (dlqErr) {
-          this.logger.error('Failed to push chat event to DLQ', dlqErr);
+          this.logger.error("Failed to push chat event to DLQ", dlqErr);
         }
       }
       await this.redis.xack(this.streamKey, this.groupName, id);

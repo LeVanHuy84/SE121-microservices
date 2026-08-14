@@ -1,15 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   CursorPageResponse,
   GroupEventLog,
   GroupLogFilter,
   GroupLogResponseDTO,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { and, asc, desc, eq, gte, gt, lt, lte } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
-import { groupLogs } from 'src/drizzle/schema/schema';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { and, asc, desc, eq, gte, gt, lt, lte } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
+import { groupLogs } from "src/drizzle/schema/schema";
 
 @Injectable()
 export class GroupLogService {
@@ -46,10 +46,10 @@ export class GroupLogService {
       conditions.push(eq(groupLogs.eventType, eventType as any));
     }
     if (cursor) {
-      const allowed = ['id', 'createdAt'];
-      const col = allowed.includes(sortBy) ? sortBy : 'id';
-      const isAsc = order && order.toUpperCase() === 'ASC';
-      if (col === 'createdAt') {
+      const allowed = ["id", "createdAt"];
+      const col = allowed.includes(sortBy) ? sortBy : "id";
+      const isAsc = order && order.toUpperCase() === "ASC";
+      if (col === "createdAt") {
         conditions.push(
           isAsc
             ? gt(groupLogs.createdAt, new Date(cursor))
@@ -63,7 +63,7 @@ export class GroupLogService {
     }
 
     const orderExpr =
-      order && order.toUpperCase() === 'ASC'
+      order && order.toUpperCase() === "ASC"
         ? asc(groupLogs[sortBy] ?? groupLogs.createdAt)
         : desc(groupLogs[sortBy] ?? groupLogs.createdAt);
 
@@ -76,7 +76,9 @@ export class GroupLogService {
 
     const hasNextPage = logs.length === limit;
     const resultLogs = hasNextPage ? logs.slice(0, -1) : logs;
-    const nextCursor = hasNextPage ? resultLogs[resultLogs.length - 1][sortBy] : null;
+    const nextCursor = hasNextPage
+      ? resultLogs[resultLogs.length - 1][sortBy]
+      : null;
 
     return {
       data: plainToInstance(GroupLogResponseDTO, resultLogs, {

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
 import {
   AuditLogQuery,
   AuditLogResponseDTO,
@@ -7,13 +7,13 @@ import {
   SortOrder,
   GetUserActivityLogQuery,
   UserActivityLogResponseDTO,
-} from '@repo/dtos';
-import { Model } from 'mongoose';
-import { AuditLog, AuditLogDocument } from '../mongo/schema/audit-log.schema';
+} from "@repo/dtos";
+import { Model } from "mongoose";
+import { AuditLog, AuditLogDocument } from "../mongo/schema/audit-log.schema";
 import {
   UserActivityLog,
   UserActivityLogDocument,
-} from '../mongo/schema/user-activity.schema';
+} from "../mongo/schema/user-activity.schema";
 
 @Injectable()
 export class LogService {
@@ -32,7 +32,7 @@ export class LogService {
       logType,
       limit = 10,
       cursor,
-      sortBy = 'createdAt',
+      sortBy = "createdAt",
       order = SortOrder.DESC,
     } = query;
 
@@ -48,7 +48,7 @@ export class LogService {
 
     if (cursor) {
       // createdAt là Date, nên cần parse
-      const cursorValue = sortBy === 'createdAt' ? new Date(cursor) : cursor;
+      const cursorValue = sortBy === "createdAt" ? new Date(cursor) : cursor;
 
       filter[sortBy] =
         order === SortOrder.ASC ? { $gt: cursorValue } : { $lt: cursorValue };
@@ -92,7 +92,7 @@ export class LogService {
       toDate,
       limit = 10,
       cursor,
-      sortBy = 'createdAt',
+      sortBy = "createdAt",
       order = SortOrder.DESC,
     } = query;
 
@@ -112,7 +112,7 @@ export class LogService {
     }
 
     if (cursor) {
-      const cursorValue = sortBy === 'createdAt' ? new Date(cursor) : cursor;
+      const cursorValue = sortBy === "createdAt" ? new Date(cursor) : cursor;
       filter[sortBy] =
         order === SortOrder.ASC ? { $gt: cursorValue } : { $lt: cursorValue };
     }

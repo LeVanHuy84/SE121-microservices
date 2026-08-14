@@ -1,14 +1,14 @@
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Injectable, Logger } from '@nestjs/common';
-import { Redis } from 'ioredis';
-import { SnapshotRepository } from '../../mongo/repository/snapshot.repository';
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import { Injectable, Logger } from "@nestjs/common";
+import { Redis } from "ioredis";
+import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
 
 @Injectable()
 export class RedisTrendingWarmupService {
   private readonly logger = new Logger(RedisTrendingWarmupService.name);
 
-  private readonly TRENDING_KEY = 'post:score';
-  private readonly LOCK_KEY = 'lock:trending-rebuild';
+  private readonly TRENDING_KEY = "post:score";
+  private readonly LOCK_KEY = "lock:trending-rebuild";
 
   private readonly SCORE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
@@ -31,10 +31,10 @@ export class RedisTrendingWarmupService {
       return;
     }
 
-    const lock = await this.redis.setnx(this.LOCK_KEY, '1');
+    const lock = await this.redis.setnx(this.LOCK_KEY, "1");
 
     if (!lock) {
-      this.logger.log('Trending rebuild already running on another instance.');
+      this.logger.log("Trending rebuild already running on another instance.");
       return;
     }
 
@@ -51,7 +51,7 @@ export class RedisTrendingWarmupService {
 
       await this.rebuildTrendingIndex();
     } catch (error) {
-      this.logger.error('Warmup failed', error);
+      this.logger.error("Warmup failed", error);
     } finally {
       await this.redis.del(this.LOCK_KEY);
     }
@@ -61,7 +61,7 @@ export class RedisTrendingWarmupService {
     let offset = 0;
     let processed = 0;
 
-    this.logger.log('Starting trending warmup (batched)...');
+    this.logger.log("Starting trending warmup (batched)...");
 
     while (processed < this.MAX_REBUILD_POSTS) {
       const batch = await this.snapshotRepository.findTrendingCandidatesBatch(
@@ -70,7 +70,7 @@ export class RedisTrendingWarmupService {
       );
 
       if (!batch.length) {
-        this.logger.log('No more posts to process.');
+        this.logger.log("No more posts to process.");
         break;
       }
 
@@ -140,10 +140,10 @@ export class RedisTrendingWarmupService {
 
       pipeline.hset(rankKey, {
         scores: JSON.stringify(post.emotionFeature?.scores || {}),
-        intensity: post.emotionFeature?.intensity?.toString() || '0',
-        confidence: post.emotionFeature?.confidence?.toString() || '0',
-        dominantScene: post.emotionFeature?.dominantScene || '',
-        riskHintLevel: post.emotionFeature?.riskHintLevel || '',
+        intensity: post.emotionFeature?.intensity?.toString() || "0",
+        confidence: post.emotionFeature?.confidence?.toString() || "0",
+        dominantScene: post.emotionFeature?.dominantScene || "",
+        riskHintLevel: post.emotionFeature?.riskHintLevel || "",
         authorId: post.userId,
       });
 

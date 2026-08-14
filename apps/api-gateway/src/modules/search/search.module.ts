@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { SearchController } from './search.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Module } from "@nestjs/common";
+import { SearchController } from "./search.controller";
+import { ClientsModule, Transport } from "@nestjs/microservices";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('SEARCH_RECOMMENDATION_SERVICE_PORT'),
+            port: config.get<number>("SEARCH_RECOMMENDATION_SERVICE_PORT"),
           },
         }),
       },
@@ -25,7 +25,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            port: config.get<number>('CONTENT_FEED_SERVICE_PORT'),
+            port: config.get<number>("CONTENT_FEED_SERVICE_PORT"),
           },
         }),
       },

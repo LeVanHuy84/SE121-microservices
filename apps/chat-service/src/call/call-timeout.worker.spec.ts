@@ -36,12 +36,15 @@ describe('CallTimeoutWorker', () => {
       }),
     };
 
-    worker = new CallTimeoutWorker(callSessionModel as any, callService);
+    worker = new CallTimeoutWorker(callSessionModel, callService);
   });
 
   describe('processTimeouts', () => {
     it('processes expired ringing calls', async () => {
-      callService.popDueRingTimeoutCallIds.mockResolvedValue(['call-1', 'call-2']);
+      callService.popDueRingTimeoutCallIds.mockResolvedValue([
+        'call-1',
+        'call-2',
+      ]);
 
       await worker.processTimeouts();
 
@@ -55,7 +58,9 @@ describe('CallTimeoutWorker', () => {
 
       await worker.processTimeouts();
 
-      expect(callService.markReconnectTimeoutCallBySystem).toHaveBeenCalledWith('call-3');
+      expect(callService.markReconnectTimeoutCallBySystem).toHaveBeenCalledWith(
+        'call-3',
+      );
     });
 
     it('processes expired empty room timeout calls', async () => {
@@ -63,42 +68,55 @@ describe('CallTimeoutWorker', () => {
 
       await worker.processTimeouts();
 
-      expect(callService.markEmptyRoomTimeoutCallBySystem).toHaveBeenCalledWith('call-4');
+      expect(callService.markEmptyRoomTimeoutCallBySystem).toHaveBeenCalledWith(
+        'call-4',
+      );
     });
 
     it('does nothing when no expired calls', async () => {
       await worker.processTimeouts();
 
       expect(callService.markMissedCallBySystem).not.toHaveBeenCalled();
-      expect(callService.markReconnectTimeoutCallBySystem).not.toHaveBeenCalled();
-      expect(callService.markEmptyRoomTimeoutCallBySystem).not.toHaveBeenCalled();
+      expect(
+        callService.markReconnectTimeoutCallBySystem,
+      ).not.toHaveBeenCalled();
+      expect(
+        callService.markEmptyRoomTimeoutCallBySystem,
+      ).not.toHaveBeenCalled();
     });
 
     it('processes all three timeout types in single tick', async () => {
       callService.popDueRingTimeoutCallIds.mockResolvedValue(['ring-1']);
-      callService.popDueReconnectTimeoutCallIds.mockResolvedValue(['reconnect-1']);
+      callService.popDueReconnectTimeoutCallIds.mockResolvedValue([
+        'reconnect-1',
+      ]);
       callService.popDueEmptyRoomTimeoutCallIds.mockResolvedValue(['empty-1']);
 
       await worker.processTimeouts();
 
       expect(callService.markMissedCallBySystem).toHaveBeenCalledWith('ring-1');
-      expect(callService.markReconnectTimeoutCallBySystem).toHaveBeenCalledWith('reconnect-1');
-      expect(callService.markEmptyRoomTimeoutCallBySystem).toHaveBeenCalledWith('empty-1');
+      expect(callService.markReconnectTimeoutCallBySystem).toHaveBeenCalledWith(
+        'reconnect-1',
+      );
+      expect(callService.markEmptyRoomTimeoutCallBySystem).toHaveBeenCalledWith(
+        'empty-1',
+      );
     });
   });
 
   describe('onModuleInit (rehydration)', () => {
     it('rehydrates ringing calls from Mongo into Redis', async () => {
       const futureDate = new Date(Date.now() + 30_000);
-      const mockFind = jest.fn()
+      const mockFind = jest
+        .fn()
         .mockReturnValueOnce({
           sort: jest.fn().mockReturnThis(),
           skip: jest.fn().mockReturnThis(),
           limit: jest.fn().mockReturnThis(),
           lean: jest.fn().mockReturnThis(),
-          exec: jest.fn().mockResolvedValue([
-            { _id: 'call-1', ringTimeoutAt: futureDate },
-          ]),
+          exec: jest
+            .fn()
+            .mockResolvedValue([{ _id: 'call-1', ringTimeoutAt: futureDate }]),
         })
         .mockReturnValueOnce({
           sort: jest.fn().mockReturnThis(),

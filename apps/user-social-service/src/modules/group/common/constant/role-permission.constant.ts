@@ -1,4 +1,4 @@
-import { GroupPermission, GroupRole } from '@repo/dtos';
+import { GroupPermission, GroupRole } from "@repo/dtos";
 
 export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
   [GroupRole.OWNER]: [

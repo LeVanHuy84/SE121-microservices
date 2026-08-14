@@ -4,8 +4,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "start:dev": "turbo run start:dev --parallel --concurrency=12",
-    "dev:test": "turbo run start:prod --parallel --concurrency=16",
+    "start:dev": "turbo run start:dev --parallel --concurrency=7",
+    "dev:test": "turbo run start:prod --parallel --concurrency=7",
     "demo": "turbo run start:dev --filter=api-gateway --filter=analysis-service --filter=user-service --filter=post-service --filter=group-service --filter=logging-service --filter=search-recommendation-service --filter=emotion-intelligence-service",
     "demo:test": "turbo run start:prod --filter=content-feed-service --filter=api-gateway --filter=user-social-service",
     "recommend:dev": "turbo run start:dev --parallel --filter=user-service --filter=social-service --filter=group-service --filter=search-recommendation-service",

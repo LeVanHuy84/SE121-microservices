@@ -1,9 +1,7 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument, Types } from "mongoose";
-import { Message } from "./message.schema";
-import { Emotion } from "@repo/dtos";
-
-
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+import { Message } from './message.schema';
+import { Emotion } from '@repo/dtos';
 
 @Schema({ timestamps: true })
 export class MessageReaction {

@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable } from "@nestjs/common";
+import { RpcException } from "@nestjs/microservices";
 import {
   GroupMemberStatus,
   GroupPrivacy,
@@ -11,11 +11,11 @@ import {
   NotiOutboxPayload,
   NotiTargetType,
   InviteStatus,
-} from '@repo/dtos';
-import { plainToInstance } from 'class-transformer';
-import { and, eq, inArray } from 'drizzle-orm';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import type { DrizzleDB } from 'src/drizzle/types/drizzle.d';
+} from "@repo/dtos";
+import { plainToInstance } from "class-transformer";
+import { and, eq, inArray } from "drizzle-orm";
+import { DRIZZLE } from "src/drizzle/drizzle.module";
+import type { DrizzleDB } from "src/drizzle/types/drizzle.d";
 import {
   groupJoinRequests,
   groupMembers,
@@ -23,10 +23,10 @@ import {
   groups,
   groupInvites,
   outboxEvents,
-} from 'src/drizzle/schema/schema';
-import { GroupLogService } from './group-log.service';
-import { GroupBufferService } from './group-buffer.service';
-import { UserService } from 'src/modules/user/user.service';
+} from "src/drizzle/schema/schema";
+import { GroupLogService } from "./group-log.service";
+import { GroupBufferService } from "./group-buffer.service";
+import { UserService } from "src/modules/user/user.service";
 
 @Injectable()
 export class GroupJoinRequestService {
@@ -51,7 +51,7 @@ export class GroupJoinRequestService {
       // PUBLIC → auto join
       if (group.privacy === GroupPrivacy.PUBLIC) {
         await this.joinGroupInternal(tx, group, userId);
-        return { success: true, response: 'Joined' };
+        return { success: true, response: "Joined" };
       }
 
       // PRIVATE / CLOSED → check invite
@@ -73,7 +73,7 @@ export class GroupJoinRequestService {
           .update(groupInvites)
           .set({ status: InviteStatus.ACCEPTED })
           .where(eq(groupInvites.id, invite.id));
-        return { success: true, response: 'Joined via invite' };
+        return { success: true, response: "Joined via invite" };
       }
 
       const joinRequest = await this.createJoinRequest(tx, groupId, userId);
@@ -89,7 +89,10 @@ export class GroupJoinRequestService {
   // ==================================================
   // ✅ APPROVE JOIN REQUEST
   // ==================================================
-  async approveRequest(requestId: string, approverId: string): Promise<boolean> {
+  async approveRequest(
+    requestId: string,
+    approverId: string,
+  ): Promise<boolean> {
     return this.db.transaction(async (tx) => {
       const [joinRequest] = await tx
         .select()
@@ -98,9 +101,15 @@ export class GroupJoinRequestService {
         .limit(1);
 
       if (!joinRequest)
-        throw new RpcException({ statusCode: 404, message: 'Join request not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Join request not found",
+        });
       if (joinRequest.status !== JoinRequestStatus.PENDING)
-        throw new RpcException({ statusCode: 409, message: 'Request already processed' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Request already processed",
+        });
 
       const group = await this.validateGroup(tx, joinRequest.groupId);
       await this.validateMemberStatus(tx, group.id, joinRequest.userId);
@@ -139,9 +148,15 @@ export class GroupJoinRequestService {
         .limit(1);
 
       if (!joinRequest)
-        throw new RpcException({ statusCode: 404, message: 'Join request not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Join request not found",
+        });
       if (joinRequest.status !== JoinRequestStatus.PENDING)
-        throw new RpcException({ statusCode: 409, message: 'Request already processed' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Request already processed",
+        });
 
       await tx
         .update(groupJoinRequests)
@@ -181,9 +196,15 @@ export class GroupJoinRequestService {
         .limit(1);
 
       if (!req)
-        throw new RpcException({ statusCode: 404, message: 'Join request not found' });
+        throw new RpcException({
+          statusCode: 404,
+          message: "Join request not found",
+        });
       if (req.status !== JoinRequestStatus.PENDING)
-        throw new RpcException({ statusCode: 409, message: 'Only pending requests can be canceled' });
+        throw new RpcException({
+          statusCode: 409,
+          message: "Only pending requests can be canceled",
+        });
 
       await tx
         .delete(groupJoinRequests)
@@ -204,7 +225,7 @@ export class GroupJoinRequestService {
       .limit(1);
 
     if (!group)
-      throw new RpcException({ statusCode: 404, message: 'Group not found' });
+      throw new RpcException({ statusCode: 404, message: "Group not found" });
 
     const [setting] = await tx
       .select()
@@ -213,7 +234,10 @@ export class GroupJoinRequestService {
       .limit(1);
 
     if (group.members >= (setting?.maxMembers ?? 1000))
-      throw new RpcException({ statusCode: 422, message: 'Group has reached maximum member limit' });
+      throw new RpcException({
+        statusCode: 422,
+        message: "Group has reached maximum member limit",
+      });
 
     return { ...group, groupSetting: setting };
   }
@@ -223,18 +247,21 @@ export class GroupJoinRequestService {
       .select()
       .from(groupMembers)
       .where(
-        and(
-          eq(groupMembers.groupId, groupId),
-          eq(groupMembers.userId, userId),
-        ),
+        and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)),
       )
       .limit(1);
 
     if (!member) return;
     if (member.status === GroupMemberStatus.ACTIVE)
-      throw new RpcException({ statusCode: 409, message: 'User is already a member' });
+      throw new RpcException({
+        statusCode: 409,
+        message: "User is already a member",
+      });
     if (member.status === GroupMemberStatus.BANNED)
-      throw new RpcException({ statusCode: 403, message: 'User is banned from the group' });
+      throw new RpcException({
+        statusCode: 403,
+        message: "User is banned from the group",
+      });
   }
 
   // ==================================================
@@ -259,18 +286,17 @@ export class GroupJoinRequestService {
   // ==================================================
   // 🔔 OUTBOX NOTIFICATION
   // ==================================================
-  private async createOutboxEvent(
-    tx: any,
-    joinRequest: any,
-    groupId: string,
-  ) {
+  private async createOutboxEvent(tx: any, joinRequest: any, groupId: string) {
     const reviewers = await tx
       .select({ userId: groupMembers.userId })
       .from(groupMembers)
       .where(
         and(
           eq(groupMembers.groupId, groupId),
-          inArray(groupMembers.role, [GroupRole.ADMIN, GroupRole.MODERATOR] as any[]),
+          inArray(groupMembers.role, [
+            GroupRole.ADMIN,
+            GroupRole.MODERATOR,
+          ] as any[]),
         ),
       );
 
@@ -280,14 +306,14 @@ export class GroupJoinRequestService {
       requestId: joinRequest.id,
       targetId: groupId,
       targetType: NotiTargetType.GROUP,
-      content: 'Có yêu cầu tham gia nhóm mới',
+      content: "Có yêu cầu tham gia nhóm mới",
       receivers: reviewers.map((r) => r.userId),
     };
 
     await tx.insert(outboxEvents).values({
       destination: EventDestination.RABBITMQ,
-      topic: 'notification',
-      eventType: 'group_noti',
+      topic: "notification",
+      eventType: "group_noti",
       payload,
     });
   }
@@ -309,7 +335,10 @@ export class GroupJoinRequestService {
       .limit(1);
 
     if (existing)
-      throw new RpcException({ statusCode: 409, message: 'Join request already exists' });
+      throw new RpcException({
+        statusCode: 409,
+        message: "Join request already exists",
+      });
 
     const [inserted] = await tx
       .insert(groupJoinRequests)
@@ -322,8 +351,8 @@ export class GroupJoinRequestService {
   private async getUserName(userId: string): Promise<string> {
     const userInfo = await this.userService.findOne(userId);
     return (
-      `${userInfo?.firstName ?? ''} ${userInfo?.lastName ?? ''}`.trim() ||
-      'Người dùng'
+      `${userInfo?.firstName ?? ""} ${userInfo?.lastName ?? ""}`.trim() ||
+      "Người dùng"
     );
   }
 }

@@ -1,17 +1,17 @@
-import { EventDestination } from '@repo/dtos';
+import { EventDestination } from "@repo/dtos";
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-} from 'typeorm';
+} from "typeorm";
 
 @Entity()
 export class OutboxEvent {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: 'enum', enum: EventDestination })
+  @Column({ type: "enum", enum: EventDestination })
   destination: EventDestination;
 
   @Column()
@@ -20,16 +20,16 @@ export class OutboxEvent {
   @Column()
   eventType: string;
 
-  @Column({ type: 'jsonb' })
+  @Column({ type: "jsonb" })
   payload: Record<string, any>;
 
   @Column({ default: false })
   processed: boolean;
 
   @CreateDateColumn({
-    name: 'created_at',
-    type: 'timestamptz',
-    default: () => 'CURRENT_TIMESTAMP',
+    name: "created_at",
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
   })
   createdAt: Date;
 }

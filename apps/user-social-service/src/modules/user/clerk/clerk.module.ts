@@ -1,8 +1,8 @@
-import { Module, Global } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { createClerkClient } from '@clerk/backend';
+import { Module, Global } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { createClerkClient } from "@clerk/backend";
 
-export const CLERK_CLIENT = Symbol('CLERK_CLIENT');
+export const CLERK_CLIENT = Symbol("CLERK_CLIENT");
 
 @Global()
 @Module({
@@ -12,11 +12,11 @@ export const CLERK_CLIENT = Symbol('CLERK_CLIENT');
       provide: CLERK_CLIENT,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const secretKey = config.get<string>('CLERK_SECRET_KEY');
+        const secretKey = config.get<string>("CLERK_SECRET_KEY");
 
         if (!secretKey) {
           throw new Error(
-            'CLERK_SECRET_KEY is missing. Check env or turbo env config.'
+            "CLERK_SECRET_KEY is missing. Check env or turbo env config.",
           );
         }
 

@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 import {
   CursorPageResponse,
   FeedEventType,
@@ -8,22 +8,22 @@ import {
   PersonalFeedQuery,
   ReactionType,
   TargetType,
-} from '@repo/dtos';
+} from "@repo/dtos";
 import {
   FeedItem,
   FeedItemDocument,
-} from '../../mongo/schema/feed-item.schema';
-import { SnapshotRepository } from '../../mongo/repository/snapshot.repository';
-import { SnapshotMapper } from 'src/common/snapshot.mapper';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+} from "../../mongo/schema/feed-item.schema";
+import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
+import { SnapshotMapper } from "src/common/snapshot.mapper";
+import { ClientProxy } from "@nestjs/microservices";
+import { firstValueFrom } from "rxjs";
 
-import { PersonalFeedHelper } from '../helpers/personal-feed.helper';
-import { AffinityService } from 'src/modules/affinity/affinity.service';
-import { EmotionFeatureService } from 'src/modules/ranking/services/emotion-feature.service';
-import { ReactionService } from '../../../post/reaction/reaction.service';
-import { MICROSERVICES_CLIENT } from 'src/constant';
-import { UserClientService } from '../../../post/client/user-client.service';
+import { PersonalFeedHelper } from "../helpers/personal-feed.helper";
+import { AffinityService } from "src/modules/affinity/affinity.service";
+import { EmotionFeatureService } from "src/modules/ranking/services/emotion-feature.service";
+import { ReactionService } from "../../../post/reaction/reaction.service";
+import { MICROSERVICES_CLIENT } from "src/constant";
+import { UserClientService } from "../../../post/client/user-client.service";
 
 @Injectable()
 export class PersonalFeedService {
@@ -175,7 +175,7 @@ export class PersonalFeedService {
         : 0;
 
       const affinityScore = this.affinityService.calcAffinityScore(affinity, {
-        category: post.emotionFeature?.label || 'neutral',
+        category: post.emotionFeature?.label || "neutral",
         authorId: post.userId,
       });
 
@@ -284,7 +284,7 @@ export class PersonalFeedService {
       enrichmentPromises.push(
         firstValueFrom(
           this.userSocialClient.send<any[]>(
-            'get_group_info_batch',
+            "get_group_info_batch",
             Array.from(groupIds),
           ),
         ).then((groups) => {
@@ -347,7 +347,7 @@ export class PersonalFeedService {
     const result: FeedItemDTO[] = [];
 
     for (const item of items) {
-      const id = item._id?.toString() ?? '';
+      const id = item._id?.toString() ?? "";
 
       const post = postMap.get(item.postId);
 
@@ -361,7 +361,7 @@ export class PersonalFeedService {
           type: item.eventType,
           item: {
             id: item.refId,
-            status: 'missing_post',
+            status: "missing_post",
           } as any,
         });
 
@@ -397,7 +397,7 @@ export class PersonalFeedService {
           type: FeedEventType.SHARE,
           item: {
             id: item.refId,
-            status: 'missing_share',
+            status: "missing_share",
           } as any,
         });
 

@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { AffinityService } from './affinity.service';
+import { Module } from "@nestjs/common";
+import { AffinityService } from "./affinity.service";
 
 @Module({
   providers: [AffinityService],

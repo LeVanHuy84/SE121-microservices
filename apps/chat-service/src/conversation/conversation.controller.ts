@@ -30,9 +30,11 @@ export class ConversationController {
       conversationId: string;
     },
   ) {
-    return this.conversationService.getConversationById(data.userId ,data.conversationId);
+    return this.conversationService.getConversationById(
+      data.userId,
+      data.conversationId,
+    );
   }
-
 
   @MessagePattern('createConversation')
   async createConversation(
@@ -60,7 +62,7 @@ export class ConversationController {
       data.dto,
     );
   }
-  
+
   @MessagePattern('hideConversation')
   async hideConversation(
     @Payload()
@@ -116,7 +118,6 @@ export class ConversationController {
       data.conversationId,
     );
   }
-
 
   @MessagePattern('markConversationAsRead')
   async markConversationAsRead(

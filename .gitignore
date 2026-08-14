@@ -52,7 +52,7 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
-docs/
+/docs/
 .agent/
 
 # Python Virtual Environments

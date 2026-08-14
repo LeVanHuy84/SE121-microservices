@@ -1,19 +1,20 @@
-import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Body, Controller, Get, Inject, Post, Query } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
 import {
   CreateReportDTO,
   ReportFilterDTO,
   SystemRole,
   TargetType,
-} from '@repo/dtos';
-import { MICROSERVICES_CLIENTS } from 'src/common/constants';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
-import { RequireRole } from 'src/common/decorators/require-role.decorator';
+} from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
+import { RequireRole } from "src/common/decorators/require-role.decorator";
 
-@Controller('reports/content')
+@Controller("reports/content")
 export class ReportController {
   constructor(
-    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE) private client: ClientProxy,
+    @Inject(MICROSERVICES_CLIENTS.CONTENT_FEED_SERVICE)
+    private client: ClientProxy,
   ) {}
 
   @Post()
@@ -21,31 +22,31 @@ export class ReportController {
     @CurrentUserId() userId: string,
     @Body() createReportDto: CreateReportDTO,
   ) {
-    return this.client.send('create_report', { userId, createReportDto });
+    return this.client.send("create_report", { userId, createReportDto });
   }
 
-  @Post('resolve')
+  @Post("resolve")
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   resolveReportTarget(
     @CurrentUserId() userId: string,
     @Body() payload: { targetId: string; targetType: TargetType },
   ) {
     const { targetId, targetType } = payload;
-    return this.client.send('resolve_report_target', {
+    return this.client.send("resolve_report_target", {
       targetId,
       targetType,
       userId,
     });
   }
 
-  @Post('/ignore')
+  @Post("/ignore")
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   ignoreReport(
     @CurrentUserId() userId: string,
     @Body() payload: { targetId: string; targetType: TargetType },
   ) {
     const { targetId, targetType } = payload;
-    return this.client.send('reject_report', {
+    return this.client.send("reject_report", {
       targetId,
       targetType,
       userId,
@@ -55,6 +56,6 @@ export class ReportController {
   @Get()
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   getReports(@Query() filter: ReportFilterDTO) {
-    return this.client.send('get_reports', filter);
+    return this.client.send("get_reports", filter);
   }
 }

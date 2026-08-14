@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { DeviceToken } from '../mongo/schema/device-token.schema';
-import { RegisterDeviceTokenDto } from './dto/device-token.dto';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
+import { DeviceToken } from "../mongo/schema/device-token.schema";
+import { RegisterDeviceTokenDto } from "./dto/device-token.dto";
 
 @Injectable()
 export class DeviceTokenService {
@@ -10,13 +10,12 @@ export class DeviceTokenService {
 
   constructor(
     @InjectModel(DeviceToken.name)
-    private deviceTokenModel: Model<DeviceToken>
+    private deviceTokenModel: Model<DeviceToken>,
   ) {}
 
-
-    async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
+  async registerToken(dto: RegisterDeviceTokenDto): Promise<DeviceToken> {
     try {
-      const provider = dto.provider ?? 'fcm';
+      const provider = dto.provider ?? "fcm";
 
       // Đảm bảo token này chỉ thuộc về user hiện tại
       // Xoá token này khỏi tất cả các user khác (xảy ra khi đổi acc trên cùng 1 máy)
@@ -44,13 +43,13 @@ export class DeviceTokenService {
         {
           new: true,
           upsert: true,
-        }
+        },
       );
 
       this.logger.log(`Registered/Updated device token for user ${dto.userId}`);
       return tokenDoc;
     } catch (error) {
-      this.logger.error('Error registering device token', error);
+      this.logger.error("Error registering device token", error);
       throw error;
     }
   }
@@ -63,18 +62,16 @@ export class DeviceTokenService {
       });
       return result.deletedCount > 0;
     } catch (error) {
-      this.logger.error('Error removing device token', error);
+      this.logger.error("Error removing device token", error);
       return false;
     }
   }
 
-  async getActiveTokensByUserId(
-    userId: string
-  ): Promise<
+  async getActiveTokensByUserId(userId: string): Promise<
     {
       token: string;
       platform: string;
-      provider: 'fcm';
+      provider: "fcm";
       appId?: string;
       deviceId?: string;
       deviceName?: string;
@@ -85,21 +82,21 @@ export class DeviceTokenService {
         .find({
           userId,
           isActive: true,
-          provider: 'fcm',
+          provider: "fcm",
         })
-        .select('token platform provider appId deviceId deviceName')
+        .select("token platform provider appId deviceId deviceName")
         .lean();
 
       return tokens.map((t) => ({
         token: t.token,
         platform: t.platform,
-        provider: 'fcm',
+        provider: "fcm",
         appId: t.appId,
         deviceId: t.deviceId,
         deviceName: t.deviceName,
       }));
     } catch (error) {
-      this.logger.error('Error getting active tokens', error);
+      this.logger.error("Error getting active tokens", error);
       return [];
     }
   }
@@ -108,11 +105,11 @@ export class DeviceTokenService {
     try {
       await this.deviceTokenModel.updateMany(
         { token: { $in: tokens } },
-        { $set: { isActive: false } }
+        { $set: { isActive: false } },
       );
       this.logger.log(`Marked ${tokens.length} tokens as invalid`);
     } catch (error) {
-      this.logger.error('Error marking tokens as invalid', error);
+      this.logger.error("Error marking tokens as invalid", error);
     }
   }
 

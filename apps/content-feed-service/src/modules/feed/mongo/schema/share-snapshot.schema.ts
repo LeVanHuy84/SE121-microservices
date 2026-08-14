@@ -1,6 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
-import { Audience } from '@repo/dtos';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, Types } from "mongoose";
+import { Audience } from "@repo/dtos";
 
 @Schema({ _id: false })
 export class StatsEmbedded {
@@ -14,7 +14,7 @@ export class StatsEmbedded {
   @Prop({ default: 0 }) comments: number;
 }
 
-@Schema({ collection: 'share_snapshots', timestamps: true })
+@Schema({ collection: "share_snapshots", timestamps: true })
 export class ShareSnapshot {
   _id?: Types.ObjectId;
 

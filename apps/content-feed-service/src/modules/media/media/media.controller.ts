@@ -1,24 +1,23 @@
-import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { MediaService } from './media.service';
-
+import { Controller } from "@nestjs/common";
+import { MessagePattern, Payload } from "@nestjs/microservices";
+import { MediaService } from "./media.service";
 
 @Controller()
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
-  @MessagePattern('upload')
+  @MessagePattern("upload")
   async upload(
     @Payload()
     data: {
       file: Buffer;
       userId: string;
       folder: string;
-      type: 'image' | 'video' | 'audio' | 'file';
+      type: "image" | "video" | "audio" | "file";
       mimeType?: string;
       fileName?: string;
       size?: number;
-    }
+    },
   ) {
     const buffer = Buffer.isBuffer(data.file)
       ? data.file
@@ -30,7 +29,7 @@ export class MediaController {
       data.type,
       data.mimeType,
       data.fileName,
-      data.size
+      data.size,
     );
   }
 }
