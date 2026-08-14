@@ -2,17 +2,19 @@ import { DeviceTokenService } from "./device-token.service";
 
 describe("DeviceTokenService", () => {
   const existingToken = {
-    lastUsed: new Date("2026-04-05T00:00:00.000Z"),
-    isActive: false,
-    platform: "android",
+    userId: "user-1",
+    token: "fcm-token",
+    platform: "ios",
     provider: "fcm",
-    save: jest.fn().mockResolvedValue(undefined),
+    appId: "com.sentimeta.app",
+    lastUsed: new Date("2026-04-05T00:00:00.000Z"),
+    isActive: true,
   };
 
   const deviceTokenModel = {
-    findOne: jest.fn(),
-    create: jest.fn(),
     find: jest.fn(),
+    deleteMany: jest.fn(),
+    findOneAndUpdate: jest.fn(),
   };
 
   const createService = () => new DeviceTokenService(deviceTokenModel as any);
@@ -23,12 +25,12 @@ describe("DeviceTokenService", () => {
 
   it("defaults provider to fcm when registering a token", async () => {
     const service = createService();
-    deviceTokenModel.findOne.mockResolvedValue(null);
-    deviceTokenModel.create.mockResolvedValue({
+    deviceTokenModel.findOneAndUpdate.mockResolvedValue({
       userId: "user-1",
       token: "fcm-token",
       platform: "android",
       provider: "fcm",
+      appId: "com.sentimeta.app",
     });
 
     await service.registerToken({
@@ -38,25 +40,30 @@ describe("DeviceTokenService", () => {
       appId: "com.sentimeta.app",
     });
 
-    expect(deviceTokenModel.findOne).toHaveBeenCalledWith({
-      userId: "user-1",
+    expect(deviceTokenModel.deleteMany).toHaveBeenCalledWith({
       token: "fcm-token",
-      provider: "fcm",
+      userId: { $ne: "user-1" },
     });
-    expect(deviceTokenModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(deviceTokenModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
         userId: "user-1",
         token: "fcm-token",
-        platform: "android",
-        provider: "fcm",
-        appId: "com.sentimeta.app",
+      },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          platform: "android",
+          provider: "fcm",
+          appId: "com.sentimeta.app",
+          isActive: true,
+        }),
       }),
+      { new: true, upsert: true },
     );
   });
 
   it("updates an existing token with provider and app id", async () => {
     const service = createService();
-    deviceTokenModel.findOne.mockResolvedValue(existingToken);
+    deviceTokenModel.findOneAndUpdate.mockResolvedValue(existingToken);
 
     const result = await service.registerToken({
       userId: "user-1",
@@ -67,10 +74,21 @@ describe("DeviceTokenService", () => {
     });
 
     expect(result).toBe(existingToken);
-    expect(existingToken.platform).toBe("ios");
-    expect(existingToken.provider).toBe("fcm");
-    expect((existingToken as any).appId).toBe("com.sentimeta.app");
-    expect(existingToken.save).toHaveBeenCalled();
+    expect(deviceTokenModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        userId: "user-1",
+        token: "fcm-token",
+      },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          platform: "ios",
+          provider: "fcm",
+          appId: "com.sentimeta.app",
+          isActive: true,
+        }),
+      }),
+      { new: true, upsert: true },
+    );
   });
 
   it("returns only active fcm tokens for delivery", async () => {

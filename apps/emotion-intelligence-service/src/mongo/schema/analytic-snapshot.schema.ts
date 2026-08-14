@@ -12,13 +12,13 @@ export class EmotionAnalyticsSnapshot {
   @Prop({ required: true, index: true })
   targetId: string;
 
-  @Prop({ enum: TargetType, required: true })
+  @Prop({ type: String, enum: TargetType, required: true })
   targetType: TargetType;
 
   @Prop()
   modelVersion: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   finalEmotion: LowCaseEmotion;
 
   @Prop({
@@ -30,7 +30,7 @@ export class EmotionAnalyticsSnapshot {
   @Prop({ required: true })
   finalConfidence: number;
 
-  @Prop({ enum: RiskHintLevel, default: RiskHintLevel.NONE })
+  @Prop({ type: String, enum: RiskHintLevel, default: RiskHintLevel.NONE })
   riskHintLevel: RiskHintLevel;
 
   @Prop({ required: true })

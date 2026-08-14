@@ -4,6 +4,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { RecentActivityBufferService } from "../event/recent-activity.buffer.service";
 import { RecommendationQueryService } from "./recommendation/recommendation-query.service";
 import { SOCIAL_GRAPH_REPOSITORY } from "./repositories/social-graph.repository";
+import { UserService } from "../../user/user.service";
 import { FriendshipService } from "./friendship.service";
 
 describe("FriendshipService", () => {
@@ -27,6 +28,8 @@ describe("FriendshipService", () => {
   const addRecentActivity = jest.fn();
   const clearActivity = jest.fn();
   const recommendFriends = jest.fn();
+  const searchUserIds = jest.fn();
+  const findOneUser = jest.fn();
 
   beforeEach(async () => {
     [
@@ -48,6 +51,8 @@ describe("FriendshipService", () => {
       addRecentActivity,
       clearActivity,
       recommendFriends,
+      searchUserIds,
+      findOneUser,
     ].forEach((mockFn) => mockFn.mockReset());
 
     getRelationshipStatus.mockResolvedValue({ status: "NONE" });
@@ -136,6 +141,13 @@ describe("FriendshipService", () => {
           provide: RecommendationQueryService,
           useValue: {
             recommendFriends,
+          },
+        },
+        {
+          provide: UserService,
+          useValue: {
+            searchUserIds,
+            findOne: findOneUser,
           },
         },
       ],

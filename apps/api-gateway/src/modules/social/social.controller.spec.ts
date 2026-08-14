@@ -7,6 +7,12 @@ describe("SocialController", () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SocialController],
+      providers: [
+        {
+          provide: "USER_SOCIAL_SERVICE",
+          useValue: {},
+        },
+      ],
     }).compile();
 
     controller = module.get<SocialController>(SocialController);

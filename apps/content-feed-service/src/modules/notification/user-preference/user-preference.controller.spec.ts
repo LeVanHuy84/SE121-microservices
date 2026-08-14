@@ -6,9 +6,16 @@ describe("UserPreferenceController", () => {
   let controller: UserPreferenceController;
 
   beforeEach(async () => {
+    const mockUserPreferenceService = {};
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserPreferenceController],
-      providers: [UserPreferenceService],
+      providers: [
+        {
+          provide: UserPreferenceService,
+          useValue: mockUserPreferenceService,
+        },
+      ],
     }).compile();
 
     controller = module.get<UserPreferenceController>(UserPreferenceController);

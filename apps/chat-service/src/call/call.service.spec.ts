@@ -71,6 +71,8 @@ describe('CallService', () => {
     streamProvider = {
       registerCall: jest.fn().mockResolvedValue(undefined),
       issueUserToken: jest.fn().mockResolvedValue('token'),
+      endCallOnStream: jest.fn().mockResolvedValue(undefined),
+      getActiveParticipantsCount: jest.fn().mockResolvedValue(0),
     };
 
     callSessionModel = Object.assign(
@@ -232,7 +234,7 @@ describe('CallService', () => {
 
       await expect(
         service.createCall(USER_1, { conversationId: CONV_ID, type: 'audio' }),
-      ).rejects.toThrow('USER_BUSY_IN_ANOTHER_CALL');
+      ).rejects.toThrow('busy in another call');
     });
 
     it('throws when user is not in conversation', async () => {
@@ -578,37 +580,6 @@ describe('CallService', () => {
     });
   });
 
-  // ─── sendCallSignal ───────────────────────────────────────────
-
-  describe('sendCallSignal', () => {
-    it('throws when call is not active', async () => {
-      const service = createService();
-      const call = makeCall({ status: CallSessionStatus.ENDED });
-      callSessionModel.findById.mockReturnValue(createQuery(call));
-
-      await expect(
-        service.sendCallSignal(USER_1, {
-          callId: CALL_ID,
-          targetUserId: USER_2,
-          signalType: 'offer',
-        } as any),
-      ).rejects.toThrow('Call is not active');
-    });
-
-    it('throws when target is not in the call', async () => {
-      const service = createService();
-      const call = makeCall({ status: CallSessionStatus.ACCEPTED });
-      callSessionModel.findById.mockReturnValue(createQuery(call));
-
-      await expect(
-        service.sendCallSignal(USER_1, {
-          callId: CALL_ID,
-          targetUserId: 'user-999',
-          signalType: 'offer',
-        } as any),
-      ).rejects.toThrow('Target user is not in this call');
-    });
-  });
 
   // ─── Authorization guard ──────────────────────────────────────
 

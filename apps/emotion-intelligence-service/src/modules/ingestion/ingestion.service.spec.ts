@@ -1,13 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { IngestionService } from './ingestion.service';
+import { getModelToken } from '@nestjs/mongoose';
+import { EmotionAnalyticsSnapshot } from '../../mongo/schema/analytic-snapshot.schema';
+import { getRedisToken } from '@nestjs-modules/ioredis';
 
 describe('IngestionService', () => {
   let service: IngestionService;
 
   beforeEach(async () => {
+    const mockModel = {};
+    const mockRedis = {};
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [IngestionService],
+      providers: [
+        IngestionService,
+        {
+          provide: getModelToken(EmotionAnalyticsSnapshot.name),
+          useValue: mockModel,
+        },
+        {
+          provide: 'default_IORedisModuleConnectionToken',
+          useValue: mockRedis,
+        },
+      ],
     }).compile();
 
     service = module.get<IngestionService>(IngestionService);

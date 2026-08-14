@@ -8,6 +8,9 @@ import { TemplateService } from "./template.service";
 import { FirebaseService } from "../firebase/firebase.service";
 import { DeviceTokenService } from "../firebase/device-token.service";
 
+import { NotificationPolicyService } from "./services/notification-policy.service";
+import { NotificationDispatcherService } from "./services/notification-dispatcher.service";
+
 describe("NotificationService (unit)", () => {
   let service: NotificationService;
   let notificationQueue: { add: jest.Mock };
@@ -46,14 +49,14 @@ describe("NotificationService (unit)", () => {
           },
         },
         {
-          provide: "NotificationPolicyService", // Wait, the actual class is NotificationPolicyService
+          provide: NotificationPolicyService,
           useValue: {
             evaluatePolicy: jest.fn().mockResolvedValue({ allowed: true }),
             releaseSlot: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
-          provide: "NotificationDispatcherService",
+          provide: NotificationDispatcherService,
           useValue: {
             dispatchToQueue: jest.fn(),
           },
@@ -98,8 +101,8 @@ describe("NotificationService (unit)", () => {
     }).compile();
 
     service = module.get<NotificationService>(NotificationService);
-    policyService = module.get("NotificationPolicyService");
-    dispatcherService = module.get("NotificationDispatcherService");
+    policyService = module.get(NotificationPolicyService);
+    dispatcherService = module.get(NotificationDispatcherService);
   });
 
   it("should create notification and enqueue delivery job", async () => {

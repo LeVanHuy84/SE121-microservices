@@ -24,6 +24,8 @@ describe("ChatGateway", () => {
 
   const presenceTracker = {
     setServer: jest.fn(),
+    handleHeartbeat: jest.fn(),
+    handleDisconnect: jest.fn(),
   };
 
   const createGateway = () => {
@@ -118,17 +120,9 @@ describe("ChatGateway", () => {
 
     gateway.handleHeartbeat(client);
 
-    expect(redis.publish).toHaveBeenCalledWith(
-      "presence:events",
-      expect.any(String),
-    );
-    const payload = JSON.parse(redis.publish.mock.calls[0][1]);
-    expect(payload).toEqual(
-      expect.objectContaining({
-        type: "HEARTBEAT",
-        userId: "user-1",
-        connectionId: "socket-1",
-      }),
+    expect(presenceTracker.handleHeartbeat).toHaveBeenCalledWith(
+      client,
+      expect.any(Function),
     );
   });
 
@@ -139,18 +133,7 @@ describe("ChatGateway", () => {
 
     await gateway.handleDisconnect(client);
 
-    expect(redis.publish).toHaveBeenCalledWith(
-      "presence:events",
-      expect.any(String),
-    );
-    const payload = JSON.parse(redis.publish.mock.calls[0][1]);
-    expect(payload).toEqual(
-      expect.objectContaining({
-        type: "DISCONNECT",
-        userId: "user-1",
-        connectionId: "socket-1",
-      }),
-    );
+    expect(presenceTracker.handleDisconnect).toHaveBeenCalledWith(client);
     expect(pipeline.del).toHaveBeenCalledWith(
       "chat:activeConv:conn:user-1:socket-1",
     );

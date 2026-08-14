@@ -1,20 +1,33 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IngestionController } from './ingestion.controller';
-import { beforeEach, describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { IngestionService } from './ingestion.service';
+import { KafkaConsumerHelper } from '@repo/common';
 
 describe('IngestionController', () => {
   let controller: IngestionController;
 
   beforeEach(async () => {
+    const mockIngestionService = {};
+    const mockConsumerHelper = {};
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IngestionController],
+      providers: [
+        {
+          provide: IngestionService,
+          useValue: mockIngestionService,
+        },
+        {
+          provide: KafkaConsumerHelper,
+          useValue: mockConsumerHelper,
+        },
+      ],
     }).compile();
 
     controller = module.get<IngestionController>(IngestionController);
   });
 
   it('should be defined', () => {
-    assert.ok(controller);
+    expect(controller).toBeDefined();
   });
 });
