@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { IngestionService } from './ingestion.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { EmotionAnalyticsSnapshot } from '../../mongo/schema/analytic-snapshot.schema';
-import { getRedisToken } from '@nestjs-modules/ioredis';
 
 describe('IngestionService', () => {
   let service: IngestionService;

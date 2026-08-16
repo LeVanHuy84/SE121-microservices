@@ -1,15 +1,15 @@
 import uvicorn
 from fastapi import FastAPI, HTTPException
 
+from app.core.lifespan import lifespan
 from app.core.otel import init_otel
+from app.core.settings import settings
+from app.modules.analysis.router import health_router, music_router, test_router
+from app.modules.chatbot.router import assistant_router
+
 
 app = FastAPI(title="AI Chatbot Service")
 init_otel(app, "ai-chatbot-service")
-
-from app.modules.chatbot.router import assistant_router
-from app.modules.analysis.router import health_router, music_router, test_router
-from app.core.settings import settings
-from app.core.lifespan import lifespan
 
 # Reconfigure the app lifespan after importing it
 app.router.lifespan_context = lifespan

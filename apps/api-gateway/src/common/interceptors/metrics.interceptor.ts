@@ -53,7 +53,7 @@ export class MetricsInterceptor implements NestInterceptor {
     const duration = diff[0] + diff[1] / 1e9;
     const status = res.statusCode || 200;
     const method = req.method;
-    
+
     // Resolve route pattern if available (e.g. /api/v1/users/:id)
     const route = req.route?.path || req.url || "unknown";
 
