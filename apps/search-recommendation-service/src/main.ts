@@ -60,7 +60,8 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
     options: {
-      port: process.env.PORT ? parseInt(process.env.PORT) : 4009,
+      host: '0.0.0.0',
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4003,
     },
   });
 
