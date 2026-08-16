@@ -1,5 +1,5 @@
 import { initOTel } from "@repo/common";
-initOTel("api-gateway");
+initOTel("api-gateway", { collectDefaultMetrics: false });
 
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";

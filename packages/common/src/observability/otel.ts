@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import * as http from 'http';
+import { register, collectDefaultMetrics } from 'prom-client';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
@@ -10,7 +12,11 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 
-export function initOTel(serviceName: string) {
+export interface OTelOptions {
+  collectDefaultMetrics?: boolean;
+}
+
+export function initOTel(serviceName: string, options?: OTelOptions) {
   if (process.env.ENABLE_OTEL !== 'true') {
     return;
   }
@@ -32,6 +38,35 @@ export function initOTel(serviceName: string) {
   });
 
   sdk.start();
+
+  // Spin up a lightweight metrics HTTP server on METRICS_PORT if specified
+  const metricsPort = process.env.METRICS_PORT;
+  if (metricsPort) {
+    if (options?.collectDefaultMetrics !== false) {
+      try {
+        collectDefaultMetrics({ register });
+      } catch (err) {
+        // Silently ignore if already registered
+      }
+    }
+
+    http.createServer(async (req, res) => {
+      if (req.url === '/metrics') {
+        try {
+          res.writeHead(200, { 'Content-Type': register.contentType });
+          res.end(await register.metrics());
+        } catch (err) {
+          res.writeHead(500);
+          res.end(String(err));
+        }
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    }).listen(parseInt(metricsPort, 10), '0.0.0.0', () => {
+      console.log(`[Metrics] ${serviceName} metrics server listening on HTTP port ${metricsPort} (0.0.0.0)`);
+    });
+  }
 
   process.on('SIGTERM', () => {
     sdk.shutdown()
