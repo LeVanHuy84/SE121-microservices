@@ -21,7 +21,10 @@ describe("UserPreferenceService", () => {
         decr: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
         del: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([[null, 1], [null, 1]]),
+        exec: jest.fn().mockResolvedValue([
+          [null, 1],
+          [null, 1],
+        ]),
       }),
     };
 

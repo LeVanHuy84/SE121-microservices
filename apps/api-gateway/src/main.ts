@@ -1,3 +1,6 @@
+import { initOTel } from "@repo/common";
+initOTel("api-gateway");
+
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { GatewayExceptionsFilter } from "./common/filters/gateway.filter";

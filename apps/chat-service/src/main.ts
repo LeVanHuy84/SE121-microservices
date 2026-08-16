@@ -1,3 +1,6 @@
+import { initOTel } from '@repo/common';
+initOTel('chat-service');
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Transport } from '@nestjs/microservices';

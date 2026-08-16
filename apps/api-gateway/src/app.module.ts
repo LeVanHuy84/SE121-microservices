@@ -2,6 +2,7 @@ import { Module, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { ClerkAuthGuard } from "./modules/auth/clerk-auth.guard";
@@ -28,6 +29,7 @@ import { MusicModule } from "./modules/music/music.module";
 
 @Module({
   imports: [
+    PrometheusModule.register(),
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
     }),

@@ -1,3 +1,6 @@
+import { initOTel } from '@repo/common';
+initOTel('emotion-intelligence-service');
+
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';

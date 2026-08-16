@@ -38,3 +38,12 @@ motor==3.4.0
 pymongo==4.6.1
 librosa
 
+# Observability
+opentelemetry-api==1.25.0
+opentelemetry-sdk==1.25.0
+opentelemetry-instrumentation-fastapi==0.46b0
+opentelemetry-exporter-otlp==1.25.0
+prometheus-client==0.20.0
+
+
+

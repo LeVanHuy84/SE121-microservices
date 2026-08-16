@@ -20,3 +20,7 @@ export * from './kafka-producer';
 
 // event module
 export * from './event';
+
+// observability
+export * from './observability/otel';
+

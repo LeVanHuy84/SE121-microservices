@@ -5,9 +5,10 @@ from app.modules.chatbot.router import assistant_router
 from app.modules.analysis.router import health_router, music_router, test_router
 from app.core.settings import settings
 from app.core.lifespan import lifespan
-
+from app.core.otel import init_otel
 
 app = FastAPI(title="AI Chatbot Service", lifespan=lifespan)
+init_otel(app, "ai-chatbot-service")
 
 app.include_router(assistant_router)
 app.include_router(health_router)
