@@ -1,3 +1,6 @@
+import { initOTel } from "@repo/common";
+initOTel("content-feed-service", { collectDefaultMetrics: false });
+
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
@@ -61,6 +64,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
     options: {
+      host: "0.0.0.0",
       port: parseInt(process.env.PORT || "4002", 10),
     },
   });

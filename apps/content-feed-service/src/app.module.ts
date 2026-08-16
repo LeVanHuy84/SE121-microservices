@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { RedisModule } from "@nestjs-modules/ioredis";
 import { ScheduleModule } from "@nestjs/schedule";
@@ -44,6 +45,7 @@ import { LoggingConsumerModule } from "./modules/logging/consumer/consumer.modul
 
 @Module({
   imports: [
+    PrometheusModule.register(),
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,

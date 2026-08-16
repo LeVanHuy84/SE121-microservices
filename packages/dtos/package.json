@@ -4,9 +4,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@nestjs/mapped-types": "*",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0"
   },

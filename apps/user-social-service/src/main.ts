@@ -1,3 +1,6 @@
+import { initOTel } from "@repo/common";
+initOTel("user-social-service");
+
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
@@ -52,6 +55,7 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
+        host: "0.0.0.0",
         port: process.env.PORT ? parseInt(process.env.PORT) : 4001,
       },
     },

@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:5000']
+
+  - job_name: 'user-social-service'
+    static_configs:
+      - targets: ['user-social-service:5001']
+
+  - job_name: 'content-feed-service'
+    static_configs:
+      - targets: ['content-feed-service:5002']
+
+  - job_name: 'search-recommendation-service'
+    static_configs:
+      - targets: ['search-recommendation-service:5003']
+
+  - job_name: 'chat-service'
+    static_configs:
+      - targets: ['chat-service:5004']
+
+  - job_name: 'emotion-intelligence-service'
+    static_configs:
+      - targets: ['emotion-intelligence-service:5005']
+
+  - job_name: 'ai-chatbot-service'
+    static_configs:
+      - targets: ['ai-chatbot-service:5006']

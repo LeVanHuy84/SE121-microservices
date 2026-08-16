@@ -1,3 +1,6 @@
+import { initOTel } from '@repo/common';
+initOTel('emotion-intelligence-service');
+
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ExceptionsFilter } from '@repo/common';
@@ -10,7 +13,8 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4013,
+        host: '0.0.0.0',
+        port: process.env.PORT ? parseInt(process.env.PORT) : 4005,
       },
     },
   );

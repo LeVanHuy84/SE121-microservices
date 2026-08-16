@@ -580,7 +580,6 @@ describe('CallService', () => {
     });
   });
 
-
   // ─── Authorization guard ──────────────────────────────────────
 
   describe('authorization', () => {

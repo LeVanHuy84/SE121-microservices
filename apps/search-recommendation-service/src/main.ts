@@ -1,3 +1,6 @@
+import { initOTel } from '@repo/common';
+initOTel('search-recommendation-service');
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -57,7 +60,8 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
     options: {
-      port: process.env.PORT ? parseInt(process.env.PORT) : 4009,
+      host: '0.0.0.0',
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4003,
     },
   });
 

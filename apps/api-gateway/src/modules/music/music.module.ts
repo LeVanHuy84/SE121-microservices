@@ -15,6 +15,9 @@ import { MusicAnalyzeService } from "./music-analyze.service";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host:
+              config.get<string>("SEARCH_RECOMMENDATION_SERVICE_HOST") ||
+              "127.0.0.1",
             port: config.get<number>("SEARCH_RECOMMENDATION_SERVICE_PORT"),
           },
         }),
