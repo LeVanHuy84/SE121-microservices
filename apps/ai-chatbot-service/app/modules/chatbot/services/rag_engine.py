@@ -148,7 +148,10 @@ class RagDocumentService:
         if not settings.RAG_DOCS_ENABLED:
             return
         try:
-            # Do not re-index on startup; only warm query path and embedding model.
+            # Auto-index assistant docs on startup if signature changed or not indexed yet
+            logger.info("Auto-indexing assistant documents on startup...")
+            await self.index_assistant_docs(force_reindex=False)
+
             await self._index_exists_cached(force_refresh=True)
             embedding_service.encode_query("Tro ly Sentimeta")
             logger.info("Assistant docs RAG warmup completed")
