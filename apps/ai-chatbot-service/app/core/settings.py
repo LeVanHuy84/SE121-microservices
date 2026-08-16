@@ -8,7 +8,7 @@ load_dotenv()
 
 class Settings:
     def __init__(self):
-        self.PORT: int = int(os.getenv("PORT", 4015))
+        self.PORT: int = int(os.getenv("PORT", 4006))
         self.HOST: str = os.getenv("HOST", "0.0.0.0").strip()
         self.RELOAD: bool = os.getenv("RELOAD", "false").lower() == "true"
         self.INTERNAL_SERVICE_KEY: str = os.getenv(

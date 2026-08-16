@@ -20,6 +20,7 @@ import { StreamWebhookController } from "./stream-webhook.controller";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host: config.get<string>("CHAT_SERVICE_HOST") || "127.0.0.1",
             port: config.get<number>("CHAT_SERVICE_PORT"),
           },
         }),
@@ -31,6 +32,7 @@ import { StreamWebhookController } from "./stream-webhook.controller";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host: config.get<string>("USER_SOCIAL_SERVICE_HOST") || "127.0.0.1",
             port: config.get<number>("USER_SOCIAL_SERVICE_PORT"),
           },
         }),

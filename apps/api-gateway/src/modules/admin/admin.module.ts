@@ -16,6 +16,8 @@ import { ModerationController } from "./moderation.controller";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host:
+              config.get<string>("CONTENT_FEED_SERVICE_HOST") || "127.0.0.1",
             port: config.get<number>("CONTENT_FEED_SERVICE_PORT"),
           },
         }),
@@ -27,6 +29,7 @@ import { ModerationController } from "./moderation.controller";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host: config.get<string>("USER_SOCIAL_SERVICE_HOST") || "127.0.0.1",
             port: config.get<number>("USER_SOCIAL_SERVICE_PORT"),
           },
         }),
@@ -38,6 +41,9 @@ import { ModerationController } from "./moderation.controller";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host:
+              config.get<string>("EMOTION_INTELLIGENCE_SERVICE_HOST") ||
+              "127.0.0.1",
             port: config.get<number>("EMOTION_INTELLIGENCE_SERVICE_PORT"),
           },
         }),

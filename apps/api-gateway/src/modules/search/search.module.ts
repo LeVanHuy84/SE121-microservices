@@ -14,6 +14,9 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host:
+              config.get<string>("SEARCH_RECOMMENDATION_SERVICE_HOST") ||
+              "127.0.0.1",
             port: config.get<number>("SEARCH_RECOMMENDATION_SERVICE_PORT"),
           },
         }),
@@ -25,6 +28,8 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
         useFactory: (config: ConfigService) => ({
           transport: Transport.TCP,
           options: {
+            host:
+              config.get<string>("CONTENT_FEED_SERVICE_HOST") || "127.0.0.1",
             port: config.get<number>("CONTENT_FEED_SERVICE_PORT"),
           },
         }),

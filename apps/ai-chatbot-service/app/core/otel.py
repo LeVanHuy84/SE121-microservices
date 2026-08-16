@@ -24,3 +24,12 @@ def init_otel(app: FastAPI, service_name: str = "ai-chatbot-service"):
     
     FastAPIInstrumentor.instrument_app(app)
 
+    metrics_port = os.getenv("METRICS_PORT")
+    if metrics_port:
+        try:
+            from prometheus_client import start_http_server
+            start_http_server(int(metrics_port), addr='0.0.0.0')
+            print(f"[Metrics] {service_name} metrics server listening on HTTP port {metrics_port} (0.0.0.0)")
+        except Exception as e:
+            print(f"[Metrics] Failed to start metrics server: {e}")
+
