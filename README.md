@@ -1,52 +1,39 @@
 # SE121 Microservices Monorepo
 
-Enterprise microservices platform for social, recommendation, chatbot, media, and AI-assisted user experiences.
+Enterprise microservices platform for social, recommendation, chatbot, media, and AI-assisted user experiences, consolidated into 7 core services.
 
 ```mermaid
 flowchart TB
     Client[Web / Mobile Client]
 
-    Gateway[API Gateway]
+    Gateway[api-gateway :4000]
 
     Client --> Gateway
 
-    subgraph Core Services
-        User[user-service]
-        Post[post-service]
-        Social[social-service]
-        Chat[chat-service]
-        Group[group-service]
-        Feed[feed-service]
-        Search[search-service]
+    subgraph Core Domain Services
+        UserSocial[user-social-service :4001]
+        ContentFeed[content-feed-service :4002]
+        Chat[chat-service :4004]
     end
 
-    subgraph Media & AI Services
-        Media[media-service]
-        Analysis[analysis-service]
-        Recommendation[recommendation-service]
-        Emotion[emotion-intelligence-service]
-        Chatbot[chatbot-service]
-        Music[music-service]
+    subgraph AI & Search Services
+        SearchRec[search-recommendation-service :4003]
+        EmotionIntel[emotion-intelligence-service :4005]
+        AIChatbot[ai-chatbot-service :4006]
     end
 
-    Gateway --> User
-    Gateway --> Post
-    Gateway --> Social
+    Gateway --> UserSocial
+    Gateway --> ContentFeed
     Gateway --> Chat
-    Gateway --> Group
-    Gateway --> Feed
-    Gateway --> Search
-    Gateway --> Chatbot
-    Gateway --> Music
+    Gateway --> SearchRec
+    Gateway --> EmotionIntel
+    Gateway --> AIChatbot
 
-    %% Event-driven processing
-    Post -. Kafka Events .-> Analysis
-    Post -. Kafka Events .-> Media
-
-    User -. Kafka Events .-> Media
-    Group -. Kafka Events .-> Media
-
-    Social -. Async Events .-> Recommendation
+    %% Event-driven processing & messaging
+    ContentFeed -. Kafka Events .-> AIChatbot
+    UserSocial -. Kafka Events .-> ContentFeed
+    AIChatbot -. Kafka Events .-> EmotionIntel
+    EmotionIntel -. Kafka Events .-> SearchRec
 ```
 
 ## 📐 Architecture Documentation
@@ -62,63 +49,56 @@ This document is suitable for technical interviews, portfolio presentations, and
 - The repository includes both standard NestJS services and specialized AI / assistant services.
 - The main service boundaries are documented per app; this root README only captures the monorepo-level view.
 - OpenAPI is currently published for the assistant gateway flow only.
-- Observability is tool-driven at the infrastructure level; centralized tracing and metrics are not documented in the repository yet.
+- Observability is tool-driven at the infrastructure level; centralized tracing and metrics are configured but not fully enabled.
 
 ## Tech Stack
 
 | Layer                    | Observed stack                     | Notes                                                                                                               |
 | ------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Runtime                  | Node.js 18+                        | Root workspace engine constraint in `package.json`.                                                                 |
-| Backend                  | NestJS 11.x                        | Primary framework for most services.                                                                                |
-| AI / Python              | FastAPI / Python                   | `analysis-service`, `recommendation-service`, and `chatbot-service` provide AI workloads (Python / FastAPI).        |
-| Language                 | TypeScript 5.9.2                   | Shared by the NestJS workspace packages.                                                                            |
+| Runtime                  | Node.js 18+, Python 3.10+          | Root workspace engine constraint in `package.json` and AI requirements.                                             |
+| Backend                  | NestJS 11.x                        | Primary framework for Node.js services.                                                                             |
+| AI / Python              | FastAPI / Python                   | `ai-chatbot-service` hosts AI analysis and LLM RAG chatbot assistant workloads.                                     |
+| Language                 | TypeScript 5.9.2, Python 3.10+      | Shared by the NestJS workspace packages and Python packages.                                                        |
 | Workspace                | Turborepo 2.5.6                    | Orchestrates build, lint, test, and dev tasks.                                                                      |
 | Package manager          | npm 10.9.2                         | npm workspaces are enabled at the root.                                                                             |
-| Messaging                | Kafka, RabbitMQ                    | Event streaming and async queueing. Producers: `analysis-service`, `group-service`, `post-service`, `user-service`. |
+| Messaging                | Kafka, RabbitMQ                    | Event streaming and async queueing. Producers: `user-social-service`, `content-feed-service`, `ai-chatbot-service`, `emotion-intelligence-service`. |
 | Cache / pub-sub          | Redis 7                            | Cache, session state, and pub/sub.                                                                                  |
-| Data stores              | PostgreSQL, MongoDB, Elasticsearch | PostgreSQL for relational data, MongoDB for document-based data, Elasticsearch for search capabilities.             |
+| Data stores              | PostgreSQL, MongoDB, Elasticsearch | PostgreSQL for profiles/relations/metadata, MongoDB for posts/messages/feeds, Elasticsearch for search capabilities. |
 | Infrastructure           | Docker Compose                     | Local runtime dependencies are provisioned from the root.                                                           |
 | API documentation        | OpenAPI 3.0.3                      | Present for the assistant gateway contract.                                                                         |
 | Auth / external services | Clerk, Cloudinary, Firebase        | Present in the repo and service documentation.                                                                      |
 
 ### Data stores — per-service (detailed)
 
-Below is a practical per-service mapping to the primary data stores used in this workspace. These entries are a quick reference; consult the individual service README for authoritative details and edge cases.
+Below is a practical per-service mapping to the primary data stores used in this workspace.
 
-- **PostgreSQL**: `user-service`, `group-service`, `media-service` (metadata), `social-service`, `recommendation-service`, `chatbot-service` (metadata), and other relational workloads documented in service READMEs.
-- **MongoDB**: `post-service`, `feed-service` (snapshots), `chat-service` (messages, outbox), `analysis-service` (emotion history), `emotion-intelligence-service` (where used).
-- **Elasticsearch**: `search-service` (primary indexing); other services may index specific datasets as needed (see service README).
-- **Redis**: caching, pub/sub, and ZSETs used by `feed-service`, `analysis-service`, `api-gateway` (session/pubsub adapter), and others.
-- **RabbitMQ / Kafka**: message brokers used for queues and event streams across many services (not primary data stores — see each service README).
+- **PostgreSQL (via Drizzle ORM)**: `user-social-service` (profiles, social relations), `search-recommendation-service` (recommendations and music catalog metadata via pgvector).
+- **MongoDB (via Mongoose)**: `content-feed-service` (posts, feeds), `chat-service` (messages, outbox), `emotion-intelligence-service` (emotion snapshots, history).
+- **Elasticsearch**: `search-recommendation-service` (full-text search indexing and assistant document indexing).
+- **Redis**: caching, pub/sub, and ZSETs used by `content-feed-service`, `chat-service`, `emotion-intelligence-service`, `search-recommendation-service`, and `api-gateway`.
+- **RabbitMQ / Kafka**: message brokers used for queues and event streams across all 7 services.
 
 ## Monorepo Structure
 
 ```text
 .
 ├── apps/
-│   ├── api-gateway/
-│   ├── analysis-service/
-│   ├── chat-service/
-│   ├── chatbot-service/
-│   ├── emotion-intelligence-service/
-│   ├── feed-service/
-│   ├── group-service/
-│   ├── logging-service/
-│   ├── media-service/
-│   ├── music-service/
-│   ├── notification-service/
-│   ├── post-service/
-│   ├── recommendation-service/
-│   ├── search-service/
-│   ├── social-service/
-│   └── user-service/
+│   ├── ai-chatbot-service/             # FastAPI - AI Emotion analysis & RAG chatbot
+│   ├── api-gateway/                    # NestJS - HTTP/WebSocket gateway entrypoint
+│   ├── chat-service/                   # NestJS - 1-on-1 and group messaging service
+│   ├── content-feed-service/           # NestJS - Posts, comments, reactions, feed, media, notifications, logs
+│   ├── emotion-intelligence-service/   # NestJS - Emotion profile tracking, dashboard & risk advisor
+│   ├── search-recommendation-service/  # NestJS - Search, pgvector recommendations, music catalog
+│   └── user-social-service/            # NestJS - Profiles, social graph, community groups
 ├── docs/
+│   ├── architecture/
+│   └── README_STANDARDS.md
 ├── openapi/
 ├── packages/
-│   ├── common/
-│   ├── dtos/
-│   ├── eslint-config/
-│   └── typescript-config/
+│   ├── common/                         # Shared infrastructure helpers (Kafka, Redis, RabbitMQ)
+│   ├── dtos/                           # Shared DTOs and Kafka Event Contracts
+│   ├── eslint-config/                  # Shared ESLint configuration
+│   └── typescript-config/              # Shared TSConfig configuration
 ├── tools/
 ├── docker-compose.yml
 ├── turbo.json
@@ -127,179 +107,56 @@ Below is a practical per-service mapping to the primary data stores used in this
 
 ## Microservice Catalog
 
-The table below lists every app currently present in the workspace. Service-specific details belong in each app's README.
-
-| Service                      | Role                                                          | README                                                                                     |
-| ---------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| api-gateway                  | HTTP entry point and request routing                          | [apps/api-gateway/README.md](apps/api-gateway/README.md)                                   |
-| user-service                 | User profile and account operations                           | [apps/user-service/README.md](apps/user-service/README.md)                                 |
-| post-service                 | Post lifecycle, reactions, and related content operations     | [apps/post-service/README.md](apps/post-service/README.md)                                 |
-| feed-service                 | Feed generation and ranking                                   | [apps/feed-service/README.md](apps/feed-service/README.md)                                 |
-| social-service               | Social domain, relationship management (Postgres)             | [apps/social-service/README.md](apps/social-service/README.md)                             |
-| chat-service                 | 1-on-1 messaging and outbox delivery                          | [apps/chat-service/README.md](apps/chat-service/README.md)                                 |
-| group-service                | Group and community management (Postgres)                     | [apps/group-service/README.md](apps/group-service/README.md)                               |
-| search-service               | Search indexing and retrieval                                 | [apps/search-service/README.md](apps/search-service/README.md)                             |
-| logging-service              | Audit/admin and user activity logs (not system log pipeline)  | [apps/logging-service/README.md](apps/logging-service/README.md)                           |
-| notification-service         | Notification delivery and preference handling                 | [apps/notification-service/README.md](apps/notification-service/README.md)                 |
-| media-service                | Media upload and processing (Postgres-backed metadata)        | [apps/media-service/README.md](apps/media-service/README.md)                               |
-| analysis-service             | AI emotion analysis and risk signals (AI service)             | [apps/analysis-service/README.md](apps/analysis-service/README.md)                         |
-| emotion-intelligence-service | Uses results from `analysis-service` (consumer of AI outputs) | [apps/emotion-intelligence-service/README.md](apps/emotion-intelligence-service/README.md) |
-| recommendation-service       | Runtime recommendation and ranking (AI service)               | [apps/recommendation-service/README.md](apps/recommendation-service/README.md)             |
-| music-service                | Uses AI analysis outputs to support discovery (consumer)      | [apps/music-service/README.md](apps/music-service/README.md)                               |
-| chatbot-service              | Assistant that calls AI via API key (Postgres metadata)       | [apps/chatbot-service/README.md](apps/chatbot-service/README.md)                           |
+| Service | Port | Description | README |
+| --- | --- | --- | --- |
+| **api-gateway** | 4000 | HTTP/WebSocket entry point and routing gateway | [apps/api-gateway/README.md](apps/api-gateway/README.md) |
+| **user-social-service** | 4001 | User profiles, social relation graph, and groups (PostgreSQL) | [apps/user-social-service/README.md](apps/user-social-service/README.md) |
+| **content-feed-service** | 4002 | Posts, comments, feeds, media, notifications, and logs (MongoDB) | [apps/content-feed-service/README.md](apps/content-feed-service/README.md) |
+| **search-recommendation-service** | 4003 | Elasticsearch search, semantic recommendations, and music catalog | [apps/search-recommendation-service/README.md](apps/search-recommendation-service/README.md) |
+| **chat-service** | 4004 | 1-on-1 and group chats, audio/video calling, and outbox delivery | [apps/chat-service/README.md](apps/chat-service/README.md) |
+| **emotion-intelligence-service** | 4005 | Emotion snapshots, history, analysis dashboard, and risk scoring | [apps/emotion-intelligence-service/README.md](apps/emotion-intelligence-service/README.md) |
+| **ai-chatbot-service** | 4006 | FastAPI emotion analysis (text + images) & LLM RAG chatbot assistant | [apps/ai-chatbot-service/README.md](apps/ai-chatbot-service/README.md) |
 
 ## Shared Packages
 
-| Package                 | Role                                                         | README                                                                       |
-| ----------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| @repo/common            | Cross-service transport, caching, and infrastructure helpers | [packages/common/README.md](packages/common/README.md)                       |
-| @repo/dtos              | Shared DTO and contract definitions                          | [packages/dtos/README.md](packages/dtos/README.md)                           |
-| @repo/eslint-config     | Shared lint policy                                           | [packages/eslint-config/README.md](packages/eslint-config/README.md)         |
-| @repo/typescript-config | Shared TypeScript compiler baselines                         | [packages/typescript-config/README.md](packages/typescript-config/README.md) |
+| Package | Role | README |
+| --- | --- | --- |
+| `@repo/common` | Cross-service transport, caching, and infrastructure helpers | [packages/common/README.md](packages/common/README.md) |
+| `@repo/dtos` | Shared DTO and contract definitions | [packages/dtos/README.md](packages/dtos/README.md) |
+| `@repo/eslint-config` | Shared lint policy | [packages/eslint-config/README.md](packages/eslint-config/README.md) |
+| `@repo/typescript-config` | Shared TypeScript compiler baselines | [packages/typescript-config/README.md](packages/typescript-config/README.md) |
 
 ## Local Development Setup
 
 ### Prerequisites
 
-- Node.js 18 or newer.
-- npm 10.9.2 or compatible npm version.
-- Docker and Docker Compose.
-- Python runtime for the Python-based services where needed.
+- Node.js 18 or newer
+- npm 10.9.2 or newer
+- Docker and Docker Compose
+- Python 3.10+ (for `ai-chatbot-service`)
 
 ### Common Commands
 
-| Command                | Purpose                                                  |
-| ---------------------- | -------------------------------------------------------- |
-| `npm install`          | Install workspace dependencies.                          |
-| `docker-compose up -d` | Start local infrastructure.                              |
-| `npm run start:dev`    | Start the workspace in development mode in parallel.     |
-| `npm run dev:test`     | Alternate development entry point from the root scripts. |
-| `npm run build`        | Build all workspace projects.                            |
-| `npm run lint`         | Run lint across the workspace.                           |
-| `npm run check-types`  | Run TypeScript checks across the workspace.              |
-
-### Targeted Workspace Commands
-
-| Command                          | Purpose                                                             |
-| -------------------------------- | ------------------------------------------------------------------- |
-| `npm run recommend:dev`          | Start the recommendation-related service set.                       |
-| `npm run recommend:dev:gateway`  | Start the gateway plus recommendation-related services.             |
-| `npm run assistant:dev`          | Start the assistant-related service set.                            |
-| `npm run group`                  | Start the group gateway/service combination.                        |
-| `npm run recommend:report:live`  | Run the live recommendation report workflow from `social-service`.  |
-| `npm run recommend:compare:live` | Run the live recommendation compare workflow from `social-service`. |
-
-## Docker Setup
-
-The root `docker-compose.yml` is the visible local infrastructure definition in the repository.
-
-| Component     | Port(s)     | Purpose                                         |
-| ------------- | ----------- | ----------------------------------------------- |
-| Zookeeper     | 2181        | Kafka coordination.                             |
-| Kafka         | 9092, 9093  | Event streaming.                                |
-| Kafka UI      | 8080        | Kafka inspection.                               |
-| Redis         | 6379        | Cache and state.                                |
-| RabbitMQ      | 5672, 15672 | Queueing and management UI.                     |
-| Elasticsearch | 9200        | Search indexing (where used by search-service). |
-| Kibana        | 5601        | Elasticsearch visualization.                    |
-
-TODO:
-
-- Application Dockerfiles were not found in the current repository scan.
-- Production Compose overrides and container build conventions are not documented yet.
-
-## Messaging (& transport) notes
-
-- Kafka producers: `analysis-service`, `group-service`, `post-service`, `user-service`, and others as documented per-service.
-- Kafka consumers: All services document their consumed topics in their respective README files.
-- RabbitMQ usage: `chat-service`, `emotion-intelligence-service`, `group-service`, `post-service`, `social-service`, `notification-service`, and others as documented per-service.
-
-See individual service READMEs for complete Kafka/RabbitMQ integration details.
-
-## CI/CD Overview
-
-The repository has a GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml), but the active job steps are currently commented out.
-
-Current status:
-
-- Checkout is configured.
-- Node.js setup is present but disabled.
-- Dependency installation is present but disabled.
-- Turbo lint/test/build execution is present but disabled.
-
-TODO:
-
-- Enable the actual CI pipeline after the workspace commands are finalized.
-- Add release and deployment jobs once the target environment is defined.
+| Command | Purpose |
+| --- | --- |
+| `npm install` | Install workspace dependencies. |
+| `docker-compose up -d` | Start local infrastructure (Kafka, Redis, RabbitMQ, Elasticsearch, Kibana). |
+| `npm run start:dev` | Start all 7 services in development mode in parallel. |
+| `npm run build` | Build all workspace projects. |
+| `npm run lint` | Run lint across the workspace. |
+| `npm run check-types` | Run TypeScript checks across the workspace. |
 
 ## Observability Stack
 
 The repository exposes several local observability and operations tools through Docker Compose.
 
-| Tool                   | Purpose                       | Status                       |
-| ---------------------- | ----------------------------- | ---------------------------- |
-| Kafka UI               | Topic and consumer inspection | Available                    |
-| RabbitMQ Management UI | Queue and exchange inspection | Available                    |
-| Kibana                 | Elasticsearch visualization   | Available (search use-cases) |
-
-NOTE: Neo4j is no longer used in the current topology; social domain moved to Postgres. Remove Neo4j references from service READMEs if present.
-
-TODO:
-
-- Centralized metrics collection is not documented in the repository.
-- Distributed tracing is not documented in the repository.
-- Standardized dashboards beyond the tools above are not defined yet.
-
-## Deployment Overview
-
-Current deployment signals in the repository are local-first.
-
-Implemented or documented:
-
-- Docker Compose is the local infrastructure entry point.
-- Service-level README files describe runtime and environment expectations where available.
-
-TODO:
-
-- No Terraform manifests were found in the repository scan.
-- No Azure deployment definitions were found in the repository scan.
-- No application Dockerfiles were found in the repository scan.
-- Production deployment topology and rollout strategy are not documented yet.
-
-## Documentation and Service References
-
-### Standards and Architecture Docs
-
-- [README standards](docs/README_STANDARDS.md)
-- [Social / recommendation / chatbot architecture report](docs/REPORT_SOCIAL_RECOMMENDATION_CHATBOT_2026-04-20.md)
-- [Assistant OpenAPI specification](openapi/api-gateway-chatbot.openapi.yaml)
-
-### Service READMEs
-
-- [api-gateway](apps/api-gateway/README.md)
-- [analysis-service](apps/analysis-service/README.md)
-- [chat-service](apps/chat-service/README.md)
-- [chatbot-service](apps/chatbot-service/README.md)
-- [emotion-intelligence-service](apps/emotion-intelligence-service/README.md)
-- [feed-service](apps/feed-service/README.md)
-- [group-service](apps/group-service/README.md)
-- [logging-service](apps/logging-service/README.md)
-- [media-service](apps/media-service/README.md)
-- [music-service](apps/music-service/README.md)
-- [notification-service](apps/notification-service/README.md)
-- [post-service](apps/post-service/README.md)
-- [recommendation-service](apps/recommendation-service/README.md)
-- [search-service](apps/search-service/README.md)
-- [social-service](apps/social-service/README.md)
-- [user-service](apps/user-service/README.md)
-
-### Operational Docs
-
-- [Clerk demo commands](tools/clerk-demo/COMMANDS.md)
-
-## Maintenance Notes
-
-- Keep this README focused on the monorepo-level view.
-- Put transport details, environment variables, and troubleshooting into the service README for each app.
-- Add new services and packages to the tables above when they are introduced.
-- Mark missing documentation explicitly as TODO instead of inventing runtime behavior.
+| Tool | Port | Purpose | Status |
+| --- | --- | --- | --- |
+| **Grafana** | 3000 | Metrics, tracing & log dashboard | Available |
+| **Prometheus** | 9090 | Time-series metrics collection | Available |
+| **Jaeger** | 16686 | Distributed request tracing (OTLP receiver on 4317) | Available |
+| **Loki** | 3100 | Log aggregation backend | Available |
+| **Promtail** | — | Container log shipper to Loki | Available |
+| **RabbitMQ Management UI** | 15672 | Queue and exchange inspection | Available |
+| **Kafka UI** | 8080 | Topic and consumer group inspection | Configured |
+| **Kibana** | 5601 | Elasticsearch log and document visualization | Configured |
