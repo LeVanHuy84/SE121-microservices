@@ -43,7 +43,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "process_resident_memory_bytes",
+          "expr": "process_resident_memory_bytes{job=~\"$service\"}",
           "legendFormat": "{{job}}",
           "range": true,
           "refId": "A"
@@ -82,7 +82,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(process_cpu_user_seconds_total[1m]) * 100",
+          "expr": "rate(process_cpu_user_seconds_total{job=~\"$service\"}[1m]) * 100",
           "legendFormat": "{{job}}",
           "range": true,
           "refId": "A"
@@ -121,7 +121,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(http_request_duration_seconds_count[1m])) by (job, route)",
+          "expr": "sum(rate(http_request_duration_seconds_count{job=~\"$service\"}[1m])) by (job, route)",
           "legendFormat": "{{job}} - {{route}}",
           "range": true,
           "refId": "A"
@@ -160,7 +160,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "nodejs_eventloop_lag_seconds",
+          "expr": "nodejs_eventloop_lag_seconds{job=~\"$service\"}",
           "legendFormat": "{{job}}",
           "range": true,
           "refId": "A"
@@ -181,7 +181,37 @@
   "refresh": "10s",
   "schemaVersion": 39,
   "tags": [],
-  "templates": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(up, job)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": {
+          "query": "label_values(up, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
   "time": {
     "from": "now-15m",
     "to": "now"
@@ -189,5 +219,5 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "SE121 Microservices System Dashboard",
-  "version": 1
+  "version": 2
 }
