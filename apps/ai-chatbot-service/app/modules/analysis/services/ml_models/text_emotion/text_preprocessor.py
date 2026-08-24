@@ -1,16 +1,20 @@
-# app/services/ai/text_emotion/text_preprocessor.py
+# app/modules/analysis/services/ml_models/text_emotion/text_preprocessor.py
 """
-Text Preprocessing for Social Media Content
+Text Preprocessing Pipeline for PhoBERT Emotion Classification
+- Social media noise cleaning (URLs, mentions, hashtags, diacritics)
+- Teencode & Slang normalization via ViSoLex dictionary
 - Emoji normalization
-- Slang mapping (word-based & symbol-based)
 - Repeated character reduction
 """
 
 import re
 from typing import Dict
 
+from app.utils.text_cleaner import social_text_cleaner
+from app.utils.teencode import teencode_normalizer
 
-# Emoji to Vietnamese meaning
+
+# Emoji to Vietnamese emotion meaning
 EMOJI_MAP = {
     # 😂 Vui / tích cực
     "😂": "vui",
@@ -66,7 +70,7 @@ EMOJI_MAP = {
     "👿": "tức giận",
     "😤": "khó chịu",
 
-    # 😲 Ngạc nhiên / sốc  (CỰC KỲ QUAN TRỌNG)
+    # 😲 Ngạc nhiên / sốc
     "😲": "ngạc nhiên",
     "😮": "ngạc nhiên",
     "😯": "ngạc nhiên",
@@ -95,27 +99,13 @@ EMOJI_MAP = {
     "🧐": "suy xét",
 }
 
-# Slang dạng từ (dùng word boundary)
-WORD_SLANG_MAP: Dict[str, str] = {
-    # "vcl": "rất",
-    # "vl": "rất",
-    "kk": "haha",
-    "haha": "vui",
-    "huhu": "buồn",
-}
-
 # Slang dạng ký hiệu / symbol (KHÔNG dùng \b)
 SYMBOL_SLANG_MAP: Dict[str, str] = {
     ":))": "vui",
     ":(": "buồn",
     ":((": "buồn",
+    "=(((": "buồn",
 }
-
-# Pre-compile regex (performance + safety)
-WORD_SLANG_PATTERN = re.compile(
-    r"\b(" + "|".join(map(re.escape, WORD_SLANG_MAP.keys())) + r")\b",
-    flags=re.IGNORECASE,
-)
 
 SYMBOL_SLANG_PATTERN = re.compile(
     "|".join(map(re.escape, SYMBOL_SLANG_MAP.keys()))
@@ -127,7 +117,7 @@ WHITESPACE_PATTERN = re.compile(r"\s+")
 
 def normalize_text(text: str) -> dict:
     """
-    Normalize social media text.
+    Normalize social media text specifically for PhoBERT Emotion Model.
 
     Args:
         text: Raw text content
@@ -142,30 +132,29 @@ def normalize_text(text: str) -> dict:
     original = text
     has_emoji = False
 
-    # 1. Emoji → word
+    # 1. Social Text Noise Cleaning (URLs, Mentions, Hashtags, Diacritics)
+    text = social_text_cleaner.clean(text)
+
+    # 2. Teencode & Slang Normalization (ViSoLex dictionary)
+    text = teencode_normalizer.normalize(text)
+
+    # 3. Emoji → word mapping
     for emoji, meaning in EMOJI_MAP.items():
         if emoji in text:
             has_emoji = True
             text = text.replace(emoji, f" {meaning} ")
 
-    # 2. Word slang normalization (vcl, vl, kk...)
-    def replace_word_slang(match: re.Match) -> str:
-        slang = match.group(1).lower()
-        return WORD_SLANG_MAP.get(slang, slang)
-
-    text = WORD_SLANG_PATTERN.sub(replace_word_slang, text)
-
-    # 3. Symbol slang normalization (:)), :( ...)
+    # 4. Symbol slang normalization (:)), :( ...)
     def replace_symbol_slang(match: re.Match) -> str:
         slang = match.group(0)
         return f" {SYMBOL_SLANG_MAP.get(slang, slang)} "
 
     text = SYMBOL_SLANG_PATTERN.sub(replace_symbol_slang, text)
 
-    # 4. Remove repeated characters (vuiiiii → vui)
+    # 5. Remove repeated characters (vuiiiii → vui)
     text = REPEAT_CHAR_PATTERN.sub(r"\1", text)
 
-    # 5. Cleanup whitespace
+    # 6. Cleanup whitespace
     text = WHITESPACE_PATTERN.sub(" ", text).strip()
 
     return {
