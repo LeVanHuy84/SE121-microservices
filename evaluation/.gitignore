@@ -1,0 +1,35 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache & build files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Sensitive environment variables
+.env
+!.env.example
+
+# Large weights and model checkpoints (500MB+)
+weights/
+*.bin
+*.safetensors
+*.onnx
+
+# Data directory (JSON datasets generated during pipeline execution)
+data/
+*.json
+!results/*.json
+
+# Log files
+*.log
+logs/
+
+# IDE & OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
