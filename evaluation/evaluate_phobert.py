@@ -84,7 +84,8 @@ def evaluate_dataset(test_file_path: Path, dataset_name: str, eval_pipeline: boo
         print(f"[ERROR] Fine-tuned weights not found at: {FINETUNED_MODEL_PATH}")
         return None
 
-    y_pred_finetuned_raw = predict_model_batch(str(FINETUNED_MODEL_PATH), raw_texts)
+    raw_pred_finetuned = predict_model_batch(str(FINETUNED_MODEL_PATH), raw_texts)
+    y_pred_finetuned_raw = [VISOLEX_LABEL_MAP[p] if p < len(VISOLEX_LABEL_MAP) else p for p in raw_pred_finetuned]
     report_finetuned_raw = classification_report(y_true, y_pred_finetuned_raw, target_names=LABEL_NAMES, output_dict=True, zero_division=0)
 
     report_finetuned_pipeline = None
@@ -94,8 +95,9 @@ def evaluate_dataset(test_file_path: Path, dataset_name: str, eval_pipeline: boo
         print("MODEL 3: Local Fine-Tuned Model + Teencode Normalization Pipeline")
         print("-" * 60)
         norm_texts = [teencode_normalizer.normalize(t) for t in raw_texts]
-        y_pred_finetuned_pipeline = predict_model_batch(str(FINETUNED_MODEL_PATH), norm_texts)
-        report_finetuned_pipeline = classification_report(y_true, y_pred_finetuned_pipeline, target_names=LABEL_NAMES, output_dict=True, zero_division=0)
+        raw_pred_pipeline = predict_model_batch(str(FINETUNED_MODEL_PATH), norm_texts)
+        y_pred_pipeline = [VISOLEX_LABEL_MAP[p] if p < len(VISOLEX_LABEL_MAP) else p for p in raw_pred_pipeline]
+        report_finetuned_pipeline = classification_report(y_true, y_pred_pipeline, target_names=LABEL_NAMES, output_dict=True, zero_division=0)
 
     acc_b, f1_b = report_baseline["accuracy"], report_baseline["macro avg"]["f1-score"]
     acc_f_raw, f1_f_raw = report_finetuned_raw["accuracy"], report_finetuned_raw["macro avg"]["f1-score"]
@@ -131,7 +133,7 @@ def format_class_table(report_dict: dict) -> str:
     return "\n".join(lines)
 
 
-def generate_evaluate_phobert_report(res_teencode: dict):
+def generate_evaluate_phobert_report(res_teencode: dict, total_samples: int):
     report_dir = eval_dir / "results" / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -141,11 +143,11 @@ def generate_evaluate_phobert_report(res_teencode: dict):
 
     doc_phobert = f"""# PhoBERT Evaluation & Teencode Normalization Pipeline Report
 
-> **Teencode & Slang Stress Test Evaluation: Assessing Preprocessor Pipeline (`teencode_normalizer`) Impact**
+> **Real-World Social Media Evaluation: Assessing Preprocessor Pipeline (`teencode_normalizer`) Impact on {total_samples} Samples**
 
 ---
 
-## 1. Overall Teencode Pipeline Evaluation Summary
+## 1. Overall Pipeline Evaluation Summary
 
 | Input Preprocessing State | Model Variant | Accuracy | Macro F1-Score | Delta F1 ($\Delta$) |
 | :--- | :--- | :---: | :---: | :---: |
@@ -155,7 +157,7 @@ def generate_evaluate_phobert_report(res_teencode: dict):
 
 ---
 
-## 2. Detailed Per-Class Breakdown (Teencode Stress Test - 300 Noise Samples)
+## 2. Detailed Per-Class Breakdown (Real-World Social Media Test - {total_samples} Samples)
 
 ### 2.1 Baseline Model (`visolex/phobert-emotion`) [Raw Input]
 {format_class_table(b_teen)}
@@ -170,7 +172,7 @@ def generate_evaluate_phobert_report(res_teencode: dict):
 
 ## 3. Key Findings & Conclusions
 
-1. **Teencode Noise Impact**: Dữ liệu mạng xã hội chứa teencode/từ lóng làm giảm hiệu năng của mô hình Baseline. Quá trình Fine-Tuning nâng F1-Score từ **{b_teen['macro avg']['f1-score']*100:.2f}%** lên **{f_teen['macro avg']['f1-score']*100:.2f}%**.
+1. **Social Media Noise Impact**: Dữ liệu mạng xã hội chứa teencode/từ lóng làm giảm hiệu năng của mô hình Baseline. Quá trình Fine-Tuning nâng F1-Score từ **{b_teen['macro avg']['f1-score']*100:.2f}%** lên **{f_teen['macro avg']['f1-score']*100:.2f}%**.
 2. **Preprocessor Pipeline Gain**: Khi cho câu đi qua **Teencode Normalization Pipeline** (`teencode_normalizer`), chỉ số Macro F1 tăng thêm **{(p_teen['macro avg']['f1-score']-f_teen['macro avg']['f1-score'])*100:+.2f}%**, đạt mốc tối ưu **{p_teen['macro avg']['f1-score']*100:.2f}%** và Accuracy đạt **{p_teen['accuracy']*100:.2f}%**.
 """
 
@@ -182,15 +184,19 @@ def generate_evaluate_phobert_report(res_teencode: dict):
 
 
 def run_comparative_evaluation():
-    test_teencode = eval_dir / "data" / "noisy_social_test.json"
+    test_teencode = eval_dir / "data" / "real_data_test.json"
 
-    res_teencode = evaluate_dataset(test_teencode, "Teencode & Slang Stress Test Set (300 Noise Samples)", eval_pipeline=True)
+    with open(test_teencode, "r", encoding="utf-8") as f:
+        test_set = json.load(f)
+
+    total_samples = len(test_set)
+    res_teencode = evaluate_dataset(test_teencode, f"Real-World Social Media Test Set ({total_samples} Samples)", eval_pipeline=True)
 
     results_dir = eval_dir / "results"
     results_dir.mkdir(exist_ok=True)
 
     if res_teencode:
-        generate_evaluate_phobert_report(res_teencode)
+        generate_evaluate_phobert_report(res_teencode, total_samples)
 
     print("\nEvaluation pipeline complete.")
 

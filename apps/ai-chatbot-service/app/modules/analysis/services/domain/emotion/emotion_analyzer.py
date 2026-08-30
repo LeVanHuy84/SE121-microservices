@@ -156,6 +156,29 @@ class EmotionAnalyzer:
         scores = self.normalize_scores(emotion_scores)
         return max(scores, key=scores.get)
 
+    def extract_primary_and_secondary_emotions(self, emotion_scores: dict) -> dict:
+        """
+        Extract primaryEmotion (nhãn chính) và secondaryEmotions (danh sách nhãn phụ).
+        - primaryEmotion: nhãn có xác suất cao nhất.
+        - secondaryEmotions: các nhãn phụ có prob >= max(0.10, primary_prob * 0.45).
+        """
+        scores = self.normalize_scores(emotion_scores)
+        sorted_items = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+        primary_emotion, primary_prob = sorted_items[0]
+        dynamic_threshold = max(0.10, primary_prob * 0.45)
+
+        secondary_emotions = [
+            emotion
+            for emotion, prob in sorted_items[1:]
+            if prob >= dynamic_threshold
+        ]
+
+        return {
+            "primaryEmotion": primary_emotion,
+            "secondaryEmotions": secondary_emotions,
+        }
+
     def get_dominant_scene_type(self, image_results: List[dict]) -> str:
         """
         Get dominant scene type from image analysis results.

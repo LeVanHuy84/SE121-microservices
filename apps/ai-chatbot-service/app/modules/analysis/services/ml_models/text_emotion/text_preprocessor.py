@@ -1,164 +1,72 @@
 # app/modules/analysis/services/ml_models/text_emotion/text_preprocessor.py
 """
 Text Preprocessing Pipeline for PhoBERT Emotion Classification
-- Social media noise cleaning (URLs, mentions, hashtags, diacritics)
-- Teencode & Slang normalization via ViSoLex dictionary
-- Emoji normalization
-- Repeated character reduction
+- Social media noise cleaning (URLs, mentions, hashtags) via social_text_cleaner
+- Teencode & Slang normalization via teencode_normalizer
+- Vietnamese word segmentation (underthesea word_tokenize)
+- Retains original Emojis natively for PhoBERT embedding
 """
 
-import re
+import logging
 from typing import Dict
 
 from app.utils.text_cleaner import social_text_cleaner
 from app.utils.teencode import teencode_normalizer
 
+try:
+    from underthesea import word_tokenize, sent_tokenize
+    HAS_UNDERTHESEA = True
+except ImportError:
+    HAS_UNDERTHESEA = False
 
-# Emoji to Vietnamese emotion meaning
-EMOJI_MAP = {
-    # 😂 Vui / tích cực
-    "😂": "vui",
-    "🤣": "vui",
-    "😄": "vui",
-    "😁": "vui",
-    "😆": "vui",
-    "😊": "vui",
-    "🙂": "bình thường",
-    "😋": "vui",
-    "😌": "dễ chịu",
-
-    # 😍 Yêu thích / tình cảm
-    "😍": "yêu thích",
-    "🥰": "yêu thích",
-    "😘": "yêu thích",
-    "😗": "yêu thích",
-    "😙": "yêu thích",
-    "💖": "yêu thích",
-    "❤️": "yêu thích",
-    "💕": "yêu thích",
-
-    # 🤩 Phấn khích / hype
-    "🤩": "phấn khích",
-    "🥳": "phấn khích",
-    "🎉": "phấn khích",
-
-    # 😎 Tự tin / cool
-    "😎": "tự tin",
-    "😏": "mỉa mai",
-
-    # 😢 Buồn
-    "😭": "buồn",
-    "😢": "buồn",
-    "😔": "buồn",
-    "😞": "buồn",
-    "🙁": "buồn",
-    "☹️": "buồn",
-    "😣": "buồn",
-    "😖": "buồn",
-    "🥲": "buồn nhẹ",
-
-    # 😩 Mệt mỏi / stress
-    "😫": "mệt mỏi",
-    "😩": "mệt mỏi",
-    "😓": "mệt mỏi",
-    "😪": "buồn ngủ",
-
-    # 😡 Tức giận
-    "😡": "tức giận",
-    "😠": "tức giận",
-    "🤬": "tức giận",
-    "👿": "tức giận",
-    "😤": "khó chịu",
-
-    # 😲 Ngạc nhiên / sốc
-    "😲": "ngạc nhiên",
-    "😮": "ngạc nhiên",
-    "😯": "ngạc nhiên",
-    "😳": "bất ngờ",
-    "🤯": "sốc",
-
-    # 😨 Sợ hãi / lo lắng
-    "😱": "sợ hãi",
-    "😨": "lo lắng",
-    "😰": "lo lắng",
-    "😥": "lo lắng",
-
-    # 😒 Thái độ tiêu cực nhẹ
-    "😒": "không hài lòng",
-    "🙄": "chán nản",
-    "😑": "bất lực",
-    "🤨": "nghi ngờ",
-
-    # 😐 Trung tính
-    "😐": "bình thường",
-    "😶": "bình thường",
-    "🫥": "bình thường",
-
-    # 🤔 Suy nghĩ / unsure
-    "🤔": "suy nghĩ",
-    "🧐": "suy xét",
-}
-
-# Slang dạng ký hiệu / symbol (KHÔNG dùng \b)
-SYMBOL_SLANG_MAP: Dict[str, str] = {
-    ":))": "vui",
-    ":(": "buồn",
-    ":((": "buồn",
-    "=(((": "buồn",
-}
-
-SYMBOL_SLANG_PATTERN = re.compile(
-    "|".join(map(re.escape, SYMBOL_SLANG_MAP.keys()))
-)
-
-REPEAT_CHAR_PATTERN = re.compile(r"(.)\1{2,}")
-WHITESPACE_PATTERN = re.compile(r"\s+")
+logger = logging.getLogger(__name__)
 
 
-def normalize_text(text: str) -> dict:
+def preprocess_single_sentence(text: str, apply_word_tokenize: bool = True) -> str:
     """
-    Normalize social media text specifically for PhoBERT Emotion Model.
-
-    Args:
-        text: Raw text content
-
-    Returns:
-        {
-            "text": normalized text,
-            "hasEmoji": bool,
-            "original": original text
-        }
+    Clean, normalize teencode, and optionally apply underthesea word_tokenize.
+    Emoji are natively preserved for PhoBERT.
     """
-    original = text
-    has_emoji = False
-
-    # 1. Social Text Noise Cleaning (URLs, Mentions, Hashtags, Diacritics)
+    # 1. Social Text Noise Cleaning (URLs, Mentions, Hashtags)
     text = social_text_cleaner.clean(text)
 
-    # 2. Teencode & Slang Normalization (ViSoLex dictionary)
+    # 2. Teencode & Slang Normalization
     text = teencode_normalizer.normalize(text)
 
-    # 3. Emoji → word mapping
-    for emoji, meaning in EMOJI_MAP.items():
-        if emoji in text:
-            has_emoji = True
-            text = text.replace(emoji, f" {meaning} ")
+    # 3. Vietnamese compound word segmentation (e.g. sầu riêng -> sầu_riêng)
+    if HAS_UNDERTHESEA and apply_word_tokenize:
+        try:
+            text = word_tokenize(text, format="text")
+        except Exception as e:
+            logger.warning(f"underthesea word_tokenize failed: {e}")
 
-    # 4. Symbol slang normalization (:)), :( ...)
-    def replace_symbol_slang(match: re.Match) -> str:
-        slang = match.group(0)
-        return f" {SYMBOL_SLANG_MAP.get(slang, slang)} "
+    return " ".join(text.split())
 
-    text = SYMBOL_SLANG_PATTERN.sub(replace_symbol_slang, text)
 
-    # 5. Remove repeated characters (vuiiiii → vui)
-    text = REPEAT_CHAR_PATTERN.sub(r"\1", text)
+def split_sentences(text: str) -> list[str]:
+    """
+    Split long text into sentences using underthesea.sent_tokenize.
+    Filters out empty or single-character noise.
+    """
+    if not text or not text.strip():
+        return []
 
-    # 6. Cleanup whitespace
-    text = WHITESPACE_PATTERN.sub(" ", text).strip()
+    if HAS_UNDERTHESEA:
+        try:
+            sentences = sent_tokenize(text)
+        except Exception as e:
+            logger.warning(f"underthesea sent_tokenize failed: {e}")
+            sentences = [text]
+    else:
+        # Fallback split on punctuation
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', text)
 
-    return {
-        "text": text,
-        "hasEmoji": has_emoji,
-        "original": original,
-    }
+    cleaned_sentences = []
+    for s in sentences:
+        s_clean = s.strip()
+        # Filter noise/super-short sentences (<2 chars)
+        if len(s_clean) >= 2:
+            cleaned_sentences.append(s_clean)
+
+    return cleaned_sentences if cleaned_sentences else [text]
