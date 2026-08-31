@@ -4,7 +4,7 @@ jest.mock('@stream-io/node-sdk', () => ({
 }));
 
 import { CallService } from './call.service';
-import { CallSessionStatus, CallEndReason } from '@repo/dtos';
+import { CallSessionStatus, CallEndReason, CallType } from '@repo/dtos';
 import { Types } from 'mongoose';
 
 const CALL_ID = new Types.ObjectId().toString();
@@ -200,7 +200,7 @@ describe('CallService', () => {
 
       const result = await service.createCall(USER_1, {
         conversationId: CONV_ID,
-        type: 'audio',
+        type: CallType.AUDIO,
       });
 
       expect(result.status).toBe(CallSessionStatus.RINGING);
@@ -233,7 +233,10 @@ describe('CallService', () => {
         });
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: 'audio' }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('busy in another call');
     });
 
@@ -243,7 +246,10 @@ describe('CallService', () => {
       conversationModel.findById.mockReturnValue(createQuery(conv));
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: 'audio' }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('You are not in this conversation');
     });
 
@@ -256,7 +262,10 @@ describe('CallService', () => {
       });
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: 'audio' }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('Conversation already has an active call');
     });
   });

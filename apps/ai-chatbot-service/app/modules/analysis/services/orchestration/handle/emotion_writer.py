@@ -34,7 +34,8 @@ class EmotionWriter:
 
         return TextEmotionResult(
             content=text_data["content"],
-            dominantEmotion=text_data["dominantEmotion"],
+            primaryEmotion=text_data.get("primaryEmotion", text_data.get("dominantEmotion")),
+            secondaryEmotions=text_data.get("secondaryEmotions", []),
             scores=text_data["scores"],
             confidence=text_data["confidence"],
             model=text_data["model"],
@@ -72,7 +73,8 @@ class EmotionWriter:
             userId=user_id,
             targetId=target_id,
             targetType=target_type,  # truyền enum trực tiếp
-            finalEmotion=emotion_data["finalEmotion"],
+            primaryEmotion=emotion_data.get("primaryEmotion", emotion_data.get("finalEmotion")),
+            secondaryEmotions=emotion_data.get("secondaryEmotions", []),
             finalScores=emotion_data["finalScores"],
             finalConfidence=emotion_data["finalConfidence"],
             dominantModality=emotion_data["dominantModality"],
@@ -128,7 +130,8 @@ class EmotionWriter:
         ]
 
         update_data = {
-            "finalEmotion": emotion_data["finalEmotion"],
+            "primaryEmotion": emotion_data.get("primaryEmotion", emotion_data.get("finalEmotion")),
+            "secondaryEmotions": emotion_data.get("secondaryEmotions", []),
             "finalScores": emotion_data["finalScores"],
             "finalConfidence": emotion_data["finalConfidence"],
             "dominantModality": emotion_data["dominantModality"],

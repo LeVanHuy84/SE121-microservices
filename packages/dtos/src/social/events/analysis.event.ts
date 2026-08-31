@@ -29,7 +29,8 @@ export class AnalysisResultEventPayload {
 
   modelVersion: string;
 
-  finalEmotion: Emotion;
+  primaryEmotion?: Emotion;
+  secondaryEmotions?: Emotion[];
 
   scores: Record<string, number>;
   confidence: number;

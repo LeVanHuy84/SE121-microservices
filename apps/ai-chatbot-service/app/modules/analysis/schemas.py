@@ -86,7 +86,8 @@ class AnalysisTask(BaseModel):
 
 class TextEmotionResult(BaseModel):
     content: str
-    dominantEmotion: EmotionEnum
+    primaryEmotion: EmotionEnum
+    secondaryEmotions: List[EmotionEnum] = Field(default_factory=list)
     scores: Dict[str, float]
     confidence: float
     model: str
@@ -109,7 +110,8 @@ class EmotionAggregate(BaseModel):
 
     modelVersion: str
 
-    finalEmotion: EmotionEnum
+    primaryEmotion: EmotionEnum
+    secondaryEmotions: List[EmotionEnum] = Field(default_factory=list)
     finalScores: Dict[str, float]
     finalConfidence: float
     dominantModality: str  # 'text' | 'image'

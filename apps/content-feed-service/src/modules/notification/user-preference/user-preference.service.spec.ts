@@ -2,7 +2,6 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { UserPreferenceService } from "./user-preference.service";
 import { getModelToken } from "@nestjs/mongoose";
 import { UserPreference } from "../mongo/schema/user-preference.schema";
-import { getRedisToken } from "@nestjs-modules/ioredis";
 
 describe("UserPreferenceService", () => {
   let service: UserPreferenceService;

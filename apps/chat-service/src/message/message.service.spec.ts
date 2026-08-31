@@ -64,6 +64,7 @@ describe('MessageService', () => {
       senderId: 'user-1',
       conversationId: 'conv-1',
       attachments: [],
+      isDeleted: false,
       save: jest.fn().mockResolvedValue(undefined),
     };
     const conv = {

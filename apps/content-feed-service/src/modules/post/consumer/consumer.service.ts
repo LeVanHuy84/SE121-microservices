@@ -55,13 +55,17 @@ export class ConsumerService {
     );
 
     // Xử lý sự kiện CREATED ở đây
+    const emotion = payload.primaryEmotion;
+    const secondaryEmotions = payload.secondaryEmotions || [];
+
     switch (payload.targetType) {
       case TargetType.POST:
         const post = await postRepository.findOneBy({
           id: payload.targetId,
         });
-        if (post) {
-          post.mainEmotion = payload.finalEmotion;
+        if (post && emotion) {
+          post.mainEmotion = emotion;
+          post.secondaryEmotions = secondaryEmotions;
           await postRepository.save(post);
         }
         break;
@@ -69,8 +73,9 @@ export class ConsumerService {
         const comment = await commentRepository.findOneBy({
           id: payload.targetId,
         });
-        if (comment) {
-          comment.mainEmotion = payload.finalEmotion;
+        if (comment && emotion) {
+          comment.mainEmotion = emotion;
+          comment.secondaryEmotions = secondaryEmotions;
           await commentRepository.save(comment);
         }
         break;

@@ -36,9 +36,9 @@ export class PostConsumerService {
   }
 
   handleEmotionResult(payload: AnalysisResultEventPayload) {
-    const { targetId, finalEmotion } = payload;
+    const { targetId, primaryEmotion } = payload;
     this.postIndexService.updatePartialDocument(targetId, {
-      mainEmotion: finalEmotion,
+      mainEmotion: primaryEmotion,
     });
   }
 }

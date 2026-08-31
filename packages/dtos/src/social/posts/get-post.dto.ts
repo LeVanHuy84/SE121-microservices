@@ -37,6 +37,9 @@ export class PostResponseDTO {
   mainEmotion?: Emotion;
 
   @Expose()
+  secondaryEmotions?: Emotion[];
+
+  @Expose()
   mainEmotionScore?: number;
 
   @Expose()

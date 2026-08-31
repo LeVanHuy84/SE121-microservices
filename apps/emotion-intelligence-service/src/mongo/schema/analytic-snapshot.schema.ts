@@ -21,6 +21,12 @@ export class EmotionAnalyticsSnapshot {
   @Prop({ type: String, required: true })
   finalEmotion: LowCaseEmotion;
 
+  @Prop({ type: String, required: true })
+  primaryEmotion: LowCaseEmotion;
+
+  @Prop({ type: [String], default: [] })
+  secondaryEmotions: LowCaseEmotion[];
+
   @Prop({
     type: Object,
     required: true,

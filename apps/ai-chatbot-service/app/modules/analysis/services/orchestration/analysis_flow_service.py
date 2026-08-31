@@ -152,6 +152,8 @@ class AnalysisFlowService:
         text_result = {
             "content": text,
             "dominantEmotion": text_emotion.get("dominantEmotion"),
+            "primaryEmotion": text_emotion.get("primaryEmotion"),
+            "secondaryEmotions": text_emotion.get("secondaryEmotions", []),
             "scores": text_scores,
             "confidence": text_confidence,
             "model": text_emotion.get("model", "phobert"),
@@ -220,7 +222,9 @@ class AnalysisFlowService:
             image_confidence=image_confidence,
         )
 
-        final_emotion = emotion_analyzer.get_dominant_emotion(final_scores)
+        extracted_emotions = emotion_analyzer.extract_primary_and_secondary_emotions(final_scores)
+        final_emotion = extracted_emotions["primaryEmotion"]
+        secondary_emotions = extracted_emotions["secondaryEmotions"]
 
         intensity = emotion_analyzer.calculate_intensity(final_scores)
 
@@ -240,7 +244,8 @@ class AnalysisFlowService:
         # FINAL DTO (FOR FEED RE-RANK)
         # ===============================
         return {
-            "finalEmotion": final_emotion,
+            "primaryEmotion": final_emotion,
+            "secondaryEmotions": secondary_emotions,
             "finalScores": final_scores,
             "finalConfidence": final_confidence,
             "dominantModality": dominant_modality,

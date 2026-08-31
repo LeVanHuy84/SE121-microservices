@@ -60,7 +60,8 @@ class OutboxEmitter:
                 "targetType": emotion["targetType"],
                 "modelVersion": emotion.get("modelVersion"),
 
-                "finalEmotion": emotion["finalEmotion"].upper(),
+                "primaryEmotion": (emotion.get("primaryEmotion") or emotion.get("finalEmotion", "")).upper(),
+                "secondaryEmotions": [e.upper() for e in emotion.get("secondaryEmotions", [])],
                 "scores": emotion["finalScores"],
                 "confidence": emotion["finalConfidence"],
                 "intensityScore": emotion["intensity"]["score"],
