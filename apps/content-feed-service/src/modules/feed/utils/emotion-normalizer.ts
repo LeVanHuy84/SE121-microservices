@@ -21,7 +21,7 @@ export type CanonicalEmotion = (typeof CANONICAL_EMOTIONS)[number];
  * Normalize Emotion enum (uppercase) to lowercase string
  * Example: Emotion.JOY → "joy"
  */
-export function normalizeEmotionEnum(emotion: Emotion | string): string {
+export function normalizeEmotionEnum(emotion?: Emotion | string): string {
   if (!emotion) return "";
   return emotion.toLowerCase();
 }

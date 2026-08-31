@@ -28,6 +28,7 @@ export class PostShortenMapper {
       mediaPreviews: post.media?.slice(0, 5),
       mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 5),
       mainEmotion: post.mainEmotion,
+      secondaryEmotions: post.secondaryEmotions,
       createdAt: post.createdAt,
       reactedType: reactedType,
       postStat: post.postStat,

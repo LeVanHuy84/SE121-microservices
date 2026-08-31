@@ -29,6 +29,9 @@ describe('ConversationService', () => {
   const cache = {
     removeConversationFromUser: jest.fn(),
     removeConversationGlobally: jest.fn(),
+    hasEmptyFlag: jest.fn(),
+    getUserConversationsPage: jest.fn(),
+    markEmpty: jest.fn(),
   };
 
   const outboxService = {

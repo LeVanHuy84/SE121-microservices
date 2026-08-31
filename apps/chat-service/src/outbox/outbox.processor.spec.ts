@@ -106,6 +106,7 @@ describe('OutboxProcessor', () => {
       aggregateId: 'conv-1',
       processed: false,
       processing: true,
+      lastError: undefined as string | undefined,
       save: jest.fn().mockResolvedValue(undefined),
     };
 

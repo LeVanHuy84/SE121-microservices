@@ -40,12 +40,17 @@ export class IngestionService {
 
   // 🧠 tách mapping ra riêng
   private buildDoc(payload: AnalysisResultEventPayload) {
+    const primary = payload.primaryEmotion;
+    const secondaryList = payload.secondaryEmotions || [];
+
     return {
       userId: payload.userId,
       targetId: payload.targetId,
       targetType: payload.targetType,
       modelVersion: payload.modelVersion,
-      finalEmotion: this.normalizeEmotion(payload.finalEmotion),
+      finalEmotion: this.normalizeEmotion(primary),
+      primaryEmotion: this.normalizeEmotion(primary),
+      secondaryEmotions: secondaryList.map((e) => this.normalizeEmotion(e)),
       finalScores: payload.scores,
       finalConfidence: payload.confidence,
       riskHintLevel: payload.riskHintLevel ?? 'NONE',
@@ -87,7 +92,7 @@ export class IngestionService {
     }
   }
 
-  private normalizeEmotion(emotion: string): string {
-    return emotion.toLowerCase();
+  private normalizeEmotion(emotion?: string): string {
+    return emotion ? emotion.toLowerCase() : '';
   }
 }

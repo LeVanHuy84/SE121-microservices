@@ -164,7 +164,7 @@ export class ConsumerService {
     payload: AnalysisResultEventPayload,
   ): EmotionFeature {
     // CRITICAL: Normalize uppercase Emotion enum to lowercase keys
-    const normalizedLabel = normalizeEmotionEnum(payload.finalEmotion);
+    const normalizedLabel = normalizeEmotionEnum(payload.primaryEmotion);
     const normalizedScores = normalizeEmotionScores(payload.scores);
 
     return {

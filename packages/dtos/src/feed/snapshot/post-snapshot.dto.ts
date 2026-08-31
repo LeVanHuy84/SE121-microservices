@@ -51,6 +51,9 @@ export class PostSnapshotDTO {
   mainEmotion?: Emotion;
 
   @Expose()
+  secondaryEmotions?: Emotion[];
+
+  @Expose()
   createdAt: Date;
 
   @Expose()
