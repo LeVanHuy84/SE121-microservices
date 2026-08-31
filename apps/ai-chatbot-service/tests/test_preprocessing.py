@@ -2,7 +2,7 @@ import unittest
 
 from app.utils.teencode.teencode_normalizer import teencode_normalizer
 from app.utils.text_cleaner.social_text_cleaner import social_text_cleaner
-from app.modules.analysis.services.ml_models.text_emotion.text_preprocessor import normalize_text
+from app.modules.analysis.services.ml_models.text_emotion.text_preprocessor import preprocess_single_sentence
 
 
 class TestPhoBERTPreprocessingPipeline(unittest.TestCase):
@@ -26,13 +26,10 @@ class TestPhoBERTPreprocessingPipeline(unittest.TestCase):
 
     def test_phobert_text_preprocessor(self):
         raw = "em k thik dede nay dau, wk j ma ghet vay =(((( 😂"
-        res = normalize_text(raw)
-        self.assertTrue(res["hasEmoji"])
-        processed = res["text"]
+        processed = preprocess_single_sentence(raw)
         self.assertIn("không", processed)
         self.assertIn("thích", processed)
-        self.assertIn("buồn", processed)
-        self.assertIn("vui", processed)
+        self.assertIn("😂", processed)
 
 
 if __name__ == "__main__":
