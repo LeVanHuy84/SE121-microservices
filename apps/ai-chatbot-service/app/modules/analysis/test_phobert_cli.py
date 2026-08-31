@@ -7,9 +7,9 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from app.modules.analysis.enums import TargetTypeEnum
-from app.modules.analysis.services.ml_models.model_loader import model_loader
-from app.modules.analysis.services.orchestration.analysis_flow_service import AnalysisFlowService
+from app.modules.analysis.enums import TargetTypeEnum  # noqa: E402
+from app.modules.analysis.services.ml_models.model_loader import model_loader  # noqa: E402
+from app.modules.analysis.services.orchestration.analysis_flow_service import AnalysisFlowService  # noqa: E402
 
 
 async def main():

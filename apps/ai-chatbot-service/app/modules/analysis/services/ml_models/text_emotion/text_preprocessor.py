@@ -8,7 +8,6 @@ Text Preprocessing Pipeline for PhoBERT Emotion Classification
 """
 
 import logging
-from typing import Dict
 
 from app.utils.text_cleaner import social_text_cleaner
 from app.utils.teencode import teencode_normalizer

@@ -233,7 +233,10 @@ describe('CallService', () => {
         });
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: CallType.AUDIO }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('busy in another call');
     });
 
@@ -243,7 +246,10 @@ describe('CallService', () => {
       conversationModel.findById.mockReturnValue(createQuery(conv));
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: CallType.AUDIO }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('You are not in this conversation');
     });
 
@@ -256,7 +262,10 @@ describe('CallService', () => {
       });
 
       await expect(
-        service.createCall(USER_1, { conversationId: CONV_ID, type: CallType.AUDIO }),
+        service.createCall(USER_1, {
+          conversationId: CONV_ID,
+          type: CallType.AUDIO,
+        }),
       ).rejects.toThrow('Conversation already has an active call');
     });
   });

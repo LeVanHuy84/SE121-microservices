@@ -41,7 +41,13 @@ export class Post {
   @Column({ type: "enum", enum: Emotion, nullable: true })
   mainEmotion: Emotion;
 
-  @Column({ type: "enum", enum: Emotion, array: true, nullable: true, default: [] })
+  @Column({
+    type: "enum",
+    enum: Emotion,
+    array: true,
+    nullable: true,
+    default: [],
+  })
   secondaryEmotions: Emotion[];
 
   @Column({ type: "boolean", name: "is_deleted", default: false })
