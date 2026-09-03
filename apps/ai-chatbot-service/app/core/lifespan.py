@@ -10,71 +10,60 @@ from app.modules.chatbot.repositories.chat_history import history_store
 
 logger = logging.getLogger("uvicorn.error")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     del app
     background_tasks: list[asyncio.Task] = []
 
-    # 1. MongoDB initialization (indexes & client)
+    logger.info("=" * 60)
+    logger.info("[Startup] AI Chatbot & Analysis Service - Initializing...")
+    logger.info("=" * 60)
+
+    # 1. MongoDB Database & Indexes
     db = init_database()
-    logger.info("[Startup] Step 1/6: MongoDB connected, initializing indexes...")
     try:
-        await db['user_emotion_snapshots'].create_index(
-            [("userId", 1), ("window", 1)],
-            unique=True,
-            name="idx_unique_user_window"
-        )
-        await db['user_emotion_snapshots'].create_index(
-            [("userId", 1)],
-            name="idx_userId"
-        )
-        await db['user_emotion_profiles'].create_index(
-            [("userId", 1)],
-            unique=True,
-            name="idx_unique_userId"
-        )
-        await db['emotion_aggregates'].create_index(
-            [("userId", 1), ("createdAt", 1)],
-            name="idx_userId_createdAt"
-        )
-        logger.info("[Startup] MongoDB Indexes verified")
+        await db['user_emotion_snapshots'].create_index([("userId", 1), ("window", 1)], unique=True, name="idx_unique_user_window")
+        await db['user_emotion_snapshots'].create_index([("userId", 1)], name="idx_userId")
+        await db['user_emotion_profiles'].create_index([("userId", 1)], unique=True, name="idx_unique_userId")
+        await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
+        logger.info("[Startup] ✓ MongoDB connected & indexes verified")
     except Exception as index_exc:
-        logger.warning("[Startup] Index verification warning: %s", index_exc)
+        logger.warning("[Startup] ⚠ MongoDB index verification warning: %s", index_exc)
 
-    # 2. Start chatbot history queue workers
-    logger.info("[Startup] Step 2/6: Starting Chatbot history store...")
+    # 2. Chatbot History Store
     await history_store.start()
+    logger.info("[Startup] ✓ Chatbot history store active")
 
-    # 3. Load ML models (from analysis-service)
-    logger.info("[Startup] Step 3/6: Loading AI analysis models...")
+    # 3. Load AI Analysis Models (PhoBERT + VLM)
     from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded
     await asyncio.to_thread(ensure_models_loaded)
-    logger.info("[Startup] AI analysis models ready")
+    logger.info("[Startup] ✓ AI Analysis models loaded & ready")
 
-    # 4. Warm up RAG documents in Elasticsearch
+    # 4. RAG Document Index Warmup
     if settings.RAG_WARMUP_ON_STARTUP:
-        logger.info("[Startup] Step 4/6: Warming up RAG document index...")
         from app.modules.chatbot.services.rag_engine import rag_document_service
         rag_warmup_task = asyncio.create_task(rag_document_service.warm_up_async())
+        logger.info("[Startup] ✓ RAG document index warmup started")
     else:
         rag_warmup_task = None
 
-    # 5. Initialize analysis messaging components
-    logger.info("[Startup] Step 5/6: Configuring Kafka and Outbox...")
+    # 5. Kafka & Outbox Messaging Workers
     from app.modules.analysis.lifespan import kafka_producer, processor, retry_worker, start_kafka
     await kafka_producer.start()
     background_tasks.append(asyncio.create_task(start_kafka(settings)))
     background_tasks.append(asyncio.create_task(processor.start(interval_seconds=5)))
     background_tasks.append(asyncio.create_task(retry_worker.start()))
-    logger.info("[Startup] Kafka, Outbox & Retry workers running")
+    logger.info("[Startup] ✓ Kafka Consumer/Producer & Outbox workers running")
 
-    logger.info("[Startup] Step 6/6: Initialization complete!")
+    logger.info("=" * 60)
+    logger.info("[Startup] AI Chatbot & Analysis Service - Fully operational!")
+    logger.info("=" * 60)
 
     try:
         yield
     finally:
-        # Cancel all background tasks
-        logger.info("[Shutdown] Shutting down background tasks...")
+        logger.info("[Shutdown] Shutting down AI Chatbot & Analysis Service...")
         if rag_warmup_task is not None and not rag_warmup_task.done():
             rag_warmup_task.cancel()
             await asyncio.gather(rag_warmup_task, return_exceptions=True)
@@ -92,4 +81,4 @@ async def lifespan(app: FastAPI):
         await rag_document_service.close()
         await history_store.stop()
         await close_database()
-        logger.info("[Shutdown] All connections clean, shutdown complete.")
+        logger.info("[Shutdown] Cleanup complete. Shutdown successful.")

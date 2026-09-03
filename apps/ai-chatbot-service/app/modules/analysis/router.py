@@ -14,11 +14,9 @@ from app.modules.analysis.schemas import (
 )
 from app.modules.analysis.lifespan import event_service, analysis_flow_service, get_model_health
 from app.modules.analysis.services.orchestration.music_flow_service import music_flow_service
-from app.modules.analysis.services.image_downloader import image_downloader
 from app.modules.analysis.services.ml_models.text_emotion.text_emotion_classifier import text_emotion_classifier
 from app.modules.analysis.services.ml_models.text_moderation import moderation_aggregator
-from app.modules.analysis.services.ml_models.image_emotion.image_emotion_analyzer import analyze_multiple_images
-from app.modules.analysis.services.ml_models.image_moderation.image_moderator import moderate_multiple_images
+from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +44,8 @@ async def health_check():
         "models": {
             "initialized": model_health.get("initialized", False),
             "text_emotion": "loaded" if model_health.get("text_emotion", False) else "not_loaded",
-            "image_emotion": "loaded" if model_health.get("image_emotion", False) else "not_loaded",
             "text_moderation": "loaded" if model_health.get("text_moderation", False) else "not_loaded",
-            "image_moderation": "loaded" if model_health.get("image_moderation", False) else "not_loaded",
+            "vlm_multimodal": "loaded" if model_health.get("vlm_multimodal", False) else "not_loaded",
         },
         "uptime_seconds": uptime_seconds,
         "ready": all_loaded
@@ -144,8 +141,8 @@ async def test_music_from_url(req: MusicUrlRequest):
 # image
 @image_router.post("/analyze_images")
 async def analyze_images(req: ImagesRequest):
-    image_inputs = await image_downloader.download([str(url) for url in req.images])
-    results = await analyze_multiple_images(image_inputs)
+    urls = [str(url) for url in req.images]
+    results = vlm_analyzer.analyze_post(text_content="", image_inputs=urls)
     return {"success": True, "data": results}
 
 # moderation
@@ -160,6 +157,14 @@ async def check_text(request: TextModerationRequest):
 
 @moderation_router.post("/images/check", response_model=List[ImageModerationResult])
 async def check_images(request: ImageModerationRequest):
-    image_inputs = await image_downloader.download(request.urls)
-    results = await moderate_multiple_images(image_inputs)
-    return results
+    results = vlm_analyzer.analyze_post(text_content="", image_inputs=request.urls)
+    mod = results.get("contentModeration", {})
+    is_violation = bool(mod.get("is_flagged", False))
+    score = float(mod.get("confidence", 0.95)) if is_violation else 0.0
+
+    return [{
+        "url": url,
+        "is_violation": is_violation,
+        "confidence": score,
+        "source": "vlm_groq"
+    } for url in request.urls]

@@ -240,6 +240,15 @@ class Settings:
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
 
+        # VLM Multimodal Settings
+        self.VLM_API_KEY: str = os.getenv("VLM_API_KEY", "").strip()
+        self.VLM_BASE_URL: str = os.getenv(
+            "VLM_BASE_URL", "https://api.groq.com/openai/v1"
+        ).strip()
+        self.VLM_MODEL_NAME: str = os.getenv(
+            "VLM_MODEL_NAME", "qwen/qwen3.8-27b"
+        ).strip()
+
         self._validate()
 
     def _validate(self):

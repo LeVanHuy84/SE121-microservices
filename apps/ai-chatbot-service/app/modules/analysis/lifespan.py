@@ -79,51 +79,14 @@ register_consumer(
 # DATABASE INITIALIZATION
 # -------------------------------------------------------
 async def init_database():
-    """
-    Initialize database indexes.
-    
-    Creates required unique indexes to ensure data integrity:
-    - user_emotion_snapshots: (userId, window) unique constraint
-    """
     try:
-        logger.info("[DB Init] Creating indexes...")
-        
-        # User Emotion Snapshots: Unique index on (userId, window)
-        # Ensures each user has only ONE snapshot per time window (7d, 30d)
-        await db['user_emotion_snapshots'].create_index(
-            [("userId", 1), ("window", 1)],
-            unique=True,
-            name="idx_unique_user_window"
-        )
-        logger.info("[DB Init] Created unique index: user_emotion_snapshots(userId, window)")
-        
-        # Optional: Create index on userId for faster lookups
-        await db['user_emotion_snapshots'].create_index(
-            [("userId", 1)],
-            name="idx_userId"
-        )
-        logger.info("[DB Init] Created index: user_emotion_snapshots(userId)")
-        
-        # Optional: Create index on user_emotion_profiles
-        await db['user_emotion_profiles'].create_index(
-            [("userId", 1)],
-            unique=True,
-            name="idx_unique_userId"
-        )
-        logger.info("[DB Init] Created unique index: user_emotion_profiles(userId)")
-        
-        # CRITICAL: Create index on emotion_aggregates for snapshot/profile batch queries
-        await db['emotion_aggregates'].create_index(
-            [("userId", 1), ("createdAt", 1)],
-            name="idx_userId_createdAt"
-        )
-        logger.info("[DB Init] Created index: emotion_aggregates(userId, createdAt)")
-        
-        logger.info("[DB Init] All indexes created successfully")
-        
+        await db['user_emotion_snapshots'].create_index([("userId", 1), ("window", 1)], unique=True, name="idx_unique_user_window")
+        await db['user_emotion_snapshots'].create_index([("userId", 1)], name="idx_userId")
+        await db['user_emotion_profiles'].create_index([("userId", 1)], unique=True, name="idx_unique_userId")
+        await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
+        logger.info("[DB Init] All indexes verified")
     except Exception as e:
-        # Log but don't fail startup if indexes already exist
-        logger.warning(f"[DB Init] Index creation warning (may already exist): {e}")
+        logger.warning(f"[DB Init] Index creation warning: {e}")
 
 # -------------------------------------------------------
 # LIFESPAN
