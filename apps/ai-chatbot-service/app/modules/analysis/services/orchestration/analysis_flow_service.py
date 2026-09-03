@@ -1,11 +1,9 @@
-# app/services/orchestration/analysis_flow_service.py
+# app/modules/analysis/services/orchestration/analysis_flow_service.py
 """
 Application Service: Analysis Flow Orchestration
-- Orchestrates emotion analysis flow
-- Orchestrates moderation flow (SEPARATE from emotion)
-- Integrates Domain Services and AI Layer
-- Handles SHARE targetType (moderation only, no emotion)
-- Output normalized DTO for Feed re-rank usage
+- Text-only: Uses PhoBERT Text Moderation & PhoBERT 7 Ekman Emotion Classifier
+- Multimodal (Text + Image): Uses Unified VLM Analyzer (Groq API Vision Pipeline)
+- Output normalized DTO for Feed re-rank & Emotion Intelligence usage
 """
 
 import logging
@@ -17,19 +15,14 @@ from app.modules.analysis.services.image_downloader import image_downloader
 
 # Domain Services
 from app.modules.analysis.services.domain.emotion import emotion_analyzer
-from app.modules.analysis.services.domain.risk import risk_scorer
-from app.modules.analysis.services.domain.moderation import content_moderator
 
 # AI Layer
 from app.modules.analysis.services.ml_models.text_emotion import text_emotion_classifier
-from app.modules.analysis.services.ml_models.image_emotion import analyze_multiple_images
 from app.modules.analysis.services.ml_models.text_moderation import moderation_aggregator
-from app.modules.analysis.services.ml_models.image_moderation import moderate_multiple_images
+from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
 
 # Utils
-from app.modules.analysis.utils.exceptions import RetryableException
-from app.modules.analysis.enums import TargetTypeEnum
-from app.modules.analysis.enums import DominantModalityEnum
+from app.modules.analysis.enums import TargetTypeEnum, DominantModalityEnum
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +32,7 @@ class AnalysisFlowService:
     Orchestration Layer
     - Coordinates AI + Domain logic
     - Enforces moderation-first rule
-    - Returns CONTRACT-CORRECT DTOs
+    - Routes Text-only to PhoBERT and Multimodal (Text+Image) to Unified VLM
     """
 
     def __init__(self, moderation_repo=None, emotion_aggregate_repo=None):
@@ -56,46 +49,94 @@ class AnalysisFlowService:
         target_type: TargetTypeEnum
     ) -> Dict[str, Any]:
 
-        # ========================================
-        # STEP 1: DOWNLOAD IMAGES
-        # ========================================
+        # Download images if provided
         image_inputs: List[ImageInput] = []
         if image_urls:
-            image_inputs = await image_downloader.download(
-                urls=image_urls,
-                timeout=10
-            )
+            try:
+                image_inputs = await image_downloader.download(
+                    urls=image_urls,
+                    timeout=10
+                )
+            except Exception as e:
+                logger.warning(f"Image download warning: {e}")
 
-        # ========================================
-        # STEP 2: MODERATION (ALWAYS)
-        # ========================================
-        moderation_result = await self._run_moderation(text, image_inputs)
-        should_block = moderation_result["isViolation"]
+        # Routing: Multimodal (VLM) vs Text-only (PhoBERT)
+        if image_inputs or image_urls:
+            return await self._analyze_multimodal_vlm(text, image_inputs or image_urls, target_type)
+        else:
+            return await self._analyze_text_only(text, target_type, is_fallback=False)
 
-        # ========================================
-        # STEP 3: SKIP RULES
-        # ========================================
-        if target_type == TargetTypeEnum.SHARE:
+    # ======================================================
+    # MULTIMODAL VLM FLOW (TEXT + IMAGE)
+    # ======================================================
+    async def _analyze_multimodal_vlm(
+        self,
+        text: str,
+        image_inputs: List[Any],
+        target_type: TargetTypeEnum
+    ) -> Dict[str, Any]:
+        logger.info(f"[AnalysisFlow] Routing to Unified VLM Pipeline for Multimodal content ({len(image_inputs)} images)...")
+        
+        try:
+            vlm_res = vlm_analyzer.analyze_post(text, image_inputs)
+        except Exception as e:
+            logger.error(f"[AnalysisFlow] VLM execution error: {e}. Fallback to text moderation.")
+            return await self._analyze_text_only(text, target_type, is_fallback=True)
+
+        vlm_mod = vlm_res.get("contentModeration", {})
+        should_block = bool(vlm_mod.get("is_flagged", False))
+
+        moderation_result = {
+            "isViolation": should_block,
+            "violationScore": float(vlm_mod.get("confidence", 0.95)) if should_block else 0.0,
+            "maxSeverity": "high" if should_block else "none",
+            "textResult": {"isViolation": should_block, "reason": vlm_mod.get("reason", "")},
+            "imageResults": [vlm_mod],
+            "reason": vlm_mod.get("reason", ""),
+            "flaggedCategories": vlm_mod.get("flagged_categories", []),
+            "pipelineSource": "VLM_UNIFIED"
+        }
+
+        if target_type == TargetTypeEnum.SHARE or should_block:
+            logger.info(f"Multimodal content processed → shouldBlock: {should_block}")
             return {
                 "moderation": moderation_result,
                 "emotion": None,
                 "shouldBlock": should_block,
-                "skipReason": "share_type",
+                "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
             }
 
-        if should_block:
-            logger.info("Content blocked → skip emotion analysis")
-            return {
-                "moderation": moderation_result,
-                "emotion": None,
-                "shouldBlock": should_block,
-                "skipReason": "blocked_content",
-            }
+        # Emotion DTO
+        primary_emotion = vlm_res.get("primaryEmotion", "neutral")
+        secondary_emotions = vlm_res.get("secondaryEmotions", [])
+        final_scores = vlm_res.get("emotionScores", {})
+        confidence = float(vlm_res.get("finalConfidence", 0.8))
 
-        # ========================================
-        # STEP 4: EMOTION
-        # ========================================
-        emotion_result = await self._run_emotion_analysis(text, image_inputs)
+        emotion_result = {
+            "primaryEmotion": primary_emotion,
+            "secondaryEmotions": secondary_emotions,
+            "finalConfidence": confidence,
+            "finalScores": final_scores,
+            "intensity": vlm_res.get("intensity", "moderate"),
+            "dominantModality": DominantModalityEnum.IMAGE.value,
+            "isSarcasmOrConflict": vlm_res.get("isSarcasmOrConflict", False),
+            "conflictExplanation": vlm_res.get("conflictExplanation", ""),
+            "textResult": {
+                "content": text,
+                "primaryEmotion": primary_emotion,
+                "secondaryEmotions": secondary_emotions,
+                "scores": final_scores,
+                "confidence": confidence,
+                "model": vlm_res.get("modelUsed", "vlm_groq")
+            },
+            "imageResults": [{
+                "url": img.url if hasattr(img, "url") else str(img),
+                "dominantEmotion": primary_emotion,
+                "scores": final_scores,
+                "confidence": confidence,
+                "model": vlm_res.get("modelUsed", "vlm_groq")
+            } for img in image_inputs]
+        }
 
         return {
             "moderation": moderation_result,
@@ -104,45 +145,41 @@ class AnalysisFlowService:
         }
 
     # ======================================================
-    # MODERATION FLOW
+    # TEXT-ONLY FLOW (PHOBERT)
     # ======================================================
-    async def _run_moderation(
+    async def _analyze_text_only(
         self,
         text: str,
-        image_inputs: List[ImageInput],
+        target_type: TargetTypeEnum,
+        is_fallback: bool = False
     ) -> Dict[str, Any]:
+        source_tag = "PHOBERT_TEXT_FALLBACK" if is_fallback else "PHOBERT_TEXT"
+        logger.info(f"[AnalysisFlow] Routing to Text-only PhoBERT Pipeline ({source_tag})...")
 
+        # 1. Moderation
         text_moderation = moderation_aggregator.moderate(text)
+        should_block = bool(text_moderation.get("isViolation", False))
 
-        image_moderation_results = []
-        if image_inputs:
-            image_moderation_results = await moderate_multiple_images(image_inputs)
-
-        final_moderation = content_moderator.decide(
-            text_moderation,
-            image_moderation_results,
-        )
-
-        return {
-            "isViolation": final_moderation["isViolation"],
-            "violationScore": final_moderation["violationScore"],
-            "maxSeverity": final_moderation["maxSeverity"],
+        moderation_result = {
+            "isViolation": should_block,
+            "violationScore": text_moderation.get("violationScore", 0.0),
+            "maxSeverity": text_moderation.get("maxSeverity", "none"),
             "textResult": text_moderation,
-            "imageResults": image_moderation_results,
+            "imageResults": [],
+            "reason": text_moderation.get("reason", "Phân tích nội dung chữ qua PhoBERT"),
+            "flaggedCategories": ["TOXIC_LANGUAGE"] if should_block else [],
+            "pipelineSource": source_tag
         }
 
-    # ======================================================
-    # EMOTION FLOW (NORMALIZED)
-    # ======================================================
-    async def _run_emotion_analysis(
-        self,
-        text: str,
-        image_inputs: List[ImageInput],
-    ) -> Dict[str, Any]:
+        if target_type == TargetTypeEnum.SHARE or should_block:
+            return {
+                "moderation": moderation_result,
+                "emotion": None,
+                "shouldBlock": should_block,
+                "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
+            }
 
-        # ===============================
-        # TEXT EMOTION
-        # ===============================
+        # 2. Emotion Classification
         text_emotion = text_emotion_classifier.classify(text)
 
         text_scores_raw = text_emotion.get("emotionScores") or {}
@@ -160,262 +197,18 @@ class AnalysisFlowService:
             "meta": text_emotion.get("meta"),
         }
 
-        # ===============================
-        # IMAGE EMOTION
-        # ===============================
-        image_results: List[Dict[str, Any]] = []
-        image_scores_avg = {}
-        image_confidence = 0.0
-        dominant_modality = DominantModalityEnum.TEXT
-        dominant_scene_type = ""
-
-        if image_inputs:
-            image_emotions = await analyze_multiple_images(image_inputs)
-
-            retryable_errors = [
-                x for x in image_emotions
-                if x.get("error") and x.get("retryable")
-            ]
-
-            retry_ratio = (
-                len(retryable_errors) / len(image_emotions)
-                if image_emotions else 0
-            )
-
-            if retry_ratio >= 0.4:
-                raise RetryableException(
-                    f"Retryable image emotion ratio too high: {retry_ratio}"
-                )
-
-            # Map AI output → normalized image_results
-            for img in image_emotions:
-                if img.get("error"):
-                    continue
-
-                scores_raw = img.get("finalScores") or {}
-                norm_scores = emotion_analyzer.normalize_scores(scores_raw)
-
-                image_results.append({
-                    "url": img.get("url", ""),
-                    "dominantEmotion": img.get("finalEmotion", "neutral"),
-                    "scores": norm_scores,
-                    "confidence": float(img.get("finalConfidence", 0.0)),
-                    "model": img.get("finalSource", "clip"),
-                    "sceneType": img.get("sceneType", ""),
-                    "sceneContext": img.get("sceneContext", ""),
-                })
-
-            image_scores_avg = emotion_analyzer.average_image_scores(image_results)
-            image_confidence = emotion_analyzer.get_average_image_confidence(image_results)
-            dominant_scene_type = emotion_analyzer.get_dominant_scene_type(image_results)
-
-            if image_confidence > text_confidence and image_confidence > 0.3:
-                dominant_modality = DominantModalityEnum.IMAGE
-
-        # ===============================
-        # FUSION
-        # ===============================
-        final_scores = emotion_analyzer.fuse_emotions(
-            text_scores=text_scores,
-            image_scores=image_scores_avg,
-            text_confidence=text_confidence,
-            image_confidence=image_confidence,
-        )
-
-        extracted_emotions = emotion_analyzer.extract_primary_and_secondary_emotions(final_scores)
-        final_emotion = extracted_emotions["primaryEmotion"]
-        secondary_emotions = extracted_emotions["secondaryEmotions"]
-
-        intensity = emotion_analyzer.calculate_intensity(final_scores)
-
-        risk_hint_level = risk_scorer.detect_risk_hint(
-            text=text,
-            emotion=final_emotion,
-            intensity=intensity["level"],
-        )
-
-        final_confidence = (
-            image_confidence
-            if dominant_modality == DominantModalityEnum.IMAGE
-            else text_confidence
-        )
-
-        # ===============================
-        # FINAL DTO (FOR FEED RE-RANK)
-        # ===============================
-        return {
-            "primaryEmotion": final_emotion,
-            "secondaryEmotions": secondary_emotions,
-            "finalScores": final_scores,
-            "finalConfidence": final_confidence,
-            "dominantModality": dominant_modality,
-            "dominantSceneType": dominant_scene_type,
-            "intensity": intensity,                 # <- feed có thể dùng để weight
+        emotion_result = {
+            "primaryEmotion": text_emotion.get("primaryEmotion"),
+            "secondaryEmotions": text_emotion.get("secondaryEmotions", []),
+            "finalConfidence": text_confidence,
+            "finalScores": text_scores,
+            "intensity": "moderate",
+            "dominantModality": DominantModalityEnum.TEXT.value,
+            "isSarcasmOrConflict": False,
+            "conflictExplanation": "",
             "textResult": text_result,
-            "imageResults": image_results,
-            "riskHintLevel": risk_hint_level,
+            "imageResults": [],
         }
-
-    async def _recompute_emotion_with_cached_images(
-        self,
-        text: str,
-        cached_image_results: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-
-        # ===============================
-        # TEXT EMOTION (re-run)
-        # ===============================
-        text_emotion = text_emotion_classifier.classify(text)
-
-        text_scores_raw = text_emotion.get("emotionScores") or {}
-        text_scores = emotion_analyzer.normalize_scores(text_scores_raw)
-        text_confidence = float(text_emotion.get("confidence", 0.8))
-
-        text_result = {
-            "content": text,
-            "dominantEmotion": text_emotion.get("dominantEmotion"),
-            "scores": text_scores,
-            "confidence": text_confidence,
-            "model": text_emotion.get("model", "phobert"),
-            "meta": text_emotion.get("meta"),
-        }
-
-        # ===============================
-        # IMAGE EMOTION (from cache)
-        # ===============================
-        image_results = cached_image_results or []
-
-        image_scores_avg = emotion_analyzer.average_image_scores(image_results)
-        image_confidence = emotion_analyzer.get_average_image_confidence(image_results)
-
-        dominant_modality = DominantModalityEnum.TEXT
-        if image_confidence > text_confidence and image_confidence > 0.3:
-            dominant_modality = DominantModalityEnum.IMAGE
-
-        # ===============================
-        # FUSION
-        # ===============================
-        final_scores = emotion_analyzer.fuse_emotions(
-            text_scores=text_scores,
-            image_scores=image_scores_avg,
-            text_confidence=text_confidence,
-            image_confidence=image_confidence,
-        )
-
-        final_emotion = emotion_analyzer.get_dominant_emotion(final_scores)
-
-        intensity = emotion_analyzer.calculate_intensity(final_scores)
-
-        risk_hint_level = risk_scorer.detect_risk_hint(
-            text=text,
-            emotion=final_emotion,
-            intensity=intensity["level"],
-        )
-
-        final_confidence = image_confidence if dominant_modality == DominantModalityEnum.IMAGE else text_confidence
-
-        return {
-            "finalEmotion": final_emotion,
-            "finalScores": final_scores,
-            "finalConfidence": final_confidence,
-            "dominantModality": dominant_modality,
-            "dominantSceneType": emotion_analyzer.get_dominant_scene_type(image_results),
-            "intensity": intensity,
-            "textResult": text_result,
-            "imageResults": image_results,
-            "riskHintLevel": risk_hint_level,
-        }
-
-    # ======================================================
-    # TEXT ONLY (UPDATED EVENT)
-    # ======================================================
-    async def analyze_text_only(
-        self,
-        text: str,
-        target_id: str,
-        target_type: TargetTypeEnum,
-    ) -> Dict[str, Any]:
-        """
-        Phân tích lại khi chỉ cập nhật text.
-        Kết hợp text mới với image results đã lưu từ trước.
-        """
-        # ===============================
-        # LẤY DỮ LIỆU CŨ TỪ DB
-        # ===============================
-        old_moderation = await self.moderation_repo.get_by_target(target_id, target_type)
-        old_emotion = await self.emotion_aggregate_repo.get_analysis_by_target(target_id, target_type)
-
-        # Lấy image moderation results cũ
-        old_image_moderation = (
-            old_moderation.get("imageResults", []) if old_moderation else []
-        )
-
-        # Lấy image emotion results cũ
-        old_image_emotion = (
-            old_emotion.get("imageResults", []) if old_emotion else []
-        )
-
-        # ===============================
-        # MODERATION: Text mới + Image cũ
-        # ===============================
-        text_moderation = moderation_aggregator.moderate(text)
-
-        final_moderation = content_moderator.decide(
-            text_moderation,
-            old_image_moderation,
-        )
-
-        moderation_result = {
-            "isViolation": final_moderation["isViolation"],
-            "violationScore": final_moderation["violationScore"],
-            "maxSeverity": final_moderation["maxSeverity"],
-            "textResult": text_moderation,
-            "imageResults": old_image_moderation,
-        }
-
-        should_block = moderation_result["isViolation"]
-
-        # ===============================
-        # SKIP LOGIC
-        # ===============================
-        if target_type == TargetTypeEnum.SHARE:
-            return {
-                "moderation": moderation_result,
-                "emotion": None,
-                "shouldBlock": should_block,
-                "skipReason": "share_type",
-            }
-
-        if should_block:
-            logger.info("Content blocked after text update → skip emotion analysis")
-            return {
-                "moderation": moderation_result,
-                "emotion": None,
-                "shouldBlock": should_block,
-                "skipReason": "blocked_content",
-            }
-
-        # ===============================
-        # EMOTION: Text mới + Image cũ
-        # ===============================
-        cached_image_results = []
-        for img in old_image_emotion:
-            cached_image_results.append({
-                "url": img.get("url", ""),
-                "dominantEmotion": img.get("dominantEmotion", "neutral"),
-                "scores": emotion_analyzer.normalize_scores(
-                    img.get("scores", {})
-                ),
-                "confidence": float(img.get("confidence", 0.0)),
-                "model": img.get("model", "clip"),
-                "sceneType": img.get("sceneType", ""),
-                "sceneContext": img.get("sceneContext", ""),
-            })
-
-        emotion_result = await self._recompute_emotion_with_cached_images(
-            text=text,
-            cached_image_results=cached_image_results,
-        )
 
         return {
             "moderation": moderation_result,
@@ -424,5 +217,5 @@ class AnalysisFlowService:
         }
 
 
-# Singleton
+# Singleton Instance
 analysis_flow_service = AnalysisFlowService()
