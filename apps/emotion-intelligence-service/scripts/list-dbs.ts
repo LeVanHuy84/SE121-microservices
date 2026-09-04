@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb';
 
-const MONGODB_URI = 'mongodb+srv://huyle842005:rELI9KjYeAOjTmWn@cluster0.b0bspno.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 
 async function run() {
   const client = await MongoClient.connect(MONGODB_URI);
