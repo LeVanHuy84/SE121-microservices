@@ -23,9 +23,6 @@ async def lifespan(app: FastAPI):
     # 1. MongoDB Database & Indexes
     db = init_database()
     try:
-        await db['user_emotion_snapshots'].create_index([("userId", 1), ("window", 1)], unique=True, name="idx_unique_user_window")
-        await db['user_emotion_snapshots'].create_index([("userId", 1)], name="idx_userId")
-        await db['user_emotion_profiles'].create_index([("userId", 1)], unique=True, name="idx_unique_userId")
         await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
         logger.info("[Startup] ✓ MongoDB connected & indexes verified")
     except Exception as index_exc:

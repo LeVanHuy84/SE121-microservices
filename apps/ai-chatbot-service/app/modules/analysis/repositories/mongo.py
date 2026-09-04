@@ -17,9 +17,8 @@ collections = {
     'analysis_tasks': db['analysis_tasks'],
     'moderation_results': db['moderation_results'],
     'emotion_aggregates': db['emotion_aggregates'],
-    'user_emotion_profiles': db['user_emotion_profiles'],
-    'user_emotion_snapshots': db['user_emotion_snapshots'],
     'outbox_events': db['outbox_events'],
+    'processed_events': db['processed_events'],
 }
 
 

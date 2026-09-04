@@ -248,6 +248,12 @@ class Settings:
         self.VLM_MODEL_NAME: str = os.getenv(
             "VLM_MODEL_NAME", "qwen/qwen3.8-27b"
         ).strip()
+        self.VLM_MAX_IMAGE_SIZE: int = int(os.getenv("VLM_MAX_IMAGE_SIZE", 512))
+        self.VLM_IMAGE_QUALITY: int = int(os.getenv("VLM_IMAGE_QUALITY", 85))
+
+        # Kafka Consumer Batch Settings
+        self.KAFKA_CONSUMER_BATCH_SIZE: int = int(os.getenv("KAFKA_CONSUMER_BATCH_SIZE", 5))
+        self.KAFKA_CONSUMER_BATCH_TIMEOUT_SEC: float = float(os.getenv("KAFKA_CONSUMER_BATCH_TIMEOUT_SEC", 1.5))
 
         self._validate()
 

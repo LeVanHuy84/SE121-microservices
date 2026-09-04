@@ -1,16 +1,4 @@
-# app/modules/analysis/services/ml_models/vlm/vlm_analyzer.py
-
-"""
-Unified Multimodal VLM Analyzer Module
-- Single-pass Multimodal Inference via Groq LPUs API / OpenAI Compatible Endpoint
-- 7 Ekman Emotion Classification (Multi-Label & Re-normalized Sum = 1.0)
-- Dynamic Secondary Emotion Thresholding matching PhoBERT (max(0.10, P_max * 0.45))
-- Multimodal Sarcasm & Conflict Detection
-- Integrated Content Moderation (NSFW, Graphic Violence, Self-harm Signals)
-- Native Multi-Image Array Support
-- Strictly uses VLM_API_KEY, VLM_BASE_URL, VLM_MODEL_NAME environment variables
-"""
-
+import io
 import os
 import sys
 import json
@@ -20,6 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import numpy as np
 import requests
+from PIL import Image
 from pydantic import BaseModel, Field
 
 from app.core.settings import settings
@@ -71,62 +60,40 @@ class VLMRawOutput(BaseModel):
     suggested_action: str = "NO_ACTION"
 
 
+class VLMBatchItemOutput(VLMRawOutput):
+    id: str
+
+
+class VLMBatchRawOutput(BaseModel):
+    results: List[VLMBatchItemOutput]
+
+
 # ============================================================================
-# 3. VLM ANALYZER CLASS
+# 2. VLM ANALYZER CLASS
 # ============================================================================
 
 class VLMAnalyzer:
     """
     Unified VLM Analyzer for Multimodal Social Media Content.
     Auto-discovers active vision models on Groq/OpenAI endpoints.
+    Optimized for Token consumption, Image Compression, and Batch Execution.
     """
 
-    SYSTEM_PROMPT = """Bạn là Trợ lý AI Phân tích Đa phương thức Tích hợp cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
-Nhiệm vụ: Phân tích bài viết đính kèm văn bản và danh sách hình ảnh.
+    SYSTEM_PROMPT = """Bạn là AI Phân tích Đa phương thức cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
+Phân tích bài viết đính kèm văn bản và danh sách hình ảnh.
+TRẢ VỀ JSON DUY NHẤT VỚI CÁC TRƯỜNG DƯỚI ĐÂY:
+- content_moderation: {is_flagged (bool), flagged_categories (array: ["NSFW_ADULT","GRAPHIC_VIOLENCE","SELF_HARM","HATE_SPEECH","HARASSMENT"]), confidence (float 0-1), reason (string tiếng Việt nếu vi phạm)}
+- emotion_scores: {joy, sadness, anger, fear, disgust, surprise, neutral} (float 0-1)
+- primary_emotion (string trong 7 nhãn trên) & secondary_emotions (array strings)
+- final_confidence (float 0-1), intensity ("weak"|"moderate"|"strong")
+- is_sarcasm_or_conflict (bool) & conflict_explanation (string)
+- mental_health_risk_level ("none"|"weak"|"medium"|"high") & suggested_action ("NO_ACTION"|"MONITOR"|"TRIGGER_PROACTIVE_CHECKIN")
+"""
 
-BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
-
-1. content_moderation (Kiểm duyệt An toàn):
-   - is_flagged (boolean): True nếu bài viết hoặc HÌNH ẢNH vi phạm chính sách an toàn.
-   - flagged_categories (array): ["NSFW_ADULT", "GRAPHIC_VIOLENCE", "SELF_HARM", "HATE_SPEECH", "HARASSMENT"].
-     * NSFW_ADULT: Hình ảnh khiêu dâm, khỏa thân, ảnh 18+, hở hang quá đà.
-     * GRAPHIC_VIOLENCE: Máu me, bạo lực, thương tích nặng.
-     * SELF_HARM: Dấu hiệu tự hại, cắt tay, tự tử.
-   - confidence (float): 0.0 -> 1.0 (Độ tin cậy của vi phạm).
-   - reason (string): BẮT BUỘC mô tả chi tiết lý do vi phạm bằng tiếng Việt (Ví dụ: "Hình ảnh chứa nội dung khiêu dâm/ảnh 18+ vi phạm chính sách NSFW").
-
-2. emotion_scores (Tập 7 nhãn Ekman: "joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral").
-3. primary_emotion & secondary_emotions (các nhãn phụ có score đáng kể).
-4. is_sarcasm_or_conflict & conflict_explanation (Phát hiện mâu thuẫn mỉa mai giữa Status và Ảnh).
-5. mental_health_risk_level (none, weak, medium, high) & suggested_action.
-
-ĐỊNH DẠNG JSON MẪU:
-{
-  "modality": "UNIFIED_MULTIMODAL_VLM",
-  "primary_emotion": "sadness",
-  "secondary_emotions": ["fear"],
-  "final_confidence": 0.88,
-  "intensity": "moderate",
-  "emotion_scores": {
-    "joy": 0.02,
-    "sadness": 0.85,
-    "anger": 0.10,
-    "fear": 0.42,
-    "disgust": 0.05,
-    "surprise": 0.00,
-    "neutral": 0.08
-  },
-  "is_sarcasm_or_conflict": true,
-  "conflict_explanation": "Status khen ngợi nhưng ảnh u uất thể hiện mỉa mai.",
-  "content_moderation": {
-    "is_flagged": true,
-    "flagged_categories": ["NSFW_ADULT"],
-    "confidence": 0.98,
-    "reason": "Hình ảnh chứa nội dung khiêu dâm 18+ vi phạm nghiêm trọng chính sách nội dung."
-  },
-  "mental_health_risk_level": "medium",
-  "suggested_action": "TRIGGER_PROACTIVE_CHECKIN"
-}
+    BATCH_SYSTEM_PROMPT = """Bạn là AI Phân tích Đa phương thức cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
+Nhiệm vụ: Phân tích danh sách gồm nhiều bài viết (mỗi bài có id, text và danh sách ảnh).
+TRẢ VỀ JSON DUY NHẤT dưới dạng: {"results": [{"id": "post_id", "content_moderation": {...}, "emotion_scores": {...}, "primary_emotion": "...", "secondary_emotions": [...], "final_confidence": 0.8, "intensity": "moderate", "is_sarcasm_or_conflict": false, "conflict_explanation": "", "mental_health_risk_level": "none", "suggested_action": "NO_ACTION"}]}
+Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
 """
 
     def __init__(self):
@@ -157,12 +124,52 @@ BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
             logger.warning(f"[VLMAnalyzer] Model list check failed: {e}")
         return []
 
-    def _encode_image_to_base64(self, image_path: str) -> str:
-        ext = os.path.splitext(image_path)[1].lower().replace('.', '')
-        mime_type = "image/png" if ext == "png" else "image/jpeg"
-        with open(image_path, "rb") as img_file:
-            base64_data = base64.b64encode(img_file.read()).decode("utf-8")
-        return f"data:{mime_type};base64,{base64_data}"
+    def _compress_and_encode_image(self, image_source: Any, max_size: int = None, quality: int = None) -> str:
+        """
+        Compress image to max_size x max_size (JPEG) and convert to Base64 data URL.
+        Reduces Vision Tokens by up to 75% while keeping high classification quality.
+        """
+        if max_size is None:
+            max_size = settings.VLM_MAX_IMAGE_SIZE
+        if quality is None:
+            quality = settings.VLM_IMAGE_QUALITY
+
+        if hasattr(image_source, 'url') and image_source.url:
+            image_source = image_source.url
+        elif hasattr(image_source, 'path') and image_source.path:
+            image_source = image_source.path
+
+        try:
+            if isinstance(image_source, str) and (image_source.startswith("http://") or image_source.startswith("https://")):
+                resp = requests.get(image_source, timeout=10)
+                if resp.status_code != 200:
+                    return image_source
+                img = Image.open(io.BytesIO(resp.content))
+            elif isinstance(image_source, str) and os.path.exists(image_source):
+                img = Image.open(image_source)
+            elif isinstance(image_source, str) and image_source.startswith("data:image"):
+                # Already base64 data url
+                header, base64_str = image_source.split(",", 1)
+                img_data = base64.b64decode(base64_str)
+                img = Image.open(io.BytesIO(img_data))
+            else:
+                return str(image_source)
+
+            # Convert to RGB mode (in case of PNG with transparency / RGBA)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+
+            # Resize while preserving aspect ratio
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+            # Save to JPEG bytes buffer
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=quality, optimize=True)
+            encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            return f"data:image/jpeg;base64,{encoded}"
+        except Exception as e:
+            logger.warning(f"[VLMAnalyzer] Image compression failed: {e}. Falling back to raw URL/Path.")
+            return str(image_source)
 
     def reload_env(self):
         """Reload environment variables dynamically."""
@@ -172,10 +179,48 @@ BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
         if self.api_key:
             logger.info(f"[VLMAnalyzer] Dynamic reload successful! Base URL: {self.base_url}, Model: {self.model_name}")
 
+    def _normalize_raw_output(self, raw_output: VLMRawOutput) -> Dict[str, Any]:
+        """Normalize VLM emotion scores and dynamic secondary thresholding."""
+        scores_dict = raw_output.emotion_scores.model_dump()
+        raw_arr = np.array([max(0.0, float(scores_dict.get(k, 0.0))) for k in VALID_EMOTIONS])
+        sum_scores = np.sum(raw_arr)
+        
+        if sum_scores > 0:
+            norm_arr = raw_arr / sum_scores
+        else:
+            norm_arr = np.ones(7) / 7.0
+
+        normalized_scores = {k: round(float(v), 4) for k, v in zip(VALID_EMOTIONS, norm_arr)}
+        
+        sorted_indices = np.argsort(norm_arr)[::-1]
+        primary_idx = sorted_indices[0]
+        primary_emotion = VALID_EMOTIONS[primary_idx]
+        primary_prob = float(norm_arr[primary_idx])
+        
+        dynamic_threshold = max(0.10, primary_prob * 0.45)
+        secondary_emotions = [
+            VALID_EMOTIONS[idx] for idx in sorted_indices[1:]
+            if norm_arr[idx] >= dynamic_threshold and VALID_EMOTIONS[idx] != primary_emotion
+        ]
+
+        return {
+            "modality": "UNIFIED_MULTIMODAL_VLM",
+            "primaryEmotion": primary_emotion,
+            "secondaryEmotions": secondary_emotions,
+            "finalConfidence": primary_prob,
+            "intensity": raw_output.intensity,
+            "emotionScores": normalized_scores,
+            "isSarcasmOrConflict": raw_output.is_sarcasm_or_conflict,
+            "conflictExplanation": raw_output.conflict_explanation,
+            "contentModeration": raw_output.content_moderation.model_dump(),
+            "mentalHealthRiskLevel": raw_output.mental_health_risk_level,
+            "suggestedAction": raw_output.suggested_action,
+            "modelUsed": self.model_name
+        }
+
     def analyze_post(self, text_content: str, image_inputs: List[Any]) -> Dict[str, Any]:
         """
-        Analyze multimodal post (text + image_inputs).
-        image_inputs can be URLs (str) or ImageInput objects with .url or .path.
+        Analyze single multimodal post (text + image_inputs).
         """
         if not self.api_key:
             self.reload_env()
@@ -185,27 +230,11 @@ BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
 
         start_time = time.time()
         
-        # Format image URLs
-        urls = []
-        for img in image_inputs:
-            if isinstance(img, str):
-                urls.append(img)
-            elif hasattr(img, 'url') and img.url:
-                urls.append(img.url)
-            elif hasattr(img, 'path') and img.path and os.path.exists(img.path):
-                urls.append(self._encode_image_to_base64(img.path))
+        user_content = [{"type": "text", "text": f"Bài viết: \"{text_content}\"\nSố lượng hình ảnh đính kèm: {len(image_inputs)}"}]
 
-        user_content = [{"type": "text", "text": f"Bài viết: \"{text_content}\"\nSố lượng hình ảnh đính kèm: {len(urls)}"}]
-
-        for url in urls[:4]:
-            if url.startswith("http://") or url.startswith("https://") or url.startswith("data:image"):
-                img_url = url
-            elif os.path.exists(url):
-                img_url = self._encode_image_to_base64(url)
-            else:
-                continue
-            
-            user_content.append({"type": "image_url", "image_url": {"url": img_url}})
+        for img in image_inputs[:4]:
+            compressed_url = self._compress_and_encode_image(img)
+            user_content.append({"type": "image_url", "image_url": {"url": compressed_url}})
 
         payload = {
             "model": self.model_name,
@@ -223,7 +252,7 @@ BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
         }
 
         endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
-        logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) at {endpoint}...")
+        logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post...")
 
         response = requests.post(endpoint, headers=headers, json=payload, timeout=40)
         if response.status_code != 200:
@@ -233,51 +262,85 @@ BẮT BUỘC TRẢ VỀ JSON DUY NHẤT CHỨA CÁC TRƯỜNG DƯỚI ĐÂY:
         raw_content = res_json["choices"][0]["message"]["content"]
         parsed_data = json.loads(raw_content)
 
-        # Validate with Pydantic
         raw_output = VLMRawOutput(**parsed_data)
-        
-        # Re-normalize emotion scores so sum == 1.0 (Matching PhoBERT final_probs sum == 1.0)
-        scores_dict = raw_output.emotion_scores.model_dump()
-        raw_arr = np.array([max(0.0, float(scores_dict.get(k, 0.0))) for k in VALID_EMOTIONS])
-        sum_scores = np.sum(raw_arr)
-        
-        if sum_scores > 0:
-            norm_arr = raw_arr / sum_scores
-        else:
-            norm_arr = np.ones(7) / 7.0
+        normalized = self._normalize_raw_output(raw_output)
+        normalized["latencySeconds"] = round(time.time() - start_time, 3)
 
-        normalized_scores = {k: round(float(v), 4) for k, v in zip(VALID_EMOTIONS, norm_arr)}
-        
-        # Primary emotion
-        sorted_indices = np.argsort(norm_arr)[::-1]
-        primary_idx = sorted_indices[0]
-        primary_emotion = VALID_EMOTIONS[primary_idx]
-        primary_prob = float(norm_arr[primary_idx])
-        
-        # Dynamic Soft Multi-label extraction (Same formula as PhoBERT: max(0.10, primary_prob * 0.45))
-        dynamic_threshold = max(0.10, primary_prob * 0.45)
-        secondary_emotions = [
-            VALID_EMOTIONS[idx] for idx in sorted_indices[1:]
-            if norm_arr[idx] >= dynamic_threshold and VALID_EMOTIONS[idx] != primary_emotion
-        ]
+        return normalized
 
+    def analyze_batch_posts(self, posts: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """
+        Analyze a batch of multimodal posts in a SINGLE VLM API Request.
+        posts format: [{"id": "post_1", "text": "...", "images": [...]}, ...]
+        Returns dict keyed by post_id -> normalized analysis result.
+        """
+        if not posts:
+            return {}
+
+        if not self.api_key:
+            self.reload_env()
+            
+        if not self.api_key:
+            raise RuntimeError("API Key not found for VLM. Please set VLM_API_KEY in .env")
+
+        start_time = time.time()
+        user_content = []
+
+        user_content.append({
+            "type": "text",
+            "text": f"Danh sách {len(posts)} bài viết cần phân tích trong batch này:\n"
+        })
+
+        for p in posts:
+            p_id = str(p.get("id"))
+            p_text = str(p.get("text", ""))
+            p_images = p.get("images", [])
+
+            user_content.append({
+                "type": "text",
+                "text": f"\n--- BÀI VIẾT ID: {p_id} ---\nStatus: \"{p_text}\"\nĐính kèm {len(p_images)} ảnh dưới đây:"
+            })
+
+            for img in p_images[:4]:
+                compressed_url = self._compress_and_encode_image(img)
+                user_content.append({"type": "image_url", "image_url": {"url": compressed_url}})
+
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": self.BATCH_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content}
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"}
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
+        logger.info(f"[VLMAnalyzer] Calling VLM API Batch ({self.model_name}) for {len(posts)} posts in 1 request...")
+
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=60)
+        if response.status_code != 200:
+            raise RuntimeError(f"VLM API Batch Error {response.status_code}: {response.text}")
+
+        res_json = response.json()
+        raw_content = res_json["choices"][0]["message"]["content"]
+        parsed_data = json.loads(raw_content)
+
+        batch_output = VLMBatchRawOutput(**parsed_data)
+        results = {}
         elapsed_time = round(time.time() - start_time, 3)
 
-        return {
-            "modality": "UNIFIED_MULTIMODAL_VLM",
-            "primaryEmotion": primary_emotion,
-            "secondaryEmotions": secondary_emotions,
-            "finalConfidence": primary_prob,
-            "intensity": raw_output.intensity,
-            "emotionScores": normalized_scores,
-            "isSarcasmOrConflict": raw_output.is_sarcasm_or_conflict,
-            "conflictExplanation": raw_output.conflict_explanation,
-            "contentModeration": raw_output.content_moderation.model_dump(),
-            "mentalHealthRiskLevel": raw_output.mental_health_risk_level,
-            "suggestedAction": raw_output.suggested_action,
-            "latencySeconds": elapsed_time,
-            "modelUsed": self.model_name
-        }
+        for item in batch_output.results:
+            normalized = self._normalize_raw_output(item)
+            normalized["latencySeconds"] = elapsed_time
+            results[item.id] = normalized
+
+        return results
 
 
 # Singleton instance

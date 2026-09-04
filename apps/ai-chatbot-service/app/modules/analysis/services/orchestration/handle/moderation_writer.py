@@ -1,14 +1,9 @@
 import logging
-from typing import List, Dict
+from typing import Dict
 
 from app.modules.analysis.repositories.outbox import ModerationRepository
-from app.modules.analysis.schemas import (
-    ModerationResult,
-    TextModerationResult,
-    ImageModerationResult,
-)
-from app.modules.analysis.enums import TargetTypeEnum
-from app.modules.analysis.enums import SeverityEnum
+from app.modules.analysis.schemas import ModerationResult
+from app.modules.analysis.enums import TargetTypeEnum, SeverityEnum
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -28,45 +23,16 @@ class ModerationWriter:
         moderation_data: Dict
     ) -> dict:
 
-        # ---- text result ----
-        text_result = None
-        if moderation_data.get("textResult"):
-            t = moderation_data["textResult"]
-            text_result = TextModerationResult(
-                content=content,
-                isViolation=t.get("isViolation", False),
-                violationScore=t.get("violationScore", 0.0),
-                source=t.get("source", "keyword"),
-                sensitive=t.get("sensitive", False),
-                flags=t.get("flags") or {},
-            )
-
-        # ---- image results ----
-        image_results: List[ImageModerationResult] = []
-
-        for img in moderation_data.get("imageResults", []):
-            image_results.append(
-                ImageModerationResult(
-                    url=img.get("url", ""),
-                    isViolation=img.get("isViolation", False),
-                    violation=img.get("violation"),
-                    severity=img.get("severity", SeverityEnum.NONE),
-                    violationScore=img.get("violationScore"),
-                    signalStrength=img.get("signalStrength"),
-                    category=img.get("category"),
-                    scores=img.get("scores"),
-                )
-            )
-
         moderation = ModerationResult(
             userId=user_id,
             targetId=target_id,
-            targetType=target_type,  # truyền enum trực tiếp
-            textResult=text_result,
-            imageResults=image_results,
+            targetType=target_type,
             isViolation=moderation_data.get("isViolation", False),
             violationScore=moderation_data.get("violationScore", 0.0),
             maxSeverity=moderation_data.get("maxSeverity", SeverityEnum.NONE),
+            reason=moderation_data.get("reason", ""),
+            flaggedCategories=moderation_data.get("flaggedCategories", []),
+            pipelineSource=moderation_data.get("pipelineSource", "TEXT_PHOBERT"),
             modelVersion=settings.MODERATION_MODEL_VERSION,
         )
 
@@ -75,7 +41,6 @@ class ModerationWriter:
         logger.info(f"Saving new moderation for target {target_id}")
 
         return await self.moderation_repo.save_moderation(data)
-
 
     async def save_updated(
         self,
@@ -108,47 +73,11 @@ class ModerationWriter:
                 "maxSeverity",
                 existing.get("maxSeverity"),
             ),
+            "reason": moderation_data.get("reason", existing.get("reason", "")),
+            "flaggedCategories": moderation_data.get("flaggedCategories", existing.get("flaggedCategories", [])),
+            "pipelineSource": moderation_data.get("pipelineSource", existing.get("pipelineSource", "TEXT_PHOBERT")),
+            "modelVersion": settings.MODERATION_MODEL_VERSION,
         }
-
-        # ---- text ----
-        if moderation_data.get("textResult"):
-            t = moderation_data["textResult"]
-
-            text_result_dto = TextModerationResult(
-                content=content,
-                isViolation=t.get("isViolation", False),
-                violationScore=t.get("violationScore", 0.0),
-                source=t.get("source", "keyword"),
-                sensitive=t.get("sensitive", False),
-                flags=t.get("flags") or {},
-            )
-
-            update_data["textResult"] = text_result_dto.model_dump(mode="json")
-
-        # ---- image ----
-        if moderation_data.get("imageResults") is not None:
-
-            image_results: List[ImageModerationResult] = []
-
-            for img in moderation_data.get("imageResults", []):
-                image_results.append(
-                    ImageModerationResult(
-                        url=img.get("url", ""),
-                        isViolation=img.get("isViolation", False),
-                        violation=img.get("violation"),
-                        severity=img.get("severity", SeverityEnum.NONE),
-                        violationScore=img.get("violationScore"),
-                        signalStrength=img.get("signalStrength"),
-                        category=img.get("category"),
-                        scores=img.get("scores"),
-                        error=img.get("error"),
-                        modelVersion=settings.MODERATION_MODEL_VERSION, 
-                    )
-                )
-
-            update_data["imageResults"] = [
-                img.model_dump(mode="json") for img in image_results
-            ]
 
         return await self.moderation_repo.update_moderation(
             existing["_id"],
