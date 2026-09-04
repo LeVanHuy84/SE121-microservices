@@ -10,7 +10,7 @@ from app.modules.analysis.schemas import (
     TextModerationRequest,
     TextModerationResponse,
     ImageModerationRequest,
-    ImageModerationResult,
+    ImageModerationResponse,
 )
 from app.modules.analysis.lifespan import event_service, analysis_flow_service, get_model_health
 from app.modules.analysis.services.orchestration.music_flow_service import music_flow_service
@@ -155,7 +155,7 @@ async def check_text(request: TextModerationRequest):
         "source": result["source"],
     }
 
-@moderation_router.post("/images/check", response_model=List[ImageModerationResult])
+@moderation_router.post("/images/check", response_model=List[ImageModerationResponse])
 async def check_images(request: ImageModerationRequest):
     results = vlm_analyzer.analyze_post(text_content="", image_inputs=request.urls)
     mod = results.get("contentModeration", {})

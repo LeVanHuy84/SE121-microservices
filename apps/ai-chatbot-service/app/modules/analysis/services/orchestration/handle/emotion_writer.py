@@ -1,17 +1,10 @@
-# app/services/orchestration/handle/emotion_writer.py
-
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict
 
 from app.modules.analysis.repositories.emotion import EmotionAggregateRepository
-from app.modules.analysis.schemas import (
-    EmotionAggregate,
-    TextEmotionResult,
-    ImageEmotionResult,
-)
-from app.modules.analysis.enums import TargetTypeEnum
-from app.modules.analysis.enums import RiskHintLevelEnum
+from app.modules.analysis.schemas import EmotionAggregate
+from app.modules.analysis.enums import TargetTypeEnum, RiskHintLevelEnum
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -21,42 +14,6 @@ class EmotionWriter:
 
     def __init__(self, emotion_aggregate_repo: EmotionAggregateRepository):
         self.emotion_aggregate_repo = emotion_aggregate_repo
-
-    # ======================================================
-    # BUILDERS
-    # ======================================================
-    def _build_text_result(
-        self, emotion_data: Dict
-    ) -> Optional[TextEmotionResult]:
-        text_data = emotion_data.get("textResult")
-        if not text_data:
-            return None
-
-        return TextEmotionResult(
-            content=text_data["content"],
-            primaryEmotion=text_data.get("primaryEmotion", text_data.get("dominantEmotion")),
-            secondaryEmotions=text_data.get("secondaryEmotions", []),
-            scores=text_data["scores"],
-            confidence=text_data["confidence"],
-            model=text_data["model"],
-            meta=text_data.get("meta"),
-        )
-
-    def _build_image_results(
-        self, emotion_data: Dict
-    ) -> List[ImageEmotionResult]:
-        return [
-            ImageEmotionResult(
-                url=r["url"],
-                dominantEmotion=r["dominantEmotion"],
-                scores=r["scores"],
-                confidence=r["confidence"],
-                model=r["model"],
-                sceneType=r.get("sceneType"),
-                sceneContext=r.get("sceneContext"),
-            )
-            for r in emotion_data.get("imageResults", [])
-        ]
 
     # ======================================================
     # CREATED
@@ -69,23 +26,29 @@ class EmotionWriter:
         emotion_data: Dict,
     ) -> dict:
 
+        raw_intensity = emotion_data.get("intensity")
+        intensity_obj = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity or "moderate"), "score": emotion_data.get("finalConfidence", 0.5)}
+
         aggregate = EmotionAggregate(
             userId=user_id,
             targetId=target_id,
-            targetType=target_type,  # truyền enum trực tiếp
+            targetType=target_type,
+            modelVersion=settings.EMOTION_MODEL_VERSION,
+            pipelineSource=emotion_data.get("pipelineSource", "TEXT_PHOBERT"),
             primaryEmotion=emotion_data.get("primaryEmotion", emotion_data.get("finalEmotion")),
             secondaryEmotions=emotion_data.get("secondaryEmotions", []),
             finalScores=emotion_data["finalScores"],
             finalConfidence=emotion_data["finalConfidence"],
-            dominantModality=emotion_data["dominantModality"],
-            dominantSceneType=emotion_data.get("dominantSceneType"),
-            intensity=emotion_data.get("intensity"),
-            textResult=self._build_text_result(emotion_data),
-            imageResults=self._build_image_results(emotion_data),
+            intensity=intensity_obj,
+            isSarcasmOrConflict=emotion_data.get("isSarcasmOrConflict", False),
+            conflictExplanation=emotion_data.get("conflictExplanation", ""),
+            mentalHealthRiskLevel=emotion_data.get("mentalHealthRiskLevel", "none"),
+            suggestedAction=emotion_data.get("suggestedAction", "NO_ACTION"),
+            content=emotion_data.get("content", ""),
+            imageUrls=emotion_data.get("imageUrls", []),
             riskHintLevel=emotion_data.get(
                 "riskHintLevel", RiskHintLevelEnum.NONE
             ),
-            modelVersion=settings.EMOTION_MODEL_VERSION,
         )
 
         data = aggregate.model_dump(
@@ -96,9 +59,8 @@ class EmotionWriter:
 
         return await self.emotion_aggregate_repo.save(data)
 
-
     # ======================================================
-    # UPDATED (FIXED SIGNATURE)
+    # UPDATED
     # ======================================================
     async def save_updated(
         self,
@@ -109,7 +71,7 @@ class EmotionWriter:
 
         existing = await self.emotion_aggregate_repo.get_by_target(
             targetId=target_id,
-            targetType=target_type.value,  # nếu DB lưu string
+            targetType=target_type.value,
         )
 
         if not existing:
@@ -117,28 +79,22 @@ class EmotionWriter:
                 f"EmotionAggregate not found for target {target_id}"
             )
 
-        text_result_dto = self._build_text_result(emotion_data)
-        text_result_dict = (
-            text_result_dto.model_dump(mode='json')
-            if text_result_dto else None
-        )
-
-        image_results_dtos = self._build_image_results(emotion_data)
-        image_results_dicts = [
-            img.model_dump(mode='json')
-            for img in image_results_dtos
-        ]
+        raw_intensity = emotion_data.get("intensity")
+        intensity_obj = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity or "moderate"), "score": emotion_data.get("finalConfidence", 0.5)}
 
         update_data = {
             "primaryEmotion": emotion_data.get("primaryEmotion", emotion_data.get("finalEmotion")),
             "secondaryEmotions": emotion_data.get("secondaryEmotions", []),
             "finalScores": emotion_data["finalScores"],
             "finalConfidence": emotion_data["finalConfidence"],
-            "dominantModality": emotion_data["dominantModality"],
-            "dominantSceneType": emotion_data.get("dominantSceneType"),
-            "intensity": emotion_data.get("intensity"),
-            "textResult": text_result_dict,
-            "imageResults": image_results_dicts,
+            "pipelineSource": emotion_data.get("pipelineSource", "TEXT_PHOBERT"),
+            "intensity": intensity_obj,
+            "isSarcasmOrConflict": emotion_data.get("isSarcasmOrConflict", False),
+            "conflictExplanation": emotion_data.get("conflictExplanation", ""),
+            "mentalHealthRiskLevel": emotion_data.get("mentalHealthRiskLevel", "none"),
+            "suggestedAction": emotion_data.get("suggestedAction", "NO_ACTION"),
+            "content": emotion_data.get("content", ""),
+            "imageUrls": emotion_data.get("imageUrls", []),
             "riskHintLevel": emotion_data.get(
                 "riskHintLevel", RiskHintLevelEnum.NONE
             ),

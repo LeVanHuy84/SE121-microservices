@@ -17,6 +17,9 @@ from app.modules.analysis.messaging.retry_worker import RetryWorker
 from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded, get_model_health  # noqa: F401
 from app.modules.analysis.services.orchestration.analysis_flow_service import AnalysisFlowService
 from app.modules.analysis.repositories.emotion import EmotionAggregateRepository
+from app.modules.analysis.repositories.idempotency import IdempotencyRepository
+from app.modules.analysis.messaging.dlq_service import KafkaDLQService
+from app.modules.analysis.messaging.consumer_helper import KafkaConsumerHelper
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,7 @@ outbox_repo = OutboxRepository(collections['outbox_events'])
 emotion_aggregate_repo = EmotionAggregateRepository(collections['emotion_aggregates'])
 moderation_repo = ModerationRepository(collections['moderation_results'])
 task_repo = TaskRepository(collections['analysis_tasks'])
+idempotency_repo = IdempotencyRepository(collections['processed_events'])
 
 # Inject repositories vào analysis_flow_service
 analysis_flow_service = AnalysisFlowService(
@@ -40,6 +44,9 @@ analysis_flow_service = AnalysisFlowService(
 )
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
+dlq_service = KafkaDLQService(kafka_producer)
+consumer_helper = KafkaConsumerHelper(idempotency_repo, dlq_service)
+
 processor = OutboxBatchProcessor(outbox_repo, kafka_producer)
 retry_worker = RetryWorker(
     emotion_aggregate_repo,
@@ -58,20 +65,26 @@ event_service = HandleEventService(
 dispatcher = EventDispatcher(event_service)
 
 # -------------------------------------------------------
-# Kafka Consumer Handler
+# Kafka Consumer Handlers
 # -------------------------------------------------------
 async def handle_analysis_event(msg):
-    logger.info("Received message: %s", msg)
-    await dispatcher.dispatch(msg)
+    logger.info("Received single message: %s", msg)
+    await consumer_helper.handle_single(msg, dispatcher.dispatch, topic="analysis-events")
 
 
-# QUAN TRỌNG: phải register consumer
+async def handle_batch_analysis_events(messages: list):
+    logger.info("Received batch of %d messages from Kafka", len(messages))
+    await consumer_helper.handle_batch(messages, dispatcher.dispatch, topic="analysis-events")
+
+
+# QUAN TRỌNG: phải register consumer với batch_handler
 register_consumer(
     KafkaConsumerService(
         brokers=settings.KAFKA_BROKERS,
         topic="analysis-events",
         group_id=settings.KAFKA_CLIENT_ID,
         handler=handle_analysis_event,
+        batch_handler=handle_batch_analysis_events,
     )
 )
 
@@ -80,11 +93,9 @@ register_consumer(
 # -------------------------------------------------------
 async def init_database():
     try:
-        await db['user_emotion_snapshots'].create_index([("userId", 1), ("window", 1)], unique=True, name="idx_unique_user_window")
-        await db['user_emotion_snapshots'].create_index([("userId", 1)], name="idx_userId")
-        await db['user_emotion_profiles'].create_index([("userId", 1)], unique=True, name="idx_unique_userId")
         await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
-        logger.info("[DB Init] All indexes verified")
+        await db['processed_events'].create_index([("updatedAt", 1)], expireAfterSeconds=604800, name="idx_ttl_7days")
+        logger.info("[DB Init] All indexes verified (including processed_events TTL)")
     except Exception as e:
         logger.warning(f"[DB Init] Index creation warning: {e}")
 

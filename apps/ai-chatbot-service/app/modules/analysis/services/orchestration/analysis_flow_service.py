@@ -22,7 +22,7 @@ from app.modules.analysis.services.ml_models.text_moderation import moderation_a
 from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
 
 # Utils
-from app.modules.analysis.enums import TargetTypeEnum, DominantModalityEnum
+from app.modules.analysis.enums import TargetTypeEnum
 
 logger = logging.getLogger(__name__)
 
@@ -111,31 +111,22 @@ class AnalysisFlowService:
         secondary_emotions = vlm_res.get("secondaryEmotions", [])
         final_scores = vlm_res.get("emotionScores", {})
         confidence = float(vlm_res.get("finalConfidence", 0.8))
+        raw_intensity = vlm_res.get("intensity", "moderate")
+        intensity_dict = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity), "score": confidence}
 
         emotion_result = {
             "primaryEmotion": primary_emotion,
             "secondaryEmotions": secondary_emotions,
             "finalConfidence": confidence,
             "finalScores": final_scores,
-            "intensity": vlm_res.get("intensity", "moderate"),
-            "dominantModality": DominantModalityEnum.IMAGE.value,
+            "intensity": intensity_dict,
+            "pipelineSource": "MULTIMODAL_VLM",
             "isSarcasmOrConflict": vlm_res.get("isSarcasmOrConflict", False),
             "conflictExplanation": vlm_res.get("conflictExplanation", ""),
-            "textResult": {
-                "content": text,
-                "primaryEmotion": primary_emotion,
-                "secondaryEmotions": secondary_emotions,
-                "scores": final_scores,
-                "confidence": confidence,
-                "model": vlm_res.get("modelUsed", "vlm_groq")
-            },
-            "imageResults": [{
-                "url": img.url if hasattr(img, "url") else str(img),
-                "dominantEmotion": primary_emotion,
-                "scores": final_scores,
-                "confidence": confidence,
-                "model": vlm_res.get("modelUsed", "vlm_groq")
-            } for img in image_inputs]
+            "mentalHealthRiskLevel": vlm_res.get("mentalHealthRiskLevel", "none"),
+            "suggestedAction": vlm_res.get("suggestedAction", "NO_ACTION"),
+            "content": text,
+            "imageUrls": [img.url if hasattr(img, "url") else str(img) for img in image_inputs]
         }
 
         return {
@@ -143,6 +134,106 @@ class AnalysisFlowService:
             "emotion": emotion_result,
             "shouldBlock": should_block,
         }
+
+    async def analyze_batch_multimodal_vlm(
+        self,
+        batch_items: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Analyze multiple multimodal posts in a SINGLE VLM API request.
+        batch_items: [{"id": "post_1", "text": "...", "images": [...], "target_type": TargetTypeEnum}, ...]
+        Returns dict keyed by post_id -> analysis result format matching analyze_content.
+        """
+        if not batch_items:
+            return {}
+
+        logger.info(f"[AnalysisFlow] Batch processing {len(batch_items)} Multimodal posts via VLM...")
+        
+        vlm_posts = []
+        for item in batch_items:
+            vlm_posts.append({
+                "id": item["id"],
+                "text": item["text"],
+                "images": item.get("image_inputs") or item.get("images", [])
+            })
+
+        try:
+            batch_vlm_res = vlm_analyzer.analyze_batch_posts(vlm_posts)
+        except Exception as e:
+            logger.error(f"[AnalysisFlow] Batch VLM execution error: {e}. Falling back to item-by-item processing.")
+            results = {}
+            for item in batch_items:
+                results[item["id"]] = await self._analyze_multimodal_vlm(
+                    text=item["text"],
+                    image_inputs=item.get("image_inputs") or item.get("images", []),
+                    target_type=item.get("target_type", TargetTypeEnum.POST)
+                )
+            return results
+
+        final_batch_results = {}
+        for item in batch_items:
+            p_id = item["id"]
+            text = item["text"]
+            image_inputs = item.get("image_inputs") or item.get("images", [])
+            target_type = item.get("target_type", TargetTypeEnum.POST)
+            vlm_res = batch_vlm_res.get(p_id)
+
+            if not vlm_res:
+                final_batch_results[p_id] = await self._analyze_text_only(text, target_type, is_fallback=True)
+                continue
+
+            vlm_mod = vlm_res.get("contentModeration", {})
+            should_block = bool(vlm_mod.get("is_flagged", False))
+
+            moderation_result = {
+                "isViolation": should_block,
+                "violationScore": float(vlm_mod.get("confidence", 0.95)) if should_block else 0.0,
+                "maxSeverity": "high" if should_block else "none",
+                "textResult": {"isViolation": should_block, "reason": vlm_mod.get("reason", "")},
+                "imageResults": [vlm_mod],
+                "reason": vlm_mod.get("reason", ""),
+                "flaggedCategories": vlm_mod.get("flagged_categories", []),
+                "pipelineSource": "VLM_UNIFIED_BATCH"
+            }
+
+            if target_type == TargetTypeEnum.SHARE or should_block:
+                final_batch_results[p_id] = {
+                    "moderation": moderation_result,
+                    "emotion": None,
+                    "shouldBlock": should_block,
+                    "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
+                }
+                continue
+
+            primary_emotion = vlm_res.get("primaryEmotion", "neutral")
+            secondary_emotions = vlm_res.get("secondaryEmotions", [])
+            final_scores = vlm_res.get("emotionScores", {})
+            confidence = float(vlm_res.get("finalConfidence", 0.8))
+            raw_intensity = vlm_res.get("intensity", "moderate")
+            intensity_dict = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity), "score": confidence}
+
+            emotion_result = {
+                "primaryEmotion": primary_emotion,
+                "secondaryEmotions": secondary_emotions,
+                "finalConfidence": confidence,
+                "finalScores": final_scores,
+                "intensity": intensity_dict,
+                "pipelineSource": "MULTIMODAL_VLM",
+                "isSarcasmOrConflict": vlm_res.get("isSarcasmOrConflict", False),
+                "conflictExplanation": vlm_res.get("conflictExplanation", ""),
+                "mentalHealthRiskLevel": vlm_res.get("mentalHealthRiskLevel", "none"),
+                "suggestedAction": vlm_res.get("suggestedAction", "NO_ACTION"),
+                "content": text,
+                "imageUrls": [img.url if hasattr(img, "url") else str(img) for img in image_inputs]
+            }
+
+            final_batch_results[p_id] = {
+                "moderation": moderation_result,
+                "emotion": emotion_result,
+                "shouldBlock": should_block,
+            }
+
+        return final_batch_results
 
     # ======================================================
     # TEXT-ONLY FLOW (PHOBERT)
@@ -153,25 +244,24 @@ class AnalysisFlowService:
         target_type: TargetTypeEnum,
         is_fallback: bool = False
     ) -> Dict[str, Any]:
-        source_tag = "PHOBERT_TEXT_FALLBACK" if is_fallback else "PHOBERT_TEXT"
+        source_tag = "PHOBERT_TEXT_FALLBACK" if is_fallback else "PHOBERT_TEXT_ONLY"
         logger.info(f"[AnalysisFlow] Routing to Text-only PhoBERT Pipeline ({source_tag})...")
 
-        # 1. Moderation
+        # Moderation First
         text_moderation = moderation_aggregator.moderate(text)
         should_block = bool(text_moderation.get("isViolation", False))
 
         moderation_result = {
             "isViolation": should_block,
-            "violationScore": text_moderation.get("violationScore", 0.0),
-            "maxSeverity": text_moderation.get("maxSeverity", "none"),
-            "textResult": text_moderation,
-            "imageResults": [],
-            "reason": text_moderation.get("reason", "Phân tích nội dung chữ qua PhoBERT"),
-            "flaggedCategories": ["TOXIC_LANGUAGE"] if should_block else [],
+            "violationScore": float(text_moderation.get("violationScore", 0.0)),
+            "maxSeverity": "high" if should_block else "none",
+            "reason": text_moderation.get("reason", ""),
+            "flaggedCategories": list(text_moderation.get("flags", {}).keys()),
             "pipelineSource": source_tag
         }
 
         if target_type == TargetTypeEnum.SHARE or should_block:
+            logger.info(f"Text-only content processed → shouldBlock: {should_block}")
             return {
                 "moderation": moderation_result,
                 "emotion": None,
@@ -179,35 +269,25 @@ class AnalysisFlowService:
                 "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
             }
 
-        # 2. Emotion Classification
+        # Emotion Analysis
         text_emotion = text_emotion_classifier.classify(text)
-
-        text_scores_raw = text_emotion.get("emotionScores") or {}
-        text_scores = emotion_analyzer.normalize_scores(text_scores_raw)
+        text_scores = text_emotion.get("scores", {})
         text_confidence = float(text_emotion.get("confidence", 0.8))
-
-        text_result = {
-            "content": text,
-            "dominantEmotion": text_emotion.get("dominantEmotion"),
-            "primaryEmotion": text_emotion.get("primaryEmotion"),
-            "secondaryEmotions": text_emotion.get("secondaryEmotions", []),
-            "scores": text_scores,
-            "confidence": text_confidence,
-            "model": text_emotion.get("model", "phobert"),
-            "meta": text_emotion.get("meta"),
-        }
+        intensity_obj = emotion_analyzer.calculate_intensity(text_scores)
 
         emotion_result = {
             "primaryEmotion": text_emotion.get("primaryEmotion"),
             "secondaryEmotions": text_emotion.get("secondaryEmotions", []),
             "finalConfidence": text_confidence,
             "finalScores": text_scores,
-            "intensity": "moderate",
-            "dominantModality": DominantModalityEnum.TEXT.value,
+            "intensity": intensity_obj,
+            "pipelineSource": "TEXT_PHOBERT",
             "isSarcasmOrConflict": False,
             "conflictExplanation": "",
-            "textResult": text_result,
-            "imageResults": [],
+            "mentalHealthRiskLevel": "none",
+            "suggestedAction": "NO_ACTION",
+            "content": text,
+            "imageUrls": []
         }
 
         return {

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict
 from dataclasses import dataclass
 from app.modules.analysis.enums import AnalysisStatusEnum, EmotionEnum, EventTypeEnum, TargetTypeEnum, RiskHintLevelEnum, SeverityEnum
 
@@ -84,23 +84,9 @@ class AnalysisTask(BaseModel):
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class TextEmotionResult(BaseModel):
-    content: str
-    primaryEmotion: EmotionEnum
-    secondaryEmotions: List[EmotionEnum] = Field(default_factory=list)
-    scores: Dict[str, float]
-    confidence: float
-    model: str
-    meta: Optional[Dict[str, Any]] = None
-
-class ImageEmotionResult(BaseModel):
-    url: str
-    dominantEmotion: EmotionEnum
-    scores: Dict[str, float]
-    confidence: float
-    model: str
-    sceneType: Optional[str] = None
-    sceneContext: Optional[str] = None
+class IntensityDetail(BaseModel):
+    level: str = "moderate"  # mild | moderate | severe
+    score: float = 0.5
 
 class EmotionAggregate(BaseModel):
     id: Optional[str] = None
@@ -109,58 +95,41 @@ class EmotionAggregate(BaseModel):
     targetType: TargetTypeEnum
 
     modelVersion: str
+    pipelineSource: str = "TEXT_PHOBERT"  # 'TEXT_PHOBERT' | 'MULTIMODAL_VLM'
 
     primaryEmotion: EmotionEnum
     secondaryEmotions: List[EmotionEnum] = Field(default_factory=list)
     finalScores: Dict[str, float]
     finalConfidence: float
-    dominantModality: str  # 'text' | 'image'
-    dominantSceneType: Optional[str] = None
-    intensity: dict
+    intensity: IntensityDetail = Field(default_factory=IntensityDetail)
 
-    textResult: Optional[TextEmotionResult] = None
-    imageResults: List[ImageEmotionResult] = Field(default_factory=list)
+    # Multimodal VLM specific features
+    isSarcasmOrConflict: bool = False
+    conflictExplanation: Optional[str] = ""
+    mentalHealthRiskLevel: Optional[str] = "none"
+    suggestedAction: Optional[str] = "NO_ACTION"
+
+    content: Optional[str] = ""
+    imageUrls: List[str] = Field(default_factory=list)
 
     riskHintLevel: RiskHintLevelEnum = RiskHintLevelEnum.NONE
 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class TextModerationResult(BaseModel):
-    content: str
-    isViolation: bool
-    violationScore: float
-    source: str                # phobert_binary | keyword_hard
-    sensitive: bool
-    flags: Dict[str, bool] = Field(default_factory=dict)    # self_harm_mention, hate_speech...
-
-class ImageModerationResult(BaseModel):
-    url: str
-
-    isViolation: bool
-    violation: Optional[str] = None        # violence | sexual_explicit | blood
-    severity: SeverityEnum  
-    violationScore: Optional[float] = None
-    signalStrength: Optional[str] = None
-    category: Optional[str] = None
-    scores: Optional[Dict[str, float]] = None
-
 class ModerationResult(BaseModel):
     id: Optional[str] = None
     userId: str
-
     targetId: str
     targetType: TargetTypeEnum
 
-    # === analysis result ===
-    textResult: Union[TextModerationResult, None] = None
-    imageResults: List[ImageModerationResult] = Field(default_factory=list)
-
-    # === final decision (VERY IMPORTANT) ===
     isViolation: bool
-    violationScore: float
-    maxSeverity: SeverityEnum  
-    
+    violationScore: float = 0.0
+    maxSeverity: SeverityEnum = SeverityEnum.NONE
+    reason: Optional[str] = ""
+    flaggedCategories: List[str] = Field(default_factory=list)
+
+    pipelineSource: str = "TEXT_PHOBERT"  # 'TEXT_PHOBERT' | 'MULTIMODAL_VLM'
     modelVersion: str
 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -186,6 +155,12 @@ class TextModerationResponse(BaseModel):
 
 class ImageModerationRequest(BaseModel):
     urls: List[str] = Field(..., min_items=1)
+
+class ImageModerationResponse(BaseModel):
+    url: str
+    is_violation: bool
+    confidence: float
+    source: str
 
 class UnsafeSceneDetails(BaseModel):
     category: str
