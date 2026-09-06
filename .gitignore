@@ -80,4 +80,10 @@ python_env/
 
 # Evaluation Sensitive and Heavy Data
 **/evaluation/collection-data/data/facebook_session.json
-**/evaluation/collection-data/data/images/
+**/evaluation/collection-data/data/images/
+**/evaluation/data/
+**/evaluation/moderation/data*/
+**/evaluation/moderation/versions/*/saved_phobert_moderation*/
+**/evaluation/moderation/versions/*/results_phobert_moderation*/
+*.zip
+*.safetensors
