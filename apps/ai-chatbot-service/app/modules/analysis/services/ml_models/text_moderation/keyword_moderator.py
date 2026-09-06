@@ -1,78 +1,74 @@
-from typing import Dict, List
+import re
+from typing import Dict, List, Set
 
 
 class KeywordModerator:
     def __init__(self):
-        # Ban cứng: không cho publish
-        self.banned_keywords = {
-            # Sexual explicit
-            "sex", "porn", "xxx", "xnxx",
-            "nude", "naked",
-            "jav", "hentai", "onlyfans",
-            "địt nhau", "chịch", "đụ",
+        # Tier 1: Hard Block (Nhãn 4: ILLEGAL_PORN - Cấm tuyệt đối, không phụ thuộc ngữ cảnh)
+        self.illegal_porn_keywords: Set[str] = {
+            # Sexual explicit / Pornography (Tiếng Anh & Viết tắt)
+            "sex", "porn", "xxx", "xnxx", "xvideos", "xvideo",
+            "nude", "naked", "erotic", "nsfw",
+            "jav", "hentai", "onlyfans", "stripchat",
+            "orgasm", "gangbang", "blowjob", "handjob",
+            "cumshot", "pornhub", "redtube", "youporn",
 
-            # Profanity nặng (explicit)
-            "địt", "đéo", "đụ",
-            "cc", "cặc", "lồn", "buồi", "cứt", "đĩ",
-            "đ!t", "đ*o", "đ**", "đbrr", "xàm l",
-            "xàm c", "như l", "như cc",
-            "fuck", "f*ck", "fck", "fk",
-            "fucking", "motherfucker", "pussy", "bitch", "asshole",
-
-            # Offensive nặng (direct insult)
-            "óc chó", "não chó",
-            "thiểu năng",
-            "retarded",
-
-            # Hate speech
-            "nigger", "faggot",
-            "chink", "raghead",
-            "parky",
-            "bắc kỳ", "nam kỳ",
-            "bắc kì", "nam kì",
+            # Sexual explicit (Tiếng Việt)
+            "địt nhau", "chịch nhau", "đụ nhau", "phịch nhau",
+            "chịch", "đụ", "xoạc nhau", "nện nhau",
+            "phim sex", "ảnh sex",
+            "ảnh nude", "lộ clip sex", "show hàng",
+            "hiếp dâm", "cưỡng hiếp", "loạn luân", "ấu dâm",
         }
 
-        # Nội dung nhạy cảm: chỉ flag
-        self.sensitive_keywords = {
-            "self_harm": [
-                "tự tử", "muốn chết", "chán sống",
-                "không muốn sống", "kết liễu",
-                "tự sát", "nhảy lầu",
-                "uống thuốc ngủ", "cắt tay", "rạch tay", "treo cổ",
-                "muốn biến mất", "sống mệt quá",
-                "suicide", "kill myself", "want to die",
-                "end my life", "self harm", "cut myself"
-            ]
-        }
+
+        # Substring / Exact patterns for hard block explicit terms
+        self.illegal_porn_exact_patterns = [
+            re.compile(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', re.IGNORECASE)
+            for kw in self.illegal_porn_keywords
+        ]
 
     def analyze(self, text: str) -> Dict:
-        text_lower = text.lower()
-
-        flags: Dict[str, bool] = {}
-        matched_keywords: Dict[str, List[str]] = {}
-
-        # =====================
-        # 1. Check banned keywords (HARD BLOCK)
-        # =====================
-        hits = [kw for kw in self.banned_keywords if kw in text_lower]
-        if hits:
+        """
+        Runs Tier 1 Fast Regex Keyword Filter (<1ms).
+        Returns:
+          - blocked: bool
+          - label: str ("ILLEGAL_PORN" if blocked else "CLEAN")
+          - label_code: int (4 if blocked else 0)
+          - matchedKeywords: List[str]
+          - flags: Dict[str, bool]
+        """
+        text_clean = text.strip()
+        if not text_clean:
             return {
-                "blocked": True,
-                "matchedKeywords": hits,
+                "blocked": False,
+                "label": "CLEAN",
+                "label_code": 0,
+                "matchedKeywords": [],
                 "flags": {}
             }
 
-        # =====================
-        # 2. Check sensitive keywords (FLAG ONLY)
-        # =====================
-        for category, keywords in self.sensitive_keywords.items():
-            hits = [kw for kw in keywords if kw in text_lower]
-            if hits:
-                flags[f"{category}_mention"] = True
-                matched_keywords[category] = hits
+        # 1. Check Hard Block (Label 4: ILLEGAL_PORN)
+        matched_hard = []
+        for kw, pattern in zip(self.illegal_porn_keywords, self.illegal_porn_exact_patterns):
+            if pattern.search(text_clean):
+                matched_hard.append(kw)
+
+        if matched_hard:
+            return {
+                "blocked": True,
+                "label": "ILLEGAL_PORN",
+                "label_code": 4,
+                "matchedKeywords": matched_hard,
+                "flags": {}
+            }
 
         return {
             "blocked": False,
-            "flags": flags,
-            "matchedKeywords": matched_keywords
+            "label": "CLEAN",
+            "label_code": 0,
+            "flags": {},
+            "matchedKeywords": []
         }
+
+

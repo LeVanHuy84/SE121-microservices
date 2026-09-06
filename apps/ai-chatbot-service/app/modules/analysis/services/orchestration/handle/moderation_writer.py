@@ -28,10 +28,16 @@ class ModerationWriter:
             targetId=target_id,
             targetType=target_type,
             isViolation=moderation_data.get("isViolation", False),
+            action=moderation_data.get("action", "ALLOW"),
+            label=moderation_data.get("label", "CLEAN"),
+            labelCode=int(moderation_data.get("labelCode", 0)),
             violationScore=moderation_data.get("violationScore", 0.0),
+            confidence=moderation_data.get("confidence", 1.0),
             maxSeverity=moderation_data.get("maxSeverity", SeverityEnum.NONE),
+            mentalHealthSupport=moderation_data.get("mentalHealthSupport", False),
             reason=moderation_data.get("reason", ""),
             flaggedCategories=moderation_data.get("flaggedCategories", []),
+            allScores=moderation_data.get("allScores", {}),
             pipelineSource=moderation_data.get("pipelineSource", "TEXT_PHOBERT"),
             modelVersion=settings.MODERATION_MODEL_VERSION,
         )
@@ -41,6 +47,7 @@ class ModerationWriter:
         logger.info(f"Saving new moderation for target {target_id}")
 
         return await self.moderation_repo.save_moderation(data)
+
 
     async def save_updated(
         self,
@@ -65,19 +72,26 @@ class ModerationWriter:
                 "isViolation",
                 existing.get("isViolation"),
             ),
+            "action": moderation_data.get("action", existing.get("action", "ALLOW")),
+            "label": moderation_data.get("label", existing.get("label", "CLEAN")),
+            "labelCode": int(moderation_data.get("labelCode", existing.get("labelCode", 0))),
             "violationScore": moderation_data.get(
                 "violationScore",
                 existing.get("violationScore"),
             ),
+            "confidence": moderation_data.get("confidence", existing.get("confidence", 1.0)),
             "maxSeverity": moderation_data.get(
                 "maxSeverity",
                 existing.get("maxSeverity"),
             ),
+            "mentalHealthSupport": moderation_data.get("mentalHealthSupport", existing.get("mentalHealthSupport", False)),
             "reason": moderation_data.get("reason", existing.get("reason", "")),
             "flaggedCategories": moderation_data.get("flaggedCategories", existing.get("flaggedCategories", [])),
+            "allScores": moderation_data.get("allScores", existing.get("allScores", {})),
             "pipelineSource": moderation_data.get("pipelineSource", existing.get("pipelineSource", "TEXT_PHOBERT")),
             "modelVersion": settings.MODERATION_MODEL_VERSION,
         }
+
 
         return await self.moderation_repo.update_moderation(
             existing["_id"],

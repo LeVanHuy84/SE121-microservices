@@ -124,15 +124,21 @@ class ModerationResult(BaseModel):
     targetType: TargetTypeEnum
 
     isViolation: bool
-    violationScore: float = 0.0
-    maxSeverity: SeverityEnum = SeverityEnum.NONE
+    action: str = "ALLOW"  # ALLOW | ALLOW_WITH_WARNING | ALLOW_WITH_SUPPORT | HARD_BLOCK
+    label: str = "CLEAN"  # CLEAN | PROFANITY_VENTING | HATE_SPEECH | EMOTIONAL_CRISIS | ILLEGAL_PORN
+    labelCode: int = 0  # 0 | 1 | 2 | 3 | 4
+    confidence: float = 1.0
+    mentalHealthSupport: bool = False
     reason: Optional[str] = ""
     flaggedCategories: List[str] = Field(default_factory=list)
+    allScores: Dict[str, float] = Field(default_factory=dict)
 
-    pipelineSource: str = "TEXT_PHOBERT"  # 'TEXT_PHOBERT' | 'MULTIMODAL_VLM'
-    modelVersion: str
+    pipelineSource: str = "TEXT_PHOBERT"  # 'PHOBERT_TEXT_ONLY' | 'VLM_UNIFIED'
+    modelVersion: str = "1.1.0"
 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 
 class Outbox(BaseModel):
     id: Optional[str] = None
