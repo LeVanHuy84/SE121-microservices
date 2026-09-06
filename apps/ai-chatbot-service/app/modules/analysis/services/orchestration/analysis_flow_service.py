@@ -85,26 +85,61 @@ class AnalysisFlowService:
 
         vlm_mod = vlm_res.get("contentModeration", {})
         should_block = bool(vlm_mod.get("is_flagged", False))
+        flagged_cats = vlm_mod.get("flagged_categories", [])
+        
+        # Determine VLM action & label based on VLM moderation response
+        if should_block:
+            if "SELF_HARM" in flagged_cats:
+                action = "ALLOW_WITH_SUPPORT"
+                should_block = False  # Do not block self-harm/emotional crisis posts
+                label = "EMOTIONAL_CRISIS"
+                label_code = 3
+                max_severity = "none"
+                mental_health_support = True
+            elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
+                action = "HARD_BLOCK"
+                label = "ILLEGAL_PORN"
+                label_code = 4
+                max_severity = "high"
+                mental_health_support = False
+            else:
+                action = "HARD_BLOCK"
+                label = "HATE_SPEECH"
+                label_code = 2
+                max_severity = "high"
+                mental_health_support = False
+        else:
+            action = "ALLOW"
+            label = "CLEAN"
+            label_code = 0
+            max_severity = "none"
+            mental_health_support = False
+
+        confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
 
         moderation_result = {
             "isViolation": should_block,
-            "violationScore": float(vlm_mod.get("confidence", 0.95)) if should_block else 0.0,
-            "maxSeverity": "high" if should_block else "none",
-            "textResult": {"isViolation": should_block, "reason": vlm_mod.get("reason", "")},
-            "imageResults": [vlm_mod],
+            "action": action,
+            "label": label,
+            "labelCode": label_code,
+            "confidence": confidence,
+            "mentalHealthSupport": mental_health_support,
             "reason": vlm_mod.get("reason", ""),
-            "flaggedCategories": vlm_mod.get("flagged_categories", []),
-            "pipelineSource": "VLM_UNIFIED"
+            "flaggedCategories": flagged_cats,
+            "pipelineSource": "VLM_UNIFIED",
+            "allScores": {label: confidence}
         }
 
+
         if target_type == TargetTypeEnum.SHARE or should_block:
-            logger.info(f"Multimodal content processed → shouldBlock: {should_block}")
+            logger.info(f"Multimodal content processed → shouldBlock: {should_block}, action: {action}")
             return {
                 "moderation": moderation_result,
                 "emotion": None,
                 "shouldBlock": should_block,
                 "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
             }
+
 
         # Emotion DTO
         primary_emotion = vlm_res.get("primaryEmotion", "neutral")
@@ -184,17 +219,50 @@ class AnalysisFlowService:
 
             vlm_mod = vlm_res.get("contentModeration", {})
             should_block = bool(vlm_mod.get("is_flagged", False))
+            flagged_cats = vlm_mod.get("flagged_categories", [])
+
+            if should_block:
+                if "SELF_HARM" in flagged_cats:
+                    action = "ALLOW_WITH_SUPPORT"
+                    should_block = False
+                    label = "EMOTIONAL_CRISIS"
+                    label_code = 3
+                    max_severity = "none"
+                    mental_health_support = True
+                elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
+                    action = "HARD_BLOCK"
+                    label = "ILLEGAL_PORN"
+                    label_code = 4
+                    max_severity = "high"
+                    mental_health_support = False
+                else:
+                    action = "HARD_BLOCK"
+                    label = "HATE_SPEECH"
+                    label_code = 2
+                    max_severity = "high"
+                    mental_health_support = False
+            else:
+                action = "ALLOW"
+                label = "CLEAN"
+                label_code = 0
+                max_severity = "none"
+                mental_health_support = False
+
+            confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
 
             moderation_result = {
                 "isViolation": should_block,
-                "violationScore": float(vlm_mod.get("confidence", 0.95)) if should_block else 0.0,
-                "maxSeverity": "high" if should_block else "none",
-                "textResult": {"isViolation": should_block, "reason": vlm_mod.get("reason", "")},
-                "imageResults": [vlm_mod],
+                "action": action,
+                "label": label,
+                "labelCode": label_code,
+                "confidence": confidence,
+                "mentalHealthSupport": mental_health_support,
                 "reason": vlm_mod.get("reason", ""),
-                "flaggedCategories": vlm_mod.get("flagged_categories", []),
-                "pipelineSource": "VLM_UNIFIED_BATCH"
+                "flaggedCategories": flagged_cats,
+                "pipelineSource": "VLM_UNIFIED_BATCH",
+                "allScores": {label: confidence}
             }
+
 
             if target_type == TargetTypeEnum.SHARE or should_block:
                 final_batch_results[p_id] = {
@@ -204,6 +272,7 @@ class AnalysisFlowService:
                     "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
                 }
                 continue
+
 
             primary_emotion = vlm_res.get("primaryEmotion", "neutral")
             secondary_emotions = vlm_res.get("secondaryEmotions", [])
@@ -250,18 +319,24 @@ class AnalysisFlowService:
         # Moderation First
         text_moderation = moderation_aggregator.moderate(text)
         should_block = bool(text_moderation.get("isViolation", False))
+        action = text_moderation.get("action", "ALLOW")
 
         moderation_result = {
             "isViolation": should_block,
-            "violationScore": float(text_moderation.get("violationScore", 0.0)),
-            "maxSeverity": "high" if should_block else "none",
+            "action": action,
+            "label": text_moderation.get("label", "CLEAN"),
+            "labelCode": text_moderation.get("labelCode", 0),
+            "confidence": float(text_moderation.get("confidence", 1.0)),
+            "mentalHealthSupport": bool(text_moderation.get("mentalHealthSupport", False)),
             "reason": text_moderation.get("reason", ""),
-            "flaggedCategories": list(text_moderation.get("flags", {}).keys()),
-            "pipelineSource": source_tag
+            "flaggedCategories": text_moderation.get("flaggedCategories", []),
+            "pipelineSource": source_tag,
+            "allScores": text_moderation.get("allScores", {})
         }
 
+
         if target_type == TargetTypeEnum.SHARE or should_block:
-            logger.info(f"Text-only content processed → shouldBlock: {should_block}")
+            logger.info(f"Text-only content processed → shouldBlock: {should_block}, action: {action}")
             return {
                 "moderation": moderation_result,
                 "emotion": None,
@@ -269,11 +344,15 @@ class AnalysisFlowService:
                 "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
             }
 
-        # Emotion Analysis
+        # Emotion Analysis (Always runs for CLEAN, PROFANITY_VENTING, and EMOTIONAL_CRISIS)
         text_emotion = text_emotion_classifier.classify(text)
-        text_scores = text_emotion.get("scores", {})
+        text_scores = text_emotion.get("emotionScores", {})
         text_confidence = float(text_emotion.get("confidence", 0.8))
         intensity_obj = emotion_analyzer.calculate_intensity(text_scores)
+
+
+        # Enhance risk hint level if emotional crisis label detected
+        risk_hint = "high" if action == "ALLOW_WITH_SUPPORT" else "none"
 
         emotion_result = {
             "primaryEmotion": text_emotion.get("primaryEmotion"),
@@ -284,8 +363,8 @@ class AnalysisFlowService:
             "pipelineSource": "TEXT_PHOBERT",
             "isSarcasmOrConflict": False,
             "conflictExplanation": "",
-            "mentalHealthRiskLevel": "none",
-            "suggestedAction": "NO_ACTION",
+            "mentalHealthRiskLevel": risk_hint,
+            "suggestedAction": "SUGGEST_AI_CHATBOT" if action == "ALLOW_WITH_SUPPORT" else "NO_ACTION",
             "content": text,
             "imageUrls": []
         }
@@ -295,6 +374,7 @@ class AnalysisFlowService:
             "emotion": emotion_result,
             "shouldBlock": should_block,
         }
+
 
 
 # Singleton Instance

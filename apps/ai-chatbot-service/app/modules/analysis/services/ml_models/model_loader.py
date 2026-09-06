@@ -50,10 +50,12 @@ class ModelLoader:
         # 2. Load Text Moderation models (PhoBERT Moderator)
         try:
             from app.modules.analysis.services.ml_models.text_moderation import ensure_phobert_moderator_loaded
-            ensure_phobert_moderator_loaded()
-            logger.info("[ModelLoader] ✓ Text moderation models loaded")
+            mod_instance = ensure_phobert_moderator_loaded()
+            mod_model_name = getattr(mod_instance, "model_name", "unknown")
+            logger.info(f"[ModelLoader] ✓ Text moderation (PhoBERT) models loaded (Model: {mod_model_name})")
         except Exception as e:
             logger.warning(f"[ModelLoader] ⚠ Text moderation models failed: {e}")
+
 
         # 3. Check VLM Pipeline readiness
         try:
