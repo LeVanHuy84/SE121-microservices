@@ -29,6 +29,12 @@ class Settings:
         self.EMOTION_DAILY_CRON_MINUTE_UTC: int = int(os.getenv("EMOTION_DAILY_CRON_MINUTE_UTC", 5))
         self.EMOTION_MODEL_VERSION: str = os.getenv("EMOTION_MODEL_VERSION", "1.0.1").strip()
         self.MODERATION_MODEL_VERSION: str = os.getenv("MODERATION_MODEL_VERSION", "1.0.0").strip()
+        self.PHOBERT_EMOTION_MODEL_PATH: str = os.getenv(
+            "PHOBERT_EMOTION_MODEL_PATH", "huyleit/phobert-emotion-social"
+        ).strip()
+        self.PHOBERT_MODERATION_MODEL_PATH: str = os.getenv(
+            "PHOBERT_MODERATION_MODEL_PATH", "huyleit/phobert-vi-moderation-v1.1"
+        ).strip()
 
         self.CHATBOT_MEMORY_RECENT_TURNS: int = int(
             os.getenv("CHATBOT_MEMORY_RECENT_TURNS", 8)
@@ -490,6 +496,12 @@ class Settings:
 
         if not (0 <= self.GROQ_TEMPERATURE <= 2):
             raise RuntimeError("GROQ_TEMPERATURE must be between 0 and 2")
+
+        if not self.PHOBERT_EMOTION_MODEL_PATH:
+            raise RuntimeError("PHOBERT_EMOTION_MODEL_PATH must not be empty")
+
+        if not self.PHOBERT_MODERATION_MODEL_PATH:
+            raise RuntimeError("PHOBERT_MODERATION_MODEL_PATH must not be empty")
 
 
 settings = Settings()
