@@ -7,17 +7,13 @@ PhoBERT Emotion Model - Vietnamese Text Emotion Classification
 - Owned by text_emotion subdomain
 """
 
-import os
-from pathlib import Path
 import logging
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
-logger = logging.getLogger(__name__)
+from app.core.settings import settings
 
-# Preferred Model Sources: Env Var -> Local evaluation weights (if exists) -> Hugging Face Hub
-DEFAULT_LOCAL_WEIGHTS = Path(__file__).parents[6] / "evaluation" / "weights" / "phobert_emotion_final"
-HF_HUB_MODEL_NAME = "huyleit/phobert-emotion-social"
+logger = logging.getLogger(__name__)
 
 
 class PhoBERTEmotionModel:
@@ -25,7 +21,7 @@ class PhoBERTEmotionModel:
     PhoBERT model for Vietnamese text emotion classification.
     
     Architecture: AI Layer - Model management
-    - Owns the PhoBERT emotion model instance (huyleit/phobert-emotion-social)
+    - Owns the PhoBERT emotion model instance
     - Handles loading, initialization, inference
     - Separate from PhoBERT moderation (different model)
     """
@@ -37,14 +33,7 @@ class PhoBERTEmotionModel:
         self.model = None
         self.pipeline = None
         self.device = None
-        
-        env_model_path = os.getenv("PHOBERT_EMOTION_MODEL_PATH")
-        if env_model_path:
-            self.model_name = env_model_path
-        elif DEFAULT_LOCAL_WEIGHTS.exists():
-            self.model_name = str(DEFAULT_LOCAL_WEIGHTS)
-        else:
-            self.model_name = HF_HUB_MODEL_NAME
+        self.model_name = settings.PHOBERT_EMOTION_MODEL_PATH
     
     def initialize(self):
         """Initialize PhoBERT emotion model."""

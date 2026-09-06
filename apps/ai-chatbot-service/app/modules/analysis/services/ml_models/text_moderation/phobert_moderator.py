@@ -1,9 +1,9 @@
-# app/services/ai/text_moderation/phobert_moderator.py
-
 import logging
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +20,18 @@ class PhoBERTModerator:
         self.model = None
         self.device = None
         self.initialized = False
+        self.model_name = settings.PHOBERT_MODERATION_MODEL_PATH
 
     def initialize(self):
         if self.initialized:
             return
 
         try:
-            model_name = "lamdx4/phobert-vi-moderation"
+            logger.info(f"[PhoBERTModerator] Loading binary moderation model: {self.model_name}")
 
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name
+                self.model_name
             )
 
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -38,7 +39,7 @@ class PhoBERTModerator:
             self.model.eval()
 
             self.initialized = True
-            logger.info("[PhoBERTModerator] Binary model loaded")
+            logger.info(f"[PhoBERTModerator] Binary model loaded successfully on {self.device}")
 
         except Exception:
             logger.exception("[PhoBERTModerator] Load failed")
