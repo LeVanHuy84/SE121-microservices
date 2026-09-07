@@ -2,11 +2,17 @@ import { RiskLevel } from '@repo/dtos';
 import { AiContext } from './ai.types';
 
 function toRiskInstruction(riskLevel: RiskLevel): string {
-  if (riskLevel === RiskLevel.CRITICAL || riskLevel === RiskLevel.HIGH) {
+  if (
+    riskLevel === RiskLevel.CRISIS ||
+    riskLevel === RiskLevel.HIGH_RISK
+  ) {
     return 'Người dùng đang có dấu hiệu cảm xúc tiêu cực cao. Hãy nhẹ nhàng khuyến khích họ tạm dừng, hít thở và chia sẻ với người họ tin tưởng.';
   }
 
-  if (riskLevel === RiskLevel.WARNING) {
+  if (
+    riskLevel === RiskLevel.MODERATE_RISK ||
+    riskLevel === RiskLevel.MILD_STRESS
+  ) {
     return 'Người dùng đang có dấu hiệu căng thẳng. Hãy gợi ý họ nghỉ ngơi hoặc làm điều gì đó giúp thư giãn.';
   }
 

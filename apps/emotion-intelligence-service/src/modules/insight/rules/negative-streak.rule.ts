@@ -7,7 +7,7 @@ export class NegativeStreakRule implements InsightRule {
   readonly type = InsightType.NEGATIVE_STREAK;
 
   evaluate(context: InsightContext): Insight | null {
-    if (context.profile.negativeEventStreak < 3) {
+    if (context.profile.consecutiveNegativeDays < 3) {
       return null;
     }
 

@@ -167,9 +167,10 @@ export class EmotionSignalService {
 
   private normalizeRiskLevel(level: RiskLevel): RiskLevel {
     switch (level) {
-      case RiskLevel.CRITICAL:
-      case RiskLevel.HIGH:
-      case RiskLevel.WARNING:
+      case RiskLevel.CRISIS:
+      case RiskLevel.HIGH_RISK:
+      case RiskLevel.MODERATE_RISK:
+      case RiskLevel.MILD_STRESS:
       case RiskLevel.NORMAL:
         return level;
       default:

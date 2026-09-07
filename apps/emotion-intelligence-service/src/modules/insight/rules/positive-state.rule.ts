@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Insight, InsightContext, InsightRule } from '../insight.types';
-import { InsightTone, InsightType } from '@repo/dtos';
+import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
 @Injectable()
 export class PositiveStateRule implements InsightRule {
   readonly type = InsightType.POSITIVE_STATE;
 
   evaluate(context: InsightContext): Insight | null {
-    const { recentNegativityScore } = context.profile;
+    const { decayedNegativityScore } = context.profile;
     const { riskLevel } = context.riskState;
 
-    if (!(recentNegativityScore < 0.3 && riskLevel === 'normal')) {
+    if (!(decayedNegativityScore < 0.3 && riskLevel === RiskLevel.NORMAL)) {
       return null;
     }
 

@@ -16,7 +16,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiModule } from './modules/ai/ai.module';
 import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-analytics.module';
 import { UserClientModule } from './modules/client/user/user-client.module';
-import { PostClientModule } from './modules/client/post/post-client.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { ProactiveInterventionModule } from './modules/proactive-intervention/proactive-intervention.module';
 
 @Module({
   imports: [
@@ -46,6 +47,8 @@ import { PostClientModule } from './modules/client/post/post-client.module';
     AiModule,
     EmotionAnalyticsModule,
     UserClientModule,
+    IngestionModule,
+    ProactiveInterventionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

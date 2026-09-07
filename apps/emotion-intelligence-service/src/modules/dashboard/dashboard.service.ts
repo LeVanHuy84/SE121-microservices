@@ -80,7 +80,7 @@ export class DashboardService {
       riskScore: Number(riskState.riskScore ?? 0),
 
       recentNegativityScore: Number(negativityScore),
-      negativeEventStreak: Number(profile.negativeEventStreak ?? 0),
+      negativeEventStreak: Number(profile.consecutiveNegativeDays ?? 0),
       emotionMomentum: Number(profile.emotionMomentum ?? 0),
 
       lastEvaluatedAt: riskState.lastEvaluatedAt,

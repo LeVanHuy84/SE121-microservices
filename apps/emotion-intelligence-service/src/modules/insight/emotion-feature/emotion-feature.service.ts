@@ -57,7 +57,7 @@ export class EmotionFeatureService {
 
     // ===== PROFILE FEATURES =====
     const recentNegativityScore = this.toSafeNumber(
-      profile?.recentNegativityScore,
+      profile?.decayedNegativityScore,
     );
 
     const emotionMomentum = this.toSafeNumber(profile?.emotionMomentum);
@@ -88,7 +88,7 @@ export class EmotionFeatureService {
         ? profile.emotionVectorEMA
         : { ...NEUTRAL_DISTRIBUTION };
 
-    const negativity = this.toSafeNumber(profile?.recentNegativityScore);
+    const negativity = this.toSafeNumber(profile?.decayedNegativityScore);
 
     const momentum = this.toSafeNumber(profile?.emotionMomentum);
 
@@ -119,9 +119,10 @@ export class EmotionFeatureService {
   }
 
   private deriveRiskLevel(score: number): RiskLevel {
-    if (score >= 0.85) return RiskLevel.CRITICAL;
-    if (score >= 0.7) return RiskLevel.HIGH;
-    if (score >= 0.4) return RiskLevel.WARNING;
+    if (score >= 0.85) return RiskLevel.CRISIS;
+    if (score >= 0.7) return RiskLevel.HIGH_RISK;
+    if (score >= 0.5) return RiskLevel.MODERATE_RISK;
+    if (score >= 0.3) return RiskLevel.MILD_STRESS;
     return RiskLevel.NORMAL;
   }
 }

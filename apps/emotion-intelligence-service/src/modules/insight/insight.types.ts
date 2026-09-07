@@ -2,8 +2,8 @@ import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
 // ===== INSIGHT PROJECTIONS (DOMAIN PURPOSE) =====
 export interface InsightProfileProjection {
-  recentNegativityScore: number;
-  negativeEventStreak: number;
+  decayedNegativityScore: number;
+  consecutiveNegativeDays: number;
   emotionMomentum: number;
   lastStrongNegativeAt?: Date;
 }

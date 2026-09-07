@@ -21,7 +21,7 @@ import {
 
 export interface ProfileProjection {
   emotionVectorEMA?: Record<string, number>;
-  recentNegativityScore?: number;
+  decayedNegativityScore?: number;
   emotionMomentum?: number;
 }
 

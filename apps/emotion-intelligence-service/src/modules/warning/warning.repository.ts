@@ -25,8 +25,8 @@ export interface Snapshot1dProjection {
 }
 
 export interface ProfileSpikeProjection {
-  recentNegativityScore?: number;
-  negativeEventStreak?: number;
+  decayedNegativityScore?: number;
+  consecutiveNegativeDays?: number;
   emotionMomentum?: number;
   lastEventAt?: Date;
   lastStrongNegativeAt?: Date;
@@ -85,8 +85,8 @@ export class WarningRepository {
         { userId },
         {
           _id: 0,
-          recentNegativityScore: 1,
-          negativeEventStreak: 1,
+          decayedNegativityScore: 1,
+          consecutiveNegativeDays: 1,
           emotionMomentum: 1,
           lastEventAt: 1,
           lastStrongNegativeAt: 1,
