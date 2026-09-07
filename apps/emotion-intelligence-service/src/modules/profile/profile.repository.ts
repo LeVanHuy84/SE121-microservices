@@ -14,7 +14,6 @@ import {
   UserRiskStateDocument,
 } from 'src/mongo/schema/user_risk_states.schema';
 import { ProfileAggregateEvent } from './profile.schema';
-import { RiskUserItemDto } from '@repo/dtos';
 
 @Injectable()
 export class ProfileRepository {
@@ -40,56 +39,6 @@ export class ProfileRepository {
     return profile;
   }
 
-  async listRiskUsers(
-    page = 1,
-    limit = 20,
-    riskLevel?: string,
-  ): Promise<{
-    items: RiskUserItemDto[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const query: any = {};
-    if (riskLevel) query.riskLevel = riskLevel;
-
-    const skip = (page - 1) * limit;
-
-    const [itemsRaw, total] = await Promise.all([
-      this.riskStateModel
-        .find(query)
-        .sort({ riskScore: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean<any[]>()
-        .exec(),
-      this.riskStateModel.countDocuments(query).exec(),
-    ]);
-
-    const userIds = itemsRaw.map((r) => r.userId);
-
-    // compute signal counts per user from analytics snapshots (privacy-safe numeric only)
-    const counts = await this.aggregateModel
-      .aggregate([
-        { $match: { userId: { $in: userIds } } },
-        { $group: { _id: '$userId', count: { $sum: 1 } } },
-      ])
-      .exec();
-
-    const countById = new Map(counts.map((c: any) => [c._id, c.count]));
-
-    const items: RiskUserItemDto[] = itemsRaw.map((r) => ({
-      userId: r.userId,
-      riskLevel: r.riskLevel,
-      riskScore: r.riskScore,
-      signalCount: Number(countById.get(r.userId) ?? 0),
-      updatedAt: r.updatedAt,
-      flagged: !!r.flagged,
-    }));
-
-    return { items, total, page, limit };
-  }
-
   async getRiskStateByUserId(userId: string) {
     return this.riskStateModel.findOne({ userId }).lean().exec();
   }
@@ -99,10 +48,10 @@ export class ProfileRepository {
     payload: Partial<UserEmotionProfile>,
   ): Promise<void> {
     const {
-      negativeEventStreak,
+      consecutiveNegativeDays,
       lastEventAt,
       lastStrongNegativeAt,
-      recentNegativityScore,
+      decayedNegativityScore,
       emotionMomentum,
       ...restPayload
     } = payload;
@@ -113,16 +62,22 @@ export class ProfileRepository {
         $set: {
           ...restPayload,
           userId,
-          ...(negativeEventStreak !== undefined && { negativeEventStreak }),
+          ...(consecutiveNegativeDays !== undefined && {
+            consecutiveNegativeDays,
+          }),
           ...(lastEventAt !== undefined && { lastEventAt }),
           ...(lastStrongNegativeAt !== undefined && { lastStrongNegativeAt }),
-          ...(recentNegativityScore !== undefined && { recentNegativityScore }),
+          ...(decayedNegativityScore !== undefined && {
+            decayedNegativityScore,
+          }),
           ...(emotionMomentum !== undefined && { emotionMomentum }),
         },
         $setOnInsert: {
-          ...(negativeEventStreak === undefined && { negativeEventStreak: 0 }),
-          ...(recentNegativityScore === undefined && {
-            recentNegativityScore: 0,
+          ...(consecutiveNegativeDays === undefined && {
+            consecutiveNegativeDays: 0,
+          }),
+          ...(decayedNegativityScore === undefined && {
+            decayedNegativityScore: 0,
           }),
           ...(emotionMomentum === undefined && { emotionMomentum: 0 }),
           ...(lastEventAt === undefined && { lastEventAt: null }),
@@ -133,6 +88,18 @@ export class ProfileRepository {
       },
       { upsert: true },
     );
+  }
+
+  async findInactiveProfiles(cutoff: Date): Promise<UserEmotionProfileDocument[]> {
+    return this.profileModel
+      .find({
+        $or: [
+          { lastEventAt: { $lt: cutoff } },
+          { lastEventAt: { $exists: false } },
+        ],
+        decayedNegativityScore: { $gt: 0.05 },
+      })
+      .exec();
   }
 
   async getAggregatesByUserAfter(
@@ -179,8 +146,8 @@ export class ProfileRepository {
         surprise: 0.1,
         neutral: 0.3,
       },
-      recentNegativityScore: 0,
-      negativeEventStreak: 0,
+      decayedNegativityScore: 0,
+      consecutiveNegativeDays: 0,
       lastEventAt: undefined,
       lastStrongNegativeAt: undefined,
       emotionMomentum: 0,

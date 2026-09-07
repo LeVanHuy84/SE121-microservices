@@ -4,14 +4,16 @@ import { RiskLevel } from '@repo/dtos';
 const RISK_CONFIG = {
   thresholds: {
     enter: {
-      WARNING: 0.6,
-      HIGH: 0.7,
-      CRITICAL: 0.8,
+      MILD_STRESS: 0.3,
+      MODERATE_RISK: 0.5,
+      HIGH_RISK: 0.7,
+      CRISIS: 0.85,
     },
     exit: {
-      WARNING: 0.4,
-      HIGH: 0.6,
-      CRITICAL: 0.7,
+      MILD_STRESS: 0.2,
+      MODERATE_RISK: 0.4,
+      HIGH_RISK: 0.6,
+      CRISIS: 0.75,
     },
   },
   stableWindowsRequired: 2,
@@ -20,8 +22,8 @@ const RISK_CONFIG = {
 } as const;
 
 export interface ProfileSpikeSignals {
-  recentNegativityScore?: number;
-  negativeEventStreak?: number;
+  decayedNegativityScore?: number;
+  consecutiveNegativeDays?: number;
   emotionMomentum?: number;
   lastEventAt?: Date;
 }
@@ -76,19 +78,19 @@ export class RiskEvaluationService {
     currentScore: number,
     previousScore: number,
   ): boolean {
-    const recentNegativityScore = this.clamp01(
-      profile?.recentNegativityScore ?? 0,
+    const decayedNegativityScore = this.clamp01(
+      profile?.decayedNegativityScore ?? 0,
     );
     const emotionMomentum = this.clampSigned(profile?.emotionMomentum ?? 0);
-    const negativeEventStreak = this.toSafeNumber(profile?.negativeEventStreak);
+    const consecutiveNegativeDays = this.toSafeNumber(profile?.consecutiveNegativeDays);
 
     const scoreDelta = Math.abs(
       this.clamp01(currentScore) - this.clamp01(previousScore),
     );
 
     return (
-      (recentNegativityScore > 0.8 && emotionMomentum > 0.5) ||
-      negativeEventStreak >= 5 ||
+      (decayedNegativityScore > 0.8 && emotionMomentum > 0.5) ||
+      consecutiveNegativeDays >= 3 ||
       scoreDelta > RISK_CONFIG.spikeThreshold
     );
   }
@@ -99,8 +101,8 @@ export class RiskEvaluationService {
     stableWindows: number,
     previousScore: number,
   ): RiskLevel {
-    // OPTIONAL: nếu đã HIGH trở lên thì bỏ qua spike
-    if (this.levelRank(currentLevel) >= this.levelRank(RiskLevel.HIGH)) {
+    // OPTIONAL: nếu đã HIGH_RISK trở lên thì bỏ qua spike
+    if (this.levelRank(currentLevel) >= this.levelRank(RiskLevel.HIGH_RISK)) {
       return currentLevel;
     }
 
@@ -135,39 +137,20 @@ export class RiskEvaluationService {
     return elapsed >= RISK_CONFIG.cooldownMs;
   }
 
-  private computeCandidateLevel(
-    currentLevel: RiskLevel,
-    score: number,
-  ): RiskLevel {
-    if (currentLevel === RiskLevel.NORMAL) {
-      return score >= RISK_CONFIG.thresholds.enter.WARNING
-        ? RiskLevel.WARNING
-        : RiskLevel.NORMAL;
+  computeCandidateLevel(currentLevel: RiskLevel, score: number): RiskLevel {
+    if (score >= RISK_CONFIG.thresholds.enter.CRISIS) {
+      return RiskLevel.CRISIS;
     }
-
-    if (currentLevel === RiskLevel.WARNING) {
-      if (score >= RISK_CONFIG.thresholds.enter.HIGH) {
-        return RiskLevel.HIGH;
-      }
-      if (score < RISK_CONFIG.thresholds.exit.WARNING) {
-        return RiskLevel.NORMAL;
-      }
-      return RiskLevel.WARNING;
+    if (score >= RISK_CONFIG.thresholds.enter.HIGH_RISK) {
+      return RiskLevel.HIGH_RISK;
     }
-
-    if (currentLevel === RiskLevel.HIGH) {
-      if (score >= RISK_CONFIG.thresholds.enter.CRITICAL) {
-        return RiskLevel.CRITICAL;
-      }
-      if (score < RISK_CONFIG.thresholds.exit.HIGH) {
-        return RiskLevel.WARNING;
-      }
-      return RiskLevel.HIGH;
+    if (score >= RISK_CONFIG.thresholds.enter.MODERATE_RISK) {
+      return RiskLevel.MODERATE_RISK;
     }
-
-    return score < RISK_CONFIG.thresholds.exit.CRITICAL
-      ? RiskLevel.HIGH
-      : RiskLevel.CRITICAL;
+    if (score >= RISK_CONFIG.thresholds.enter.MILD_STRESS) {
+      return RiskLevel.MILD_STRESS;
+    }
+    return RiskLevel.NORMAL;
   }
 
   private meetsTransitionCondition(
@@ -175,29 +158,27 @@ export class RiskEvaluationService {
     targetLevel: RiskLevel,
     score: number,
   ): boolean {
-    if (
-      currentLevel === RiskLevel.NORMAL &&
-      targetLevel === RiskLevel.WARNING
-    ) {
-      return score >= RISK_CONFIG.thresholds.enter.WARNING;
-    }
-    if (currentLevel === RiskLevel.WARNING && targetLevel === RiskLevel.HIGH) {
-      return score >= RISK_CONFIG.thresholds.enter.HIGH;
-    }
-    if (currentLevel === RiskLevel.HIGH && targetLevel === RiskLevel.CRITICAL) {
-      return score >= RISK_CONFIG.thresholds.enter.CRITICAL;
-    }
-    if (currentLevel === RiskLevel.CRITICAL && targetLevel === RiskLevel.HIGH) {
-      return score < RISK_CONFIG.thresholds.exit.CRITICAL;
-    }
-    if (currentLevel === RiskLevel.HIGH && targetLevel === RiskLevel.WARNING) {
-      return score < RISK_CONFIG.thresholds.exit.HIGH;
-    }
-    if (
-      currentLevel === RiskLevel.WARNING &&
-      targetLevel === RiskLevel.NORMAL
-    ) {
-      return score < RISK_CONFIG.thresholds.exit.WARNING;
+    const targetRank = this.levelRank(targetLevel);
+    const currentRank = this.levelRank(currentLevel);
+
+    if (targetRank > currentRank) {
+      if (targetLevel === RiskLevel.MILD_STRESS)
+        return score >= RISK_CONFIG.thresholds.enter.MILD_STRESS;
+      if (targetLevel === RiskLevel.MODERATE_RISK)
+        return score >= RISK_CONFIG.thresholds.enter.MODERATE_RISK;
+      if (targetLevel === RiskLevel.HIGH_RISK)
+        return score >= RISK_CONFIG.thresholds.enter.HIGH_RISK;
+      if (targetLevel === RiskLevel.CRISIS)
+        return score >= RISK_CONFIG.thresholds.enter.CRISIS;
+    } else {
+      if (currentLevel === RiskLevel.CRISIS)
+        return score < RISK_CONFIG.thresholds.exit.CRISIS;
+      if (currentLevel === RiskLevel.HIGH_RISK)
+        return score < RISK_CONFIG.thresholds.exit.HIGH_RISK;
+      if (currentLevel === RiskLevel.MODERATE_RISK)
+        return score < RISK_CONFIG.thresholds.exit.MODERATE_RISK;
+      if (currentLevel === RiskLevel.MILD_STRESS)
+        return score < RISK_CONFIG.thresholds.exit.MILD_STRESS;
     }
 
     return false;
@@ -208,16 +189,20 @@ export class RiskEvaluationService {
   }
 
   private levelRank(level: RiskLevel): number {
-    if (level === RiskLevel.NORMAL) {
-      return 0;
+    switch (level) {
+      case RiskLevel.NORMAL:
+        return 0;
+      case RiskLevel.MILD_STRESS:
+        return 1;
+      case RiskLevel.MODERATE_RISK:
+        return 2;
+      case RiskLevel.HIGH_RISK:
+        return 3;
+      case RiskLevel.CRISIS:
+        return 4;
+      default:
+        return 0;
     }
-    if (level === RiskLevel.WARNING) {
-      return 1;
-    }
-    if (level === RiskLevel.HIGH) {
-      return 2;
-    }
-    return 3;
   }
 
   private clamp01(value: number): number {

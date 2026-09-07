@@ -10,6 +10,8 @@ import {
 } from 'src/common/constants';
 import { EmotionAnalyticsSnapshot } from 'src/mongo/schema/analytic-snapshot.schema';
 
+import { ProactiveInterventionService } from '../proactive-intervention/proactive-intervention.service';
+
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
@@ -19,6 +21,7 @@ export class IngestionService {
     private readonly model: Model<EmotionAnalyticsSnapshot>,
     @InjectRedis()
     private readonly redis: Redis,
+    private readonly proactiveInterventionService: ProactiveInterventionService,
   ) {}
 
   async handleCreated(payload: AnalysisResultEventPayload) {
@@ -36,6 +39,16 @@ export class IngestionService {
   private async processEvent(payload: AnalysisResultEventPayload) {
     await this.upsertSnapshot(payload);
     await this.markUserDirty(payload.userId);
+
+    // Evaluate real-time proactive intervention (<5ms)
+    try {
+      await this.proactiveInterventionService.evaluateFromEvent(payload.userId, payload);
+    } catch (err) {
+      this.logger.error(
+        `Error during real-time proactive intervention evaluation for user=${payload.userId}`,
+        err,
+      );
+    }
   }
 
   // 🧠 tách mapping ra riêng

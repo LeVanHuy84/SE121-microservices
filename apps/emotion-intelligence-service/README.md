@@ -29,6 +29,7 @@ The emotion-intelligence-service compiles user emotional profiles, aggregates da
 | `KAFKA_BROKERS` | Kafka broker endpoints | `localhost:9092` |
 | `GROQ_API_KEY` | Optional Groq LLM API Key | — |
 | `GROQ_MODEL` | Groq model choice | `llama-3.3-70b-versatile` |
+| `PROACTIVE_SWEEP_CRON` | Cron schedule cho Proactive AI sweep | `0 9 * * *` |
 
 ## Development
 

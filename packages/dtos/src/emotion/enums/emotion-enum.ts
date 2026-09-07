@@ -27,10 +27,18 @@ export enum LowCaseEmotion {
 }
 
 export enum RiskLevel {
-  NORMAL = 'normal',
-  WARNING = 'warning',
-  HIGH = 'high',
-  CRITICAL = 'critical',
+  NORMAL = 'NORMAL',
+  MILD_STRESS = 'MILD_STRESS',
+  MODERATE_RISK = 'MODERATE_RISK',
+  HIGH_RISK = 'HIGH_RISK',
+  CRISIS = 'CRISIS',
+}
+
+export enum TriggerFlag {
+  SUICIDAL_IDEATION = 'SUICIDAL_IDEATION',
+  LONG_TERM_SADNESS = 'LONG_TERM_SADNESS',
+  HIGH_ANXIETY_BURST = 'HIGH_ANXIETY_BURST',
+  SARCASM_CONFLICT = 'SARCASM_CONFLICT',
 }
 
 export enum RiskHintLevel {

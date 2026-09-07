@@ -3,7 +3,6 @@ import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
 import {
   FeedbackListQueryDto,
-  RiskUsersQueryDto,
   SystemRole,
 } from "@repo/dtos";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
@@ -29,14 +28,6 @@ export class AdminEmotionController {
   async getDashboardCharts(@Query() query: { from?: string; to?: string }) {
     return await firstValueFrom(
       this.client.send("emotion-admin.dashboard.chart", query),
-    );
-  }
-
-  @Get("risk-users")
-  @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
-  async listRiskUsers(@Query() query: RiskUsersQueryDto) {
-    return await firstValueFrom(
-      this.client.send("emotion-admin.profile.risk-users", query),
     );
   }
 

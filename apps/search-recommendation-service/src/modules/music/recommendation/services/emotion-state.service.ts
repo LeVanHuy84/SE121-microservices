@@ -12,7 +12,8 @@ export enum EmotionState {
 @Injectable()
 export class EmotionStateService {
   classify(valence: number, arousal: number, risk: RiskLevel): EmotionState {
-    if (risk >= RiskLevel.HIGH) return EmotionState.STRESS;
+    if (risk === RiskLevel.HIGH_RISK || risk === RiskLevel.CRISIS)
+      return EmotionState.STRESS;
 
     // ===== LOW VALENCE ZONE =====
     if (valence < 0.4) {

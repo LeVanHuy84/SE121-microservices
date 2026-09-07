@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Insight, InsightContext, InsightRule } from '../insight.types';
-import { InsightTone, InsightType } from '@repo/dtos';
+import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
 @Injectable()
 export class HighRiskRule implements InsightRule {
   readonly type = InsightType.HIGH_RISK;
 
   evaluate(context: InsightContext): Insight | null {
-    if (context.riskState.riskLevel !== 'high') {
+    if (
+      context.riskState.riskLevel !== RiskLevel.HIGH_RISK &&
+      context.riskState.riskLevel !== RiskLevel.CRISIS
+    ) {
       return null;
     }
 

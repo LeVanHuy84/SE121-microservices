@@ -38,8 +38,8 @@ export interface DashboardRiskStateProjection {
 
 export interface DashboardProfileProjection {
   emotionVectorEMA?: Record<string, number>;
-  recentNegativityScore?: number;
-  negativeEventStreak?: number;
+  decayedNegativityScore?: number;
+  consecutiveNegativeDays?: number;
   lastStrongNegativeAt?: Date;
   emotionMomentum?: number;
 }
@@ -248,8 +248,8 @@ export class DashboardRepository {
 
     const profile: InsightProfileProjection | null = profileRaw
       ? {
-          recentNegativityScore: profileRaw.recentNegativityScore ?? 0,
-          negativeEventStreak: profileRaw.negativeEventStreak ?? 0,
+          decayedNegativityScore: profileRaw.decayedNegativityScore ?? 0,
+          consecutiveNegativeDays: profileRaw.consecutiveNegativeDays ?? 0,
           emotionMomentum: profileRaw.emotionMomentum ?? 0,
           lastStrongNegativeAt: profileRaw.lastStrongNegativeAt,
         }
@@ -315,10 +315,10 @@ export class DashboardRepository {
       await Promise.all([
         this.analyticsSnapshotModel.countDocuments().exec(),
         this.riskStateModel
-          .countDocuments({ riskLevel: RiskLevel.HIGH })
+          .countDocuments({ riskLevel: RiskLevel.HIGH_RISK })
           .exec(),
         this.riskStateModel
-          .countDocuments({ riskLevel: RiskLevel.CRITICAL })
+          .countDocuments({ riskLevel: RiskLevel.CRISIS })
           .exec(),
       ]);
 

@@ -73,13 +73,13 @@ export function mapAiContext(params: {
   const volatility = Math.max(0, toNumber(snapshot?.emotionVolatility, 0));
   const trend = toTrendDirection(toNumber(snapshot?.trend, 0));
   const recentNegativityScore = clamp(
-    toNumber(profile?.recentNegativityScore, 0),
+    toNumber(profile?.decayedNegativityScore, 0),
     0,
     1,
   );
   const negativeEventStreak = Math.max(
     0,
-    Math.floor(toNumber(profile?.negativeEventStreak, 0)),
+    Math.floor(toNumber(profile?.consecutiveNegativeDays, 0)),
   );
 
   const lastEventAt = toDate(profile?.lastEventAt);

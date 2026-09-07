@@ -7,10 +7,10 @@ export class StableStateRule implements InsightRule {
   readonly type = InsightType.STABLE_STATE;
 
   evaluate(context: InsightContext): Insight | null {
-    const { emotionMomentum, recentNegativityScore } = context.profile;
+    const { emotionMomentum, decayedNegativityScore } = context.profile;
     const isStableMomentum = Math.abs(emotionMomentum) < 0.05;
     const inModerateNegativityBand =
-      recentNegativityScore >= 0.3 && recentNegativityScore <= 0.6;
+      decayedNegativityScore >= 0.3 && decayedNegativityScore <= 0.6;
 
     if (!(isStableMomentum && inModerateNegativityBand)) {
       return null;

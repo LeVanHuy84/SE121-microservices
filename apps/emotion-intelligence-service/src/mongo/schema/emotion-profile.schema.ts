@@ -11,27 +11,27 @@ export class UserEmotionProfile {
   @Prop({ required: true, unique: true, index: true })
   userId: string;
 
-  // EMA cảm xúc hiện tại
+  // EMA cảm xúc 7 nhãn (joy, sadness, anger, fear, disgust, surprise, neutral)
   @Prop({ type: Object, required: true })
   emotionVectorEMA: Record<string, number>;
 
-  // độ tiêu cực gần đây (time-decayed)
+  // Điểm tiêu cực tích lũy theo thời gian (Time-Decay)
   @Prop({ required: true, default: 0 })
-  recentNegativityScore: number;
+  decayedNegativityScore: number;
 
-  // streak theo EVENT (không phải window)
+  // Streak theo ngày liên tiếp có chỉ số tiêu cực (Daily Window Streak)
   @Prop({ required: true, default: 0 })
-  negativeEventStreak: number;
+  consecutiveNegativeDays: number;
 
-  // lần cuối có activity (rất quan trọng cho decay)
+  // Lần cuối có activity (tính toán Time-Decay Δt)
   @Prop()
   lastEventAt?: Date;
 
-  // lần cuối có signal tiêu cực mạnh
+  // Lần cuối có signal tiêu cực mạnh
   @Prop()
   lastStrongNegativeAt?: Date;
 
-  // xu hướng gần đây
+  // Xu hướng biến đổi cảm xúc (>0 xấu đi, <0 phục hồi)
   @Prop({ default: 0 })
   emotionMomentum: number;
 

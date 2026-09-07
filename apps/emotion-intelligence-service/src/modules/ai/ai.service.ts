@@ -215,11 +215,13 @@ export class AiService {
 
   private mapPriority(riskLevel: RiskLevel): number {
     switch (riskLevel) {
-      case RiskLevel.CRITICAL:
+      case RiskLevel.CRISIS:
+        return 5;
+      case RiskLevel.HIGH_RISK:
         return 4;
-      case RiskLevel.HIGH:
+      case RiskLevel.MODERATE_RISK:
         return 3;
-      case RiskLevel.WARNING:
+      case RiskLevel.MILD_STRESS:
         return 2;
       default:
         return 1;

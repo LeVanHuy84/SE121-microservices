@@ -67,6 +67,58 @@ export class RecommendationService {
     return new PageResponse(songs, total, pagination.page, pagination.limit);
   }
 
+  /**
+   * Push-based music recommendation by passing emotion signals directly (No RPC callback to avoid circular dependency)
+   */
+  async getRecommendationsBySignal(
+    signal: {
+      emotionVector?: Record<string, number>;
+      riskLevel?: RiskLevel;
+    },
+    pagination: PaginationDTO,
+  ): Promise<PageResponse<MusicFeatureResponse>> {
+    const offset = (pagination.page - 1) * pagination.limit;
+
+    const emotionVector = signal?.emotionVector ?? { neutral: 1 };
+    const riskLevel = signal?.riskLevel ?? RiskLevel.NORMAL;
+
+    const { valence, arousal } =
+      this.emotionMappingService.toValenceArousal(emotionVector);
+
+    const state = this.emotionStateService.classify(
+      valence,
+      arousal,
+      riskLevel,
+    );
+
+    const analysis = { state, valence, arousal, emotionVector, riskLevel };
+    const target = this.computeTarget(analysis);
+
+    const RANGE = 0.15;
+
+    const query: InternalMusicQueryDto = {
+      valenceMin: Math.max(0, target.valence - RANGE),
+      valenceMax: Math.min(1, target.valence + RANGE),
+      arousalMin: Math.max(0, target.arousal - RANGE),
+      arousalMax: Math.min(1, target.arousal + RANGE),
+
+      limit: pagination.limit,
+      offset,
+
+      sortByDistanceTo: {
+        valence: target.valence,
+        arousal: target.arousal,
+        weightValence: this.getValenceWeight(analysis.state),
+        weightArousal: this.getArousalWeight(analysis.state),
+      },
+    };
+
+    const [songs, total] =
+      await this.catalogService.queryForRecommendation(query);
+
+    return new PageResponse(songs, total, pagination.page, pagination.limit);
+  }
+
   // =========================
   // EMOTION
   // =========================
