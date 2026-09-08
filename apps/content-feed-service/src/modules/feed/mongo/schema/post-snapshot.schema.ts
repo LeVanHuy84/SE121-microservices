@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Audience, MediaType, RiskHintLevel } from "@repo/dtos";
+import { Audience, MediaType, ModerationAction } from "@repo/dtos";
 import { HydratedDocument, Types } from "mongoose";
 
 @Schema({ _id: false })
@@ -26,29 +26,29 @@ export class StatsEmbedded {
 
 @Schema({ _id: false })
 export class EmotionFeature {
-  @Prop({ required: true })
-  label: string;
+  @Prop()
+  primaryEmotion?: string;
+
+  @Prop({ type: [String], default: [] })
+  secondaryEmotions?: string[];
+
+  /**
+   * @deprecated Legacy label.
+   */
+  @Prop()
+  label?: string;
 
   @Prop({ required: true })
   confidence: number;
 
-  @Prop({ required: true })
-  intensity: number;
-
-  /**
-   * @deprecated Derived bucket of intensity. Keep for backward compatibility.
-   */
-  @Prop()
-  intensityLevel?: string;
-
-  @Prop()
-  dominantScene?: string;
-
   @Prop({ type: Map, of: Number })
   scores?: Record<string, number>;
 
-  @Prop({ enum: RiskHintLevel, default: RiskHintLevel.NONE })
-  riskHintLevel?: RiskHintLevel;
+  @Prop({ default: false })
+  isSarcasmOrConflict?: boolean;
+
+  @Prop({ default: "none" })
+  mentalHealthRiskLevel?: string;
 }
 
 @Schema({ collection: "post_snapshots", timestamps: true })
@@ -79,6 +79,19 @@ export class PostSnapshot {
   // SINGLE SOURCE OF TRUTH cho emotion
   @Prop({ type: EmotionFeature })
   emotionFeature?: EmotionFeature;
+
+  // === MODERATION FLAGS DÀNH CHO FEED RENDER UI ===
+  @Prop({ type: String, enum: ModerationAction, default: ModerationAction.ALLOW })
+  moderationAction: ModerationAction;
+
+  @Prop({ default: false })
+  hasWarning: boolean;
+
+  @Prop()
+  warningReason?: string;
+
+  @Prop({ default: false })
+  needsMentalSupport: boolean;
 
   @Prop({ required: true, index: true })
   postCreatedAt: Date;

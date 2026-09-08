@@ -10,7 +10,7 @@ import {
 } from "typeorm";
 import { Share } from "./share.entity";
 import { EditHistory } from "./edit-history.entity";
-import { Audience, Emotion, MediaItemDTO } from "@repo/dtos";
+import { Audience, Emotion, MediaItemDTO, ModerationAction } from "@repo/dtos";
 import { PostStat } from "./post-stat.entity";
 import { PostGroupInfo } from "./post-group-info.entity";
 
@@ -49,6 +49,23 @@ export class Post {
     default: [],
   })
   secondaryEmotions: Emotion[];
+
+  @Column({
+    type: "enum",
+    enum: ModerationAction,
+    name: "moderation_action",
+    default: ModerationAction.ALLOW,
+  })
+  moderationAction: ModerationAction;
+
+  @Column({ type: "boolean", name: "has_warning", default: false })
+  hasWarning: boolean;
+
+  @Column({ type: "boolean", name: "needs_mental_support", default: false })
+  needsMentalSupport: boolean;
+
+  @Column({ type: "varchar", name: "warning_reason", nullable: true })
+  warningReason?: string;
 
   @Column({ type: "boolean", name: "is_deleted", default: false })
   isDeleted: boolean;

@@ -34,10 +34,25 @@ export class AnalysisResultEventPayload {
 
   scores: Record<string, number>;
   confidence: number;
-  intensityScore: number;
-  intensityLevel?: IntensityLevel;
 
+  isSarcasmOrConflict?: boolean;
+  mentalHealthRiskLevel?: string;
+
+  /**
+   * @deprecated Deprecated in v1.1.0
+   */
+  intensityScore?: number;
+  /**
+   * @deprecated Deprecated in v1.1.0
+   */
+  intensityLevel?: IntensityLevel;
+  /**
+   * @deprecated Deprecated in v1.1.0
+   */
   dominantSceneType?: string;
+  /**
+   * @deprecated Deprecated in v1.1.0
+   */
   riskHintLevel?: string;
   createdAt?: Date;
 }

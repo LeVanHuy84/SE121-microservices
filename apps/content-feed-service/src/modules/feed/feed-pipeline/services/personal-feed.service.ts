@@ -168,9 +168,8 @@ export class PersonalFeedService {
       const emotionScore = emotionFeatures
         ? this.emotionService.calcEmotionScore(emotionFeatures, {
             scores: post.emotionFeature?.scores || {},
-            intensity: post.emotionFeature?.intensity,
             confidence: post.emotionFeature?.confidence,
-            riskHintLevel: post.emotionFeature?.riskHintLevel,
+            mentalHealthRiskLevel: post.emotionFeature?.mentalHealthRiskLevel,
           })
         : 0;
 

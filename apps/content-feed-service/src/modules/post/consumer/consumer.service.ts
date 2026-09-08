@@ -5,6 +5,7 @@ import {
   Emotion,
   EventDestination,
   EventTopic,
+  ModerationAction,
   ModerationEventPayload,
   PostEventType,
   TargetType,
@@ -88,29 +89,28 @@ export class ConsumerService {
   ): Promise<void> {
     const txManager = manager ?? this.dataSource.manager;
 
+    const action = payload.action ?? ModerationAction.HARD_BLOCK;
+    const notificationMessage = payload.displayMessage || "Nội dung của bạn đã được kiểm duyệt bởi hệ thống.";
+
     let entity: Post | Comment | Share | null = null;
-    let notificationMessage: string;
 
     switch (payload.targetType) {
       case TargetType.POST:
         entity = await txManager.findOne(Post, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bài viết ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.COMMENT:
         entity = await txManager.findOne(Comment, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bình luận ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
 
       case TargetType.SHARE:
         entity = await txManager.findOne(Share, {
           where: { id: payload.targetId },
         });
-        notificationMessage = `Bài chia sẻ ""${(entity?.content ?? "").slice(0, 100)}""... của bạn đã bị gỡ do vi phạm chính sách cộng đồng.`;
         break;
     }
 
@@ -129,11 +129,16 @@ export class ConsumerService {
 
     if (!moderation) {
       moderation = txManager.create(ContentModeration, {
-        userId: payload.userId,
+        userId: payload.userId || entity.userId,
         targetId: payload.targetId,
         targetType: payload.targetType,
       });
     }
+
+    moderation.action = action;
+    moderation.label = payload.label;
+    moderation.isViolation = payload.isViolation ?? true;
+    moderation.mentalHealthSupport = payload.mentalHealthSupport ?? false;
 
     moderation.violations = Array.isArray(payload.violations)
       ? payload.violations.map((v) => ({
@@ -149,29 +154,36 @@ export class ConsumerService {
     await txManager.save(moderation);
 
     // =====================================================
-    // 2. SOFT DELETE CONTENT
+    // 2. PROCESS BY ACTION (HARD_BLOCK vs WARNING vs SUPPORT)
     // =====================================================
 
-    entity.isDeleted = true;
-    await txManager.save(entity);
+    if (action === ModerationAction.HARD_BLOCK) {
+      entity.isDeleted = true;
+      await txManager.save(entity);
 
-    // =====================================================
-    // 3. POST EVENT (nếu là post)
-    // =====================================================
+      if (payload.targetType === TargetType.POST) {
+        const postOutbox = txManager.create(OutboxEvent, {
+          topic: EventTopic.POST,
+          destination: EventDestination.KAFKA,
+          eventType: PostEventType.REMOVED,
+          payload: { postId: payload.targetId },
+        });
 
-    if (payload.targetType === TargetType.POST) {
-      const postOutbox = txManager.create(OutboxEvent, {
-        topic: EventTopic.POST,
-        destination: EventDestination.KAFKA,
-        eventType: PostEventType.REMOVED,
-        payload: { postId: payload.targetId },
-      });
-
-      await txManager.save(postOutbox);
+        await txManager.save(postOutbox);
+      }
+    } else if (entity instanceof Post) {
+      entity.moderationAction = action;
+      if (action === ModerationAction.ALLOW_WITH_WARNING) {
+        entity.hasWarning = true;
+        entity.warningReason = payload.displayMessage;
+      } else if (action === ModerationAction.ALLOW_WITH_SUPPORT) {
+        entity.needsMentalSupport = true;
+      }
+      await txManager.save(entity);
     }
 
     // =====================================================
-    // 4. NOTIFICATION
+    // 3. NOTIFICATION
     // =====================================================
 
     const notiOutbox = txManager.create(OutboxEvent, {

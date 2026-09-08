@@ -116,12 +116,12 @@ export class ConsumerService {
 
       const post = await this.postModel
         .findOne({ postId })
-        .select("userId emotionFeature.dominantScene")
+        .select("userId emotionFeature.primaryEmotion emotionFeature.label")
         .lean();
 
       if (!post) return;
 
-      const category = post.emotionFeature?.dominantScene;
+      const category = post.emotionFeature?.primaryEmotion || post.emotionFeature?.label;
       if (!category) return;
 
       await this.affinityService.updateAffinity({
@@ -163,18 +163,17 @@ export class ConsumerService {
   private buildEmotionFeature(
     payload: AnalysisResultEventPayload,
   ): EmotionFeature {
-    // CRITICAL: Normalize uppercase Emotion enum to lowercase keys
     const normalizedLabel = normalizeEmotionEnum(payload.primaryEmotion);
     const normalizedScores = normalizeEmotionScores(payload.scores);
 
     return {
+      primaryEmotion: payload.primaryEmotion,
+      secondaryEmotions: payload.secondaryEmotions || [],
       label: normalizedLabel,
       confidence: payload.confidence,
-      intensity: payload.intensityScore,
-      intensityLevel: payload.intensityLevel,
-      dominantScene: payload.dominantSceneType,
       scores: normalizedScores,
-      riskHintLevel: payload.riskHintLevel as RiskHintLevel,
+      isSarcasmOrConflict: payload.isSarcasmOrConflict ?? false,
+      mentalHealthRiskLevel: payload.mentalHealthRiskLevel ?? "none",
     };
   }
 
@@ -189,14 +188,15 @@ export class ConsumerService {
 
     const {
       label,
-      intensity,
+      primaryEmotion,
+      secondaryEmotions,
       confidence,
-      dominantScene,
       scores,
-      riskHintLevel,
+      isSarcasmOrConflict,
+      mentalHealthRiskLevel,
     } = emotionFeature;
 
-    const normalizedLabel = normalizeEmotionEnum(label);
+    const normalizedLabel = normalizeEmotionEnum(primaryEmotion || label);
 
     const pipeline = this.redis.pipeline();
 
@@ -214,9 +214,8 @@ export class ConsumerService {
     // 🔥 META (lightweight)
     // ------------------------------
     pipeline.hset(`post:meta:${postId}`, {
-      emotionLabel: normalizedLabel,
-      emotionIntensity: intensity.toString(),
-      emotionConfidence: confidence.toString(),
+      emotionLabel: normalizedLabel || "",
+      emotionConfidence: (confidence ?? 1.0).toString(),
     });
 
     // ------------------------------
@@ -224,10 +223,11 @@ export class ConsumerService {
     // ------------------------------
     pipeline.hset(`post:rank:${postId}`, {
       scores: JSON.stringify(scores || {}),
-      intensity: intensity.toString(),
-      confidence: confidence.toString(),
-      dominantScene: dominantScene || "",
-      riskHintLevel: riskHintLevel || "",
+      confidence: (confidence ?? 1.0).toString(),
+      primaryEmotion: primaryEmotion || "",
+      secondaryEmotions: JSON.stringify(secondaryEmotions || []),
+      isSarcasmOrConflict: isSarcasmOrConflict ? "1" : "0",
+      mentalHealthRiskLevel: mentalHealthRiskLevel || "none",
       authorId: userId,
     });
 

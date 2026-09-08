@@ -67,11 +67,12 @@ class OutboxEmitter:
 
                 "primaryEmotion": (emotion.get("primaryEmotion") or emotion.get("finalEmotion", "")).upper(),
                 "secondaryEmotions": [e.upper() for e in emotion.get("secondaryEmotions", [])],
-                "scores": emotion["finalScores"],
-                "confidence": emotion["finalConfidence"],
-                "intensityScore": emotion["intensity"]["score"],
-                "dominantSceneType": emotion.get("dominantSceneType"),
-                "riskHintLevel": emotion.get("riskHintLevel"),
+                "scores": emotion.get("finalScores", {}),
+                "confidence": emotion.get("finalConfidence", 1.0),
+
+                "isSarcasmOrConflict": emotion.get("isSarcasmOrConflict", False),
+                "mentalHealthRiskLevel": emotion.get("mentalHealthRiskLevel", "none"),
+
                 "createdAt": emotion.get("createdAt").isoformat() if emotion.get("createdAt") else None,
             }
         )
