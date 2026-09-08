@@ -20,6 +20,7 @@ async function ensureKafkaTopics() {
     const existingTopics = await admin.listTopics();
     const requiredTopics = [
       EventTopic.EMOTION_RESULT,
+      EventTopic.MODERATION_REJECTED,
       EventTopic.PROACTIVE_INTERVENTION,
     ];
     const topicsToCreate = requiredTopics

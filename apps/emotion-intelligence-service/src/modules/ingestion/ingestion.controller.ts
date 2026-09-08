@@ -6,7 +6,7 @@ import {
   Ctx,
   KafkaContext,
 } from '@nestjs/microservices';
-import { AnalysisEventType, AnalysisResultEvent, EventTopic } from '@repo/dtos';
+import { AnalysisEventType, AnalysisResultEvent, EventTopic, ModerationRejectedEvent } from '@repo/dtos';
 import { KafkaConsumerHelper } from '@repo/common';
 import { ClientSession } from 'mongoose';
 
@@ -58,6 +58,39 @@ export class IngestionController {
           default:
             this.logger.warn(`Unknown event type: ${type}`);
             break;
+        }
+      },
+    });
+  }
+
+  // ----------------------------
+  // MODERATION REJECTED TOPIC
+  // ----------------------------
+  @EventPattern(EventTopic.MODERATION_REJECTED)
+  async handleModerationEvents(
+    @Payload() message: ModerationRejectedEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
+
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (_session: ClientSession) => {
+        const payload = message.payload;
+        this.logger.debug(
+          `Received moderation event for target ${payload?.targetId}, action=${payload?.action}`,
+        );
+
+        if (payload) {
+          await this.ingestionService.handleModeration(payload);
         }
       },
     });

@@ -61,7 +61,8 @@ class HandleEventService:
                 moderation_data=moderation_result,
             )
 
-            if moderation.get("isViolation"):
+            action = moderation.get("action", "ALLOW")
+            if moderation.get("isViolation") or action != "ALLOW":
                 await self.outbox.emit_moderation(moderation)
 
             if skip_reason or should_block or not emotion_result:
@@ -140,7 +141,8 @@ class HandleEventService:
                 moderation_data=moderation_result,
             )
 
-            if moderation.get("isViolation"):
+            action = moderation.get("action", "ALLOW")
+            if moderation.get("isViolation") or action != "ALLOW":
                 await self.outbox.emit_moderation(moderation)
 
             if skip_reason or should_block or not emotion_result:

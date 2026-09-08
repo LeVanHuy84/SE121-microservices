@@ -15,10 +15,11 @@ class OutboxEmitter:
 
     async def emit_moderation(self, moderation: dict):
         is_violation = moderation.get("isViolation", False)
+        action = moderation.get("action", "ALLOW")
 
         violations = build_violations(moderation)
 
-        display_message = build_display_message(is_violation, violations)
+        display_message = build_display_message(is_violation, violations, action=action)
 
         outbox = Outbox(
             topic=ResultEventEnum.MODERATION_REJECTED.value,
@@ -27,15 +28,19 @@ class OutboxEmitter:
                 "targetId": moderation["targetId"],
                 "targetType": moderation["targetType"],
                 "userId": moderation.get("userId"),
+                "action": action,
+                "label": moderation.get("label", "CLEAN"),
+                "isViolation": is_violation,
+                "mentalHealthSupport": moderation.get("mentalHealthSupport", False),
 
                 "violations": violations,
 
-                "maxSeverity": moderation.get("maxSeverity", "").upper(),
-                "confidence": moderation.get("violationScore"),
+                "maxSeverity": str(moderation.get("maxSeverity", "")).upper(),
+                "confidence": moderation.get("confidence", moderation.get("violationScore")),
 
                 "displayMessage": display_message,
 
-                "createdAt": moderation.get("createdAt"),
+                "createdAt": moderation.get("createdAt").isoformat() if hasattr(moderation.get("createdAt"), "isoformat") else str(moderation.get("createdAt", "")),
             }
         )
 
