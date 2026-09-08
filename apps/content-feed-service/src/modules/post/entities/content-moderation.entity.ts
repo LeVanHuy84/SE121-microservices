@@ -6,7 +6,7 @@ import {
   Index,
   OneToMany,
 } from "typeorm";
-import { FinalDecision, Severity, TargetType } from "@repo/dtos";
+import { FinalDecision, ModerationAction, ModerationLabel, Severity, TargetType } from "@repo/dtos";
 import { ModerationAppeal } from "./moderation-appeal.entity";
 
 @Entity("content_moderations")
@@ -27,6 +27,25 @@ export class ContentModeration {
 
   @Column({ name: "is_violation", default: true })
   isViolation: boolean;
+
+  @Column({
+    type: "enum",
+    enum: ModerationAction,
+    name: "action",
+    default: ModerationAction.HARD_BLOCK,
+  })
+  action: ModerationAction;
+
+  @Column({
+    type: "enum",
+    enum: ModerationLabel,
+    name: "label",
+    nullable: true,
+  })
+  label?: ModerationLabel;
+
+  @Column({ name: "mental_health_support", default: false })
+  mentalHealthSupport: boolean;
 
   @Column({ type: "jsonb", nullable: true })
   violations: {

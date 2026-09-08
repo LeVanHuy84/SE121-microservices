@@ -57,9 +57,8 @@ export class EmotionFeatureService {
     features: EmotionRankingFeaturesDto,
     post: {
       scores: Record<string, number>;
-      intensity?: number;
       confidence?: number;
-      riskHintLevel?: RiskHintLevel;
+      mentalHealthRiskLevel?: string;
     },
   ): number {
     this.logger.log(`User emotion Features: ${JSON.stringify(features)}`);
@@ -75,8 +74,6 @@ export class EmotionFeatureService {
 
     const riskPenalty = this.calcRiskPenalty(features, post.scores);
 
-    const intensityWeight = 0.8 + (post.intensity ?? 0) * 0.4;
-
     const confidenceWeight = 0.7 + (post.confidence ?? 0) * 0.3;
 
     const recoveryWeight = distress > 0.7 ? 0.4 : distress > 0.5 ? 0.25 : 0.1;
@@ -86,7 +83,6 @@ export class EmotionFeatureService {
         0.15 * baseline +
         recoveryWeight * recovery -
         0.25 * riskPenalty) *
-      intensityWeight *
       confidenceWeight;
 
     return this.clamp(score);
