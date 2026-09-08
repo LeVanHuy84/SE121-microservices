@@ -2,7 +2,15 @@ from pydantic import BaseModel, Field, HttpUrl
 from datetime import datetime, timezone
 from typing import List, Optional, Dict
 from dataclasses import dataclass
-from app.modules.analysis.enums import AnalysisStatusEnum, EmotionEnum, EventTypeEnum, TargetTypeEnum, RiskHintLevelEnum, SeverityEnum
+from app.modules.analysis.enums import (
+    AnalysisStatusEnum,
+    EmotionEnum,
+    EventTypeEnum,
+    TargetTypeEnum,
+    RiskHintLevelEnum,
+    ModerationActionEnum,
+    ModerationLabelEnum,
+)
 
 class CreateAnalyzeRequest(BaseModel):
     userId: str
@@ -124,8 +132,8 @@ class ModerationResult(BaseModel):
     targetType: TargetTypeEnum
 
     isViolation: bool
-    action: str = "ALLOW"  # ALLOW | ALLOW_WITH_WARNING | ALLOW_WITH_SUPPORT | HARD_BLOCK
-    label: str = "CLEAN"  # CLEAN | PROFANITY_VENTING | HATE_SPEECH | EMOTIONAL_CRISIS | ILLEGAL_PORN
+    action: ModerationActionEnum = ModerationActionEnum.ALLOW
+    label: ModerationLabelEnum = ModerationLabelEnum.CLEAN
     labelCode: int = 0  # 0 | 1 | 2 | 3 | 4
     confidence: float = 1.0
     mentalHealthSupport: bool = False

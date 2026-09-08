@@ -1,7 +1,7 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { AnalysisResultEventPayload } from '@repo/dtos';
+import { AnalysisResultEventPayload, ModerationAction, ModerationEventPayload } from '@repo/dtos';
 import Redis from 'ioredis';
 import { Model } from 'mongoose';
 import {
@@ -34,6 +34,24 @@ export class IngestionService {
 
   async handleAnalysisResult(payload: AnalysisResultEventPayload) {
     await this.processEvent(payload);
+  }
+
+  async handleModeration(payload: ModerationEventPayload) {
+    if (!payload.targetId || !payload.targetType) return;
+
+    if (payload.action === ModerationAction.HARD_BLOCK || payload.isViolation) {
+      this.logger.log(
+        `Removing analytics snapshot for HARD_BLOCK target=${payload.targetId}`,
+      );
+      await this.model.deleteOne({
+        targetId: payload.targetId,
+        targetType: payload.targetType,
+      });
+
+      if (payload.userId) {
+        await this.markUserDirty(payload.userId);
+      }
+    }
   }
 
   private async processEvent(payload: AnalysisResultEventPayload) {

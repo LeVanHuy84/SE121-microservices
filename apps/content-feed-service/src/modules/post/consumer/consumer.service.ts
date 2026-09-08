@@ -143,8 +143,8 @@ export class ConsumerService {
       : [];
 
     moderation.maxSeverity = payload.maxSeverity as any;
-    moderation.confidence = payload.confidence;
-    moderation.displayMessage = payload.displayMessage;
+    moderation.confidence = payload.confidence ?? 0;
+    moderation.displayMessage = payload.displayMessage ?? '';
 
     await txManager.save(moderation);
 
