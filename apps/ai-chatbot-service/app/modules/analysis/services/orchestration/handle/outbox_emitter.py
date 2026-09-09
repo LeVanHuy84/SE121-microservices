@@ -28,6 +28,7 @@ class OutboxEmitter:
                 "targetId": moderation["targetId"],
                 "targetType": moderation["targetType"],
                 "userId": moderation.get("userId"),
+                "content": moderation.get("content", ""),
                 "action": action,
                 "label": moderation.get("label", "CLEAN"),
                 "isViolation": is_violation,

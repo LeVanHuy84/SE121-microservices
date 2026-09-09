@@ -1,13 +1,15 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import type { ChannelWrapper } from 'amqp-connection-manager';
 import {
   RiskLevel,
   TriggerFlag,
   ProactiveInterventionDto,
   BreathingExerciseDto,
   AnalysisResultEventPayload,
-  EventTopic,
+  ModerationEventPayload,
+  ModerationAction,
+  ModerationLabel,
 } from '@repo/dtos';
-import { KafkaProducerService } from '@repo/common';
 
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -27,7 +29,9 @@ export class ProactiveInterventionService {
     private readonly riskStateModel: Model<UserRiskStateDocument>,
     private readonly intentSafetyMatcher: IntentSafetyMatcher,
     @Optional() private readonly musicClientService?: MusicClientService,
-    @Optional() private readonly kafkaProducerService?: KafkaProducerService,
+    @Optional()
+    @Inject('RABBITMQ_CHANNEL')
+    private readonly rabbitmqChannel?: ChannelWrapper,
   ) {}
 
   /**
@@ -37,11 +41,16 @@ export class ProactiveInterventionService {
     userId: string,
     payload: AnalysisResultEventPayload,
   ): Promise<ProactiveInterventionDto | null> {
-    // 1. Strict Intent Safety Matcher: Bắt buộc khớp từ khóa Regex tự hại / tự sát khẩn cấp
-    const isEmergencyText = this.intentSafetyMatcher.evaluateEmergencySafety(
-      payload.targetId || '',
-      payload,
-    );
+    const rawRiskStr = (payload.mentalHealthRiskLevel || '').toLowerCase();
+    const isCrisisOrHighFromAi =
+      rawRiskStr === 'critical' || rawRiskStr === 'high';
+
+    const isMatchedEmergencyIntent =
+      this.intentSafetyMatcher.evaluateEmergencySafety(
+        (payload as any).content || '',
+        payload,
+      );
+    const isEmergencyText = isCrisisOrHighFromAi || isMatchedEmergencyIntent;
 
     const existingState = await this.riskStateModel
       .findOne({ userId })
@@ -53,11 +62,28 @@ export class ProactiveInterventionService {
     const triggers = existingState?.riskTriggers || [];
 
     if (isEmergencyText) {
-      riskLevel = RiskLevel.CRISIS;
-      riskScore = 1.0;
+      riskLevel =
+        rawRiskStr === 'critical' || isMatchedEmergencyIntent
+          ? RiskLevel.CRISIS
+          : RiskLevel.HIGH_RISK;
+      riskScore = riskLevel === RiskLevel.CRISIS ? 1.0 : 0.85;
       if (!triggers.includes(TriggerFlag.SUICIDAL_IDEATION)) {
         triggers.push(TriggerFlag.SUICIDAL_IDEATION);
       }
+
+      // Cập nhật ngay UserRiskState thành rủi ro cao/khủng hoảng
+      await this.riskStateModel.updateOne(
+        { userId },
+        {
+          $set: {
+            riskLevel,
+            riskScore,
+            riskTriggers: triggers,
+            lastEvaluatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
     }
 
     const result = await this.evaluateIntervention(
@@ -67,6 +93,85 @@ export class ProactiveInterventionService {
       triggers,
       existingState?.lastInterventionAt,
       payload.scores,
+    );
+
+    if (result) {
+      await this.persistAndEmitIntervention(userId, result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Real-time từ Moderation Event (như ALLOW_WITH_SUPPORT hoặc EMOTIONAL_CRISIS)
+   */
+  async evaluateFromModeration(
+    userId: string,
+    payload: ModerationEventPayload,
+  ): Promise<ProactiveInterventionDto | null> {
+    const isCrisisOrSupport =
+      payload.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.mentalHealthSupport;
+
+    if (!isCrisisOrSupport) return null;
+
+    // 1. Kiểm tra vi phạm SELF_HARM từ VLM (Visual Multimodal)
+    const hasVlmSelfHarm = (payload.violations || []).some(
+      (v) => (v.category || '').toUpperCase() === 'SELF_HARM',
+    );
+
+    // 2. Với nhãn EMOTIONAL_CRISIS từ PhoBERT text classifier: Kiểm tra Regex từ khóa nguy cơ tự hại khẩn cấp
+    const textToMatch = payload.content || payload.displayMessage || '';
+    const hasEmergencyKeywords =
+      this.intentSafetyMatcher.matchesEmergencyIntent(textToMatch);
+
+    // Nếu là VLM Self-Harm HOẶC khớp Regex từ khóa khẩn cấp -> CRISIS (Hotline 24/7)
+    // Nếu chỉ là nhãn PhoBERT Emotion Crisis thông thường mà không có từ khóa khẩn cấp -> HIGH_RISK (AI Chatbot Đồng Hành)
+    const isEmergencyCrisis = hasVlmSelfHarm || hasEmergencyKeywords;
+    const riskLevel = isEmergencyCrisis
+      ? RiskLevel.CRISIS
+      : RiskLevel.HIGH_RISK;
+    const riskScore = isEmergencyCrisis ? 1.0 : 0.85;
+
+    this.logger.warn(
+      `Evaluating proactive intervention for user=${userId} (hasVlmSelfHarm=${hasVlmSelfHarm}, hasEmergencyKeywords=${hasEmergencyKeywords} -> riskLevel=${riskLevel})`,
+    );
+
+    const existingState = await this.riskStateModel
+      .findOne({ userId })
+      .lean<UserRiskState>()
+      .exec();
+
+    const triggers = existingState?.riskTriggers || [];
+    const triggerFlag = isEmergencyCrisis
+      ? TriggerFlag.SUICIDAL_IDEATION
+      : TriggerFlag.HIGH_ANXIETY_BURST;
+
+    if (!triggers.includes(triggerFlag)) {
+      triggers.push(triggerFlag);
+    }
+
+    // Cập nhật trạng thái rủi ro cho người dùng
+    await this.riskStateModel.updateOne(
+      { userId },
+      {
+        $set: {
+          riskLevel,
+          riskScore,
+          riskTriggers: triggers,
+          lastEvaluatedAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+
+    const result = await this.evaluateIntervention(
+      userId,
+      riskLevel,
+      riskScore,
+      triggers,
+      existingState?.lastInterventionAt,
     );
 
     if (result) {
@@ -229,19 +334,19 @@ export class ProactiveInterventionService {
       },
     );
 
-    if (this.kafkaProducerService) {
+    if (this.rabbitmqChannel) {
       try {
-        await this.kafkaProducerService.sendMessage(
-          EventTopic.PROACTIVE_INTERVENTION,
+        await this.rabbitmqChannel.publish(
+          'notification',
+          'proactive.intervention',
           result,
-          userId,
         );
         this.logger.log(
-          `Emitted PROACTIVE_INTERVENTION event for user=${userId} (action=${result.suggestedAction})`,
+          `Published PROACTIVE_INTERVENTION to RabbitMQ (notification exchange) for user=${userId}`,
         );
       } catch (err) {
         this.logger.warn(
-          `Failed to emit PROACTIVE_INTERVENTION event for user=${userId}`,
+          `Failed to publish PROACTIVE_INTERVENTION to RabbitMQ for user=${userId}`,
           err,
         );
       }

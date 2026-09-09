@@ -40,7 +40,7 @@ export class EmotionAnalyticsService {
 
     let content: PostResponseDTO | CommentResponseDTO;
 
-    if (targetType === TargetType.POST) {
+    if (targetType === TargetType.POST || targetType === TargetType.COMMENT) {
       content = await firstValueFrom(
         this.postClient
           .send('internal.get_target_content', {
@@ -72,10 +72,14 @@ export class EmotionAnalyticsService {
       targetType: snapshot.targetType,
 
       finalEmotion: snapshot.finalEmotion,
+      primaryEmotion: snapshot.primaryEmotion || snapshot.finalEmotion,
+      secondaryEmotions: snapshot.secondaryEmotions || [],
       finalScores: snapshot.finalScores,
       confidence: snapshot.finalConfidence,
 
-      riskLevel: snapshot.riskHintLevel,
+      riskLevel: snapshot.mentalHealthRiskLevel ?? 'none',
+      mentalHealthRiskLevel: snapshot.mentalHealthRiskLevel ?? 'none',
+      isSarcasmOrConflict: snapshot.isSarcasmOrConflict ?? false,
 
       createdAt: snapshot.createdAt,
       content,

@@ -30,6 +30,13 @@ class RiskHintLevelEnum(str, Enum):
     MEDIUM = 'medium'
     HIGH = 'high'
 
+class MentalHealthRiskLevelEnum(str, Enum):
+    NONE = 'none'
+    MILD = 'mild'
+    MODERATE = 'moderate'
+    HIGH = 'high'
+    CRITICAL = 'critical'
+
 class EventTypeEnum(str, Enum):
     ANALYSIS_CREATED = "analysis_created"
     ANALYSIS_UPDATED = "analysis_updated"

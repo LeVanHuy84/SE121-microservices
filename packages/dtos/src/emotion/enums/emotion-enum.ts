@@ -48,6 +48,14 @@ export enum RiskHintLevel {
   HIGH = 'high',
 }
 
+export enum MentalHealthRiskLevel {
+  NONE = 'none',
+  MILD = 'mild',
+  MODERATE = 'moderate',
+  HIGH = 'high',
+  CRITICAL = 'critical',
+}
+
 export enum InsightType {
   ABOVE_BASELINE = 'ABOVE_BASELINE',
   DETERIORATING_TREND = 'DETERIORATING_TREND',

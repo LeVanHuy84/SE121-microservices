@@ -3,7 +3,7 @@ import { IntentSafetyMatcher } from './intent-safety.matcher';
 import { ProactiveInterventionService } from './proactive-intervention.service';
 import { ProactiveCron } from './proactive.cron';
 import { MusicClientModule } from '../client/music/music-client.module';
-import { KafkaProducerModule } from '@repo/common';
+import { RabbitmqModule } from '@repo/common';
 
 import { MongooseModule } from '@nestjs/mongoose';
 import {
@@ -17,7 +17,13 @@ import {
       { name: UserRiskState.name, schema: UserRiskStateSchema },
     ]),
     MusicClientModule,
-    KafkaProducerModule.registerAsync(),
+    RabbitmqModule.register({
+      urls: [process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672'],
+      exchanges: [
+        { name: 'notification', type: 'topic' },
+        { name: 'broadcast', type: 'fanout' },
+      ],
+    }),
   ],
   providers: [
     IntentSafetyMatcher,

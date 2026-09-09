@@ -12,6 +12,7 @@ export class UserRiskState {
   // level hiện tại
   @Prop({
     required: true,
+    type: String,
     enum: RiskLevel,
     default: RiskLevel.NORMAL,
   })

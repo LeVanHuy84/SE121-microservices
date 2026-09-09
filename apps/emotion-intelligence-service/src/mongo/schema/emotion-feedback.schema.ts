@@ -10,17 +10,17 @@ export class EmotionFeedback extends Document {
   @Prop({ required: true })
   targetId: string;
 
-  @Prop({ required: true, enum: TargetType })
+  @Prop({ required: true, type: String, enum: TargetType })
   targetType: TargetType;
 
   @Prop({ required: true })
   isAccurate: boolean;
 
-  @Prop({ enum: Emotion })
+  @Prop({ type: String, enum: Emotion })
   expectedEmotion?: Emotion;
 
   // Snapshot of the predicted emotion at the time of feedback, for auditing and analysis purposes
-  @Prop({ required: true, enum: Emotion })
+  @Prop({ required: true, type: String, enum: Emotion })
   predictedEmotion: Emotion;
 
   @Prop({ required: true })

@@ -4,17 +4,21 @@ import {
   PostResponseDTO,
   TargetType,
 } from '../social';
-import { LowCaseEmotion, RiskHintLevel } from './enums';
+import { LowCaseEmotion, MentalHealthRiskLevel, RiskHintLevel } from './enums';
 
 export class AnalysisSummaryDto {
   targetId: string;
   targetType: TargetType;
 
   finalEmotion: Emotion;
+  primaryEmotion?: LowCaseEmotion | Emotion;
+  secondaryEmotions?: LowCaseEmotion[] | Emotion[];
   finalScores: Record<LowCaseEmotion, number>;
   confidence: number;
 
-  riskLevel: RiskHintLevel;
+  riskLevel: RiskHintLevel | MentalHealthRiskLevel | string;
+  mentalHealthRiskLevel?: MentalHealthRiskLevel | string;
+  isSarcasmOrConflict?: boolean;
 
   createdAt: Date;
 
