@@ -61,6 +61,7 @@ export class ModerationEventPayload {
   targetId: string;
   targetType: TargetType;
   userId?: string;
+  content?: string;
   action?: ModerationAction;
   label?: ModerationLabel;
   isViolation?: boolean;

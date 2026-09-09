@@ -131,6 +131,7 @@ class ModerationResult(BaseModel):
     targetId: str
     targetType: TargetTypeEnum
 
+    content: Optional[str] = ""
     isViolation: bool
     action: ModerationActionEnum = ModerationActionEnum.ALLOW
     label: ModerationLabelEnum = ModerationLabelEnum.CLEAN

@@ -1,7 +1,12 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { AnalysisResultEventPayload, ModerationAction, ModerationEventPayload } from '@repo/dtos';
+import {
+  AnalysisResultEventPayload,
+  ModerationAction,
+  ModerationLabel,
+  ModerationEventPayload,
+} from '@repo/dtos';
 import Redis from 'ioredis';
 import { Model } from 'mongoose';
 import {
@@ -51,6 +56,47 @@ export class IngestionService {
       if (payload.userId) {
         await this.markUserDirty(payload.userId);
       }
+      return;
+    }
+
+    // Xử lý sự kiện EMOTIONAL_CRISIS hoặc ALLOW_WITH_SUPPORT / mentalHealthSupport
+    const isCrisisOrSupport =
+      payload.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.mentalHealthSupport;
+
+    if (isCrisisOrSupport) {
+      this.logger.warn(
+        `Received EMOTIONAL_CRISIS / ALLOW_WITH_SUPPORT moderation event for target=${payload.targetId}, userId=${payload.userId}`,
+      );
+
+      // Cập nhật snapshot mentalHealthRiskLevel = 'critical'
+      await this.model.updateOne(
+        {
+          targetId: payload.targetId,
+          targetType: payload.targetType,
+        },
+        {
+          $set: {
+            mentalHealthRiskLevel: 'critical',
+          },
+        },
+      );
+
+      if (payload.userId) {
+        await this.markUserDirty(payload.userId);
+        try {
+          await this.proactiveInterventionService.evaluateFromModeration(
+            payload.userId,
+            payload,
+          );
+        } catch (err) {
+          this.logger.error(
+            `Error evaluating proactive intervention for moderation event user=${payload.userId}`,
+            err,
+          );
+        }
+      }
     }
   }
 
@@ -84,7 +130,8 @@ export class IngestionService {
       secondaryEmotions: secondaryList.map((e) => this.normalizeEmotion(e)),
       finalScores: payload.scores,
       finalConfidence: payload.confidence,
-      riskHintLevel: payload.riskHintLevel ?? 'NONE',
+      mentalHealthRiskLevel: payload.mentalHealthRiskLevel ?? 'none',
+      isSarcasmOrConflict: payload.isSarcasmOrConflict ?? false,
       createdAt: payload.createdAt ?? new Date(),
     };
   }

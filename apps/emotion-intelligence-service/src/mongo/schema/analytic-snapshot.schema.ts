@@ -1,5 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Emotion, LowCaseEmotion, RiskHintLevel, TargetType } from '@repo/dtos';
+import {
+  Emotion,
+  LowCaseEmotion,
+  MentalHealthRiskLevel,
+  TargetType,
+} from '@repo/dtos';
 import { HydratedDocument, Types } from 'mongoose';
 
 @Schema({ collection: 'emotion_analytics_snapshots' })
@@ -36,8 +41,15 @@ export class EmotionAnalyticsSnapshot {
   @Prop({ required: true })
   finalConfidence: number;
 
-  @Prop({ type: String, enum: RiskHintLevel, default: RiskHintLevel.NONE })
-  riskHintLevel: RiskHintLevel;
+  @Prop({
+    type: String,
+    enum: MentalHealthRiskLevel,
+    default: MentalHealthRiskLevel.NONE,
+  })
+  mentalHealthRiskLevel?: MentalHealthRiskLevel | string;
+
+  @Prop({ type: Boolean, default: false })
+  isSarcasmOrConflict?: boolean;
 
   @Prop({ required: true })
   createdAt: Date;

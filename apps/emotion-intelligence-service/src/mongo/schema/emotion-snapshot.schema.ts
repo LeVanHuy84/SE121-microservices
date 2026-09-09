@@ -9,7 +9,7 @@ export class UserEmotionSnapshot {
   @Prop({ required: true, index: true })
   userId: string;
 
-  @Prop({ required: true, enum: EmotionTimeWindow, index: true })
+  @Prop({ required: true, type: String, enum: EmotionTimeWindow, index: true })
   window: EmotionTimeWindow; // 1d, 7d, 30d
 
   // phân bố cảm xúc

@@ -21,7 +21,6 @@ async function ensureKafkaTopics() {
     const requiredTopics = [
       EventTopic.EMOTION_RESULT,
       EventTopic.MODERATION_REJECTED,
-      EventTopic.PROACTIVE_INTERVENTION,
     ];
     const topicsToCreate = requiredTopics
       .filter((topic) => !existingTopics.includes(topic))

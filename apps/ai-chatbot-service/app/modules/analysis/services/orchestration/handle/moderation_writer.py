@@ -27,6 +27,7 @@ class ModerationWriter:
             userId=user_id,
             targetId=target_id,
             targetType=target_type,
+            content=content,
             isViolation=moderation_data.get("isViolation", False),
             action=moderation_data.get("action", "ALLOW"),
             label=moderation_data.get("label", "CLEAN"),
@@ -68,6 +69,7 @@ class ModerationWriter:
             )
 
         update_data = {
+            "content": content or existing.get("content", ""),
             "isViolation": moderation_data.get(
                 "isViolation",
                 existing.get("isViolation"),

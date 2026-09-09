@@ -1,13 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { RiskLevel, TargetType } from '@repo/dtos';
+import { TargetType } from '@repo/dtos';
 import { Model } from 'mongoose';
 import {
   EmotionAnalyticsSnapshot,
   EmotionAnalyticsSnapshotDocument,
 } from 'src/mongo/schema/analytic-snapshot.schema';
-
-export interface EmotionAnalytics {}
 
 @Injectable()
 export class EmotionAnalyticsRepository {

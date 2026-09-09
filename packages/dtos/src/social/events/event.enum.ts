@@ -17,7 +17,6 @@ export enum EventTopic {
   RECOMMENDATION_GRAPH = 'recommendation-graph-events',
   RECOMMENDATION_RESULT = 'recommendation-result-events',
 
-  PROACTIVE_INTERVENTION = 'proactive-intervention-events',
   TEST_FAULT = 'test-fault',
   USER_ACTIVITY_LOG = 'user-activity-log-events',
 }
