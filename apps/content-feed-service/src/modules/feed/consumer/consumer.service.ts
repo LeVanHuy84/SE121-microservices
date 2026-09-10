@@ -121,7 +121,8 @@ export class ConsumerService {
 
       if (!post) return;
 
-      const category = post.emotionFeature?.primaryEmotion || post.emotionFeature?.label;
+      const category =
+        post.emotionFeature?.primaryEmotion || post.emotionFeature?.label;
       if (!category) return;
 
       await this.affinityService.updateAffinity({

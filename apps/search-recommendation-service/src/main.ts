@@ -22,7 +22,7 @@ async function ensureKafkaTopics() {
       EventTopic.POST,
       EventTopic.GROUP_CRUD,
       EventTopic.USER,
-      EventTopic.EMOTION_RESULT,
+      EventTopic.ANALYSIS_RESULT,
       EventTopic.RECOMMENDATION_PROFILE,
       EventTopic.RECOMMENDATION_GRAPH,
       'recommendation-emotion-events',

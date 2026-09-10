@@ -164,7 +164,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.EMOTION_RESULT)
+  @EventPattern(EventTopic.ANALYSIS_RESULT)
   async handleEmotionResultEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,

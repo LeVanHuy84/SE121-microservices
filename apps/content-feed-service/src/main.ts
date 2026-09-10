@@ -19,7 +19,7 @@ async function ensureKafkaTopics() {
     await admin.connect();
     const existingTopics = await admin.listTopics();
     const requiredTopics = [
-      EventTopic.EMOTION_RESULT,
+      EventTopic.ANALYSIS_RESULT,
       EventTopic.INTERACTION,
       EventTopic.POST,
       EventTopic.SHARE,
@@ -28,7 +28,6 @@ async function ensureKafkaTopics() {
       EventTopic.LOGGING,
       EventTopic.USER_ACTIVITY_LOG,
       EventTopic.MEDIA,
-      EventTopic.MODERATION_REJECTED,
     ];
     const topicsToCreate = requiredTopics
       .filter((topic) => !existingTopics.includes(topic))

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test WebSocket Proactive Intervention</title>
+  <!-- Socket.io Client CDN -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- Tailwind CSS CDN for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-emergency { animation: pulse-ring 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="border-b border-slate-700 pb-4 flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-sky-400">🚨 Proactive Intervention WebSocket Tester</h1>
+        <p class="text-slate-400 text-sm">Kiểm thử nhận tín hiệu can thiệp khẩn cấp / u buồn qua Socket.io Realtime</p>
+      </div>
+      <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-red-900/50 text-red-400 border border-red-700">
+        🔴 Đã ngắt kết nối
+      </span>
+    </header>
+
+    <!-- Controls Panel -->
+    <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+      <h2 class="font-semibold text-slate-200">Cấu hình kết nối Gateway</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">API Gateway URL</label>
+          <input id="gatewayUrl" type="text" value="http://localhost:4000" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Clerk User Token (JWT)</label>
+          <input id="clerkToken" type="password" placeholder="Dán Clerk JWT token của người dùng..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500" />
+        </div>
+      </div>
+      
+      <div class="flex gap-3">
+        <button id="btnConnect" onclick="connectSocket()" class="bg-sky-600 hover:bg-sky-500 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          🔌 Kết nối WebSocket (/notification)
+        </button>
+        <button id="btnDisconnect" onclick="disconnectSocket()" disabled class="bg-slate-700 hover:bg-slate-600 text-slate-400 font-medium px-4 py-2 rounded-lg text-sm transition opacity-50 cursor-not-allowed">
+          ❌ Ngắt kết nối
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Event Console Log -->
+    <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="font-semibold text-slate-200">Console Logs Sự kiện</h2>
+        <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Xóa logs</button>
+      </div>
+      <div id="consoleLog" class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-emerald-400 h-64 overflow-y-auto space-y-2 border border-slate-800">
+        <div class="text-slate-500">// Hệ thống sẵn sàng. Nhập Clerk Token và nhấn 'Kết nối WebSocket'...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Realtime Modal Popup Container (Hidden by default) -->
+  <div id="interventionModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="modalCard" class="bg-slate-800 border-2 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-slate-100">
+      <!-- Dynamic Content Rendered Here -->
+    </div>
+  </div>
+
+  <script>
+    let socket = null;
+
+    function log(msg, type = 'info') {
+      const consoleLog = document.getElementById('consoleLog');
+      const time = new Date().toLocaleTimeString();
+      let colorClass = 'text-emerald-400';
+      if (type === 'warn') colorClass = 'text-amber-400';
+      if (type === 'error') colorClass = 'text-rose-400';
+      if (type === 'event') colorClass = 'text-sky-300 font-bold';
+
+      const entry = document.createElement('div');
+      entry.className = colorClass;
+      entry.innerText = `[${time}] ${msg}`;
+      consoleLog.appendChild(entry);
+      consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('consoleLog').innerHTML = '';
+    }
+
+    function connectSocket() {
+      const url = document.getElementById('gatewayUrl').value.trim();
+      const token = document.getElementById('clerkToken').value.trim();
+
+      if (!token) {
+        alert('Vui lòng nhập Clerk Token để kết nối WebSocket!');
+        return;
+      }
+
+      if (socket) {
+        socket.disconnect();
+      }
+
+      log(`Đang kết nối tới ${url}/notification...`);
+      document.getElementById('statusBadge').innerText = '🟡 Đang kết nối...';
+      document.getElementById('statusBadge').className = 'px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/50 text-amber-400 border border-amber-700';
+
+      socket = io(`${url}/notification`, {
+        transports: ['websocket'],
+        auth: {
+          token: token
+        }
+      });
+
+      socket.on('connect', () => {
+        log(`✅ Đã kết nối WebSocket thành công! Socket ID: ${socket.id}`);
+        document.getElementById('statusBadge').innerText = '🟢 Đã kết nối';
+        document.getElementById('statusBadge').className = 'px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/50 text-emerald-400 border border-emerald-700';
+        document.getElementById('btnConnect').disabled = true;
+        document.getElementById('btnConnect').classList.add('opacity-50', 'cursor-not-allowed');
+        document.getElementById('btnDisconnect').disabled = false;
+        document.getElementById('btnDisconnect').classList.remove('opacity-50', 'cursor-not-allowed');
+      });
+
+      socket.on('disconnect', (reason) => {
+        log(`❌ Kết nối bị đóng: ${reason}`, 'warn');
+        resetUIOnDisconnect();
+      });
+
+      socket.on('connect_error', (error) => {
+        log(`🔥 Lỗi kết nối WebSocket: ${error.message}`, 'error');
+        resetUIOnDisconnect();
+      });
+
+      // Lắng nghe sự kiện Can thiệp Chủ động Realtime
+      socket.on('proactive_intervention_triggered', (payload) => {
+        log(`🚨 [RECIEVED EVENT] proactive_intervention_triggered:`, 'event');
+        log(JSON.stringify(payload, null, 2));
+
+        // Render và hiển thị Popup Modal
+        renderInterventionModal(payload);
+      });
+    }
+
+    function disconnectSocket() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      log('Đã chủ động ngắt kết nối WebSocket.');
+      resetUIOnDisconnect();
+    }
+
+    function resetUIOnDisconnect() {
+      document.getElementById('statusBadge').innerText = '🔴 Đã ngắt kết nối';
+      document.getElementById('statusBadge').className = 'px-3 py-1 rounded-full text-xs font-semibold bg-red-900/50 text-red-400 border border-red-700';
+      document.getElementById('btnConnect').disabled = false;
+      document.getElementById('btnConnect').classList.remove('opacity-50', 'cursor-not-allowed');
+      document.getElementById('btnDisconnect').disabled = true;
+      document.getElementById('btnDisconnect').classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    function renderInterventionModal(data) {
+      const modal = document.getElementById('interventionModal');
+      const card = document.getElementById('modalCard');
+
+      let actionTitle = 'Chăm sóc sức khỏe tinh thần';
+      let borderColor = 'border-sky-500';
+      let contentHtml = '';
+
+      if (data.suggestedAction === 'CRISIS_HOTLINE' || data.riskLevel === 'crisis') {
+        borderColor = 'border-red-500 pulse-emergency';
+        actionTitle = '🚨 CHÚNG TÔI Ở ĐÂY ĐỂ HỖ TRỢ BẠN';
+        const hotline = data.hotlineInfo || { number: '115', organization: 'Hỗ trợ khẩn cấp', operatingHours: '24/7' };
+
+        contentHtml = `
+          <div class="space-y-4">
+            <div class="p-4 bg-red-950/60 border border-red-800 rounded-xl text-red-200 text-sm">
+              "${data.chatbotPromptContext || 'Nếu bạn đang cảm thấy quá sức, hãy nhớ rằng luôn có sự hỗ trợ sẵn sàng dành cho bạn.'}"
+            </div>
+            <div class="bg-slate-900 p-4 rounded-xl space-y-2 border border-slate-700 text-sm">
+              <div>📞 <strong>Đường dây nóng:</strong> <span class="text-red-400 text-base font-bold">${hotline.number}</span></div>
+              <div>🏢 <strong>Tổ chức:</strong> ${hotline.organization}</div>
+              <div>⏰ <strong>Giờ hoạt động:</strong> ${hotline.operatingHours}</div>
+            </div>
+            <div class="flex flex-col gap-2 pt-2">
+              <a href="tel:${hotline.number}" class="w-full text-center bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-red-900/50">
+                📞 GỌI NGAY HOTLINE (${hotline.number})
+              </a>
+              <button onclick="closeModal()" class="w-full text-center bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2 rounded-xl text-sm transition">
+                Đóng / Cảm thấy ổn hơn
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (data.suggestedAction === 'BREATHING_AND_JOURNAL') {
+        borderColor = 'border-teal-500';
+        actionTitle = '🧘 GÓC LẮNG ĐỌNG & XOA DỊU CĂNG THẲNG';
+        const breathing = data.breathingExercise || { name: 'Thở 4-7-8', guideMessage: 'Hít vào 4s -> Giữ 7s -> Thở ra 8s' };
+
+        contentHtml = `
+          <div class="space-y-4">
+            <div class="p-4 bg-teal-950/50 border border-teal-800 rounded-xl text-teal-200 text-sm">
+              <strong>🫁 ${breathing.name}:</strong><br/>
+              ${breathing.guideMessage}
+            </div>
+            <div class="p-4 bg-slate-900 border border-slate-700 rounded-xl text-slate-300 text-sm">
+              📝 <strong>Nhật ký lắng đọng:</strong><br/>
+              "${data.journalingPrompt || 'Điều gì đang khiến bạn trăn trở hôm nay?'}"
+            </div>
+            <button onclick="closeModal()" class="w-full text-center bg-teal-600 hover:bg-teal-500 text-white font-medium py-2.5 rounded-xl transition">
+              Bắt đầu bài tập thở
+            </button>
+          </div>
+        `;
+      } else {
+        borderColor = 'border-sky-500';
+        actionTitle = '🎧 GÓC NGHỈ NGƠI & THƯ GIÃN';
+        contentHtml = `
+          <div class="space-y-4 text-sm text-slate-300">
+            <p>Dành vài phút lắng lại và thưởng thức những giai điệu nhẹ nhàng nhé.</p>
+            <button onclick="closeModal()" class="w-full text-center bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-xl transition">
+              Đóng thông báo
+            </button>
+          </div>
+        `;
+      }
+
+      card.className = `bg-slate-800 border-2 ${borderColor} rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-slate-100`;
+      card.innerHTML = `
+        <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+          <h3 class="font-bold text-lg text-slate-100">${actionTitle}</h3>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200 font-bold text-xl">&times;</button>
+        </div>
+        ${contentHtml}
+      `;
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('interventionModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

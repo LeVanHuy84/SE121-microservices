@@ -6,7 +6,11 @@ import {
   Payload,
   RmqContext,
 } from "@nestjs/microservices";
-import { CursorPaginationDTO, GetNotificationQueryDto } from "@repo/dtos";
+import {
+  CursorPaginationDTO,
+  GetNotificationQueryDto,
+  ProactiveInterventionDto,
+} from "@repo/dtos";
 
 import { ChatPushService } from "./chat-push.service";
 import { NotificationService } from "./notification.service";
@@ -30,6 +34,57 @@ export class NotificationController {
       channel.ack(originalMsg);
     } catch (err) {
       console.error("Error processing notification message:", err);
+      channel.nack(originalMsg, false, false);
+    }
+  }
+
+  @EventPattern("proactive.intervention")
+  async handleProactiveIntervention(
+    @Payload() dto: ProactiveInterventionDto,
+    @Ctx() context: RmqContext,
+  ) {
+    const channel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+
+    try {
+      if (dto && dto.userId) {
+        let message =
+          "Dành vài phút lắng lại và chăm sóc tâm trạng của bạn hôm nay.";
+        if (dto.journalingPrompt) {
+          message = dto.journalingPrompt;
+        } else if (dto.chatbotPromptContext) {
+          message = dto.chatbotPromptContext;
+        } else if (dto.hotlineInfo) {
+          message = `Nếu bạn cần hỗ trợ khẩn cấp, đường dây nóng ${dto.hotlineInfo.organization} (${dto.hotlineInfo.number}) luôn sẵn sàng 24/7.`;
+        }
+
+        await this.notificationService.createAndEnqueue({
+          userId: dto.userId,
+          type: "proactive_intervention",
+          channels: [],
+          payload: {
+            content: message,
+            userId: dto.userId,
+            riskLevel: dto.riskLevel,
+            riskScore: dto.riskScore,
+            triggers: dto.triggers,
+            suggestedAction: dto.suggestedAction,
+            breathingExercise: dto.breathingExercise,
+            musicSuggestions: dto.musicSuggestions,
+            journalingPrompt: dto.journalingPrompt,
+            chatbotPromptContext: dto.chatbotPromptContext,
+            hotlineInfo: dto.hotlineInfo,
+            resourceDocUrl: (dto as any).resourceDocUrl,
+            timestamp: dto.timestamp ?? new Date(),
+          } as any,
+          meta: {
+            priority: dto.riskLevel === "CRISIS" ? 1 : 2,
+          },
+        });
+      }
+      channel.ack(originalMsg);
+    } catch (err) {
+      console.error("Error processing proactive intervention event:", err);
       channel.nack(originalMsg, false, false);
     }
   }

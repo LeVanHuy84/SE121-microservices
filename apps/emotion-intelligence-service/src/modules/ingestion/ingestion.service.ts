@@ -41,10 +41,12 @@ export class IngestionService {
     await this.processEvent(payload);
   }
 
-  async handleModeration(payload: ModerationEventPayload) {
-    if (!payload.targetId || !payload.targetType) return;
-
-    if (payload.action === ModerationAction.HARD_BLOCK || payload.isViolation) {
+  private async processEvent(payload: AnalysisResultEventPayload) {
+    const moderation = payload.moderation;
+    if (
+      moderation?.action === ModerationAction.HARD_BLOCK ||
+      moderation?.isViolation
+    ) {
       this.logger.log(
         `Removing analytics snapshot for HARD_BLOCK target=${payload.targetId}`,
       );
@@ -59,54 +61,15 @@ export class IngestionService {
       return;
     }
 
-    // Xử lý sự kiện EMOTIONAL_CRISIS hoặc ALLOW_WITH_SUPPORT / mentalHealthSupport
-    const isCrisisOrSupport =
-      payload.action === ModerationAction.ALLOW_WITH_SUPPORT ||
-      payload.label === ModerationLabel.EMOTIONAL_CRISIS ||
-      payload.mentalHealthSupport;
-
-    if (isCrisisOrSupport) {
-      this.logger.warn(
-        `Received EMOTIONAL_CRISIS / ALLOW_WITH_SUPPORT moderation event for target=${payload.targetId}, userId=${payload.userId}`,
-      );
-
-      // Cập nhật snapshot mentalHealthRiskLevel = 'critical'
-      await this.model.updateOne(
-        {
-          targetId: payload.targetId,
-          targetType: payload.targetType,
-        },
-        {
-          $set: {
-            mentalHealthRiskLevel: 'critical',
-          },
-        },
-      );
-
-      if (payload.userId) {
-        await this.markUserDirty(payload.userId);
-        try {
-          await this.proactiveInterventionService.evaluateFromModeration(
-            payload.userId,
-            payload,
-          );
-        } catch (err) {
-          this.logger.error(
-            `Error evaluating proactive intervention for moderation event user=${payload.userId}`,
-            err,
-          );
-        }
-      }
-    }
-  }
-
-  private async processEvent(payload: AnalysisResultEventPayload) {
     await this.upsertSnapshot(payload);
     await this.markUserDirty(payload.userId);
 
     // Evaluate real-time proactive intervention (<5ms)
     try {
-      await this.proactiveInterventionService.evaluateFromEvent(payload.userId, payload);
+      await this.proactiveInterventionService.evaluateFromEvent(
+        payload.userId,
+        payload,
+      );
     } catch (err) {
       this.logger.error(
         `Error during real-time proactive intervention evaluation for user=${payload.userId}`,

@@ -60,4 +60,3 @@ describe('HighRiskRule', () => {
     expect(resultNormal).toBeNull();
   });
 });
-

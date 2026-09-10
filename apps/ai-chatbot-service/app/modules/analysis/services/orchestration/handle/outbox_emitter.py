@@ -13,71 +13,63 @@ class OutboxEmitter:
     def __init__(self, outbox_repo: OutboxRepository):
         self.outbox_repo = outbox_repo
 
-    async def emit_moderation(self, moderation: dict):
+    async def emit_analysis_result(self, action: EventTypeEnum, moderation: dict, emotion: dict = None):
+        """Emit unified analysis result event containing both moderation and emotion payload"""
+        target_id = moderation.get("targetId") or (emotion.get("targetId") if emotion else "")
+        print(f'[OutboxEmitter] Emitting unified analysis_result event for targetId={target_id}, action={action.value}')
+
         is_violation = moderation.get("isViolation", False)
-        action = moderation.get("action", "ALLOW")
-
+        mod_action = moderation.get("action", "ALLOW")
         violations = build_violations(moderation)
+        display_message = build_display_message(is_violation, violations, action=mod_action)
 
-        display_message = build_display_message(is_violation, violations, action=action)
+        moderation_payload = {
+            "targetId": moderation["targetId"],
+            "targetType": moderation["targetType"],
+            "userId": moderation.get("userId"),
+            "action": mod_action,
+            "label": moderation.get("label", "CLEAN"),
+            "isViolation": is_violation,
+            "mentalHealthSupport": moderation.get("mentalHealthSupport", False),
+            "violations": violations,
+            "maxSeverity": str(moderation.get("maxSeverity", "")).upper(),
+            "confidence": moderation.get("confidence", moderation.get("violationScore")),
+            "displayMessage": display_message,
+            "createdAt": moderation.get("createdAt").isoformat() if hasattr(moderation.get("createdAt"), "isoformat") else str(moderation.get("createdAt", "")),
+        }
 
-        outbox = Outbox(
-            topic=ResultEventEnum.MODERATION_REJECTED.value,
-            eventType="MODERATION_EVALUATED",
-            payload={
-                "targetId": moderation["targetId"],
-                "targetType": moderation["targetType"],
-                "userId": moderation.get("userId"),
-                "content": moderation.get("content", ""),
-                "action": action,
-                "label": moderation.get("label", "CLEAN"),
-                "isViolation": is_violation,
-                "mentalHealthSupport": moderation.get("mentalHealthSupport", False),
+        payload = {
+            "userId": moderation.get("userId") or (emotion.get("userId") if emotion else ""),
+            "targetId": target_id,
+            "targetType": moderation.get("targetType") or (emotion.get("targetType") if emotion else ""),
+            "content": moderation.get("content") or (emotion.get("content", "") if emotion else ""),
+            "moderation": moderation_payload,
+        }
 
-                "violations": violations,
-
-                "maxSeverity": str(moderation.get("maxSeverity", "")).upper(),
-                "confidence": moderation.get("confidence", moderation.get("violationScore")),
-
-                "displayMessage": display_message,
-
-                "createdAt": moderation.get("createdAt").isoformat() if hasattr(moderation.get("createdAt"), "isoformat") else str(moderation.get("createdAt", "")),
-            }
-        )
-
-        data = outbox.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude={"id"}
-        )
-
-        await self.outbox_repo.save_outbox(data)
-
-    async def emit_emotion(self, action: EventTypeEnum, emotion: dict):
-        """Emit emotion analysis result event"""
-        print(f'[OutboxEmitter] Emitting emotion event for targetId={emotion["targetId"]}, action={action.value}')
-        # Build Pydantic DTO
-        outbox = Outbox(
-            topic=ResultEventEnum.EMOTION_RESULT.value,
-            eventType=action.value,
-            payload={
-                "userId": emotion["userId"],
-                "targetId": emotion["targetId"],
-                "targetType": emotion["targetType"],
+        if emotion:
+            payload.update({
                 "modelVersion": emotion.get("modelVersion"),
-
                 "primaryEmotion": (emotion.get("primaryEmotion") or emotion.get("finalEmotion", "")).upper(),
                 "secondaryEmotions": [e.upper() for e in emotion.get("secondaryEmotions", [])],
                 "scores": emotion.get("finalScores", {}),
                 "confidence": emotion.get("finalConfidence", 1.0),
-
                 "isSarcasmOrConflict": emotion.get("isSarcasmOrConflict", False),
                 "mentalHealthRiskLevel": emotion.get("mentalHealthRiskLevel", "none"),
-
                 "createdAt": emotion.get("createdAt").isoformat() if emotion.get("createdAt") else None,
-            }
+            })
+        else:
+            payload.update({
+                "modelVersion": moderation.get("modelVersion", "1.0.0"),
+                "scores": {},
+                "confidence": moderation.get("confidence", 1.0),
+                "mentalHealthRiskLevel": "none",
+            })
+
+        outbox = Outbox(
+            topic=ResultEventEnum.ANALYSIS_RESULT.value,
+            eventType=action.value,
+            payload=payload,
         )
-        
-        # Convert to dict for persistence
-        data = outbox.model_dump(mode='json', exclude_none=False, exclude={'id'})
+
+        data = outbox.model_dump(mode="json", exclude_none=False, exclude={"id"})
         await self.outbox_repo.save_outbox(data)

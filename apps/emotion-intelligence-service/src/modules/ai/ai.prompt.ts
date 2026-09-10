@@ -2,10 +2,7 @@ import { RiskLevel } from '@repo/dtos';
 import { AiContext } from './ai.types';
 
 function toRiskInstruction(riskLevel: RiskLevel): string {
-  if (
-    riskLevel === RiskLevel.CRISIS ||
-    riskLevel === RiskLevel.HIGH_RISK
-  ) {
+  if (riskLevel === RiskLevel.CRISIS || riskLevel === RiskLevel.HIGH_RISK) {
     return 'Người dùng đang có dấu hiệu cảm xúc tiêu cực cao. Hãy nhẹ nhàng khuyến khích họ tạm dừng, hít thở và chia sẻ với người họ tin tưởng.';
   }
 

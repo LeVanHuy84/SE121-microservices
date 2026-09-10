@@ -25,11 +25,7 @@ import {
       ],
     }),
   ],
-  providers: [
-    IntentSafetyMatcher,
-    ProactiveInterventionService,
-    ProactiveCron,
-  ],
+  providers: [IntentSafetyMatcher, ProactiveInterventionService, ProactiveCron],
   exports: [IntentSafetyMatcher, ProactiveInterventionService],
 })
 export class ProactiveInterventionModule {}

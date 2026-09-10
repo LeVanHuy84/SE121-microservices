@@ -81,7 +81,11 @@ export class PostSnapshot {
   emotionFeature?: EmotionFeature;
 
   // === MODERATION FLAGS DÀNH CHO FEED RENDER UI ===
-  @Prop({ type: String, enum: ModerationAction, default: ModerationAction.ALLOW })
+  @Prop({
+    type: String,
+    enum: ModerationAction,
+    default: ModerationAction.ALLOW,
+  })
   moderationAction: ModerationAction;
 
   @Prop({ default: false })

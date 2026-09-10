@@ -5,11 +5,7 @@ import {
   KafkaContext,
   Payload,
 } from "@nestjs/microservices";
-import {
-  AnalysisResultEvent,
-  EventTopic,
-  ModerationRejectedEvent,
-} from "@repo/dtos";
+import { AnalysisResultEvent, EventTopic } from "@repo/dtos";
 import { KafkaConsumerHelper } from "@repo/common";
 import { ConsumerService } from "./consumer.service";
 import { EntityManager } from "typeorm";
@@ -26,7 +22,7 @@ export class ConsumerController {
   // ----------------------------
   // 🧩 POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(EventTopic.EMOTION_RESULT)
+  @EventPattern(EventTopic.ANALYSIS_RESULT)
   async handleAnalysisEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,
@@ -44,31 +40,6 @@ export class ConsumerController {
       context,
       handler: async (manager: EntityManager) => {
         await this.consumerService.handleEmotionResult(
-          message.payload,
-          manager,
-        );
-      },
-    });
-  }
-
-  @EventPattern(EventTopic.MODERATION_REJECTED)
-  async handleModerationRejected(
-    @Payload() message: ModerationRejectedEvent,
-    @Ctx() context: KafkaContext,
-  ) {
-    const topic = context.getTopic();
-    const partition = context.getPartition();
-    const raw = context.getMessage();
-    const eventId =
-      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
-
-    await this.consumerHelper.handleWithTypeOrm({
-      topic,
-      eventId,
-      message,
-      context,
-      handler: async (manager: EntityManager) => {
-        await this.consumerService.handleModerationRejected(
           message.payload,
           manager,
         );

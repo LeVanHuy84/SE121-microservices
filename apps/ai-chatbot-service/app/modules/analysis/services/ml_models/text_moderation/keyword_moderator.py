@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Set
+from typing import Dict, Set
 
 
 class KeywordModerator:

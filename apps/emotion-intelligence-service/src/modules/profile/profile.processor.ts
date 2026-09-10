@@ -16,7 +16,8 @@ export class ProfileProcessor {
 
   async processDailyDecaySweep(): Promise<{ processedCount: number }> {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const inactiveProfiles = await this.profileRepository.findInactiveProfiles(cutoff);
+    const inactiveProfiles =
+      await this.profileRepository.findInactiveProfiles(cutoff);
 
     let processedCount = 0;
     const now = new Date();
@@ -24,7 +25,8 @@ export class ProfileProcessor {
     for (const profile of inactiveProfiles) {
       try {
         const lastTime = profile.lastEventAt || profile.updatedAt || cutoff;
-        const elapsedHours = (now.getTime() - new Date(lastTime).getTime()) / (1000 * 60 * 60);
+        const elapsedHours =
+          (now.getTime() - new Date(lastTime).getTime()) / (1000 * 60 * 60);
 
         const newDecayedScore = this.timeDecayCalculator.calculateDecayedScore(
           profile.decayedNegativityScore ?? 0,
@@ -34,7 +36,10 @@ export class ProfileProcessor {
         await this.profileRepository.upsert(profile.userId, {
           userId: profile.userId,
           decayedNegativityScore: newDecayedScore,
-          consecutiveNegativeDays: Math.max(0, (profile.consecutiveNegativeDays ?? 0) - 1),
+          consecutiveNegativeDays: Math.max(
+            0,
+            (profile.consecutiveNegativeDays ?? 0) - 1,
+          ),
           updatedAt: now,
         });
 

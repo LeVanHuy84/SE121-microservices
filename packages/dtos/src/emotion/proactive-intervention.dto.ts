@@ -40,5 +40,7 @@ export class ProactiveInterventionDto {
     operatingHours: string;
   };
 
+  resourceDocUrl?: string;
+
   timestamp: Date;
 }

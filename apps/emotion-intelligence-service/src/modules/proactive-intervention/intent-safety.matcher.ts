@@ -6,9 +6,9 @@ export class IntentSafetyMatcher {
   // Regex các cụm từ đe dọa tính mạng / tự sát khẩn cấp tiếng Việt (Bao gồm lách luật/abbreviations)
   private readonly crisisPatterns: RegExp[] = [
     /tự\s*sát/i,
-    /t[ứu\.\_\-]*sát/i,
+    /t[ứu._-]*sát/i,
     /tự\s*tử/i,
-    /t[ứu\.\_\-]*tử/i,
+    /t[ứu._-]*tử/i,
     /muốn\s*chết/i,
     /ch3t/i,
     /kết\s*thúc\s*cuộc\s*đời/i,
