@@ -68,6 +68,14 @@ export class TemplateService {
       title: () => "Lời mời vào nhóm",
       body: (payload) => this.getContentSnippet(payload),
     },
+    proactive_intervention: {
+      title: (payload) => payload.title || "Góc chăm sóc sức khỏe tinh thần",
+      body: (payload) =>
+        payload.message ||
+        payload.journalingPrompt ||
+        payload.chatbotPromptContext ||
+        "Dành vài phút lắng lại và chăm sóc bản thân nhé.",
+    },
     base_noti: {
       title: () => "Thông báo",
       body: (payload) => this.getContentSnippet(payload),

@@ -224,8 +224,6 @@ export class SeedService {
       secondaryEmotions: [],
       scores: generated.scores,
       confidence: generated.finalConfidence,
-      intensityScore: Number((1 - generated.finalConfidence).toFixed(3)),
-      riskHintLevel: this.resolveRiskHintLevel(generated.scores),
       createdAt: generated.createdAt,
     };
   }

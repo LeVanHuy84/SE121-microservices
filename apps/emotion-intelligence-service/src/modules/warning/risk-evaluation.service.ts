@@ -82,7 +82,9 @@ export class RiskEvaluationService {
       profile?.decayedNegativityScore ?? 0,
     );
     const emotionMomentum = this.clampSigned(profile?.emotionMomentum ?? 0);
-    const consecutiveNegativeDays = this.toSafeNumber(profile?.consecutiveNegativeDays);
+    const consecutiveNegativeDays = this.toSafeNumber(
+      profile?.consecutiveNegativeDays,
+    );
 
     const scoreDelta = Math.abs(
       this.clamp01(currentScore) - this.clamp01(previousScore),

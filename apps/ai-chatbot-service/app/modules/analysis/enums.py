@@ -47,8 +47,7 @@ class TargetTypeEnum(str, Enum):
     SHARE = "SHARE"
 
 class ResultEventEnum(str, Enum):
-    EMOTION_RESULT = 'emotion-result-events'
-    MODERATION_REJECTED = 'moderation-rejected-events'
+    ANALYSIS_RESULT = 'analysis-result-events'
 
 class ModerationActionEnum(str, Enum):
     ALLOW = "ALLOW"

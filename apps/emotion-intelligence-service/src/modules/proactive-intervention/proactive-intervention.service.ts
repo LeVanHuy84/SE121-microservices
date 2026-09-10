@@ -45,12 +45,28 @@ export class ProactiveInterventionService {
     const isCrisisOrHighFromAi =
       rawRiskStr === 'critical' || rawRiskStr === 'high';
 
-    const isMatchedEmergencyIntent =
-      this.intentSafetyMatcher.evaluateEmergencySafety(
-        (payload as any).content || '',
-        payload,
-      );
-    const isEmergencyText = isCrisisOrHighFromAi || isMatchedEmergencyIntent;
+    const moderation = payload.moderation;
+    const isCrisisOrSupportFromModeration =
+      moderation &&
+      (moderation.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+        moderation.label === ModerationLabel.EMOTIONAL_CRISIS ||
+        moderation.mentalHealthSupport);
+
+    const hasVlmSelfHarm = (moderation?.violations || []).some(
+      (v) => (v.category || '').toUpperCase() === 'SELF_HARM',
+    );
+
+    const textToMatch = payload.content || moderation?.displayMessage || '';
+    const hasEmergencyKeywords =
+      this.intentSafetyMatcher.matchesEmergencyIntent(textToMatch);
+
+    const isEmergencyCrisis =
+      hasVlmSelfHarm || hasEmergencyKeywords || rawRiskStr === 'critical';
+
+    const isEmergencyText =
+      isCrisisOrHighFromAi ||
+      isCrisisOrSupportFromModeration ||
+      isEmergencyCrisis;
 
     const existingState = await this.riskStateModel
       .findOne({ userId })
@@ -62,13 +78,15 @@ export class ProactiveInterventionService {
     const triggers = existingState?.riskTriggers || [];
 
     if (isEmergencyText) {
-      riskLevel =
-        rawRiskStr === 'critical' || isMatchedEmergencyIntent
-          ? RiskLevel.CRISIS
-          : RiskLevel.HIGH_RISK;
+      riskLevel = isEmergencyCrisis ? RiskLevel.CRISIS : RiskLevel.HIGH_RISK;
       riskScore = riskLevel === RiskLevel.CRISIS ? 1.0 : 0.85;
-      if (!triggers.includes(TriggerFlag.SUICIDAL_IDEATION)) {
-        triggers.push(TriggerFlag.SUICIDAL_IDEATION);
+      const triggerFlag =
+        riskLevel === RiskLevel.CRISIS
+          ? TriggerFlag.SUICIDAL_IDEATION
+          : TriggerFlag.HIGH_ANXIETY_BURST;
+
+      if (!triggers.includes(triggerFlag)) {
+        triggers.push(triggerFlag);
       }
 
       // Cập nhật ngay UserRiskState thành rủi ro cao/khủng hoảng
@@ -122,7 +140,7 @@ export class ProactiveInterventionService {
     );
 
     // 2. Với nhãn EMOTIONAL_CRISIS từ PhoBERT text classifier: Kiểm tra Regex từ khóa nguy cơ tự hại khẩn cấp
-    const textToMatch = payload.content || payload.displayMessage || '';
+    const textToMatch = payload.displayMessage || '';
     const hasEmergencyKeywords =
       this.intentSafetyMatcher.matchesEmergencyIntent(textToMatch);
 
@@ -376,13 +394,24 @@ export class ProactiveInterventionService {
     riskLevel: RiskLevel,
     lastInterventionAt?: Date,
   ): boolean {
-    if (!lastInterventionAt || riskLevel === RiskLevel.CRISIS) {
-      return false; // CRISIS luôn luôn được hiển thị
+    if (!lastInterventionAt) {
+      return false;
     }
 
     const now = new Date().getTime();
     const lastTime = new Date(lastInterventionAt).getTime();
-    const diffHours = (now - lastTime) / (1000 * 60 * 60);
+    const diffSeconds = (now - lastTime) / 1000;
+
+    // Giới hạn chống trùng lặp sự kiện tức thì (< 5 giây) cho cùng 1 bài viết
+    if (diffSeconds < 5) {
+      return true;
+    }
+
+    if (riskLevel === RiskLevel.CRISIS) {
+      return false; // CRISIS luôn hiển thị nếu cách nhau >5s
+    }
+
+    const diffHours = diffSeconds / 3600;
 
     if (
       riskLevel === RiskLevel.MILD_STRESS ||

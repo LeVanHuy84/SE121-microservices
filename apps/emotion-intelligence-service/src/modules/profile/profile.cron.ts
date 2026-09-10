@@ -16,7 +16,9 @@ export class ProfileCron {
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { timeZone: 'UTC' })
   async runDailyDecaySweep(): Promise<void> {
     const startedAt = new Date();
-    this.logger.log('Starting daily maintenance decay sweep for inactive users...');
+    this.logger.log(
+      'Starting daily maintenance decay sweep for inactive users...',
+    );
 
     try {
       const result = await this.profileProcessor.processDailyDecaySweep();
@@ -31,4 +33,3 @@ export class ProfileCron {
     }
   }
 }
-

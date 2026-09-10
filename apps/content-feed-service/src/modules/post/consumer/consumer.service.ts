@@ -55,6 +55,11 @@ export class ConsumerService {
       this.commentRepository,
     );
 
+    // Process embedded moderation if present
+    if (payload.moderation) {
+      await this.handleModerationRejected(payload.moderation, manager);
+    }
+
     // Xử lý sự kiện CREATED ở đây
     const emotion = payload.primaryEmotion;
     const secondaryEmotions = payload.secondaryEmotions || [];
@@ -90,7 +95,9 @@ export class ConsumerService {
     const txManager = manager ?? this.dataSource.manager;
 
     const action = payload.action ?? ModerationAction.HARD_BLOCK;
-    const notificationMessage = payload.displayMessage || "Nội dung của bạn đã được kiểm duyệt bởi hệ thống.";
+    const notificationMessage =
+      payload.displayMessage ||
+      "Nội dung của bạn đã được kiểm duyệt bởi hệ thống.";
 
     let entity: Post | Comment | Share | null = null;
 
@@ -149,7 +156,7 @@ export class ConsumerService {
 
     moderation.maxSeverity = payload.maxSeverity as any;
     moderation.confidence = payload.confidence ?? 0;
-    moderation.displayMessage = payload.displayMessage ?? '';
+    moderation.displayMessage = payload.displayMessage ?? "";
 
     await txManager.save(moderation);
 

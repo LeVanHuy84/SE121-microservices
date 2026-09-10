@@ -46,9 +46,11 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
       distribution: { joy: 0.8, sadness: 0.2 },
       dominantEmotion: 'JOY',
     }),
-    getInsights: jest.fn().mockResolvedValue([
-      { type: 'STABLE_STATE', message: 'Tâm trạng ổn định', tone: 'STABLE' },
-    ]),
+    getInsights: jest
+      .fn()
+      .mockResolvedValue([
+        { type: 'STABLE_STATE', message: 'Tâm trạng ổn định', tone: 'STABLE' },
+      ]),
     getHistory: jest.fn().mockResolvedValue({
       items: [],
       nextCursor: null,
@@ -69,7 +71,11 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [EmotionFeatureController, DashboardController, IngestionController],
+      controllers: [
+        EmotionFeatureController,
+        DashboardController,
+        IngestionController,
+      ],
       providers: [
         { provide: EmotionFeatureService, useValue: mockEmotionFeatureService },
         { provide: DashboardService, useValue: mockDashboardService },
@@ -81,9 +87,13 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    emotionFeatureController = moduleFixture.get<EmotionFeatureController>(EmotionFeatureController);
-    dashboardController = moduleFixture.get<DashboardController>(DashboardController);
-    ingestionController = moduleFixture.get<IngestionController>(IngestionController);
+    emotionFeatureController = moduleFixture.get<EmotionFeatureController>(
+      EmotionFeatureController,
+    );
+    dashboardController =
+      moduleFixture.get<DashboardController>(DashboardController);
+    ingestionController =
+      moduleFixture.get<IngestionController>(IngestionController);
   });
 
   afterAll(async () => {
@@ -92,17 +102,25 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
 
   describe('1. Emotion Feature RPC Patterns (get_emotion_ranking_features & get_user_emotion_signal)', () => {
     it('should return emotion ranking features for Feed Service', async () => {
-      const result = await emotionFeatureController.getEmotionRankingFeatures({ userId: 'user-123' });
+      const result = await emotionFeatureController.getEmotionRankingFeatures({
+        userId: 'user-123',
+      });
       expect(result).toBeDefined();
       expect(result.userEmotionPreference.joy).toBe(0.8);
-      expect(mockEmotionFeatureService.getUserEmotionFeatures).toHaveBeenCalledWith('user-123');
+      expect(
+        mockEmotionFeatureService.getUserEmotionFeatures,
+      ).toHaveBeenCalledWith('user-123');
     });
 
     it('should return user emotion signal summary', async () => {
-      const result = await emotionFeatureController.getUserEmotionSignal({ userId: 'user-123' });
+      const result = await emotionFeatureController.getUserEmotionSignal({
+        userId: 'user-123',
+      });
       expect(result).toBeDefined();
       expect(result.riskScore).toBe(0.1);
-      expect(mockEmotionFeatureService.getUserEmotionSignal).toHaveBeenCalledWith('user-123');
+      expect(
+        mockEmotionFeatureService.getUserEmotionSignal,
+      ).toHaveBeenCalledWith('user-123');
     });
   });
 
@@ -114,12 +132,18 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
     });
 
     it('should handle dashboard.get_trend RPC request', async () => {
-      const res = await dashboardController.getTrend({ userId: 'user-123', window: '7d' } as any);
+      const res = await dashboardController.getTrend({
+        userId: 'user-123',
+        window: '7d',
+      } as any);
       expect(res.data).toHaveLength(1);
     });
 
     it('should handle dashboard.get_distribution RPC request', async () => {
-      const res = await dashboardController.getDistribution({ userId: 'user-123', window: '7d' } as any);
+      const res = await dashboardController.getDistribution({
+        userId: 'user-123',
+        window: '7d',
+      } as any);
       expect(res.distribution.joy).toBe(0.8);
     });
   });
@@ -147,8 +171,13 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
         getMessage: () => ({ key: 'post-999', offset: '1' }),
       };
 
-      await ingestionController.handleAnalysisEvents(kafkaMessage, kafkaCtxMock);
-      expect(mockIngestionService.handleCreated).toHaveBeenCalledWith(kafkaMessage.payload);
+      await ingestionController.handleAnalysisEvents(
+        kafkaMessage,
+        kafkaCtxMock,
+      );
+      expect(mockIngestionService.handleCreated).toHaveBeenCalledWith(
+        kafkaMessage.payload,
+      );
     });
 
     it('should ingest MODERATION_REJECTED event', async () => {
@@ -169,9 +198,13 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
         getMessage: () => ({ key: 'post-888', offset: '2' }),
       };
 
-      await ingestionController.handleModerationEvents(moderationMessage, kafkaCtxMock);
-      expect(mockIngestionService.handleModeration).toHaveBeenCalledWith(moderationMessage.payload);
+      await ingestionController.handleModerationEvents(
+        moderationMessage,
+        kafkaCtxMock,
+      );
+      expect(mockIngestionService.handleModeration).toHaveBeenCalledWith(
+        moderationMessage.payload,
+      );
     });
   });
 });
-

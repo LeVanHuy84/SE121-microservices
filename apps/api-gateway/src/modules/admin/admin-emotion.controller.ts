@@ -1,10 +1,7 @@
 import { Controller, Get, Inject, Query } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
-import {
-  FeedbackListQueryDto,
-  SystemRole,
-} from "@repo/dtos";
+import { FeedbackListQueryDto, SystemRole } from "@repo/dtos";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { RequireRole } from "src/common/decorators/require-role.decorator";
 

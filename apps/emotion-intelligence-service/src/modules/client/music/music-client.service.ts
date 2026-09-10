@@ -37,10 +37,9 @@ export class MusicClientService {
 
       const response = await lastValueFrom(
         this.client
-          .send<PageResponse<MusicFeatureResponse>>(
-            'get_music_recommendations_by_signal',
-            payload,
-          )
+          .send<
+            PageResponse<MusicFeatureResponse>
+          >('get_music_recommendations_by_signal', payload)
           .pipe(
             timeout(3000),
             catchError((err) => {

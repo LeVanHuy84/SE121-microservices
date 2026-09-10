@@ -90,7 +90,9 @@ export class ProfileRepository {
     );
   }
 
-  async findInactiveProfiles(cutoff: Date): Promise<UserEmotionProfileDocument[]> {
+  async findInactiveProfiles(
+    cutoff: Date,
+  ): Promise<UserEmotionProfileDocument[]> {
     return this.profileModel
       .find({
         $or: [

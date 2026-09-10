@@ -6,7 +6,13 @@ import {
   Index,
   OneToMany,
 } from "typeorm";
-import { FinalDecision, ModerationAction, ModerationLabel, Severity, TargetType } from "@repo/dtos";
+import {
+  FinalDecision,
+  ModerationAction,
+  ModerationLabel,
+  Severity,
+  TargetType,
+} from "@repo/dtos";
 import { ModerationAppeal } from "./moderation-appeal.entity";
 
 @Entity("content_moderations")

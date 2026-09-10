@@ -61,11 +61,8 @@ class HandleEventService:
                 moderation_data=moderation_result,
             )
 
-            action = moderation.get("action", "ALLOW")
-            if moderation.get("isViolation") or action != "ALLOW" or moderation.get("mentalHealthSupport"):
-                await self.outbox.emit_moderation(moderation)
-
             if skip_reason or should_block or not emotion_result:
+                await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_CREATED, moderation, None)
                 return {
                     "moderation": moderation,
                     "emotion": None,
@@ -73,6 +70,7 @@ class HandleEventService:
                     "skipReason": skip_reason,
                 }
 
+            emotion_result["content"] = text
             emotion = await self.emotion_writer.save_created(
                 user_id=user_id,
                 target_id=target_id,
@@ -80,7 +78,7 @@ class HandleEventService:
                 emotion_data=emotion_result,
             )
 
-            await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_CREATED, emotion)
+            await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_CREATED, moderation, emotion)
 
             return {
                 "moderation": moderation,
@@ -141,11 +139,8 @@ class HandleEventService:
                 moderation_data=moderation_result,
             )
 
-            action = moderation.get("action", "ALLOW")
-            if moderation.get("isViolation") or action != "ALLOW" or moderation.get("mentalHealthSupport"):
-                await self.outbox.emit_moderation(moderation)
-
             if skip_reason or should_block or not emotion_result:
+                await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_UPDATED, moderation, None)
                 return {
                     "moderation": moderation,
                     "emotion": None,
@@ -153,13 +148,14 @@ class HandleEventService:
                     "skipReason": skip_reason,
                 }
 
+            emotion_result["content"] = new_text
             emotion = await self.emotion_writer.save_updated(
                 target_id=target_id,
                 target_type=target_type,
                 emotion_data=emotion_result,
             )
 
-            await self.outbox.emit_emotion(EventTypeEnum.ANALYSIS_UPDATED, emotion)
+            await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_UPDATED, moderation, emotion)
 
             return {
                 "moderation": moderation,

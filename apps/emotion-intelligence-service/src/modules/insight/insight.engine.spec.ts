@@ -96,4 +96,3 @@ describe('InsightEngine', () => {
     expect(results[0].type).toBe(InsightType.STABLE_STATE);
   });
 });
-
