@@ -1,26 +1,10 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
+
 from app.modules.chatbot.schemas import AssistantHistoryItem, AssistantRespondRequest
-
-
-
-
-TEENCODE_MAP = {
-    "ko": "khong",
-    "k": "khong",
-    "dc": "duoc",
-    "đc": "duoc",
-    "ntn": "nhu the nao",
-    "ib": "inbox",
-    "rep": "reply",
-    "ad": "admin",
-    "mn": "moi nguoi",
-    "mik": "minh",
-    "tui": "toi",
-}
+from app.utils.text_normalizer import normalize_for_guard
 
 
 @dataclass(frozen=True)
@@ -224,9 +208,6 @@ FOLLOW_UP_REFERENCE_KEYWORDS = {
     "this part",
     "that section",
     "this section",
-    "what next",
-    "then what",
-    "explain more",
     "giai thich them ve no",
     "cho vi du cu the",
     "buoc tiep theo",
@@ -300,6 +281,14 @@ COMMUNITY_UNSAFE_KEYWORDS = {
     "kill someone",
 }
 
+PROFANITY_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in PROFANITY_KEYWORDS),
+    re.IGNORECASE,
+)
+UNSAFE_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in COMMUNITY_UNSAFE_KEYWORDS),
+    re.IGNORECASE,
+)
 
 @dataclass(frozen=True)
 class CommunityDecision:
@@ -311,21 +300,18 @@ class CommunityDecision:
 
 class CommunityGuard:
     def evaluate(self, text: str) -> CommunityDecision:
-        normalized = self._normalize(text)
+        normalized = normalize_for_guard(text)
         if not normalized:
             return CommunityDecision(True, "empty", "none", normalized)
 
-        profanity_hits = self._count_hits(normalized, PROFANITY_KEYWORDS)
-        unsafe_hits = self._count_hits(normalized, COMMUNITY_UNSAFE_KEYWORDS)
-
-        if unsafe_hits > 0:
+        if UNSAFE_REGEX.search(normalized):
             return CommunityDecision(
                 False,
                 "community_violation",
                 "high",
                 normalized,
             )
-        if profanity_hits > 0:
+        if PROFANITY_REGEX.search(normalized):
             return CommunityDecision(
                 False,
                 "profanity",
@@ -333,23 +319,6 @@ class CommunityGuard:
                 normalized,
             )
         return CommunityDecision(True, "clean", "none", normalized)
-
-    def _normalize(self, value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value or "")
-        normalized = "".join(
-            char for char in normalized if unicodedata.category(char) != "Mn"
-        )
-        normalized = normalized.replace("\u0111", "d").replace("\u0110", "d").lower()
-        normalized = re.sub(r"[^a-z0-9\s]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        return normalized
-
-    def _count_hits(self, text: str, keywords: set[str]) -> int:
-        hit = 0
-        for keyword in keywords:
-            if re.search(rf"(^|\s){re.escape(keyword)}($|\s)", text):
-                hit += 1
-        return hit
 
 
 
@@ -487,15 +456,7 @@ class AssistantScopeGuard:
         ).in_scope
 
     def _normalize(self, value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value or "")
-        normalized = "".join(
-            char for char in normalized if unicodedata.category(char) != "Mn"
-        )
-        normalized = normalized.replace("\u0111", "d").replace("\u0110", "d").lower()
-        normalized = re.sub(r"[^a-z0-9\s]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        tokens = [TEENCODE_MAP.get(token, token) for token in normalized.split()]
-        return " ".join(tokens)
+        return normalize_for_guard(value)
 
     def _matches_any_keyword(self, text: str, keywords: set[str]) -> bool:
         return any(
@@ -532,10 +493,12 @@ class AssistantScopeGuard:
             return 0.0
         if has_any_history and len(text.split()) <= 7 and self._looks_like_pronoun_follow_up(text):
             return 0.7
-        if has_contextual_anchor and len(text.split()) <= 12:
-            # Short follow-ups after an existing conversation are usually in-scope.
-            if any(token in text for token in ("no", "do", "nay", "them", "tiep")):
-                return 0.74
+        if (
+            has_contextual_anchor
+            and len(text.split()) <= 12
+            and any(token in text for token in ("no", "do", "nay", "them", "tiep"))
+        ):
+            return 0.74
         if self._looks_like_pronoun_follow_up(text):
             return 0.82 if has_contextual_anchor else 0.25
         if self._matches_any_keyword(text, STRONG_REFERENCE_KEYWORDS):
@@ -625,9 +588,7 @@ class AssistantScopeGuard:
     ) -> bool:
         if blended_domain_score >= 0.22 and bool(matched_domains):
             return True
-        if has_contextual_anchor and self._looks_like_pronoun_follow_up(text):
-            return True
-        return False
+        return has_contextual_anchor and self._looks_like_pronoun_follow_up(text)
 
     def _looks_like_feature_question(self, text: str) -> bool:
         if not text:

@@ -5,29 +5,33 @@ import json
 import logging
 import re
 import time
+from collections.abc import AsyncIterator
 from uuid import uuid4
-from typing import AsyncIterator
 
 from app.core.settings import settings
-from app.providers.base import LlmGeneration, LlmProvider
-from app.providers.groq_provider import GroqProvider
-
+from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
 from app.modules.chatbot.schemas import (
     AssistantHistoryItem,
     AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
 )
-
+from app.modules.chatbot.services.context_resolver import (
+    AssistantContextResolver,
+    assistant_context_resolver,
+)
+from app.modules.chatbot.services.guardrails import (
+    AssistantScopeGuard,
+    CommunityGuard,
+    ScopeDecision,
+    assistant_community_guard,
+    assistant_scope_guard,
+)
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
-from app.modules.chatbot.services.context_resolver import AssistantContextResolver, assistant_context_resolver
-from app.modules.chatbot.services.guardrails import CommunityGuard, assistant_community_guard, AssistantScopeGuard, assistant_scope_guard
 from app.modules.chatbot.services.prompt_builder import PromptBuilder
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
-from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
-
-
-
+from app.providers.base import LlmGeneration, LlmProvider
+from app.providers.groq_provider import GroqProvider
 
 logger = logging.getLogger("uvicorn.error")
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
@@ -52,6 +56,67 @@ class RespondCommand:
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
 
+    async def _run_guard_chain(
+        self,
+        working_request: AssistantRespondRequest,
+        history: list[AssistantHistoryItem],
+        last_intent: str | None,
+        has_follow_up_anchor: bool,
+    ) -> tuple[AssistantRespondData | None, str | None, ScopeDecision | None, list]:
+        # --- Mental health crisis check (highest priority guard) ---
+        # MENTAL_HEALTH_GUARD_SLOT
+
+        # --- Community Guard ---
+        community_decision = self.community_guard.evaluate(working_request.message)
+        if not community_decision.allowed:
+            data = self._community_response(community_decision.reason)
+            return data, "community_guard", None, []
+
+        # --- Context Resolver ---
+        candidate_contexts = (
+            self._dedupe_contexts(working_request.contexts)
+            if working_request.contexts
+            else await self._resolve_contexts_with_budget(
+                working_request,
+                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+            )
+        )
+        working_request = working_request.model_copy(update={"contexts": candidate_contexts})
+
+        # --- Scope Guard ---
+        scope_decision = self.scope_guard.evaluate_scope(
+            working_request,
+            last_intent=last_intent,
+            recent_history=history,
+        )
+
+        if scope_decision.reason == "greeting":
+            return self._greeting_response(), "greeting", scope_decision, candidate_contexts
+
+        if not scope_decision.in_scope:
+            intent = "out_of_scope"
+            if "privacy" in scope_decision.matched_domains:
+                data = self._privacy_policy_response()
+                intent = "privacy"
+            elif scope_decision.state == "in_domain_unknown":
+                data = self._in_domain_unknown_response(scope_decision.matched_domains)
+                intent = "in_domain_unknown"
+            elif scope_decision.state == "ambiguous":
+                data = self._ambiguous_scope_response(scope_decision.matched_domains)
+                intent = "clarify"
+            else:
+                data = self._out_of_scope_response()
+            return data, intent, scope_decision, candidate_contexts
+
+        prompt_limits = resolve_prompt_limits(working_request.userId)
+        final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+        
+        if not final_contexts and scope_decision.matched_domains and not has_follow_up_anchor:
+            data = self._in_domain_unknown_response(scope_decision.matched_domains)
+            return data, "in_domain_unknown", scope_decision, candidate_contexts
+
+        return None, None, scope_decision, candidate_contexts
+
     async def execute(self, request: AssistantRespondRequest) -> AssistantRespondData:
         started_at = time.perf_counter()
         request_id = str(uuid4())
@@ -69,17 +134,20 @@ class RespondCommand:
             if effective_message != request.message
             else request
         )
-        community_decision = self.community_guard.evaluate(request.message)
-        if not community_decision.allowed:
-            data = self._community_response(community_decision.reason)
-            self._persist_session_memory(request, data.reply, [], "community_guard")
+
+        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+            working_request, history, last_intent, has_follow_up_anchor
+        )
+        
+        if guard_data:
+            self._persist_session_memory(request, guard_data.reply, [], guard_intent)
             persisted = await self.persist_history.execute(
                 request=request,
-                assistant_reply=data.reply,
+                assistant_reply=guard_data.reply,
                 sources=[],
-                intent="community_guard",
+                intent=guard_intent,
             )
-            return data.model_copy(
+            return guard_data.model_copy(
                 update={
                     "requestId": request_id,
                     "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
@@ -88,135 +156,12 @@ class RespondCommand:
                 }
             )
 
-        candidate_contexts = (
-            self._dedupe_contexts(working_request.contexts)
-            if working_request.contexts
-            else await self._resolve_contexts_with_budget(
-                working_request,
-                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
-            )
-        )
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
-
-        scope_decision = self.scope_guard.evaluate_scope(
-            working_request,
-            last_intent=last_intent,
-            recent_history=history,
-        )
-
-        if scope_decision.reason == "greeting":
-            data = self._greeting_response()
-            self._persist_session_memory(request, data.reply, [], None)
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="greeting",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
-
-        if not scope_decision.in_scope:
-            if "privacy" in scope_decision.matched_domains:
-                data = self._privacy_policy_response()
-                self._persist_session_memory(request, data.reply, [], "privacy")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="privacy",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            if scope_decision.state == "in_domain_unknown":
-                data = self._in_domain_unknown_response(scope_decision.matched_domains)
-                self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="in_domain_unknown",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            if scope_decision.state == "ambiguous":
-                data = self._ambiguous_scope_response(scope_decision.matched_domains)
-                self._persist_session_memory(request, data.reply, [], "clarify")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="clarify",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            data = self._out_of_scope_response()
-            self._persist_session_memory(request, data.reply, [], None)
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="out_of_scope",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
 
         memory_summary = self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        if (
-            not final_contexts
-            and scope_decision.matched_domains
-            and not has_follow_up_anchor
-        ):
-            data = self._in_domain_unknown_response(scope_decision.matched_domains)
-            self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="in_domain_unknown",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
-
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
         prompt = self.prompt_builder.build(
             resolved_request,
@@ -319,24 +264,24 @@ class RespondCommand:
     ):
         session_key = self._session_key(request)
         memory_summary = self.memory.get_summary(session_key)
-        self.memory.append_exchange(session_key, request.message, assistant_reply)
-        self.memory.set_summary(
-            session_key,
-            self._build_updated_summary(
-                memory_summary,
-                request.message,
-                assistant_reply,
-            ),
+        updated_summary = self._build_updated_summary(
+            memory_summary,
+            request.message,
+            assistant_reply,
         )
-        self.memory.set_last_intent(session_key, intent)
-        self.memory.set_last_sources(session_key, sources)
-        self.memory.set_facts(
-            session_key,
-            {
-                "last_intent": intent or "",
-                "last_user_message": self._truncate_text(request.message, 140),
-                "last_assistant_reply": self._truncate_text(assistant_reply, 180),
-            },
+        facts = {
+            "last_intent": intent or "",
+            "last_user_message": self._truncate_text(request.message, 140),
+            "last_assistant_reply": self._truncate_text(assistant_reply, 180),
+        }
+        self.memory.update_session_batch(
+            key=session_key,
+            user_message=request.message,
+            assistant_reply=assistant_reply,
+            summary=updated_summary,
+            intent=intent,
+            sources=sources,
+            facts=facts,
         )
 
     def _build_updated_summary(
@@ -433,7 +378,7 @@ class RespondCommand:
         history: list[AssistantHistoryItem],
         memory_facts: dict[str, str],
     ) -> tuple[str, bool]:
-        normalized = self.scope_guard._normalize(message)  # noqa: SLF001
+        normalized = self.scope_guard._normalize(message)
         if not self._is_follow_up_reference(normalized):
             return message, False
 
@@ -456,7 +401,7 @@ class RespondCommand:
                 continue
             if content == memory_facts.get("last_user_message", ""):
                 continue
-            normalized = self.scope_guard._normalize(content)  # noqa: SLF001
+            normalized = self.scope_guard._normalize(content)
             if normalized in {"hi", "hello", "hey", "xin chao", "chao"}:
                 continue
             if len(normalized.split()) <= 2:
@@ -583,64 +528,21 @@ class RespondCommand:
             else request
         )
 
-        community_decision = self.community_guard.evaluate(request.message)
-        if not community_decision.allowed:
-            data = self._community_response(community_decision.reason)
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "community_guard")
+        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+            working_request, history, last_intent, has_follow_up_anchor
+        )
+        
+        if guard_data:
+            yield self._finalize_stream_data(guard_data, request_id, started_at, request)
+            await self._after_generation(request, guard_data.reply, [], guard_intent)
             return
 
-        candidate_contexts = (
-            self._dedupe_contexts(working_request.contexts)
-            if working_request.contexts
-            else await self._resolve_contexts_with_budget(
-                working_request,
-                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
-            )
-        )
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
-
-        scope_decision = self.scope_guard.evaluate_scope(
-            working_request,
-            last_intent=last_intent,
-            recent_history=history,
-        )
-
-        if scope_decision.reason == "greeting":
-            data = self._greeting_response()
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "greeting")
-            return
-
-        if not scope_decision.in_scope:
-            intent = "out_of_scope"
-            if "privacy" in scope_decision.matched_domains:
-                data = self._privacy_policy_response()
-                intent = "privacy"
-            elif scope_decision.state == "in_domain_unknown":
-                data = self._in_domain_unknown_response(scope_decision.matched_domains)
-                intent = "in_domain_unknown"
-            elif scope_decision.state == "ambiguous":
-                data = self._ambiguous_scope_response(scope_decision.matched_domains)
-                intent = "clarify"
-            else:
-                data = self._out_of_scope_response()
-            
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], intent)
-            return
 
         memory_summary = self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        
-        if not final_contexts and scope_decision.matched_domains and not has_follow_up_anchor:
-            data = self._in_domain_unknown_response(scope_decision.matched_domains)
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "in_domain_unknown")
-            return
-
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
         prompt = self.prompt_builder.build(
             resolved_request,

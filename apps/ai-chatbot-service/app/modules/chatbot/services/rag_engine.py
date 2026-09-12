@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
-import math
 import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import asyncio
 
+import numpy as np
 from elasticsearch import AsyncElasticsearch
 
 from app.core.settings import settings
@@ -224,7 +224,7 @@ class RagDocumentService:
                 "num_candidates": max(50, candidate_size * 5),
                 "filter": {"term": {"visibility": visibility}},
             },
-            _source=[
+            source=[
                 "docId",
                 "chunkIndex",
                 "title",
@@ -259,7 +259,7 @@ class RagDocumentService:
                     "filter": [{"term": {"visibility": visibility}}],
                 }
             },
-            _source=[
+            source=[
                 "docId",
                 "chunkIndex",
                 "title",
@@ -308,12 +308,13 @@ class RagDocumentService:
     def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
         if not a or not b or len(a) != len(b):
             return 0.0
-        dot = sum(x * y for x, y in zip(a, b, strict=False))
-        norm_a = math.sqrt(sum(x * x for x in a))
-        norm_b = math.sqrt(sum(y * y for y in b))
+        vec_a = np.array(a)
+        vec_b = np.array(b)
+        norm_a = np.linalg.norm(vec_a)
+        norm_b = np.linalg.norm(vec_b)
         if norm_a == 0 or norm_b == 0:
             return 0.0
-        return dot / (norm_a * norm_b)
+        return float(np.dot(vec_a, vec_b) / (norm_a * norm_b))
 
     async def _index_exists_cached(self, force_refresh: bool = False) -> bool:
         now = time.time()
@@ -362,7 +363,7 @@ class RagDocumentService:
             for section_title, section_text in sections:
                 semantic_chunks = self._semantic_chunk_section(section_text)
                 for text in semantic_chunks:
-                    chunk_id = hashlib.sha256(f"{doc_id}:{chunk_cursor}:{text}".encode("utf-8")).hexdigest()
+                    chunk_id = hashlib.sha256(f"{doc_id}:{chunk_cursor}:{text}".encode()).hexdigest()
                     chunks.append(
                         RagDocumentChunk(
                             id=chunk_id,
@@ -397,7 +398,7 @@ class RagDocumentService:
         text = text.lstrip("\ufeff")
         if not text.startswith("---"):
             return {}, text
-        match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.S)
+        match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.DOTALL)
         if not match:
             return {}, text
         metadata: dict[str, str] = {}
