@@ -69,6 +69,78 @@ class SessionMemory:
         entry.history.extend(items)
         entry.history = entry.history[-settings.CHATBOT_MEMORY_STORED_ITEMS :]
 
+    def update_session_batch(
+        self,
+        key: str,
+        user_message: str,
+        assistant_reply: str,
+        summary: str,
+        intent: str | None,
+        sources: list[AssistantSource],
+        facts: dict[str, str],
+    ):
+        items = [
+            AssistantHistoryItem(role="user", content=user_message),
+            AssistantHistoryItem(role="assistant", content=assistant_reply),
+        ]
+        normalized_summary = " ".join(str(summary or "").split())
+        normalized_facts = {str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()}
+        
+        if self._can_use_redis():
+            try:
+                pipeline = self._redis.pipeline()
+                history_key = self._redis_key(key, "history")
+                pipeline.rpush(
+                    history_key,
+                    *[item.model_dump_json() for item in items],
+                )
+                pipeline.ltrim(
+                    history_key,
+                    -settings.CHATBOT_MEMORY_STORED_ITEMS,
+                    -1,
+                )
+                pipeline.setex(
+                    self._redis_key(key, "summary"),
+                    settings.CHATBOT_SESSION_TTL_SECONDS,
+                    normalized_summary,
+                )
+                if intent:
+                    pipeline.setex(
+                        self._redis_key(key, "last_intent"),
+                        settings.CHATBOT_SESSION_TTL_SECONDS,
+                        intent,
+                    )
+                pipeline.setex(
+                    self._redis_key(key, "last_sources"),
+                    settings.CHATBOT_SESSION_TTL_SECONDS,
+                    json.dumps([source.model_dump() for source in sources]),
+                )
+                pipeline.setex(
+                    self._redis_key(key, "facts"),
+                    settings.CHATBOT_SESSION_TTL_SECONDS,
+                    json.dumps(normalized_facts),
+                )
+                
+                for memory_field in ("history", "summary", "last_intent", "last_sources", "facts"):
+                    pipeline.expire(
+                        self._redis_key(key, memory_field),
+                        settings.CHATBOT_SESSION_TTL_SECONDS,
+                    )
+                pipeline.execute()
+                return
+            except Exception as exc:
+                self._disable_redis(exc)
+                
+        self._prune_expired()
+        entry = self._get_or_create_entry(key)
+        entry.history.extend(items)
+        entry.history = entry.history[-settings.CHATBOT_MEMORY_STORED_ITEMS :]
+        entry.summary = normalized_summary
+        if intent:
+            entry.last_intent = intent
+        entry.last_sources = sources
+        entry.facts = normalized_facts
+
     def get_summary(self, key: str) -> str:
         if self._can_use_redis():
             try:
