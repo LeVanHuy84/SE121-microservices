@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import numpy as np
 import hashlib
 import logging
 import re
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantContextItem
@@ -33,6 +35,7 @@ class RagDocumentChunk:
     type: str
     text: str
     source_path: str
+    topic: str | None = None
 
 
 class RagDocumentService:
@@ -74,6 +77,7 @@ class RagDocumentService:
                     "type": chunk.type,
                     "text": chunk.text,
                     "sourcePath": chunk.source_path,
+                    "topic": chunk.topic,
                     "embedding": embedding,
                 }
             )
@@ -134,6 +138,7 @@ class RagDocumentService:
                         "visibility": source.get("visibility"),
                         "version": source.get("version"),
                         "sourcePath": source.get("sourcePath"),
+                        "topic": source.get("topic"),
                     },
                 )
             )
@@ -192,6 +197,7 @@ class RagDocumentService:
                     "type": {"type": "keyword"},
                     "text": {"type": "text"},
                     "sourcePath": {"type": "keyword"},
+                    "topic": {"type": "keyword"},
                     "embedding": {
                         "type": "dense_vector",
                         "dims": dimensions,
@@ -234,6 +240,7 @@ class RagDocumentService:
                 "type",
                 "text",
                 "sourcePath",
+                "topic",
                 "embedding",
             ],
         )
@@ -269,6 +276,7 @@ class RagDocumentService:
                 "type",
                 "text",
                 "sourcePath",
+                "topic",
                 "embedding",
             ],
         )
@@ -329,33 +337,58 @@ class RagDocumentService:
             visibility = str(metadata.get("visibility") or "public")
             lang = str(metadata.get("lang") or "vi")
             version = str(metadata.get("version") or "v1")
+            topic = metadata.get("topic")
             updated_at = str(metadata.get("updated_at") or "")
             if not updated_at:
                 updated_at = time.strftime("%Y-%m-%d", time.gmtime(path.stat().st_mtime))
 
-            sections = self._split_by_headings(body, title)
+            headers_to_split_on = [
+                ("#", "Header 1"),
+                ("##", "Header 2"),
+                ("###", "Header 3"),
+            ]
+            markdown_splitter = MarkdownHeaderTextSplitter(
+                headers_to_split_on=headers_to_split_on, strip_headers=False
+            )
+            md_header_splits = markdown_splitter.split_text(body)
+
+            char_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=settings.RAG_CHUNK_SIZE,
+                chunk_overlap=settings.RAG_CHUNK_OVERLAP,
+            )
+            splits = char_splitter.split_documents(md_header_splits)
+
             chunk_cursor = 0
-            for section_title, section_text in sections:
-                semantic_chunks = self._semantic_chunk_section(section_text)
-                for text in semantic_chunks:
-                    chunk_id = hashlib.sha256(f"{doc_id}:{chunk_cursor}:{text}".encode()).hexdigest()
-                    chunks.append(
-                        RagDocumentChunk(
-                            id=chunk_id,
-                            doc_id=doc_id,
-                            chunk_index=chunk_cursor,
-                            title=title,
-                            section=section_title,
-                            lang=lang,
-                            updated_at=updated_at,
-                            visibility=visibility,
-                            version=version,
-                            type=doc_type,
-                            text=text,
-                            source_path=str(path),
-                        )
+            for doc_split in splits:
+                text = doc_split.page_content.strip()
+                if not text:
+                    continue
+
+                header_parts = []
+                for h in ["Header 1", "Header 2", "Header 3"]:
+                    if h in doc_split.metadata:
+                        header_parts.append(doc_split.metadata[h])
+                section_title = " > ".join(header_parts) if header_parts else title
+
+                chunk_id = hashlib.sha256(f"{doc_id}:{chunk_cursor}:{text}".encode()).hexdigest()
+                chunks.append(
+                    RagDocumentChunk(
+                        id=chunk_id,
+                        doc_id=doc_id,
+                        chunk_index=chunk_cursor,
+                        title=title,
+                        section=section_title,
+                        lang=lang,
+                        updated_at=updated_at,
+                        visibility=visibility,
+                        version=version,
+                        type=doc_type,
+                        text=text,
+                        source_path=str(path),
+                        topic=topic,
                     )
-                    chunk_cursor += 1
+                )
+                chunk_cursor += 1
 
             manifest_parts.append(f"{path}:{hashlib.sha256(raw_text.encode('utf-8')).hexdigest()}")
 
@@ -383,75 +416,6 @@ class RagDocumentService:
             key, value = line.split(":", 1)
             metadata[key.strip()] = value.strip()
         return metadata, match.group(2).strip()
-
-    def _split_by_headings(self, text: str, default_title: str) -> list[tuple[str, str]]:
-        lines = text.splitlines()
-        sections: list[tuple[str, list[str]]] = []
-        current_title = default_title
-        current_lines: list[str] = []
-        heading_pattern = re.compile(r"^\s{0,3}#{1,4}\s+(.+?)\s*$")
-        for line in lines:
-            match = heading_pattern.match(line)
-            if match:
-                if current_lines:
-                    sections.append((current_title, current_lines))
-                current_title = normalize_text(match.group(1))
-                current_lines = []
-            else:
-                current_lines.append(line)
-        if current_lines:
-            sections.append((current_title, current_lines))
-        return [(title, "\n".join(part).strip()) for title, part in sections if "\n".join(part).strip()]
-
-    def _semantic_chunk_section(self, text: str) -> list[str]:
-        text = normalize_text(text)
-        if not text:
-            return []
-        paragraphs = [normalize_text(p) for p in re.split(r"\n{2,}", text) if normalize_text(p)]
-        if not paragraphs:
-            return []
-
-        embeddings = embedding_service.encode_documents(paragraphs)
-        if not embeddings or len(embeddings) != len(paragraphs):
-            return self._fallback_text_chunks(text)
-
-        merged: list[str] = []
-        current = paragraphs[0]
-        current_embedding = embeddings[0]
-        for idx in range(1, len(paragraphs)):
-            candidate = paragraphs[idx]
-            sim = self._cosine_similarity(current_embedding, embeddings[idx])
-            next_text = f"{current}\n\n{candidate}"
-            if sim >= settings.RAG_SEMANTIC_MERGE_THRESHOLD and self._estimate_tokens(next_text) <= settings.RAG_CHUNK_TOKEN_BUDGET:
-                current = next_text
-                current_embedding = embeddings[idx]
-            else:
-                merged.extend(self._enforce_token_budget(current))
-                current = candidate
-                current_embedding = embeddings[idx]
-        merged.extend(self._enforce_token_budget(current))
-        return merged
-
-    def _enforce_token_budget(self, text: str) -> list[str]:
-        if self._estimate_tokens(text) <= settings.RAG_CHUNK_TOKEN_BUDGET:
-            return [text]
-        return self._fallback_text_chunks(text)
-
-    def _fallback_text_chunks(self, text: str) -> list[str]:
-        normalized = normalize_text(text)
-        if not normalized:
-            return []
-        step = max(settings.RAG_CHUNK_SIZE - settings.RAG_CHUNK_OVERLAP, 1)
-        chunks: list[str] = []
-        for start in range(0, len(normalized), step):
-            chunk = normalized[start : start + settings.RAG_CHUNK_SIZE].strip()
-            if chunk:
-                chunks.append(chunk)
-        return chunks
-
-    def _estimate_tokens(self, text: str) -> int:
-        words = max(1, len(normalize_text(text).split()))
-        return int(words * 1.3)
 
     def _manifest_path(self) -> Path:
         path = Path(settings.RAG_REINDEX_MANIFEST_PATH)

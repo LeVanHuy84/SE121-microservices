@@ -111,8 +111,9 @@ class PromptBuilder:
             title = f" title={item.title}" if item.title else ""
             score = f" score={item.score}" if item.score is not None else ""
             source = f" source={item.source}" if item.source else ""
+            topic = f" topic={item.metadata.get('topic')}" if item.metadata.get("topic") else ""
             lines.append(
-                f"[{index}] type={item.type} id={item.id}{title}{score}{source}\n"
+                f"[{index}] type={item.type} id={item.id}{topic}{title}{score}{source}\n"
                 f"{content}"
             )
             consumed += len(content)
