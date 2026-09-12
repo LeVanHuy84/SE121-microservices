@@ -59,6 +59,7 @@ class PromptBuilder:
 
         "Khi câu hỏi liên quan đến dữ liệu hệ thống, CONTEXT là nguồn sự thật ưu tiên.\n"
         "Nếu CONTEXT có dữ liệu phù hợp, hãy dựa vào CONTEXT để trả lời.\n"
+        "BẮT BUỘC TRÍCH DẪN (CITE): Khi bạn dùng thông tin từ CONTEXT, bạn phải trích dẫn ID của tài liệu đó ở cuối câu, ví dụ: [1], [2].\n"
         "Nếu CONTEXT không đủ hoặc không có dữ liệu phù hợp, hãy nói rõ là chưa tìm thấy dữ liệu phù hợp, không tự bịa thêm thông tin.\n"
 
         "HISTORY và MEMORY_SUMMARY chỉ dùng để hiểu mạch hội thoại, không dùng để suy đoán hoặc tạo thêm dữ kiện hệ thống.\n"

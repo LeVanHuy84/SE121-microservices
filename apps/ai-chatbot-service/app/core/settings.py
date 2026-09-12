@@ -48,7 +48,7 @@ class Settings:
         self.CHATBOT_MEMORY_RECENT_ITEMS: int = self.CHATBOT_MEMORY_RECENT_TURNS * 2
         self.CHATBOT_MEMORY_STORED_ITEMS: int = self.CHATBOT_MEMORY_STORED_TURNS * 2
         self.CHATBOT_MAX_CONTEXT_ITEMS: int = int(
-            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS", 8)
+            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS", 3)
         )
         self.CHATBOT_CONTEXT_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT", 1200)
@@ -90,7 +90,7 @@ class Settings:
             os.getenv("CHATBOT_MAX_CONTEXT_ITEMS_A", self.CHATBOT_MAX_CONTEXT_ITEMS)
         )
         self.CHATBOT_MAX_CONTEXT_ITEMS_B: int = int(
-            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS_B", 6)
+            os.getenv("CHATBOT_MAX_CONTEXT_ITEMS_B", 3)
         )
         self.CHATBOT_CONTEXT_CHAR_LIMIT_A: int = int(
             os.getenv("CHATBOT_CONTEXT_CHAR_LIMIT_A", self.CHATBOT_CONTEXT_CHAR_LIMIT)

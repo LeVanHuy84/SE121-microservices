@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from elasticsearch import AsyncElasticsearch
 
 from app.core.settings import settings
@@ -102,12 +101,11 @@ class RagDocumentService:
         vector_hits = await self._search_vector(normalized_query, query_embedding, candidate_size, visibility)
         bm25_hits = await self._search_bm25(normalized_query, candidate_size, visibility)
         hybrid_candidates = self._rrf_merge([vector_hits, bm25_hits])
-        reranked = self._semantic_rerank(query_embedding, hybrid_candidates)
 
         per_doc_limit = settings.RAG_DOC_MAX_CHUNKS_PER_DOC
         contexts: list[AssistantContextItem] = []
         chunk_count_by_doc: dict[str, int] = {}
-        for hit in reranked:
+        for hit in hybrid_candidates:
             source = hit.get("_source") or {}
             doc_id = str(source.get("docId") or "")
             if not doc_id:
@@ -292,29 +290,6 @@ class RagDocumentService:
             hit["_hybrid_score"] = score
             merged.append(hit)
         return merged
-
-    def _semantic_rerank(self, query_embedding: list[float], hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        reranked: list[dict[str, Any]] = []
-        for hit in hits:
-            source = hit.get("_source") or {}
-            embedding = source.get("embedding") or []
-            cosine = self._cosine_similarity(query_embedding, embedding)
-            hybrid_score = float(hit.get("_hybrid_score") or 0.0)
-            hit["_hybrid_score"] = (0.65 * cosine) + (0.35 * hybrid_score)
-            reranked.append(hit)
-        reranked.sort(key=lambda x: float(x.get("_hybrid_score") or 0.0), reverse=True)
-        return reranked
-
-    def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
-        if not a or not b or len(a) != len(b):
-            return 0.0
-        vec_a = np.array(a)
-        vec_b = np.array(b)
-        norm_a = np.linalg.norm(vec_a)
-        norm_b = np.linalg.norm(vec_b)
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return float(np.dot(vec_a, vec_b) / (norm_a * norm_b))
 
     async def _index_exists_cached(self, force_refresh: bool = False) -> bool:
         now = time.time()
