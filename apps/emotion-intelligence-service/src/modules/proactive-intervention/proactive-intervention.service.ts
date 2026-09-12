@@ -4,9 +4,7 @@ import {
   RiskLevel,
   TriggerFlag,
   ProactiveInterventionDto,
-  BreathingExerciseDto,
   AnalysisResultEventPayload,
-  ModerationEventPayload,
   ModerationAction,
   ModerationLabel,
 } from '@repo/dtos';
@@ -17,7 +15,16 @@ import {
   UserRiskState,
   UserRiskStateDocument,
 } from 'src/mongo/schema/user_risk_states.schema';
+import {
+  InterventionResource,
+  InterventionResourceDocument,
+} from 'src/mongo/schema/intervention-resource.schema';
+import {
+  EmergencyHotline,
+  EmergencyHotlineDocument,
+} from 'src/mongo/schema/emergency-hotline.schema';
 import { IntentSafetyMatcher } from './intent-safety.matcher';
+import { InterventionSelectorService } from './intervention-selector.service';
 import { MusicClientService } from '../client/music/music-client.service';
 
 @Injectable()
@@ -27,7 +34,12 @@ export class ProactiveInterventionService {
   constructor(
     @InjectModel(UserRiskState.name)
     private readonly riskStateModel: Model<UserRiskStateDocument>,
+    @InjectModel(InterventionResource.name)
+    private readonly resourceModel: Model<InterventionResourceDocument>,
+    @InjectModel(EmergencyHotline.name)
+    private readonly hotlineModel: Model<EmergencyHotlineDocument>,
     private readonly intentSafetyMatcher: IntentSafetyMatcher,
+    private readonly selectorService: InterventionSelectorService,
     @Optional() private readonly musicClientService?: MusicClientService,
     @Optional()
     @Inject('RABBITMQ_CHANNEL')
@@ -60,219 +72,106 @@ export class ProactiveInterventionService {
     const hasEmergencyKeywords =
       this.intentSafetyMatcher.matchesEmergencyIntent(textToMatch);
 
-    const isEmergencyCrisis =
-      hasVlmSelfHarm || hasEmergencyKeywords || rawRiskStr === 'critical';
+    let riskLevel = RiskLevel.NORMAL;
+    const triggers: TriggerFlag[] = [];
 
-    const isEmergencyText =
-      isCrisisOrHighFromAi ||
-      isCrisisOrSupportFromModeration ||
-      isEmergencyCrisis;
-
-    const existingState = await this.riskStateModel
-      .findOne({ userId })
-      .lean<UserRiskState>()
-      .exec();
-
-    let riskLevel = existingState?.riskLevel || RiskLevel.NORMAL;
-    let riskScore = existingState?.riskScore || 0;
-    const triggers = existingState?.riskTriggers || [];
-
-    if (isEmergencyText) {
-      riskLevel = isEmergencyCrisis ? RiskLevel.CRISIS : RiskLevel.HIGH_RISK;
-      riskScore = riskLevel === RiskLevel.CRISIS ? 1.0 : 0.85;
-      const triggerFlag =
-        riskLevel === RiskLevel.CRISIS
-          ? TriggerFlag.SUICIDAL_IDEATION
-          : TriggerFlag.HIGH_ANXIETY_BURST;
-
-      if (!triggers.includes(triggerFlag)) {
-        triggers.push(triggerFlag);
-      }
-
-      // Cập nhật ngay UserRiskState thành rủi ro cao/khủng hoảng
-      await this.riskStateModel.updateOne(
-        { userId },
-        {
-          $set: {
-            riskLevel,
-            riskScore,
-            riskTriggers: triggers,
-            lastEvaluatedAt: new Date(),
-          },
-        },
-        { upsert: true },
-      );
+    if (hasEmergencyKeywords || hasVlmSelfHarm) {
+      riskLevel = RiskLevel.CRISIS;
+      triggers.push(TriggerFlag.SUICIDAL_IDEATION);
+    } else if (isCrisisOrHighFromAi || isCrisisOrSupportFromModeration) {
+      riskLevel = RiskLevel.HIGH_RISK;
+      triggers.push(TriggerFlag.LONG_TERM_SADNESS);
     }
 
-    const result = await this.evaluateIntervention(
+    if (riskLevel === RiskLevel.NORMAL) {
+      return null;
+    }
+
+    const primaryEmotion =
+      (payload as any).emotions?.primaryEmotion ||
+      (payload as any).primaryEmotion;
+
+    const emotionVector =
+      (payload as any).emotions?.scores ||
+      (payload as any).emotionVector;
+
+    const intervention = await this.buildInterventionResponse(
       userId,
       riskLevel,
-      riskScore,
+      riskLevel === RiskLevel.CRISIS ? 0.95 : 0.8,
       triggers,
-      existingState?.lastInterventionAt,
-      payload.scores,
+      textToMatch,
+      primaryEmotion,
+      emotionVector,
     );
 
-    if (result) {
-      await this.persistAndEmitIntervention(userId, result);
+    if (intervention) {
+      await this.persistAndEmitIntervention(userId, intervention);
     }
 
-    return result;
+    return intervention;
   }
 
   /**
-   * Real-time từ Moderation Event (như ALLOW_WITH_SUPPORT hoặc EMOTIONAL_CRISIS)
-   */
-  async evaluateFromModeration(
-    userId: string,
-    payload: ModerationEventPayload,
-  ): Promise<ProactiveInterventionDto | null> {
-    const isCrisisOrSupport =
-      payload.action === ModerationAction.ALLOW_WITH_SUPPORT ||
-      payload.label === ModerationLabel.EMOTIONAL_CRISIS ||
-      payload.mentalHealthSupport;
-
-    if (!isCrisisOrSupport) return null;
-
-    // 1. Kiểm tra vi phạm SELF_HARM từ VLM (Visual Multimodal)
-    const hasVlmSelfHarm = (payload.violations || []).some(
-      (v) => (v.category || '').toUpperCase() === 'SELF_HARM',
-    );
-
-    // 2. Với nhãn EMOTIONAL_CRISIS từ PhoBERT text classifier: Kiểm tra Regex từ khóa nguy cơ tự hại khẩn cấp
-    const textToMatch = payload.displayMessage || '';
-    const hasEmergencyKeywords =
-      this.intentSafetyMatcher.matchesEmergencyIntent(textToMatch);
-
-    // Nếu là VLM Self-Harm HOẶC khớp Regex từ khóa khẩn cấp -> CRISIS (Hotline 24/7)
-    // Nếu chỉ là nhãn PhoBERT Emotion Crisis thông thường mà không có từ khóa khẩn cấp -> HIGH_RISK (AI Chatbot Đồng Hành)
-    const isEmergencyCrisis = hasVlmSelfHarm || hasEmergencyKeywords;
-    const riskLevel = isEmergencyCrisis
-      ? RiskLevel.CRISIS
-      : RiskLevel.HIGH_RISK;
-    const riskScore = isEmergencyCrisis ? 1.0 : 0.85;
-
-    this.logger.warn(
-      `Evaluating proactive intervention for user=${userId} (hasVlmSelfHarm=${hasVlmSelfHarm}, hasEmergencyKeywords=${hasEmergencyKeywords} -> riskLevel=${riskLevel})`,
-    );
-
-    const existingState = await this.riskStateModel
-      .findOne({ userId })
-      .lean<UserRiskState>()
-      .exec();
-
-    const triggers = existingState?.riskTriggers || [];
-    const triggerFlag = isEmergencyCrisis
-      ? TriggerFlag.SUICIDAL_IDEATION
-      : TriggerFlag.HIGH_ANXIETY_BURST;
-
-    if (!triggers.includes(triggerFlag)) {
-      triggers.push(triggerFlag);
-    }
-
-    // Cập nhật trạng thái rủi ro cho người dùng
-    await this.riskStateModel.updateOne(
-      { userId },
-      {
-        $set: {
-          riskLevel,
-          riskScore,
-          riskTriggers: triggers,
-          lastEvaluatedAt: new Date(),
-        },
-      },
-      { upsert: true },
-    );
-
-    const result = await this.evaluateIntervention(
-      userId,
-      riskLevel,
-      riskScore,
-      triggers,
-      existingState?.lastInterventionAt,
-    );
-
-    if (result) {
-      await this.persistAndEmitIntervention(userId, result);
-    }
-
-    return result;
-  }
-
-  /**
-   * Passive Sweep: Đánh giá và hỗ trợ người dùng thụ động u buồn kéo dài (cho CronJob)
+   * Cron Evaluation: Đánh giá user thụ động (Cron Job)
    */
   async evaluatePassiveUser(
     userId: string,
   ): Promise<ProactiveInterventionDto | null> {
-    const existingState = await this.riskStateModel
-      .findOne({ userId })
-      .lean<UserRiskState>()
-      .exec();
-
-    if (!existingState) return null;
-
-    const result = await this.evaluateIntervention(
-      userId,
-      existingState.riskLevel,
-      existingState.riskScore,
-      existingState.riskTriggers || [],
-      existingState.lastInterventionAt,
-    );
-
-    if (result) {
-      await this.persistAndEmitIntervention(userId, result);
-    }
-
-    return result;
-  }
-
-  /**
-   * Tạo payload gợi ý can thiệp chủ động dựa vào trạng thái rủi ro
-   */
-  async evaluateIntervention(
-    userId: string,
-    riskLevel: RiskLevel,
-    riskScore: number,
-    triggers: TriggerFlag[],
-    lastInterventionAt?: Date,
-    emotionVector?: Record<string, number>,
-  ): Promise<ProactiveInterventionDto | null> {
-    // 1. Kiểm tra Cooldown chống Spam (Notification Fatigue Guard)
-    if (this.isSpamCooldownActive(riskLevel, lastInterventionAt)) {
-      this.logger.debug(
-        `Intervention suppressed due to cooldown for user ${userId} (${riskLevel})`,
-      );
+    const riskState = await this.riskStateModel.findOne({ userId }).exec();
+    if (!riskState || riskState.riskLevel === RiskLevel.NORMAL) {
       return null;
     }
 
+    if (
+      this.isSpamCooldownActive(
+        riskState.riskLevel,
+        riskState.lastInterventionAt,
+      )
+    ) {
+      return null;
+    }
+
+    const intervention = await this.buildInterventionResponse(
+      userId,
+      riskState.riskLevel,
+      riskState.riskScore,
+      riskState.riskTriggers as any,
+    );
+
+    if (intervention) {
+      await this.persistAndEmitIntervention(userId, intervention);
+    }
+
+    return intervention;
+  }
+
+  /**
+   * Phản hồi can thiệp cấu trúc động từ MongoDB kết hợp Groq AI Selection Engine
+   */
+  async buildInterventionResponse(
+    userId: string,
+    riskLevel: RiskLevel,
+    riskScore: number,
+    triggers: TriggerFlag[] = [],
+    content?: string,
+    primaryEmotion?: string,
+    emotionVector?: Record<string, number>,
+  ): Promise<ProactiveInterventionDto | null> {
     const timestamp = new Date();
 
     switch (riskLevel) {
       case RiskLevel.NORMAL:
-        return null; // Không can thiệp
+        return null;
 
       case RiskLevel.MILD_STRESS: {
         const musicSuggestions = this.musicClientService
           ? await this.musicClientService.getRelaxingMusicBySignal(
-              emotionVector,
+              undefined,
               riskLevel,
               5,
             )
-          : [
-              {
-                title: 'Lo-Fi Chill & Relax',
-                artist: 'Healing Sounds',
-                moodTarget: 'calm',
-                genre: 'lofi',
-              },
-              {
-                title: 'Nhạc Không Lời Xoa Dịu Tâm Trạng',
-                artist: 'Acoustic Peace',
-                moodTarget: 'peaceful',
-                genre: 'acoustic',
-              },
-            ];
+          : [];
 
         return {
           userId,
@@ -286,34 +185,60 @@ export class ProactiveInterventionService {
       }
 
       case RiskLevel.MODERATE_RISK:
-        return {
-          userId,
-          riskLevel,
-          riskScore,
-          triggers,
-          suggestedAction: 'BREATHING_AND_JOURNAL',
-          breathingExercise: this.getBreathing478(),
-          journalingPrompt:
-            'Hãy dành vài phút lắng lại: Điều gì đang khiến bạn trăn trở hôm nay? Viết ra sẽ giúp tâm trí bạn nhẹ nhàng hơn.',
-          timestamp,
-        };
+      case RiskLevel.HIGH_RISK: {
+        const availableResources = await this.resourceModel
+          .find({
+            targetRiskLevels: riskLevel,
+            isActive: true,
+          })
+          .exec();
 
-      // TODO: Giai đoạn sau - Cần chuyển các chuỗi prompt, cấu hình hotline và thông điệp can thiệp về hệ thống quản lý tài nguyên/config động (Dynamic CMS / Admin Database) thay vì mock cứng trong code.
-      case RiskLevel.HIGH_RISK:
+        const selectedResource = await this.selectorService.selectBestResource(
+          availableResources,
+          {
+            userId,
+            riskLevel,
+            riskScore,
+            triggers,
+            content,
+            primaryEmotion,
+            emotionVector,
+          },
+        );
+
         return {
           userId,
           riskLevel,
           riskScore,
           triggers,
-          suggestedAction: 'CHATBOT_COMPANION',
-          breathingExercise: this.getBreathing478(),
+          suggestedAction: 'MEDICAL_DOCUMENT',
+          resource: selectedResource
+            ? {
+                id: selectedResource._id.toString(),
+                title: selectedResource.title,
+                description: selectedResource.description,
+                targetRiskLevels: selectedResource.targetRiskLevels,
+                mediaType: selectedResource.mediaType,
+                mediaUrl: selectedResource.mediaUrl,
+                sourceOrganization: selectedResource.sourceOrganization,
+                referenceUrl: selectedResource.referenceUrl,
+                thumbnailUrl: selectedResource.thumbnailUrl,
+              }
+            : undefined,
           chatbotPromptContext:
             'Chúng mình nhận thấy dạo này bạn có nhiều tâm sự u buồn. Trợ lý AI sẵn sàng lắng nghe và chia sẻ cùng bạn bất cứ lúc nào.',
           timestamp,
         };
+      }
 
-      // TODO: Giai đoạn sau - Cấu hình thông tin Đường dây nóng Hotline khẩn cấp từ Admin Config / System Settings DB.
-      case RiskLevel.CRISIS:
+      case RiskLevel.CRISIS: {
+        const hotlines = await this.hotlineModel
+          .find({ isActive: true })
+          .exec();
+
+        const { primary, secondary } =
+          this.selectorService.dispatchHotlines(hotlines);
+
         return {
           userId,
           riskLevel,
@@ -321,14 +246,41 @@ export class ProactiveInterventionService {
           triggers,
           suggestedAction: 'CRISIS_HOTLINE',
           hotlineInfo: {
-            number: '1900.xxx.xxx (Hoặc 115)',
-            organization: 'Đường dây nóng Hỗ trợ Sức khỏe Tinh thần Khẩn cấp',
-            operatingHours: '24/7',
+            number: primary ? primary.hotlineNumber : '115',
+            organization: primary
+              ? primary.organizationName
+              : 'Cấp cứu Khẩn cấp 115',
+            operatingHours: (primary && primary.operatingHours) ? primary.operatingHours : '24/7',
+            primaryHotline: primary
+              ? {
+                  id: primary._id.toString(),
+                  organizationName: primary.organizationName,
+                  hotlineNumber: primary.hotlineNumber,
+                  is247: primary.is247,
+                  operatingHours: primary.operatingHours || '24/7',
+                  operatingHoursConfig: primary.operatingHoursConfig,
+                  description: primary.description,
+                  websiteUrl: primary.websiteUrl,
+                  isPrimary: primary.isPrimary,
+                }
+              : undefined,
+            secondaryHotlines: secondary.map((sec) => ({
+              id: sec._id.toString(),
+              organizationName: sec.organizationName,
+              hotlineNumber: sec.hotlineNumber,
+              is247: sec.is247,
+              operatingHours: sec.operatingHours || '24/7',
+              operatingHoursConfig: sec.operatingHoursConfig,
+              description: sec.description,
+              websiteUrl: sec.websiteUrl,
+              isPrimary: sec.isPrimary,
+            })),
           },
           chatbotPromptContext:
             'Nếu bạn đang trải qua cảm giác quá sức, xin hãy nhớ rằng luôn có sự hỗ trợ sẵn sàng dành cho bạn.',
           timestamp,
         };
+      }
 
       default:
         return null;
@@ -372,23 +324,7 @@ export class ProactiveInterventionService {
   }
 
   /**
-   * Bài tập thở 4-7-8 chuẩn y khoa hạ nhịp tim (Russell Circumplex Model)
-   */
-  private getBreathing478(): BreathingExerciseDto {
-    return {
-      name: 'Bài tập thở sâu 4-7-8 xoa dịu lo âu',
-      technique: '4-7-8',
-      inhaleSeconds: 4,
-      holdSeconds: 7,
-      exhaleSeconds: 8,
-      cycles: 4,
-      guideMessage:
-        'Hít vào bằng mũi (4s) -> Giữ hơi thở (7s) -> Thở ra từ từ bằng miệng (8s). Lặp lại 4 chu kỳ.',
-    };
-  }
-
-  /**
-   * Kiểm tra Cooldown: Mild/Moderate: 24h, High: 12h, Crisis: Không cooldown
+   * Kiểm tra Cooldown chống Spam thông báo
    */
   private isSpamCooldownActive(
     riskLevel: RiskLevel,
@@ -398,30 +334,23 @@ export class ProactiveInterventionService {
       return false;
     }
 
-    const now = new Date().getTime();
     const lastTime = new Date(lastInterventionAt).getTime();
-    const diffSeconds = (now - lastTime) / 1000;
-
-    // Giới hạn chống trùng lặp sự kiện tức thì (< 5 giây) cho cùng 1 bài viết
-    if (diffSeconds < 5) {
-      return true;
-    }
+    const now = Date.now();
+    const elapsedMinutes = (now - lastTime) / (1000 * 60);
 
     if (riskLevel === RiskLevel.CRISIS) {
-      return false; // CRISIS luôn hiển thị nếu cách nhau >5s
+      return elapsedMinutes < 15;
     }
-
-    const diffHours = diffSeconds / 3600;
 
     if (
       riskLevel === RiskLevel.MILD_STRESS ||
       riskLevel === RiskLevel.MODERATE_RISK
     ) {
-      return diffHours < 24; // 24 giờ
+      return elapsedMinutes < 120;
     }
 
     if (riskLevel === RiskLevel.HIGH_RISK) {
-      return diffHours < 12; // 12 giờ
+      return elapsedMinutes < 60;
     }
 
     return false;

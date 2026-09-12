@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller";
 import { AdminEmotionController } from "./admin-emotion.controller";
+import { AdminInterventionController } from "./admin-intervention.controller";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -50,6 +51,11 @@ import { ModerationController } from "./moderation.controller";
       },
     ]),
   ],
-  controllers: [AdminController, ModerationController, AdminEmotionController],
+  controllers: [
+    AdminController,
+    AdminEmotionController,
+    AdminInterventionController,
+    ModerationController,
+  ],
 })
 export class AdminModule {}

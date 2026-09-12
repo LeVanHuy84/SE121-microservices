@@ -18,6 +18,7 @@ import { EmotionAnalyticsModule } from './modules/emotion-analytics/emotion-anal
 import { UserClientModule } from './modules/client/user/user-client.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { ProactiveInterventionModule } from './modules/proactive-intervention/proactive-intervention.module';
+import { AdminInterventionModule } from './modules/admin-intervention/admin-intervention.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ProactiveInterventionModule } from './modules/proactive-intervention/pr
     UserClientModule,
     IngestionModule,
     ProactiveInterventionModule,
+    AdminInterventionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -8,5 +8,6 @@ export * from './user-emotion-signal.dto';
 export * from './analysis-summary.dto';
 export * from './feedback.dto';
 export * from './admin.dto';
+export * from './admin-intervention.dto';
 export * from './proactive-intervention.dto';
 

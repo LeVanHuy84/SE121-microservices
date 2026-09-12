@@ -21,6 +21,14 @@ import {
   EmotionFeedback,
   EmotionFeedbackSchema,
 } from './schema/emotion-feedback.schema';
+import {
+  InterventionResource,
+  InterventionResourceSchema,
+} from './schema/intervention-resource.schema';
+import {
+  EmergencyHotline,
+  EmergencyHotlineSchema,
+} from './schema/emergency-hotline.schema';
 
 @Global()
 @Module({
@@ -56,6 +64,14 @@ import {
       {
         name: EmotionFeedback.name,
         schema: EmotionFeedbackSchema,
+      },
+      {
+        name: InterventionResource.name,
+        schema: InterventionResourceSchema,
+      },
+      {
+        name: EmergencyHotline.name,
+        schema: EmergencyHotlineSchema,
       },
     ]),
   ],
