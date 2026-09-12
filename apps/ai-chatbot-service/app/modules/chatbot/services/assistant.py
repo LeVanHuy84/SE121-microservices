@@ -124,10 +124,11 @@ class RespondCommand:
         history = self._resolve_history(request, session_key)
         last_intent = request.intent or self.memory.get_last_intent(session_key)
         memory_facts = self.memory.get_facts(session_key)
-        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+        effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
             memory_facts,
+            request,
         )
         working_request = (
             request.model_copy(update={"message": effective_message})
@@ -372,11 +373,12 @@ class RespondCommand:
         )
         return f"{policy}\n{prompt}"
 
-    def _resolve_follow_up_message(
+    async def _resolve_follow_up_message(
         self,
         message: str,
         history: list[AssistantHistoryItem],
         memory_facts: dict[str, str],
+        request: AssistantRespondRequest,
     ) -> tuple[str, bool]:
         normalized = self.scope_guard._normalize(message)
         if not self._is_follow_up_reference(normalized):
@@ -385,7 +387,28 @@ class RespondCommand:
         anchor = self._pick_recent_user_anchor(history, memory_facts)
         if not anchor:
             return message, False
-        rewritten = f"{message.strip()}\n\nFOLLOW_UP_ANCHOR:\n{anchor}"
+
+        rewrite_prompt = (
+            "Dựa vào câu hỏi mới nhất và lịch sử hội thoại trước đó, "
+            "hãy viết lại câu hỏi mới nhất thành một câu hỏi độc lập và đầy đủ ngữ nghĩa, "
+            "nhưng ngắn gọn nhất có thể. KHÔNG trả lời câu hỏi, CHỈ viết lại câu hỏi.\n\n"
+            f"Lịch sử:\nUser: {anchor}\n\n"
+            f"Câu hỏi mới nhất: {message}\n\n"
+            "Câu hỏi độc lập:"
+        )
+
+        try:
+            generation = await asyncio.wait_for(
+                self.provider.generate(rewrite_prompt, request),
+                timeout=3.0,
+            )
+            rewritten = generation.content.strip(" \"'\n")
+            if rewritten:
+                return rewritten, True
+        except Exception as exc:
+            logger.warning("Query rewrite failed, falling back to anchor: %s", exc)
+
+        rewritten = f"{message.strip()} {anchor}"
         return rewritten, True
 
     def _pick_recent_user_anchor(
@@ -517,10 +540,11 @@ class RespondCommand:
         history = self._resolve_history(request, session_key)
         last_intent = request.intent or self.memory.get_last_intent(session_key)
         memory_facts = self.memory.get_facts(session_key)
-        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+        effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
             memory_facts,
+            request,
         )
         working_request = (
             request.model_copy(update={"message": effective_message})
