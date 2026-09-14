@@ -29,6 +29,10 @@ import {
   EmergencyHotline,
   EmergencyHotlineSchema,
 } from './schema/emergency-hotline.schema';
+import {
+  InterventionLog,
+  InterventionLogSchema,
+} from './schema/intervention-log.schema';
 
 @Global()
 @Module({
@@ -72,6 +76,10 @@ import {
       {
         name: EmergencyHotline.name,
         schema: EmergencyHotlineSchema,
+      },
+      {
+        name: InterventionLog.name,
+        schema: InterventionLogSchema,
       },
     ]),
   ],

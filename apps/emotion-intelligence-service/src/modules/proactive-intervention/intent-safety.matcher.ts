@@ -6,7 +6,7 @@ export class IntentSafetyMatcher {
   // Regex các cụm từ đe dọa tính mạng / tự sát khẩn cấp (Tiếng Việt có dấu, không dấu, lách luật/teen-code & Tiếng Anh)
   private readonly crisisPatterns: RegExp[] = [
     // 1. Tự sát / Tự tử (Có dấu, không dấu, lách luật: t.ự t.ử, 7ự 5á7, tu sat, tu tu)
-    /[7t][ựu._-]*\s*[s57áaàảãạâấầẩẫậăắằẳẵặ]*[áaàảãạt]/i,
+    /\b[7t][ựu._-]*\s*[s57áaàảãạâấầẩẫậăắằẳẵặ]*[áaàảãạt]\b/i,
     /[7t][ựu._-]*\s*[t7ửuửừửữự]/i,
     /t[ứu._-]*sát/i,
     /t[ứu._-]*tử/i,

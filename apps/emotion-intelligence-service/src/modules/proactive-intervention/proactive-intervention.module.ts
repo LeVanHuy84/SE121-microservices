@@ -19,13 +19,21 @@ import {
   EmergencyHotline,
   EmergencyHotlineSchema,
 } from 'src/mongo/schema/emergency-hotline.schema';
+import {
+  InterventionLog,
+  InterventionLogSchema,
+} from 'src/mongo/schema/intervention-log.schema';
+
+import { ProactiveInterventionController } from './proactive-intervention.controller';
 
 @Module({
+  controllers: [ProactiveInterventionController],
   imports: [
     MongooseModule.forFeature([
       { name: UserRiskState.name, schema: UserRiskStateSchema },
       { name: InterventionResource.name, schema: InterventionResourceSchema },
       { name: EmergencyHotline.name, schema: EmergencyHotlineSchema },
+      { name: InterventionLog.name, schema: InterventionLogSchema },
     ]),
     MusicClientModule,
     RabbitmqModule.register({

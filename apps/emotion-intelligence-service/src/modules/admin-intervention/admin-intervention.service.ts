@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   CreateEmergencyHotlineDto,
   CreateInterventionResourceDto,
@@ -27,6 +27,12 @@ export class AdminInterventionService {
     private readonly hotlineModel: Model<EmergencyHotlineDocument>,
   ) {}
 
+  private validateObjectId(id: string) {
+    if (!id || id === 'undefined' || !Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ID format: ${id}`);
+    }
+  }
+
   // --- Intervention Resources CRUD ---
   async getResources() {
     return this.resourceModel.find().sort({ priority: -1, createdAt: -1 }).exec();
@@ -38,6 +44,7 @@ export class AdminInterventionService {
   }
 
   async updateResource(id: string, dto: UpdateInterventionResourceDto) {
+    this.validateObjectId(id);
     const updated = await this.resourceModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
@@ -48,6 +55,7 @@ export class AdminInterventionService {
   }
 
   async deleteResource(id: string) {
+    this.validateObjectId(id);
     const deleted = await this.resourceModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`Intervention Resource with ID ${id} not found`);
@@ -69,6 +77,7 @@ export class AdminInterventionService {
   }
 
   async updateHotline(id: string, dto: UpdateEmergencyHotlineDto) {
+    this.validateObjectId(id);
     if (dto.isPrimary) {
       await this.hotlineModel.updateMany({ _id: { $ne: id } }, { isPrimary: false }).exec();
     }
@@ -82,6 +91,7 @@ export class AdminInterventionService {
   }
 
   async deleteHotline(id: string) {
+    this.validateObjectId(id);
     const deleted = await this.hotlineModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`Emergency Hotline with ID ${id} not found`);

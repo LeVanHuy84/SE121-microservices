@@ -21,7 +21,7 @@ export class InterventionResource {
   })
   targetRiskLevels: TargetRiskLevel[];
 
-  @Prop({ required: true, enum: InterventionMediaType })
+  @Prop({ required: true, type: String, enum: InterventionMediaType })
   mediaType: InterventionMediaType;
 
   @Prop({ required: true })

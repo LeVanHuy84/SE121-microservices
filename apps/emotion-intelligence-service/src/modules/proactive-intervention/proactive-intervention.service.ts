@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import {
   RiskLevel,
@@ -23,6 +23,11 @@ import {
   EmergencyHotline,
   EmergencyHotlineDocument,
 } from 'src/mongo/schema/emergency-hotline.schema';
+import {
+  InterventionLog,
+  InterventionLogDocument,
+  TriggerSource,
+} from 'src/mongo/schema/intervention-log.schema';
 import { IntentSafetyMatcher } from './intent-safety.matcher';
 import { InterventionSelectorService } from './intervention-selector.service';
 import { MusicClientService } from '../client/music/music-client.service';
@@ -38,6 +43,8 @@ export class ProactiveInterventionService {
     private readonly resourceModel: Model<InterventionResourceDocument>,
     @InjectModel(EmergencyHotline.name)
     private readonly hotlineModel: Model<EmergencyHotlineDocument>,
+    @InjectModel(InterventionLog.name)
+    private readonly logModel: Model<InterventionLogDocument>,
     private readonly intentSafetyMatcher: IntentSafetyMatcher,
     private readonly selectorService: InterventionSelectorService,
     @Optional() private readonly musicClientService?: MusicClientService,
@@ -106,7 +113,11 @@ export class ProactiveInterventionService {
     );
 
     if (intervention) {
-      await this.persistAndEmitIntervention(userId, intervention);
+      await this.persistAndEmitIntervention(
+        userId,
+        intervention,
+        TriggerSource.REALTIME_EVENT,
+      );
     }
 
     return intervention;
@@ -140,7 +151,11 @@ export class ProactiveInterventionService {
     );
 
     if (intervention) {
-      await this.persistAndEmitIntervention(userId, intervention);
+      await this.persistAndEmitIntervention(
+        userId,
+        intervention,
+        TriggerSource.PASSIVE_CRON,
+      );
     }
 
     return intervention;
@@ -288,12 +303,14 @@ export class ProactiveInterventionService {
   }
 
   /**
-   * Lưu trạng thái can thiệp và phát sự kiện Kafka PROACTIVE_INTERVENTION
+   * Lưu trạng thái can thiệp (cập nhật Cooldown + lưu Log Lịch sử) và phát sự kiện RabbitMQ PROACTIVE_INTERVENTION
    */
   private async persistAndEmitIntervention(
     userId: string,
     result: ProactiveInterventionDto,
+    triggerSource: TriggerSource = TriggerSource.REALTIME_EVENT,
   ): Promise<void> {
+    // 1. Cập nhật UserRiskState (Phục vụ chống spam Cooldown)
     await this.riskStateModel.updateOne(
       { userId },
       {
@@ -304,6 +321,32 @@ export class ProactiveInterventionService {
       },
     );
 
+    // 2. Lưu vết Lịch sử Can thiệp vào Collection intervention_logs (Phục vụ User xem lại & Admin Audit)
+    try {
+      const newLog = new this.logModel({
+        userId,
+        riskLevel: result.riskLevel,
+        riskScore: result.riskScore,
+        triggers: result.triggers,
+        suggestedAction: result.suggestedAction,
+        resourceDetails: result.resource,
+        hotlineDetails: result.hotlineInfo,
+        musicSuggestions: result.musicSuggestions,
+        chatbotPromptContext: result.chatbotPromptContext,
+        triggerSource,
+      });
+      await newLog.save();
+      this.logger.log(
+        `Created InterventionLog entry for user=${userId} riskLevel=${result.riskLevel} source=${triggerSource}`,
+      );
+    } catch (logErr) {
+      this.logger.error(
+        `Failed to save InterventionLog for user=${userId}`,
+        logErr,
+      );
+    }
+
+    // 3. Bắn Notification đến RabbitMQ
     if (this.rabbitmqChannel) {
       try {
         await this.rabbitmqChannel.publish(
@@ -321,6 +364,28 @@ export class ProactiveInterventionService {
         );
       }
     }
+  }
+
+  /**
+   * Lấy danh sách lịch sử can thiệp của User (Để hiển thị lại trên UI / Wellness Hub)
+   */
+  async getUserInterventionHistory(userId: string, limit = 20) {
+    return this.logModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .exec();
+  }
+
+  /**
+   * Lấy chi tiết một bản ghi lịch sử can thiệp của chính User (Để mở lại Modal hiển thị)
+   */
+  async getUserInterventionById(userId: string, id: string) {
+    const item = await this.logModel.findOne({ _id: id, userId }).exec();
+    if (!item) {
+      throw new NotFoundException(`Intervention log with ID ${id} not found`);
+    }
+    return item;
   }
 
   /**

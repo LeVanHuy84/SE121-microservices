@@ -19,7 +19,7 @@ export interface MusicSuggestionItemDto {
   coverUrl?: string;
 }
 
-export interface InterventionResourceItemDto {
+export class InterventionResourceItemDto {
   id: string;
   title: string;
   description: string;
@@ -50,6 +50,14 @@ export class EmergencyHotlineItemDto {
   isPrimary: boolean;
 }
 
+export class InterventionHotlineInfoDetailsDto {
+  number?: string;
+  organization?: string;
+  operatingHours?: string;
+  primaryHotline?: EmergencyHotlineItemDto;
+  secondaryHotlines?: EmergencyHotlineItemDto[];
+}
+
 export class ProactiveInterventionDto {
   userId: string;
   riskLevel: RiskLevel;
@@ -64,14 +72,29 @@ export class ProactiveInterventionDto {
   musicSuggestions?: MusicSuggestionItemDto[];
 
   // Hotline khẩn cấp (khi RiskLevel == CRISIS)
-  hotlineInfo?: {
-    number?: string;
-    organization?: string;
-    operatingHours?: string;
-    primaryHotline?: EmergencyHotlineItemDto;
-    secondaryHotlines?: EmergencyHotlineItemDto[];
-  };
+  hotlineInfo?: InterventionHotlineInfoDetailsDto;
 
   chatbotPromptContext?: string;
   timestamp: Date | string;
+}
+
+export enum InterventionTriggerSource {
+  REALTIME_EVENT = 'REALTIME_EVENT',
+  PASSIVE_CRON = 'PASSIVE_CRON',
+}
+
+export class InterventionLogDto {
+  id?: string;
+  userId: string;
+  riskLevel: RiskLevel;
+  riskScore: number;
+  triggers: TriggerFlag[];
+  suggestedAction: SuggestedInterventionAction | string;
+  resourceDetails?: InterventionResourceItemDto;
+  hotlineDetails?: InterventionHotlineInfoDetailsDto;
+  musicSuggestions?: MusicSuggestionItemDto[];
+  chatbotPromptContext?: string;
+  triggerSource: InterventionTriggerSource | string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
