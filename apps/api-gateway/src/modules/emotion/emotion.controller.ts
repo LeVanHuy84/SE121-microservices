@@ -4,23 +4,22 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
 } from "@nestjs/common";
 import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
-import { RequireRole } from "src/common/decorators/require-role.decorator";
 import {
   CreateFeedbackDto,
   CursorPaginationDTO,
-  DashboardQueryDTO,
   EmotionTimeWindow,
   GetDashboardDistributionDto,
   GetDashboardTrendDto,
-  SystemRole,
   TargetType,
 } from "@repo/dtos";
 import { ClientProxy } from "@nestjs/microservices";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
+import { firstValueFrom } from "rxjs";
 
 @Controller("emotions")
 export class EmotionController {
@@ -28,6 +27,32 @@ export class EmotionController {
     @Inject(MICROSERVICES_CLIENTS.EMOTION_INTELLIGENCE_SERVICE)
     private client: ClientProxy,
   ) {}
+
+  @Get("interventions/history")
+  async getUserInterventionHistory(
+    @CurrentUserId() userId: string,
+    @Query("limit") limit?: number,
+  ) {
+    return await firstValueFrom(
+      this.client.send("emotion.intervention.history", {
+        userId,
+        limit: limit ? Number(limit) : 20,
+      }),
+    );
+  }
+
+  @Get("interventions/:id")
+  async getUserInterventionById(
+    @CurrentUserId() userId: string,
+    @Param("id") id: string,
+  ) {
+    return await firstValueFrom(
+      this.client.send("emotion.intervention.get_by_id", {
+        userId,
+        id,
+      }),
+    );
+  }
 
   @Get("summary")
   async getEmotionDashboardSummary(@CurrentUserId() userId: string) {

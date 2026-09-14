@@ -72,7 +72,7 @@ export class TemplateService {
       title: (payload) => payload.title || "Góc chăm sóc sức khỏe tinh thần",
       body: (payload) =>
         payload.message ||
-        payload.journalingPrompt ||
+        payload.content ||
         payload.chatbotPromptContext ||
         "Dành vài phút lắng lại và chăm sóc bản thân nhé.",
     },

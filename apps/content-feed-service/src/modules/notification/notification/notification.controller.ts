@@ -50,12 +50,12 @@ export class NotificationController {
       if (dto && dto.userId) {
         let message =
           "Dành vài phút lắng lại và chăm sóc tâm trạng của bạn hôm nay.";
-        if (dto.journalingPrompt) {
-          message = dto.journalingPrompt;
+        if (dto.resource?.title) {
+          message = `Bài tập gợi ý: ${dto.resource.title}. Dành vài phút thực hành để giải tỏa tâm trí.`;
         } else if (dto.chatbotPromptContext) {
           message = dto.chatbotPromptContext;
         } else if (dto.hotlineInfo) {
-          message = `Nếu bạn cần hỗ trợ khẩn cấp, đường dây nóng ${dto.hotlineInfo.organization} (${dto.hotlineInfo.number}) luôn sẵn sàng 24/7.`;
+          message = `Nếu bạn cần hỗ trợ khẩn cấp, đường dây nóng ${dto.hotlineInfo.organization} (${dto.hotlineInfo.number}) luôn sẵn sàng.`;
         }
 
         await this.notificationService.createAndEnqueue({
@@ -69,12 +69,10 @@ export class NotificationController {
             riskScore: dto.riskScore,
             triggers: dto.triggers,
             suggestedAction: dto.suggestedAction,
-            breathingExercise: dto.breathingExercise,
+            resource: dto.resource,
             musicSuggestions: dto.musicSuggestions,
-            journalingPrompt: dto.journalingPrompt,
             chatbotPromptContext: dto.chatbotPromptContext,
             hotlineInfo: dto.hotlineInfo,
-            resourceDocUrl: (dto as any).resourceDocUrl,
             timestamp: dto.timestamp ?? new Date(),
           } as any,
           meta: {
