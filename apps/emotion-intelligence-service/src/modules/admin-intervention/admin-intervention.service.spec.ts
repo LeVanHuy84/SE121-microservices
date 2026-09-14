@@ -95,18 +95,19 @@ describe('AdminInterventionService', () => {
     });
 
     it('updateResource - should update and return updated resource when found', async () => {
+      const validId = '507f1f77bcf86cd799439011';
       const dto: UpdateInterventionResourceDto = { title: 'Updated Title' };
-      const updatedDoc = { _id: 'res123', title: 'Updated Title' };
+      const updatedDoc = { _id: validId, title: 'Updated Title' };
 
       const execMock = jest.fn().mockResolvedValue(updatedDoc);
       mockResourceModel.findByIdAndUpdate.mockReturnValue({
         exec: execMock,
       });
 
-      const result = await service.updateResource('res123', dto);
+      const result = await service.updateResource(validId, dto);
 
       expect(mockResourceModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        'res123',
+        validId,
         dto,
         { new: true },
       );
@@ -114,39 +115,42 @@ describe('AdminInterventionService', () => {
     });
 
     it('updateResource - should throw NotFoundException when resource is not found', async () => {
+      const validId = '507f1f77bcf86cd799439012';
       const dto: UpdateInterventionResourceDto = { title: 'Updated Title' };
       const execMock = jest.fn().mockResolvedValue(null);
       mockResourceModel.findByIdAndUpdate.mockReturnValue({
         exec: execMock,
       });
 
-      await expect(service.updateResource('non_existent', dto)).rejects.toThrow(
+      await expect(service.updateResource(validId, dto)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('deleteResource - should delete and return success object when resource is found', async () => {
-      const deletedDoc = { _id: 'res123', title: 'To Delete' };
+      const validId = '507f1f77bcf86cd799439011';
+      const deletedDoc = { _id: validId, title: 'To Delete' };
       const execMock = jest.fn().mockResolvedValue(deletedDoc);
       mockResourceModel.findByIdAndDelete.mockReturnValue({
         exec: execMock,
       });
 
-      const result = await service.deleteResource('res123');
+      const result = await service.deleteResource(validId);
 
       expect(mockResourceModel.findByIdAndDelete).toHaveBeenCalledWith(
-        'res123',
+        validId,
       );
-      expect(result).toEqual({ success: true, deletedId: 'res123' });
+      expect(result).toEqual({ success: true, deletedId: validId });
     });
 
     it('deleteResource - should throw NotFoundException when resource is not found', async () => {
+      const validId = '507f1f77bcf86cd799439012';
       const execMock = jest.fn().mockResolvedValue(null);
       mockResourceModel.findByIdAndDelete.mockReturnValue({
         exec: execMock,
       });
 
-      await expect(service.deleteResource('non_existent')).rejects.toThrow(
+      await expect(service.deleteResource(validId)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -155,8 +159,8 @@ describe('AdminInterventionService', () => {
   describe('Emergency Hotlines CRUD', () => {
     it('getHotlines - should return hotlines sorted by isPrimary DESC and displayOrder ASC', async () => {
       const mockHotlines = [
-        { _id: 'hot1', isPrimary: true, displayOrder: 1 },
-        { _id: 'hot2', isPrimary: false, displayOrder: 2 },
+        { _id: '507f1f77bcf86cd799439011', isPrimary: true, displayOrder: 1 },
+        { _id: '507f1f77bcf86cd799439012', isPrimary: false, displayOrder: 2 },
       ];
 
       const sortMock = {
@@ -208,10 +212,11 @@ describe('AdminInterventionService', () => {
     });
 
     it('updateHotline - should reset other primary hotlines if dto.isPrimary is true', async () => {
+      const validId = '507f1f77bcf86cd799439013';
       const dto: UpdateEmergencyHotlineDto = {
         isPrimary: true,
       };
-      const updatedDoc = { _id: 'hot123', isPrimary: true };
+      const updatedDoc = { _id: validId, isPrimary: true };
 
       const updateManyExecMock = jest
         .fn()
@@ -223,14 +228,14 @@ describe('AdminInterventionService', () => {
         exec: updateExecMock,
       });
 
-      const result = await service.updateHotline('hot123', dto);
+      const result = await service.updateHotline(validId, dto);
 
       expect(mockHotlineModel.updateMany).toHaveBeenCalledWith(
-        { _id: { $ne: 'hot123' } },
+        { _id: { $ne: validId } },
         { isPrimary: false },
       );
       expect(mockHotlineModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        'hot123',
+        validId,
         dto,
         { new: true },
       );
@@ -238,31 +243,34 @@ describe('AdminInterventionService', () => {
     });
 
     it('updateHotline - should throw NotFoundException when hotline is not found', async () => {
+      const validId = '507f1f77bcf86cd799439012';
       const dto: UpdateEmergencyHotlineDto = { hotlineNumber: '999' };
       const execMock = jest.fn().mockResolvedValue(null);
       mockHotlineModel.findByIdAndUpdate.mockReturnValue({ exec: execMock });
 
-      await expect(service.updateHotline('non_existent', dto)).rejects.toThrow(
+      await expect(service.updateHotline(validId, dto)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('deleteHotline - should delete and return success object when hotline is found', async () => {
-      const deletedDoc = { _id: 'hot123', organizationName: 'Support' };
+      const validId = '507f1f77bcf86cd799439013';
+      const deletedDoc = { _id: validId, organizationName: 'Support' };
       const execMock = jest.fn().mockResolvedValue(deletedDoc);
       mockHotlineModel.findByIdAndDelete.mockReturnValue({ exec: execMock });
 
-      const result = await service.deleteHotline('hot123');
+      const result = await service.deleteHotline(validId);
 
-      expect(mockHotlineModel.findByIdAndDelete).toHaveBeenCalledWith('hot123');
-      expect(result).toEqual({ success: true, deletedId: 'hot123' });
+      expect(mockHotlineModel.findByIdAndDelete).toHaveBeenCalledWith(validId);
+      expect(result).toEqual({ success: true, deletedId: validId });
     });
 
     it('deleteHotline - should throw NotFoundException when hotline is not found', async () => {
+      const validId = '507f1f77bcf86cd799439012';
       const execMock = jest.fn().mockResolvedValue(null);
       mockHotlineModel.findByIdAndDelete.mockReturnValue({ exec: execMock });
 
-      await expect(service.deleteHotline('non_existent')).rejects.toThrow(
+      await expect(service.deleteHotline(validId)).rejects.toThrow(
         NotFoundException,
       );
     });
