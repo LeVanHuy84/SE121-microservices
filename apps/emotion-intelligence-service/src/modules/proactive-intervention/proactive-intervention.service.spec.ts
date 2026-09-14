@@ -32,7 +32,9 @@ describe('ProactiveInterventionService', () => {
   beforeEach(async () => {
     mockRiskStateModel = {
       findOne: jest.fn(),
-      updateOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ acknowledged: true }) }),
+      updateOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+      }),
     };
 
     mockResourceModel = {
@@ -205,7 +207,9 @@ describe('ProactiveInterventionService', () => {
       mockResourceModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([mockResource]),
       });
-      mockSelectorService.selectBestResource.mockResolvedValue(mockResource as any);
+      mockSelectorService.selectBestResource.mockResolvedValue(
+        mockResource as any,
+      );
 
       const payload: AnalysisResultEventPayload = {
         userId: 'user1',
@@ -337,7 +341,9 @@ describe('ProactiveInterventionService', () => {
   describe('buildInterventionResponse', () => {
     it('MILD_STRESS - should query relaxing music from MusicClientService', async () => {
       const mockMusic = [{ id: 'm1', title: 'Relaxing Rain' }];
-      mockMusicClientService.getRelaxingMusicBySignal.mockResolvedValue(mockMusic as any);
+      mockMusicClientService.getRelaxingMusicBySignal.mockResolvedValue(
+        mockMusic as any,
+      );
 
       const result = await service.buildInterventionResponse(
         'user1',
@@ -446,7 +452,9 @@ describe('ProactiveInterventionService', () => {
 
   describe('RabbitMQ Error Handling', () => {
     it('should catch and log rabbitmq publish errors without throwing', async () => {
-      mockRabbitmqChannel.publish.mockRejectedValue(new Error('RabbitMQ connection lost'));
+      mockRabbitmqChannel.publish.mockRejectedValue(
+        new Error('RabbitMQ connection lost'),
+      );
       mockIntentSafetyMatcher.matchesEmergencyIntent.mockReturnValue(true);
       mockHotlineModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
@@ -461,16 +469,22 @@ describe('ProactiveInterventionService', () => {
         content: 'Tôi muốn tự tử',
       };
 
-      await expect(service.evaluateFromEvent('user1', payload)).resolves.not.toThrow();
+      await expect(
+        service.evaluateFromEvent('user1', payload),
+      ).resolves.not.toThrow();
     });
   });
 
   describe('Intervention Audit Logs & User History', () => {
     it('getUserInterventionHistory - should query logs by userId sorted by createdAt DESC', async () => {
-      const mockLogs = [{ _id: 'log1', userId: 'user1', riskLevel: RiskLevel.HIGH_RISK }];
+      const mockLogs = [
+        { _id: 'log1', userId: 'user1', riskLevel: RiskLevel.HIGH_RISK },
+      ];
       const limitMock = { exec: jest.fn().mockResolvedValue(mockLogs) };
       const sortMock = { limit: jest.fn().mockReturnValue(limitMock) };
-      mockLogModel.find.mockReturnValue({ sort: jest.fn().mockReturnValue(sortMock) });
+      mockLogModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue(sortMock),
+      });
 
       const result = await service.getUserInterventionHistory('user1', 10);
 
@@ -479,13 +493,20 @@ describe('ProactiveInterventionService', () => {
     });
 
     it('getUserInterventionById - should return intervention log by id for owner user', async () => {
-      const mockLog = { _id: 'log1', userId: 'user1', riskLevel: RiskLevel.HIGH_RISK };
+      const mockLog = {
+        _id: 'log1',
+        userId: 'user1',
+        riskLevel: RiskLevel.HIGH_RISK,
+      };
       const execMock = jest.fn().mockResolvedValue(mockLog);
       mockLogModel.findOne = jest.fn().mockReturnValue({ exec: execMock });
 
       const result = await service.getUserInterventionById('user1', 'log1');
 
-      expect(mockLogModel.findOne).toHaveBeenCalledWith({ _id: 'log1', userId: 'user1' });
+      expect(mockLogModel.findOne).toHaveBeenCalledWith({
+        _id: 'log1',
+        userId: 'user1',
+      });
       expect(result).toEqual(mockLog);
     });
   });

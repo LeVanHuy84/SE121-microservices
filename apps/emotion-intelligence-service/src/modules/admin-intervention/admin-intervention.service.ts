@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -35,7 +40,10 @@ export class AdminInterventionService {
 
   // --- Intervention Resources CRUD ---
   async getResources() {
-    return this.resourceModel.find().sort({ priority: -1, createdAt: -1 }).exec();
+    return this.resourceModel
+      .find()
+      .sort({ priority: -1, createdAt: -1 })
+      .exec();
   }
 
   async createResource(dto: CreateInterventionResourceDto) {
@@ -49,7 +57,9 @@ export class AdminInterventionService {
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
     if (!updated) {
-      throw new NotFoundException(`Intervention Resource with ID ${id} not found`);
+      throw new NotFoundException(
+        `Intervention Resource with ID ${id} not found`,
+      );
     }
     return updated;
   }
@@ -58,14 +68,19 @@ export class AdminInterventionService {
     this.validateObjectId(id);
     const deleted = await this.resourceModel.findByIdAndDelete(id).exec();
     if (!deleted) {
-      throw new NotFoundException(`Intervention Resource with ID ${id} not found`);
+      throw new NotFoundException(
+        `Intervention Resource with ID ${id} not found`,
+      );
     }
     return { success: true, deletedId: id };
   }
 
   // --- Emergency Hotlines CRUD ---
   async getHotlines() {
-    return this.hotlineModel.find().sort({ isPrimary: -1, displayOrder: 1 }).exec();
+    return this.hotlineModel
+      .find()
+      .sort({ isPrimary: -1, displayOrder: 1 })
+      .exec();
   }
 
   async createHotline(dto: CreateEmergencyHotlineDto) {
@@ -79,7 +94,9 @@ export class AdminInterventionService {
   async updateHotline(id: string, dto: UpdateEmergencyHotlineDto) {
     this.validateObjectId(id);
     if (dto.isPrimary) {
-      await this.hotlineModel.updateMany({ _id: { $ne: id } }, { isPrimary: false }).exec();
+      await this.hotlineModel
+        .updateMany({ _id: { $ne: id } }, { isPrimary: false })
+        .exec();
     }
     const updated = await this.hotlineModel
       .findByIdAndUpdate(id, dto, { new: true })

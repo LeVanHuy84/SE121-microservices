@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { getModelToken } from '@nestjs/mongoose';
@@ -57,7 +58,10 @@ describe('ProactiveCron', () => {
 
       await cron.runDailyProactiveSweep();
 
-      expect(mockRiskStateModel.find).toHaveBeenCalledWith({
+      const { find } = mockRiskStateModel;
+      const { evaluatePassiveUser } = mockProactiveService;
+
+      expect(find).toHaveBeenCalledWith({
         riskLevel: {
           $in: [
             RiskLevel.MILD_STRESS,
@@ -67,9 +71,9 @@ describe('ProactiveCron', () => {
           ],
         },
       });
-      expect(mockProactiveService.evaluatePassiveUser).toHaveBeenCalledWith('user1');
-      expect(mockProactiveService.evaluatePassiveUser).toHaveBeenCalledWith('user2');
-      expect(mockProactiveService.evaluatePassiveUser).toHaveBeenCalledTimes(2);
+      expect(evaluatePassiveUser).toHaveBeenCalledWith('user1');
+      expect(evaluatePassiveUser).toHaveBeenCalledWith('user2');
+      expect(evaluatePassiveUser).toHaveBeenCalledTimes(2);
     });
 
     it('should handle empty active risk users list gracefully', async () => {
@@ -78,11 +82,14 @@ describe('ProactiveCron', () => {
 
       await cron.runDailyProactiveSweep();
 
-      expect(mockProactiveService.evaluatePassiveUser).not.toHaveBeenCalled();
+      const { evaluatePassiveUser } = mockProactiveService;
+      expect(evaluatePassiveUser).not.toHaveBeenCalled();
     });
 
     it('should catch and log errors if database query fails', async () => {
-      const execMock = jest.fn().mockRejectedValue(new Error('Database Connection Failed'));
+      const execMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Database Connection Failed'));
       mockRiskStateModel.find.mockReturnValue({ exec: execMock });
 
       await expect(cron.runDailyProactiveSweep()).resolves.not.toThrow();

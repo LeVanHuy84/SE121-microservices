@@ -55,10 +55,7 @@ export class AdminInterventionController {
   async updateHotline(
     @Payload() payload: { id: string; dto: UpdateEmergencyHotlineDto },
   ) {
-    return this.adminInterventionService.updateHotline(
-      payload.id,
-      payload.dto,
-    );
+    return this.adminInterventionService.updateHotline(payload.id, payload.dto);
   }
 
   @MessagePattern('emotion-admin.intervention.hotline.delete')

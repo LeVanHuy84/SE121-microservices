@@ -40,9 +40,7 @@ export class AdminInterventionController {
 
   @Post("resources")
   @RequireRole(SystemRole.ADMIN)
-  async createInterventionResource(
-    @Body() dto: CreateInterventionResourceDto,
-  ) {
+  async createInterventionResource(@Body() dto: CreateInterventionResourceDto) {
     return await firstValueFrom(
       this.client.send("emotion-admin.intervention.resource.create", dto),
     );

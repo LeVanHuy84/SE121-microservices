@@ -47,7 +47,7 @@ export class InterventionSelectorService {
         const aiSelected = await this.selectViaGroq(resources, context, apiKey);
         if (aiSelected) {
           this.logger.log(
-            `Groq AI selected intervention resource title="${aiSelected.title}" id=${aiSelected._id} for user=${context.userId}`,
+            `Groq AI selected intervention resource title="${aiSelected.title}" id=${aiSelected._id.toString()} for user=${context.userId}`,
           );
           return aiSelected;
         }
@@ -240,13 +240,20 @@ export class InterventionSelectorService {
       let score = res.priority || 0;
 
       // 1. Sợ hãi / Lo âu bùng phát (fear) -> Ưu tiên Infographic / PDF y khoa hướng dẫn hít thở
-      if (fearScore >= 0.5 && (res.mediaType === InterventionMediaType.INFOGRAPHIC || res.mediaType === InterventionMediaType.PDF_DOCUMENT)) {
+      if (
+        fearScore >= 0.5 &&
+        (res.mediaType === InterventionMediaType.INFOGRAPHIC ||
+          res.mediaType === InterventionMediaType.PDF_DOCUMENT)
+      ) {
         score += 5 + fearScore * 3;
       }
 
       // 2. U buồn / Suy sụp (sadness) -> Ưu tiên Infographic / PDF / Video y khoa
       if (sadnessScore >= 0.5) {
-        if (res.mediaType === InterventionMediaType.INFOGRAPHIC || res.mediaType === InterventionMediaType.PDF_DOCUMENT) {
+        if (
+          res.mediaType === InterventionMediaType.INFOGRAPHIC ||
+          res.mediaType === InterventionMediaType.PDF_DOCUMENT
+        ) {
           score += 4 + sadnessScore * 3;
         } else if (res.mediaType === InterventionMediaType.VIDEO) {
           score += 3 + sadnessScore * 2;
@@ -254,7 +261,11 @@ export class InterventionSelectorService {
       }
 
       // 3. Tức giận / Bức bối (anger) -> Ưu tiên Infographic / Audio xoa dịu
-      if (angerScore >= 0.5 && (res.mediaType === InterventionMediaType.INFOGRAPHIC || res.mediaType === InterventionMediaType.AUDIO)) {
+      if (
+        angerScore >= 0.5 &&
+        (res.mediaType === InterventionMediaType.INFOGRAPHIC ||
+          res.mediaType === InterventionMediaType.AUDIO)
+      ) {
         score += 4 + angerScore * 2;
       }
 

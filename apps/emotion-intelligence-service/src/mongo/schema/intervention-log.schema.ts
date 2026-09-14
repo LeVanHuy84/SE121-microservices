@@ -46,10 +46,15 @@ export class InterventionLog {
   @Prop()
   chatbotPromptContext?: string;
 
-  @Prop({ type: String, enum: TriggerSource, default: TriggerSource.REALTIME_EVENT })
+  @Prop({
+    type: String,
+    enum: TriggerSource,
+    default: TriggerSource.REALTIME_EVENT,
+  })
   triggerSource: TriggerSource;
 }
 
-export const InterventionLogSchema = SchemaFactory.createForClass(InterventionLog);
+export const InterventionLogSchema =
+  SchemaFactory.createForClass(InterventionLog);
 
 InterventionLogSchema.index({ userId: 1, createdAt: -1 });

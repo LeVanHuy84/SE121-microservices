@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import type { ChannelWrapper } from 'amqp-connection-manager';
 import {
   RiskLevel,
@@ -99,8 +105,7 @@ export class ProactiveInterventionService {
       (payload as any).primaryEmotion;
 
     const emotionVector =
-      (payload as any).emotions?.scores ||
-      (payload as any).emotionVector;
+      (payload as any).emotions?.scores || (payload as any).emotionVector;
 
     const intervention = await this.buildInterventionResponse(
       userId,
@@ -265,7 +270,10 @@ export class ProactiveInterventionService {
             organization: primary
               ? primary.organizationName
               : 'Cấp cứu Khẩn cấp 115',
-            operatingHours: (primary && primary.operatingHours) ? primary.operatingHours : '24/7',
+            operatingHours:
+              primary && primary.operatingHours
+                ? primary.operatingHours
+                : '24/7',
             primaryHotline: primary
               ? {
                   id: primary._id.toString(),

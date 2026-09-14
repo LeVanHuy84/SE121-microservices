@@ -134,7 +134,9 @@ describe('AdminInterventionService', () => {
 
       const result = await service.deleteResource('res123');
 
-      expect(mockResourceModel.findByIdAndDelete).toHaveBeenCalledWith('res123');
+      expect(mockResourceModel.findByIdAndDelete).toHaveBeenCalledWith(
+        'res123',
+      );
       expect(result).toEqual({ success: true, deletedId: 'res123' });
     });
 
@@ -211,7 +213,9 @@ describe('AdminInterventionService', () => {
       };
       const updatedDoc = { _id: 'hot123', isPrimary: true };
 
-      const updateManyExecMock = jest.fn().mockResolvedValue({ acknowledged: true });
+      const updateManyExecMock = jest
+        .fn()
+        .mockResolvedValue({ acknowledged: true });
       mockHotlineModel.updateMany.mockReturnValue({ exec: updateManyExecMock });
 
       const updateExecMock = jest.fn().mockResolvedValue(updatedDoc);

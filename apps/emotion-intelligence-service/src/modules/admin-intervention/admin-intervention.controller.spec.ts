@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AdminInterventionController } from './admin-intervention.controller';
@@ -53,6 +54,7 @@ describe('AdminInterventionController', () => {
       service.getResources.mockResolvedValue(mockResult);
 
       const result = await controller.getResources();
+      expect(() => service.getResources).not.toThrow();
       expect(service.getResources).toHaveBeenCalledTimes(1);
       expect(result).toBe(mockResult);
     });
@@ -71,6 +73,7 @@ describe('AdminInterventionController', () => {
       service.createResource.mockResolvedValue(mockCreated);
 
       const result = await controller.createResource(dto);
+      expect(() => service.createResource).not.toThrow();
       expect(service.createResource).toHaveBeenCalledWith(dto);
       expect(result).toBe(mockCreated);
     });
@@ -89,6 +92,7 @@ describe('AdminInterventionController', () => {
         dto,
       });
 
+      expect(() => service.updateResource).not.toThrow();
       expect(service.updateResource).toHaveBeenCalledWith('res123', dto);
       expect(result).toBe(mockUpdated);
     });
@@ -100,6 +104,7 @@ describe('AdminInterventionController', () => {
       service.deleteResource.mockResolvedValue(mockRes);
 
       const result = await controller.deleteResource({ id: 'res123' });
+      expect(() => service.deleteResource).not.toThrow();
       expect(service.deleteResource).toHaveBeenCalledWith('res123');
       expect(result).toEqual(mockRes);
     });
@@ -111,6 +116,7 @@ describe('AdminInterventionController', () => {
       service.getHotlines.mockResolvedValue(mockList);
 
       const result = await controller.getHotlines();
+      expect(() => service.getHotlines).not.toThrow();
       expect(service.getHotlines).toHaveBeenCalledTimes(1);
       expect(result).toBe(mockList);
     });
@@ -128,6 +134,7 @@ describe('AdminInterventionController', () => {
       service.createHotline.mockResolvedValue(mockCreated);
 
       const result = await controller.createHotline(dto);
+      expect(() => service.createHotline).not.toThrow();
       expect(service.createHotline).toHaveBeenCalledWith(dto);
       expect(result).toBe(mockCreated);
     });
@@ -146,6 +153,7 @@ describe('AdminInterventionController', () => {
         dto,
       });
 
+      expect(() => service.updateHotline).not.toThrow();
       expect(service.updateHotline).toHaveBeenCalledWith('hot123', dto);
       expect(result).toBe(mockUpdated);
     });
@@ -157,6 +165,7 @@ describe('AdminInterventionController', () => {
       service.deleteHotline.mockResolvedValue(mockRes);
 
       const result = await controller.deleteHotline({ id: 'hot123' });
+      expect(() => service.deleteHotline).not.toThrow();
       expect(service.deleteHotline).toHaveBeenCalledWith('hot123');
       expect(result).toEqual(mockRes);
     });

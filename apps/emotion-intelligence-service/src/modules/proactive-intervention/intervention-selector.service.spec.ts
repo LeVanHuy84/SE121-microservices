@@ -1,6 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { InterventionSelectorService, SelectionContext } from './intervention-selector.service';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
+import {
+  InterventionSelectorService,
+  SelectionContext,
+} from './intervention-selector.service';
 import { InterventionMediaType, RiskLevel } from '@repo/dtos';
 
 describe('InterventionSelectorService', () => {
@@ -13,7 +23,9 @@ describe('InterventionSelectorService', () => {
       providers: [InterventionSelectorService],
     }).compile();
 
-    service = module.get<InterventionSelectorService>(InterventionSelectorService);
+    service = module.get<InterventionSelectorService>(
+      InterventionSelectorService,
+    );
   });
 
   afterEach(() => {
@@ -54,8 +66,18 @@ describe('InterventionSelectorService', () => {
     it('should use Groq AI selection when GROQ_API_KEY is present and response is valid', async () => {
       process.env.GROQ_API_KEY = 'mock_groq_key';
       const resources = [
-        { _id: 'res1', title: 'Resource 1', mediaType: InterventionMediaType.AUDIO, priority: 1 },
-        { _id: 'res2', title: 'Resource 2', mediaType: InterventionMediaType.INFOGRAPHIC, priority: 2 },
+        {
+          _id: 'res1',
+          title: 'Resource 1',
+          mediaType: InterventionMediaType.AUDIO,
+          priority: 1,
+        },
+        {
+          _id: 'res2',
+          title: 'Resource 2',
+          mediaType: InterventionMediaType.INFOGRAPHIC,
+          priority: 2,
+        },
       ] as any[];
 
       const mockResponse = {
@@ -82,11 +104,23 @@ describe('InterventionSelectorService', () => {
     it('should fallback to Rule Matcher when Groq AI API returns non-ok status or throws error', async () => {
       process.env.GROQ_API_KEY = 'mock_groq_key';
       const resources = [
-        { _id: 'res1', title: 'Audio Res', mediaType: InterventionMediaType.AUDIO, priority: 10 },
-        { _id: 'res2', title: 'Infographic Res', mediaType: InterventionMediaType.INFOGRAPHIC, priority: 1 },
+        {
+          _id: 'res1',
+          title: 'Audio Res',
+          mediaType: InterventionMediaType.AUDIO,
+          priority: 10,
+        },
+        {
+          _id: 'res2',
+          title: 'Infographic Res',
+          mediaType: InterventionMediaType.INFOGRAPHIC,
+          priority: 1,
+        },
       ] as any[];
 
-      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network Timeout'));
+      jest
+        .spyOn(global, 'fetch')
+        .mockRejectedValue(new Error('Network Timeout'));
 
       // Context fear score = 0.8 -> Infographic gets priority boost: 1 + 5 + 0.8*3 = 8.4 > Audio (10)
       const result = await service.selectBestResource(resources, context);
@@ -120,7 +154,10 @@ describe('InterventionSelectorService', () => {
           priority: 5,
         } as any;
 
-        const result = await service.selectBestResource([resAudio, resInfo], fearContext);
+        const result = await service.selectBestResource(
+          [resAudio, resInfo],
+          fearContext,
+        );
         // Infographic score: 5 + 5 + 0.9 * 3 = 12.7 vs Audio score: 5
         expect(result).toBe(resInfo);
       });
@@ -150,7 +187,10 @@ describe('InterventionSelectorService', () => {
           priority: 5,
         } as any;
 
-        const result = await service.selectBestResource([resAudio, resPdf], sadnessContext);
+        const result = await service.selectBestResource(
+          [resAudio, resPdf],
+          sadnessContext,
+        );
         // PDF score: 5 + 4 + 0.9 * 3 = 11.7 vs Audio: 5
         expect(result).toBe(resPdf);
       });
@@ -180,7 +220,10 @@ describe('InterventionSelectorService', () => {
           priority: 5,
         } as any;
 
-        const result = await service.selectBestResource([resVideo, resAudio], angerContext);
+        const result = await service.selectBestResource(
+          [resVideo, resAudio],
+          angerContext,
+        );
         // Audio score: 5 + 4 + 0.8 * 2 = 10.6 vs Video: 5
         expect(result).toBe(resAudio);
       });
@@ -189,8 +232,14 @@ describe('InterventionSelectorService', () => {
 
   describe('dispatchHotlines', () => {
     it('should return primary: undefined and secondary: [] when hotlines list is empty or null', () => {
-      expect(service.dispatchHotlines([])).toEqual({ primary: undefined, secondary: [] });
-      expect(service.dispatchHotlines(null as any)).toEqual({ primary: undefined, secondary: [] });
+      expect(service.dispatchHotlines([])).toEqual({
+        primary: undefined,
+        secondary: [],
+      });
+      expect(service.dispatchHotlines(null as any)).toEqual({
+        primary: undefined,
+        secondary: [],
+      });
     });
 
     it('should prioritize open hotlines over closed hotlines', () => {
@@ -219,7 +268,10 @@ describe('InterventionSelectorService', () => {
         },
       } as any;
 
-      const result = service.dispatchHotlines([closedHotline, hotline247], monday10AM);
+      const result = service.dispatchHotlines(
+        [closedHotline, hotline247],
+        monday10AM,
+      );
 
       // Even though closedHotline isPrimary: true, it's currently closed at 10:00 AM, so hotline247 should be primary
       expect(result.primary?._id).toBe('h247');
@@ -284,7 +336,10 @@ describe('InterventionSelectorService', () => {
         },
       } as any;
 
-      const result = service.dispatchHotlines([weekdayOnlyHotline, sundayOnlyHotline], sundayDate);
+      const result = service.dispatchHotlines(
+        [weekdayOnlyHotline, sundayOnlyHotline],
+        sundayDate,
+      );
       expect(result.primary?._id).toBe('hSun');
     });
   });

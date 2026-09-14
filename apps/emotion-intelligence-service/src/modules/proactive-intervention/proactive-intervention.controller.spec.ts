@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ProactiveInterventionController } from './proactive-intervention.controller';
@@ -44,7 +45,8 @@ describe('ProactiveInterventionController', () => {
         limit: 10,
       });
 
-      expect(service.getUserInterventionHistory).toHaveBeenCalledWith('user1', 10);
+      const { getUserInterventionHistory } = service;
+      expect(getUserInterventionHistory).toHaveBeenCalledWith('user1', 10);
       expect(result).toBe(mockResult);
     });
   });
@@ -59,7 +61,8 @@ describe('ProactiveInterventionController', () => {
         id: 'log1',
       });
 
-      expect(service.getUserInterventionById).toHaveBeenCalledWith('user1', 'log1');
+      const { getUserInterventionById } = service;
+      expect(getUserInterventionById).toHaveBeenCalledWith('user1', 'log1');
       expect(result).toBe(mockResult);
     });
   });
