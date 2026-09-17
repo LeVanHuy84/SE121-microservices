@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { NotificationController } from "./notification.controller";
-import { NotificationGateway } from "./notification.gateway";
 
 @Global()
 @Module({
@@ -25,7 +24,7 @@ import { NotificationGateway } from "./notification.gateway";
     ]),
   ],
   controllers: [NotificationController],
-  providers: [NotificationGateway],
-  exports: [ClientsModule, NotificationGateway],
+  providers: [],
+  exports: [ClientsModule],
 })
 export class NotificationModule {}

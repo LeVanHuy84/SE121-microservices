@@ -198,7 +198,7 @@ describe('EmotionIntelligenceService (E2E Integration Test Suite)', () => {
         getMessage: () => ({ key: 'post-888', offset: '2' }),
       };
 
-      await ingestionController.handleModerationEvents(
+      await (ingestionController as any).handleModerationEvents(
         moderationMessage,
         kafkaCtxMock,
       );

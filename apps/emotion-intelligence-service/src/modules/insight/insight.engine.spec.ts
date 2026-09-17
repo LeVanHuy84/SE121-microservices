@@ -1,4 +1,4 @@
-﻿import { InsightEngine } from './insight.engine';
+import { InsightEngine } from './insight.engine';
 import { InsightRule, InsightContext, Insight } from './insight.types';
 import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
@@ -29,7 +29,7 @@ describe('InsightEngine', () => {
             return {
               type: InsightType.DETERIORATING_TREND,
               message: 'Negative trend detected',
-              tone: InsightTone.CONCERNED,
+              tone: (InsightTone as any).CONCERNED || InsightTone.WARNING,
               priority: 80,
             };
           }

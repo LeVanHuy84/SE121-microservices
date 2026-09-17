@@ -14,11 +14,11 @@ describe('ProactiveCron', () => {
 
   beforeEach(async () => {
     mockRiskStateModel = {
-      find: jest.fn(),
+      find: jest.fn<any>(),
     };
 
     mockProactiveService = {
-      evaluatePassiveUser: jest.fn(),
+      evaluatePassiveUser: jest.fn<any>(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -49,7 +49,7 @@ describe('ProactiveCron', () => {
         { userId: 'user2', riskLevel: RiskLevel.CRISIS },
       ];
 
-      const execMock = jest.fn().mockResolvedValue(mockUsers);
+      const execMock = jest.fn<any>().mockResolvedValue(mockUsers);
       mockRiskStateModel.find.mockReturnValue({ exec: execMock });
 
       mockProactiveService.evaluatePassiveUser
@@ -77,7 +77,7 @@ describe('ProactiveCron', () => {
     });
 
     it('should handle empty active risk users list gracefully', async () => {
-      const execMock = jest.fn().mockResolvedValue([]);
+      const execMock = jest.fn<any>().mockResolvedValue([]);
       mockRiskStateModel.find.mockReturnValue({ exec: execMock });
 
       await cron.runDailyProactiveSweep();
@@ -88,7 +88,7 @@ describe('ProactiveCron', () => {
 
     it('should catch and log errors if database query fails', async () => {
       const execMock = jest
-        .fn()
+        .fn<any>()
         .mockRejectedValue(new Error('Database Connection Failed'));
       mockRiskStateModel.find.mockReturnValue({ exec: execMock });
 
