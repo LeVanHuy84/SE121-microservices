@@ -82,7 +82,7 @@ describe('InterventionSelectorService', () => {
 
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue({
+        json: jest.fn<any>().mockResolvedValue({
           choices: [
             {
               message: {
