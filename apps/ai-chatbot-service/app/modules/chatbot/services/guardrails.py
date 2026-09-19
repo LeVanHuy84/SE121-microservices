@@ -200,6 +200,25 @@ DOMAIN_KEYWORD_GROUPS: tuple[DomainKeywordGroup, ...] = (
             "nho gi khong",
         },
     ),
+    DomainKeywordGroup(
+        "mental_health",
+        {
+            "tam ly",
+            "tram cam",
+            "lo au",
+            "cang thang",
+            "stress",
+            "thu gian",
+            "chua lanh",
+            "so cuu",
+            "suc khoe tinh than",
+            "tri lieu",
+            "cbt",
+            "tho",
+            "khung hoang",
+            "hoang loan",
+        },
+    ),
 )
 
 

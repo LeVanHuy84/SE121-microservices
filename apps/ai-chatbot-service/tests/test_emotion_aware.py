@@ -132,7 +132,7 @@ class TestPromptBuilderToneDirective:
         snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
         directive = builder._build_emotion_tone_directive(snapshot)
         assert "TONE_DIRECTIVE" in directive
-        assert "sadness" in directive
+        assert "SADNESS" in directive
         assert "medium" in directive
 
     def test_tone_directive_injected_for_fear_high(self, builder: PromptBuilder) -> None:
@@ -149,7 +149,63 @@ class TestPromptBuilderToneDirective:
         directive = builder._build_emotion_tone_directive(None)
         assert directive == ""
 
-    def test_tone_directive_empty_for_low_risk(self, builder: PromptBuilder) -> None:
+    def test_tone_directive_socratic_for_low_risk(self, builder: PromptBuilder) -> None:
         snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="weak")
         directive = builder._build_emotion_tone_directive(snapshot)
-        assert directive == ""
+        assert "SOCRATES" in directive
+        assert "câu hỏi mở" in directive
+
+
+# ---------------------------------------------------------------------------
+# System Prompt directive tests (Story 2.2)
+# ---------------------------------------------------------------------------
+
+class TestSystemPromptDirectives:
+    """Verify that empathy, breathing, and medical prohibition directives
+    are present in the system prompt (Story 2.1 / Story 2.2 validation)."""
+
+    @pytest.fixture
+    def builder(self) -> PromptBuilder:
+        return PromptBuilder()
+
+    @pytest.fixture
+    def system_prompt(self, builder: PromptBuilder) -> str:
+        return builder._build_system_prompt()
+
+    def test_empathy_directive_present(self, system_prompt: str) -> None:
+        """System prompt must instruct the bot to acknowledge emotions first."""
+        assert "ĐỒNG CẢM" in system_prompt
+        assert "lắng nghe" in system_prompt
+        assert "xác nhận cảm xúc" in system_prompt
+
+    def test_empathy_directive_before_advice(self, system_prompt: str) -> None:
+        """Empathy section must appear before giving advice or information."""
+        empathy_pos = system_prompt.find("ĐỒNG CẢM")
+        advice_pos = system_prompt.find("câu hỏi mơ hồ")
+        assert empathy_pos > advice_pos  # Empathy is added after base instructions
+
+    def test_breathing_exercise_directive_present(self, system_prompt: str) -> None:
+        """System prompt must contain the 4-7-8 breathing exercise instruction."""
+        assert "4-7-8" in system_prompt
+        assert "Hít vào" in system_prompt
+        assert "Giữ hơi" in system_prompt
+        assert "Thở ra" in system_prompt
+
+    def test_breathing_exercise_seconds_correct(self, system_prompt: str) -> None:
+        """The 4-7-8 technique must specify correct second counts."""
+        assert "4 giây" in system_prompt
+        assert "7 giây" in system_prompt
+        assert "8 giây" in system_prompt
+
+    def test_no_medical_diagnosis_directive_present(self, system_prompt: str) -> None:
+        """System prompt must explicitly prohibit medical diagnoses."""
+        assert "KHÔNG CHẨN ĐOÁN Y KHOA" in system_prompt
+        assert "trầm cảm" in system_prompt  # Example of forbidden diagnosis language
+
+    def test_no_diagnosis_suggests_professional(self, system_prompt: str) -> None:
+        """When asked about mental health, bot must direct to professionals."""
+        assert "chuyên gia tâm lý" in system_prompt
+
+    def test_empathy_requires_open_ended_question(self, system_prompt: str) -> None:
+        """When user is sad/anxious, bot must end with an open question."""
+        assert "SOCRATES" in system_prompt
