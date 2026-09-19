@@ -71,6 +71,7 @@ class RespondCommand:
         history: list[AssistantHistoryItem],
         last_intent: str | None,
         has_follow_up_anchor: bool,
+        emotion_snapshot: EmotionSnapshot,
     ) -> tuple[AssistantRespondData | None, str | None, ScopeDecision | None, list]:
         # --- Mental health crisis check (highest priority guard) ---
         crisis_decision = self.crisis_guard.evaluate(working_request.message)
@@ -96,6 +97,7 @@ class RespondCommand:
             else await self._resolve_contexts_with_budget(
                 working_request,
                 settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+                emotion_snapshot,
             )
         )
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
@@ -153,8 +155,11 @@ class RespondCommand:
             else request
         )
 
+        # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
+        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+
         guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
-            working_request, history, last_intent, has_follow_up_anchor
+            working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
         )
         
         if guard_data:
@@ -182,8 +187,8 @@ class RespondCommand:
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
 
-        # --- Emotion snapshot (fire-and-forget timeout 500ms) ---
-        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+        # Emotion snapshot already fetched early
+
 
         # Proactive check-in: Proactively ask about the user's wellbeing if there is no chat history and check-in is needed
         if emotion_snapshot.needs_proactive_checkin and not history:
@@ -287,11 +292,12 @@ class RespondCommand:
         self,
         request: AssistantRespondRequest,
         timeout_ms: int,
+        emotion_snapshot: EmotionSnapshot,
     ):
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
             return await asyncio.wait_for(
-                self.context_resolver.resolve(request),
+                self.context_resolver.resolve(request, emotion_snapshot),
                 timeout=timeout_seconds,
             )
         except Exception:
@@ -520,8 +526,8 @@ class RespondCommand:
         return AssistantRespondData(
             reply=(
                 "Mình chỉ hỗ trợ các câu hỏi liên quan đến hệ thống Sentimeta "
-                "như bài viết, nhóm, tìm kiếm, chat, hồ sơ, quyền riêng tư "
-                "và gợi ý bạn bè."
+                "(bài viết, nhóm, chat...) và chia sẻ kiến thức, kỹ năng "
+                "chăm sóc sức khỏe tinh thần."
             ),
             sources=[],
             suggestedActions=[],
@@ -533,7 +539,8 @@ class RespondCommand:
         return AssistantRespondData(
             reply=(
                 "Xin chào! Mình là trợ lý của Sentimeta. "
-                "Bạn cần mình hỗ trợ gì về bài viết, nhóm, chat, hồ sơ, tìm kiếm hoặc gợi ý bạn bè?"
+                "Bạn cần mình hỗ trợ về tính năng ứng dụng, hay muốn chia sẻ, "
+                "tìm hiểu về các kỹ năng chăm sóc sức khỏe tinh thần?"
             ),
             sources=[],
             suggestedActions=[],
@@ -635,8 +642,11 @@ class RespondCommand:
             else request
         )
 
+        # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
+        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+
         guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
-            working_request, history, last_intent, has_follow_up_anchor
+            working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
         )
         
         if guard_data:
@@ -659,6 +669,7 @@ class RespondCommand:
             max_history_items=prompt_limits.max_history_items,
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
+            emotion_snapshot=emotion_snapshot,
         )
         prompt = self._prepend_turn_policy(prompt)
 

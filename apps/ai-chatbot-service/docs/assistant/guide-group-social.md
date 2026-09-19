@@ -2,20 +2,30 @@
 id: guide-group-social
 title: Hướng dẫn Quản lý Nhóm và Xã hội
 topic: huong-dan
+lang: vi
+version: v2
 ---
-# Giao lưu và Tham gia Cộng đồng (Group & Social)
+# Giao lưu và Gắn kết Cộng đồng
 
-Sentimeta không chỉ là nơi dành riêng cho bạn, mà còn là nơi để bạn gắn kết với những người có cùng sở thích, cùng tâm trạng hoặc chung chí hướng. 
+Sentimeta không chỉ là nơi của riêng bạn — mà còn là nơi để bạn tìm thấy những người hiểu mình, chia sẻ cùng chí hướng và cùng nhau bước qua những giai đoạn khó khăn.
 
-## 1. Kết bạn và Theo dõi (Follow)
+## 1. Kết bạn và Theo dõi
+
 - Bạn có thể gửi lời mời kết bạn hoặc theo dõi (Follow) những người mà bạn yêu quý.
-- **Gợi ý kết bạn (Friend Recommendation):** Ứng dụng thi thoảng sẽ giới thiệu cho bạn những người bạn mới, dựa trên những sở thích chung hoặc những chủ đề mà bạn quan tâm. Biết đâu bạn sẽ tìm được một "cạ cứng" để cùng nhau vượt qua những giai đoạn khó khăn!
+- **Gợi ý kết bạn:** Sentimeta sẽ đôi khi giới thiệu cho bạn những người có thể là "cạ cứng" tiềm năng — dựa trên những sở thích chung hay chủ đề mà cả hai cùng quan tâm. Biết đâu bạn sẽ tìm được một người bạn mới thật sự đồng điệu!
 
-## 2. Tham gia và Tạo Nhóm (Group)
-Bạn không hề cô đơn! Bạn có thể:
-- Tham gia các nhóm hỗ trợ tâm lý, hội yêu động vật, hoặc các cộng đồng học tập.
-- Tự tạo một Nhóm (Group) của riêng mình và mời mọi người tham gia.
-- **Quản lý Nhóm:** Nếu bạn là Quản trị viên (Admin), bạn có quyền duyệt bài viết, thêm/xóa thành viên để giữ cho không gian nhóm luôn văn minh và tích cực.
+## 2. Tham gia và Tạo Nhóm
 
-## 3. Nếu gặp sự cố với Nhóm?
-Đôi khi bạn không thấy bài đăng mới trong nhóm, hoặc không thể gửi lời mời kết bạn. Đừng lo, có thể do kết nối mạng hoặc hệ thống đang xử lý hàng ngàn yêu cầu cùng lúc. Bạn hãy tải lại trang hoặc đợi một chút nhé. Nếu bạn vô tình thấy những nhóm có nội dung độc hại, hãy dùng tính năng **Báo cáo (Report)** để giúp chúng mình thanh lọc cộng đồng nhé!
+Bạn không hề cô đơn trong hành trình của mình. Tại Sentimeta, bạn có thể:
+
+- **Tham gia nhóm có sẵn:** Từ những nhóm hỗ trợ tâm lý, câu lạc bộ yêu đọc sách, đến những cộng đồng học tập và sáng tạo.
+- **Tự tạo nhóm riêng:** Mở ra không gian của riêng mình và mời những người bạn tin tưởng cùng tham gia.
+- **Quản lý nhóm:** Nếu bạn là Quản trị viên, bạn có quyền duyệt bài viết, thêm hoặc mời thành viên để giữ cho không gian nhóm luôn văn minh và ấm áp.
+
+## 3. AI đồng hành cùng Cộng đồng
+
+Khi trong nhóm có ai đó chia sẻ những điều rất nặng nề hoặc cần hỗ trợ, AI của Sentimeta cũng có thể nhận ra và cẩn thận đưa ra những gợi ý hỗ trợ phù hợp — để không ai trong cộng đồng phải đối mặt với khó khăn một mình.
+
+## 4. Nếu gặp sự cố với Nhóm?
+
+Đôi khi bạn không thấy bài đăng mới trong nhóm, hoặc không thể gửi lời mời kết bạn. Hãy thử tải lại trang hoặc chờ một lúc rồi thử lại. Nếu bạn thấy nhóm có nội dung độc hại hoặc gây tổn thương, hãy dùng tính năng **Báo cáo** để giúp cộng đồng luôn là nơi an toàn cho mọi người nhé!
