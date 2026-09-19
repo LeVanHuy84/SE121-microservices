@@ -20,11 +20,18 @@ from app.modules.chatbot.services.context_resolver import (
     AssistantContextResolver,
     assistant_context_resolver,
 )
+from app.modules.chatbot.services.emotion_context import (
+    EmotionSnapshot,
+    EmotionContextService,
+    emotion_context_service,
+)
 from app.modules.chatbot.services.guardrails import (
     AssistantScopeGuard,
     CommunityGuard,
+    CrisisGuard,
     ScopeDecision,
     assistant_community_guard,
+    assistant_crisis_guard,
     assistant_scope_guard,
 )
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
@@ -53,6 +60,8 @@ class RespondCommand:
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
         self.community_guard = community_guard or assistant_community_guard
+        self.crisis_guard = assistant_crisis_guard
+        self.emotion_ctx = emotion_context_service
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
 
@@ -64,7 +73,15 @@ class RespondCommand:
         has_follow_up_anchor: bool,
     ) -> tuple[AssistantRespondData | None, str | None, ScopeDecision | None, list]:
         # --- Mental health crisis check (highest priority guard) ---
-        # MENTAL_HEALTH_GUARD_SLOT
+        crisis_decision = self.crisis_guard.evaluate(working_request.message)
+        if crisis_decision.is_crisis:
+            reply = self.prompt_builder.build_crisis(severity=crisis_decision.severity)
+            data = self._build_simple_response(reply)
+            # Emit Kafka event fire-and-forget (do not block the chat flow)
+            asyncio.create_task(
+                self._emit_crisis_event(working_request, crisis_decision.severity)
+            )
+            return data, "mental_health_crisis", None, []
 
         # --- Community Guard ---
         community_decision = self.community_guard.evaluate(working_request.message)
@@ -164,6 +181,29 @@ class RespondCommand:
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
+
+        # --- Emotion snapshot (fire-and-forget timeout 500ms) ---
+        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+
+        # Proactive check-in: Proactively ask about the user's wellbeing if there is no chat history and check-in is needed
+        if emotion_snapshot.needs_proactive_checkin and not history:
+            data = self._proactive_checkin_response()
+            self._persist_session_memory(request, data.reply, [], "proactive_checkin")
+            persisted = await self.persist_history.execute(
+                request=request,
+                assistant_reply=data.reply,
+                sources=[],
+                intent="proactive_checkin",
+            )
+            return data.model_copy(
+                update={
+                    "requestId": request_id,
+                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
+                    "persisted": persisted,
+                    "conversationId": request.conversationId or "default",
+                }
+            )
+
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
@@ -172,6 +212,7 @@ class RespondCommand:
             max_history_items=prompt_limits.max_history_items,
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
+            emotion_snapshot=emotion_snapshot,
         )
         prompt = self._prepend_turn_policy(prompt)
 
@@ -532,6 +573,48 @@ class RespondCommand:
             model="community-guard",
             provider="chatbot-service",
         )
+
+    def _build_simple_response(self, reply: str) -> AssistantRespondData:
+        return AssistantRespondData(
+            reply=reply,
+            sources=[],
+            suggestedActions=[],
+            model="crisis-guard",
+            provider="chatbot-service",
+        )
+
+    def _proactive_checkin_response(self) -> AssistantRespondData:
+        return AssistantRespondData(
+            reply=(
+                "Mình thấy gần đây bạn đang trải qua nhiều cảm xúc khó khăn. "
+                "Bạn có muốn kể cho mình nghe không? Mình ở đây lắng nghe, không phán xét."
+            ),
+            sources=[],
+            suggestedActions=[],
+            model="emotion-guard",
+            provider="chatbot-service",
+        )
+
+    async def _emit_crisis_event(
+        self,
+        request: AssistantRespondRequest,
+        severity: str,
+    ) -> None:
+        """Phát sự kiện Kafka để thông báo bộ phận hỗ trợ về tình huống khủng hoảng tâm lý."""
+        try:
+            from app.modules.analysis.lifespan import kafka_producer
+
+            await kafka_producer.send(
+                "chatbot.mental_health_crisis",
+                {
+                    "userId": request.userId,
+                    "conversationId": request.conversationId or "default",
+                    "severity": severity,
+                    "message": request.message,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[CrisisGuard] Kafka emit failed (non-critical): %s", exc)
 
     async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
         started_at = time.perf_counter()
