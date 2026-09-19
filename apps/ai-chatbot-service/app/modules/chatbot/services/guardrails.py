@@ -7,6 +7,71 @@ from app.modules.chatbot.schemas import AssistantHistoryItem, AssistantRespondRe
 from app.utils.text_normalizer import normalize_for_guard
 
 
+# ---------------------------------------------------------------------------
+# Crisis Guard – Detects suicidal intent / self-harm
+# ---------------------------------------------------------------------------
+
+CRISIS_EXPLICIT_KEYWORDS: frozenset[str] = frozenset({
+    # Direct suicide intent
+    "tu tu", "tu sat", "ket thuc cuoc doi", "ket thuc tat ca",
+    "khong muon song nua", "khong muon tiep tuc song",
+    "muon chet", "muon tu tu", "muon tu sat", "chon chet",
+    "uong thuoc tu tu", "nhat dao tu tu", "nhay lau tu tu",
+    "suicide", "want to die", "kill myself", "end my life",
+    "take my own life", "no reason to live",
+    # Self-harm
+    "cat tay", "tu lam dau ban than", "tu hanh ha ban than",
+    "self harm", "cut myself", "hurt myself",
+})
+
+CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset({
+    # High-level hopelessness
+    "khong con ly do de song", "song de lam gi", "cuoc song vo nghia",
+    "chang co gi de song", "met moi cuoc doi", "cuoc doi chan qua",
+    "khong biet phai lam gi nua", "khong con ai de noi chuyen",
+    "cam thay co don qua", "cam thay tro nen vo dung",
+    "life is meaningless", "nobody cares", "i give up on life",
+    "can't go on", "don't want to be here anymore",
+})
+
+_CRISIS_EXPLICIT_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in CRISIS_EXPLICIT_KEYWORDS),
+    re.IGNORECASE,
+)
+_CRISIS_SOFT_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in CRISIS_SOFT_KEYWORDS),
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class CrisisDecision:
+    is_crisis: bool
+    severity: str  # "high" | "medium" | "none"
+    reason: str
+    normalized_text: str
+
+
+class CrisisGuard:
+    """Phát hiện tín hiệu khủng hoảng tâm lý (tự sát / tự làm hại bản thân)."""
+
+    def evaluate(self, text: str) -> CrisisDecision:
+        normalized = normalize_for_guard(text)
+        if not normalized:
+            return CrisisDecision(False, "none", "empty", normalized)
+
+        if _CRISIS_EXPLICIT_REGEX.search(normalized):
+            return CrisisDecision(True, "high", "explicit_crisis", normalized)
+
+        if _CRISIS_SOFT_REGEX.search(normalized):
+            return CrisisDecision(True, "medium", "soft_crisis", normalized)
+
+        return CrisisDecision(False, "none", "clean", normalized)
+
+
+assistant_crisis_guard = CrisisGuard()
+
+
 @dataclass(frozen=True)
 class DomainKeywordGroup:
     domain: str
@@ -604,6 +669,4 @@ class AssistantScopeGuard:
 
 
 assistant_scope_guard = AssistantScopeGuard()
-
 assistant_community_guard = CommunityGuard()
-assistant_scope_guard = AssistantScopeGuard()

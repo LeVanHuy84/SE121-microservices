@@ -88,6 +88,17 @@ register_consumer(
     )
 )
 
+# Register consumer to capture Analysis results and update Chatbot Emotion Cache (Redis)
+from app.modules.chatbot.services.emotion_event_consumer import handle_analysis_result
+register_consumer(
+    KafkaConsumerService(
+        brokers=settings.KAFKA_BROKERS,
+        topic="analysis-result-events",
+        group_id=f"{settings.KAFKA_CLIENT_ID}-chatbot-emotion",
+        handler=handle_analysis_result,
+    )
+)
+
 # -------------------------------------------------------
 # DATABASE INITIALIZATION
 # -------------------------------------------------------
