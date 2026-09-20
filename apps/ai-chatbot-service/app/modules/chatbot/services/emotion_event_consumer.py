@@ -27,15 +27,12 @@ async def handle_analysis_result(msg: dict):
         primary_emotion = primary_emotion.lower()
         risk_level = payload.get("mentalHealthRiskLevel", "none").lower()
         
-        # If risk_level is high/medium, trigger proactive check-in (same logic as MongoDB pipeline)
-        suggested_action = "NO_ACTION"
-        if risk_level in ["medium", "high"]:
-            suggested_action = "TRIGGER_PROACTIVE_CHECKIN"
-
+        # We no longer trigger proactive check-in here. 
+        # The Emotion Service handles all evaluation and emits RabbitMQ events for both Real-time and Cron.
         snapshot = EmotionSnapshot(
             primary_emotion=primary_emotion,
             risk_level=risk_level,
-            suggested_action=suggested_action,
+            suggested_action="NO_ACTION",
         )
 
         # Save directly to Redis

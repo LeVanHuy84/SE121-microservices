@@ -56,6 +56,13 @@ class PromptBuilder:
         return "\n\n".join(part for part in parts if part)
 
     def _build_proactive_checkin_directive(self, snapshot) -> str:
+        if snapshot and getattr(snapshot, "chatbot_prompt_context", None):
+            return (
+                "USER_MESSAGE:\n"
+                f"[HỆ THỐNG]: {snapshot.chatbot_prompt_context}\n"
+                "Bạn HÃY CHỦ ĐỘNG GỬI LỜI CHÀO dựa trên thông tin trên một cách tự nhiên nhất."
+            )
+            
         emotion = snapshot.primary_emotion if snapshot else "khó khăn"
         return (
             "USER_MESSAGE:\n"

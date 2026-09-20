@@ -158,6 +158,14 @@ async def lifespan(app):
         )
         logger.info("[Startup] Retry Worker started")
 
+        # 6. RabbitMQ Consumer
+        logger.info("[Startup] Step 6/6: Starting RabbitMQ Consumer...")
+        from app.modules.analysis.rabbitmq import init_rabbitmq
+        background_tasks.append(
+            asyncio.create_task(init_rabbitmq())
+        )
+        logger.info("[Startup] RabbitMQ Consumer started")
+
         logger.info("=" * 70)
         logger.info("[Startup] Analysis Service V2.0 - Fully operational!")
         logger.info("=" * 70)
@@ -172,6 +180,13 @@ async def lifespan(app):
         logger.info("=" * 70)
         logger.info("[Shutdown] Analysis Service - Shutting down...")
         logger.info("=" * 70)
+
+        try:
+            from app.modules.analysis.rabbitmq import close_rabbitmq
+            await asyncio.wait_for(close_rabbitmq(), timeout=3.0)
+            logger.info("[Shutdown] RabbitMQ Connection closed gracefully")
+        except Exception as e:
+            logger.warning("[Shutdown] Failed to close RabbitMQ gracefully: %s", e)
 
         processor.stop()
         retry_worker.stop()

@@ -41,3 +41,4 @@ opentelemetry-instrumentation-fastapi==0.46b0
 opentelemetry-exporter-otlp==1.25.0
 prometheus-client==0.20.0
 ruff==0.7.2
+aio-pika==9.4.1

@@ -224,3 +224,23 @@ def test_proactive_checkin_directive_injected() -> None:
     )
     assert "HÃY CHỦ ĐỘNG GỬI LỜI CHÀO" in prompt
     assert "sadness" in prompt
+
+def test_proactive_checkin_directive_with_chatbot_context() -> None:
+    from app.modules.chatbot.services.prompt_builder import PromptBuilder
+    from app.modules.chatbot.schemas import AssistantRespondRequest
+    builder = PromptBuilder()
+    snapshot = EmotionSnapshot(
+        primary_emotion="sadness", 
+        risk_level="medium", 
+        chatbot_prompt_context="Hãy khuyên người dùng nghe bản nhạc thư giãn A."
+    )
+    request = AssistantRespondRequest(userId="user1", message="")
+    prompt = builder.build(
+        request,
+        history=[],
+        emotion_snapshot=snapshot,
+        is_proactive_checkin=True,
+    )
+    assert "Hãy khuyên người dùng nghe bản nhạc thư giãn A." in prompt
+    # The default template shouldn't be here
+    assert "Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu" not in prompt

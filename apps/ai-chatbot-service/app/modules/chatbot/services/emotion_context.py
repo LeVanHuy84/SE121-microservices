@@ -18,7 +18,7 @@ logger = logging.getLogger("uvicorn.error")
 
 _NEGATIVE_EMOTIONS = frozenset({"sadness", "fear", "anger", "disgust"})
 _HIGH_RISK_LEVELS = frozenset({"medium", "high"})
-_CHECKIN_ACTION = "TRIGGER_PROACTIVE_CHECKIN"
+_CHECKIN_ACTIONS = frozenset({"TRIGGER_PROACTIVE_CHECKIN", "PLAYLIST_AND_TIPS", "MEDICAL_DOCUMENT", "CRISIS_HOTLINE", "CHATBOT_COMPANION"})
 
 
 @dataclass
@@ -26,6 +26,7 @@ class EmotionSnapshot:
     primary_emotion: str = "neutral"    # sadness | joy | fear | anger | neutral | ...
     risk_level: str = "none"            # none | weak | medium | high
     suggested_action: str = "NO_ACTION" # NO_ACTION | MONITOR | TRIGGER_PROACTIVE_CHECKIN
+    chatbot_prompt_context: str | None = None
 
     @property
     def needs_empathetic_tone(self) -> bool:
@@ -38,7 +39,7 @@ class EmotionSnapshot:
     @property
     def needs_proactive_checkin(self) -> bool:
         """The system should proactively check in on the user."""
-        return self.suggested_action == _CHECKIN_ACTION
+        return self.suggested_action in _CHECKIN_ACTIONS or bool(self.chatbot_prompt_context)
 
 
 _DEFAULT_SNAPSHOT = EmotionSnapshot()
@@ -95,6 +96,9 @@ class EmotionContextService:
             "risk_level": snapshot.risk_level,
             "suggested_action": snapshot.suggested_action,
         }
+        if snapshot.chatbot_prompt_context:
+            data["chatbot_prompt_context"] = snapshot.chatbot_prompt_context
+            
         try:
             await redis.setex(key, int(self._CACHE_TTL_SECONDS), json.dumps(data))
         except Exception as exc:
@@ -121,6 +125,7 @@ class EmotionContextService:
                         primary_emotion=data.get("primary_emotion", "neutral"),
                         risk_level=data.get("risk_level", "none"),
                         suggested_action=data.get("suggested_action", "NO_ACTION"),
+                        chatbot_prompt_context=data.get("chatbot_prompt_context"),
                     )
             except Exception as exc:
                 self._disable_redis(exc)
