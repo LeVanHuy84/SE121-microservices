@@ -6,7 +6,7 @@ import {
   Ctx,
   KafkaContext,
 } from '@nestjs/microservices';
-import { AnalysisEventType, AnalysisResultEvent, EventTopic } from '@repo/dtos';
+import { AnalysisEventType, AnalysisResultEvent, EventTopic, ChatbotCrisisAlertEvent } from '@repo/dtos';
 import { KafkaConsumerHelper } from '@repo/common';
 import { ClientSession } from 'mongoose';
 
@@ -47,6 +47,34 @@ export class IngestionController {
         );
 
         await this.ingestionService.handleAnalysisResult(payload);
+      },
+    });
+  }
+
+  // ----------------------------
+  // CHATBOT CRISIS ALERT TOPIC
+  // ----------------------------
+  @EventPattern(EventTopic.CHATBOT_CRISIS_ALERT)
+  async handleChatbotCrisisAlert(
+    @Payload() message: ChatbotCrisisAlertEvent,
+    @Ctx() context: KafkaContext,
+  ) {
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+    const raw = context.getMessage();
+
+    const eventId =
+      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
+
+    await this.consumerHelper.handle({
+      topic,
+      eventId,
+      message,
+      context,
+      handler: async (_session: ClientSession) => {
+        const { payload } = message;
+        this.logger.debug(`Received chatbot crisis alert for user ${payload.userId}`);
+        await this.ingestionService.handleChatbotCrisisAlert(payload);
       },
     });
   }

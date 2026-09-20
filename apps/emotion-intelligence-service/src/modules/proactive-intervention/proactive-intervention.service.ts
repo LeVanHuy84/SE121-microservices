@@ -13,6 +13,7 @@ import {
   AnalysisResultEventPayload,
   ModerationAction,
   ModerationLabel,
+  ChatbotCrisisAlertPayload,
 } from '@repo/dtos';
 
 import { InjectModel } from '@nestjs/mongoose';
@@ -122,6 +123,43 @@ export class ProactiveInterventionService {
         userId,
         intervention,
         TriggerSource.REALTIME_EVENT,
+      );
+    }
+
+    return intervention;
+  }
+
+  /**
+   * Real-time: Xử lý cảnh báo khủng hoảng trực tiếp từ Chatbot
+   */
+  async evaluateFromChatbotCrisis(
+    payload: ChatbotCrisisAlertPayload,
+  ): Promise<ProactiveInterventionDto | null> {
+    const { userId, riskLevel: rawRiskLevel, reason } = payload;
+    
+    let riskLevel = RiskLevel.CRISIS;
+    const triggers: TriggerFlag[] = [TriggerFlag.SUICIDAL_IDEATION];
+
+    if (rawRiskLevel.toLowerCase() === 'high') {
+      riskLevel = RiskLevel.HIGH_RISK;
+      triggers[0] = TriggerFlag.LONG_TERM_SADNESS;
+    }
+
+    const intervention = await this.buildInterventionResponse(
+      userId,
+      riskLevel,
+      0.95, // High confidence from direct chatbot assessment
+      triggers,
+      reason,
+      'fear', // primaryEmotion fallback
+      {},
+    );
+
+    if (intervention) {
+      await this.persistAndEmitIntervention(
+        userId,
+        intervention,
+        TriggerSource.REALTIME_EVENT, // or maybe CHATBOT_CRISIS if we add it, but REALTIME_EVENT is fine
       );
     }
 

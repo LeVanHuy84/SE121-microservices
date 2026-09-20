@@ -585,14 +585,19 @@ class RespondCommand:
         """Phát sự kiện Kafka để thông báo bộ phận hỗ trợ về tình huống khủng hoảng tâm lý."""
         try:
             from app.modules.analysis.lifespan import kafka_producer
+            from datetime import datetime
 
             await kafka_producer.send(
-                "chatbot.mental_health_crisis",
+                "chatbot.crisis.alert",
                 {
-                    "userId": request.userId,
-                    "conversationId": request.conversationId or "default",
-                    "severity": severity,
-                    "message": request.message,
+                    "type": "chatbot_crisis_alert",
+                    "payload": {
+                        "userId": request.userId,
+                        "conversationId": request.conversationId or "default",
+                        "riskLevel": severity,
+                        "reason": request.message,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
                 },
             )
         except Exception as exc:  # noqa: BLE001

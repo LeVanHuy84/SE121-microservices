@@ -247,6 +247,58 @@ describe('ProactiveInterventionService', () => {
     });
   });
 
+  describe('evaluateFromChatbotCrisis', () => {
+    it('should evaluate as CRISIS when chatbot reports HIGH or CRITICAL risk level', async () => {
+      mockHotlineModel.find.mockReturnValue({
+        exec: jest.fn<any>().mockResolvedValue([]),
+      });
+      mockSelectorService.dispatchHotlines.mockReturnValue({
+        primary: undefined,
+        secondary: [],
+      });
+      mockResourceModel.find.mockReturnValue({
+        exec: jest.fn<any>().mockResolvedValue([]),
+      });
+      mockSelectorService.selectBestResource.mockResolvedValue(null);
+
+      const payload: any = {
+        userId: 'user1',
+        riskLevel: 'high',
+        reason: 'User mentioned sadness',
+      };
+
+      const result = await service.evaluateFromChatbotCrisis(payload);
+
+      expect(result).toBeDefined();
+      expect(result?.riskLevel).toBe(RiskLevel.HIGH_RISK);
+      expect(result?.triggers).toContain(TriggerFlag.LONG_TERM_SADNESS);
+      expect(mockRabbitmqChannel.publish).toHaveBeenCalled();
+    });
+
+    it('should default to CRISIS when chatbot reports other/extreme levels', async () => {
+      mockHotlineModel.find.mockReturnValue({
+        exec: jest.fn<any>().mockResolvedValue([]),
+      });
+      mockSelectorService.dispatchHotlines.mockReturnValue({
+        primary: undefined,
+        secondary: [],
+      });
+
+      const payload: any = {
+        userId: 'user1',
+        riskLevel: 'crisis',
+        reason: 'User is in immediate danger',
+      };
+
+      const result = await service.evaluateFromChatbotCrisis(payload);
+
+      expect(result).toBeDefined();
+      expect(result?.riskLevel).toBe(RiskLevel.CRISIS);
+      expect(result?.triggers).toContain(TriggerFlag.SUICIDAL_IDEATION);
+      expect(mockRabbitmqChannel.publish).toHaveBeenCalled();
+    });
+  });
+
   describe('evaluatePassiveUser & Cooldown logic', () => {
     it('should return null if user risk state is not found in DB', async () => {
       mockRiskStateModel.findOne.mockReturnValue({
