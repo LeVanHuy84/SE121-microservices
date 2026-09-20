@@ -13,4 +13,5 @@ export interface UserPrivacySettings {
   profileVisibility: PrivacyLevel;
   messagePrivacy: MessagePrivacy;
   friendListVisibility: PrivacyLevel;
+  allowProactiveIntervention?: boolean;
 }
