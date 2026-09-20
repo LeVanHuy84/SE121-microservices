@@ -209,3 +209,18 @@ class TestSystemPromptDirectives:
     def test_empathy_requires_open_ended_question(self, system_prompt: str) -> None:
         """When user is sad/anxious, bot must end with an open question."""
         assert "SOCRATES" in system_prompt
+
+def test_proactive_checkin_directive_injected() -> None:
+    from app.modules.chatbot.services.prompt_builder import PromptBuilder
+    from app.modules.chatbot.schemas import AssistantRespondRequest
+    builder = PromptBuilder()
+    snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
+    request = AssistantRespondRequest(userId="user1", message="")
+    prompt = builder.build(
+        request,
+        history=[],
+        emotion_snapshot=snapshot,
+        is_proactive_checkin=True,
+    )
+    assert "HÃY CHỦ ĐỘNG GỬI LỜI CHÀO" in prompt
+    assert "sadness" in prompt

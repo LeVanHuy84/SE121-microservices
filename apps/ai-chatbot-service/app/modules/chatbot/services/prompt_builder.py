@@ -19,6 +19,7 @@ class PromptBuilder:
         history_item_char_limit: int | None = None,
         context_total_char_limit: int | None = None,
         emotion_snapshot=None,  # EmotionSnapshot | None — lazy type to avoid circular
+        is_proactive_checkin: bool = False,
     ) -> str:
         resolved_context_char_limit = context_char_limit or settings.CHATBOT_CONTEXT_CHAR_LIMIT
         resolved_max_history_items = (
@@ -46,9 +47,22 @@ class PromptBuilder:
                 max_items=resolved_max_history_items,
                 item_char_limit=resolved_history_item_char_limit,
             ),
-            self._build_current_message(request.message),
         ]
+        if is_proactive_checkin:
+            parts.append(self._build_proactive_checkin_directive(emotion_snapshot))
+        else:
+            parts.append(self._build_current_message(request.message))
+            
         return "\n\n".join(part for part in parts if part)
+
+    def _build_proactive_checkin_directive(self, snapshot) -> str:
+        emotion = snapshot.primary_emotion if snapshot else "khó khăn"
+        return (
+            "USER_MESSAGE:\n"
+            "[HỆ THỐNG]: Người dùng vừa mở cuộc trò chuyện. Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu "
+            f"cảm xúc '{emotion}'. Bạn HÃY CHỦ ĐỘNG GỬI LỜI CHÀO và hỏi thăm tình hình của họ một cách thật thấu cảm, "
+            "tự nhiên như một người bạn. Không đề cập đến việc bạn là AI giám sát cảm xúc."
+        )
 
     def _build_emotion_tone_directive(self, snapshot) -> str:
         """Inject TONE_DIRECTIVE to adapt the response style based on emotion and risk level."""

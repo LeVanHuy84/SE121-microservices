@@ -190,24 +190,10 @@ class RespondCommand:
         # Emotion snapshot already fetched early
 
 
+        is_proactive_checkin = False
         # Proactive check-in: Proactively ask about the user's wellbeing if there is no chat history and check-in is needed
         if emotion_snapshot.needs_proactive_checkin and not history:
-            data = self._proactive_checkin_response()
-            self._persist_session_memory(request, data.reply, [], "proactive_checkin")
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="proactive_checkin",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
+            is_proactive_checkin = True
 
         prompt = self.prompt_builder.build(
             resolved_request,
@@ -218,6 +204,7 @@ class RespondCommand:
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
             emotion_snapshot=emotion_snapshot,
+            is_proactive_checkin=is_proactive_checkin,
         )
         prompt = self._prepend_turn_policy(prompt)
 
@@ -590,18 +577,6 @@ class RespondCommand:
             provider="chatbot-service",
         )
 
-    def _proactive_checkin_response(self) -> AssistantRespondData:
-        return AssistantRespondData(
-            reply=(
-                "Mình thấy gần đây bạn đang trải qua nhiều cảm xúc khó khăn. "
-                "Bạn có muốn kể cho mình nghe không? Mình ở đây lắng nghe, không phán xét."
-            ),
-            sources=[],
-            suggestedActions=[],
-            model="emotion-guard",
-            provider="chatbot-service",
-        )
-
     async def _emit_crisis_event(
         self,
         request: AssistantRespondRequest,
@@ -661,6 +636,10 @@ class RespondCommand:
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
+        is_proactive_checkin = False
+        if emotion_snapshot.needs_proactive_checkin and not history:
+            is_proactive_checkin = True
+
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
@@ -670,6 +649,7 @@ class RespondCommand:
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
             emotion_snapshot=emotion_snapshot,
+            is_proactive_checkin=is_proactive_checkin,
         )
         prompt = self._prepend_turn_policy(prompt)
 
