@@ -112,5 +112,5 @@ music_model_loader = MusicModelLoader()
 
 def ensure_music_model_loaded():
     """Ensure music models are loaded (idempotent)."""
-    if not music_model_loader._instance_initialized:
+    if not music_model_loader.is_loaded():
         music_model_loader.initialize()

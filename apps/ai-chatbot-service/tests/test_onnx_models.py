@@ -81,7 +81,8 @@ class TestONNXModels(unittest.TestCase):
             np.array([[0.82, 0.65]], dtype=np.float32)
         ]
 
-        with patch.object(music_model_loader, "is_loaded", return_value=True), \
+        with patch("app.modules.analysis.services.ml_models.music.music_emotion_analyzer.ensure_music_model_loaded"), \
+             patch.object(music_model_loader, "is_loaded", return_value=True), \
              patch.object(music_model_loader, "get_session", return_value=(mock_sess, "audio_waveform")):
 
             analyzer = MusicEmotionAnalyzer()
