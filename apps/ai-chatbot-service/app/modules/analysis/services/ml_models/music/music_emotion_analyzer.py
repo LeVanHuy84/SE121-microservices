@@ -10,7 +10,7 @@ import os
 import logging
 import numpy as np
 import soundfile as sf
-import scipy.signal
+import soxr
 
 from .music_loader import ensure_music_model_loaded, music_model_loader
 
@@ -31,7 +31,7 @@ class MusicEmotionAnalyzer:
         1. Read audio via soundfile
         2. Convert multi-channel to mono
         3. Center-clip 15 seconds at original sample rate FIRST (100x faster than resampling entire song)
-        4. Resample the 15s segment to 24,000 Hz using scipy.signal
+        4. Resample the 15s segment to 24,000 Hz using soxr
         5. Guarantee exact shape: (1, 360000)
         """
         if not os.path.exists(file_path):
@@ -61,9 +61,9 @@ class MusicEmotionAnalyzer:
             padding = target_raw_samples - total_raw_samples
             data = np.pad(data, (0, padding), mode="constant")
 
-        # 3. Resample the 15s segment to 24kHz
+        # 3. Resample the 15s segment to 24kHz using soxr
         if sr != MusicEmotionAnalyzer.TARGET_SAMPLE_RATE:
-            data = scipy.signal.resample(data, MusicEmotionAnalyzer.TARGET_SAMPLES).astype(np.float32)
+            data = soxr.resample(data, sr, MusicEmotionAnalyzer.TARGET_SAMPLE_RATE)
 
         # 4. Guarantee exact TARGET_SAMPLES (360,000 samples)
         target = MusicEmotionAnalyzer.TARGET_SAMPLES
