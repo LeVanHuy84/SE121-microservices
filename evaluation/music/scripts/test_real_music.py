@@ -12,9 +12,14 @@ import sys
 import time
 import json
 import urllib.request
-import psutil
 import numpy as np
 import onnxruntime as ort
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 if sys.platform == "win32":
     try:
@@ -42,8 +47,10 @@ os.makedirs(os.path.join(PROJECT_ROOT, "results"), exist_ok=True)
 
 
 def get_process_ram_mb():
-    process = psutil.Process(os.getpid())
-    return process.memory_info().rss / (1024 * 1024)
+    if HAS_PSUTIL:
+        process = psutil.Process(os.getpid())
+        return process.memory_info().rss / (1024 * 1024)
+    return 0.0
 
 
 def classify_quadrant(valence: float, arousal: float) -> dict:
@@ -111,24 +118,129 @@ def preprocess_audio(file_path: str):
     return audio_np, original_duration, prep_time_ms
 
 
+import argparse
+
+
+def analyze_single_track(session, url_or_path: str, title: str = None, artist: str = "Unknown", genre: str = "Custom"):
+    """Download (if URL) and analyze a single audio track."""
+    is_url = url_or_path.startswith("http://") or url_or_path.startswith("https://")
+    
+    if not title:
+        if is_url:
+            # Extract filename from URL or default
+            parsed_name = url_or_path.split("?")[0].split("/")[-1]
+            title = parsed_name if parsed_name.endswith((".mp3", ".wav", ".ogg", ".flac", ".m4a")) else "Custom Track"
+        else:
+            title = os.path.basename(url_or_path)
+
+    print("-" * 80)
+    print(f"🎧 [Phân tích bài hát] {title} - {artist} ({genre.upper()})")
+    print(f"   Nguồn: {url_or_path}")
+
+    # Đo CPU & RAM trước khi xử lý
+    if HAS_PSUTIL:
+        psutil.cpu_percent(interval=None)
+    ram_before_track = get_process_ram_mb()
+
+    dl_time_ms = 0.0
+    if is_url:
+        local_audio = os.path.join(TEMP_AUDIO_DIR, "custom_input_track.mp3")
+        print("   ⏳ Đang tải file âm thanh...")
+        try:
+            dl_time_ms = download_audio_file(url_or_path, local_audio)
+        except Exception as e:
+            print(f"   ❌ Lỗi khi tải file: {e}")
+            return None
+    else:
+        local_audio = url_or_path
+        if not os.path.exists(local_audio):
+            print(f"   ❌ Không tìm thấy file local tại: {local_audio}")
+            return None
+
+    file_size_mb = os.path.getsize(local_audio) / (1024 * 1024)
+    if is_url:
+        print(f"   ✓ Tải xong ({file_size_mb:.2f} MB) trong {dl_time_ms:.1f} ms")
+    else:
+        print(f"   ✓ Đọc file cục bộ ({file_size_mb:.2f} MB)")
+
+    # Step B: Preprocessing Audio
+    try:
+        audio_input, orig_duration_sec, prep_time_ms = preprocess_audio(local_audio)
+        print(f"   ✓ Độ dài bài hát: {orig_duration_sec:.1f} giây (Trích xuất {DURATION_SEC}s đoạn giữa trong {prep_time_ms:.1f} ms)")
+    except Exception as e:
+        print(f"   ❌ Lỗi khi tiền xử lý âm thanh: {e}")
+        return None
+
+    # Step C: Model Inference
+    inf_start = time.perf_counter()
+    onnx_outputs = session.run(["valence_arousal"], {"audio_waveform": audio_input})
+    inf_time_ms = (time.perf_counter() - inf_start) * 1000
+
+    ram_after_track = get_process_ram_mb()
+    cpu_usage = psutil.cpu_percent(interval=None) if HAS_PSUTIL else 0.0
+
+    valence = float(np.clip(onnx_outputs[0][0][0], 0.0, 1.0))
+    arousal = float(np.clip(onnx_outputs[0][0][1], 0.0, 1.0))
+    quadrant_info = classify_quadrant(valence, arousal)
+
+    total_analysis_ms = prep_time_ms + inf_time_ms
+    total_e2e_time_ms = dl_time_ms + total_analysis_ms
+
+    print(f"   ⚡ Thời gian phân tích AI: {inf_time_ms:.2f} ms ({inf_time_ms/1000:.2f}s)")
+    print(f"   ⏱️ CHI TIẾT THỜI GIAN: Download: {dl_time_ms:.1f}ms | AI Analysis (Prep + Inference): {total_analysis_ms:.1f}ms | Tổng E2E: {total_e2e_time_ms:.1f}ms ({total_e2e_time_ms/1000:.2f}s)")
+    if HAS_PSUTIL:
+        print(f"   🧠 Tiêu tốn RAM: {ram_after_track:.2f} MB | Tải CPU: {cpu_usage:.1f}%")
+    print(f"   🎯 KẾT QUẢ CẢM XÚC:")
+    print(f"      • Valence (Độ tích cực/Vui)   : {valence:.4f} / 1.0000")
+    print(f"      • Arousal (Cường độ/Năng lượng): {arousal:.4f} / 1.0000")
+    print(f"      • Phân loại không gian Russell : {quadrant_info['quadrant']} -> {quadrant_info['emotion_category']}")
+    print(f"      • Tags cảm xúc gợi ý          : {', '.join(quadrant_info['suggested_tags'])}")
+
+    return {
+        "title": title,
+        "artist": artist,
+        "genre": genre,
+        "url": url_or_path,
+        "file_size_mb": round(file_size_mb, 2),
+        "original_duration_sec": round(orig_duration_sec, 2),
+        "latency_breakdown": {
+            "download_ms": round(dl_time_ms, 2),
+            "preprocessing_ms": round(prep_time_ms, 2),
+            "onnx_inference_ms": round(inf_time_ms, 2),
+            "total_e2e_ms": round(total_e2e_time_ms, 2)
+        },
+        "resource_usage": {
+            "ram_usage_mb": round(ram_after_track, 2),
+            "cpu_percent": round(cpu_usage, 1)
+        },
+        "emotion_predictions": {
+            "valence": round(valence, 4),
+            "arousal": round(arousal, 4),
+            "quadrant": quadrant_info["quadrant"],
+            "emotion_category": quadrant_info["emotion_category"],
+            "suggested_tags": quadrant_info["suggested_tags"]
+        }
+    }
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Test Real Music Audio Emotion Analysis with MERT ONNX INT8")
+    parser.add_argument("target_url", nargs="?", default=None, help="URL hoặc đường dẫn file âm thanh cần phân tích")
+    parser.add_argument("--url", "-u", type=str, default=None, help="URL hoặc đường dẫn file âm thanh")
+    parser.add_argument("--title", "-t", type=str, default=None, help="Tên bài hát (tùy chọn)")
+    args = parser.parse_args()
+
+    input_target = (args.url or args.target_url)
+
     print("=" * 80)
-    print("🎵 BENCHMARK: THỬ NGHIỆM PHÂN TÍCH NHẠC THỰC TẾ VỚI MERT ONNX INT8")
+    print("🎵 CÔNG CỤ PHÂN TÍCH CẢM XÚC NHẠC THỰC TẾ (MERT ONNX INT8)")
     print("=" * 80)
 
-    # 1. Kiểm tra file weights & file music.json
+    # 1. Kiểm tra file weights
     if not os.path.exists(WEIGHTS_PATH):
         print(f"❌ Không tìm thấy mô hình tại: {WEIGHTS_PATH}")
         sys.exit(1)
-        
-    if not os.path.exists(MUSIC_JSON_PATH):
-        print(f"❌ Không tìm thấy danh sách bài hát tại: {MUSIC_JSON_PATH}")
-        sys.exit(1)
 
-    with open(MUSIC_JSON_PATH, "r", encoding="utf-8") as f:
-        tracks = json.load(f)
-
-    print(f"✓ Đã nạp {len(tracks)} bài hát từ {MUSIC_JSON_PATH}")
     print(f"✓ Mô hình ONNX: {WEIGHTS_PATH} ({os.path.getsize(WEIGHTS_PATH) / (1024*1024):.2f} MB)")
 
     # 2. Khởi tạo ONNX Runtime Session (CPU Execution Provider)
@@ -143,110 +255,90 @@ def main():
     ram_after_load = get_process_ram_mb()
 
     print(f"✓ Khởi tạo ONNX Session CPU thành công trong: {session_load_time_ms:.2f} ms")
-    print(f"✓ RAM ban đầu: {ram_before_load:.2f} MB | Sau khi load model: {ram_after_load:.2f} MB (Tăng: +{ram_after_load - ram_before_load:.2f} MB)\n")
+    if HAS_PSUTIL:
+        print(f"✓ RAM ban đầu: {ram_before_load:.2f} MB | Sau khi load model: {ram_after_load:.2f} MB\n")
 
     # Warmup 1 lượt với dummy input
     dummy_input = np.random.randn(1, TARGET_SAMPLES).astype(np.float32)
     session.run(["valence_arousal"], {"audio_waveform": dummy_input})
 
-    results = []
+    # 3. Nếu truyền trực tiếp tham số qua CLI
+    if input_target:
+        result = analyze_single_track(session, input_target, title=args.title)
+        if result:
+            single_out_path = os.path.join(PROJECT_ROOT, "results", "custom_analysis_result.json")
+            with open(single_out_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"\n✓ Chi tiết kết quả đã được lưu tại: {single_out_path}\n")
+        return
 
-    # 3. Chạy từng bài hát thực tế
-    for idx, track in enumerate(tracks, 1):
-        title = track.get("title", f"Track {idx}")
-        artist = track.get("artist", "Unknown")
-        genre = track.get("genre", "Unknown")
-        url = track.get("url")
+    # 4. Chế độ tương tác nhập URL từ Terminal
+    print("👉 HƯỚNG DẪN:")
+    print("   • Nhập URL hoặc đường dẫn file âm thanh và nhấn Enter để phân tích.")
+    print("   • Nhập 'all' để chạy benchmark toàn bộ danh sách trong music.json.")
+    print("   • Nhập 'q' hoặc 'exit' (hoặc nhấn Ctrl+C) để thoát chương trình.\n")
 
-        print("-" * 80)
-        print(f"🎧 [Bài {idx}/{len(tracks)}] {title} - {artist} ({genre.upper()})")
-        print(f"   URL: {url}")
+    while True:
+        try:
+            user_input = input("🎧 Nhập URL / File path: ").strip().strip('"').strip("'")
+        except (EOFError, KeyboardInterrupt):
+            print("\nĐã thoát.")
+            break
 
-        local_mp3 = os.path.join(TEMP_AUDIO_DIR, f"track_{idx}.mp3")
+        if not user_input:
+            continue
 
-        # Đo CPU & RAM trước khi xử lý
-        psutil.cpu_percent(interval=None) # Reset CPU measurement
-        ram_before_track = get_process_ram_mb()
+        if user_input.lower() in ("q", "exit", "quit"):
+            print("Tạm biệt!")
+            break
 
-        # Step A: Download MP3
-        print("   ⏳ Đang tải file MP3...")
-        dl_time_ms = download_audio_file(url, local_mp3)
-        file_size_mb = os.path.getsize(local_mp3) / (1024 * 1024)
-        print(f"   ✓ Tải xong ({file_size_mb:.2f} MB) trong {dl_time_ms:.1f} ms")
+        if user_input.lower() == "all":
+            if not os.path.exists(MUSIC_JSON_PATH):
+                print(f"❌ Không tìm thấy danh sách bài hát tại: {MUSIC_JSON_PATH}")
+                continue
 
-        # Step B: Preprocessing Audio
-        audio_input, orig_duration_sec, prep_time_ms = preprocess_audio(local_mp3)
-        print(f"   ✓ Độ dài bài hát: {orig_duration_sec:.1f} giây (Trích xuất 15s chorus trong {prep_time_ms:.1f} ms)")
+            with open(MUSIC_JSON_PATH, "r", encoding="utf-8") as f:
+                tracks = json.load(f)
 
-        # Step C: Model Inference
-        inf_start = time.perf_counter()
-        onnx_outputs = session.run(["valence_arousal"], {"audio_waveform": audio_input})
-        inf_time_ms = (time.perf_counter() - inf_start) * 1000
+            print(f"✓ Đang chạy phân tích {len(tracks)} bài hát từ {MUSIC_JSON_PATH}...\n")
+            results = []
+            for idx, track in enumerate(tracks, 1):
+                title = track.get("title", f"Track {idx}")
+                artist = track.get("artist", "Unknown")
+                genre = track.get("genre", "Unknown")
+                url = track.get("url")
+                res = analyze_single_track(session, url, title=title, artist=artist, genre=genre)
+                if res:
+                    res["track_id"] = idx
+                    results.append(res)
 
-        # Đo RAM & CPU sau khi inference
-        ram_after_track = get_process_ram_mb()
-        cpu_usage = psutil.cpu_percent(interval=None)
+            # Xuất Báo Cáo Tổng Hợp
+            with open(RESULTS_PATH, "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
 
-        # Lấy kết quả Valence, Arousal
-        valence = float(onnx_outputs[0][0][0])
-        arousal = float(onnx_outputs[0][0][1])
-        quadrant_info = classify_quadrant(valence, arousal)
+            avg_inf_time = np.mean([r["latency_breakdown"]["onnx_inference_ms"] for r in results])
+            avg_prep_time = np.mean([r["latency_breakdown"]["preprocessing_ms"] for r in results])
+            avg_ram = np.mean([r["resource_usage"]["ram_usage_mb"] for r in results])
 
-        total_e2e_time_ms = dl_time_ms + prep_time_ms + inf_time_ms
+            print("\n" + "=" * 80)
+            print("📊 TỔNG KẾT HIỆU NĂNG PHÂN TÍCH NHẠC THỰC TẾ (CATALOG INGESTION BENCHMARK)")
+            print("=" * 80)
+            print(f"  • Thời gian suy luận AI trung bình (ONNX INT8 CPU): {avg_inf_time:.2f} ms / bài")
+            print(f"  • Thời gian trích xuất & xử lý âm thanh trung bình: {avg_prep_time:.2f} ms / bài")
+            print(f"  • Tổng thời gian xử lý AI thuần (không tính tải mạng): {avg_inf_time + avg_prep_time:.2f} ms / bài")
+            if HAS_PSUTIL:
+                print(f"  • Tiêu tốn RAM trung bình của tiến trình: {avg_ram:.2f} MB (< 200MB Ngưỡng an toàn)")
+            print(f"  • File log chi tiết đã lưu tại: {RESULTS_PATH}")
+            print("=" * 80 + "\n")
+            continue
 
-        print(f"   ⚡ Thời gian suy luận ONNX CPU: {inf_time_ms:.2f} ms")
-        print(f"   ⏱️ Tổng thời gian (Download + Xử lý + AI): {total_e2e_time_ms:.1f} ms")
-        print(f"   🧠 Tiêu tốn RAM: {ram_after_track:.2f} MB | Tải CPU: {cpu_usage:.1f}%")
-        print(f"   🎯 KẾT QUẢ CẢM XÚC:")
-        print(f"      • Valence (Độ tích cực/Vui)   : {valence:.4f} / 1.0000")
-        print(f"      • Arousal (Cường độ/Năng lượng): {arousal:.4f} / 1.0000")
-        print(f"      • Phân loại không gian Russell : {quadrant_info['quadrant']} -> {quadrant_info['emotion_category']}")
-        print(f"      • Tags cảm xúc gợi ý          : {', '.join(quadrant_info['suggested_tags'])}")
-
-        results.append({
-            "track_id": idx,
-            "title": title,
-            "artist": artist,
-            "genre": genre,
-            "url": url,
-            "file_size_mb": round(file_size_mb, 2),
-            "original_duration_sec": round(orig_duration_sec, 2),
-            "latency_breakdown": {
-                "download_ms": round(dl_time_ms, 2),
-                "preprocessing_ms": round(prep_time_ms, 2),
-                "onnx_inference_ms": round(inf_time_ms, 2),
-                "total_e2e_ms": round(total_e2e_time_ms, 2)
-            },
-            "resource_usage": {
-                "ram_usage_mb": round(ram_after_track, 2),
-                "cpu_percent": round(cpu_usage, 1)
-            },
-            "emotion_predictions": {
-                "valence": round(valence, 4),
-                "arousal": round(arousal, 4),
-                "quadrant": quadrant_info["quadrant"],
-                "emotion_category": quadrant_info["emotion_category"],
-                "suggested_tags": quadrant_info["suggested_tags"]
-            }
-        })
-
-    # 4. Xuất Báo Cáo Tổng Hợp
-    with open(RESULTS_PATH, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-
-    avg_inf_time = np.mean([r["latency_breakdown"]["onnx_inference_ms"] for r in results])
-    avg_prep_time = np.mean([r["latency_breakdown"]["preprocessing_ms"] for r in results])
-    avg_ram = np.mean([r["resource_usage"]["ram_usage_mb"] for r in results])
-
-    print("\n" + "=" * 80)
-    print("📊 TỔNG KẾT HIỆU NĂNG PHÂN TÍCH NHẠC THỰC TẾ (CATALOG INGESTION BENCHMARK)")
-    print("=" * 80)
-    print(f"  • Thời gian suy luận AI trung bình (ONNX INT8 CPU): {avg_inf_time:.2f} ms / bài")
-    print(f"  • Thời gian trích xuất & xử lý âm thanh trung bình: {avg_prep_time:.2f} ms / bài")
-    print(f"  • Tổng thời gian xử lý AI thuần (không tính tải mạng): {avg_inf_time + avg_prep_time:.2f} ms / bài")
-    print(f"  • Tiêu tốn RAM trung bình của tiến trình: {avg_ram:.2f} MB (< 200MB Ngưỡng an toàn)")
-    print(f"  • File log chi tiết đã lưu tại: {RESULTS_PATH}")
-    print("=" * 80 + "\n")
+        # Phân tích URL đơn lẻ do người dùng nhập từ Terminal
+        result = analyze_single_track(session, user_input)
+        if result:
+            single_out_path = os.path.join(PROJECT_ROOT, "results", "custom_analysis_result.json")
+            with open(single_out_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"✓ Chi tiết kết quả đã được lưu tại: {single_out_path}\n")
 
 
 if __name__ == "__main__":

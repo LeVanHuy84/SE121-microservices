@@ -7,6 +7,7 @@ Music Model Loader - Singleton for MERT ONNX INT8 Music Emotion Model
 import os
 import logging
 from pathlib import Path
+import numpy as np
 import onnxruntime as ort
 from huggingface_hub import hf_hub_download
 
@@ -77,15 +78,19 @@ class MusicModelLoader:
             logger.info(f"[MusicModelLoader] Loading MERT ONNX INT8 model from: {self.onnx_model_path}")
 
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = 0  # 0 enables auto multi-threading across all CPU cores
+            opts.intra_op_num_threads = 4  # 4 threads optimal for CPU vectorization without contention
             opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
             self.session = ort.InferenceSession(self.onnx_model_path, opts, providers=["CPUExecutionProvider"])
             self.input_name = self.session.get_inputs()[0].name
 
+            # Pre-warmup session to avoid cold-start latency on first request
+            dummy_waveform = np.random.randn(1, 24000 * 15).astype(np.float32)
+            self.session.run(None, {self.input_name: dummy_waveform})
+
             self._instance_initialized = True
-            logger.info("[MusicModelLoader] ✓ MERT Music Emotion ONNX model loaded successfully on CPU")
+            logger.info("[MusicModelLoader] ✓ MERT Music Emotion ONNX model loaded & pre-warmed successfully on CPU")
 
         except Exception as e:
             logger.error(f"[MusicModelLoader] ✗ Failed to load MERT ONNX model: {e}")
