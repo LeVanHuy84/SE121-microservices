@@ -7,6 +7,7 @@ Orchestration Service: Music Flow
 
 import logging
 import os
+import time
 
 from app.modules.analysis.services.domain.music.music_analyze import MusicAnalyzeService
 from app.modules.analysis.utils.download_mp3 import AudioDownloader
@@ -31,18 +32,32 @@ class MusicFlowService:
             raise ValueError("url must be a non-empty string")
 
         file_path = None
+        t_total_start = time.perf_counter()
         try:
-            logger.info("[MusicFlowService] Downloading audio from URL")
+            logger.info(f"[MusicFlowService] Downloading audio from URL: {url[:80]}...")
+            t_dl_start = time.perf_counter()
             file_path = self._downloader.download(url)
+            t_dl_ms = (time.perf_counter() - t_dl_start) * 1000
+            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            logger.info(f"[MusicFlowService] ✓ Downloaded {file_size_mb:.2f} MB in {t_dl_ms:.2f} ms")
 
+            t_infer_start = time.perf_counter()
             result = self._analyze_service.analyze_music(file_path)
+            t_infer_ms = (time.perf_counter() - t_infer_start) * 1000
+            t_total_ms = (time.perf_counter() - t_total_start) * 1000
+
+            logger.info(
+                f"[MusicFlowService] ✓ Analysis complete: valence={result['valence']}, arousal={result['arousal']} "
+                f"(Download: {t_dl_ms:.0f}ms | AI Inference: {t_infer_ms:.0f}ms | Total: {t_total_ms:.0f}ms)"
+            )
             return {
                 "valence": float(result["valence"]),
                 "arousal": float(result["arousal"]),
             }
 
         except Exception as e:
-            logger.error(f"[MusicFlowService] Analysis failed: {e}")
+            t_total_ms = (time.perf_counter() - t_total_start) * 1000
+            logger.error(f"[MusicFlowService] Analysis failed after {t_total_ms:.0f}ms: {e}")
             raise
 
         finally:

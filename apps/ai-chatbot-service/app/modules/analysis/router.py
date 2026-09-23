@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List
+import asyncio
 import logging
 import time
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.core.security import verify_internal_key
 from app.modules.analysis.schemas import (
@@ -66,8 +67,9 @@ class MusicUrlRequest(BaseModel):
 @music_router.post("/analyze")
 async def analyze_music_from_url(req: MusicUrlRequest):
     try:
-        result = music_flow_service.analyze_from_url(req.url)
+        result = await asyncio.to_thread(music_flow_service.analyze_from_url, req.url)
     except Exception as e:
+        logger.error(f"[MusicRouter] Music analysis failed: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"success": True, "result": result}
 
@@ -133,8 +135,9 @@ async def test_before_save(req: TestRequest):
 @test_router.post("/music/from-url")
 async def test_music_from_url(req: MusicUrlRequest):
     try:
-        result = music_flow_service.analyze_from_url(req.url)
+        result = await asyncio.to_thread(music_flow_service.analyze_from_url, req.url)
     except Exception as e:
+        logger.error(f"[TestRouter] Test music analysis failed: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"success": True, "result": result}
 

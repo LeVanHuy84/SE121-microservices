@@ -1,8 +1,11 @@
+import os
 import logging
-import torch
-import torch.nn.functional as F
-from typing import Dict, Any
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from pathlib import Path
+from typing import Dict, Any, List
+import numpy as np
+import onnxruntime as ort
+from transformers import AutoTokenizer
+from huggingface_hub import hf_hub_download
 
 from app.core.settings import settings
 
@@ -11,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class PhoBERTModerator:
     """
-    Multi-class PhoBERT Moderation Detector (4 Context Labels).
+    Multi-class PhoBERT Moderation Detector (4 Context Labels) using ONNX Runtime INT8.
     Labels:
       0: CLEAN (Sạch, an toàn)
       1: PROFANITY_VENTING (Từ chửi thề nhẹ / Bộc phát xả stress)
@@ -26,42 +29,68 @@ class PhoBERTModerator:
         3: "EMOTIONAL_CRISIS"
     }
 
-    def __init__(self):
-        self.tokenizer = None
-        self.model = None
-        self.device = None
-        self.initialized = False
-        self.model_name = settings.PHOBERT_MODERATION_MODEL_PATH
-
-    def initialize(self):
-        if self.initialized:
-            return
-
-        try:
-            logger.info(f"[PhoBERTModerator] Loading 4-class moderation model: {self.model_name}")
-
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                self.model_name
-            )
-
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.model.to(self.device)
-            self.model.eval()
-
-            self.initialized = True
-            logger.info(f"[PhoBERTModerator] 4-class model loaded successfully on {self.device}")
-
-        except Exception as e:
-            logger.warning(f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled.")
-            self.model = None
-
     SEVERITY_PRIORITY = {
         "HATE_SPEECH": 3,
         "EMOTIONAL_CRISIS": 2,
         "PROFANITY_VENTING": 1,
         "CLEAN": 0
     }
+
+    def __init__(self):
+        self.tokenizer = None
+        self.session = None
+        self.initialized = False
+        self.model_name = settings.PHOBERT_MODERATION_MODEL_PATH
+        self.onnx_model_path = None
+
+    def _resolve_model_path(self) -> str:
+        """Resolve local ONNX weight file or download from Hugging Face Hub."""
+        # 1. Check explicit setting
+        if settings.PHOBERT_MODERATION_ONNX_PATH and os.path.exists(settings.PHOBERT_MODERATION_ONNX_PATH):
+            return settings.PHOBERT_MODERATION_ONNX_PATH
+
+        # 2. Check workspace relative paths
+        candidate_paths = [
+            Path(__file__).resolve().parents[7] / "evaluation" / "weights" / "phobert_moderation_int8.onnx",
+            Path("evaluation/weights/phobert_moderation_int8.onnx").resolve(),
+            Path("../evaluation/weights/phobert_moderation_int8.onnx").resolve(),
+            Path("../../evaluation/weights/phobert_moderation_int8.onnx").resolve(),
+        ]
+        for p in candidate_paths:
+            if p.exists():
+                return str(p)
+
+        # 3. Fallback: Download from Hugging Face Hub
+        logger.info(f"[PhoBERTModerator] Downloading ONNX INT8 model from Hugging Face Hub ({self.model_name})...")
+        downloaded = hf_hub_download(
+            repo_id=self.model_name,
+            filename="phobert_moderation_int8.onnx",
+            subfolder="onnx"
+        )
+        return downloaded
+
+    def initialize(self):
+        if self.initialized:
+            return
+
+        try:
+            self.onnx_model_path = self._resolve_model_path()
+            logger.info(f"[PhoBERTModerator] Loading ONNX INT8 moderation model from: {self.onnx_model_path}")
+
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 2
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+            self.session = ort.InferenceSession(self.onnx_model_path, opts, providers=["CPUExecutionProvider"])
+            self.initialized = True
+            logger.info("[PhoBERTModerator] ✓ ONNX INT8 moderation model loaded successfully on CPU")
+
+        except Exception as e:
+            logger.warning(f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled.")
+            self.session = None
 
     def infer(self, text: str) -> Dict[str, Any]:
         """
@@ -85,7 +114,7 @@ class PhoBERTModerator:
                 "model": "phobert_empty_text",
             }
 
-        if not self.model:
+        if not self.session:
             return {
                 "available": False,
                 "predicted_label": "CLEAN",
@@ -102,7 +131,7 @@ class PhoBERTModerator:
         )
 
         raw_sentences = split_sentences(text)
-        processed_sentences = []
+        processed_sentences: List[str] = []
         for s in raw_sentences:
             prep_s = preprocess_single_sentence(s, apply_word_tokenize=True)
             if prep_s:
@@ -111,24 +140,29 @@ class PhoBERTModerator:
         if not processed_sentences:
             processed_sentences = [text]
 
-        # Batch Tokenization & Forward Pass
+        # Batch Tokenization & ONNX Inference
         inputs = self.tokenizer(
             processed_sentences,
-            return_tensors="pt",
+            return_tensors="np",
             truncation=True,
             max_length=256,
             padding=True,
-        ).to(self.device)
+        )
 
-        with torch.no_grad():
-            logits = self.model(**inputs).logits
-            probs_batch = F.softmax(logits, dim=-1)
+        ort_inputs = {
+            "input_ids": inputs["input_ids"].astype(np.int64),
+            "attention_mask": inputs["attention_mask"].astype(np.int64)
+        }
 
-        # Batch Aggregation across sentences
+        logits = self.session.run(None, ort_inputs)[0]  # Shape: (batch_size, num_classes)
+
+        # Vectorized Softmax
+        exp_l = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
+        probs_batch = exp_l / np.sum(exp_l, axis=-1, keepdims=True)
+
         num_classes = probs_batch.shape[-1]
         
         if num_classes == 4:
-            # Multi-class 4-label model
             best_label = "CLEAN"
             best_class_id = 0
             best_confidence = 0.0
@@ -139,7 +173,7 @@ class PhoBERTModerator:
 
             for i in range(probs_batch.shape[0]):
                 sent_probs = probs_batch[i]
-                sent_class_id = int(torch.argmax(sent_probs).item())
+                sent_class_id = int(np.argmax(sent_probs))
                 sent_label = self.LABEL_MAPPING.get(sent_class_id, "CLEAN")
                 sent_conf = float(sent_probs[sent_class_id])
 
@@ -204,4 +238,3 @@ def ensure_phobert_moderator_loaded() -> PhoBERTModerator:
     if not phobert_moderator.initialized:
         phobert_moderator.initialize()
     return phobert_moderator
-

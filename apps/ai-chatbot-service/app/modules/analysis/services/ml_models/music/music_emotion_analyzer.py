@@ -1,13 +1,16 @@
 """
-Music Emotion Analyzer
-- Feature extraction (librosa)
-- Inference using loaded valence/arousal models
+Music Emotion Analyzer using MERT Transformer ONNX INT8
+- Audio loading via soundfile
+- High-quality 24kHz resampling via soxr
+- 30-second center/chorus windowing
+- Inference using loaded MERT ONNX session
 """
 
+import os
 import logging
-
-import librosa
 import numpy as np
+import soundfile as sf
+import soxr
 
 from .music_loader import ensure_music_model_loaded, music_model_loader
 
@@ -15,87 +18,87 @@ logger = logging.getLogger(__name__)
 
 
 class MusicEmotionAnalyzer:
-    """AI inference service for music valence/arousal prediction."""
+    """AI inference service for music valence/arousal prediction using MERT ONNX."""
+
+    TARGET_SAMPLE_RATE = 24000
+    TARGET_DURATION_SECONDS = 30
+    TARGET_SAMPLES = TARGET_SAMPLE_RATE * TARGET_DURATION_SECONDS  # 720,000 samples
 
     @staticmethod
-    def _extract_features(file_path: str) -> list:
+    def _preprocess_audio(file_path: str) -> np.ndarray:
         """
-        Extract 19 features in exact training order:
-        1) tempo
-        2) rms
-        3) spectral_centroid
-        4) zero_crossing_rate
-        5) spectral_bandwidth
-        6) spectral_rolloff
-        7) mfcc_1..13
+        Preprocess audio file to MERT input specifications:
+        1. Read audio via soundfile
+        2. Convert multi-channel to mono
+        3. Center-clip 30 seconds at original sample rate FIRST (100x faster than resampling entire song)
+        4. Resample the 30s segment to 24,000 Hz using soxr
+        5. Guarantee exact shape: (1, 720000)
         """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+
         try:
-            y, sr = librosa.load(file_path, sr=22050, mono=True)
+            data, sr = sf.read(file_path, dtype="float32")
         except Exception as e:
-            logger.error(f"[MusicEmotionAnalyzer] librosa load failed: {e}")
+            logger.error(f"[MusicEmotionAnalyzer] soundfile read failed: {e}")
             raise ValueError(f"Invalid audio file: {e}") from e
 
-        if y is None or len(y) == 0:
+        if data is None or len(data) == 0:
             raise ValueError("Empty audio")
 
-        try:
-            features = []
+        # 1. Convert to Mono
+        if data.ndim > 1:
+            data = np.mean(data, axis=1)
 
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            tempo = float(np.squeeze(tempo))
-            features.append(tempo)
+        # 2. Center-clip 30 seconds at original SR before resampling
+        target_raw_samples = int(sr * MusicEmotionAnalyzer.TARGET_DURATION_SECONDS)
+        total_raw_samples = len(data)
 
-            rms = librosa.feature.rms(y=y)
-            features.append(float(np.mean(rms)))
+        if total_raw_samples > target_raw_samples:
+            start = (total_raw_samples - target_raw_samples) // 2
+            data = data[start:start + target_raw_samples]
 
-            spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
-            features.append(float(np.mean(spectral_centroid)))
+        # 3. Resample the 30s segment to 24kHz
+        if sr != MusicEmotionAnalyzer.TARGET_SAMPLE_RATE:
+            data = soxr.resample(data, sr, MusicEmotionAnalyzer.TARGET_SAMPLE_RATE, quality="HQ")
 
-            zcr = librosa.feature.zero_crossing_rate(y)
-            features.append(float(np.mean(zcr)))
+        # 4. Guarantee exact TARGET_SAMPLES (720,000 samples)
+        target = MusicEmotionAnalyzer.TARGET_SAMPLES
+        total_resampled = len(data)
 
-            spectral_bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr)
-            features.append(float(np.mean(spectral_bandwidth)))
+        if total_resampled > target:
+            data = data[:target]
+        elif total_resampled < target:
+            padding = target - total_resampled
+            data = np.pad(data, (0, padding), mode="constant")
 
-            spectral_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
-            features.append(float(np.mean(spectral_rolloff)))
-
-            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-            features.extend(np.mean(mfcc, axis=1).astype(float).tolist())
-
-            if len(features) != 19:
-                raise ValueError(f"Expected 19 features, got {len(features)}")
-
-            feature_array = np.array(features, dtype=np.float64)
-            if np.any(np.isnan(feature_array)) or np.any(np.isinf(feature_array)):
-                raise ValueError("Feature extraction produced NaN/Inf")
-
-            return features
-
-        except Exception as e:
-            logger.error(f"[MusicEmotionAnalyzer] feature extraction failed: {e}")
-            raise
+        # Ensure float32 shape: (1, 720000)
+        return data[np.newaxis, :].astype(np.float32)
 
     def analyze(self, file_path: str) -> dict:
         """Analyze a music file and return valence/arousal prediction."""
         ensure_music_model_loaded()
 
         if not music_model_loader.is_loaded():
-            raise RuntimeError("Music models are not loaded")
+            raise RuntimeError("MERT Music model is not loaded")
 
-        model_valence, model_arousal = music_model_loader.get_models()
-        feature_data = self._extract_features(file_path)
+        session, input_name = music_model_loader.get_session()
+        waveform = self._preprocess_audio(file_path)
 
         try:
-            valence_pred = float(model_valence.predict([feature_data])[0])
-            arousal_pred = float(model_arousal.predict([feature_data])[0])
+            outputs = session.run(None, {input_name: waveform})
+            val_arous = outputs[0][0]  # Shape: (2,)
+
+            valence = float(np.clip(val_arous[0], 0.0, 1.0))
+            arousal = float(np.clip(val_arous[1], 0.0, 1.0))
+
         except Exception as e:
-            logger.error(f"[MusicEmotionAnalyzer] prediction failed: {e}")
+            logger.error(f"[MusicEmotionAnalyzer] MERT prediction failed: {e}")
             raise RuntimeError(f"Music prediction failed: {e}") from e
 
         return {
-            "valence": valence_pred,
-            "arousal": arousal_pred,
+            "valence": round(valence, 4),
+            "arousal": round(arousal, 4),
         }
 
 
