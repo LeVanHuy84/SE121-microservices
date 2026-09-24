@@ -1,7 +1,7 @@
 # app/modules/analysis/services/ml_models/text_emotion/text_emotion_classifier.py
 
 """
-Text Emotion Classification Engine
+Text Emotion Classification Engine using PhoBERT ONNX Runtime (FP32)
 - Multi-Sentence Weighted Hybrid Pooling (Length-weighted Average + Max Pooling)
 - Soft Multi-Label Extraction (Primary + Secondary Emotions via Dynamic Thresholding)
 - PhoBERT Fine-Tuned Model Integration (huyleit/phobert-emotion-social)
@@ -11,8 +11,6 @@ Text Emotion Classification Engine
 import math
 import logging
 import numpy as np
-import torch
-import torch.nn.functional as F
 
 from .phobert_emotion_model import phobert_emotion_model
 from .text_preprocessor import preprocess_single_sentence, split_sentences
@@ -67,8 +65,10 @@ class TextEmotionClassifier:
             phobert_emotion_model.initialize()
 
         tokenizer = phobert_emotion_model.get_tokenizer()
-        model = phobert_emotion_model.get_model()
-        device = phobert_emotion_model.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        session = phobert_emotion_model.get_session()
+
+        if session is None:
+            return TextEmotionClassifier._build_fallback_result(text, "session_unavailable")
 
         # ---------------------------------------------------------------------
         # 4. Per-Sentence Inference & Hybrid Pooling
@@ -85,15 +85,21 @@ class TextEmotionClassifier:
 
                 inputs = tokenizer(
                     prep_sent,
-                    return_tensors="pt",
+                    return_tensors="np",
                     truncation=True,
                     max_length=128
-                ).to(device)
+                )
 
-                with torch.no_grad():
-                    outputs = model(**inputs)
-                    logits = outputs.logits
-                    probs = F.softmax(logits, dim=1)[0].cpu().numpy()
+                ort_inputs = {
+                    "input_ids": inputs["input_ids"].astype(np.int64),
+                    "attention_mask": inputs["attention_mask"].astype(np.int64)
+                }
+
+                logits = session.run(None, ort_inputs)[0][0]  # Shape: (7,)
+
+                # Softmax in NumPy
+                exp_l = np.exp(logits - np.max(logits))
+                probs = exp_l / np.sum(exp_l)
 
                 sentence_probs.append(probs)
 
@@ -112,8 +118,8 @@ class TextEmotionClassifier:
                 })
 
         except Exception as e:
-            logger.error(f"PhoBERT inference runtime error: {e}")
-            raise RetryableException(f"PhoBERT inference failed: {e}")
+            logger.error(f"PhoBERT ONNX inference runtime error: {e}")
+            raise RetryableException(f"PhoBERT ONNX inference failed: {e}")
 
         if not sentence_probs:
             return TextEmotionClassifier._build_fallback_result(text, "preprocessing_failed")

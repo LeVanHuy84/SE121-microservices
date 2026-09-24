@@ -1,3 +1,4 @@
+import { IsNotEmpty, IsString } from "class-validator";
 import {
   Body,
   Controller,
@@ -22,6 +23,12 @@ import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 import { RequireRole } from "src/common/decorators/require-role.decorator";
 import { MusicAnalyzeService } from "./music-analyze.service";
 
+export class AnalyzeMusicDTO {
+  @IsString()
+  @IsNotEmpty()
+  url: string;
+}
+
 @Controller("musics")
 export class MusicController {
   constructor(
@@ -40,8 +47,8 @@ export class MusicController {
 
   @Post("analyze")
   @RequireRole(SystemRole.ADMIN)
-  analyzeMusic(@Body("url") url: string) {
-    return this.musicAnalyzeService.analyzeMusic(url);
+  analyzeMusic(@Body() body: AnalyzeMusicDTO) {
+    return this.musicAnalyzeService.analyzeMusic(body?.url);
   }
 
   @Post()

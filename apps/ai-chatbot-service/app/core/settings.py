@@ -35,6 +35,18 @@ class Settings:
         self.PHOBERT_MODERATION_MODEL_PATH: str = os.getenv(
             "PHOBERT_MODERATION_MODEL_PATH", "huyleit/phobert-vi-moderation-v1.1"
         ).strip()
+        self.PHOBERT_EMOTION_ONNX_PATH: str = os.getenv(
+            "PHOBERT_EMOTION_ONNX_PATH", ""
+        ).strip()
+        self.PHOBERT_MODERATION_ONNX_PATH: str = os.getenv(
+            "PHOBERT_MODERATION_ONNX_PATH", ""
+        ).strip()
+        self.MERT_MUSIC_MODEL_PATH: str = os.getenv(
+            "MERT_MUSIC_MODEL_PATH", "huyleit/mert-v1-95m-music-emotion-int8"
+        ).strip()
+        self.MERT_MUSIC_ONNX_PATH: str = os.getenv(
+            "MERT_MUSIC_ONNX_PATH", ""
+        ).strip()
 
         self.CHATBOT_MEMORY_RECENT_TURNS: int = int(
             os.getenv("CHATBOT_MEMORY_RECENT_TURNS", 8)
