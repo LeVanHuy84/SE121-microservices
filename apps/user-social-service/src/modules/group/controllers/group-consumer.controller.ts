@@ -4,6 +4,7 @@ import {
   Payload,
   Ctx,
   KafkaContext,
+  Transport,
 } from "@nestjs/microservices";
 import { EventTopic, PostGroupEventType } from "@repo/dtos";
 import type { PostGroupEvent } from "@repo/dtos";
@@ -19,7 +20,7 @@ export class ConsumerController {
     private readonly consumerHelper: KafkaConsumerHelper,
   ) {}
 
-  @EventPattern(EventTopic.GROUP)
+  @EventPattern(EventTopic.GROUP, Transport.KAFKA)
   async handlePostEvents(
     @Payload() message: PostGroupEvent,
     @Ctx() context: KafkaContext,
