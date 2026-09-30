@@ -78,7 +78,7 @@ class AnalysisFlowService:
         logger.info(f"[AnalysisFlow] Routing to Unified VLM Pipeline for Multimodal content ({len(image_inputs)} images)...")
         
         try:
-            vlm_res = vlm_analyzer.analyze_post(text, image_inputs)
+            vlm_res = await vlm_analyzer.analyze_post(text, image_inputs)
         except Exception as e:
             logger.error(f"[AnalysisFlow] VLM execution error: {e}. Fallback to text moderation.")
             return await self._analyze_text_only(text, target_type, is_fallback=True)
@@ -194,7 +194,7 @@ class AnalysisFlowService:
             })
 
         try:
-            batch_vlm_res = vlm_analyzer.analyze_batch_posts(vlm_posts)
+            batch_vlm_res = await vlm_analyzer.analyze_batch_posts(vlm_posts)
         except Exception as e:
             logger.error(f"[AnalysisFlow] Batch VLM execution error: {e}. Falling back to item-by-item processing.")
             results = {}

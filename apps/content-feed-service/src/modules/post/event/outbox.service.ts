@@ -60,11 +60,15 @@ export class OutboxService {
     targetType: TargetType,
     targetId: string,
     newContent: string,
+    userId?: string,
+    imageUrls: string[] = [],
   ) {
     const payload: UpdatedAnalysisEventPayload = {
       targetId,
       targetType,
+      userId,
       content: newContent,
+      imageUrls,
     };
 
     const outbox = manager.create(OutboxEvent, {
