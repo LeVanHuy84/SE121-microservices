@@ -74,9 +74,4 @@ class ViolationCategoryEnum(str, Enum):
     PROFANITY_VENTING = "PROFANITY_VENTING"
     ILLEGAL_PORN = "ILLEGAL_PORN"
     TEXT = "TEXT"
-
-class SeverityEnum(str, Enum):
-    NONE = "none"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+

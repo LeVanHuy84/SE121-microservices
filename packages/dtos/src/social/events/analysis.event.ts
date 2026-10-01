@@ -16,7 +16,9 @@ export class CreatedAnalysisEventPayload {
 export class UpdatedAnalysisEventPayload {
   targetId: string;
   targetType: TargetType;
+  userId?: string;
   content: string;
+  imageUrls?: string[];
 }
 
 export class ModerationEventPayload {

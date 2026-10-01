@@ -6,7 +6,6 @@ import { AppModule } from "./app.module";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { ExceptionsFilter } from "@repo/common";
 import { CommandService } from "./modules/user/command/command.service";
-import { CommandModule } from "./modules/user/command/command.module";
 import { Kafka } from "kafkajs";
 import { EventTopic } from "@repo/dtos";
 
@@ -50,55 +49,42 @@ async function ensureKafkaTopics() {
 async function bootstrap() {
   await ensureKafkaTopics();
 
-  const tcpApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        host: "0.0.0.0",
-        port: process.env.PORT ? parseInt(process.env.PORT) : 4001,
-      },
+  const app = await NestFactory.create(AppModule);
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: "0.0.0.0",
+      port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4001,
     },
-  );
-
-  const kafkaApp = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.KAFKA,
-      options: {
-        client: {
-          brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
-          clientId: process.env.KAFKA_CLIENT_ID || "user-service",
-          retry: { retries: 3 },
-        },
-        consumer: {
-          groupId: process.env.KAFKA_GROUP_ID || "user-service-group",
-          allowAutoTopicCreation: true,
-        },
-        subscribe: { fromBeginning: false },
-      },
-    },
-  );
-
-  tcpApp.useGlobalFilters(new ExceptionsFilter());
-  kafkaApp.useGlobalFilters(new ExceptionsFilter());
-
-  // Start TCP (always required)
-  await tcpApp.listen();
-  console.log("User service TCP transport started.");
-
-  // Start Kafka consumer independently — don't crash if Kafka unavailable
-  kafkaApp.listen().catch((err) => {
-    console.warn("[Kafka] Consumer failed to start:", err?.message ?? err);
   });
 
-  // Use a dedicated module for startup commands so closing this context
-  // does not tear down shared infra providers from AppModule (e.g. Redis).
-  const commandApp = await NestFactory.createApplicationContext(CommandModule);
-  const commandService = commandApp.get(CommandService);
-  await commandService.run();
-  await commandApp.close();
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.KAFKA,
+    options: {
+      client: {
+        brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+        clientId: process.env.KAFKA_CLIENT_ID || "user-service",
+        retry: { retries: 3 },
+      },
+      consumer: {
+        groupId: process.env.KAFKA_GROUP_ID || "user-service-group",
+        allowAutoTopicCreation: true,
+      },
+      subscribe: { fromBeginning: false },
+    },
+  });
 
-  console.log("User service is running on port 4001");
+  app.useGlobalFilters(new ExceptionsFilter());
+
+  await app.startAllMicroservices();
+  await app.init();
+
+  const commandService = app.get(CommandService);
+  await commandService.run();
+
+  console.log(
+    `User social service is running (TCP port: ${process.env.PORT || "4001"})`,
+  );
 }
 bootstrap();

@@ -86,10 +86,14 @@ class KafkaConsumerHelper:
         all_eids = [eid for eid in msg_map.keys() if eid]
         unprocessed_eids = await self.idempotency_repo.filter_unprocessed_event_ids(all_eids)
 
-        # 3. Process each valid item individually
+        # 3. Process valid items concurrently with Retry and DLQ protection
+        tasks = []
         for eid, msg in valid_messages:
             if eid and eid not in unprocessed_eids:
                 logger.info(f"[ConsumerHelper Batch] Skipping duplicate/already processed event: {eid}")
                 continue
 
-            await self.handle_single(message=msg, handler=handler, topic=topic)
+            tasks.append(self.handle_single(message=msg, handler=handler, topic=topic))
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)

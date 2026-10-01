@@ -35,6 +35,9 @@ def build_violations(moderation: dict) -> List[Dict]:
 
 
 def build_display_message(is_violation: bool, violations: List[Dict], action: str = "ALLOW") -> str:
+    if action == "ALLOW" and not is_violation:
+        return ""
+
     reasons = [v["reason"] for v in violations if "reason" in v]
     reason_str = (": " + ", ".join(reasons)) if reasons else ""
 
@@ -47,4 +50,7 @@ def build_display_message(is_violation: bool, violations: List[Dict], action: st
     if action == "ALLOW_WITH_SUPPORT":
         return "Nội dung của bạn đã được đăng. Nếu bạn đang cảm thấy căng thẳng hoặc cần chia sẻ, chúng tôi luôn ở đây để hỗ trợ bạn."
 
-    return f"Nội dung của bạn có dấu hiệu vi phạm quy chuẩn cộng đồng{reason_str}."
+    if is_violation or violations:
+        return f"Nội dung của bạn có dấu hiệu vi phạm quy chuẩn cộng đồng{reason_str}."
+
+    return ""

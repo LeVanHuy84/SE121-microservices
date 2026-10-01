@@ -185,7 +185,7 @@ export class KafkaConsumerController {
 
         if (payload.targetType === TargetType.POST) {
           this.logger.log(
-            `Handling emotion result for post: ${payload.targetId}`,
+            `Handling analysis result for post: ${payload.targetId}`,
           );
           this.postConsumer.handleEmotionResult(payload);
         }

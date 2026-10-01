@@ -1,5 +1,5 @@
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { MessagePattern, Payload, Transport } from "@nestjs/microservices";
 import { CursorPaginationDTO } from "@repo/dtos";
 import { FriendshipService } from "./friendship.service";
 
@@ -193,7 +193,7 @@ export class FriendshipController {
     return this.friendshipService.unblockUser(data.userId, data.targetId);
   }
 
-  @MessagePattern({ cmd: "get_friend_ids" })
+  @MessagePattern({ cmd: "get_friend_ids" }, Transport.TCP)
   async getFriendIds(@Payload() payload: { userId: string; limit: number }) {
     return this.friendshipService.getFriendIds(payload.userId, payload.limit);
   }

@@ -41,6 +41,9 @@ class Settings:
         self.PHOBERT_MODERATION_ONNX_PATH: str = os.getenv(
             "PHOBERT_MODERATION_ONNX_PATH", ""
         ).strip()
+        self.MODERATION_HARD_BLOCK_THRESHOLD: float = float(
+            os.getenv("MODERATION_HARD_BLOCK_THRESHOLD", 0.8)
+        )
         self.MERT_MUSIC_MODEL_PATH: str = os.getenv(
             "MERT_MUSIC_MODEL_PATH", "huyleit/mert-v1-95m-music-emotion-int8"
         ).strip()
