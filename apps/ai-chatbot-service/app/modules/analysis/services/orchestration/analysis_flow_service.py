@@ -94,25 +94,21 @@ class AnalysisFlowService:
                 should_block = False  # Do not block self-harm/emotional crisis posts
                 label = "EMOTIONAL_CRISIS"
                 label_code = 3
-                max_severity = "none"
                 mental_health_support = True
             elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
                 action = "HARD_BLOCK"
                 label = "ILLEGAL_PORN"
                 label_code = 4
-                max_severity = "high"
                 mental_health_support = False
             else:
                 action = "HARD_BLOCK"
                 label = "HATE_SPEECH"
                 label_code = 2
-                max_severity = "high"
                 mental_health_support = False
         else:
             action = "ALLOW"
             label = "CLEAN"
             label_code = 0
-            max_severity = "none"
             mental_health_support = False
 
         confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
@@ -122,7 +118,6 @@ class AnalysisFlowService:
             "action": action,
             "label": label,
             "labelCode": label_code,
-            "maxSeverity": max_severity,
             "confidence": confidence,
             "mentalHealthSupport": mental_health_support,
             "reason": vlm_mod.get("reason", ""),
@@ -228,25 +223,21 @@ class AnalysisFlowService:
                     should_block = False
                     label = "EMOTIONAL_CRISIS"
                     label_code = 3
-                    max_severity = "none"
                     mental_health_support = True
                 elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
                     action = "HARD_BLOCK"
                     label = "ILLEGAL_PORN"
                     label_code = 4
-                    max_severity = "high"
                     mental_health_support = False
                 else:
                     action = "HARD_BLOCK"
                     label = "HATE_SPEECH"
                     label_code = 2
-                    max_severity = "high"
                     mental_health_support = False
             else:
                 action = "ALLOW"
                 label = "CLEAN"
                 label_code = 0
-                max_severity = "none"
                 mental_health_support = False
 
             confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
@@ -256,7 +247,6 @@ class AnalysisFlowService:
                 "action": action,
                 "label": label,
                 "labelCode": label_code,
-                "maxSeverity": max_severity,
                 "confidence": confidence,
                 "mentalHealthSupport": mental_health_support,
                 "reason": vlm_mod.get("reason", ""),

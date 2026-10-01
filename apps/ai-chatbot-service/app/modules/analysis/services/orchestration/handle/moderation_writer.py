@@ -3,7 +3,7 @@ from typing import Dict
 
 from app.modules.analysis.repositories.outbox import ModerationRepository
 from app.modules.analysis.schemas import ModerationResult
-from app.modules.analysis.enums import TargetTypeEnum, SeverityEnum
+from app.modules.analysis.enums import TargetTypeEnum
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -32,9 +32,7 @@ class ModerationWriter:
             action=moderation_data.get("action", "ALLOW"),
             label=moderation_data.get("label", "CLEAN"),
             labelCode=int(moderation_data.get("labelCode", 0)),
-            violationScore=moderation_data.get("violationScore", 0.0),
             confidence=moderation_data.get("confidence", 1.0),
-            maxSeverity=moderation_data.get("maxSeverity", SeverityEnum.NONE),
             mentalHealthSupport=moderation_data.get("mentalHealthSupport", False),
             reason=moderation_data.get("reason", ""),
             flaggedCategories=moderation_data.get("flaggedCategories", []),
@@ -77,15 +75,7 @@ class ModerationWriter:
             "action": moderation_data.get("action", existing.get("action", "ALLOW")),
             "label": moderation_data.get("label", existing.get("label", "CLEAN")),
             "labelCode": int(moderation_data.get("labelCode", existing.get("labelCode", 0))),
-            "violationScore": moderation_data.get(
-                "violationScore",
-                existing.get("violationScore"),
-            ),
             "confidence": moderation_data.get("confidence", existing.get("confidence", 1.0)),
-            "maxSeverity": moderation_data.get(
-                "maxSeverity",
-                existing.get("maxSeverity"),
-            ),
             "mentalHealthSupport": moderation_data.get("mentalHealthSupport", existing.get("mentalHealthSupport", False)),
             "reason": moderation_data.get("reason", existing.get("reason", "")),
             "flaggedCategories": moderation_data.get("flaggedCategories", existing.get("flaggedCategories", [])),

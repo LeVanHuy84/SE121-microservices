@@ -24,7 +24,7 @@ class ModerationAggregator:
         self.hard_block_threshold = (
             hard_block_threshold
             if hard_block_threshold is not None
-            else getattr(settings, "MODERATION_HARD_BLOCK_THRESHOLD", 0.8)
+            else getattr(settings, "MODERATION_HARD_BLOCK_THRESHOLD", 0.75)
         )
 
     def moderate(self, text: str) -> Dict[str, Any]:
