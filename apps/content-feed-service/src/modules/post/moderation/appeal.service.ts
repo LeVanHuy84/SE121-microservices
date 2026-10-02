@@ -141,7 +141,8 @@ export class ModerationAppealService {
 
         "moderation.target_id AS target_id",
         "moderation.target_type AS target_type",
-        "moderation.max_severity AS max_severity",
+        "moderation.action AS action",
+        "moderation.label AS label",
         "moderation.confidence AS confidence",
         "moderation.display_message AS display_message",
         "moderation.final_decision AS final_decision",

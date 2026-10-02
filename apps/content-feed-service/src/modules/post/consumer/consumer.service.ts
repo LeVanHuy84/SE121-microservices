@@ -12,6 +12,7 @@ import {
   Severity,
   TargetType,
 } from "@repo/dtos";
+
 import { Comment } from "src/entities/comment.entity";
 import { ContentModeration } from "src/entities/content-moderation.entity";
 import { OutboxEvent } from "src/entities/outbox.entity";
@@ -86,7 +87,7 @@ export class ConsumerService {
     // 1. Process embedded moderation if present
     let isHardBlocked = false;
     if (payload.moderation) {
-      isHardBlocked = await this.handleModerationRejected(
+      isHardBlocked = await this.handleModerationResult(
         payload.moderation,
         manager,
       );
@@ -136,7 +137,7 @@ export class ConsumerService {
     }
   }
 
-  async handleModerationRejected(
+  async handleModerationResult(
     payload: ModerationEventPayload,
     manager?: EntityManager,
   ): Promise<boolean> {
@@ -195,8 +196,11 @@ export class ConsumerService {
 
     moderation.action = action;
     moderation.label = this.normalizeModerationLabel(payload.label);
-    moderation.isViolation = payload.isViolation ?? (action === ModerationAction.HARD_BLOCK);
-    moderation.mentalHealthSupport = payload.mentalHealthSupport ?? (action === ModerationAction.ALLOW_WITH_SUPPORT);
+    moderation.isViolation =
+      payload.isViolation ?? (action === ModerationAction.HARD_BLOCK);
+    moderation.mentalHealthSupport =
+      payload.mentalHealthSupport ??
+      (action === ModerationAction.ALLOW_WITH_SUPPORT);
 
     moderation.violations = Array.isArray(payload.violations)
       ? payload.violations.map((v) => ({
@@ -212,11 +216,16 @@ export class ConsumerService {
     await txManager.save(moderation);
 
     // =====================================================
-    // 2. PROCESS BY ACTION (HARD_BLOCK vs WARNING vs SUPPORT)
+    // 2. PROCESS BY ACTION (HARD_BLOCK vs WARNING vs SUPPORT vs ALLOW)
     // =====================================================
 
     if (action === ModerationAction.HARD_BLOCK) {
       entity.isDeleted = true;
+      if (entity instanceof Post) {
+        entity.moderationAction = ModerationAction.HARD_BLOCK;
+        entity.hasWarning = false;
+        entity.warningReason = payload.displayMessage;
+      }
       await txManager.save(entity);
 
       if (targetType === TargetType.POST) {
@@ -236,6 +245,9 @@ export class ConsumerService {
         entity.warningReason = payload.displayMessage;
       } else if (action === ModerationAction.ALLOW_WITH_SUPPORT) {
         entity.needsMentalSupport = true;
+        entity.hasWarning = false;
+      } else {
+        entity.hasWarning = false;
       }
       await txManager.save(entity);
     }
@@ -281,5 +293,13 @@ export class ConsumerService {
     }
 
     return action === ModerationAction.HARD_BLOCK;
+  }
+
+  // Backwards compatibility alias
+  async handleModerationRejected(
+    payload: ModerationEventPayload,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    return this.handleModerationResult(payload, manager);
   }
 }

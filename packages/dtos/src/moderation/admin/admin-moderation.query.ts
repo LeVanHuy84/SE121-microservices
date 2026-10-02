@@ -1,17 +1,24 @@
-import { IsOptional } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 import { PaginationDTO } from '../../pagination';
-import { Severity, TargetType } from '../../social';
-import { FinalDecision } from '../enums';
+import { ModerationAction, Severity, TargetType } from '../../social';
+import { FinalDecisionFilter } from '../enums';
 
 export class AdminModerationQuery extends PaginationDTO {
   @IsOptional()
+  @IsEnum(TargetType)
   targetType?: TargetType;
 
   @IsOptional()
+  @IsEnum(ModerationAction)
+  action?: ModerationAction;
+
+  @IsOptional()
+  @IsEnum(Severity)
   maxSeverity?: Severity;
 
   @IsOptional()
-  finalDecision?: FinalDecision;
+  @IsEnum(FinalDecisionFilter)
+  finalDecision?: FinalDecisionFilter;
 
   @IsOptional()
   fromDate?: Date;
@@ -19,3 +26,4 @@ export class AdminModerationQuery extends PaginationDTO {
   @IsOptional()
   toDate?: Date;
 }
+
