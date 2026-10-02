@@ -3,7 +3,9 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import {
   AnalysisResultEventPayload,
+  Emotion,
   InteractionEventPayload,
+  ModerationAction,
   RiskHintLevel,
   RootType,
   TargetType,
@@ -44,11 +46,58 @@ export class ConsumerService {
   ) {}
 
   async handleCreated(payload: AnalysisResultEventPayload) {
+    if (payload.targetType !== TargetType.POST) return;
+
+    if (payload.moderation?.action === ModerationAction.HARD_BLOCK) {
+      await this.deletePostFromFeed(payload.targetId);
+      return;
+    }
+
     await this.upsertEmotionFeature(payload);
   }
 
   async handleUpdated(payload: AnalysisResultEventPayload) {
+    if (payload.targetType !== TargetType.POST) return;
+
+    if (payload.moderation?.action === ModerationAction.HARD_BLOCK) {
+      await this.deletePostFromFeed(payload.targetId);
+      return;
+    }
+
     await this.upsertEmotionFeature(payload);
+  }
+
+  private async deletePostFromFeed(postId: string): Promise<void> {
+    try {
+      // 1. Xóa trong Mongo (PostSnapshot, FeedItem, ShareSnapshot)
+      await Promise.all([
+        this.postModel.deleteMany({ postId }),
+        this.feedItemModel.deleteMany({ postId }),
+        this.shareModel.deleteMany({ postId }),
+      ]);
+
+      // 2. Xóa trong Redis Trending & Caching
+      const pipeline = this.redis.pipeline();
+      pipeline.zrem("post:score", postId);
+      pipeline.zrem("post:fresh", postId);
+      pipeline.del(`post:meta:${postId}`);
+      pipeline.del(`post:rank:${postId}`);
+      pipeline.del(`post:engagement:${postId}`);
+      pipeline.del(`emotion:post:${postId}`);
+      pipeline.del(`share:post:${postId}`);
+
+      for (const emotion of Object.values(Emotion)) {
+        pipeline.zrem(`post:emotion:${emotion.toLowerCase()}:score`, postId);
+        pipeline.zrem(`post:score:emotion:${emotion.toLowerCase()}`, postId);
+      }
+
+      await pipeline.exec();
+      this.logger.log(
+        `Deleted post ${postId} from personal feed and trending redis due to HARD_BLOCK moderation`,
+      );
+    } catch (err) {
+      this.logger.error(`Error deleting post ${postId} from feed`, err);
+    }
   }
 
   private async upsertEmotionFeature(

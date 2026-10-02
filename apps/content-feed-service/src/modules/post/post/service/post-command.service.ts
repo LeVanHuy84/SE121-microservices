@@ -178,11 +178,19 @@ export class PostCommandService {
 
       await manager.save(outbox);
       if (dto.content) {
+        const imageUrls = post.media?.length
+          ? post.media
+              .filter((item) => item.type === MediaType.IMAGE)
+              .map((item) => item.url)
+          : [];
+
         await this.outboxService.updatedAnalysisEvent(
           manager,
           TargetType.POST,
           postId,
           dto.content,
+          post.userId,
+          imageUrls,
         );
       }
 

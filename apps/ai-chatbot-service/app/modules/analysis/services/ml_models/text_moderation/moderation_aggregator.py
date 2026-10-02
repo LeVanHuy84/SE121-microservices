@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from app.core.settings import settings
 
 
 class ModerationAggregator:
@@ -10,14 +11,21 @@ class ModerationAggregator:
     Taxonomy & Policy Matrix:
       - Label 0: CLEAN -> Action: ALLOW (isViolation: False)
       - Label 1: PROFANITY_VENTING -> Action: ALLOW_WITH_WARNING (isViolation: False, maxSeverity: low)
-      - Label 2: HATE_SPEECH -> Action: HARD_BLOCK (isViolation: True, maxSeverity: high)
+      - Label 2: HATE_SPEECH:
+          * confidence >= hard_block_threshold (default 0.80): Action: HARD_BLOCK (isViolation: True, maxSeverity: high)
+          * confidence < hard_block_threshold: Action: ALLOW_WITH_WARNING (isViolation: False, maxSeverity: low)
       - Label 3: EMOTIONAL_CRISIS -> Action: ALLOW_WITH_SUPPORT (isViolation: False, maxSeverity: none, mentalHealthSupport: True)
       - Label 4: ILLEGAL_PORN (Regex) -> Action: HARD_BLOCK (isViolation: True, maxSeverity: high)
     """
 
-    def __init__(self, phobert, keyword):
+    def __init__(self, phobert, keyword, hard_block_threshold: float = None):
         self.phobert = phobert
         self.keyword = keyword
+        self.hard_block_threshold = (
+            hard_block_threshold
+            if hard_block_threshold is not None
+            else getattr(settings, "MODERATION_HARD_BLOCK_THRESHOLD", 0.75)
+        )
 
     def moderate(self, text: str) -> Dict[str, Any]:
         # ======================================================
@@ -55,11 +63,18 @@ class ModerationAggregator:
 
             # Map Label -> Policy Action
             if pred_label == "HATE_SPEECH":
-                is_violation = True
-                action = "HARD_BLOCK"
-                mental_health_support = False
-                reason = "Phát hiện ngôn từ thù ghét hoặc công kích cá nhân."
-                flagged_cats = ["HATE_SPEECH"]
+                if confidence >= self.hard_block_threshold:
+                    is_violation = True
+                    action = "HARD_BLOCK"
+                    mental_health_support = False
+                    reason = "Phát hiện ngôn từ thù ghét hoặc công kích cá nhân mức độ nghiêm trọng."
+                    flagged_cats = ["HATE_SPEECH"]
+                else:
+                    is_violation = False
+                    action = "ALLOW_WITH_WARNING"
+                    mental_health_support = False
+                    reason = "Phát hiện ngôn từ có dấu hiệu công kích hoặc gây tranh cãi."
+                    flagged_cats = ["HATE_SPEECH"]
             elif pred_label == "PROFANITY_VENTING":
                 is_violation = False
                 action = "ALLOW_WITH_WARNING"

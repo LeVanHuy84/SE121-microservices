@@ -145,7 +145,7 @@ async def test_music_from_url(req: MusicUrlRequest):
 @image_router.post("/analyze_images")
 async def analyze_images(req: ImagesRequest):
     urls = [str(url) for url in req.images]
-    results = vlm_analyzer.analyze_post(text_content="", image_inputs=urls)
+    results = await vlm_analyzer.analyze_post(text_content="", image_inputs=urls)
     return {"success": True, "data": results}
 
 # moderation
@@ -160,7 +160,7 @@ async def check_text(request: TextModerationRequest):
 
 @moderation_router.post("/images/check", response_model=List[ImageModerationResponse])
 async def check_images(request: ImageModerationRequest):
-    results = vlm_analyzer.analyze_post(text_content="", image_inputs=request.urls)
+    results = await vlm_analyzer.analyze_post(text_content="", image_inputs=request.urls)
     mod = results.get("contentModeration", {})
     is_violation = bool(mod.get("is_flagged", False))
     score = float(mod.get("confidence", 0.95)) if is_violation else 0.0

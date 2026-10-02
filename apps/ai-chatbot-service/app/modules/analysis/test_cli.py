@@ -78,9 +78,10 @@ async def main():
             print("🛡️ [KIỂM DUYỆT AN TOÀN - MODERATION]")
             print(f"  - Kết luận:               {'🚫 VI PHẠM (CHẶN BÀI)' if should_block else '✅ AN TOÀN'}")
             print(f"  - Nguồn xử lý (Pipeline): {moderation.get('pipelineSource', 'PHOBERT_TEXT')}")
+            print(f"  - Hành động (Action):     {moderation.get('action')}")
+            print(f"  - Nhãn (Label):           {moderation.get('label')}")
             print(f"  - Vi phạm (isViolation):  {moderation.get('isViolation')}")
-            print(f"  - Điểm vi phạm:           {moderation.get('violationScore')}")
-            print(f"  - Mức độ nghiêm trọng:    {moderation.get('maxSeverity')}")
+            print(f"  - Hỗ trợ tâm lý:          {moderation.get('mentalHealthSupport')}")
             if moderation.get('flaggedCategories'):
                 print(f"  - Danh mục vi phạm:       {moderation.get('flaggedCategories')}")
             if moderation.get('reason'):

@@ -214,14 +214,18 @@ export class CommentService {
       }
 
       // 3️⃣ Cập nhật nội dung
-      comment.content = dto.content;
-      await commentRepo.save(comment);
+      const imageUrls =
+        comment.media && comment.media.type === MediaType.IMAGE
+          ? [comment.media.url]
+          : [];
 
       await this.outboxService.updatedAnalysisEvent(
         manager,
         TargetType.COMMENT,
         commentId,
         dto.content,
+        comment.userId,
+        imageUrls,
       );
 
       // 4️⃣ Xoá cache (sau transaction)

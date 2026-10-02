@@ -114,18 +114,35 @@ class HandleEventService:
     async def handle_updated(self, event: dict) -> Dict[str, Any]:
 
         new_text = event.get("content", "")
-        user_id = event["userId"]
+        image_urls = event.get("imageUrls")
+        user_id = event.get("userId")
         target_id = event["targetId"]
         target_type = TargetTypeEnum(event["targetType"])
 
+        # Fallback to DB if imageUrls or userId is not provided in event
+        if image_urls is None or not user_id:
+            try:
+                existing_record = await self.emotion_writer.emotion_aggregate_repo.get_by_target(
+                    targetId=target_id,
+                    targetType=target_type.value,
+                )
+                if existing_record:
+                    if image_urls is None:
+                        image_urls = existing_record.get("imageUrls", [])
+                    if not user_id:
+                        user_id = existing_record.get("userId", "")
+            except Exception as ex:
+                logger.warning(f"[HandleEvent] Fallback to DB for target {target_id} failed: {ex}")
+
+        if image_urls is None:
+            image_urls = []
+
         try:
-            result = await self.analysis_flow_service.analyze_text_only(
+            result = await self.analysis_flow_service.analyze_content(
                 text=new_text,
-                target_id=target_id,
+                image_urls=image_urls,
                 target_type=target_type,
             )
-
-            print(result)
 
             moderation_result = result["moderation"]
             emotion_result = result.get("emotion")
@@ -172,7 +189,7 @@ class HandleEventService:
                 action=EventTypeEnum.ANALYSIS_UPDATED,
                 reason=str(e),
                 content=new_text,
-                image_urls=[],
+                image_urls=image_urls,
             )
 
             raise
