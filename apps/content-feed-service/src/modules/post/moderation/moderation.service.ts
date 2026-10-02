@@ -131,18 +131,10 @@ export class ModerationService {
         };
       }
 
-      return {
-        ...r,
-        targetPreview: preview,
-      };
+      return this.mapToContentModerationDTO(r, preview);
     });
 
-    return new PageResponse(
-      plainToInstance(ContentModerationDTO, items),
-      total,
-      page,
-      limit,
-    );
+    return new PageResponse(items, total, page, limit);
   }
 
   async getModerationRecordDetail(
@@ -190,7 +182,7 @@ export class ModerationService {
     }
 
     return {
-      moderation: plainToInstance(ContentModerationDTO, moderation),
+      moderation: this.mapToContentModerationDTO(moderation),
       target,
       appeals: plainToInstance(ModerationAppealResponseDTO, moderation.appeals),
     };
@@ -202,7 +194,6 @@ export class ModerationService {
     const {
       targetType,
       action,
-      maxSeverity,
       finalDecision,
       fromDate,
       toDate,
@@ -218,10 +209,6 @@ export class ModerationService {
 
     if (action) {
       qb.andWhere("cm.action = :action", { action });
-    }
-
-    if (maxSeverity) {
-      qb.andWhere("cm.max_severity = :maxSeverity", { maxSeverity });
     }
 
     if (finalDecision) {
@@ -330,18 +317,10 @@ export class ModerationService {
         };
       }
 
-      return {
-        ...r,
-        targetPreview: preview,
-      };
+      return this.mapToContentModerationDTO(r, preview);
     });
 
-    return new PageResponse(
-      plainToInstance(ContentModerationDTO, items),
-      total,
-      page,
-      limit,
-    );
+    return new PageResponse(items, total, page, limit);
   }
 
   async applyFinalDecision(
@@ -419,7 +398,7 @@ export class ModerationService {
       );
     }
 
-    return plainToInstance(ContentModerationDTO, updatedModeration);
+    return this.mapToContentModerationDTO(updatedModeration!);
   }
 
   async getTargetContent(targetId: string, targetType: TargetType) {
@@ -441,6 +420,28 @@ export class ModerationService {
     }
 
     return null;
+  }
+
+  private mapToContentModerationDTO(
+    r: ContentModeration,
+    preview?: ContentModerationDTO["targetPreview"],
+  ): ContentModerationDTO {
+    return {
+      id: r.id,
+      userId: r.userId,
+      targetId: r.targetId,
+      targetType: r.targetType,
+      isViolation: r.isViolation,
+      action: r.action,
+      label: r.label,
+      mentalHealthSupport: r.mentalHealthSupport,
+      violations: r.violations || [],
+      confidence: r.confidence,
+      displayMessage: r.displayMessage,
+      finalDecision: r.finalDecision,
+      createdAt: r.createdAt,
+      targetPreview: preview,
+    };
   }
 }
 

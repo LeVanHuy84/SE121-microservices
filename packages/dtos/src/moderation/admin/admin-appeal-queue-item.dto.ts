@@ -24,7 +24,9 @@ export class AdminAppealQueueItemDTO {
   moderation: {
     targetType: TargetType;
 
-    maxSeverity: Severity;
+    action?: string;
+
+    label?: string;
 
     confidence: number;
 

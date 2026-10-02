@@ -20,7 +20,6 @@ export class ContentModerationDTO {
     category: string;
     reason: string;
   }[];
-  maxSeverity: Severity | string;
   confidence: number;
   displayMessage: string;
   finalDecision?: string;

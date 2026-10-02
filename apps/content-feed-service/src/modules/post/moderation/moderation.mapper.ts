@@ -76,7 +76,9 @@ export class ModerationAppealMapper {
       moderation: {
         targetType: row.target_type,
 
-        maxSeverity: row.max_severity,
+        action: row.action,
+
+        label: row.label,
 
         confidence: Number(row.confidence),
 
