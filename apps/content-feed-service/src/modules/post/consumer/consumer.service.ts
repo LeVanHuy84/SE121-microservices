@@ -8,8 +8,10 @@ import {
   ModerationAction,
   ModerationEventPayload,
   PostEventType,
+  Severity,
   TargetType,
 } from "@repo/dtos";
+
 import { Comment } from "src/entities/comment.entity";
 import { ContentModeration } from "src/entities/content-moderation.entity";
 import { OutboxEvent } from "src/entities/outbox.entity";
@@ -57,7 +59,7 @@ export class ConsumerService {
 
     // Process embedded moderation if present
     if (payload.moderation) {
-      await this.handleModerationRejected(payload.moderation, manager);
+      await this.handleModerationResult(payload.moderation, manager);
     }
 
     // Xử lý sự kiện CREATED ở đây
@@ -88,13 +90,13 @@ export class ConsumerService {
     }
   }
 
-  async handleModerationRejected(
+  async handleModerationResult(
     payload: ModerationEventPayload,
     manager?: EntityManager,
   ): Promise<void> {
     const txManager = manager ?? this.dataSource.manager;
 
-    const action = payload.action ?? ModerationAction.HARD_BLOCK;
+    const action = payload.action ?? ModerationAction.ALLOW;
     const notificationMessage =
       payload.displayMessage ||
       "Nội dung của bạn đã được kiểm duyệt bởi hệ thống.";
@@ -144,7 +146,8 @@ export class ConsumerService {
 
     moderation.action = action;
     moderation.label = payload.label;
-    moderation.isViolation = payload.isViolation ?? true;
+    moderation.isViolation =
+      payload.isViolation ?? (action === ModerationAction.HARD_BLOCK);
     moderation.mentalHealthSupport = payload.mentalHealthSupport ?? false;
 
     moderation.violations = Array.isArray(payload.violations)
@@ -154,18 +157,23 @@ export class ConsumerService {
         }))
       : [];
 
-    moderation.maxSeverity = payload.maxSeverity as any;
+    moderation.maxSeverity = (payload.maxSeverity as Severity) || Severity.NONE;
     moderation.confidence = payload.confidence ?? 0;
     moderation.displayMessage = payload.displayMessage ?? "";
 
     await txManager.save(moderation);
 
     // =====================================================
-    // 2. PROCESS BY ACTION (HARD_BLOCK vs WARNING vs SUPPORT)
+    // 2. PROCESS BY ACTION (HARD_BLOCK vs WARNING vs SUPPORT vs ALLOW)
     // =====================================================
 
     if (action === ModerationAction.HARD_BLOCK) {
       entity.isDeleted = true;
+      if (entity instanceof Post) {
+        entity.moderationAction = ModerationAction.HARD_BLOCK;
+        entity.hasWarning = false;
+        entity.warningReason = payload.displayMessage;
+      }
       await txManager.save(entity);
 
       if (payload.targetType === TargetType.POST) {
@@ -185,28 +193,42 @@ export class ConsumerService {
         entity.warningReason = payload.displayMessage;
       } else if (action === ModerationAction.ALLOW_WITH_SUPPORT) {
         entity.needsMentalSupport = true;
+        entity.hasWarning = false;
+      } else {
+        entity.hasWarning = false;
       }
       await txManager.save(entity);
     }
 
     // =====================================================
-    // 3. NOTIFICATION
+    // 3. NOTIFICATION (Only notify when not standard ALLOW)
     // =====================================================
 
-    const notiOutbox = txManager.create(OutboxEvent, {
-      topic: "notification",
-      destination: EventDestination.RABBITMQ,
-      eventType: "base_noti",
-      payload: {
-        targetId: payload.targetId,
-        targetType: payload.targetType,
-        actorName: "SentiMeta System",
-        actorAvatar: "https://sentimeta.vercel.app/logo.svg",
-        content: notificationMessage,
-        receivers: [entity.userId],
-      },
-    });
+    if (action !== ModerationAction.ALLOW) {
+      const notiOutbox = txManager.create(OutboxEvent, {
+        topic: "notification",
+        destination: EventDestination.RABBITMQ,
+        eventType: "base_noti",
+        payload: {
+          targetId: payload.targetId,
+          targetType: payload.targetType,
+          actorName: "SentiMeta System",
+          actorAvatar: "https://sentimeta.vercel.app/logo.svg",
+          content: notificationMessage,
+          receivers: [entity.userId],
+        },
+      });
 
-    await txManager.save(notiOutbox);
+      await txManager.save(notiOutbox);
+    }
+  }
+
+  // Backwards compatibility alias
+  async handleModerationRejected(
+    payload: ModerationEventPayload,
+    manager?: EntityManager,
+  ): Promise<void> {
+    return this.handleModerationResult(payload, manager);
   }
 }
+

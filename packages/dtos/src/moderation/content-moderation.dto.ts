@@ -4,6 +4,7 @@ import {
   PostResponseDTO,
   ShareResponseDTO,
 } from '../social';
+import { ModerationAction, ModerationLabel, Severity } from '../social/enums';
 import { ModerationAppealResponseDTO } from './appeal.response';
 
 export class ContentModerationDTO {
@@ -12,11 +13,14 @@ export class ContentModerationDTO {
   targetId: string;
   targetType: string;
   isViolation: boolean;
+  action?: ModerationAction;
+  label?: ModerationLabel;
+  mentalHealthSupport?: boolean;
   violations: {
     category: string;
     reason: string;
   }[];
-  maxSeverity: string;
+  maxSeverity: Severity | string;
   confidence: number;
   displayMessage: string;
   finalDecision?: string;
@@ -33,3 +37,4 @@ export class ModerationRecordDetailDTO {
   target: CommentResponseDTO | PostResponseDTO | ShareResponseDTO | null;
   appeals: ModerationAppealResponseDTO[];
 }
+

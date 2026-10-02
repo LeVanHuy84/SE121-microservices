@@ -10,6 +10,7 @@ import {
   CreateAppealRequestDTO,
   GetMyModerationQuery,
   PostResponseDTO,
+  ShareResponseDTO,
   SystemRole,
   TargetType,
 } from "@repo/dtos";
@@ -94,8 +95,9 @@ export class ModerationController {
   @MessagePattern("internal.get_target_content")
   async getTargetContent(
     @Payload() payload: { targetId: string; targetType: TargetType },
-  ): Promise<PostResponseDTO | CommentResponseDTO | null> {
+  ): Promise<PostResponseDTO | CommentResponseDTO | ShareResponseDTO | null> {
     const { targetId, targetType } = payload;
     return this.moderationService.getTargetContent(targetId, targetType);
   }
 }
+

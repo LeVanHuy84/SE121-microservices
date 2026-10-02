@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
+  DashboardOverviewResponseDto,
   Emotion,
   EmotionTimeWindow,
+  MentalHealthRiskLevel,
   RiskHintLevel,
   RiskLevel,
   TargetType,
@@ -24,6 +26,22 @@ import {
   UserRiskState,
   UserRiskStateDocument,
 } from 'src/mongo/schema/user_risk_states.schema';
+import {
+  InterventionResource,
+  InterventionResourceDocument,
+} from 'src/mongo/schema/intervention-resource.schema';
+import {
+  EmergencyHotline,
+  EmergencyHotlineDocument,
+} from 'src/mongo/schema/emergency-hotline.schema';
+import {
+  InterventionLog,
+  InterventionLogDocument,
+} from 'src/mongo/schema/intervention-log.schema';
+import {
+  EmotionFeedback,
+  EmotionFeedbackDocument,
+} from 'src/mongo/schema/emotion-feedback.schema';
 import {
   InsightProfileProjection,
   InsightRiskStateProjection,
@@ -64,13 +82,16 @@ export interface DashboardHistoryProjection {
 
 export interface DashboardChartItemProjection {
   date: string;
-  angry: number;
-  disgust: number;
+  joy: number;
+  happy?: number;
+  sadness: number;
+  sad?: number;
+  anger: number;
+  angry?: number;
   fear: number;
-  happy: number;
-  neutral: number;
-  sad: number;
+  disgust: number;
   surprise: number;
+  neutral: number;
 }
 
 @Injectable()
@@ -84,6 +105,14 @@ export class DashboardRepository {
     private readonly snapshotModel: Model<UserEmotionSnapshotDocument>,
     @InjectModel(EmotionAnalyticsSnapshot.name)
     private readonly analyticsSnapshotModel: Model<EmotionAnalyticsSnapshotDocument>,
+    @InjectModel(InterventionResource.name)
+    private readonly resourceModel: Model<InterventionResourceDocument>,
+    @InjectModel(EmergencyHotline.name)
+    private readonly hotlineModel: Model<EmergencyHotlineDocument>,
+    @InjectModel(InterventionLog.name)
+    private readonly interventionLogModel: Model<InterventionLogDocument>,
+    @InjectModel(EmotionFeedback.name)
+    private readonly feedbackModel: Model<EmotionFeedbackDocument>,
   ) {}
 
   // ===== SUMMARY =====
@@ -304,51 +333,210 @@ export class DashboardRepository {
   }
 
   // ===== ADMIN OVERVIEW =====
-  async getOverview(): Promise<{
-    totalAnalyzedSnapshots: number;
-    highRiskUsers: number;
-    criticalRiskUsers: number;
-    averageNegativityScore: number;
-    topEmotions: Record<string, number>;
-  }> {
-    const [totalSnapshots, highRiskUsers, criticalRiskUsers] =
-      await Promise.all([
-        this.analyticsSnapshotModel.countDocuments().exec(),
-        this.riskStateModel
-          .countDocuments({ riskLevel: RiskLevel.HIGH_RISK })
-          .exec(),
-        this.riskStateModel
-          .countDocuments({ riskLevel: RiskLevel.CRISIS })
-          .exec(),
-      ]);
+  async getOverview(): Promise<DashboardOverviewResponseDto> {
+    const WINDOW_DAYS = 30;
+    const windowStartDate = new Date(
+      Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
 
-    // average negativity (across user snapshots)
-    const avgRes = await this.snapshotModel
-      .aggregate([{ $group: { _id: null, avg: { $avg: '$negativeRatio' } } }])
-      .exec();
+    const [
+      totalSnapshots,
+      totalInterventions,
+      activeResourcesCount,
+      totalResourcesCount,
+      activeHotlinesCount,
+      totalHotlinesCount,
+      feedbackStats,
+      emotionStats,
+      riskStats,
+      targetTypeStats,
+    ] = await Promise.all([
+      this.analyticsSnapshotModel.countDocuments().exec(),
+      this.interventionLogModel.countDocuments().exec(),
+      this.resourceModel.countDocuments({ isActive: true }).exec(),
+      this.resourceModel.countDocuments().exec(),
+      this.hotlineModel.countDocuments({ isActive: true }).exec(),
+      this.hotlineModel.countDocuments().exec(),
+      this.feedbackModel
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              accurate: {
+                $sum: { $cond: [{ $eq: ['$isAccurate', true] }, 1, 0] },
+              },
+            },
+          },
+        ])
+        .exec(),
+      // Emotion distribution in the last 30 days
+      this.analyticsSnapshotModel
+        .aggregate([
+          {
+            $match: {
+              createdAt: { $gte: windowStartDate },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                $toLower: {
+                  $ifNull: ['$primaryEmotion', '$finalEmotion'],
+                },
+              },
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .exec(),
+      // Current risk level state distribution of users
+      this.riskStateModel
+        .aggregate([
+          {
+            $group: {
+              _id: { $toLower: '$riskLevel' },
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .exec(),
+      // Content target type distribution (Posts & Comments only in the last 30 days)
+      this.analyticsSnapshotModel
+        .aggregate([
+          {
+            $match: {
+              createdAt: { $gte: windowStartDate },
+              targetType: {
+                $in: [
+                  TargetType.POST,
+                  TargetType.COMMENT,
+                  'POST',
+                  'COMMENT',
+                  'post',
+                  'comment',
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: { $toLower: '$targetType' },
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .exec(),
+    ]);
 
-    const averageNegativityScore = (avgRes?.[0]?.avg ?? 0) as number;
+    // 1. Feedback dispute/reporting rate
+    const totalFeedbacks = feedbackStats?.[0]?.total ?? 0;
+    const accurateCount = feedbackStats?.[0]?.accurate ?? 0;
+    const aiAccuracyRate =
+      totalFeedbacks > 0 ? accurateCount / totalFeedbacks : 0;
+    const feedbackRate =
+      totalSnapshots > 0
+        ? Number((totalFeedbacks / totalSnapshots).toFixed(4))
+        : 0;
 
-    // top emotions distribution (by count)
-    const dist = await this.analyticsSnapshotModel
-      .aggregate([
-        { $group: { _id: '$finalEmotion', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ])
-      .exec();
+    // 2. Emotion distribution mapping (last 30 days)
+    const emotionMap = {
+      joy: 0,
+      sadness: 0,
+      anger: 0,
+      fear: 0,
+      disgust: 0,
+      surprise: 0,
+      neutral: 0,
+    };
+    let totalEmotionsCount = 0;
+    for (const item of emotionStats) {
+      const raw = (item._id || '').toLowerCase();
+      const count = item.count || 0;
+      totalEmotionsCount += count;
+      if (raw === 'joy' || raw === 'happy') {
+        emotionMap.joy += count;
+      } else if (raw === 'sadness' || raw === 'sad') {
+        emotionMap.sadness += count;
+      } else if (raw === 'anger' || raw === 'angry') {
+        emotionMap.anger += count;
+      } else if (raw === 'fear') {
+        emotionMap.fear += count;
+      } else if (raw === 'disgust') {
+        emotionMap.disgust += count;
+      } else if (raw === 'surprise') {
+        emotionMap.surprise += count;
+      } else {
+        emotionMap.neutral += count;
+      }
+    }
 
-    const topEmotions: Record<string, number> = {};
-    for (const d of dist) {
-      if (d._id) topEmotions[d._id] = d.count;
+    // 3. Risk level distribution mapping
+    const riskMap = {
+      normal: 0,
+      low: 0,
+      medium: 0,
+      high: 0,
+      critical: 0,
+    };
+    let totalRiskUsers = 0;
+    for (const item of riskStats) {
+      const raw = (item._id || '').toLowerCase();
+      const count = item.count || 0;
+      totalRiskUsers += count;
+      if (raw === 'critical') {
+        riskMap.critical += count;
+      } else if (raw === 'high') {
+        riskMap.high += count;
+      } else if (raw === 'medium') {
+        riskMap.medium += count;
+      } else if (raw === 'low') {
+        riskMap.low += count;
+      } else {
+        riskMap.normal += count;
+      }
+    }
+
+    // 4. Target type distribution mapping (Posts & Comments only)
+    const targetMap = {
+      posts: 0,
+      comments: 0,
+      total: 0,
+    };
+    for (const item of targetTypeStats) {
+      const raw = (item._id || '').toLowerCase();
+      const count = item.count || 0;
+      targetMap.total += count;
+      if (raw.includes('comment')) {
+        targetMap.comments += count;
+      } else {
+        targetMap.posts += count;
+      }
     }
 
     return {
       totalAnalyzedSnapshots: totalSnapshots,
-      highRiskUsers,
-      criticalRiskUsers,
-      averageNegativityScore: Number(averageNegativityScore ?? 0),
-      topEmotions,
+      totalInterventionsDispatched: totalInterventions,
+      activeInterventionResources: activeResourcesCount + activeHotlinesCount,
+      feedbackRate,
+      aiAccuracyRate: Number(aiAccuracyRate.toFixed(4)),
+
+      daysWindow: WINDOW_DAYS,
+      emotionDistribution: {
+        ...emotionMap,
+        total: totalEmotionsCount,
+      },
+      riskDistribution: {
+        ...riskMap,
+        totalUsers: totalRiskUsers,
+      },
+      targetTypeDistribution: targetMap,
+      resourceSummary: {
+        totalHotlines: totalHotlinesCount,
+        activeHotlines: activeHotlinesCount,
+        totalExercises: totalResourcesCount,
+        activeExercises: activeResourcesCount,
+      },
     };
   }
 
@@ -405,7 +593,11 @@ export class DashboardRepository {
                 date: '$createdAt',
               },
             },
-            emotion: '$finalEmotion',
+            emotion: {
+              $toLower: {
+                $ifNull: ['$primaryEmotion', '$finalEmotion'],
+              },
+            },
           },
           count: { $sum: 1 },
         },
@@ -413,25 +605,63 @@ export class DashboardRepository {
     ]);
 
     // ===== GROUP MAP =====
-    const grouped: Record<string, Record<string, number>> = {};
+    const grouped: Record<
+      string,
+      {
+        joy: number;
+        sadness: number;
+        anger: number;
+        fear: number;
+        disgust: number;
+        surprise: number;
+        neutral: number;
+      }
+    > = {};
 
     for (const item of raw) {
       const day = item._id.day;
-      const emotion = item._id.emotion;
+      if (!day) continue;
+
+      const rawEmotion = (item._id.emotion || '').toLowerCase();
+
+      let emotionKey:
+        | 'joy'
+        | 'sadness'
+        | 'anger'
+        | 'fear'
+        | 'disgust'
+        | 'surprise'
+        | 'neutral' = 'neutral';
+
+      if (rawEmotion === 'joy' || rawEmotion === 'happy') {
+        emotionKey = 'joy';
+      } else if (rawEmotion === 'sadness' || rawEmotion === 'sad') {
+        emotionKey = 'sadness';
+      } else if (rawEmotion === 'anger' || rawEmotion === 'angry') {
+        emotionKey = 'anger';
+      } else if (rawEmotion === 'fear') {
+        emotionKey = 'fear';
+      } else if (rawEmotion === 'disgust') {
+        emotionKey = 'disgust';
+      } else if (rawEmotion === 'surprise') {
+        emotionKey = 'surprise';
+      } else if (rawEmotion === 'neutral') {
+        emotionKey = 'neutral';
+      }
 
       if (!grouped[day]) {
         grouped[day] = {
-          angry: 0,
-          disgust: 0,
+          joy: 0,
+          sadness: 0,
+          anger: 0,
           fear: 0,
-          happy: 0,
-          neutral: 0,
-          sad: 0,
+          disgust: 0,
           surprise: 0,
+          neutral: 0,
         };
       }
 
-      grouped[day][emotion] = item.count;
+      grouped[day][emotionKey] = (grouped[day][emotionKey] || 0) + item.count;
     }
 
     // ===== FILL MISSING DAYS =====
@@ -441,17 +671,28 @@ export class DashboardRepository {
 
     while (cursor <= endDt) {
       const dayStr = cursor.toISOString().split('T')[0];
+      const counts = grouped[dayStr] || {
+        joy: 0,
+        sadness: 0,
+        anger: 0,
+        fear: 0,
+        disgust: 0,
+        surprise: 0,
+        neutral: 0,
+      };
 
       result.push({
         date: dayStr,
-
-        angry: grouped[dayStr]?.angry ?? 0,
-        disgust: grouped[dayStr]?.disgust ?? 0,
-        fear: grouped[dayStr]?.fear ?? 0,
-        happy: grouped[dayStr]?.happy ?? 0,
-        neutral: grouped[dayStr]?.neutral ?? 0,
-        sad: grouped[dayStr]?.sad ?? 0,
-        surprise: grouped[dayStr]?.surprise ?? 0,
+        joy: counts.joy,
+        happy: counts.joy,
+        sadness: counts.sadness,
+        sad: counts.sadness,
+        anger: counts.anger,
+        angry: counts.anger,
+        fear: counts.fear,
+        disgust: counts.disgust,
+        surprise: counts.surprise,
+        neutral: counts.neutral,
       });
 
       cursor.setDate(cursor.getDate() + 1);
