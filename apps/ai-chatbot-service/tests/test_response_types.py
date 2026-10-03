@@ -51,9 +51,22 @@ def _run(service: AssistantService, message: str, user: str, contexts=None):
     return asyncio.run(service.respond(req))
 
 
-def _with_kafka(kafka: FakeKafka):
+class FakeOutboxRepo:
+    def __init__(self):
+        self.saved = []
+
+    async def save_outbox(self, data: dict):
+        self.saved.append(data)
+        data["_id"] = "fake_id"
+        return data
+
+
+def _with_kafka(kafka: FakeKafka, outbox_repo=None):
+    if outbox_repo is None:
+        outbox_repo = FakeOutboxRepo()
     fake_module = types.ModuleType("app.modules.analysis.lifespan")
     fake_module.kafka_producer = kafka
+    fake_module.outbox_repo = outbox_repo
     return patch.dict(sys.modules, {"app.modules.analysis.lifespan": fake_module})
 
 
@@ -146,9 +159,26 @@ class CrisisAlertTest(unittest.TestCase):
         self.assertNotIn("chết", str(message))
         self.assertNotIn("chet", str(message))
 
-    def test_alert_failure_does_not_claim_notification_sent(self):
+    def test_alert_saved_to_outbox_when_kafka_fails(self):
         kafka = FakeKafka(fail=True)
-        with _with_kafka(kafka):
+        outbox = FakeOutboxRepo()
+        provider = FakeProvider()
+        with _with_kafka(kafka, outbox_repo=outbox):
+            res = _run(AssistantService(provider=provider), CRISIS_MESSAGE, "cr-1.5")
+
+        self.assertEqual(res.type, "crisis")
+        self.assertTrue(res.crisis.notificationSent)
+        self.assertEqual(len(outbox.saved), 1)
+        self.assertEqual(outbox.saved[0]["topic"], "chatbot.crisis.alert")
+        self.assertIn("đã gửi thông tin hỗ trợ", res.reply)
+
+    def test_alert_failure_does_not_claim_notification_sent(self):
+        class FailingOutbox:
+            async def save_outbox(self, data):
+                raise RuntimeError("outbox down")
+
+        kafka = FakeKafka(fail=True)
+        with _with_kafka(kafka, outbox_repo=FailingOutbox()):
             res = _run(AssistantService(provider=FakeProvider()), CRISIS_MESSAGE, "cr-2")
 
         self.assertEqual(res.type, "crisis")

@@ -45,6 +45,41 @@ export class ChatbotService {
     private readonly contextService: AssistantContextService,
   ) {}
 
+  async respond(userId: string, dto: AssistantMessageDto) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const contexts = await this.resolveContextsWithinBudget(
+        userId,
+        dto.message,
+        this.configService.get<number>("CHATBOT_CONTEXT_BUILD_TIMEOUT_MS", 1200),
+      );
+
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/respond`,
+          {
+            userId,
+            message: dto.message,
+            clientMessageId: dto.clientMessageId,
+            contexts,
+          },
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data;
+    } catch (error) {
+      throw this.mapGatewayError(error, userId, startedAt, "assistant.respond");
+    }
+  }
+
   respondStream(
     userId: string,
     dto: AssistantMessageDto,

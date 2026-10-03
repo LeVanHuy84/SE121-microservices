@@ -665,30 +665,42 @@ class RespondCommand:
         Returns True only if the event was sent successfully within the allowed time.
         """
         try:
-            from app.modules.analysis.lifespan import kafka_producer
+            from app.modules.analysis.lifespan import kafka_producer, outbox_repo
             from datetime import datetime, timezone
 
-            await asyncio.wait_for(
-                kafka_producer.send(
-                    "chatbot.crisis.alert",
-                    {
-                        "type": "chatbot_crisis_alert",
-                        "payload": {
-                            "userId": request.userId,
-                            "conversationId": request.conversationId or "default",
-                            "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
-                            "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
-                            "timestamp": datetime.now(timezone.utc)
-                            .isoformat()
-                            .replace("+00:00", "Z"),
-                        },
-                    },
-                ),
-                timeout=_CRISIS_ALERT_TIMEOUT_SECONDS,
-            )
-            return True
+            timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            payload = {
+                "userId": request.userId,
+                "conversationId": request.conversationId or "default",
+                "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
+                "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
+                "timestamp": timestamp_str,
+            }
+            kafka_msg = {
+                "type": "chatbot_crisis_alert",
+                "payload": payload,
+            }
+
+            try:
+                await asyncio.wait_for(
+                    kafka_producer.send("chatbot.crisis.alert", kafka_msg),
+                    timeout=_CRISIS_ALERT_TIMEOUT_SECONDS,
+                )
+                return True
+            except Exception as exc:
+                logger.warning("[CrisisGuard] Kafka emit failed, saving to DLQ/Outbox: %s", exc)
+                outbox_data = {
+                    "topic": "chatbot.crisis.alert",
+                    "eventType": "chatbot_crisis_alert",
+                    "payload": payload,
+                    "processed": False,
+                    "createdAt": timestamp_str,
+                }
+                await outbox_repo.save_outbox(outbox_data)
+                return True
+
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[CrisisGuard] Kafka emit failed: %s", exc)
+            logger.warning("[CrisisGuard] Failed to handle crisis alert (Kafka & Outbox failed): %s", exc)
             return False
 
     async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
