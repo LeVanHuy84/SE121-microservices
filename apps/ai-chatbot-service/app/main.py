@@ -6,6 +6,7 @@ from app.core.otel import init_otel
 from app.core.settings import settings
 from app.modules.analysis.router import health_router, music_router, test_router
 from app.modules.chatbot.router import assistant_router
+from app.modules.chatbot.public_router import public_router, register_public_error_handlers
 
 
 app = FastAPI(title="AI Chatbot Service")
@@ -14,6 +15,9 @@ init_otel(app, "ai-chatbot-service")
 # Reconfigure the app lifespan after importing it
 app.router.lifespan_context = lifespan
 
+register_public_error_handlers(app)
+app.include_router(public_router)
+# Legacy router (/assistant/*): kept temporarily for internal compatibility; not used by the FE.
 app.include_router(assistant_router)
 app.include_router(health_router)
 app.include_router(music_router)

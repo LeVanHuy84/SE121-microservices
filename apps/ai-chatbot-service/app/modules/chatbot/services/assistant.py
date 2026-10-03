@@ -45,11 +45,22 @@ from app.providers.groq_provider import GroqProvider
 logger = logging.getLogger("uvicorn.error")
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
 
-# Thời gian tối đa chờ gửi Kafka crisis alert trước khi trả lời (không để chat bị treo).
+# Max time to wait for the Kafka crisis alert before replying (so chat never hangs).
 _CRISIS_ALERT_TIMEOUT_SECONDS = 2.0
-# Domain kiến thức chung: không có context RAG vẫn được gọi LLM (không chẩn đoán/kê đơn).
-# Các domain tính năng app không có context -> `no_answer` để LLM không bịa tính năng.
+# General-knowledge domains: still call the LLM when there is no RAG context (no diagnosis/prescription).
+# App-feature domains without context -> `no_answer` so the LLM does not invent features.
 _GENERAL_KNOWLEDGE_DOMAINS = frozenset({"mental_health", "emotion"})
+# Kafka alert wire format. The emotion-intelligence-service consumer expects `crisis` (explicit
+# self-harm/suicide intent -> CRISIS) and `high` (softer signals -> HIGH_RISK); it treats any other
+# value as CRISIS. The FE-facing `crisis.severity` stays `high`/`medium`.
+_ALERT_RISK_LEVEL = {"high": "crisis", "medium": "high"}
+# Fixed, neutral descriptions (no user text). The consumer feeds `reason` to an LLM when selecting
+# support resources, so it must read like a short description rather than a bare rule code.
+_ALERT_REASON = {
+    "explicit_crisis": "Người dùng thể hiện ý định tự hại hoặc tự sát khi trò chuyện với chatbot.",
+    "soft_crisis": "Người dùng có dấu hiệu tuyệt vọng hoặc cô đơn kéo dài khi trò chuyện với chatbot.",
+}
+_ALERT_REASON_DEFAULT = "Chatbot phát hiện dấu hiệu khủng hoảng tâm lý ở người dùng."
 
 
 
@@ -85,20 +96,20 @@ class RespondCommand:
         # --- Mental health crisis check (highest priority guard) ---
         crisis_decision = self.crisis_guard.evaluate(working_request.message)
         if crisis_decision.is_crisis:
-            # Chờ alert có giới hạn để biết có được phép nói "đội ngũ đã được thông báo".
-            team_notified = await self._emit_crisis_event(
+            # Bounded wait so we know whether we may say support info was sent to the user's notifications.
+            notification_sent = await self._emit_crisis_event(
                 working_request,
                 crisis_decision.severity,
                 crisis_decision.reason,
             )
             reply = self.prompt_builder.build_crisis(
                 severity=crisis_decision.severity,
-                team_notified=team_notified,
+                notification_sent=notification_sent,
             )
             data = self._build_crisis_response(
                 reply,
                 crisis_decision.severity,
-                team_notified,
+                notification_sent,
             )
             return data, "mental_health_crisis", None, []
 
@@ -139,7 +150,7 @@ class RespondCommand:
                 intent = "privacy"
             elif scope_decision.state == "in_domain_unknown":
                 if general_knowledge:
-                    # Kiến thức sức khỏe tinh thần/cảm xúc: vẫn để LLM trả lời.
+                    # Mental health / emotion knowledge: still let the LLM answer.
                     return None, None, scope_decision, candidate_contexts
                 data = self._in_domain_unknown_response(scope_decision.matched_domains)
                 intent = "in_domain_unknown"
@@ -165,9 +176,9 @@ class RespondCommand:
         return None, None, scope_decision, candidate_contexts
 
     def _is_general_knowledge_only(self, scope_decision: ScopeDecision) -> bool:
-        """True nếu mọi domain khớp đều là kiến thức chung (mental_health/emotion).
+        """True if every matched domain is general knowledge (mental_health/emotion).
 
-        Câu hỏi về tính năng ("có chức năng ... không") luôn coi là tính năng app, không phải kiến thức chung.
+        Feature questions ("does it have ... feature") are always treated as app-feature questions.
         """
         domains = scope_decision.matched_domains
         if not domains:
@@ -619,7 +630,7 @@ class RespondCommand:
         self,
         reply: str,
         severity: str,
-        team_notified: bool,
+        notification_sent: bool,
     ) -> AssistantRespondData:
         return AssistantRespondData(
             type="crisis",
@@ -634,7 +645,7 @@ class RespondCommand:
                     CrisisResource(name=name, phone=phone)
                     for name, phone in CRISIS_RESOURCES
                 ],
-                teamNotified=team_notified,
+                notificationSent=notification_sent,
             ),
         )
 
@@ -644,13 +655,14 @@ class RespondCommand:
         severity: str,
         rule: str,
     ) -> bool:
-        """Phát sự kiện Kafka báo đội hỗ trợ về tình huống khủng hoảng tâm lý.
+        """Emit a Kafka event alerting the support team about a mental health crisis.
 
-        Payload KHÔNG chứa nội dung tin nhắn (giảm dữ liệu cá nhân): `reason` chỉ là mã rule
-        (vd. explicit_crisis). Người xử lý mở hội thoại qua công cụ nội bộ có phân quyền.
-        Giữ tên trường `riskLevel`/`reason` để tương thích consumer emotion-intelligence-service.
+        The payload does NOT contain the message text (to minimize personal data): `reason` is a
+        fixed neutral description chosen by rule code (e.g. explicit_crisis). Field names
+        `riskLevel`/`reason` and the `crisis`/`high` values are kept for compatibility with the
+        emotion-intelligence-service consumer.
 
-        Trả về True chỉ khi gửi thành công trong thời gian cho phép.
+        Returns True only if the event was sent successfully within the allowed time.
         """
         try:
             from app.modules.analysis.lifespan import kafka_producer
@@ -664,8 +676,8 @@ class RespondCommand:
                         "payload": {
                             "userId": request.userId,
                             "conversationId": request.conversationId or "default",
-                            "riskLevel": severity,
-                            "reason": rule,
+                            "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
+                            "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
                             "timestamp": datetime.now(timezone.utc)
                             .isoformat()
                             .replace("+00:00", "Z"),

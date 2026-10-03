@@ -23,7 +23,7 @@ Chatbot của Sentimeta không phải một cái máy trả lời tự động k
 
 Mỗi khi bạn đăng một dòng tâm trạng, AI của Sentimeta sẽ nhẹ nhàng "đọc" và cảm nhận bạn đang vui, buồn, lo âu, hay tức giận.
 
-- Việc này diễn ra tự động và không hiển thị công khai cho người dùng khác. Lưu ý: trong tình huống khẩn cấp về tâm lý, hệ thống có thể thông báo cho đội ngũ hỗ trợ của Sentimeta để liên hệ với bạn.
+- Việc này diễn ra tự động và không hiển thị công khai cho người dùng khác. Lưu ý: khi nhận thấy dấu hiệu khủng hoảng tâm lý, hệ thống có thể ghi nhận tình huống, gửi thông tin hỗ trợ vào mục thông báo của bạn và hiển thị popup khẩn cấp nếu bạn đang sử dụng ứng dụng hoặc website trực tiếp. Sentimeta hiện chưa có đội ngũ trực tiếp liên hệ cá nhân với người dùng.
 - Mục đích là để Chatbot có thể hiểu bạn tốt hơn, điều chỉnh cách nói chuyện cho phù hợp với tâm trạng của bạn lúc đó.
 - Nếu AI nhận thấy bạn đang trải qua giai đoạn khó khăn, nó có thể gợi ý những nội dung nhẹ nhàng, tích cực hơn — hoặc đơn giản là hỏi thăm bạn.
 

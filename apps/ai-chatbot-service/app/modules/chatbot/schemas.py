@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 AssistantRole = Literal["system", "user", "assistant"]
 
-# Loại phản hồi ổn định cho FE (xem chatbot-api-contract.md).
+# Stable response types exposed to the FE (see chatbot-api-contract.md).
 AssistantResponseType = Literal[
     "answer",
     "greeting",
@@ -27,8 +27,9 @@ class CrisisResource(BaseModel):
 class CrisisInfo(BaseModel):
     severity: Literal["high", "medium"]
     resources: list[CrisisResource] = Field(default_factory=list)
-    # True chỉ khi sự kiện báo đội hỗ trợ đã gửi thành công.
-    teamNotified: bool = False
+    # True only when the alert event was sent successfully, i.e. support info is also delivered
+    # to the user as a notification. No human team contacts the user (no such process exists yet).
+    notificationSent: bool = False
 
 
 class AssistantHistoryItem(BaseModel):

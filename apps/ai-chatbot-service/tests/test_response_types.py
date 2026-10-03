@@ -116,7 +116,7 @@ class ResponseTypeTest(unittest.TestCase):
 
 
 class CrisisAlertTest(unittest.TestCase):
-    def test_alert_payload_has_no_message_text_and_reply_mentions_team(self):
+    def test_alert_payload_has_no_message_text_and_reply_mentions_notification(self):
         kafka = FakeKafka()
         provider = FakeProvider()
         with _with_kafka(kafka):
@@ -125,10 +125,11 @@ class CrisisAlertTest(unittest.TestCase):
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.type, "crisis")
         self.assertIsNotNone(res.crisis)
-        self.assertTrue(res.crisis.teamNotified)
+        self.assertTrue(res.crisis.notificationSent)
         self.assertEqual(res.crisis.severity, "high")
         self.assertEqual(len(res.crisis.resources), len(CRISIS_RESOURCES))
-        self.assertIn("đã được thông báo", res.reply)
+        self.assertIn("đã gửi thông tin hỗ trợ vào mục thông báo", res.reply)
+        self.assertNotIn("liên hệ với bạn", res.reply)
 
         self.assertEqual(len(kafka.sent), 1)
         topic, message = kafka.sent[0]
@@ -138,21 +139,40 @@ class CrisisAlertTest(unittest.TestCase):
             set(payload),
             {"userId", "conversationId", "riskLevel", "reason", "timestamp"},
         )
-        self.assertEqual(payload["riskLevel"], "high")
-        self.assertEqual(payload["reason"], "explicit_crisis")
+        # Wire values expected by the emotion-intelligence-service consumer.
+        self.assertEqual(payload["riskLevel"], "crisis")
+        self.assertEqual(res.crisis.severity, "high")
+        self.assertIn("tự hại hoặc tự sát", payload["reason"])
         self.assertNotIn("chết", str(message))
         self.assertNotIn("chet", str(message))
 
-    def test_alert_failure_does_not_promise_notification(self):
+    def test_alert_failure_does_not_claim_notification_sent(self):
         kafka = FakeKafka(fail=True)
         with _with_kafka(kafka):
             res = _run(AssistantService(provider=FakeProvider()), CRISIS_MESSAGE, "cr-2")
 
         self.assertEqual(res.type, "crisis")
-        self.assertFalse(res.crisis.teamNotified)
-        self.assertNotIn("đã được thông báo", res.reply)
+        self.assertFalse(res.crisis.notificationSent)
+        self.assertNotIn("đã gửi thông tin hỗ trợ", res.reply)
+        self.assertNotIn("liên hệ với bạn", res.reply)
         for _, phone in CRISIS_RESOURCES:
             self.assertIn(phone, res.reply)
+
+
+class CrisisAlertLevelTest(unittest.TestCase):
+    def test_soft_signal_is_sent_as_high_with_neutral_reason(self):
+        kafka = FakeKafka()
+        with _with_kafka(kafka):
+            res = _run(
+                AssistantService(provider=FakeProvider()),
+                "cuộc sống vô nghĩa quá",
+                "cr-3",
+            )
+        self.assertEqual(res.type, "crisis")
+        self.assertEqual(res.crisis.severity, "medium")
+        payload = kafka.sent[0][1]["payload"]
+        self.assertEqual(payload["riskLevel"], "high")
+        self.assertNotIn("vô nghĩa", str(payload))
 
 
 class DocsLintTest(unittest.TestCase):
@@ -176,7 +196,7 @@ class DocsLintTest(unittest.TestCase):
         for name, text in self._guides().items():
             if "111" in text:
                 for _, phone in CRISIS_RESOURCES:
-                    self.assertIn(phone, text, f"{name} thiếu {phone}")
+                    self.assertIn(phone, text, f"{name} is missing {phone}")
 
 
 if __name__ == "__main__":
