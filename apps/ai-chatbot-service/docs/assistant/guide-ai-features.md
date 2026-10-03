@@ -23,7 +23,7 @@ Chatbot của Sentimeta không phải một cái máy trả lời tự động k
 
 Mỗi khi bạn đăng một dòng tâm trạng, AI của Sentimeta sẽ nhẹ nhàng "đọc" và cảm nhận bạn đang vui, buồn, lo âu, hay tức giận.
 
-- Việc này hoàn toàn tự động và **ẩn danh** — không ai khác biết cả.
+- Việc này diễn ra tự động và không hiển thị công khai cho người dùng khác. Lưu ý: trong tình huống khẩn cấp về tâm lý, hệ thống có thể thông báo cho đội ngũ hỗ trợ của Sentimeta để liên hệ với bạn.
 - Mục đích là để Chatbot có thể hiểu bạn tốt hơn, điều chỉnh cách nói chuyện cho phù hợp với tâm trạng của bạn lúc đó.
 - Nếu AI nhận thấy bạn đang trải qua giai đoạn khó khăn, nó có thể gợi ý những nội dung nhẹ nhàng, tích cực hơn — hoặc đơn giản là hỏi thăm bạn.
 
@@ -40,5 +40,5 @@ Mỗi khi bạn đăng một dòng tâm trạng, AI của Sentimeta sẽ nhẹ n
 Nếu bạn đang trải qua một giai đoạn rất khó khăn và cần hỗ trợ tức thì, hãy nhớ rằng:
 
 - Chatbot của Sentimeta được đào tạo để phát hiện những lúc bạn cần thêm sự hỗ trợ.
-- Trong những trường hợp đặc biệt, Chatbot sẽ cung cấp ngay thông tin về **Đường dây hỗ trợ khẩn cấp: 111** (miễn phí 24/7).
+- Trong những trường hợp đặc biệt, Chatbot sẽ cung cấp ngay thông tin về các đường dây hỗ trợ tâm lý miễn phí 24/7: **1900 599 830** (Đường dây nóng Ngày Mai) và **111** (Tổng đài Quốc gia).
 - Đây là tính năng mình tự hào nhất — vì không ai nên phải đối mặt với giai đoạn tối tăm nhất của cuộc đời một mình.

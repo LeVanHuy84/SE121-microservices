@@ -20,7 +20,7 @@ Bạn có thể nhắn tin trực tiếp với bạn bè theo thời gian thực
 > Nếu file ảnh/video lớn, tin nhắn có thể mất vài giây để gửi đi — bạn cứ yên tâm chờ một chút nhé.
 
 ### Bảo mật Tuyệt đối
-Cuộc trò chuyện của bạn với bạn bè được bảo vệ bằng công nghệ **mã hóa đầu cuối**. Điều này có nghĩa là chỉ bạn và người nhận mới đọc được — kể cả đội ngũ vận hành Sentimeta cũng không xem được.
+Cuộc trò chuyện của bạn với bạn bè chỉ hiển thị cho những người tham gia cuộc trò chuyện trong ứng dụng. Lưu ý: Sentimeta **hiện chưa hỗ trợ mã hóa đầu cuối**, nên đội ngũ kỹ thuật có thể truy cập nội dung khi cần thiết để vận hành hoặc xử lý vi phạm.
 
 ### Quản lý Cuộc trò chuyện
 - **Thu hồi tin nhắn:** Nhắn nhầm? Bạn có thể thu hồi tin nhắn ở cả hai phía.
@@ -50,6 +50,6 @@ Nếu qua những gì bạn chia sẻ gần đây, Chatbot cảm nhận được
 Nếu bạn đang trải qua giai đoạn rất khó khăn và cần hỗ trợ khẩn cấp, Chatbot sẽ:
 - Nhận ra ngay tình trạng của bạn.
 - Trả lời bằng sự ấm áp và quan tâm tuyệt đối.
-- Cung cấp thông tin về **Đường dây hỗ trợ miễn phí 24/7: Gọi 111** để bạn có thể kết nối với chuyên gia ngay lập tức.
+- Cung cấp thông tin về các đường dây hỗ trợ tâm lý miễn phí 24/7: **1900 599 830** (Đường dây nóng Ngày Mai) và **111** (Tổng đài Quốc gia) để bạn có thể kết nối với chuyên gia ngay lập tức.
 
 > **Nhớ nhé:** Bạn không bao giờ phải đối mặt với một mình. Chatbot luôn ở đây, bất kể mấy giờ.

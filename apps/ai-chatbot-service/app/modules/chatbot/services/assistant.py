@@ -15,6 +15,8 @@ from app.modules.chatbot.schemas import (
     AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
+    CrisisInfo,
+    CrisisResource,
 )
 from app.modules.chatbot.services.context_resolver import (
     AssistantContextResolver,
@@ -35,13 +37,20 @@ from app.modules.chatbot.services.guardrails import (
     assistant_scope_guard,
 )
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
-from app.modules.chatbot.services.prompt_builder import PromptBuilder
+from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES, PromptBuilder
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
 from app.providers.base import LlmGeneration, LlmProvider
 from app.providers.groq_provider import GroqProvider
 
 logger = logging.getLogger("uvicorn.error")
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
+
+# Thời gian tối đa chờ gửi Kafka crisis alert trước khi trả lời (không để chat bị treo).
+_CRISIS_ALERT_TIMEOUT_SECONDS = 2.0
+# Domain kiến thức chung: không có context RAG vẫn được gọi LLM (không chẩn đoán/kê đơn).
+# Các domain tính năng app không có context -> `no_answer` để LLM không bịa tính năng.
+_GENERAL_KNOWLEDGE_DOMAINS = frozenset({"mental_health", "emotion"})
+
 
 
 class RespondCommand:
@@ -76,11 +85,20 @@ class RespondCommand:
         # --- Mental health crisis check (highest priority guard) ---
         crisis_decision = self.crisis_guard.evaluate(working_request.message)
         if crisis_decision.is_crisis:
-            reply = self.prompt_builder.build_crisis(severity=crisis_decision.severity)
-            data = self._build_simple_response(reply)
-            # Emit Kafka event fire-and-forget (do not block the chat flow)
-            asyncio.create_task(
-                self._emit_crisis_event(working_request, crisis_decision.severity)
+            # Chờ alert có giới hạn để biết có được phép nói "đội ngũ đã được thông báo".
+            team_notified = await self._emit_crisis_event(
+                working_request,
+                crisis_decision.severity,
+                crisis_decision.reason,
+            )
+            reply = self.prompt_builder.build_crisis(
+                severity=crisis_decision.severity,
+                team_notified=team_notified,
+            )
+            data = self._build_crisis_response(
+                reply,
+                crisis_decision.severity,
+                team_notified,
             )
             return data, "mental_health_crisis", None, []
 
@@ -112,12 +130,17 @@ class RespondCommand:
         if scope_decision.reason == "greeting":
             return self._greeting_response(), "greeting", scope_decision, candidate_contexts
 
+        general_knowledge = self._is_general_knowledge_only(scope_decision)
+
         if not scope_decision.in_scope:
             intent = "out_of_scope"
             if "privacy" in scope_decision.matched_domains:
                 data = self._privacy_policy_response()
                 intent = "privacy"
             elif scope_decision.state == "in_domain_unknown":
+                if general_knowledge:
+                    # Kiến thức sức khỏe tinh thần/cảm xúc: vẫn để LLM trả lời.
+                    return None, None, scope_decision, candidate_contexts
                 data = self._in_domain_unknown_response(scope_decision.matched_domains)
                 intent = "in_domain_unknown"
             elif scope_decision.state == "ambiguous":
@@ -130,11 +153,28 @@ class RespondCommand:
         prompt_limits = resolve_prompt_limits(working_request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         
-        if not final_contexts and scope_decision.matched_domains and not has_follow_up_anchor:
+        if (
+            not final_contexts
+            and scope_decision.matched_domains
+            and not has_follow_up_anchor
+            and not general_knowledge
+        ):
             data = self._in_domain_unknown_response(scope_decision.matched_domains)
             return data, "in_domain_unknown", scope_decision, candidate_contexts
 
         return None, None, scope_decision, candidate_contexts
+
+    def _is_general_knowledge_only(self, scope_decision: ScopeDecision) -> bool:
+        """True nếu mọi domain khớp đều là kiến thức chung (mental_health/emotion).
+
+        Câu hỏi về tính năng ("có chức năng ... không") luôn coi là tính năng app, không phải kiến thức chung.
+        """
+        domains = scope_decision.matched_domains
+        if not domains:
+            return False
+        if scope_decision.reason == "feature_question_in_domain_unknown":
+            return False
+        return set(domains).issubset(_GENERAL_KNOWLEDGE_DOMAINS)
 
     async def execute(self, request: AssistantRespondRequest) -> AssistantRespondData:
         started_at = time.perf_counter()
@@ -256,6 +296,7 @@ class RespondCommand:
         )
 
         return AssistantRespondData(
+            type="fallback" if generation.model == "timeout-guard" else "answer",
             reply=reply_content,
             sources=sources,
             suggestedActions=[],
@@ -492,6 +533,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="no_answer",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -505,6 +547,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="no_answer",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -518,6 +561,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="out_of_scope",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -531,6 +575,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="greeting",
             model="greeting-guard",
             provider="chatbot-service",
         )
@@ -545,6 +590,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="clarify",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -564,44 +610,74 @@ class RespondCommand:
             reply=message,
             sources=[],
             suggestedActions=[],
+            type="community_blocked",
             model="community-guard",
             provider="chatbot-service",
         )
 
-    def _build_simple_response(self, reply: str) -> AssistantRespondData:
+    def _build_crisis_response(
+        self,
+        reply: str,
+        severity: str,
+        team_notified: bool,
+    ) -> AssistantRespondData:
         return AssistantRespondData(
+            type="crisis",
             reply=reply,
             sources=[],
             suggestedActions=[],
             model="crisis-guard",
             provider="chatbot-service",
+            crisis=CrisisInfo(
+                severity="high" if severity == "high" else "medium",
+                resources=[
+                    CrisisResource(name=name, phone=phone)
+                    for name, phone in CRISIS_RESOURCES
+                ],
+                teamNotified=team_notified,
+            ),
         )
 
     async def _emit_crisis_event(
         self,
         request: AssistantRespondRequest,
         severity: str,
-    ) -> None:
-        """Phát sự kiện Kafka để thông báo bộ phận hỗ trợ về tình huống khủng hoảng tâm lý."""
+        rule: str,
+    ) -> bool:
+        """Phát sự kiện Kafka báo đội hỗ trợ về tình huống khủng hoảng tâm lý.
+
+        Payload KHÔNG chứa nội dung tin nhắn (giảm dữ liệu cá nhân): `reason` chỉ là mã rule
+        (vd. explicit_crisis). Người xử lý mở hội thoại qua công cụ nội bộ có phân quyền.
+        Giữ tên trường `riskLevel`/`reason` để tương thích consumer emotion-intelligence-service.
+
+        Trả về True chỉ khi gửi thành công trong thời gian cho phép.
+        """
         try:
             from app.modules.analysis.lifespan import kafka_producer
-            from datetime import datetime
+            from datetime import datetime, timezone
 
-            await kafka_producer.send(
-                "chatbot.crisis.alert",
-                {
-                    "type": "chatbot_crisis_alert",
-                    "payload": {
-                        "userId": request.userId,
-                        "conversationId": request.conversationId or "default",
-                        "riskLevel": severity,
-                        "reason": request.message,
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                },
+            await asyncio.wait_for(
+                kafka_producer.send(
+                    "chatbot.crisis.alert",
+                    {
+                        "type": "chatbot_crisis_alert",
+                        "payload": {
+                            "userId": request.userId,
+                            "conversationId": request.conversationId or "default",
+                            "riskLevel": severity,
+                            "reason": rule,
+                            "timestamp": datetime.now(timezone.utc)
+                            .isoformat()
+                            .replace("+00:00", "Z"),
+                        },
+                    },
+                ),
+                timeout=_CRISIS_ALERT_TIMEOUT_SECONDS,
             )
+            return True
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[CrisisGuard] Kafka emit failed (non-critical): %s", exc)
+            logger.warning("[CrisisGuard] Kafka emit failed: %s", exc)
+            return False
 
     async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
         started_at = time.perf_counter()
@@ -687,6 +763,7 @@ class RespondCommand:
         except Exception:
             logger.exception("Assistant stream generation failed")
             yield AssistantRespondData(
+                type="fallback",
                 reply="Hệ thống gặp lỗi khi tạo phản hồi. Bạn thử lại sau nhé.",
                 sources=[],
                 suggestedActions=[],

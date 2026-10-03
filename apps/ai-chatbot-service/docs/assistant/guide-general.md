@@ -13,8 +13,8 @@ Sentimeta không chỉ là nơi để kết nối — mà là một không gian 
 
 Sự an toàn của bạn là ưu tiên số một của chúng mình.
 
-- Mọi tin nhắn cá nhân đều được bảo vệ theo cách chỉ có bạn và người nhận mới đọc được — kể cả đội ngũ Sentimeta cũng không can thiệp được.
-- Những thông tin như thói quen bày tỏ cảm xúc hay nội dung bạn chia sẻ chỉ được dùng để đề xuất những điều phù hợp và chữa lành tâm trạng cho bạn — và **tuyệt đối không được chia sẻ với bất kỳ bên nào bên ngoài**.
+- Tin nhắn cá nhân của bạn chỉ hiển thị cho những người tham gia cuộc trò chuyện trong ứng dụng. Lưu ý: Sentimeta **hiện chưa hỗ trợ mã hóa đầu cuối**, vì vậy trong một số trường hợp cần thiết để vận hành, bảo trì hệ thống hoặc xử lý vi phạm, đội ngũ kỹ thuật có thể truy cập được nội dung. Hãy tránh chia sẻ mật khẩu hay thông tin quá nhạy cảm qua tin nhắn.
+- Những thông tin như thói quen bày tỏ cảm xúc hay nội dung bạn chia sẻ được dùng để đề xuất những điều phù hợp và chữa lành tâm trạng cho bạn. Sentimeta không bán hay chia sẻ dữ liệu này cho bên ngoài vì mục đích quảng cáo.
 - Bạn có toàn quyền quyết định ai có thể xem bài viết và ai có thể nhắn tin cho mình trong phần **Cài đặt Quyền riêng tư**.
 
 ## 2. Câu hỏi thường gặp
@@ -33,7 +33,7 @@ Bạn nhấn vào ảnh đại diện của mình ở góc màn hình để vào
 
 **Nếu tôi đang rất không ổn và cần giúp đỡ gấp thì sao?**
 
-Đừng chịu đựng một mình. Hãy mở Chatbot AI của Sentimeta và chia sẻ với nó — Chatbot được thiết kế để nhận ra những lúc bạn cần thêm sự hỗ trợ và sẽ cung cấp ngay **Đường dây hỗ trợ tâm lý miễn phí 24/7: Gọi 111**.
+Đừng chịu đựng một mình. Hãy mở Chatbot AI của Sentimeta và chia sẻ với nó — Chatbot được thiết kế để nhận ra những lúc bạn cần thêm sự hỗ trợ và sẽ cung cấp ngay thông tin tổng đài hỗ trợ tâm lý miễn phí 24/7: **1900 599 830** (Đường dây nóng Ngày Mai) hoặc **111** (Tổng đài Quốc gia). Nếu bạn đang gặp nguy hiểm tức thì, hãy liên hệ người thân hoặc dịch vụ cấp cứu địa phương.
 
 ---
 

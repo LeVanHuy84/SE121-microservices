@@ -6,6 +6,30 @@ from pydantic import BaseModel, Field
 
 AssistantRole = Literal["system", "user", "assistant"]
 
+# Loại phản hồi ổn định cho FE (xem chatbot-api-contract.md).
+AssistantResponseType = Literal[
+    "answer",
+    "greeting",
+    "out_of_scope",
+    "clarify",
+    "no_answer",
+    "community_blocked",
+    "crisis",
+    "fallback",
+]
+
+
+class CrisisResource(BaseModel):
+    name: str
+    phone: str
+
+
+class CrisisInfo(BaseModel):
+    severity: Literal["high", "medium"]
+    resources: list[CrisisResource] = Field(default_factory=list)
+    # True chỉ khi sự kiện báo đội hỗ trợ đã gửi thành công.
+    teamNotified: bool = False
+
 
 class AssistantHistoryItem(BaseModel):
     role: AssistantRole
@@ -47,6 +71,7 @@ class AssistantSuggestedAction(BaseModel):
 
 
 class AssistantRespondData(BaseModel):
+    type: AssistantResponseType = "answer"
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
@@ -56,6 +81,7 @@ class AssistantRespondData(BaseModel):
     latencyMs: Optional[float] = None
     persisted: Optional[bool] = None
     conversationId: Optional[str] = None
+    crisis: Optional[CrisisInfo] = None
 
 
 class AssistantRespondResponse(BaseModel):
