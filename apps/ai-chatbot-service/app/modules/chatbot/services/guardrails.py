@@ -219,6 +219,62 @@ DOMAIN_KEYWORD_GROUPS: tuple[DomainKeywordGroup, ...] = (
             "hoang loan",
         },
     ),
+    DomainKeywordGroup(
+        "settings_support",
+        {
+            "cai dat",
+            "settings",
+            "doi mat khau",
+            "change password",
+            "tro giup",
+            "support",
+            "bao cao",
+            "report",
+            "phan hoi",
+            "feedback",
+            "help",
+            "help center",
+            "khang nghi",
+        },
+    ),
+    DomainKeywordGroup(
+        "call",
+        {
+            "cuoc goi",
+            "goi dien",
+            "call",
+            "calls",
+            "goi video",
+            "goi audio",
+            "video call",
+            "voice call",
+        },
+    ),
+    DomainKeywordGroup(
+        "share",
+        {
+            "chia se",
+            "share",
+            "shares",
+            "dang lai",
+            "repost",
+        },
+    ),
+    DomainKeywordGroup(
+        "auth",
+        {
+            "dang nhap",
+            "login",
+            "signin",
+            "dang ky",
+            "register",
+            "signup",
+            "quen mat khau",
+            "forgot password",
+            "password",
+            "mat khau",
+        },
+    ),
 )
 
 

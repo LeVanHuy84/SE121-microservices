@@ -198,6 +198,26 @@ class DocsLintTest(unittest.TestCase):
                 for _, phone in CRISIS_RESOURCES:
                     self.assertIn(phone, text, f"{name} is missing {phone}")
 
+    def test_all_guides_have_valid_frontmatter(self):
+        seen_ids = set()
+        guides = self._guides()
+        self.assertGreaterEqual(len(guides), 8, "Expected at least 8 guide docs")
+        for name, text in guides.items():
+            lines = text.strip().splitlines()
+            self.assertEqual(lines[0], "---", f"{name} missing frontmatter start")
+            end_idx = lines.index("---", 1)
+            frontmatter = {}
+            for line in lines[1:end_idx]:
+                if ":" in line:
+                    k, v = line.split(":", 1)
+                    frontmatter[k.strip()] = v.strip()
+            self.assertIn("id", frontmatter, f"{name} missing id")
+            self.assertNotIn(frontmatter["id"], seen_ids, f"{name} has duplicate id {frontmatter['id']}")
+            seen_ids.add(frontmatter["id"])
+            self.assertEqual(frontmatter.get("topic"), "huong-dan", f"{name} invalid topic")
+            self.assertEqual(frontmatter.get("lang"), "vi", f"{name} invalid lang")
+            self.assertEqual(frontmatter.get("version"), "v2", f"{name} invalid version")
+
 
 if __name__ == "__main__":
     unittest.main()
