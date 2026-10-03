@@ -19,7 +19,11 @@ async def test_mongo_history_store():
         settings.MONGO_URL = mongo.get_connection_url()
         settings.MONGO_DB = "test_chatbot"
         
-        # Init DB
+        # Init DB (Force reset globals to avoid Event loop is closed error)
+        from app.core import database
+        database.client = None
+        database.db = None
+        
         init_database()
         db = get_database()
         
@@ -101,7 +105,7 @@ async def test_redis_session_memory():
 
 @pytest.mark.asyncio
 async def test_rag_document_service():
-    with ElasticSearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.11.0") as es_container:
+    with ElasticSearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.11.0").with_env("ES_JAVA_OPTS", "-Xms256m -Xmx256m").with_env("xpack.security.enabled", "false") as es_container:
         es_host = es_container.get_container_host_ip()
         es_port = es_container.get_exposed_port(9200)
         es_url = f"http://{es_host}:{es_port}"
