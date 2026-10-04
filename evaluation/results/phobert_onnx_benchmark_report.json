@@ -1,0 +1,78 @@
+{
+  "emotion": {
+    "PyTorch FP32": {
+      "accuracy": 63.77,
+      "macro_precision": 63.58,
+      "macro_recall": 63.91,
+      "macro_f1": 63.54,
+      "weighted_f1": 63.94,
+      "avg_latency_ms": 94.62,
+      "p95_latency_ms": 106.78,
+      "throughput_fps": 10.6,
+      "ram_footprint_mb": 24.46,
+      "model_size_mb": 515.26
+    },
+    "ONNX FP32": {
+      "accuracy": 63.77,
+      "macro_precision": 63.58,
+      "macro_recall": 63.91,
+      "macro_f1": 63.54,
+      "weighted_f1": 63.94,
+      "avg_latency_ms": 82.53,
+      "p95_latency_ms": 129.79,
+      "throughput_fps": 12.1,
+      "ram_footprint_mb": 541.87,
+      "model_size_mb": 515.26
+    },
+    "ONNX INT8": {
+      "accuracy": 60.73,
+      "macro_precision": 61.64,
+      "macro_recall": 60.89,
+      "macro_f1": 60.81,
+      "weighted_f1": 60.99,
+      "avg_latency_ms": 62.19,
+      "p95_latency_ms": 113.23,
+      "throughput_fps": 16.1,
+      "ram_footprint_mb": 155.36,
+      "model_size_mb": 129.56
+    }
+  },
+  "moderation": {
+    "PyTorch FP32": {
+      "accuracy": 88.67,
+      "macro_precision": 76.34,
+      "macro_recall": 85.47,
+      "macro_f1": 80.08,
+      "weighted_f1": 89.39,
+      "avg_latency_ms": 107.45,
+      "p95_latency_ms": 189.89,
+      "throughput_fps": 9.3,
+      "ram_footprint_mb": 24.91,
+      "model_size_mb": 515.25
+    },
+    "ONNX FP32": {
+      "accuracy": 88.67,
+      "macro_precision": 76.34,
+      "macro_recall": 85.47,
+      "macro_f1": 80.08,
+      "weighted_f1": 89.39,
+      "avg_latency_ms": 102.95,
+      "p95_latency_ms": 219.81,
+      "throughput_fps": 9.7,
+      "ram_footprint_mb": 534.15,
+      "model_size_mb": 515.25
+    },
+    "ONNX INT8": {
+      "accuracy": 88.82,
+      "macro_precision": 76.41,
+      "macro_recall": 83.7,
+      "macro_f1": 79.56,
+      "weighted_f1": 89.41,
+      "avg_latency_ms": 64.5,
+      "p95_latency_ms": 113.64,
+      "throughput_fps": 15.5,
+      "ram_footprint_mb": 160.41,
+      "model_size_mb": 129.56
+    }
+  }
+}

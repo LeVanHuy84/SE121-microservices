@@ -23,9 +23,13 @@ numpy==1.26.4
 # Image Utility (Base64 & Resizing)
 pillow==10.3.0
 
-# Music Analysis
-librosa
-pandas==2.2.2
+# ONNX Runtime & Model Hub
+onnxruntime>=1.17.0
+huggingface_hub>=0.20.0
+
+# Audio Processing - MERT (soundfile + soxr)
+soundfile>=0.12.1
+soxr>=0.3.7
 
 # Database & Messaging Infra
 aiokafka==0.10.0

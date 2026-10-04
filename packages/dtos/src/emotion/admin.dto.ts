@@ -1,56 +1,66 @@
-import { IsOptional, IsEnum, IsNumber } from 'class-validator';
-import { RiskLevel } from './enums';
-import { UserEmotionSignalDto } from './user-emotion-signal.dto';
-import { BaseUserDTO } from '../user';
+import { IsOptional, IsNumber } from 'class-validator';
+
+export class EmotionDistributionDto {
+  joy: number;
+  sadness: number;
+  anger: number;
+  fear: number;
+  disgust: number;
+  surprise: number;
+  neutral: number;
+  total: number;
+}
+
+export class RiskLevelDistributionDto {
+  normal: number;
+  low: number;
+  medium: number;
+  high: number;
+  critical: number;
+  totalUsers: number;
+}
+
+export class TargetTypeBreakdownDto {
+  posts: number;
+  comments: number;
+  total: number;
+}
+
+export class ResourceSummaryDto {
+  totalHotlines: number;
+  activeHotlines: number;
+  totalExercises: number;
+  activeExercises: number;
+}
 
 export class DashboardOverviewResponseDto {
   totalAnalyzedSnapshots: number;
-  highRiskUsers: number;
-  criticalRiskUsers: number;
-  averageNegativityScore: number;
-  topEmotions: Record<string, number>;
+  totalInterventionsDispatched: number;
+  activeInterventionResources: number;
+  feedbackRate: number;
+  aiAccuracyRate?: number;
+
+  daysWindow: number;
+  emotionDistribution: EmotionDistributionDto;
+  riskDistribution: RiskLevelDistributionDto;
+  targetTypeDistribution: TargetTypeBreakdownDto;
+  resourceSummary: ResourceSummaryDto;
 }
 
 export class EmotionDashboardChartItemDto {
   date: string;
 
-  angry: number;
-  disgust: number;
+  joy: number;
+  happy?: number;
+  sadness: number;
+  sad?: number;
+  anger: number;
+  angry?: number;
   fear: number;
-  happy: number;
-  neutral: number;
-  sad: number;
+  disgust: number;
   surprise: number;
+  neutral: number;
 }
-
-export class RiskUsersQueryDto {
-  @IsOptional()
-  @IsNumber()
-  page?: number;
-
-  @IsOptional()
-  @IsNumber()
-  limit?: number;
-
-  @IsOptional()
-  @IsEnum(RiskLevel)
-  riskLevel?: RiskLevel;
-}
-
-export class RiskUserDto {
-  user: BaseUserDTO;
-  riskItem: RiskUserItemDto;
-}
-
-export class RiskUserItemDto {
-  userId: string;
-  riskLevel: RiskLevel;
-  riskScore: number;
-  signalCount: number;
-  updatedAt?: Date;
-}
-
-// Profile detail and snapshot timeline DTOs removed for privacy.
 
 export class FeedbackListQueryDto {
   @IsOptional()

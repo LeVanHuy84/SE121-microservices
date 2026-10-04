@@ -41,15 +41,25 @@ export class ModerationService {
     userId: string,
     query: GetMyModerationQuery,
   ): Promise<PageResponse<ContentModerationDTO>> {
-    const { targetType, page = 1, limit = 10 } = query;
+    const { targetType, action, page = 1, limit = 10 } = query;
+
+    const where: any = { userId };
+    if (targetType) {
+      where.targetType = targetType;
+    }
+    if (action) {
+      where.action = action;
+    }
 
     const [records, total] =
       await this.contentModerationRepository.findAndCount({
-        where: { userId, targetType },
+        where,
         order: { createdAt: "DESC" },
         skip: (page - 1) * limit,
         take: limit,
       });
+
+
 
     // group ids
     const postIds: string[] = [];
@@ -121,18 +131,10 @@ export class ModerationService {
         };
       }
 
-      return {
-        ...r,
-        targetPreview: preview,
-      };
+      return this.mapToContentModerationDTO(r, preview);
     });
 
-    return new PageResponse(
-      plainToInstance(ContentModerationDTO, items),
-      total,
-      page,
-      limit,
-    );
+    return new PageResponse(items, total, page, limit);
   }
 
   async getModerationRecordDetail(
@@ -180,7 +182,7 @@ export class ModerationService {
     }
 
     return {
-      moderation: plainToInstance(ContentModerationDTO, moderation),
+      moderation: this.mapToContentModerationDTO(moderation),
       target,
       appeals: plainToInstance(ModerationAppealResponseDTO, moderation.appeals),
     };
@@ -191,7 +193,7 @@ export class ModerationService {
   ): Promise<PageResponse<ContentModerationDTO>> {
     const {
       targetType,
-      maxSeverity,
+      action,
       finalDecision,
       fromDate,
       toDate,
@@ -205,20 +207,44 @@ export class ModerationService {
       qb.andWhere("cm.target_type = :targetType", { targetType });
     }
 
-    if (maxSeverity) {
-      qb.andWhere("cm.max_severity = :maxSeverity", { maxSeverity });
+    if (action) {
+      qb.andWhere("cm.action = :action", { action });
     }
 
     if (finalDecision) {
-      qb.andWhere("cm.final_decision = :finalDecision", { finalDecision });
+      const decisionUpper = String(finalDecision).toUpperCase();
+      if (decisionUpper === "AUTO") {
+        qb.andWhere("cm.final_decision IS NULL");
+      } else if (decisionUpper === "MANUAL") {
+        qb.andWhere("cm.final_decision IS NOT NULL");
+      } else if (
+        decisionUpper === "VIOLATION" ||
+        decisionUpper === "NO_VIOLATION"
+      ) {
+        qb.andWhere("cm.final_decision = :finalDecision", {
+          finalDecision: decisionUpper,
+        });
+      }
     }
 
     if (fromDate) {
-      qb.andWhere("cm.created_at >= :fromDate", { fromDate });
+      const from = new Date(fromDate);
+      if (!isNaN(from.getTime())) {
+        from.setHours(0, 0, 0, 0);
+        qb.andWhere("cm.created_at >= :from", { from });
+      } else {
+        qb.andWhere("cm.created_at >= :fromDate", { fromDate });
+      }
     }
 
     if (toDate) {
-      qb.andWhere("cm.created_at <= :toDate", { toDate });
+      const to = new Date(toDate);
+      if (!isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+        qb.andWhere("cm.created_at <= :to", { to });
+      } else {
+        qb.andWhere("cm.created_at <= :toDate", { toDate });
+      }
     }
 
     qb.orderBy("cm.created_at", "DESC")
@@ -291,18 +317,10 @@ export class ModerationService {
         };
       }
 
-      return {
-        ...r,
-        targetPreview: preview,
-      };
+      return this.mapToContentModerationDTO(r, preview);
     });
 
-    return new PageResponse(
-      plainToInstance(ContentModerationDTO, items),
-      total,
-      page,
-      limit,
-    );
+    return new PageResponse(items, total, page, limit);
   }
 
   async applyFinalDecision(
@@ -380,7 +398,7 @@ export class ModerationService {
       );
     }
 
-    return plainToInstance(ContentModerationDTO, updatedModeration);
+    return this.mapToContentModerationDTO(updatedModeration!);
   }
 
   async getTargetContent(targetId: string, targetType: TargetType) {
@@ -395,9 +413,35 @@ export class ModerationService {
       });
       return comment ? plainToInstance(CommentResponseDTO, comment) : null;
     } else if (targetType === TargetType.SHARE) {
-      return null;
+      const share = await this.shareRepository.findOne({
+        where: { id: targetId },
+      });
+      return share ? plainToInstance(ShareResponseDTO, share) : null;
     }
 
     return null;
   }
+
+  private mapToContentModerationDTO(
+    r: ContentModeration,
+    preview?: ContentModerationDTO["targetPreview"],
+  ): ContentModerationDTO {
+    return {
+      id: r.id,
+      userId: r.userId,
+      targetId: r.targetId,
+      targetType: r.targetType,
+      isViolation: r.isViolation,
+      action: r.action,
+      label: r.label,
+      mentalHealthSupport: r.mentalHealthSupport,
+      violations: r.violations || [],
+      confidence: r.confidence,
+      displayMessage: r.displayMessage,
+      finalDecision: r.finalDecision,
+      createdAt: r.createdAt,
+      targetPreview: preview,
+    };
+  }
 }
+

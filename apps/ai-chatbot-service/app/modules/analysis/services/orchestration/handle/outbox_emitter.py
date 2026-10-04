@@ -32,7 +32,6 @@ class OutboxEmitter:
             "isViolation": is_violation,
             "mentalHealthSupport": moderation.get("mentalHealthSupport", False),
             "violations": violations,
-            "maxSeverity": str(moderation.get("maxSeverity", "")).upper(),
             "confidence": moderation.get("confidence", moderation.get("violationScore")),
             "displayMessage": display_message,
             "createdAt": moderation.get("createdAt").isoformat() if hasattr(moderation.get("createdAt"), "isoformat") else str(moderation.get("createdAt", "")),

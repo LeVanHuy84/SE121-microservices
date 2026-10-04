@@ -4,10 +4,12 @@ import sys
 import json
 import base64
 import time
+import random
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 import numpy as np
-import requests
+import httpx
 from PIL import Image
 from pydantic import BaseModel, Field
 
@@ -69,14 +71,19 @@ class VLMBatchRawOutput(BaseModel):
 
 
 # ============================================================================
-# 2. VLM ANALYZER CLASS
+# 2. VLM ANALYZER CLASS (ASYNC & HIGH-PERFORMANCE)
 # ============================================================================
 
 class VLMAnalyzer:
     """
-    Unified VLM Analyzer for Multimodal Social Media Content.
-    Auto-discovers active vision models on Groq/OpenAI endpoints.
-    Optimized for Token consumption, Image Compression, and Batch Execution.
+    Unified Async VLM Analyzer for Multimodal Social Media Content.
+    Features:
+    - Pure Async Non-blocking HTTP (httpx.AsyncClient)
+    - Zero redundant downloads (directly consumes ImageInput.bytes)
+    - Parallel async image processing and resizing in threadpool
+    - Exponential backoff retry for HTTP 429 / 503 errors
+    - Token consumption optimization via Lanczos thumbnailing
+    - Single-request batch inference
     """
 
     SYSTEM_PROMPT = """Bạn là AI Phân tích Đa phương thức cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
@@ -100,76 +107,22 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
         self.api_key = settings.VLM_API_KEY
         self.base_url = settings.VLM_BASE_URL
         self.model_name = settings.VLM_MODEL_NAME
-        logger.info(f"[VLMAnalyzer] Initializing with Base URL: {self.base_url}")
-        
-        # Auto-discover models if API key is set
-        available_models = self.get_available_models()
-        if available_models and self.model_name not in available_models:
-            vision_models = [m for m in available_models if any(x in m.lower() for x in ['vision', 'qwen', 'gemini', 'gpt'])]
-            if vision_models:
-                self.model_name = vision_models[0]
-                logger.info(f"[VLMAnalyzer] Auto-selected vision model: {self.model_name}")
+        self._async_client: Optional[httpx.AsyncClient] = None
+        logger.info(f"[VLMAnalyzer] Initialized with Base URL: {self.base_url}, Model: {self.model_name}")
 
-    def get_available_models(self) -> List[str]:
-        if not self.api_key:
-            return []
-        try:
-            endpoint = f"{self.base_url.rstrip('/')}/models"
-            headers = {"Authorization": f"Bearer {self.api_key}"}
-            resp = requests.get(endpoint, headers=headers, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data", [])
-                return [m["id"] for m in data]
-        except Exception as e:
-            logger.warning(f"[VLMAnalyzer] Model list check failed: {e}")
-        return []
+    async def get_client(self) -> httpx.AsyncClient:
+        """Get or create singleton AsyncClient."""
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0, connect=10.0),
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
+            )
+        return self._async_client
 
-    def _compress_and_encode_image(self, image_source: Any, max_size: int = None, quality: int = None) -> str:
-        """
-        Compress image to max_size x max_size (JPEG) and convert to Base64 data URL.
-        Reduces Vision Tokens by up to 75% while keeping high classification quality.
-        """
-        if max_size is None:
-            max_size = settings.VLM_MAX_IMAGE_SIZE
-        if quality is None:
-            quality = settings.VLM_IMAGE_QUALITY
-
-        if hasattr(image_source, 'url') and image_source.url:
-            image_source = image_source.url
-        elif hasattr(image_source, 'path') and image_source.path:
-            image_source = image_source.path
-
-        try:
-            if isinstance(image_source, str) and (image_source.startswith("http://") or image_source.startswith("https://")):
-                resp = requests.get(image_source, timeout=10)
-                if resp.status_code != 200:
-                    return image_source
-                img = Image.open(io.BytesIO(resp.content))
-            elif isinstance(image_source, str) and os.path.exists(image_source):
-                img = Image.open(image_source)
-            elif isinstance(image_source, str) and image_source.startswith("data:image"):
-                # Already base64 data url
-                header, base64_str = image_source.split(",", 1)
-                img_data = base64.b64decode(base64_str)
-                img = Image.open(io.BytesIO(img_data))
-            else:
-                return str(image_source)
-
-            # Convert to RGB mode (in case of PNG with transparency / RGBA)
-            if img.mode in ("RGBA", "P"):
-                img = img.convert("RGB")
-
-            # Resize while preserving aspect ratio
-            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-
-            # Save to JPEG bytes buffer
-            buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=quality, optimize=True)
-            encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
-            return f"data:image/jpeg;base64,{encoded}"
-        except Exception as e:
-            logger.warning(f"[VLMAnalyzer] Image compression failed: {e}. Falling back to raw URL/Path.")
-            return str(image_source)
+    async def close(self):
+        """Close HTTP client on shutdown."""
+        if self._async_client and not self._async_client.is_closed:
+            await self._async_client.aclose()
 
     def reload_env(self):
         """Reload environment variables dynamically."""
@@ -178,6 +131,94 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
         self.model_name = settings.VLM_MODEL_NAME
         if self.api_key:
             logger.info(f"[VLMAnalyzer] Dynamic reload successful! Base URL: {self.base_url}, Model: {self.model_name}")
+
+    # ========================================================================
+    # IMAGE PROCESSING (CPU-bound in Threadpool + Zero Double-download)
+    # ========================================================================
+
+    @staticmethod
+    def _resize_and_compress_sync(raw_bytes: bytes, max_size: int, quality: int) -> str:
+        """CPU-bound image resizing and JPEG Base64 encoding."""
+        img = Image.open(io.BytesIO(raw_bytes))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=quality, optimize=True)
+        encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{encoded}"
+
+    async def _compress_and_encode_image_async(
+        self,
+        image_source: Any,
+        client: httpx.AsyncClient,
+        max_size: Optional[int] = None,
+        quality: Optional[int] = None
+    ) -> str:
+        """
+        Compress image asynchronously without blocking event loop.
+        Directly reuses ImageInput.bytes if available.
+        """
+        if max_size is None:
+            max_size = settings.VLM_MAX_IMAGE_SIZE
+        if quality is None:
+            quality = settings.VLM_IMAGE_QUALITY
+
+        raw_bytes: Optional[bytes] = None
+
+        # Case 1: ImageInput object with bytes attribute
+        if hasattr(image_source, "bytes") and image_source.bytes:
+            raw_bytes = image_source.bytes
+        elif isinstance(image_source, bytes):
+            raw_bytes = image_source
+        elif isinstance(image_source, str):
+            # Case 2: Already base64 data url
+            if image_source.startswith("data:image"):
+                try:
+                    _, base64_str = image_source.split(",", 1)
+                    raw_bytes = base64.b64decode(base64_str)
+                except Exception:
+                    return image_source
+            # Case 3: Local file path
+            elif os.path.exists(image_source):
+                try:
+                    with open(image_source, "rb") as f:
+                        raw_bytes = f.read()
+                except Exception as e:
+                    logger.warning(f"[VLMAnalyzer] Failed to read local image path: {e}")
+                    return image_source
+            # Case 4: Remote HTTP/HTTPS URL (fallback for direct API callers)
+            elif image_source.startswith("http://") or image_source.startswith("https://"):
+                try:
+                    resp = await client.get(image_source, timeout=10.0)
+                    if resp.status_code == 200:
+                        raw_bytes = resp.content
+                    else:
+                        logger.warning(f"[VLMAnalyzer] Fetch image URL failed (status={resp.status_code}): {image_source}")
+                        return image_source
+                except Exception as e:
+                    logger.warning(f"[VLMAnalyzer] Async image download failed: {e}")
+                    return image_source
+            else:
+                return str(image_source)
+        elif hasattr(image_source, "url") and image_source.url:
+            # Object has url only
+            return await self._compress_and_encode_image_async(image_source.url, client, max_size, quality)
+        else:
+            return str(image_source)
+
+        if not raw_bytes:
+            return str(image_source)
+
+        try:
+            return await asyncio.to_thread(self._resize_and_compress_sync, raw_bytes, max_size, quality)
+        except Exception as e:
+            logger.warning(f"[VLMAnalyzer] Image compression failed: {e}. Falling back to raw source.")
+            return str(image_source)
+
+    # ========================================================================
+    # OUTPUT NORMALIZATION
+    # ========================================================================
 
     def _normalize_raw_output(self, raw_output: VLMRawOutput) -> Dict[str, Any]:
         """Normalize VLM emotion scores and dynamic secondary thresholding."""
@@ -218,9 +259,64 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
             "modelUsed": self.model_name
         }
 
-    def analyze_post(self, text_content: str, image_inputs: List[Any]) -> Dict[str, Any]:
+    # ========================================================================
+    # API CALL WITH RETRY & EXPONENTIAL BACKOFF
+    # ========================================================================
+
+    async def _call_vlm_api_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        payload: Dict[str, Any],
+        timeout: float = 40.0,
+        max_retries: int = 3
+    ) -> Dict[str, Any]:
+        """Call VLM API with exponential backoff for Rate Limits (429) and Server Errors (503)."""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
+
+        last_error = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = await client.post(endpoint, headers=headers, json=payload, timeout=timeout)
+                
+                if resp.status_code == 200:
+                    return resp.json()
+                
+                # Retryable status codes
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    backoff = (2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.4)
+                    logger.warning(
+                        f"[VLMAnalyzer] API status={resp.status_code} (attempt {attempt}/{max_retries}). "
+                        f"Backing off for {backoff:.2f}s... Response: {resp.text[:150]}"
+                    )
+                    last_error = RuntimeError(f"VLM API Error {resp.status_code}: {resp.text}")
+                    if attempt < max_retries:
+                        await asyncio.sleep(backoff)
+                        continue
+                else:
+                    raise RuntimeError(f"VLM API Non-retryable Error {resp.status_code}: {resp.text}")
+
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                backoff = (2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.4)
+                logger.warning(f"[VLMAnalyzer] Network error ({type(e).__name__}) on attempt {attempt}/{max_retries}. Backoff {backoff:.2f}s...")
+                last_error = e
+                if attempt < max_retries:
+                    await asyncio.sleep(backoff)
+                    continue
+
+        raise last_error or RuntimeError("VLM API Call exhausted all retries.")
+
+    # ========================================================================
+    # PUBLIC ASYNC METHODS
+    # ========================================================================
+
+    async def analyze_post(self, text_content: str, image_inputs: List[Any]) -> Dict[str, Any]:
         """
-        Analyze single multimodal post (text + image_inputs).
+        Analyze single multimodal post (text + image_inputs) asynchronously.
         """
         if not self.api_key:
             self.reload_env()
@@ -229,12 +325,20 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
             raise RuntimeError("API Key not found for VLM. Please set VLM_API_KEY in .env")
 
         start_time = time.time()
-        
-        user_content = [{"type": "text", "text": f"Bài viết: \"{text_content}\"\nSố lượng hình ảnh đính kèm: {len(image_inputs)}"}]
+        client = await self.get_client()
 
-        for img in image_inputs[:4]:
-            compressed_url = self._compress_and_encode_image(img)
-            user_content.append({"type": "image_url", "image_url": {"url": compressed_url}})
+        # Parallel image compression
+        selected_images = image_inputs[:4]
+        compressed_urls = await asyncio.gather(
+            *[self._compress_and_encode_image_async(img, client) for img in selected_images]
+        )
+
+        user_content: List[Dict[str, Any]] = [
+            {"type": "text", "text": f"Bài viết: \"{text_content}\"\nSố lượng hình ảnh đính kèm: {len(compressed_urls)}"}
+        ]
+
+        for comp_url in compressed_urls:
+            user_content.append({"type": "image_url", "image_url": {"url": comp_url}})
 
         payload = {
             "model": self.model_name,
@@ -246,19 +350,9 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
             "response_format": {"type": "json_object"}
         }
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post (images={len(compressed_urls)})...")
+        res_json = await self._call_vlm_api_with_retry(client, payload, timeout=40.0)
 
-        endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
-        logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post...")
-
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=40)
-        if response.status_code != 200:
-            raise RuntimeError(f"VLM API Error {response.status_code}: {response.text}")
-
-        res_json = response.json()
         raw_content = res_json["choices"][0]["message"]["content"]
         parsed_data = json.loads(raw_content)
 
@@ -268,7 +362,7 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
 
         return normalized
 
-    def analyze_batch_posts(self, posts: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    async def analyze_batch_posts(self, posts: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
         Analyze a batch of multimodal posts in a SINGLE VLM API Request.
         posts format: [{"id": "post_1", "text": "...", "images": [...]}, ...]
@@ -284,26 +378,29 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
             raise RuntimeError("API Key not found for VLM. Please set VLM_API_KEY in .env")
 
         start_time = time.time()
-        user_content = []
+        client = await self.get_client()
 
-        user_content.append({
+        user_content: List[Dict[str, Any]] = [{
             "type": "text",
             "text": f"Danh sách {len(posts)} bài viết cần phân tích trong batch này:\n"
-        })
+        }]
 
         for p in posts:
             p_id = str(p.get("id"))
             p_text = str(p.get("text", ""))
-            p_images = p.get("images", [])
+            p_images = p.get("images", [])[:4]
+
+            compressed_urls = await asyncio.gather(
+                *[self._compress_and_encode_image_async(img, client) for img in p_images]
+            )
 
             user_content.append({
                 "type": "text",
-                "text": f"\n--- BÀI VIẾT ID: {p_id} ---\nStatus: \"{p_text}\"\nĐính kèm {len(p_images)} ảnh dưới đây:"
+                "text": f"\n--- BÀI VIẾT ID: {p_id} ---\nStatus: \"{p_text}\"\nĐính kèm {len(compressed_urls)} ảnh dưới đây:"
             })
 
-            for img in p_images[:4]:
-                compressed_url = self._compress_and_encode_image(img)
-                user_content.append({"type": "image_url", "image_url": {"url": compressed_url}})
+            for comp_url in compressed_urls:
+                user_content.append({"type": "image_url", "image_url": {"url": comp_url}})
 
         payload = {
             "model": self.model_name,
@@ -315,19 +412,9 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
             "response_format": {"type": "json_object"}
         }
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
-        endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
         logger.info(f"[VLMAnalyzer] Calling VLM API Batch ({self.model_name}) for {len(posts)} posts in 1 request...")
+        res_json = await self._call_vlm_api_with_retry(client, payload, timeout=60.0)
 
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=60)
-        if response.status_code != 200:
-            raise RuntimeError(f"VLM API Batch Error {response.status_code}: {response.text}")
-
-        res_json = response.json()
         raw_content = res_json["choices"][0]["message"]["content"]
         parsed_data = json.loads(raw_content)
 

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-import torch
+import numpy as np
 
 from app.modules.analysis.services.ml_models.text_moderation.phobert_moderator import PhoBERTModerator
 
@@ -9,9 +9,8 @@ class TestPhoBERTModeratorLongText(unittest.TestCase):
     def setUp(self):
         self.moderator = PhoBERTModerator()
         self.moderator.initialized = True
-        self.moderator.device = "cpu"
         self.moderator.tokenizer = MagicMock()
-        self.moderator.model = MagicMock()
+        self.moderator.session = MagicMock()
 
     def test_empty_text_returns_clean(self):
         result = self.moderator.infer("")
@@ -32,22 +31,20 @@ class TestPhoBERTModeratorLongText(unittest.TestCase):
         ]
         mock_prep.side_effect = lambda s, **kw: s
 
-        mock_inputs = MagicMock()
-        mock_inputs.to.return_value = mock_inputs
-        self.moderator.tokenizer.return_value = mock_inputs
+        fake_inputs = {
+            "input_ids": np.ones((3, 10), dtype=np.int64),
+            "attention_mask": np.ones((3, 10), dtype=np.int64)
+        }
+        self.moderator.tokenizer.return_value = fake_inputs
 
-        # Mock Model output logits for 3 sentences:
-        # Sentence 0 (CLEAN): probs [0.9, 0.05, 0.03, 0.02]
-        # Sentence 1 (CLEAN): probs [0.95, 0.02, 0.02, 0.01]
-        # Sentence 2 (HATE_SPEECH): probs [0.05, 0.05, 0.85, 0.05]
-        fake_logits = torch.tensor([
+        # Mock ONNX Session output logits for 3 sentences:
+        fake_logits = np.array([
             [2.0, -1.0, -1.5, -2.0],
             [3.0, -2.0, -2.0, -3.0],
             [-2.0, -2.0, 2.5, -2.0]
-        ])
-        mock_output = MagicMock()
-        mock_output.logits = fake_logits
-        self.moderator.model.return_value = mock_output
+        ], dtype=np.float32)
+        
+        self.moderator.session.run.return_value = [fake_logits]
 
         result = self.moderator.infer("Dài hơn 300 từ...")
 
