@@ -18,4 +18,5 @@ export enum EventTopic {
 
   TEST_FAULT = 'test-fault',
   USER_ACTIVITY_LOG = 'user-activity-log-events',
+  CHATBOT_CRISIS_ALERT = 'chatbot.crisis.alert',
 }

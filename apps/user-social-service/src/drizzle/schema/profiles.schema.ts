@@ -47,7 +47,7 @@ export const profiles = pgTable("profiles", {
   privacySettings: jsonb("privacy_settings")
     .$type<UserPrivacySettings>()
     .default(
-      sql`'{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC"}'::jsonb`,
+      sql`'{"profileVisibility": "PUBLIC", "messagePrivacy": "EVERYONE", "friendListVisibility": "PUBLIC", "allowProactiveIntervention": false}'::jsonb`,
     )
     .notNull(),
 

@@ -4,12 +4,17 @@ import logging
 
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
+from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 
 logger = logging.getLogger("uvicorn.error")
 
 
 class AssistantContextResolver:
-    async def resolve(self, request: AssistantRespondRequest) -> list[AssistantContextItem]:
+    async def resolve(
+        self,
+        request: AssistantRespondRequest,
+        emotion_snapshot: EmotionSnapshot | None = None,
+    ) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
         rag_top_k = min(
@@ -32,7 +37,7 @@ class AssistantContextResolver:
             return self._dedupe(contexts)[:candidate_limit]
 
         merged = self._merge_contexts(contexts, doc_contexts)
-        ranked = self._rank_contexts(request.message, merged)
+        ranked = self._rank_contexts(request.message, merged, emotion_snapshot)
         return ranked[:candidate_limit]
 
     def _merge_contexts(
@@ -72,6 +77,7 @@ class AssistantContextResolver:
         self,
         query: str,
         contexts: list[AssistantContextItem],
+        emotion_snapshot: EmotionSnapshot | None = None,
     ) -> list[AssistantContextItem]:
         normalized_query = self._normalize(query)
         if not normalized_query or not contexts:
@@ -81,7 +87,18 @@ class AssistantContextResolver:
         for item in self._dedupe(contexts):
             base_score = float(item.score or 0)
             lexical_score = self._compute_lexical_score(normalized_query, item)
-            final_score = base_score + lexical_score
+            
+            emotion_boost = 1.0
+            if emotion_snapshot and item.metadata:
+                topic = item.metadata.get("topic")
+                if topic == "pfa" and emotion_snapshot.risk_level in {"high", "medium"}:
+                    emotion_boost = 1.5
+                elif topic == "phuong-phap-chua-tri" and emotion_snapshot.primary_emotion in {"sadness", "fear", "anger"}:
+                    emotion_boost = 1.3
+                elif topic == "giao-trinh-chuyen-nganh":
+                    emotion_boost = 0.8
+                    
+            final_score = (base_score + lexical_score) * emotion_boost
 
             ranked.append(
                 item.model_copy(

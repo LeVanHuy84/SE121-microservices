@@ -5,32 +5,63 @@ import json
 import logging
 import re
 import time
+from collections.abc import AsyncIterator
 from uuid import uuid4
-from typing import AsyncIterator
 
 from app.core.settings import settings
-from app.providers.base import LlmGeneration, LlmProvider
-from app.providers.groq_provider import GroqProvider
-
+from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
 from app.modules.chatbot.schemas import (
     AssistantHistoryItem,
     AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
+    CrisisInfo,
+    CrisisResource,
 )
-
+from app.modules.chatbot.services.context_resolver import (
+    AssistantContextResolver,
+    assistant_context_resolver,
+)
+from app.modules.chatbot.services.emotion_context import (
+    EmotionSnapshot,
+    EmotionContextService,
+    emotion_context_service,
+)
+from app.modules.chatbot.services.guardrails import (
+    AssistantScopeGuard,
+    CommunityGuard,
+    CrisisGuard,
+    ScopeDecision,
+    assistant_community_guard,
+    assistant_crisis_guard,
+    assistant_scope_guard,
+)
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
-from app.modules.chatbot.services.context_resolver import AssistantContextResolver, assistant_context_resolver
-from app.modules.chatbot.services.guardrails import CommunityGuard, assistant_community_guard, AssistantScopeGuard, assistant_scope_guard
-from app.modules.chatbot.services.prompt_builder import PromptBuilder
+from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES, PromptBuilder
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
-from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
-
-
-
+from app.providers.base import LlmGeneration, LlmProvider
+from app.providers.groq_provider import GroqProvider
 
 logger = logging.getLogger("uvicorn.error")
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
+
+# Max time to wait for the Kafka crisis alert before replying (so chat never hangs).
+_CRISIS_ALERT_TIMEOUT_SECONDS = 2.0
+# General-knowledge domains: still call the LLM when there is no RAG context (no diagnosis/prescription).
+# App-feature domains without context -> `no_answer` so the LLM does not invent features.
+_GENERAL_KNOWLEDGE_DOMAINS = frozenset({"mental_health", "emotion"})
+# Kafka alert wire format. The emotion-intelligence-service consumer expects `crisis` (explicit
+# self-harm/suicide intent -> CRISIS) and `high` (softer signals -> HIGH_RISK); it treats any other
+# value as CRISIS. The FE-facing `crisis.severity` stays `high`/`medium`.
+_ALERT_RISK_LEVEL = {"high": "crisis", "medium": "high"}
+# Fixed, neutral descriptions (no user text). The consumer feeds `reason` to an LLM when selecting
+# support resources, so it must read like a short description rather than a bare rule code.
+_ALERT_REASON = {
+    "explicit_crisis": "Người dùng thể hiện ý định tự hại hoặc tự sát khi trò chuyện với chatbot.",
+    "soft_crisis": "Người dùng có dấu hiệu tuyệt vọng hoặc cô đơn kéo dài khi trò chuyện với chatbot.",
+}
+_ALERT_REASON_DEFAULT = "Chatbot phát hiện dấu hiệu khủng hoảng tâm lý ở người dùng."
+
 
 
 class RespondCommand:
@@ -49,8 +80,112 @@ class RespondCommand:
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
         self.community_guard = community_guard or assistant_community_guard
+        self.crisis_guard = assistant_crisis_guard
+        self.emotion_ctx = emotion_context_service
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
+
+    async def _run_guard_chain(
+        self,
+        working_request: AssistantRespondRequest,
+        history: list[AssistantHistoryItem],
+        last_intent: str | None,
+        has_follow_up_anchor: bool,
+        emotion_snapshot: EmotionSnapshot,
+    ) -> tuple[AssistantRespondData | None, str | None, ScopeDecision | None, list]:
+        # --- Mental health crisis check (highest priority guard) ---
+        crisis_decision = self.crisis_guard.evaluate(working_request.message)
+        if crisis_decision.is_crisis:
+            # Bounded wait so we know whether we may say support info was sent to the user's notifications.
+            notification_sent = await self._emit_crisis_event(
+                working_request,
+                crisis_decision.severity,
+                crisis_decision.reason,
+            )
+            reply = self.prompt_builder.build_crisis(
+                severity=crisis_decision.severity,
+                notification_sent=notification_sent,
+            )
+            data = self._build_crisis_response(
+                reply,
+                crisis_decision.severity,
+                notification_sent,
+            )
+            return data, "mental_health_crisis", None, []
+
+        # --- Community Guard ---
+        community_decision = self.community_guard.evaluate(working_request.message)
+        if not community_decision.allowed:
+            data = self._community_response(community_decision.reason)
+            return data, "community_guard", None, []
+
+        # --- Context Resolver ---
+        candidate_contexts = (
+            self._dedupe_contexts(working_request.contexts)
+            if working_request.contexts
+            else await self._resolve_contexts_with_budget(
+                working_request,
+                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
+                emotion_snapshot,
+            )
+        )
+        working_request = working_request.model_copy(update={"contexts": candidate_contexts})
+
+        # --- Scope Guard ---
+        scope_decision = self.scope_guard.evaluate_scope(
+            working_request,
+            last_intent=last_intent,
+            recent_history=history,
+        )
+
+        if scope_decision.reason == "greeting":
+            return self._greeting_response(), "greeting", scope_decision, candidate_contexts
+
+        general_knowledge = self._is_general_knowledge_only(scope_decision)
+
+        if not scope_decision.in_scope:
+            intent = "out_of_scope"
+            if "privacy" in scope_decision.matched_domains:
+                data = self._privacy_policy_response()
+                intent = "privacy"
+            elif scope_decision.state == "in_domain_unknown":
+                if general_knowledge:
+                    # Mental health / emotion knowledge: still let the LLM answer.
+                    return None, None, scope_decision, candidate_contexts
+                data = self._in_domain_unknown_response(scope_decision.matched_domains)
+                intent = "in_domain_unknown"
+            elif scope_decision.state == "ambiguous":
+                data = self._ambiguous_scope_response(scope_decision.matched_domains)
+                intent = "clarify"
+            else:
+                data = self._out_of_scope_response()
+            return data, intent, scope_decision, candidate_contexts
+
+        prompt_limits = resolve_prompt_limits(working_request.userId)
+        final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+        
+        if (
+            not final_contexts
+            and scope_decision.matched_domains
+            and not has_follow_up_anchor
+            and not general_knowledge
+        ):
+            data = self._in_domain_unknown_response(scope_decision.matched_domains)
+            return data, "in_domain_unknown", scope_decision, candidate_contexts
+
+        return None, None, scope_decision, candidate_contexts
+
+    def _is_general_knowledge_only(self, scope_decision: ScopeDecision) -> bool:
+        """True if every matched domain is general knowledge (mental_health/emotion).
+
+        Feature questions ("does it have ... feature") are always treated as app-feature questions.
+        """
+        domains = scope_decision.matched_domains
+        if not domains:
+            return False
+        if scope_decision.reason == "feature_question_in_domain_unknown":
+            return False
+        return set(domains).issubset(_GENERAL_KNOWLEDGE_DOMAINS)
 
     async def execute(self, request: AssistantRespondRequest) -> AssistantRespondData:
         started_at = time.perf_counter()
@@ -59,27 +194,34 @@ class RespondCommand:
         history = self._resolve_history(request, session_key)
         last_intent = request.intent or self.memory.get_last_intent(session_key)
         memory_facts = self.memory.get_facts(session_key)
-        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+        effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
             memory_facts,
+            request,
         )
         working_request = (
             request.model_copy(update={"message": effective_message})
             if effective_message != request.message
             else request
         )
-        community_decision = self.community_guard.evaluate(request.message)
-        if not community_decision.allowed:
-            data = self._community_response(community_decision.reason)
-            self._persist_session_memory(request, data.reply, [], "community_guard")
+
+        # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
+        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+
+        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+            working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
+        )
+        
+        if guard_data:
+            self._persist_session_memory(request, guard_data.reply, [], guard_intent)
             persisted = await self.persist_history.execute(
                 request=request,
-                assistant_reply=data.reply,
+                assistant_reply=guard_data.reply,
                 sources=[],
-                intent="community_guard",
+                intent=guard_intent,
             )
-            return data.model_copy(
+            return guard_data.model_copy(
                 update={
                     "requestId": request_id,
                     "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
@@ -88,136 +230,22 @@ class RespondCommand:
                 }
             )
 
-        candidate_contexts = (
-            self._dedupe_contexts(working_request.contexts)
-            if working_request.contexts
-            else await self._resolve_contexts_with_budget(
-                working_request,
-                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
-            )
-        )
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
-
-        scope_decision = self.scope_guard.evaluate_scope(
-            working_request,
-            last_intent=last_intent,
-            recent_history=history,
-        )
-
-        if scope_decision.reason == "greeting":
-            data = self._greeting_response()
-            self._persist_session_memory(request, data.reply, [], None)
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="greeting",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
-
-        if not scope_decision.in_scope:
-            if "privacy" in scope_decision.matched_domains:
-                data = self._privacy_policy_response()
-                self._persist_session_memory(request, data.reply, [], "privacy")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="privacy",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            if scope_decision.state == "in_domain_unknown":
-                data = self._in_domain_unknown_response(scope_decision.matched_domains)
-                self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="in_domain_unknown",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            if scope_decision.state == "ambiguous":
-                data = self._ambiguous_scope_response(scope_decision.matched_domains)
-                self._persist_session_memory(request, data.reply, [], "clarify")
-                persisted = await self.persist_history.execute(
-                    request=request,
-                    assistant_reply=data.reply,
-                    sources=[],
-                    intent="clarify",
-                )
-                return data.model_copy(
-                    update={
-                        "requestId": request_id,
-                        "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                        "persisted": persisted,
-                        "conversationId": request.conversationId or "default",
-                    }
-                )
-            data = self._out_of_scope_response()
-            self._persist_session_memory(request, data.reply, [], None)
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="out_of_scope",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
 
         memory_summary = self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        if (
-            not final_contexts
-            and scope_decision.matched_domains
-            and not has_follow_up_anchor
-        ):
-            data = self._in_domain_unknown_response(scope_decision.matched_domains)
-            self._persist_session_memory(request, data.reply, [], "in_domain_unknown")
-            persisted = await self.persist_history.execute(
-                request=request,
-                assistant_reply=data.reply,
-                sources=[],
-                intent="in_domain_unknown",
-            )
-            return data.model_copy(
-                update={
-                    "requestId": request_id,
-                    "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
-                }
-            )
-
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
+
+        # Emotion snapshot already fetched early
+
+
+        is_proactive_checkin = False
+        # Proactive check-in: Proactively ask about the user's wellbeing if there is no chat history and check-in is needed
+        if emotion_snapshot.needs_proactive_checkin and not history:
+            is_proactive_checkin = True
+
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
@@ -226,6 +254,8 @@ class RespondCommand:
             max_history_items=prompt_limits.max_history_items,
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
+            emotion_snapshot=emotion_snapshot,
+            is_proactive_checkin=is_proactive_checkin,
         )
         prompt = self._prepend_turn_policy(prompt)
 
@@ -277,6 +307,7 @@ class RespondCommand:
         )
 
         return AssistantRespondData(
+            type="fallback" if generation.model == "timeout-guard" else "answer",
             reply=reply_content,
             sources=sources,
             suggestedActions=[],
@@ -300,11 +331,12 @@ class RespondCommand:
         self,
         request: AssistantRespondRequest,
         timeout_ms: int,
+        emotion_snapshot: EmotionSnapshot,
     ):
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
             return await asyncio.wait_for(
-                self.context_resolver.resolve(request),
+                self.context_resolver.resolve(request, emotion_snapshot),
                 timeout=timeout_seconds,
             )
         except Exception:
@@ -319,24 +351,24 @@ class RespondCommand:
     ):
         session_key = self._session_key(request)
         memory_summary = self.memory.get_summary(session_key)
-        self.memory.append_exchange(session_key, request.message, assistant_reply)
-        self.memory.set_summary(
-            session_key,
-            self._build_updated_summary(
-                memory_summary,
-                request.message,
-                assistant_reply,
-            ),
+        updated_summary = self._build_updated_summary(
+            memory_summary,
+            request.message,
+            assistant_reply,
         )
-        self.memory.set_last_intent(session_key, intent)
-        self.memory.set_last_sources(session_key, sources)
-        self.memory.set_facts(
-            session_key,
-            {
-                "last_intent": intent or "",
-                "last_user_message": self._truncate_text(request.message, 140),
-                "last_assistant_reply": self._truncate_text(assistant_reply, 180),
-            },
+        facts = {
+            "last_intent": intent or "",
+            "last_user_message": self._truncate_text(request.message, 140),
+            "last_assistant_reply": self._truncate_text(assistant_reply, 180),
+        }
+        self.memory.update_session_batch(
+            key=session_key,
+            user_message=request.message,
+            assistant_reply=assistant_reply,
+            summary=updated_summary,
+            intent=intent,
+            sources=sources,
+            facts=facts,
         )
 
     def _build_updated_summary(
@@ -427,20 +459,42 @@ class RespondCommand:
         )
         return f"{policy}\n{prompt}"
 
-    def _resolve_follow_up_message(
+    async def _resolve_follow_up_message(
         self,
         message: str,
         history: list[AssistantHistoryItem],
         memory_facts: dict[str, str],
+        request: AssistantRespondRequest,
     ) -> tuple[str, bool]:
-        normalized = self.scope_guard._normalize(message)  # noqa: SLF001
+        normalized = self.scope_guard._normalize(message)
         if not self._is_follow_up_reference(normalized):
             return message, False
 
         anchor = self._pick_recent_user_anchor(history, memory_facts)
         if not anchor:
             return message, False
-        rewritten = f"{message.strip()}\n\nFOLLOW_UP_ANCHOR:\n{anchor}"
+
+        rewrite_prompt = (
+            "Dựa vào câu hỏi mới nhất và lịch sử hội thoại trước đó, "
+            "hãy viết lại câu hỏi mới nhất thành một câu hỏi độc lập và đầy đủ ngữ nghĩa, "
+            "nhưng ngắn gọn nhất có thể. KHÔNG trả lời câu hỏi, CHỈ viết lại câu hỏi.\n\n"
+            f"Lịch sử:\nUser: {anchor}\n\n"
+            f"Câu hỏi mới nhất: {message}\n\n"
+            "Câu hỏi độc lập:"
+        )
+
+        try:
+            generation = await asyncio.wait_for(
+                self.provider.generate(rewrite_prompt, request),
+                timeout=3.0,
+            )
+            rewritten = generation.content.strip(" \"'\n")
+            if rewritten:
+                return rewritten, True
+        except Exception as exc:
+            logger.warning("Query rewrite failed, falling back to anchor: %s", exc)
+
+        rewritten = f"{message.strip()} {anchor}"
         return rewritten, True
 
     def _pick_recent_user_anchor(
@@ -456,7 +510,7 @@ class RespondCommand:
                 continue
             if content == memory_facts.get("last_user_message", ""):
                 continue
-            normalized = self.scope_guard._normalize(content)  # noqa: SLF001
+            normalized = self.scope_guard._normalize(content)
             if normalized in {"hi", "hello", "hey", "xin chao", "chao"}:
                 continue
             if len(normalized.split()) <= 2:
@@ -490,6 +544,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="no_answer",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -503,6 +558,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="no_answer",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -511,11 +567,12 @@ class RespondCommand:
         return AssistantRespondData(
             reply=(
                 "Mình chỉ hỗ trợ các câu hỏi liên quan đến hệ thống Sentimeta "
-                "như bài viết, nhóm, tìm kiếm, chat, hồ sơ, quyền riêng tư "
-                "và gợi ý bạn bè."
+                "(bài viết, nhóm, chat...) và chia sẻ kiến thức, kỹ năng "
+                "chăm sóc sức khỏe tinh thần."
             ),
             sources=[],
             suggestedActions=[],
+            type="out_of_scope",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -524,10 +581,12 @@ class RespondCommand:
         return AssistantRespondData(
             reply=(
                 "Xin chào! Mình là trợ lý của Sentimeta. "
-                "Bạn cần mình hỗ trợ gì về bài viết, nhóm, chat, hồ sơ, tìm kiếm hoặc gợi ý bạn bè?"
+                "Bạn cần mình hỗ trợ về tính năng ứng dụng, hay muốn chia sẻ, "
+                "tìm hiểu về các kỹ năng chăm sóc sức khỏe tinh thần?"
             ),
             sources=[],
             suggestedActions=[],
+            type="greeting",
             model="greeting-guard",
             provider="chatbot-service",
         )
@@ -542,6 +601,7 @@ class RespondCommand:
             ),
             sources=[],
             suggestedActions=[],
+            type="clarify",
             model="scope-guard",
             provider="chatbot-service",
         )
@@ -561,9 +621,87 @@ class RespondCommand:
             reply=message,
             sources=[],
             suggestedActions=[],
+            type="community_blocked",
             model="community-guard",
             provider="chatbot-service",
         )
+
+    def _build_crisis_response(
+        self,
+        reply: str,
+        severity: str,
+        notification_sent: bool,
+    ) -> AssistantRespondData:
+        return AssistantRespondData(
+            type="crisis",
+            reply=reply,
+            sources=[],
+            suggestedActions=[],
+            model="crisis-guard",
+            provider="chatbot-service",
+            crisis=CrisisInfo(
+                severity="high" if severity == "high" else "medium",
+                resources=[
+                    CrisisResource(name=name, phone=phone)
+                    for name, phone in CRISIS_RESOURCES
+                ],
+                notificationSent=notification_sent,
+            ),
+        )
+
+    async def _emit_crisis_event(
+        self,
+        request: AssistantRespondRequest,
+        severity: str,
+        rule: str,
+    ) -> bool:
+        """Emit a Kafka event alerting the support team about a mental health crisis.
+
+        The payload does NOT contain the message text (to minimize personal data): `reason` is a
+        fixed neutral description chosen by rule code (e.g. explicit_crisis). Field names
+        `riskLevel`/`reason` and the `crisis`/`high` values are kept for compatibility with the
+        emotion-intelligence-service consumer.
+
+        Returns True only if the event was sent successfully within the allowed time.
+        """
+        try:
+            from app.modules.analysis.lifespan import kafka_producer, outbox_repo
+            from datetime import datetime, timezone
+
+            timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            payload = {
+                "userId": request.userId,
+                "conversationId": request.conversationId or "default",
+                "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
+                "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
+                "timestamp": timestamp_str,
+            }
+            kafka_msg = {
+                "type": "chatbot_crisis_alert",
+                "payload": payload,
+            }
+
+            try:
+                await asyncio.wait_for(
+                    kafka_producer.send("chatbot.crisis.alert", kafka_msg),
+                    timeout=_CRISIS_ALERT_TIMEOUT_SECONDS,
+                )
+                return True
+            except Exception as exc:
+                logger.warning("[CrisisGuard] Kafka emit failed, saving to DLQ/Outbox: %s", exc)
+                outbox_data = {
+                    "topic": "chatbot.crisis.alert",
+                    "eventType": "chatbot_crisis_alert",
+                    "payload": payload,
+                    "processed": False,
+                    "createdAt": timestamp_str,
+                }
+                await outbox_repo.save_outbox(outbox_data)
+                return True
+
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[CrisisGuard] Failed to handle crisis alert (Kafka & Outbox failed): %s", exc)
+            return False
 
     async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
         started_at = time.perf_counter()
@@ -572,10 +710,11 @@ class RespondCommand:
         history = self._resolve_history(request, session_key)
         last_intent = request.intent or self.memory.get_last_intent(session_key)
         memory_facts = self.memory.get_facts(session_key)
-        effective_message, has_follow_up_anchor = self._resolve_follow_up_message(
+        effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
             memory_facts,
+            request,
         )
         working_request = (
             request.model_copy(update={"message": effective_message})
@@ -583,65 +722,29 @@ class RespondCommand:
             else request
         )
 
-        community_decision = self.community_guard.evaluate(request.message)
-        if not community_decision.allowed:
-            data = self._community_response(community_decision.reason)
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "community_guard")
+        # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
+        emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
+
+        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+            working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
+        )
+        
+        if guard_data:
+            yield self._finalize_stream_data(guard_data, request_id, started_at, request)
+            await self._after_generation(request, guard_data.reply, [], guard_intent)
             return
 
-        candidate_contexts = (
-            self._dedupe_contexts(working_request.contexts)
-            if working_request.contexts
-            else await self._resolve_contexts_with_budget(
-                working_request,
-                settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
-            )
-        )
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
-
-        scope_decision = self.scope_guard.evaluate_scope(
-            working_request,
-            last_intent=last_intent,
-            recent_history=history,
-        )
-
-        if scope_decision.reason == "greeting":
-            data = self._greeting_response()
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "greeting")
-            return
-
-        if not scope_decision.in_scope:
-            intent = "out_of_scope"
-            if "privacy" in scope_decision.matched_domains:
-                data = self._privacy_policy_response()
-                intent = "privacy"
-            elif scope_decision.state == "in_domain_unknown":
-                data = self._in_domain_unknown_response(scope_decision.matched_domains)
-                intent = "in_domain_unknown"
-            elif scope_decision.state == "ambiguous":
-                data = self._ambiguous_scope_response(scope_decision.matched_domains)
-                intent = "clarify"
-            else:
-                data = self._out_of_scope_response()
-            
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], intent)
-            return
 
         memory_summary = self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        
-        if not final_contexts and scope_decision.matched_domains and not has_follow_up_anchor:
-            data = self._in_domain_unknown_response(scope_decision.matched_domains)
-            yield self._finalize_stream_data(data, request_id, started_at, request)
-            await self._after_generation(request, data.reply, [], "in_domain_unknown")
-            return
-
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
+        is_proactive_checkin = False
+        if emotion_snapshot.needs_proactive_checkin and not history:
+            is_proactive_checkin = True
+
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
@@ -650,6 +753,8 @@ class RespondCommand:
             max_history_items=prompt_limits.max_history_items,
             history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
+            emotion_snapshot=emotion_snapshot,
+            is_proactive_checkin=is_proactive_checkin,
         )
         prompt = self._prepend_turn_policy(prompt)
 
@@ -682,6 +787,7 @@ class RespondCommand:
         except Exception:
             logger.exception("Assistant stream generation failed")
             yield AssistantRespondData(
+                type="fallback",
                 reply="Hệ thống gặp lỗi khi tạo phản hồi. Bạn thử lại sau nhé.",
                 sources=[],
                 suggestedActions=[],

@@ -6,6 +6,31 @@ from pydantic import BaseModel, Field
 
 AssistantRole = Literal["system", "user", "assistant"]
 
+# Stable response types exposed to the FE (see chatbot-api-contract.md).
+AssistantResponseType = Literal[
+    "answer",
+    "greeting",
+    "out_of_scope",
+    "clarify",
+    "no_answer",
+    "community_blocked",
+    "crisis",
+    "fallback",
+]
+
+
+class CrisisResource(BaseModel):
+    name: str
+    phone: str
+
+
+class CrisisInfo(BaseModel):
+    severity: Literal["high", "medium"]
+    resources: list[CrisisResource] = Field(default_factory=list)
+    # True only when the alert event was sent successfully, i.e. support info is also delivered
+    # to the user as a notification. No human team contacts the user (no such process exists yet).
+    notificationSent: bool = False
+
 
 class AssistantHistoryItem(BaseModel):
     role: AssistantRole
@@ -47,6 +72,7 @@ class AssistantSuggestedAction(BaseModel):
 
 
 class AssistantRespondData(BaseModel):
+    type: AssistantResponseType = "answer"
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
@@ -56,6 +82,7 @@ class AssistantRespondData(BaseModel):
     latencyMs: Optional[float] = None
     persisted: Optional[bool] = None
     conversationId: Optional[str] = None
+    crisis: Optional[CrisisInfo] = None
 
 
 class AssistantRespondResponse(BaseModel):

@@ -1,26 +1,75 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
+
 from app.modules.chatbot.schemas import AssistantHistoryItem, AssistantRespondRequest
+from app.utils.text_normalizer import normalize_for_guard
 
 
+# ---------------------------------------------------------------------------
+# Crisis Guard – Detects suicidal intent / self-harm
+# ---------------------------------------------------------------------------
+
+CRISIS_EXPLICIT_KEYWORDS: frozenset[str] = frozenset({
+    # Direct suicide intent
+    "tu tu", "tu sat", "ket thuc cuoc doi", "ket thuc tat ca",
+    "khong muon song nua", "khong muon tiep tuc song",
+    "muon chet", "muon tu tu", "muon tu sat", "chon chet",
+    "uong thuoc tu tu", "nhat dao tu tu", "nhay lau tu tu",
+    "suicide", "want to die", "kill myself", "end my life",
+    "take my own life", "no reason to live",
+    # Self-harm
+    "cat tay", "tu lam dau ban than", "tu hanh ha ban than",
+    "self harm", "cut myself", "hurt myself",
+})
+
+CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset({
+    # High-level hopelessness
+    "khong con ly do de song", "song de lam gi", "cuoc song vo nghia",
+    "chang co gi de song", "met moi cuoc doi", "cuoc doi chan qua",
+    "khong biet phai lam gi nua", "khong con ai de noi chuyen",
+    "cam thay co don qua", "cam thay tro nen vo dung",
+    "life is meaningless", "nobody cares", "i give up on life",
+    "can't go on", "don't want to be here anymore",
+})
+
+_CRISIS_EXPLICIT_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in CRISIS_EXPLICIT_KEYWORDS),
+    re.IGNORECASE,
+)
+_CRISIS_SOFT_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in CRISIS_SOFT_KEYWORDS),
+    re.IGNORECASE,
+)
 
 
-TEENCODE_MAP = {
-    "ko": "khong",
-    "k": "khong",
-    "dc": "duoc",
-    "đc": "duoc",
-    "ntn": "nhu the nao",
-    "ib": "inbox",
-    "rep": "reply",
-    "ad": "admin",
-    "mn": "moi nguoi",
-    "mik": "minh",
-    "tui": "toi",
-}
+@dataclass(frozen=True)
+class CrisisDecision:
+    is_crisis: bool
+    severity: str  # "high" | "medium" | "none"
+    reason: str
+    normalized_text: str
+
+
+class CrisisGuard:
+    """Phát hiện tín hiệu khủng hoảng tâm lý (tự sát / tự làm hại bản thân)."""
+
+    def evaluate(self, text: str) -> CrisisDecision:
+        normalized = normalize_for_guard(text)
+        if not normalized:
+            return CrisisDecision(False, "none", "empty", normalized)
+
+        if _CRISIS_EXPLICIT_REGEX.search(normalized):
+            return CrisisDecision(True, "high", "explicit_crisis", normalized)
+
+        if _CRISIS_SOFT_REGEX.search(normalized):
+            return CrisisDecision(True, "medium", "soft_crisis", normalized)
+
+        return CrisisDecision(False, "none", "clean", normalized)
+
+
+assistant_crisis_guard = CrisisGuard()
 
 
 @dataclass(frozen=True)
@@ -151,6 +200,81 @@ DOMAIN_KEYWORD_GROUPS: tuple[DomainKeywordGroup, ...] = (
             "nho gi khong",
         },
     ),
+    DomainKeywordGroup(
+        "mental_health",
+        {
+            "tam ly",
+            "tram cam",
+            "lo au",
+            "cang thang",
+            "stress",
+            "thu gian",
+            "chua lanh",
+            "so cuu",
+            "suc khoe tinh than",
+            "tri lieu",
+            "cbt",
+            "tho",
+            "khung hoang",
+            "hoang loan",
+        },
+    ),
+    DomainKeywordGroup(
+        "settings_support",
+        {
+            "cai dat",
+            "settings",
+            "doi mat khau",
+            "change password",
+            "tro giup",
+            "support",
+            "bao cao",
+            "report",
+            "phan hoi",
+            "feedback",
+            "help",
+            "help center",
+            "khang nghi",
+        },
+    ),
+    DomainKeywordGroup(
+        "call",
+        {
+            "cuoc goi",
+            "goi dien",
+            "call",
+            "calls",
+            "goi video",
+            "goi audio",
+            "video call",
+            "voice call",
+        },
+    ),
+    DomainKeywordGroup(
+        "share",
+        {
+            "chia se",
+            "share",
+            "shares",
+            "dang lai",
+            "repost",
+        },
+    ),
+    DomainKeywordGroup(
+        "auth",
+        {
+            "dang nhap",
+            "login",
+            "signin",
+            "dang ky",
+            "register",
+            "signup",
+            "quen mat khau",
+            "forgot password",
+            "password",
+            "mat khau",
+        },
+    ),
 )
 
 
@@ -224,9 +348,6 @@ FOLLOW_UP_REFERENCE_KEYWORDS = {
     "this part",
     "that section",
     "this section",
-    "what next",
-    "then what",
-    "explain more",
     "giai thich them ve no",
     "cho vi du cu the",
     "buoc tiep theo",
@@ -300,6 +421,14 @@ COMMUNITY_UNSAFE_KEYWORDS = {
     "kill someone",
 }
 
+PROFANITY_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in PROFANITY_KEYWORDS),
+    re.IGNORECASE,
+)
+UNSAFE_REGEX = re.compile(
+    "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in COMMUNITY_UNSAFE_KEYWORDS),
+    re.IGNORECASE,
+)
 
 @dataclass(frozen=True)
 class CommunityDecision:
@@ -311,21 +440,18 @@ class CommunityDecision:
 
 class CommunityGuard:
     def evaluate(self, text: str) -> CommunityDecision:
-        normalized = self._normalize(text)
+        normalized = normalize_for_guard(text)
         if not normalized:
             return CommunityDecision(True, "empty", "none", normalized)
 
-        profanity_hits = self._count_hits(normalized, PROFANITY_KEYWORDS)
-        unsafe_hits = self._count_hits(normalized, COMMUNITY_UNSAFE_KEYWORDS)
-
-        if unsafe_hits > 0:
+        if UNSAFE_REGEX.search(normalized):
             return CommunityDecision(
                 False,
                 "community_violation",
                 "high",
                 normalized,
             )
-        if profanity_hits > 0:
+        if PROFANITY_REGEX.search(normalized):
             return CommunityDecision(
                 False,
                 "profanity",
@@ -333,23 +459,6 @@ class CommunityGuard:
                 normalized,
             )
         return CommunityDecision(True, "clean", "none", normalized)
-
-    def _normalize(self, value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value or "")
-        normalized = "".join(
-            char for char in normalized if unicodedata.category(char) != "Mn"
-        )
-        normalized = normalized.replace("\u0111", "d").replace("\u0110", "d").lower()
-        normalized = re.sub(r"[^a-z0-9\s]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        return normalized
-
-    def _count_hits(self, text: str, keywords: set[str]) -> int:
-        hit = 0
-        for keyword in keywords:
-            if re.search(rf"(^|\s){re.escape(keyword)}($|\s)", text):
-                hit += 1
-        return hit
 
 
 
@@ -487,15 +596,7 @@ class AssistantScopeGuard:
         ).in_scope
 
     def _normalize(self, value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value or "")
-        normalized = "".join(
-            char for char in normalized if unicodedata.category(char) != "Mn"
-        )
-        normalized = normalized.replace("\u0111", "d").replace("\u0110", "d").lower()
-        normalized = re.sub(r"[^a-z0-9\s]+", " ", normalized)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        tokens = [TEENCODE_MAP.get(token, token) for token in normalized.split()]
-        return " ".join(tokens)
+        return normalize_for_guard(value)
 
     def _matches_any_keyword(self, text: str, keywords: set[str]) -> bool:
         return any(
@@ -532,10 +633,12 @@ class AssistantScopeGuard:
             return 0.0
         if has_any_history and len(text.split()) <= 7 and self._looks_like_pronoun_follow_up(text):
             return 0.7
-        if has_contextual_anchor and len(text.split()) <= 12:
-            # Short follow-ups after an existing conversation are usually in-scope.
-            if any(token in text for token in ("no", "do", "nay", "them", "tiep")):
-                return 0.74
+        if (
+            has_contextual_anchor
+            and len(text.split()) <= 12
+            and any(token in text for token in ("no", "do", "nay", "them", "tiep"))
+        ):
+            return 0.74
         if self._looks_like_pronoun_follow_up(text):
             return 0.82 if has_contextual_anchor else 0.25
         if self._matches_any_keyword(text, STRONG_REFERENCE_KEYWORDS):
@@ -625,9 +728,7 @@ class AssistantScopeGuard:
     ) -> bool:
         if blended_domain_score >= 0.22 and bool(matched_domains):
             return True
-        if has_contextual_anchor and self._looks_like_pronoun_follow_up(text):
-            return True
-        return False
+        return has_contextual_anchor and self._looks_like_pronoun_follow_up(text)
 
     def _looks_like_feature_question(self, text: str) -> bool:
         if not text:
@@ -643,6 +744,4 @@ class AssistantScopeGuard:
 
 
 assistant_scope_guard = AssistantScopeGuard()
-
 assistant_community_guard = CommunityGuard()
-assistant_scope_guard = AssistantScopeGuard()
