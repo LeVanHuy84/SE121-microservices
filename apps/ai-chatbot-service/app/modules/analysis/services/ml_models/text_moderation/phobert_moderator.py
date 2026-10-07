@@ -1,13 +1,12 @@
-import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List
 import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
-from huggingface_hub import hf_hub_download
 
 from app.core.settings import settings
+from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +25,14 @@ class PhoBERTModerator:
         0: "CLEAN",
         1: "PROFANITY_VENTING",
         2: "HATE_SPEECH",
-        3: "EMOTIONAL_CRISIS"
+        3: "EMOTIONAL_CRISIS",
     }
 
     SEVERITY_PRIORITY = {
         "HATE_SPEECH": 3,
         "EMOTIONAL_CRISIS": 2,
         "PROFANITY_VENTING": 1,
-        "CLEAN": 0
+        "CLEAN": 0,
     }
 
     def __init__(self):
@@ -41,55 +40,64 @@ class PhoBERTModerator:
         self.session = None
         self.initialized = False
         self.model_name = settings.PHOBERT_MODERATION_MODEL_PATH
+        self.precision = getattr(
+            settings, "PHOBERT_MODERATION_PRECISION", "int8"
+        ).lower()
         self.onnx_model_path = None
-
-    def _resolve_model_path(self) -> str:
-        """Resolve local ONNX weight file or download from Hugging Face Hub."""
-        # 1. Check explicit setting
-        if settings.PHOBERT_MODERATION_ONNX_PATH and os.path.exists(settings.PHOBERT_MODERATION_ONNX_PATH):
-            return settings.PHOBERT_MODERATION_ONNX_PATH
-
-        # 2. Check workspace relative paths
-        candidate_paths = [
-            Path(__file__).resolve().parents[7] / "evaluation" / "weights" / "phobert_moderation_int8.onnx",
-            Path("evaluation/weights/phobert_moderation_int8.onnx").resolve(),
-            Path("../evaluation/weights/phobert_moderation_int8.onnx").resolve(),
-            Path("../../evaluation/weights/phobert_moderation_int8.onnx").resolve(),
-        ]
-        for p in candidate_paths:
-            if p.exists():
-                return str(p)
-
-        # 3. Fallback: Download from Hugging Face Hub
-        logger.info(f"[PhoBERTModerator] Downloading ONNX INT8 model from Hugging Face Hub ({self.model_name})...")
-        downloaded = hf_hub_download(
-            repo_id=self.model_name,
-            filename="phobert_moderation_int8.onnx",
-            subfolder="onnx"
-        )
-        return downloaded
+        self.tokenizer_source = None
 
     def initialize(self):
         if self.initialized:
             return
 
         try:
-            self.onnx_model_path = self._resolve_model_path()
-            logger.info(f"[PhoBERTModerator] Loading ONNX INT8 moderation model from: {self.onnx_model_path}")
+            candidate_dirs = [
+                Path(__file__).resolve().parents[7] / "evaluation" / "weights",
+                Path("evaluation/weights").resolve(),
+                Path("../evaluation/weights").resolve(),
+                Path("../../evaluation/weights").resolve(),
+            ]
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
+                model_path_or_repo=self.model_name,
+                explicit_onnx_path=settings.PHOBERT_MODERATION_ONNX_PATH,
+                precision=self.precision,
+                model_type_hint="phobert_moderation",
+                candidate_local_dirs=candidate_dirs,
+            )
+
+            logger.info(
+                "[PhoBERTModerator] Loading ONNX (%s) moderation model from: %s (Tokenizer: %s)",
+                self.precision,
+                self.onnx_model_path,
+                self.tokenizer_source,
+            )
+
+            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import phobert_emotion_model
+            if phobert_emotion_model.is_loaded() and phobert_emotion_model.tokenizer is not None:
+                self.tokenizer = phobert_emotion_model.tokenizer
+            else:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_source)
 
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = 2
             opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.enable_cpu_mem_arena = False
+            opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
 
-            self.session = ort.InferenceSession(self.onnx_model_path, opts, providers=["CPUExecutionProvider"])
+            self.session = ort.InferenceSession(
+                self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
+            )
             self.initialized = True
-            logger.info("[PhoBERTModerator] ✓ ONNX INT8 moderation model loaded successfully on CPU")
+            logger.info(
+                f"[PhoBERTModerator] ✓ ONNX ({self.precision}) moderation model loaded successfully on CPU"
+            )
 
         except Exception as e:
-            logger.warning(f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled.")
+            logger.warning(
+                f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled."
+            )
             self.session = None
 
     def infer(self, text: str) -> Dict[str, Any]:
@@ -110,7 +118,12 @@ class PhoBERTModerator:
                 "predicted_label": "CLEAN",
                 "predicted_class_id": 0,
                 "confidence": 1.0,
-                "all_scores": {"CLEAN": 1.0, "PROFANITY_VENTING": 0.0, "HATE_SPEECH": 0.0, "EMOTIONAL_CRISIS": 0.0},
+                "all_scores": {
+                    "CLEAN": 1.0,
+                    "PROFANITY_VENTING": 0.0,
+                    "HATE_SPEECH": 0.0,
+                    "EMOTIONAL_CRISIS": 0.0,
+                },
                 "model": "phobert_empty_text",
             }
 
@@ -120,14 +133,19 @@ class PhoBERTModerator:
                 "predicted_label": "CLEAN",
                 "predicted_class_id": 0,
                 "confidence": 1.0,
-                "all_scores": {"CLEAN": 1.0, "PROFANITY_VENTING": 0.0, "HATE_SPEECH": 0.0, "EMOTIONAL_CRISIS": 0.0},
+                "all_scores": {
+                    "CLEAN": 1.0,
+                    "PROFANITY_VENTING": 0.0,
+                    "HATE_SPEECH": 0.0,
+                    "EMOTIONAL_CRISIS": 0.0,
+                },
                 "model": "phobert_unavailable",
             }
 
         # Sentence splitting to avoid token truncation loss on long texts
         from app.modules.analysis.services.ml_models.text_emotion.text_preprocessor import (
             split_sentences,
-            preprocess_single_sentence
+            preprocess_single_sentence,
         )
 
         raw_sentences = split_sentences(text)
@@ -151,17 +169,19 @@ class PhoBERTModerator:
 
         ort_inputs = {
             "input_ids": inputs["input_ids"].astype(np.int64),
-            "attention_mask": inputs["attention_mask"].astype(np.int64)
+            "attention_mask": inputs["attention_mask"].astype(np.int64),
         }
 
-        logits = self.session.run(None, ort_inputs)[0]  # Shape: (batch_size, num_classes)
+        logits = self.session.run(None, ort_inputs)[
+            0
+        ]  # Shape: (batch_size, num_classes)
 
         # Vectorized Softmax
         exp_l = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
         probs_batch = exp_l / np.sum(exp_l, axis=-1, keepdims=True)
 
         num_classes = probs_batch.shape[-1]
-        
+
         if num_classes == 4:
             best_label = "CLEAN"
             best_class_id = 0
@@ -186,7 +206,9 @@ class PhoBERTModerator:
 
                 # Max Severity Aggregation Priority Check
                 priority = self.SEVERITY_PRIORITY.get(sent_label, 0)
-                if priority > highest_priority or (priority == highest_priority and sent_conf > best_confidence):
+                if priority > highest_priority or (
+                    priority == highest_priority and sent_conf > best_confidence
+                ):
                     highest_priority = priority
                     best_label = sent_label
                     best_class_id = sent_class_id
@@ -217,7 +239,7 @@ class PhoBERTModerator:
                 "CLEAN": round(1.0 - violation_score, 4),
                 "PROFANITY_VENTING": 0.0,
                 "HATE_SPEECH": round(violation_score, 4),
-                "EMOTIONAL_CRISIS": 0.0
+                "EMOTIONAL_CRISIS": 0.0,
             }
 
             return {

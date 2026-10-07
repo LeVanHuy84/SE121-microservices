@@ -29,7 +29,7 @@ class ModelLoader:
 
     def __init__(self):
         pass
-    
+
     def initialize(self):
         """
         Initialize active AI models across subdomains.
@@ -39,47 +39,66 @@ class ModelLoader:
             return
 
         logger.info("[ModelLoader] Starting model initialization...")
-        
-        # 1. Load Text Emotion models (PhoBERT ONNX FP32)
+
+        # 1. Load Text Emotion models (PhoBERT ONNX)
         try:
-            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import phobert_emotion_model
+            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import (
+                phobert_emotion_model,
+            )
+
             phobert_emotion_model.initialize()
-            logger.info("[ModelLoader] ✓ Text emotion (PhoBERT ONNX FP32) loaded")
+            logger.info(
+                f"[ModelLoader] ✓ Text emotion (PhoBERT ONNX {phobert_emotion_model.precision.upper()}) loaded"
+            )
         except Exception as e:
             logger.error(f"[ModelLoader] ✗ Failed to load text emotion models: {e}")
             raise RuntimeError("Critical: Text emotion models failed to load") from e
-        
-        # 2. Load Text Moderation models (PhoBERT ONNX INT8)
+
+        # 2. Load Text Moderation models (PhoBERT ONNX)
         try:
-            from app.modules.analysis.services.ml_models.text_moderation import ensure_phobert_moderator_loaded
+            from app.modules.analysis.services.ml_models.text_moderation import (
+                ensure_phobert_moderator_loaded,
+            )
+
             mod_instance = ensure_phobert_moderator_loaded()
             mod_model_name = getattr(mod_instance, "model_name", "unknown")
-            logger.info(f"[ModelLoader] ✓ Text moderation (PhoBERT ONNX INT8) loaded (Model: {mod_model_name})")
+            mod_precision = getattr(mod_instance, "precision", "int8").upper()
+            logger.info(
+                f"[ModelLoader] ✓ Text moderation (PhoBERT ONNX {mod_precision}) loaded (Model: {mod_model_name})"
+            )
         except Exception as e:
             logger.warning(f"[ModelLoader] ⚠ Text moderation models failed: {e}")
 
-        # 3. Load Music Emotion model (MERT ONNX INT8)
+        # 3. Load Music Emotion model (MERT ONNX)
         try:
-            from app.modules.analysis.services.ml_models.music.music_loader import ensure_music_model_loaded
-            ensure_music_model_loaded()
-            logger.info("[ModelLoader] ✓ Music emotion (MERT ONNX INT8) loaded")
+            from app.modules.analysis.services.ml_models.music.music_loader import (
+                music_model_loader,
+            )
+
+            music_model_loader.initialize()
+            logger.info(
+                f"[ModelLoader] ✓ Music emotion (MERT ONNX {music_model_loader.precision.upper()}) loaded"
+            )
         except Exception as e:
             logger.warning(f"[ModelLoader] ⚠ Music emotion models failed: {e}")
 
         # 4. Check VLM Pipeline readiness
         try:
             from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
-            logger.info(f"[ModelLoader] ✓ VLM Multimodal Analyzer ready (Model: {vlm_analyzer.model_name})")
+
+            logger.info(
+                f"[ModelLoader] ✓ VLM Multimodal Analyzer ready (Model: {vlm_analyzer.model_name})"
+            )
         except Exception as e:
             logger.warning(f"[ModelLoader] ⚠ VLM Analyzer init check: {e}")
-        
+
         self._instance_initialized = True
         logger.info("[ModelLoader] ✓ All active model initialization complete")
-    
+
     def is_initialized(self) -> bool:
         """Check if initialization complete."""
         return self._instance_initialized
-    
+
     def health_check(self) -> dict:
         """
         Check health status of all AI subdomain models.
@@ -91,34 +110,46 @@ class ModelLoader:
             "music_emotion": False,
             "vlm_multimodal": False,
         }
-        
+
         if not self._instance_initialized:
             return status
-        
+
         try:
-            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import phobert_emotion_model
+            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import (
+                phobert_emotion_model,
+            )
+
             status["text_emotion"] = phobert_emotion_model.is_loaded()
-        except Exception:
-            pass
-        
-        try:
-            from app.modules.analysis.services.ml_models.text_moderation import phobert_moderator
-            status["text_moderation"] = bool(phobert_moderator.initialized and phobert_moderator.session)
         except Exception:
             pass
 
         try:
-            from app.modules.analysis.services.ml_models.music.music_loader import music_model_loader
+            from app.modules.analysis.services.ml_models.text_moderation import (
+                phobert_moderator,
+            )
+
+            status["text_moderation"] = bool(
+                phobert_moderator.initialized and phobert_moderator.session
+            )
+        except Exception:
+            pass
+
+        try:
+            from app.modules.analysis.services.ml_models.music.music_loader import (
+                music_model_loader,
+            )
+
             status["music_emotion"] = music_model_loader.is_loaded()
         except Exception:
             pass
 
         try:
             from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
+
             status["vlm_multimodal"] = bool(vlm_analyzer.api_key)
         except Exception:
             pass
-        
+
         return status
 
 

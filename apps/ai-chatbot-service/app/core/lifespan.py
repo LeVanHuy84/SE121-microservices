@@ -53,6 +53,16 @@ async def lifespan(app: FastAPI):
     background_tasks.append(asyncio.create_task(retry_worker.start()))
     logger.info("[Startup] ✓ Kafka Consumer/Producer & Outbox workers running")
 
+    # Reclaim transient startup memory (tokenizers, raw byte buffers, init objects)
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+    logger.info("[Startup] ✓ Transient startup memory reclaimed")
+
     logger.info("=" * 60)
     logger.info("[Startup] AI Chatbot & Analysis Service - Fully operational!")
     logger.info("=" * 60)
