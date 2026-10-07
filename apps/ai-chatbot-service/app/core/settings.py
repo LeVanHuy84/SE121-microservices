@@ -21,20 +21,38 @@ class Settings:
 
         # Kafka config
         self.KAFKA_BROKERS: str = os.getenv("KAFKA_BROKERS", "localhost:9092").strip()
-        self.KAFKA_CLIENT_ID: str = os.getenv("KAFKA_CLIENT_ID", "ai_chatbot_service").strip()
+        self.KAFKA_CLIENT_ID: str = os.getenv(
+            "KAFKA_CLIENT_ID", "ai_chatbot_service"
+        ).strip()
 
         # Emotion/Moderation analysis
-        self.EMOTION_PROFILE_EMA_ALPHA: float = float(os.getenv("EMOTION_PROFILE_EMA_ALPHA", 0.2))
-        self.EMOTION_DAILY_CRON_HOUR_UTC: int = int(os.getenv("EMOTION_DAILY_CRON_HOUR_UTC", 17))
-        self.EMOTION_DAILY_CRON_MINUTE_UTC: int = int(os.getenv("EMOTION_DAILY_CRON_MINUTE_UTC", 5))
-        self.EMOTION_MODEL_VERSION: str = os.getenv("EMOTION_MODEL_VERSION", "1.0.1").strip()
-        self.MODERATION_MODEL_VERSION: str = os.getenv("MODERATION_MODEL_VERSION", "1.0.0").strip()
+        self.EMOTION_PROFILE_EMA_ALPHA: float = float(
+            os.getenv("EMOTION_PROFILE_EMA_ALPHA", 0.2)
+        )
+        self.EMOTION_DAILY_CRON_HOUR_UTC: int = int(
+            os.getenv("EMOTION_DAILY_CRON_HOUR_UTC", 17)
+        )
+        self.EMOTION_DAILY_CRON_MINUTE_UTC: int = int(
+            os.getenv("EMOTION_DAILY_CRON_MINUTE_UTC", 5)
+        )
+        self.EMOTION_MODEL_VERSION: str = os.getenv(
+            "EMOTION_MODEL_VERSION", "1.0.1"
+        ).strip()
+        self.MODERATION_MODEL_VERSION: str = os.getenv(
+            "MODERATION_MODEL_VERSION", "1.0.0"
+        ).strip()
         self.PHOBERT_EMOTION_MODEL_PATH: str = os.getenv(
             "PHOBERT_EMOTION_MODEL_PATH", "huyleit/phobert-emotion-social"
         ).strip()
+        self.PHOBERT_EMOTION_PRECISION: str = (
+            os.getenv("PHOBERT_EMOTION_PRECISION", "fp32").strip().lower()
+        )
         self.PHOBERT_MODERATION_MODEL_PATH: str = os.getenv(
             "PHOBERT_MODERATION_MODEL_PATH", "huyleit/phobert-vi-moderation-v1.1"
         ).strip()
+        self.PHOBERT_MODERATION_PRECISION: str = (
+            os.getenv("PHOBERT_MODERATION_PRECISION", "int8").strip().lower()
+        )
         self.PHOBERT_EMOTION_ONNX_PATH: str = os.getenv(
             "PHOBERT_EMOTION_ONNX_PATH", ""
         ).strip()
@@ -47,9 +65,10 @@ class Settings:
         self.MERT_MUSIC_MODEL_PATH: str = os.getenv(
             "MERT_MUSIC_MODEL_PATH", "huyleit/mert-v1-95m-music-emotion-int8"
         ).strip()
-        self.MERT_MUSIC_ONNX_PATH: str = os.getenv(
-            "MERT_MUSIC_ONNX_PATH", ""
-        ).strip()
+        self.MERT_MUSIC_PRECISION: str = (
+            os.getenv("MERT_MUSIC_PRECISION", "int8").strip().lower()
+        )
+        self.MERT_MUSIC_ONNX_PATH: str = os.getenv("MERT_MUSIC_ONNX_PATH", "").strip()
 
         self.CHATBOT_MEMORY_RECENT_TURNS: int = int(
             os.getenv("CHATBOT_MEMORY_RECENT_TURNS", 8)
@@ -158,13 +177,13 @@ class Settings:
         self.CHATBOT_MEMORY_KEY_PREFIX: str = os.getenv(
             "CHATBOT_MEMORY_KEY_PREFIX", "chatbot:assistant"
         ).strip()
-        self.MONGO_URL: str = os.getenv("MONGO_URL", "mongodb://localhost:27017").strip()
+        self.MONGO_URL: str = os.getenv(
+            "MONGO_URL", "mongodb://localhost:27017"
+        ).strip()
         self.MONGO_DB: str = os.getenv("MONGO_DB", "ai_chatbot_service").strip()
         self.CHATBOT_DB_ENABLED: bool = True
         self.CHATBOT_DB_ECHO: bool = False
-        self.CHATBOT_DB_POOL_SIZE: int = int(
-            os.getenv("CHATBOT_DB_POOL_SIZE", 10)
-        )
+        self.CHATBOT_DB_POOL_SIZE: int = int(os.getenv("CHATBOT_DB_POOL_SIZE", 10))
         self.CHATBOT_DB_MAX_OVERFLOW: int = int(
             os.getenv("CHATBOT_DB_MAX_OVERFLOW", 20)
         )
@@ -200,8 +219,13 @@ class Settings:
         ).strip()
 
         self.EMBEDDING_MODEL_NAME: str = os.getenv(
-            "EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-base"
+            "EMBEDDING_MODEL_NAME",
+            "Xenova/multilingual-e5-base/onnx/model_quantized.onnx",
         ).strip()
+        self.EMBEDDING_MODEL_PRECISION: str = (
+            os.getenv("EMBEDDING_MODEL_PRECISION", "int8").strip().lower()
+        )
+        self.EMBEDDING_ONNX_PATH: str = os.getenv("EMBEDDING_ONNX_PATH", "").strip()
         self.EMBEDDING_MAX_LENGTH: int = int(os.getenv("EMBEDDING_MAX_LENGTH", 512))
         self.EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", 8))
         self.EMBEDDING_QUERY_CACHE_SIZE: int = int(
@@ -225,9 +249,7 @@ class Settings:
         self.RAG_SEMANTIC_MERGE_THRESHOLD: float = float(
             os.getenv("RAG_SEMANTIC_MERGE_THRESHOLD", 0.82)
         )
-        self.RAG_CHUNK_TOKEN_BUDGET: int = int(
-            os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320)
-        )
+        self.RAG_CHUNK_TOKEN_BUDGET: int = int(os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320))
         self.RAG_REINDEX_MANIFEST_PATH: str = os.getenv(
             "RAG_REINDEX_MANIFEST_PATH", ".cache/rag/.rag_index_manifest.sha256"
         ).strip()
@@ -244,9 +266,7 @@ class Settings:
             "GROQ_MODEL", "llama-3.3-70b-versatile"
         ).strip()
         os.environ.pop("GROQ_BASE_URL", None)
-        self.GROQ_TIMEOUT_SECONDS: float = float(
-            os.getenv("GROQ_TIMEOUT_SECONDS", 45)
-        )
+        self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 45))
         self.CHATBOT_LLM_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
         )
@@ -254,9 +274,7 @@ class Settings:
             os.getenv("CHATBOT_MAX_CONCURRENT_LLM", 32)
         )
         self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", 1024))
-        self.GROQ_TEMPERATURE: float = float(
-            os.getenv("GROQ_TEMPERATURE", 0.2)
-        )
+        self.GROQ_TEMPERATURE: float = float(os.getenv("GROQ_TEMPERATURE", 0.2))
         self.GROQ_TEMPERATURE_TASK: float = float(
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
@@ -273,8 +291,12 @@ class Settings:
         self.VLM_IMAGE_QUALITY: int = int(os.getenv("VLM_IMAGE_QUALITY", 85))
 
         # Kafka Consumer Batch Settings
-        self.KAFKA_CONSUMER_BATCH_SIZE: int = int(os.getenv("KAFKA_CONSUMER_BATCH_SIZE", 5))
-        self.KAFKA_CONSUMER_BATCH_TIMEOUT_SEC: float = float(os.getenv("KAFKA_CONSUMER_BATCH_TIMEOUT_SEC", 1.5))
+        self.KAFKA_CONSUMER_BATCH_SIZE: int = int(
+            os.getenv("KAFKA_CONSUMER_BATCH_SIZE", 5)
+        )
+        self.KAFKA_CONSUMER_BATCH_TIMEOUT_SEC: float = float(
+            os.getenv("KAFKA_CONSUMER_BATCH_TIMEOUT_SEC", 1.5)
+        )
 
         self._validate()
 
@@ -324,10 +346,14 @@ class Settings:
             raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEMS_MAX must be positive")
 
         if self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT <= 0:
-            raise RuntimeError("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT must be positive")
+            raise RuntimeError(
+                "CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT must be positive"
+            )
 
         if self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT <= 0:
-            raise RuntimeError("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT must be positive")
+            raise RuntimeError(
+                "CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT must be positive"
+            )
 
         if not isfinite(self.CHATBOT_PROMPT_AB_BUCKET_RATIO):
             raise RuntimeError("CHATBOT_PROMPT_AB_BUCKET_RATIO must be finite")
@@ -380,9 +406,7 @@ class Settings:
             raise RuntimeError("CHATBOT_REDIS_URL must not be empty")
 
         if self.CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS <= 0:
-            raise RuntimeError(
-                "CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS must be positive"
-            )
+            raise RuntimeError("CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS must be positive")
 
         if self.CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS <= 0:
             raise RuntimeError("CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS must be positive")

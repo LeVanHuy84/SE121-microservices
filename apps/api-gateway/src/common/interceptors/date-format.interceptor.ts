@@ -16,8 +16,10 @@ dayjs.extend(timezone);
 export class DateFormatInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler) {
     return next.handle().pipe(
-      map((data) =>
-        JSON.parse(
+      map((data) => {
+        if (!data) return data;
+
+        return JSON.parse(
           JSON.stringify(data, (key, value) => {
             if (key === "nextCursor") return value;
 
@@ -42,8 +44,8 @@ export class DateFormatInterceptor implements NestInterceptor {
 
             return value;
           }),
-        ),
-      ),
+        );
+      }),
     );
   }
 }

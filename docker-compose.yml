@@ -370,6 +370,8 @@ services:
       - redis
       - kafka
       - elasticsearch
+    volumes:
+      - hf_cache:/root/.cache/huggingface
     networks:
       - app-network
 
@@ -382,3 +384,4 @@ volumes:
   redis_data:
   rabbitmq_data:
   elastic_data:
+  hf_cache:
