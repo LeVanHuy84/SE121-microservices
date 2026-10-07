@@ -6,7 +6,12 @@ import {
   Ctx,
   KafkaContext,
 } from '@nestjs/microservices';
-import { AnalysisEventType, AnalysisResultEvent, EventTopic, ChatbotCrisisAlertEvent } from '@repo/dtos';
+import {
+  AnalysisEventType,
+  AnalysisResultEvent,
+  EventTopic,
+  ChatbotCrisisAlertEvent,
+} from '@repo/dtos';
 import { KafkaConsumerHelper } from '@repo/common';
 import { ClientSession } from 'mongoose';
 
@@ -73,7 +78,9 @@ export class IngestionController {
       context,
       handler: async (_session: ClientSession) => {
         const { payload } = message;
-        this.logger.debug(`Received chatbot crisis alert for user ${payload.userId}`);
+        this.logger.debug(
+          `Received chatbot crisis alert for user ${payload.userId}`,
+        );
         await this.ingestionService.handleChatbotCrisisAlert(payload);
       },
     });

@@ -1,4 +1,3 @@
-import json
 import logging
 
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot, emotion_context_service

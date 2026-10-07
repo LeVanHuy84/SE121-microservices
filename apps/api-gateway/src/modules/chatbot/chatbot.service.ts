@@ -53,7 +53,10 @@ export class ChatbotService {
       const contexts = await this.resolveContextsWithinBudget(
         userId,
         dto.message,
-        this.configService.get<number>("CHATBOT_CONTEXT_BUILD_TIMEOUT_MS", 1200),
+        this.configService.get<number>(
+          "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+          1200,
+        ),
       );
 
       const res = await firstValueFrom(

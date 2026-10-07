@@ -21,7 +21,9 @@ export class MusicAnalyzeService {
         infer: true,
       }) ||
       this.configService.get<string>("CHATBOT_INTERNAL_KEY", { infer: true }) ||
-      this.configService.get<string>("ANALYSIS_INTERNAL_KEY", { infer: true }) ||
+      this.configService.get<string>("ANALYSIS_INTERNAL_KEY", {
+        infer: true,
+      }) ||
       "chatbot-internal-key-123";
 
     if (!baseUrl || !internalKey) {

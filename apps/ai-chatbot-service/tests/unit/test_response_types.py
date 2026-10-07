@@ -17,7 +17,7 @@ from app.modules.chatbot.services.memory import session_memory
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES
 from app.providers.base import LlmGeneration
 
-DOCS_DIR = Path(__file__).resolve().parent.parent / "docs" / "assistant"
+DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "assistant"
 CRISIS_MESSAGE = "tôi muốn chết"
 
 

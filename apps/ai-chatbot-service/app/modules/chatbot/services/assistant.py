@@ -24,13 +24,11 @@ from app.modules.chatbot.services.context_resolver import (
 )
 from app.modules.chatbot.services.emotion_context import (
     EmotionSnapshot,
-    EmotionContextService,
     emotion_context_service,
 )
 from app.modules.chatbot.services.guardrails import (
     AssistantScopeGuard,
     CommunityGuard,
-    CrisisGuard,
     ScopeDecision,
     assistant_community_guard,
     assistant_crisis_guard,

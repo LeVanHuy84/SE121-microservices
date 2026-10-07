@@ -43,7 +43,9 @@ export class IngestionService {
 
   async handleChatbotCrisisAlert(payload: any) {
     try {
-      await this.proactiveInterventionService.evaluateFromChatbotCrisis(payload);
+      await this.proactiveInterventionService.evaluateFromChatbotCrisis(
+        payload,
+      );
     } catch (err) {
       this.logger.error(
         `Error during real-time proactive intervention evaluation for chatbot crisis alert, user=${payload.userId}`,

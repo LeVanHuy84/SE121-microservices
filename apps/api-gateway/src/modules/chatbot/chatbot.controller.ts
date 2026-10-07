@@ -20,10 +20,7 @@ export class ChatbotController {
   constructor(private readonly chatbotService: ChatbotService) {}
 
   @Post("respond")
-  respond(
-    @CurrentUserId() userId: string,
-    @Body() dto: AssistantMessageDto,
-  ) {
+  respond(@CurrentUserId() userId: string, @Body() dto: AssistantMessageDto) {
     return this.chatbotService.respond(userId, dto);
   }
 
@@ -46,7 +43,9 @@ export class ChatbotController {
         },
         error: (err) => {
           res.write(`event: error\n`);
-          res.write(`data: ${JSON.stringify({ code: "ASSISTANT_STREAM_FAILED", message: err.message })}\n\n`);
+          res.write(
+            `data: ${JSON.stringify({ code: "ASSISTANT_STREAM_FAILED", message: err.message })}\n\n`,
+          );
           res.end();
         },
         complete: () => {

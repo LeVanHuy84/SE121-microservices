@@ -15,7 +15,10 @@ export class GatewayExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse();
 
     if (response.headersSent) {
-      this.logger.error("Error occurred after headers were sent", exception?.stack || exception);
+      this.logger.error(
+        "Error occurred after headers were sent",
+        exception?.stack || exception,
+      );
       return;
     }
 
@@ -42,7 +45,10 @@ export class GatewayExceptionsFilter implements ExceptionFilter {
     // Các lỗi khác
     const status = 500;
     const message = exception?.message || "Internal server error";
-    this.logger.error(`[500 Internal Server Error] ${message}`, exception?.stack || exception);
+    this.logger.error(
+      `[500 Internal Server Error] ${message}`,
+      exception?.stack || exception,
+    );
     response.status(status).json({ statusCode: status, message });
   }
 }

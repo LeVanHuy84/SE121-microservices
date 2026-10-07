@@ -144,7 +144,9 @@ export class ConsumerService {
     const txManager = manager ?? this.dataSource.manager;
 
     const action = this.normalizeModerationAction(payload.action);
-    const targetType = String(payload.targetType || "").toUpperCase() as TargetType;
+    const targetType = String(
+      payload.targetType || "",
+    ).toUpperCase() as TargetType;
 
     let entity: Post | Comment | Share | null = null;
 
@@ -197,10 +199,10 @@ export class ConsumerService {
     moderation.action = action;
     moderation.label = this.normalizeModerationLabel(payload.label);
     moderation.isViolation =
-      payload.isViolation ?? (action === ModerationAction.HARD_BLOCK);
+      payload.isViolation ?? action === ModerationAction.HARD_BLOCK;
     moderation.mentalHealthSupport =
       payload.mentalHealthSupport ??
-      (action === ModerationAction.ALLOW_WITH_SUPPORT);
+      action === ModerationAction.ALLOW_WITH_SUPPORT;
 
     moderation.violations = Array.isArray(payload.violations)
       ? payload.violations.map((v) => ({

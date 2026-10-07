@@ -1,12 +1,15 @@
 import asyncio
-import json
 import logging
-import os
+import unittest
 
-import pytest
-from testcontainers.kafka import KafkaContainer
+try:
+    import pytest
+    from testcontainers.kafka import KafkaContainer
+except ImportError:
+    raise unittest.SkipTest(
+        "Integration dependencies (pytest, testcontainers) not installed"
+    )
 
-from app.core.config import settings
 from app.modules.analysis.messaging.kafka_consumer import KafkaConsumerService
 from app.modules.analysis.messaging.kafka_producer import KafkaProducerService
 

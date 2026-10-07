@@ -15,7 +15,7 @@ export class AdminDashboardService {
   async getOverview(): Promise<DashboardOverviewResponseDto> {
     try {
       const data = await this.repo.getOverview();
-      return data as DashboardOverviewResponseDto;
+      return data;
     } catch (e) {
       this.logger.error('Overview aggregate failed', e);
       throw new RpcException({ statusCode: 500, message: 'OVERVIEW_FAILED' });
