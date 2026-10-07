@@ -25,7 +25,11 @@ class KafkaConsumerService:
             self.topic,
             bootstrap_servers=self.brokers,
             group_id=self.group_id,
-            enable_auto_commit=True,
+            enable_auto_commit=False,
+            auto_offset_reset="latest",
+            session_timeout_ms=45000,
+            heartbeat_interval_ms=15000,
+            max_poll_interval_ms=300000,
             value_deserializer=lambda v: json.loads(v.decode("utf-8")),
         )
         for attempt in range(1, max_retries + 1):
@@ -81,6 +85,10 @@ class KafkaConsumerService:
                         await self.batch_handler(messages)
                     except Exception as e:
                         logger.error("[KafkaConsumer] Batch handler error: %s", e)
+                    try:
+                        await self.consumer.commit()
+                    except Exception as commit_err:
+                        logger.warning("[KafkaConsumer] Offset commit warning (batch): %s", commit_err)
                 else:
                     await asyncio.sleep(0.1)
             except Exception as e:
@@ -96,6 +104,11 @@ class KafkaConsumerService:
                     await self.handler(msg.value)
             except Exception as e:
                 logger.error("[KafkaConsumer] Single handler error: %s", e)
+            try:
+                await self.consumer.commit()
+            except Exception as commit_err:
+                logger.warning("[KafkaConsumer] Offset commit warning (single): %s", commit_err)
+            await asyncio.sleep(0)
 
     async def stop(self):
         self._running = False

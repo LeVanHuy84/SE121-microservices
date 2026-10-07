@@ -38,6 +38,29 @@ yarn-error.log*
 
 # Ignore environment files
 .env
-.env.local
-.env.production.local
-.env.development.local
+.env.*
+!.env.example
+!.env.production.example
+
+# Ignore heavy directories not needed for Docker build context
+evaluation
+**/evaluation
+seed-data
+tools
+openapi
+docs
+.agent
+
+# Large model and media files
+*.onnx
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.zip
+*.tar.gz
+*.mp3
+*.wav
+*.flac
+*.mp4
+

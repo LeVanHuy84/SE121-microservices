@@ -4,7 +4,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
@@ -67,6 +67,8 @@ def _with_kafka(kafka: FakeKafka, outbox_repo=None):
     fake_module = types.ModuleType("app.modules.analysis.lifespan")
     fake_module.kafka_producer = kafka
     fake_module.outbox_repo = outbox_repo
+    fake_module.emotion_aggregate_repo = AsyncMock()
+    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(return_value=[])
     return patch.dict(sys.modules, {"app.modules.analysis.lifespan": fake_module})
 
 

@@ -71,7 +71,7 @@ class RagDocumentService:
             return {"documents": 0, "chunks": 0}
         await self._ensure_index(len(sample_emb))
 
-        batch_size = 128
+        batch_size = 512
         total_chunks = len(chunks)
         indexed_count = 0
 
