@@ -227,7 +227,7 @@ class Settings:
         )
         self.EMBEDDING_ONNX_PATH: str = os.getenv("EMBEDDING_ONNX_PATH", "").strip()
         self.EMBEDDING_MAX_LENGTH: int = int(os.getenv("EMBEDDING_MAX_LENGTH", 512))
-        self.EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", 8))
+        self.EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", 32))
         self.EMBEDDING_QUERY_CACHE_SIZE: int = int(
             os.getenv("EMBEDDING_QUERY_CACHE_SIZE", 256)
         )
