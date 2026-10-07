@@ -237,7 +237,8 @@ describe('ProactiveInterventionService', () => {
         content: 'Deep sadness',
         moderation: {
           action: ModerationAction.ALLOW,
-          label: (ModerationLabel as any).EMOTIONAL_CRISIS || 'EMOTIONAL_CRISIS',
+          label:
+            (ModerationLabel as any).EMOTIONAL_CRISIS || 'EMOTIONAL_CRISIS',
         },
       } as any;
 

@@ -4,7 +4,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
@@ -17,7 +17,7 @@ from app.modules.chatbot.services.memory import session_memory
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES
 from app.providers.base import LlmGeneration
 
-DOCS_DIR = Path(__file__).resolve().parent.parent / "docs" / "assistant"
+DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "assistant"
 CRISIS_MESSAGE = "tôi muốn chết"
 
 
@@ -67,6 +67,8 @@ def _with_kafka(kafka: FakeKafka, outbox_repo=None):
     fake_module = types.ModuleType("app.modules.analysis.lifespan")
     fake_module.kafka_producer = kafka
     fake_module.outbox_repo = outbox_repo
+    fake_module.emotion_aggregate_repo = AsyncMock()
+    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(return_value=[])
     return patch.dict(sys.modules, {"app.modules.analysis.lifespan": fake_module})
 
 

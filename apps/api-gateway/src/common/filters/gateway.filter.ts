@@ -3,13 +3,24 @@ import {
   ArgumentsHost,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from "@nestjs/common";
 
 @Catch()
 export class GatewayExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GatewayExceptionsFilter.name);
+
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
+
+    if (response.headersSent) {
+      this.logger.error(
+        "Error occurred after headers were sent",
+        exception?.stack || exception,
+      );
+      return;
+    }
 
     // Nếu là HttpException (bao gồm lỗi validate DTO)
     if (exception instanceof HttpException) {
@@ -34,6 +45,10 @@ export class GatewayExceptionsFilter implements ExceptionFilter {
     // Các lỗi khác
     const status = 500;
     const message = exception?.message || "Internal server error";
+    this.logger.error(
+      `[500 Internal Server Error] ${message}`,
+      exception?.stack || exception,
+    );
     response.status(status).json({ statusCode: status, message });
   }
 }

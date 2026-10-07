@@ -1,27 +1,26 @@
 """
-Music Model Loader - Singleton for MERT ONNX INT8 Music Emotion Model
+Music Model Loader - Singleton for MERT ONNX Music Emotion Model
 - Loads MERT ONNX session
 - Supports local weights and Hugging Face Hub download fallback
 """
 
-import os
 import logging
 from pathlib import Path
 import numpy as np
 import onnxruntime as ort
-from huggingface_hub import hf_hub_download
 
 from app.core.settings import settings
+from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
 
 logger = logging.getLogger(__name__)
 
 
 class MusicModelLoader:
     """
-    Music model loader for MERT ONNX INT8 model (singleton).
-    
+    Music model loader for MERT ONNX model (singleton).
+
     Responsibilities:
-    - Load mert_emotion_int8.onnx via ONNX Runtime
+    - Load MERT ONNX via ONNX Runtime
     - Expose loaded session for inference
     """
 
@@ -30,67 +29,65 @@ class MusicModelLoader:
     def __init__(self):
         self.session = None
         self.model_name = settings.MERT_MUSIC_MODEL_PATH
+        self.precision = getattr(settings, "MERT_MUSIC_PRECISION", "int8").lower()
         self.onnx_model_path = None
         self.input_name = None
 
-    def _resolve_model_path(self) -> str:
-        """Resolve local ONNX weight file or download from Hugging Face Hub."""
-        if settings.MERT_MUSIC_ONNX_PATH and os.path.exists(settings.MERT_MUSIC_ONNX_PATH):
-            return settings.MERT_MUSIC_ONNX_PATH
-
-        # Search upwards for monorepo root containing evaluation directory
-        candidate_paths = [
-            Path("evaluation/music/weights/mert_emotion_int8.onnx").resolve(),
-            Path("../evaluation/music/weights/mert_emotion_int8.onnx").resolve(),
-            Path("../../evaluation/music/weights/mert_emotion_int8.onnx").resolve(),
-        ]
-        
-        # Traverse up from current file to find repository root
-        current_dir = Path(__file__).resolve().parent
-        for _ in range(10):
-            mert_file = current_dir / "evaluation" / "music" / "weights" / "mert_emotion_int8.onnx"
-            if mert_file.exists():
-                candidate_paths.insert(0, mert_file)
-                break
-            if current_dir.parent == current_dir:
-                break
-            current_dir = current_dir.parent
-
-        for p in candidate_paths:
-            if p.exists():
-                logger.info(f"[MusicModelLoader] Found local MERT ONNX weights at: {p}")
-                return str(p)
-
-        logger.info(f"[MusicModelLoader] Downloading MERT ONNX INT8 model from Hugging Face Hub ({self.model_name})...")
-        downloaded = hf_hub_download(
-            repo_id=self.model_name,
-            filename="mert_emotion_int8.onnx"
-        )
-        return downloaded
-
     def initialize(self):
-        """Load MERT ONNX INT8 model."""
+        """Load MERT ONNX model."""
         if self._instance_initialized:
             return
 
         try:
-            self.onnx_model_path = self._resolve_model_path()
-            logger.info(f"[MusicModelLoader] Loading MERT ONNX INT8 model from: {self.onnx_model_path}")
+            candidate_dirs = [
+                Path("evaluation/music/weights").resolve(),
+                Path("../evaluation/music/weights").resolve(),
+                Path("../../evaluation/music/weights").resolve(),
+            ]
+            current_dir = Path(__file__).resolve().parent
+            for _ in range(10):
+                mert_dir = current_dir / "evaluation" / "music" / "weights"
+                if mert_dir.exists():
+                    candidate_dirs.insert(0, mert_dir)
+                    break
+                if current_dir.parent == current_dir:
+                    break
+                current_dir = current_dir.parent
+
+            self.onnx_model_path, _ = resolve_onnx_model(
+                model_path_or_repo=self.model_name,
+                explicit_onnx_path=settings.MERT_MUSIC_ONNX_PATH,
+                precision=self.precision,
+                model_type_hint="mert_emotion",
+                candidate_local_dirs=candidate_dirs,
+            )
+
+            logger.info(
+                f"[MusicModelLoader] Loading MERT ONNX ({self.precision}) model from: {self.onnx_model_path}"
+            )
 
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = 4  # 4 threads optimal for CPU vectorization without contention
+            opts.intra_op_num_threads = (
+                4  # 4 threads optimal for CPU vectorization without contention
+            )
             opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.enable_cpu_mem_arena = False
+            opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
 
-            self.session = ort.InferenceSession(self.onnx_model_path, opts, providers=["CPUExecutionProvider"])
+            self.session = ort.InferenceSession(
+                self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
+            )
             self.input_name = self.session.get_inputs()[0].name
 
-            # Pre-warmup session to avoid cold-start latency on first request
-            dummy_waveform = np.random.randn(1, 24000 * 15).astype(np.float32)
+            # Pre-warmup session to avoid cold-start latency on first request (2s audio)
+            dummy_waveform = np.random.randn(1, 24000 * 2).astype(np.float32)
             self.session.run(None, {self.input_name: dummy_waveform})
 
             self._instance_initialized = True
-            logger.info("[MusicModelLoader] ✓ MERT Music Emotion ONNX model loaded & pre-warmed successfully on CPU")
+            logger.info(
+                f"[MusicModelLoader] ✓ MERT Music Emotion ONNX ({self.precision}) model loaded & pre-warmed successfully on CPU"
+            )
 
         except Exception as e:
             logger.error(f"[MusicModelLoader] ✗ Failed to load MERT ONNX model: {e}")

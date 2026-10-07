@@ -1,10 +1,14 @@
-import asyncio
-import os
-import pytest
-from datetime import datetime, timezone
-from testcontainers.mongodb import MongoDbContainer
-from testcontainers.redis import RedisContainer
-from testcontainers.elasticsearch import ElasticSearchContainer
+import unittest
+
+try:
+    import pytest
+    from testcontainers.mongodb import MongoDbContainer
+    from testcontainers.redis import RedisContainer
+    from testcontainers.elasticsearch import ElasticSearchContainer
+except ImportError:
+    raise unittest.SkipTest(
+        "Integration dependencies (pytest, testcontainers) not installed"
+    )
 
 from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository
 from app.modules.chatbot.services.memory import SessionMemory

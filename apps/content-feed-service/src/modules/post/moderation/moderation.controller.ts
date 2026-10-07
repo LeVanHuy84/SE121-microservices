@@ -100,4 +100,3 @@ export class ModerationController {
     return this.moderationService.getTargetContent(targetId, targetType);
   }
 }
-

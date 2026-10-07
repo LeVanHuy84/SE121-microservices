@@ -59,8 +59,6 @@ export class ModerationService {
         take: limit,
       });
 
-
-
     // group ids
     const postIds: string[] = [];
     const commentIds: string[] = [];
@@ -444,4 +442,3 @@ export class ModerationService {
     };
   }
 }
-

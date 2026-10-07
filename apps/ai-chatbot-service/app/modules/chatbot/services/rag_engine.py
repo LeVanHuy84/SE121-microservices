@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import numpy as np
 import hashlib
 import logging
 import re
@@ -16,9 +15,22 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantContextItem
 from app.modules.chatbot.services.embedding import embedding_service
-from app.utils.text_normalizer import normalize_query_text, normalize_text
+from app.utils.text_normalizer import normalize_query_text
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def _trim_memory():
+    import gc
+
+    gc.collect()
+    try:
+        import ctypes
+
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
 
 
 @dataclass(frozen=True)
@@ -53,38 +65,54 @@ class RagDocumentService:
             logger.info("RAG index skipped: assistant docs signature unchanged")
             return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": 0}
 
-        embeddings = embedding_service.encode_documents([chunk.text for chunk in chunks])
-        if not embeddings:
+        # Probe embedding dimension using sample query
+        sample_emb = embedding_service.encode_query("dimension_probe")
+        if not sample_emb:
             return {"documents": 0, "chunks": 0}
+        await self._ensure_index(len(sample_emb))
 
-        await self._ensure_index(len(embeddings[0]))
+        batch_size = 512
+        total_chunks = len(chunks)
+        indexed_count = 0
 
-        operations: list[dict[str, Any]] = []
-        for chunk, embedding in zip(chunks, embeddings, strict=False):
-            operations.append(
-                {"index": {"_index": settings.RAG_INDEX_NAME, "_id": chunk.id}}
-            )
-            operations.append(
-                {
-                    "docId": chunk.doc_id,
-                    "chunkIndex": chunk.chunk_index,
-                    "title": chunk.title,
-                    "section": chunk.section,
-                    "lang": chunk.lang,
-                    "updatedAt": chunk.updated_at,
-                    "visibility": chunk.visibility,
-                    "version": chunk.version,
-                    "type": chunk.type,
-                    "text": chunk.text,
-                    "sourcePath": chunk.source_path,
-                    "topic": chunk.topic,
-                    "embedding": embedding,
-                }
-            )
+        for i in range(0, total_chunks, batch_size):
+            chunk_batch = chunks[i : i + batch_size]
+            batch_embeddings = embedding_service.encode_documents([c.text for c in chunk_batch])
+            if not batch_embeddings:
+                continue
 
-        await self.es.bulk(operations=operations, refresh=True)
+            operations: list[dict[str, Any]] = []
+            for chunk, embedding in zip(chunk_batch, batch_embeddings, strict=False):
+                operations.append(
+                    {"index": {"_index": settings.RAG_INDEX_NAME, "_id": chunk.id}}
+                )
+                operations.append(
+                    {
+                        "docId": chunk.doc_id,
+                        "chunkIndex": chunk.chunk_index,
+                        "title": chunk.title,
+                        "section": chunk.section,
+                        "lang": chunk.lang,
+                        "updatedAt": chunk.updated_at,
+                        "visibility": chunk.visibility,
+                        "version": chunk.version,
+                        "type": chunk.type,
+                        "text": chunk.text,
+                        "sourcePath": chunk.source_path,
+                        "topic": chunk.topic,
+                        "embedding": embedding,
+                    }
+                )
+
+            await self.es.bulk(operations=operations, refresh=False)
+            indexed_count += len(chunk_batch)
+            del operations
+            del batch_embeddings
+
+        await self.es.indices.refresh(index=settings.RAG_INDEX_NAME)
         self._write_index_signature(manifest_signature)
-        return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": len(chunks)}
+        _trim_memory()
+        return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": indexed_count}
 
     async def search_assistant_docs(self, query: str, top_k: int | None = None) -> list[AssistantContextItem]:
         normalized_query = normalize_query_text(query)
@@ -160,6 +188,8 @@ class RagDocumentService:
             logger.info("Assistant docs RAG warmup completed")
         except Exception as exc:
             logger.warning("Assistant docs RAG warmup skipped: %s", exc)
+        finally:
+            _trim_memory()
 
     async def close(self):
         if self._es is not None:

@@ -136,7 +136,7 @@ export class ProactiveInterventionService {
     payload: ChatbotCrisisAlertPayload,
   ): Promise<ProactiveInterventionDto | null> {
     const { userId, riskLevel: rawRiskLevel, reason } = payload;
-    
+
     let riskLevel = RiskLevel.CRISIS;
     const triggers: TriggerFlag[] = [TriggerFlag.SUICIDAL_IDEATION];
 

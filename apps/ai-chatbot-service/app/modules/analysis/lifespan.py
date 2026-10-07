@@ -20,6 +20,7 @@ from app.modules.analysis.repositories.emotion import EmotionAggregateRepository
 from app.modules.analysis.repositories.idempotency import IdempotencyRepository
 from app.modules.analysis.messaging.dlq_service import KafkaDLQService
 from app.modules.analysis.messaging.consumer_helper import KafkaConsumerHelper
+from app.modules.chatbot.services.emotion_event_consumer import handle_analysis_result
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,6 @@ register_consumer(
 )
 
 # Register consumer to capture Analysis results and update Chatbot Emotion Cache (Redis)
-from app.modules.chatbot.services.emotion_event_consumer import handle_analysis_result
 register_consumer(
     KafkaConsumerService(
         brokers=settings.KAFKA_BROKERS,
