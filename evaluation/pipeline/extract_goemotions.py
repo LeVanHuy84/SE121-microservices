@@ -4,18 +4,15 @@ from pathlib import Path
 from typing import Optional
 from datasets import load_dataset
 
-# Clean Target Mapping (Strictly controlled to eliminate label noise)
+# Clean Target Mapping (Strictly Pure Single-Label Emotions to Eliminate Label Noise)
 # 1: Sadness, 2: Disgust, 3: Anger, 4: Fear, 5: Surprise
 TARGET_MAP = {
-    "anger": 3,         # Pure Anger
-    "annoyance": 3,     # Anger/Annoyance
+    "anger": 3,         # 100% PURE ANGER ONLY (Annoyance is eliminated!)
     "sadness": 1,       # Pure Sadness
-    "grief": 1,         # Sadness/Grief
-    "remorse": 1,       # Sadness/Regret
-    "disgust": 2,       # Disgust
-    "fear": 4,          # Fear
-    "nervousness": 4,   # Fear
-    "surprise": 5,      # Surprise
+    "grief": 1,         # Deep Grief / Sadness
+    "disgust": 2,       # Pure Disgust
+    "fear": 4,          # Pure Fear
+    "surprise": 5,      # Pure Surprise
 }
 
 ALL_GOEMOTIONS = [
@@ -26,12 +23,14 @@ ALL_GOEMOTIONS = [
     "relief", "remorse", "sadness", "surprise", "neutral"
 ]
 
+# Optimal Class Balance Targets (Combine with UIT-VSMEC to equalize all classes ~1,500 - 1,700)
+# VSMEC baseline: Enjoyment=1,965, Disgust=1,338, Sadness=1,149, Anger=480, Fear=395, Surprise=309, Other=1,291
 TARGET_AUGMENT_LIMITS = {
-    1: 300,  # Sadness (sadness + grief + remorse)
-    3: 800,  # Anger (anger + annoyance)
-    4: 900,  # Fear (fear + nervousness)
-    2: 500,  # Disgust (pure disgust)
-    5: 700   # Surprise (pure surprise)
+    1: 550,   # Sadness: 1,149 + 550 = 1,699
+    2: 350,   # Disgust: 1,338 + 350 = 1,688
+    3: 1200,  # Pure Anger: 480 + 1,200 = 1,680
+    4: 1200,  # Pure Fear: 395 + 1,200 = 1,595
+    5: 1200   # Pure Surprise: 309 + 1,200 = 1,509
 }
 
 LABEL_NAMES = ["Enjoyment", "Sadness", "Disgust", "Anger", "Fear", "Surprise", "Other"]
@@ -144,13 +143,18 @@ def extract_minority_goemotions(llm_checker: Optional[LLMQualityCheckInterface] 
     counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     filtered_stats = {"length": 0, "artifacts": 0, "multi_label": 0, "ambiguous": 0, "llm_rejected": 0}
 
+    seen_texts = set()
     for item in train_ds:
         text = item.get("text", "")
         words = text.split()
         
-        # 1. Word length filter (5 to 25 words)
-        if not (5 <= len(words) <= 25):
+        # 1. Word length filter (5 to 30 words)
+        if not (5 <= len(words) <= 30):
             filtered_stats["length"] += 1
+            continue
+
+        # Exact text deduplication check
+        if text in seen_texts:
             continue
 
         # 2. Reddit Artifacts & Noise Filter
@@ -186,6 +190,7 @@ def extract_minority_goemotions(llm_checker: Optional[LLMQualityCheckInterface] 
             filtered_stats["llm_rejected"] += 1
             continue
 
+        seen_texts.add(text)
         extracted_samples.append({
             "english_text": text,
             "target_label": target_vsmec_id,
