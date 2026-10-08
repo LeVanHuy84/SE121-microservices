@@ -17,7 +17,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 # ============================================================================
-# 1. ENV LOADER (Tự động đọc .env giống evaluation/pipeline/augment_goemotions_llm.py)
+# 1. ENV LOADER (Tự động đọc .env giống evaluation/emotion/pipeline/augment_goemotions_llm.py)
 # ============================================================================
 
 def parse_dot_env(file_path: Path) -> Dict[str, str]:

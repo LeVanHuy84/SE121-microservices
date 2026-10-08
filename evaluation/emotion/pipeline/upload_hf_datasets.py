@@ -6,7 +6,7 @@ from pathlib import Path
 from huggingface_hub import HfApi, create_repo
 
 # Thư mục gốc project
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVAL_DIR = PROJECT_ROOT / "evaluation"
 
 # Cấu hình 2 datasets
@@ -15,10 +15,10 @@ DATASET_CONFIGS = {
         "default_repo_id": "huyleit/vietnamese-social-emotion",
         "description": "Vietnamese Social Media Emotion Recognition Dataset (7 classes: Enjoyment, Sadness, Disgust, Anger, Fear, Surprise, Other)",
         "source_files": [
-            EVAL_DIR / "data" / "phobert_train.json",
-            EVAL_DIR / "data" / "phobert_val.json",
-            EVAL_DIR / "data" / "phobert_test.json",
-            EVAL_DIR / "data" / "phobert_finetune_merged_dataset.json",
+            EVAL_DIR / "emotion" / "data" / "phobert_train.json",
+            EVAL_DIR / "emotion" / "data" / "phobert_val.json",
+            EVAL_DIR / "emotion" / "data" / "phobert_test.json",
+            EVAL_DIR / "emotion" / "data" / "phobert_finetune_merged_dataset.json",
         ],
         "target_file_mapping": {
             "phobert_train.json": "train.json",

@@ -237,7 +237,7 @@ def run_full_pipeline():
 
     emotion_fp32 = str(weights_dir / "phobert_emotion_fp32.onnx")
     emotion_int8 = str(weights_dir / "phobert_emotion_int8.onnx")
-    emotion_test_path = str(eval_dir / "data" / "phobert_test.json")
+    emotion_test_path = str(eval_dir / "emotion" / "data" / "phobert_test.json")
 
     # 2. Định vị đường dẫn weights Moderation
     mod_local = weights_dir / "phobert_moderation_v1.1"

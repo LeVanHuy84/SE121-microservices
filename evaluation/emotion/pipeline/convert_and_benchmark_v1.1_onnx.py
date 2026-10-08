@@ -232,7 +232,7 @@ def generate_benchmark_report(res_pytorch, res_fp32, res_int8, disk_sizes, total
     report_content = f"""# Báo Cáo Nghiệm Thu & Đánh Giá Benchmark PhoBERT Emotion v1.1 (PyTorch vs ONNX FP32 vs ONNX INT8)
 
 > **Mô hình mục tiêu**: `evaluation/weights/phobert_emotion_v1.1`  
-> **Tập dữ liệu nghiệm thu**: `evaluation/data/phobert_test.json` (**{total_samples}** mẫu độc lập)  
+> **Tập dữ liệu nghiệm thu**: `evaluation/emotion/data/phobert_test.json` (**{total_samples}** mẫu độc lập)  
 > **Môi trường thực thi**: CPU Inference (4 Threads, Intel/AMD Host)  
 > **Ngày lập báo cáo**: {time.strftime('%d/%m/%Y %H:%M:%S')}  
 
@@ -303,14 +303,15 @@ def generate_benchmark_report(res_pytorch, res_fp32, res_int8, disk_sizes, total
 
 
 def main():
-    root_dir = Path(__file__).resolve().parent.parent
-    weights_v1_1 = root_dir / "weights" / "phobert_emotion_v1.1"
+    emotion_dir = Path(__file__).resolve().parent.parent
+    eval_dir = emotion_dir.parent
+    weights_v1_1 = eval_dir / "weights" / "phobert_emotion_v1.1"
     onnx_dir = weights_v1_1 / "onnx"
     reports_dir = weights_v1_1 / "reports"
     onnx_dir.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    test_json_path = root_dir / "data" / "phobert_test.json"
+    test_json_path = emotion_dir / "data" / "phobert_test.json"
     if not test_json_path.exists():
         print(f"[ERROR] Test dataset not found at: {test_json_path}")
         return

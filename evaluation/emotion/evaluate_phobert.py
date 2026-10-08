@@ -7,7 +7,7 @@ from sklearn.metrics import classification_report
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # Import Teencode Normalizer from apps/ai-chatbot-service
-project_root = Path(__file__).resolve().parent.parent
+project_root = Path(__file__).resolve().parents[2]
 chatbot_utils_path = project_root / "apps" / "ai-chatbot-service"
 if str(chatbot_utils_path) not in sys.path:
     sys.path.insert(0, str(chatbot_utils_path))
@@ -18,9 +18,9 @@ except ImportError:
     print("[WARNING] Could not import teencode_normalizer from ai-chatbot-service. Preprocessing evaluation will be skipped.")
     teencode_normalizer = None
 
-eval_dir = Path(__file__).parent
+eval_dir = Path(__file__).resolve().parent
 BASELINE_MODEL_NAME = "visolex/phobert-emotion"
-FINETUNED_MODEL_PATH = eval_dir / "weights" / "phobert_emotion_final"
+FINETUNED_MODEL_PATH = eval_dir.parent / "weights" / "phobert_emotion_final"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LABEL_NAMES = ["Enjoyment", "Sadness", "Disgust", "Anger", "Fear", "Surprise", "Other"]
 

@@ -96,7 +96,7 @@ BẢNG THỐNG KÊ CORPUS SAU KHI HỢP NHẤT (11,192 MẪU SẠCH):
 
 ## ⚙️ 3. QUY TRÌNH HUẤN LUYỆN (FINE-TUNING) & SIÊU THAM SỐ
 
-[Xem sổ tay `fintune v1.1`](/evaluation/versions/v1.1_final/finetune_phobert_emotion_v1.1.ipynb)
+[Xem sổ tay `fintune v1.1`](/evaluation/emotion/versions/v1.1_final/finetune_phobert_emotion_v1.1.ipynb)
 
 ### 3.1 Lựa Chọn Kiến Trúc Mô Hình
 - **Mô hình được chọn:** `vinai/phobert-base-v2` (**135M tham số**).

@@ -13,8 +13,9 @@ except ImportError:
     HAS_UNDERTHESEA = False
 
 # Add root app path for Preprocessing Pipeline
-eval_dir = Path(__file__).parent
-root_dir = eval_dir.parent
+eval_dir = Path(__file__).resolve().parent
+eval_root = eval_dir.parent
+root_dir = eval_root.parent
 sys.path.append(str(root_dir / "apps" / "ai-chatbot-service"))
 
 try:
@@ -24,7 +25,7 @@ try:
 except ImportError:
     HAS_PIPELINE = False
 
-MODEL_PATH = eval_dir / "weights" / "phobert_emotion_final"
+MODEL_PATH = eval_root / "weights" / "phobert_emotion_final"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 LABEL_NAMES = ["Enjoyment", "Sadness", "Disgust", "Anger", "Fear", "Surprise", "Other"]

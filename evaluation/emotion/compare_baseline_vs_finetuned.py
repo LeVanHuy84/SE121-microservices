@@ -5,9 +5,9 @@ import torch
 from sklearn.metrics import classification_report
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-eval_dir = Path(__file__).parent
+eval_dir = Path(__file__).resolve().parent
 BASELINE_MODEL_NAME = "visolex/phobert-emotion"
-FINETUNED_MODEL_PATH = eval_dir / "weights" / "phobert_emotion_final"
+FINETUNED_MODEL_PATH = eval_dir.parent / "weights" / "phobert_emotion_final"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LABEL_NAMES = ["Enjoyment", "Sadness", "Disgust", "Anger", "Fear", "Surprise", "Other"]
 

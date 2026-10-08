@@ -64,7 +64,7 @@ Sau khi xáo trộn ngẫu nhiên toàn bộ **9,877 mẫu sạch**, tập dữ 
 ---
 
 ## 5. CẤU TRÚC VÀ LƯU THỦ MỤC DỮ LIỆU PIPELINE
-Dữ liệu đầu ra sau khi chạy `evaluation/pipeline/prepare_merged_dataset.py` được xuất thành 3 file JSON chính:
-* `evaluation/data/phobert_train.json`: 6,913 mẫu huấn luyện.
-* `evaluation/data/phobert_val.json`: 1,482 mẫu kiểm định dừng sớm.
-* `evaluation/data/phobert_test.json`: 1,482 mẫu đánh giá độc lập cuối cùng.
+Dữ liệu đầu ra sau khi chạy `evaluation/emotion/pipeline/prepare_merged_dataset.py` được xuất thành 3 file JSON chính:
+* `evaluation/emotion/data/phobert_train.json`: 6,913 mẫu huấn luyện.
+* `evaluation/emotion/data/phobert_val.json`: 1,482 mẫu kiểm định dừng sớm.
+* `evaluation/emotion/data/phobert_test.json`: 1,482 mẫu đánh giá độc lập cuối cùng.

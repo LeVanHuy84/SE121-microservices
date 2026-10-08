@@ -22,8 +22,12 @@ chrome_profile/
 
 # Data directory (JSON datasets generated during pipeline execution)
 data/
+emotion/data/
+emotion/collection-data/
 *.json
 !results/*.json
+!**/results/*.json
+!emotion/results/*.json
 
 # Log files
 *.log

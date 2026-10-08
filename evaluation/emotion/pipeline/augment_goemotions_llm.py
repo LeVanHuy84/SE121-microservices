@@ -20,7 +20,7 @@ from typing import List, Dict
 import requests
 
 # Add root app path for Preprocessing Pipeline
-root_dir = Path(__file__).parent.parent.parent
+root_dir = Path(__file__).resolve().parents[3]
 chatbot_app_path = root_dir / "apps" / "ai-chatbot-service"
 if chatbot_app_path.exists():
     sys.path.append(str(chatbot_app_path))
@@ -97,7 +97,9 @@ def load_env_vars():
     base_url = os.getenv("LLM_BASE_URL")
     model_name = os.getenv("LLM_MODEL_NAME")
 
-    eval_env = Path(__file__).parent.parent / ".env"
+    eval_env = Path(__file__).resolve().parents[2] / ".env"
+    if not eval_env.exists():
+        eval_env = Path(__file__).parent.parent / ".env"
     file_vars = parse_dot_env(eval_env)
 
     if not api_key:

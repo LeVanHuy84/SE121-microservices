@@ -1,0 +1,43 @@
+{
+  "project": "SE121-microservices - Music Emotion Recognition",
+  "model_architecture": "m-a-p/MERT-v1-95M + Temporal Attention Pooling",
+  "quantization_format": "ONNX Dynamic INT8 (QuantType.QUInt8)",
+  "dataset_summary": {
+    "total_samples": 2569,
+    "deam_samples": 1802,
+    "pmemo_samples": 767,
+    "train_samples": 1798,
+    "val_samples": 385,
+    "test_samples": 386,
+    "split_strategy": "Stratified 4-Quadrant (70/15/15)"
+  },
+  "training_hyperparameters": {
+    "epochs": 15,
+    "best_epoch": 13,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "loss_function": "Combined (0.75 * CCC + 0.25 * MSE)",
+    "audio_duration_sec": 15,
+    "sampling_rate_hz": 24000
+  },
+  "held_out_test_metrics": {
+    "valence": {
+      "r2_score": 0.4783,
+      "mae": 0.0895,
+      "ccc": 0.7358
+    },
+    "arousal": {
+      "r2_score": 0.6575,
+      "mae": 0.0861,
+      "ccc": 0.8204
+    }
+  },
+  "real_world_ingestion_benchmark": {
+    "model_size_mb": 91.13,
+    "ram_footprint_mb": 111.21,
+    "avg_audio_prep_time_ms": 192.14,
+    "avg_onnx_cpu_inference_ms": 2303.03,
+    "avg_total_e2e_ms": 2495.18,
+    "target_server": "CPU Execution Provider (4 Threads)"
+  }
+}

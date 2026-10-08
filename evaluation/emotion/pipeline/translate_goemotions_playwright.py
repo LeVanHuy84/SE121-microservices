@@ -55,7 +55,7 @@ def save_checkpoint(output_file: Path, items: List[Dict[str, Any]]):
 
 def run_playwright_goemotions_translation(batch_size: int = 15, headless: bool = False):
     data_dir = Path(__file__).parent.parent / "data"
-    profile_dir = Path(__file__).parent.parent / "chrome_profile"
+    profile_dir = Path(__file__).resolve().parents[2] / "chrome_profile"
     profile_dir.mkdir(parents=True, exist_ok=True)
 
     input_file = data_dir / "goemotions_minority_extracted.json"

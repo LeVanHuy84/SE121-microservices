@@ -91,7 +91,7 @@ def upload_v1_1_to_hf(repo_id: str = DEFAULT_REPO_ID, token: str = None):
         raise ValueError("HF Token không được để trống!")
 
     api = HfApi(token=hf_token)
-    weights_dir = Path(__file__).resolve().parent.parent / "weights" / "phobert_emotion_v1.1"
+    weights_dir = Path(__file__).resolve().parents[2] / "weights" / "phobert_emotion_v1.1"
     report_md_path = weights_dir / "reports" / "phobert_onnx_benchmark_report.md"
     readme_path = weights_dir / "README.md"
 

@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 
 
 # Add root app path for Preprocessing Pipeline
-root_dir = Path(__file__).parent.parent
+root_dir = Path(__file__).resolve().parents[3]
 chatbot_app_path = root_dir / "apps" / "ai-chatbot-service"
 if chatbot_app_path.exists():
     sys.path.append(str(chatbot_app_path))
