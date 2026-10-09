@@ -1,0 +1,4240 @@
+[
+  {
+    "id": "GO_LONG_0001",
+    "text": "Một diễn biến bất ngờ! Tôi rất vui khi bạn nghe được những điều tuyệt vời như vậy về bản thân mình!",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0002",
+    "text": "Đó quả là một hành động cực kỳ ngu ngốc. Hà thật là kẻ ngốc khi tin tưởng cô ta.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0003",
+    "text": "“Bạn chẳng hiểu gì về chủ nghĩa phát xít cả” – rồi ngay sau đó lại cổ xúy cho các thủ đoạn diệt chủng thực sự. Bạn thật đáng khinh bỉ.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0004",
+    "text": "Chuyện này thật đáng sợ và đau lòng vô cùng. Mười một tuổi ư??? Còn là một đứa trẻ mà! Ở độ tuổi đó, tôi vẫn còn đang mải mê dựng lều chơi đùa. Tôi thực sự xót xa cho đứa trẻ này.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0005",
+    "text": "Bởi vì trong một số trường hợp, cha mẹ thực chất đã khiến con mình bị bắt cóc, bị giam giữ trái ý muốn và bị ép buộc tham gia vào các chương trình này. Đây chính là hành vi ngược đãi trẻ em.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0006",
+    "text": "Các bạn, chúng ta thế nào rồi? Hỏi vì cái TV ngớ ngẩn ở nước tôi thích Copa d'Italia hơn Real Madrid chết tiệt haha",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0007",
+    "text": "Không có hoặc tiếp xúc thấp. Tôi không có thời gian dành cho “gia đình” mà không có phép lịch sự cơ bản dành cho tôi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0008",
+    "text": "Điều làm tôi khó chịu không phải là việc ai đó không đồng ý với lối sống của tôi, mà là họ liên tục nói đi nói lại..điều đó sẽ làm phiền bất cứ ai.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0009",
+    "text": "CÔ ẤY. LÀ. THE. CHẾT. TỒI TỆ NHẤT. tái bút Bạn không béo, bạn chỉ cần một nhà tạo mẫu. 🙄",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0010",
+    "text": "Là một người đã làm cơ thể bị ô nhiễm bởi lượng đường dồi dào, tôi phần nào nghi ngờ rằng steroid còn tệ hơn nữa. Lạm dụng bất cứ điều gì và nó sẽ làm tổn thương bạn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0011",
+    "text": "Tôi không nghĩ ai trong số họ có vết sưng tấy bên ngoài tệ hơn người kia. Điều đó thật chói tai.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0012",
+    "text": "Ồ! Điều đó thật tuyệt vời! Chúc mừng! Thật tuyệt vời khi có hy vọng một ngày nào đó sẽ không dùng thuốc nữa.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0013",
+    "text": "Đó luôn là nỗi sợ hãi lớn nhất của tôi khi ý tưởng rời đi vào tháng Giêng xuất hiện. Tôi chúc bạn may mắn nhất trong việc giải mã chúng!",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0014",
+    "text": "Tôi nghĩ đó là Bình và tôi thậm chí còn không tin Bình hiểu được điều đó haha. Sau đó anh ta bị coi là kẻ ngốc.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0015",
+    "text": "Ôi trời, tôi tưởng bạn đang diễn giải. Tôi rất vui vì đó là những lời chính xác mà họ đã nói.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0016",
+    "text": "Không thể tin được thời đại Thúy sắp kết thúc... cảm giác như mới hôm qua tôi đã chứng kiến ​​chiến thắng đầu tiên của anh ấy trước những chàng cao bồi khi tiki phá kỷ lục gấp rút.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0017",
+    "text": "Ôi chúa ơi, bạn là Vũ? Nếu bạn là tôi thì tôi là một fan hâm mộ lớn. Tôi đã hoàn thành IX EE sớm hơn hôm nay bằng cách sử dụng hướng dẫn của bạn",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0018",
+    "text": "Ôi trời, tôi vừa đọc cái quái gì thế này?? Là một nghệ sĩ, điều này đối với tôi càng đau đớn hơn.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0019",
+    "text": "Vì thế hãy kiếm việc làm và rời đi. Nó sẽ trở nên tồi tệ hơn. Đầu tiên là tivi sau đó là bạn. Hãy ra ngoài khi bạn có thể",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0020",
+    "text": "Được rồi, đó cũng là suy nghĩ của tôi. Nếu Vũ thực sự chỉ nhận được 180 thì ai không thực hiện giao dịch đó (như chúng tôi) thì thật là ngu ngốc.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0021",
+    "text": "Ôi Chúa ơi. Người phụ nữ đã chết này cũng có một đứa con trai cũng đã chết. Thánh bi kịch",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0022",
+    "text": "Ồ! Chúc mừng bạn đã lấy lại được đời sống tình dục của mình! Thật vui khi thức dậy và thấy sự tích cực như vậy.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0023",
+    "text": "> Nội dung khiêu dâm mà tôi tải xuống là do Brazzers sản xuất. Trong trường hợp bạn không biết, Brazzers đang nói xấu về IP của họ. Ha chết tiệt.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0024",
+    "text": "Vòng loại trực tiếp Brooklyn-Boston sẽ là trận đấu độc hại nhất mọi thời đại. Chỉ có Sixers-C là tệ hơn",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0025",
+    "text": "Ồ! Tôi cũng là người Trung Quốc (người Singapore) và do luật pháp ở đây, tôi và bạn trai đang tìm cách đi nơi khác...",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0026",
+    "text": "Ôi trời không. Cô ấy bị mù!!! Không đời nào cô ấy lại bị bỏ lại một mình với nó.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0027",
+    "text": "Thánh mồi và chuyển đổi, Dũng. Tôi rất tiếc, việc phải ở bên và giải quyết điều đó hẳn là vô cùng căng thẳng.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0028",
+    "text": "Cười lớn, cười lớn *Tôi cũng thất vọng với bọn trẻ. Nhưng không nên làm như vậy vì như vậy là phạm pháp*",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0029",
+    "text": "Mẹ tôi làm việc cho NASA và dường như không có. Họ đưa cho họ những cuốn sách nhỏ có số liệu của các cơ quan tín dụng và những lời khuyên về cách vay vốn, haha. Nó hơi khủng khiếp.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0030",
+    "text": "Lol mơ đi anh bạn. Hôm nay bạn đã có đủ sự chú ý rồi. Thực sự tìm hiểu những gì bạn đang nói sẽ giúp ích rất nhiều. Xin lỗi, bạn bị mắc kẹt trong bản crack smokein chuyển vùng miễn phí",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0031",
+    "text": "Tôi phóng từ 170 lên 40 và bất ngờ vì thiếu đèn phanh.... đóng cửa lại haha",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0032",
+    "text": "Tôi đã thấy điều này ở đây chưa đầy 2 ngày trước. Ít nhất bạn có thể đăng lại nội dung cũ mà lâu rồi chúng ta chưa xem.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0033",
+    "text": "Wow cảm ơn bạn rất nhiều vì thông tin. Tôi đã cố gắng tìm kiếm nó nhưng không thể tìm thấy bất cứ điều gì. Những thứ rất thú vị",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0034",
+    "text": "INL Tôi chưa bao giờ nghĩ đến việc xúc thêm một chút để giúp đỡ hàng xóm. Không thể tưởng tượng rằng nó có thể là bất hợp pháp.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0035",
+    "text": "Không. Tại sao? Câu hỏi kỳ lạ. Thật không may, nếu tôi làm vậy thì ĐCSTQ sẽ đàn áp tôi. Dù vậy, vẫn tốt hơn là kết thúc ở trại tập trung Tân Cương.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0036",
+    "text": "Translating...",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0041",
+    "text": "Translation",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0044",
+    "text": "Exactly. Last year we were saying, “Don’t worry...next year we will get Long or Long. Or both.” What a joke",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Other"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0046",
+    "text": "Translating...",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0047",
+    "text": "That's the biggest annoyance I have with this sub the past year; how little people value Hoàng. I don't get it.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0050",
+    "text": "Bless this woman. That honestly sounds horrific from every end. I hope her ex Khánh has lived a horrendous life since perpetuating that disgusting act.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0037",
+    "text": "Đó là hành động có chủ đích. Có thể không phải là kết quả của sự suy tính kỹ lưỡng, nhưng lại là một bản năng rất nguy hiểm.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0038",
+    "text": "Nói cách khác, chuyện này trông rất tệ nên họ đang cố gắng tách mình ra khỏi nó. Tiếc cho NRA thật đấy. Nhưng tôi chẳng hề thấy thương cảm chút nào.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0039",
+    "text": "Thật sao? Thứ Hai tôi còn phải đi làm. Tôi không thể cứ mãi suy nghĩ về chuyện đó trong suốt cuối tuần được.",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0040",
+    "text": "Nghe bạn nói chẳng khác nào trẻ con; bạn không thể tiếp nhận bất kỳ thông tin nào đi ngược lại với quan điểm của mình. Thật đáng buồn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0042",
+    "text": "Thật mừng vì bạn đã đòi lại được công lý và tìm thấy sự thanh thản. Giờ đây bạn có thể thực sự bắt đầu quá trình chữa lành rồi. Đáng tiếc là tôi không chắc liệu mình có bao giờ đạt được điều đó hay không.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0043",
+    "text": "Nhưng điều đó đặc biệt khó khăn khi dầu thuộc sở hữu nhà nước. Rất nhiều nước Scandinavi gặp trục trặc.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0045",
+    "text": "Tôi đã được giải trí vào ngày thứ 4. Các con trai của tôi đã chơi tốt. Chúng tôi đã thua. Tôi sẽ lấy nó.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0048",
+    "text": "Mỗi khi có một video trong hộp phụ của tôi, tôi thực sự rất phấn khích và sau đó là Fortnite. Thật đau lòng.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0049",
+    "text": "Khi não tôi tê cứng, tôi ôm lấy ngực và cổ họng mình. Rất đau đớn. Sau đó tôi tiếp tục ăn.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0051",
+    "text": "Giống như nó đã kết thúc quá nhanh đối với một điều thực sự. Chết tiệt, Taliban đã tồn tại nhiều năm và ISIS vẫn là một vấn đề lớn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0052",
+    "text": "Chà, cô ấy vẫn còn hơi tệ nhưng cô ấy rất vui nhộn. Chắc chắn là một cải tiến lớn. Tôi hầu như không thể nhìn cô ấy!!",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0053",
+    "text": "Bệnh mất trí nhớ xảy ra trong gia đình tôi nên điều này khá thú vị. Tôi cũng phải tự hỏi liệu vi khuẩn này có thể gây ra các loại bệnh tâm thần khác hay không..",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0054",
+    "text": "Đây không phải là sai lầm đầu tiên hoặc thứ hai của VAR đối với chúng tôi. Thậm chí còn có một lỗi việt vị sai đối với chúng tôi trong một số trận đấu trước và họ đã không kiểm tra nó.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0055",
+    "text": "Ugh... ghét khi mọi người nói chuyện với tôi khi tôi đang câu cá. Điều này sẽ rất khủng khiếp hahaha",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0056",
+    "text": "Năm 2019 đáng ra chỉ nên là hình ảnh thùng rác hoặc thùng rác bốc cháy. Thật ngạc nhiên khi DICE có thể tạo ra mọi thứ trong 10 năm.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0057",
+    "text": "wow vậy là gần như sub nào cũng tăng lên rất nhiều trong 7 tháng. Còn 8,3k!! Gì!? điều đó thật điên rồ",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0058",
+    "text": "Đây có thể là màn đóng thế nguy hiểm nhất mà tôi từng thấy ai đó làm. Một sai lầm nhỏ và bạn chết.",
+    "ground_truth_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0059",
+    "text": "Một năm trước tôi đã nói rằng ISO liên tục này của Houston thật kinh tởm khi xem. Nó vẫn còn kinh tởm.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0060",
+    "text": "Chết tiệt, người ủng hộ vẫn còn à? Tôi không biết chúng ta có một người nổi tiếng trên diễn đàn này.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0061",
+    "text": "Đúng! Có chuyện quái gì với ikea vậy? Vợ chồng tôi không đi cùng nhau nữa.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0062",
+    "text": "> Tôi thực sự hy vọng QCX giải quyết được điểm cuối cùng đó. Biết đâu Hải có thể đã bỏ trốn với số tiền hay thứ gì đó. Cái quái gì vậy anh bạn. cười lớn",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0063",
+    "text": "Tôi đang nói với bạn rằng, chúng ta thực sự cần áp dụng một bài kiểm tra kiến ​​thức khúc côn cầu cơ bản để đăng ở đây. Tôi phát ngán với việc thở bằng miệng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0064",
+    "text": "Nhưng cả hai đều thua, trong khi Sinema ôn hòa lại thắng. Điều này quan trọng vì nếu không có Arizona thì không có con đường thực sự nào để đạt được đa số tại Thượng viện vào năm 2020.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0065",
+    "text": "Anh bạn, tôi có cảm giác rất khó chịu rằng người thợ cắt tóc đã cố tình làm vậy. Không nơi nào trên thế giới chấp nhận được kiểu tóc đó. Điều đó thật tồi tệ",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0066",
+    "text": "Ôi, trông thật kinh khủng. Gắn thẻ chân của anh ấy vào thùng rác. May mắn là anh ấy không bị mất một chân vì đi nhanh như vậy.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0067",
+    "text": "Tôi cũng giống như bạn, 3 cảm thấy thật tệ. Nhưng phần đường phố 4 3 lại trở nên tệ đến mức buồn cười.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0068",
+    "text": "Vấn đề là ở chồng bạn. Nếu anh ấy ưu tiên bạn, anh ấy sẽ tìm ra điều gì đó. Tôi rất xin lỗi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0069",
+    "text": "Anh chàng đã vắng mặt trong trận đấu ở Bang Ohio... IDK. Tôi sẽ rất lo lắng nếu anh ấy là người được chọn.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0070",
+    "text": "Nó cũng bị loại bỏ khỏi thực tế một cách lố bịch. Chết vì bệnh tật hoặc bị thương do tai nạn có nhiều khả năng xảy ra hơn là bị bắn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0071",
+    "text": "Đó không phải lỗi của anh ấy, đó là lỗi của vợ bạn. Cô ấy là người mà bạn cần phải tức giận",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0072",
+    "text": "Wow.. điều này còn đáng sợ hơn cả việc họ là ma! Bước ngoặt tuyệt vời",
+    "ground_truth_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0073",
+    "text": "Sợ hãi? Một chút. Vào thời điểm này, nó giống như một sự ghê tởm âm ỉ đối với bản thân tôi.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0074",
+    "text": "ĐÚNG! Tôi không thể giới thiệu đủ TED Talk này và tôi nghĩ thật đáng thất vọng khi nhiều bộ phận cánh tả đã nhượng bộ trước cơn cuồng loạn chống hạt nhân.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0075",
+    "text": "Ồ, bạn đang bị troll đấy. Chết tiệt, bạn nghĩ họ đang lấy bạn từ phụ nào, cười lớn, tôi sẽ không gây rối với họ.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0076",
+    "text": "Tôi chỉ ước anh ấy có nhiều thời gian xuất hiện hơn. Tôi rất thích mùa này nhưng tôi cảm thấy như dàn nhân vật phụ khổng lồ sẽ thu hút mọi sự chú ý.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0077",
+    "text": "Wow điều này thật khủng khiếp. Những kẻ ngốc này có loại khán giả nào? Ý tôi là không ai có tiền để mua thứ rác rưởi đó lại xem những kẻ ngốc này",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0078",
+    "text": "Thật mừng cho Trang. Thật tiếc là anh ấy không có ở đây. Hãy tưởng tượng đội này có Trang thay vì Trang. Ờ.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0079",
+    "text": "Ôi Đức, tôi và kiwi hay dứa. Hoặc cảm giác khi một miếng bánh tortilla mắc kẹt trong vòm miệng của bạn",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0080",
+    "text": "Thông thường các bài phát biểu đến từ một người lớn có năng lực. The Idiot là một kẻ đồng mưu không bị truy tố với chứng rối loạn nhân cách rõ ràng. Giả vờ bình thường là một phần của điều không ổn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0081",
+    "text": "Cười một cách nghiêm túc. Ý tôi là Vardos thực sự rất tuyệt nhưng ngoài điều đó ra thì câu chuyện quá nhạt nhẽo và dễ đoán.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0082",
+    "text": "Đang cân nhắc đi lần đầu tiên trong năm nay, sau đó tôi thấy tất cả các quảng cáo nhắm mục tiêu cụ thể đến trẻ em. Cảm giác thật kỳ lạ khi một người 26 tuổi nhìn thấy tất cả những điều này..",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0083",
+    "text": "Hãy cướp đứa trẻ khỏi họ! Cái quái gì vậy? Họ thật ngu ngốc. Bạn luôn đảm bảo an toàn cho chỗ ngồi của trẻ em!",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0084",
+    "text": "tôi thật may mắn đã trở thành bạn tốt của một người. chúng tôi chắc chắn đã giúp nhau vượt qua nỗi đau vì anh ấy... thật kỳ lạ khi họ thêu dệt những lời nói dối đó giỏi đến thế nào",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Enjoyment",
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0085",
+    "text": "Thúy Toàn năng. Đây có thể là chủ đề reddit đồng cảm và nhân ái nhất mà tôi từng thấy! Ai đã từng nói người say rượu là xấu tính? Khuôn mẫu khủng khiếp.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0086",
+    "text": "Bạn có thể tưởng tượng được việc mình không thể ngoáy mũi TOÀN BỘ TRÒ CHƠI không! Những tên khốn tội nghiệp đó.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0087",
+    "text": "2000 nhóc, biết chữ thảo nhưng tệ lắm. Tôi có những cuốn sổ cũ gần như không thể đọc được vì chữ thảo của tôi, haha",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0088",
+    "text": "Đang đánh tôi. Điều đó chỉ tạo thêm một động lực hài hước khác cho nó mặc dù tôi không thực sự cố đánh cô ấy.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0089",
+    "text": "Chúa ơi cái gì???...Quang thực sự đã đến dự buổi biểu diễn mà không hủy bỏ với một lý do khủng khiếp?",
+    "ground_truth_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0090",
+    "text": "Vâng, có lẽ tôi sẽ bắt đầu khóc ngay tại chỗ. Những tiếng động lớn, đột ngột và đặc biệt là chói tai cực kỳ *\"khó chịu\"* và khó chịu, căng thẳng",
+    "ground_truth_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0091",
+    "text": "Tôi cười nhiều hơn đáng lẽ phải có trước câu trả lời này. Rồi nỗi buồn ập đến khi tôi nhận ra điều đó không nhằm mục đích gây cười.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0092",
+    "text": "Có điều gì đó đáng sợ ở những cô gái nhỏ nhắn điên cuồng. CƯỜI. Cô gái đáng sợ nhất ở trường cấp hai của tôi có lẽ nặng tới 90 lbs. Mọi người đều sợ cô ấy.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0093",
+    "text": "Công bằng mà nói, chúng tôi vẫn còn thiếu CP3 và Khánh. Tuy nhiên, trò chơi này nhìn chung khá xấu.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0094",
+    "text": "Phong nhất định phải thử. Thằng khốn nạn cứng rắn. Ngoài ra Phong = Phong.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0095",
+    "text": "Chết tiệt, nhưng tôi nhớ mẹ tôi quá. Rồi một lần nữa cô ấy sẽ hạnh phúc trên thiên đường của mình. Những người còn lại trong chúng ta có thể tiệc tùng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0096",
+    "text": "Cô ấy làm tôi nhớ tới người chị điên khùng của mình. Chỉ là một chút lo lắng và liên tục suýt khóc.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0097",
+    "text": "> Chỉ vì bạn là người da trắng không có nghĩa là bạn nên cố gắng nói thay người da trắng. Đó là trò đùa™",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0098",
+    "text": "Mmmm đi công tác thường không phải là tình huống đáng mong đợi nhất. Nó có thể mệt mỏi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0099",
+    "text": "Logic của bạn khá lộn xộn và giả định vị trí không liên quan gì đến điều này. Khai thác tập trung sẽ làm tê liệt khả năng chống kiểm duyệt.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0100",
+    "text": "Trên đời này không có gì đáng khinh hơn một cốc chai chai được pha chế một cách bất cẩn. Bạn phải làm quen với chương trình.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0101",
+    "text": "Vâng, thật tiếc cho những người trả 200 đô la để xem thứ tào lao này. Tốt hơn là xem khúc côn cầu mới chơi của con trai tôi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0102",
+    "text": "Mẹ kiếp. Những kẻ đó là những kẻ cặn bã. Tôi rất tiếc vì bạn đã phải trải qua một màn nhập vai khủng khiếp như vậy.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0103",
+    "text": "Tôi cực kỳ ghét anh chàng này. Không thể chịu đựng được anh ta. Nhưng chúng tôi sống ở một đất nước có luật pháp và anh ấy không vi phạm luật pháp nào. Tôi nghĩ đám đông lynch còn thô thiển hơn",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0104",
+    "text": "Bởi vì gái mại dâm rõ ràng không thể bị cưỡng hiếp hoặc bắt cóc. Thật kinh khủng khi xã hội chúng ta vẫn tin vào điều này.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0105",
+    "text": "Ôi trời! Có vẻ như Hoàng đã đúng khi gọi Hoàng là kẻ lập dị! Điều đó thật kỳ quặc!",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0106",
+    "text": "wow...bạn muốn nói rằng bạn không bao giờ độc hại và bạn không bao giờ nổi giận được chứ nếu bạn không thể làm những gì tôi yêu cầu thì hãy biến đi được chứ???",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0107",
+    "text": "Wow, một phần thật kinh tởm và một phần khác là sự lãng phí thời gian rất lớn khi mong đợi một phần thưởng mang tính giải trí. Cảnh báo, video này cũng bao gồm phần tiết lộ thông tin về Avengers mới nhất.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Disgust",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0108",
+    "text": "Haha tôi không mong đợi bất cứ điều gì khi họ cách tôi 2.000 dặm. Tôi sẽ ngạc nhiên nếu cô ấy cho tôi những con số,",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0109",
+    "text": "cười lớn không bắt nạt. Chỉ là một kẻ mọt sách có hiểu biết về xã hội phàn nàn về việc hầu hết mọi người của tôi đều khó chịu như thế nào. ¯_(ツ)_/¯",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0110",
+    "text": "Nghe giống như SIL của tôi với tôi/chồng. Nhưng cô ấy là một con khốn nạn và dù sao thì chúng tôi cũng chưa bao giờ thích cô ấy, nên cả hai chúng tôi đều không thực sự quan tâm, lol.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0111",
+    "text": "Tương tự ở đây, cô ấy đã rời khỏi ngôi nhà mà chúng tôi đã mua và cho tôi thời hạn cuối tháng. Tuyệt vời",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0112",
+    "text": "Nội tạng của tôi yêu tôi. Tôi tự hỏi một người phải bị tổn thương về mặt cảm xúc đến mức nào khi nghĩ ra những điều này. Thật kỳ lạ và buồn bã.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0113",
+    "text": "Những người theo chủ nghĩa tự do đã trở thành thứ mà họ buộc tội những người khác. Không khoan dung và phân biệt chủng tộc.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0114",
+    "text": "Điều tồi tệ nhất là khi những khoảnh khắc đó xuất hiện một cách ngẫu nhiên. Đặc biệt là khi bạn đang cảm thấy vui vẻ thì sai lầm bạn đã mắc phải vào năm 2005 lại xuất hiện.",
+    "ground_truth_labels": [
+      "Anger",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0115",
+    "text": "Ôi trời, quá chân thực. Tôi đã dành quá nhiều năm với đôi mắt gấu trúc đầy đặn và chỉ chấp nhận đó là trang điểm.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0116",
+    "text": "Thành thật mà nói thì nó khá là ngu ngốc. Long rõ ràng đã chỉ ra một lỗi và mọi người nói \"ồ, đó là một tính năng\"....nghiêm túc đấy.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0117",
+    "text": "Thành thật mà nói, đây có lẽ là cách liều lĩnh nhất để bắt nạt và quấy rối một đứa trẻ. Trẻ em có xu hướng phát triển theo mong đợi của chúng",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0118",
+    "text": "Ở đây, chúng tôi Anh là những cuốn sách mở. Sự thật phũ phàng và đôi khi buồn cười trong từng lời chúng ta nói 😂",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0119",
+    "text": "Điều đó thật đáng buồn. Vậy là chị em của cậu phải hủy hoại cơ thể mình và từ bỏ sự nghiệp? Rất tiếc.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0120",
+    "text": "Thật kinh tởm khi đội của chúng tôi đã chơi tốt như thế nào trong cả hai năm cho đến tháng 12. Nó cũng thường bắt đầu bởi chấn thương.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0121",
+    "text": "Như nhau! Tôi không biết các đồng nghiệp cấp tiểu học của chúng tôi làm điều đó như thế nào. Khi tôi đăng ký học tiểu học một vài lần, điều đó thật tồi tệ.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0122",
+    "text": "tôi: haha ​​tôi là incel. Hiếp dâm phải hợp pháp! PHỤ NỮ LÀ KHÔNG CÓ THỂ CỦA THINKiNg một quả bóng dầu nhìn chằm chằm vào ngực tôi trên xe buýt: À, thực ra thì...",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Enjoyment",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0123",
+    "text": "Huh, tôi chỉ tự hỏi liệu có thứ gì như thế này tồn tại không. Tôi đang làm việc trong lĩnh vực sản xuất thực phẩm và điều này sẽ rất tuyệt vời.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0124",
+    "text": "Tôi rất tiếc khi biết về những gì chị gái bạn đã làm với bạn. Tôi rất vui vì video của tôi có thể giúp ích!",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0125",
+    "text": "cô ấy có vẻ chưa trưởng thành, đang chơi những trò chơi trí óc. Tôi sẽ thẳng thắn và nếu cô ấy vẫn tiếp tục chơi game thì hãy để cô ấy đi. có vẻ như đang tìm kiếm sự chú ý.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0126",
+    "text": "Đám đông thật khủng khiếp... Làm sao bạn có thể thua cuộc đấu súng đó hoặc không có ý thức chung để bỏ chạy",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0127",
+    "text": "Tuy nhiên, tôi sẽ không giận dữ đến thế. Chỉ là thất vọng. Tôi tức giận với những người như bạn, không phải bản thân chương trình.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0128",
+    "text": "1:30-4:30 nó chết hoàn toàn. Đôi khi bạn nhận được đơn đặt hàng bữa trưa muộn lúc 1 giờ hoặc bữa tối sớm nhưng chỉ vậy thôi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0129",
+    "text": "Cả bố và mẹ đều say rượu. Những đứa trẻ nhỏ ở đâu? Bạn đã giúp cô ấy ngoại tình và có thể góp phần vào việc bỏ bê con cái. Tuyệt vời.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0130",
+    "text": "😂 Tội nghiệp con mèo con.💗 Tôi có thể nghe thấy tiếng hú đó và nhìn thấy khuôn mặt đó! Anh đã phản bội cô ấy! 😛",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0131",
+    "text": "Tôi nghĩ bạn đã hiểu lầm tôi. Tôi muốn nói rằng điều đó còn hơn cả ngu ngốc 😊",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0132",
+    "text": "Này, tôi từng làm việc ở Sams và tôi là giám sát viên COS của chúng tôi. Điều đó thật tệ. Tôi nói điều đó với nụ cười toe toét nhất.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0133",
+    "text": "Haha thật tốt khi biết điều đó trong trường hợp tôi quyết định quay lại nhà thờ. Một số chỗ ngồi trong ngôi đền đó thật khó chịu.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0134",
+    "text": "Như nhau. Lông trên cơ thể (trên cơ thể của chính tôi.. Tôi không quan tâm người khác làm gì với lông trên cơ thể HỌ) khiến tôi kinh tởm.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0135",
+    "text": "Ồ! Bạn có thể là một đứa trẻ phát triển rất sớm hoặc vẫn sống ở nhà khi răng khôn mọc lên.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0136",
+    "text": "Điều đó thực sự ngu ngốc. Nếu bạn phạm tội chống lại mình, bạn có trách nhiệm công dân phải trình báo tội đó. Chúng ta cần những số liệu thống kê đó.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0137",
+    "text": "tôi không nói về một studio. tôi đang nói về *người*. những người mà bạn đang nói dối, bởi vì bạn là một đứa trẻ có quyền, không hiểu biết nhưng kiêu ngạo.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Disgust",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0138",
+    "text": "Lol Ngọc. Everyone ignores me. Điều này nghe có vẻ giống như điều mà một đứa trẻ sẽ nói. Buồn.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0139",
+    "text": "Lái xe đi làm và nhận ra đây là ngày nghỉ vì không ai trả lời điện thoại của họ. Vẫn đang bận việc... không có việc gì để làm. Chúng tôi không được trả lương ngày nghỉ:(",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0140",
+    "text": "Tôi nghĩ nó thật buồn cười haha. Toàn bộ tình huống thật ngớ ngẩn và cả hai bên đều sai.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0141",
+    "text": "Đây quả là một ý tưởng khập khiễng. Thay vì trở nên tốt hơn và chơi trội hơn đối thủ, bạn chỉ muốn làm cho đối thủ của mình tệ hơn. Buồn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0142",
+    "text": "Cái gì? Họ đều thích Kingdom Hearts trên Oneyplays. Họ chỉ chế nhạo cốt truyện ngu ngốc đến nực cười như thế nào.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0143",
+    "text": "Đã ở trận đấu hôm qua và ở trận đấu bây giờ. Đó là một buổi biểu diễn cồng chiêng khốn khổ. Tại sao tôi cứ làm điều này với chính mình?",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0144",
+    "text": "Thành thật mà nói, tôi rất khó ngủ khi mang tất. Những cái mờ là tệ nhất vì chúng trượt xung quanh chân tôi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0145",
+    "text": "đó là một bước đi sai lầm trong PR của họ. cái quái gì vậy họ đang nghĩ mọi người đang mong đợi một màn đếm ngược công khai à",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0146",
+    "text": "Tôi cũng ghê tởm anh ta, nhưng tôi thậm chí không thể đồng tình với việc hành hình anh ta. Kể cả cái tên đáng ghét đó Ngọc",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0147",
+    "text": "Bình, bạn đã trở lại! Và tôi vẫn đăng những bài xã luận rác rưởi về chính trị như cũ. Một số điều không bao giờ thay đổi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0148",
+    "text": "Tôi biết anh ấy sẽ như vậy, tôi chỉ lo lắng thôi. Mặt anh ấy chắc sẽ buồn lắm 😢",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0149",
+    "text": "Liều lượng của tôi đã tăng lên cách đây 2 tuần và tôi nhận thấy vấn đề ngày càng tồi tệ hơn. Với nhận xét của bạn, tôi thực sự nghiêng về việc chúng có tác dụng phụ.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0150",
+    "text": "Có ai ở đây nghĩ rằng điều này thực sự sẽ thay đổi tình thế của Jet không? Tôi cảm thấy đây là điều tồi tệ nhất từ ​​trước đến nay.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0151",
+    "text": "Tòa nhà đáng sợ nhất ở Chicago. Tôi thậm chí không thể tưởng tượng được số nạn nhân bị trúng đạn đã đi qua những cánh cửa đó và bước ra trong túi đựng xác.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0152",
+    "text": "Ồ tôi hiểu rồi, bạn cố tình mù chữ vì bạn sợ bị nuôi dưỡng bởi những lời dối trá (trong tâm trí). Xin lỗi bạn.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0153",
+    "text": "Tất nhiên rồi. Điều đó có nghĩa là bạn nợ họ một ân huệ không xác định trong tương lai. Điều đó thật kinh khủng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0154",
+    "text": "Thông minh đến mức trông như thể anh ta đã đóng ngón tay vào cửa vậy. Đó là một vết bầm tím khó chịu dưới móng tay của anh ấy.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0155",
+    "text": "Tại sao bạn lại tạo ra những trò đùa đáng nghi ngờ ở nơi làm việc? Trừ khi bạn làm việc trong một câu lạc bộ hài kịch, nếu không thì nơi đó thực sự không phù hợp.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0156",
+    "text": "Này, nó hoạt động trở lại rồi! Chắc hẳn ai đó ở YouTube đã tấn công máy chủ vì đột nhiên các đề xuất trở nên hợp lý. Tôi tự hỏi chuyện gì đã xảy ra hôm nay.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0157",
+    "text": "Trong trường hợp bạn đang thắc mắc, Nintendo có cho chất gây đắng vào hộp mực Switch của họ... và nó có vị rất kinh khủng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0158",
+    "text": "Tôi cảm thấy thật kinh khủng cho những nhân viên chính phủ bị mắc kẹt giữa chuyện này. Tôi hy vọng nó sẽ kết thúc sớm.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0159",
+    "text": "Tôi đã nói chuyện xong với bạn vì tôi có thể mong đợi phản hồi tốt hơn từ bức tường. Cảm thấy tồi tệ cho bạn. Tôi hy vọng tầng hầm của mẹ bạn không quá lạnh",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0160",
+    "text": ">Tôi đoán nó cũng sẽ mở ra khả năng bán vũ khí Khánh. Đó sẽ là một ý tưởng khủng khiếp.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0161",
+    "text": "Chắc chắn chúng tôi sẽ bị đá đít. Phải đưa nó cho Memphis, họ vừa đóng cửa chúng tôi",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0162",
+    "text": "hẹn hò với đàn ông rất nguy hiểm - đọc tin tức - phụ nữ rất thường xuyên bị bạn tình nam và bạn tình cũ giết chết. Phụ nữ dũng cảm đến kinh ngạc.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0163",
+    "text": "Một số người khá dày đặc. Nhận xét đó rõ ràng là mỉa mai, xin lỗi vì những lượt phản đối của bạn 😔",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0164",
+    "text": "Lái xe qua là điều tồi tệ nhất. Số lần mọi người hắt hơi vào mặt tôi ở cửa sổ thật là tức giận.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0165",
+    "text": "Tôi ghét phải nói điều đó nhưng...... Tôi khá thích hình thức này - mặc dù vậy, bánh mì kẹp thịt và khoai tây chiên trông thật sốc.",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0166",
+    "text": "Điều này có gì khác với việc phụ nữ cho rằng tất cả đàn ông đều là những người tồi tệ? Tôi chắc rằng bạn không thích khi phụ nữ làm điều đó.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0167",
+    "text": "Tôi phát điên khi người ta ăn cắp chúng haha... rất có thể nếu bạn tử tế thì tôi sẽ *đưa* nó cho bạn",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0168",
+    "text": "Tôi không thể tin được điều đó. Tôi đã rất tức giận nhưng chưa bao giờ đủ để ném ĐIỆN THOẠI của mình! CÔ GÁI, em đang LÀM GÌ vậy?",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0169",
+    "text": "Tôi thích họ nghĩ rằng thật tệ khi chúng ta đang nghĩ về POTUS chết tiệt. Gần như hành động của anh ấy ảnh hưởng đến tất cả chúng ta",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0170",
+    "text": "Ôi trời ơi. Đến từ Trang cũng cực kỳ xấu hổ. Tôi thực sự không thể nói rằng tôi cảm thấy tiếc cho Trang, anh ấy đã làm điều đó với chính mình.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0171",
+    "text": "Tôi đang ở tháng 9 bài đăng bị loại bỏ. Sự lo lắng đã giảm đi rất nhiều và chứng trầm cảm vẫn đang rình rập nhưng không đến nỗi tệ như vậy.",
+    "ground_truth_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0172",
+    "text": "Translation",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0173",
+    "text": "Cười lớn bây giờ tôi thấy nó được đặt theo cách này, nó thậm chí còn buồn hơn. Cảm ơn:(",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0174",
+    "text": "Đây là hành vi lạm dụng trẻ em. Không có bậc cha mẹ tử tế nào lại bắt con mình nhịn đói chỉ vì chúng không hiểu biết về khoa học và dinh dưỡng",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0175",
+    "text": "Translating...",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0176",
+    "text": "Translating...",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0177",
+    "text": "Haha. Tôi ước mình có thể nói rằng điều đó sẽ bớt đau đớn hơn theo thời gian nhưng không phải vậy. Xin lỗi anh bạn. F",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0178",
+    "text": "Tôi rất vui vì bạn đã tìm thấy con đường của mình. Và thậm chí thiếu một ngày dùng thuốc Effexor khiến anh phát ốm nên anh thương em",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0179",
+    "text": "Điều này khiến tôi bật cười cho đến khi tôi cố gắng \"thích\" bài đăng. Chết tiệt. Tôi là người cũ trên Facebook. Chết tiệt.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0180",
+    "text": "Họ là những đứa trẻ còn trinh giận dữ vì anh ta chơi trò chơi như đáng lẽ phải chơi. SOT có cộng đồng thảm hại nhất từ ​​trước đến nay.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0181",
+    "text": "Bây giờ bạn đang làm cái quái gì vậy? Đó là một số ví dụ kỳ lạ phù hợp với quan điểm đã được làm rõ của bạn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0182",
+    "text": "Những người này đầy căm ghét, đồng thời thật kinh tởm và chán nản. Làm thế nào để bạn khử cực đoan những người này?",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0183",
+    "text": "Điều này hẳn là hoàn toàn kinh hoàng đối với bạn. Tôi vui mừng khi biết bạn đã tìm thấy bình yên trong lần sinh thứ hai.",
+    "ground_truth_labels": [
+      "Fear",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0184",
+    "text": "Soooo.... Về cơ bản, anh ấy chỉ thừa nhận rằng anh ấy đã không nhận được đồ cho con mình vào dịp Giáng sinh. Thật là một tên khốn!",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0185",
+    "text": "Tôi cảm thấy như điều này xảy ra với tôi mỗi lần tôi mua sắm ở đó. Tôi không vào nữa vì quá mệt mỏi vì bị theo dõi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0186",
+    "text": "Diễn viên lồng tiếng Yến ở cuối game thật xuất sắc. Biết bao giận dữ và đau buồn",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0187",
+    "text": "Chúng không chỉ khiến tôi rùng mình mà còn tức giận vì thường xuyên hoặc mẹ tôi và con gái khỉ bay của bà đăng chúng. Thật kinh khủng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0188",
+    "text": "Giống như Thảo đã nói. Họ được thúc đẩy bởi một trận thua tồi tệ, họ thắng một trận đấu, mất động lực và lại thua nặng nề",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0189",
+    "text": "Cười lớn, đó là một trong những người chạy cánh hữu giả vờ là cánh tả để gieo rắc sự chia rẽ. Họ khá tệ ở khoản đó.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0190",
+    "text": "Tôi ghét bình luận này. Hơn nữa, tôi ghét khả năng nhận xét này đạt được kết quả.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0191",
+    "text": "Tôi nghĩ đó là Sơn? Và tôi chỉ nhớ vì tôi ngạc nhiên rồi thất vọng.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0192",
+    "text": "> Tôi mệt mỏi vì phải thực tế và cởi mở. Tôi cũng vậy! Bây giờ tất cả chỉ là sự ích kỷ và xa cách. Thậm chí không đùa.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0193",
+    "text": "Chúa ơi - bạn là người hùng kỳ dị của tôi. Và bài đăng cuối cùng của bạn đã khiến tôi thực sự cười ra nước mắt.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0194",
+    "text": "Định nghĩa của anh ấy về một người đàn ông trưởng thành là một người uống rượu một cách vô trách nhiệm và sau đó đánh đập người khác. RA KHỎI.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0195",
+    "text": "Thật đáng lo ngại khi dòng tweet này lại nhận được nhiều lượt thích đến vậy. Giống như, đây là lý do tại sao Twitter lại mang tiếng là ung thư.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0196",
+    "text": "Điều này đúng - tôi đoán là nó chỉ thực sự gây khó chịu cho 69ing. Quá nhiều chuyện xảy ra ahaha",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0197",
+    "text": "vâng nhưng đây là một người điên. Điều đó giống như nói với Two-Face rằng anh ta không cần phải tung đồng xu trước khi phạm tội, lol.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0198",
+    "text": "Chẳng có gì đáng nói về quảng cáo kem cạo râu vô vị đó. Tôi chưa nhìn thấy nó và không có gì có thể thuyết phục tôi thay đổi điều đó.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0199",
+    "text": "Haha và Minh đang gọi nhóm Chicago là nhóm kích động nhất. Sau đó tiếp tục hét vào mặt họ như một con chó cái nhỏ bé bị kích động.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0200",
+    "text": "Và thanh kiếm mới khá tệ, thậm chí không có một thanh kiếm hoàn chỉnh ở mức giá đó. Ngoài ra, thanh kiếm thực sự có hại cho môi trường.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0201",
+    "text": "Điều đó thật kinh khủng. Bạn chắc chắn không xứng đáng với điều đó. Tôi rất vui khi biết hiện tại bạn đang ổn.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0202",
+    "text": "Đúng. tôi ghét sự nhàm chán đó là nguyên nhân khiến tôi bị trầm cảm và lo lắng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0203",
+    "text": "Tôi cảm nhận được nỗi đau của bạn. Ngồi đây đắm mình trong tủi thân và giận dữ vì mình đã buông thả mình như thế!",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0204",
+    "text": "Điều đó còn tệ hơn cả một màn hù dọa trong phim. Không biết tại sao nhưng mực khổng lồ lại có cảm giác đáng sợ hơn cá mập.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0205",
+    "text": "Tôi lại hút thuốc vì nghĩ rằng nó sẽ giúp ích cho khoảng trống đang hoạt động. Nó chỉ làm cho nó tồi tệ hơn.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0206",
+    "text": "Tôi không biết tôi muốn Long xuất hiện vào năm sau. Long vẫn làm tôi hơi sợ. Không nói là tôi không thích anh chàng đó",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0207",
+    "text": "Đó từng là khung cảnh yêu thích của tôi trên hành tinh này, nhưng giờ đây nó chỉ còn là cơn thịnh nộ. Tôi không thể nhìn được nữa.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0208",
+    "text": "Tôi thực sự nhìn thấy cái này rất nhiều. \"Dị ứng: kiến ​​lửa.\" Tôi cũng vậy, anh bạn. Kiến sẽ làm phiền bạn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0209",
+    "text": "Vâng, điều đó thật khủng khiếp. Hương cười đùa khi kết thúc trận đấu đó đã kết thúc sự nghiệp của mình tại đây.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0210",
+    "text": "Nói một cách nghiêm túc, sự rập khuôn thật tệ và tôi thông cảm với bạn. Nhưng hãy ngừng làm một cô nàng ngựa điên và biết đâu bạn có thể thay đổi suy nghĩ của mọi người. cười lớn",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0211",
+    "text": "Tôi bị tiêu chảy khá nặng ngay sau trận đấu. Nó còn thú vị hơn sự mất mát đó.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0212",
+    "text": "Gần như văn hóa Hương được viết ra để xúc phạm, với những nô lệ cưỡng hiếp được thể chế hóa và mọi thứ. Họ thậm chí có thể là kẻ xấu.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0213",
+    "text": "Thật tốt khi nghe điều đó! Mình thấy nhiều người chê dịch vụ chăm sóc khách hàng của Đức nên hơi lo",
+    "ground_truth_labels": [
+      "Fear",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0214",
+    "text": "Bạn sẽ từ bỏ người bạn thân nhất của mình vì một điều gì đó phải không? Tôi mừng vì chúng ta không phải bạn bè.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0215",
+    "text": "Một sự kết hợp của những kẻ ngốc hữu ích và những kẻ nghiền ngẫm tích cực. Đó là một dấu hiệu đáng buồn trong nền văn hóa của chúng ta khi những người này kiếm sống theo cách này.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0216",
+    "text": "Cái màu Quang dùng để nhuộm tóc xấu quá. Chà, tôi đoán nó phù hợp với chiếc áo khét tiếng.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0217",
+    "text": "Màn trình diễn của cô ấy thực sự tệ hại trong phần crossover Elseworlds. Nhiều đến mức mỗi lần cô ấy xuất hiện trên màn ảnh đều khiến tôi rùng mình.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0218",
+    "text": "Chết tiệt Long vì đã chặn nguồn tài trợ cho việc này trong nhiều năm. Rất vui vì nó được sử dụng để giúp đỡ mọi người",
+    "ground_truth_labels": [
+      "Anger",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0219",
+    "text": "Bạn có nhớ khi giới truyền thông phớt lờ tất cả những điều khủng khiếp Khánh đã làm không? Bao gồm cả những gì anh ta đã làm với Syria?",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0220",
+    "text": "Wow thật là một kẻ tự kỷ chết tiệt. Có lẽ nỗ lực cho việc này nhiều hơn tất cả những người ghét GS cộng lại.",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0221",
+    "text": "hahahaha vâng, bạn hãy nói với anh ấy đi anh bạn! cảnh sát chết tiệt đến thẳng từ da undagrunnn hahahah giống như bài hát đó phải không!",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0222",
+    "text": "Điều tồi tệ nhất là bắt đầu một mối quan hệ mới sau khi chia tay một mối quan hệ thất bại. Bạn muốn gục ngã nhưng bạn biết cuộc chia tay đau đớn đến thế nào",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0223",
+    "text": "Quang tôi thực sự ghét những người có quyền. Hãy tán thành nếu bạn cho rằng EP tệ hơn Antivaxxers.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0224",
+    "text": "Thật kỳ lạ khi họ đưa nhân vật của một chương trình truyền hình đang diễn ra vào Celebrity Big Brothter. Rất vui vì họ đã loại bỏ anh ta sau một tập phim.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0225",
+    "text": "Tôi không thể gọi ai là bố cả. Kể cả bố tôi cũng không. Nó chỉ khiến tôi cảm thấy kỳ lạ và rùng rợn và tôi không phải 4 tuổi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0226",
+    "text": "Mọi thứ đều ổn cả, tôi cũng nhớ Lan. Tôi THỰC SỰ hy vọng chúng ta sẽ có được một chuỗi giấc mơ khác với anh ấy trong EP4.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0227",
+    "text": "Sử dụng một lập luận dựa trên sự không khoan dung thực sự là một ý tưởng chiến lược tồi và có thể gây khó chịu. Nó sẽ không thuyết phục được ai và nghe có vẻ nực cười.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0228",
+    "text": "Thật ngạc nhiên khi mạng xã hội lại cho phép những kẻ điên tụ tập. Phương tiện truyền thông xã hội rất có hại cho chúng ta.",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Disgust",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0229",
+    "text": "Thật kỳ lạ khi chúng ta có một siêu sao ở Canucks. Tôi phải tự nhéo mình hàng ngày",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0230",
+    "text": "Anh đi đâu đấy, anh bạn cứng rắn? Trước đây bạn đã nói rất lớn. Cách để phản đối và chuyển sang nhạc punk.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0231",
+    "text": "Tốt. Hoa Kỳ đang hành xử một cách đáng xấu hổ, điều ít nhất Canada có thể làm là cố gắng khắc phục một chút sự thiếu sót.",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0232",
+    "text": "Người giàu là những người kinh khủng, kinh khủng..... vậy mà chúng ta vẫn tiếp tục bỏ phiếu cho GOP để giảm thuế cho họ nhiều hơn, chúng ta có vấn đề gì vậy?",
+    "ground_truth_labels": [
+      "Sadness",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Fear",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0233",
+    "text": "> Xã hội thường miêu tả đàn ông là những sinh vật vô cảm, lạnh lùng và tự lập, không cần tình cảm. Tuy nhiên, không thực sự như vậy.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0234",
+    "text": "Giống như tôi lớn lên ở Châu Á nhưng lại đi xa. Tôi sẽ không thèm tranh cãi với Trumpie đâu, lmao.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0235",
+    "text": "Quang? Không, phía sau là anh ấy. Kẻ ngốc với chiếc lá là Quang. Luôn luôn là Quang.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0236",
+    "text": "Tìm thấy chất chống vaxxer ích kỷ và tồi tệ trong chủ đề này. Bao nhiêu người trong chúng ta phải chết trước khi tiêm phòng cho lũ trẻ chết tiệt của mình?",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0237",
+    "text": "Cái quái gì vậy. Và sau đó chúng tôi tự hỏi tại sao mọi người lại nghĩ người chơi DnD là một lũ quái đản. Thật tệ khi bạn phải chứng kiến ​​​​sự đau buồn như vậy.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0238",
+    "text": "Vâng, điều đó sẽ rất vui! Bạn chỉ có thể tưởng tượng sự sốc và thất vọng của tôi...",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
+    "id": "GO_LONG_0239",
+    "text": "Đó là lý do tại sao tôi mừng vì anh ấy đã quay lại như anh ấy đã làm. xD Vẫn vừa đáng sợ vừa buồn cười nếu nhìn từ một góc độ khác",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0240",
+    "text": "Giai cấp thống trị không quan tâm. Mục tiêu duy nhất của họ là cướp bóc và cướp phá đất nước để thu lợi tài chính cho riêng mình.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0241",
+    "text": "Tôi nghĩ thật trùng hợp khi tôi đang nghe 808 trong khi làm chuyện nhảm nhí này và câu hỏi này bất ngờ xuất hiện. làm tôi cười",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise",
+      "Enjoyment"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0242",
+    "text": "Và nếu đúng như vậy thì không có cách nào giúp được anh ta. Thật tệ khi những người đó không thể giúp được",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0243",
+    "text": "Điều đó thực sự đáng sợ. Điều điên rồ là bây giờ đứa trẻ 9 tuổi lại có điện thoại di động! Thời thế chắc chắn đã thay đổi:p.",
+    "ground_truth_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0244",
+    "text": "Tôi xứng đáng với nó. Tôi là một con điếm rác rưởi. Anh ta sở hữu tôi và anh ta lấy tài sản của mình.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0245",
+    "text": "Tôi đã làm điều đó 3-4 lần với tư cách là người sống sót và chưa bao giờ nhận được cúp. Tôi nghĩ tôi sẽ thử làm Killer, sẽ dễ dàng hơn haha.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Surprise"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0246",
+    "text": "Có thể tệ hơn. Ít nhất thì anh ấy không phải là người viết sách về Witcher LOL.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0247",
+    "text": "Chào mừng! Tôi là một nữ INTJ-A. Cũng cô đơn đã lâu.:) Thật tuyệt khi cảm thấy như ở nhà!",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0248",
+    "text": "Đúng vậy, bạn có nghĩ rằng nó có thể nhận được cuộc gọi chính xác không. Mỹ và thánh chết tiệt làm sao bạn biết có quá giòn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Enjoyment"
+    ],
+    "predicted_labels": [
+      "Anger",
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Anger"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0249",
+    "text": "Vâng, tôi đã từng có nỗi sợ hãi này. Thậm chí còn tệ hơn khi bạn *không* nói lời tạm biệt và đó là lần cuối cùng bạn gặp họ.",
+    "ground_truth_labels": [
+      "Anger",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0250",
+    "text": "TÔI LÀ NÓNG MỌI LÚC:(trước khi mang thai tôi rất lạnh. Điều này còn tệ hơn.",
+    "ground_truth_labels": [
+      "Anger",
+      "Disgust"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Sadness",
+      "Disgust"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  }
+]
