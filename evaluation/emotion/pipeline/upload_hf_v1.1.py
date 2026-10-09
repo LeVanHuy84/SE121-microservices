@@ -119,7 +119,7 @@ def upload_v1_1_to_hf(repo_id: str = DEFAULT_REPO_ID, token: str = None):
         repo_id=repo_id,
         repo_type="model",
         ignore_patterns=["reports/*", "onnx/*.txt", "onnx/*.codes", "onnx/*.json"],
-        commit_message="Release PhoBERT Emotion v1.1 (PyTorch + ONNX FP32 & INT8 Quantized)",
+        commit_message="Fix cleaned dataset & update PhoBERT Emotion v1.1 weights (PyTorch + ONNX FP32 & INT8)",
     )
 
     print("\n" + "=" * 65)

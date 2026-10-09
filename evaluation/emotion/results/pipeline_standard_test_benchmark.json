@@ -1,0 +1,26 @@
+{
+  "dataset": "phobert_test.json",
+  "total_samples": 1679,
+  "metrics": {
+    "baseline_accuracy": 63.79,
+    "pipeline_top1_accuracy": 63.31,
+    "pipeline_hit_rate": 73.67,
+    "avg_labels_per_sample": 1.36,
+    "emotion_count_distribution": {
+      "1": 1168,
+      "3": 80,
+      "2": 427,
+      "4": 4
+    },
+    "routing": {
+      "route1_count": 1245,
+      "route1_acc": 64.74,
+      "route2_count": 434,
+      "route2_acc": 59.22
+    },
+    "latency": {
+      "baseline_ms": 41.08,
+      "pipeline_ms": 61.14
+    }
+  }
+}
