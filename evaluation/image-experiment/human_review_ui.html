@@ -115,13 +115,28 @@
     .guide-box-flag { border-left: 4px solid #ef4444; background: #fffbfb; }
 
     .header-right { display: flex; align-items: center; gap: 12px; }
-    .file-select-group { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
-    .file-dropdown { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.875rem; background: white; font-weight: 500; min-width: 250px; }
-    
-    .badge-file-type { font-size: 0.68rem; font-weight: 700; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; margin-right: 5px; }
-    .badge-base { background: #e2e8f0; color: #334155; }
-    .badge-rev { background: #dcfce7; color: #166534; }
-    .badge-mine { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; font-size: 0.68rem; padding: 1px 5px; border-radius: 3px; font-weight: 700; margin-left: 6px; }
+    .active-file-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      background: #f8fafc;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .file-icon { font-size: 1rem; }
+    .file-label { font-weight: 600; color: #475569; }
+    .file-name { color: #1e293b; font-family: monospace; font-size: 0.88rem; font-weight: 700; }
+    .file-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tag-base { background: #e2e8f0; color: #334155; }
+    .tag-review { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
 
     /* Layout Grid (Full-Width, No Sidebar) */
     .app-layout { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1600px; margin: 0 auto; }
@@ -408,11 +423,11 @@
     <button class="btn-guideline" onclick="openGuidelineModal()" title="Xem Cẩm Nang Quy Chuẩn Gán Nhãn Đa Phương Thức (Phím H)">
       📖 Quy Chuẩn Gán Nhãn (H)
     </button>
-    <div class="file-select-group">
-      <label for="fileSelectDropdown">Tệp nạp:</label>
-      <select id="fileSelectDropdown" class="file-dropdown" onchange="onFileDropdownChange(event)">
-        <option value="">Đang tải danh sách tệp...</option>
-      </select>
+    <div class="active-file-display" id="activeFileContainer" title="Tệp dữ liệu đang làm việc">
+      <span class="file-icon">📁</span>
+      <span class="file-label">Tệp làm việc:</span>
+      <span id="activeFileTitle" class="file-name">vlm_dataset.json</span>
+      <span id="activeFileTag" class="file-tag tag-base">Mặc định</span>
     </div>
   </div>
 </header>
@@ -446,8 +461,8 @@
     </div>
 
     <div id="emptyView" class="empty-state">
-      <h3 style="font-size:1.1rem; margin-bottom:8px;">Chọn Tệp Dữ Liệu Để Bắt Đầu</h3>
-      <p style="color:var(--text-muted); font-size:0.875rem;">Vui lòng chọn một tệp JSON từ danh sách bên trái để tải các mẫu bài đăng.</p>
+      <h3 style="font-size:1.1rem; margin-bottom:8px;">Đang nạp tập dữ liệu vlm_dataset.json...</h3>
+      <p style="color:var(--text-muted); font-size:0.875rem;">Hệ thống đang tự động nạp tập dữ liệu chuẩn. Vui lòng chờ trong giây lát.</p>
     </div>
 
     <div id="workspaceView" class="inspection-grid" style="display:none;">
@@ -637,16 +652,9 @@
 </div>
 
 <script>
-  let activeSourceFileName = "";
+  let activeSourceFileName = "vlm_dataset.json";
   let activeSaveFileName = "";
   let samplesList = [];
-  let allFilesList = [];
-  let protectedFilesList = [
-    "vlm_preannotated_600_benchmark.json",
-    "benchmark_600_elite_pool.json",
-    "candidate_1000_benchmark_pool.json",
-    "vlm_dataset.json"
-  ];
   let currentIndex = 0;
   let reviewerName = localStorage.getItem("se121_reviewer_name") || "";
   let currentZoom = 1.0;
@@ -856,7 +864,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("reviewerNameInput").value = reviewerName;
     checkReviewerRequirement();
-    loadFilesList(true);
+    loadActiveDataset(reviewerName);
   });
 
   function checkReviewerRequirement() {
@@ -885,17 +893,7 @@
     document.getElementById("reviewerModal").style.display = "none";
     document.getElementById("reviewerNameInput").classList.remove("required-warning");
 
-    // Cập nhật tên file review đích
-    if (activeSourceFileName) {
-      if (!activeSaveFileName || !activeSaveFileName.includes("_review_") || activeSaveFileName.includes("_review_reviewer")) {
-        activeSaveFileName = computeSaveFileName(activeSourceFileName, reviewerName);
-      }
-      updateBanner();
-    }
-
-    if (activeSaveFileName && samplesList.length > 0) {
-      saveToServer();
-    }
+    loadActiveDataset(reviewerName);
   }
 
   function onReviewerNameChange() {
@@ -907,166 +905,59 @@
     localStorage.setItem("se121_reviewer_name", reviewerName);
     document.getElementById("reviewerNameInput").classList.remove("required-warning");
 
-    // Khi đổi tên người thẩm định, tự động cập nhật tên file review đích mới
-    if (activeSourceFileName) {
-      activeSaveFileName = computeSaveFileName(activeSourceFileName, reviewerName);
-      updateBanner();
-    }
+    loadActiveDataset(reviewerName);
+  }
 
-    // Refresh lại giao diện cây thư mục để highlight đúng file của reviewer mới
-    loadFilesList(false);
-
-    if (activeSaveFileName && samplesList.length > 0) {
-      saveToServer();
+  function updateFileDisplay(fileName, isReview) {
+    const titleEl = document.getElementById("activeFileTitle");
+    const tagEl = document.getElementById("activeFileTag");
+    if (titleEl) titleEl.innerText = fileName || "vlm_dataset.json";
+    if (tagEl) {
+      if (isReview || (fileName && fileName.includes("_review_"))) {
+        tagEl.innerText = "Bản review của bạn";
+        tagEl.className = "file-tag tag-review";
+      } else {
+        tagEl.innerText = "Mặc định (vlm_dataset.json)";
+        tagEl.className = "file-tag tag-base";
+      }
     }
   }
 
-  // Tải danh sách tệp từ API máy chủ
-  async function loadFilesList(autoLoadPreferred = true) {
+  // Tự động nạp tệp vlm_dataset.json (hoặc bản review của reviewer nếu đã có)
+  async function loadActiveDataset(revName) {
+    const slug = slugifyName(revName);
+    const saveIndicator = document.getElementById("saveIndicator");
+    if (saveIndicator) {
+      saveIndicator.innerText = "Đang nạp dữ liệu...";
+      saveIndicator.style.color = "#d97706";
+    }
+
     try {
-      const res = await fetch("/api/files");
-      if (!res.ok) throw new Error("Không thể kết nối API files");
+      const url = revName ? `/api/load?reviewer=${encodeURIComponent(revName)}` : `/api/load`;
+      const res = await fetch(url);
       const json = await res.json();
-      const files = json.files || [];
-      allFilesList = files;
-      if (json.protected_files) {
-        protectedFilesList = json.protected_files;
-      }
+      if (!res.ok) throw new Error(json.error || "Không thể tải dữ liệu");
 
-      const dropdown = document.getElementById("fileSelectDropdown");
-      dropdown.innerHTML = '<option value="">-- Chọn tệp dữ liệu --</option>';
-
-      if (files.length === 0) {
-        return;
-      }
-
-      const mySlug = slugifyName(reviewerName);
-
-      const optGroupBase = document.createElement("optgroup");
-      optGroupBase.label = "📁 Tệp Dữ Liệu Gốc (Shared / Chỉ đọc)";
-      
-      const optGroupReviews = document.createElement("optgroup");
-      optGroupReviews.label = "✍️ Bản Thẩm Định Riêng (Review Files)";
-
-      files.forEach((f) => {
-        const isProtected = f.is_protected || protectedFilesList.includes(f.name);
-        const isMine = f.is_review && (f.name.includes(`_review_${mySlug}.`) || (f.reviewer_name && slugifyName(f.reviewer_name) === mySlug));
-
-        // Dropdown option
-        const opt = document.createElement("option");
-        opt.value = f.name;
-        let optLabel = f.name;
-        if (isMine) {
-          optLabel += ` ⭐ (CỦA BẠN - ${f.reviewed_count || 0}/${f.total_samples || '?'})`;
-        } else if (f.is_review && f.reviewer_name) {
-          optLabel += ` (${f.reviewer_name} - ${f.reviewed_count || 0}/${f.total_samples || '?'})`;
-        } else if (isProtected) {
-          optLabel += ` [Chỉ đọc]`;
-        }
-        optLabel += ` (${f.size_kb} KB)`;
-        opt.textContent = optLabel;
-
-        if (isProtected) {
-          optGroupBase.appendChild(opt);
-        } else {
-          optGroupReviews.appendChild(opt);
-        }
-      });
-
-      if (optGroupBase.children.length > 0) dropdown.appendChild(optGroupBase);
-      if (optGroupReviews.children.length > 0) dropdown.appendChild(optGroupReviews);
-
-      if (autoLoadPreferred) {
-        // Tự động ưu tiên tiếp tục tệp review đã có của chính reviewer này
-        const expectedMyReview = computeSaveFileName("vlm_dataset.json", reviewerName);
-        const prevExpectedMyReview = computeSaveFileName("vlm_preannotated_600_benchmark.json", reviewerName);
-        const myExistingReview = files.find(f => f.name === expectedMyReview || f.name === prevExpectedMyReview || (f.is_review && slugifyName(f.reviewer_name) === mySlug));
-
-        const baseFile = files.find(f => f.name === "vlm_dataset.json")
-                      || files.find(f => f.name === "vlm_preannotated_600_benchmark.json") 
-                      || files.find(f => f.name === "benchmark_600_elite_pool.json")
-                      || files[0];
-
-        if (myExistingReview) {
-          loadTargetFile(myExistingReview.name);
-        } else if (baseFile) {
-          loadTargetFile(baseFile.name);
-        }
-      }
-    } catch (e) {
-      console.warn("Máy chủ cục bộ chưa bật hoặc mở qua file:///:", e);
-      document.getElementById("fileSelectDropdown").innerHTML = '<option value="">Chế độ Offline</option>';
-      if (treeList) treeList.innerHTML = '<li style="font-size:0.8rem; color:var(--text-muted);">Vui lòng chạy review_server.py</li>';
-    }
-  }
-
-  function onFileDropdownChange(e) {
-    const val = e.target.value;
-    if (val) onSelectFile(val);
-  }
-
-  function onSelectFile(fileName) {
-    const isProtected = protectedFilesList.includes(fileName) || fileName === "vlm_dataset.json" || fileName === "vlm_preannotated_600_benchmark.json";
-    if (isProtected) {
-      const myExpectedReview = computeSaveFileName(fileName, reviewerName);
-      const existing = allFilesList.find(f => f.name === myExpectedReview);
-      if (existing) {
-        const proceedWithExisting = confirm(
-          `Bạn đã có bản review cá nhân trước đó: "${myExpectedReview}" (Đã duyệt: ${existing.reviewed_count || 0} mẫu).\n\n` +
-          `• Nhấn [OK] để mở bản review của bạn để tiếp tục (Khuyên dùng).\n` +
-          `• Nhấn [Cancel] để nạp lại từ tệp gốc (khi lưu vẫn sẽ ghi riêng, không mất dữ liệu cũ).`
-        );
-        if (proceedWithExisting) {
-          loadTargetFile(myExpectedReview);
-          return;
-        }
-      }
-    }
-    loadTargetFile(fileName);
-  }
-
-  // Nạp dữ liệu 1 tệp từ máy chủ
-  async function loadTargetFile(fileName) {
-    try {
-      const res = await fetch(`/api/load?file=${encodeURIComponent(fileName)}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Không thể tải file");
-      
       const rawData = json.data;
       if (rawData && rawData.samples) {
         samplesList = rawData.samples;
-        if (rawData.reviewer_info) {
-          const rInfo = rawData.reviewer_info;
-          if (rInfo.reviewer_name && !reviewerName) {
-            reviewerName = rInfo.reviewer_name;
-            localStorage.setItem("se121_reviewer_name", reviewerName);
-            document.getElementById("reviewerNameInput").value = reviewerName;
-          }
-          if (rInfo.source_file) {
-            activeSourceFileName = rInfo.source_file;
-          }
+        if (rawData.reviewer_info && rawData.reviewer_info.reviewer_name && !reviewerName) {
+          reviewerName = rawData.reviewer_info.reviewer_name;
+          localStorage.setItem("se121_reviewer_name", reviewerName);
+          document.getElementById("reviewerNameInput").value = reviewerName;
         }
       } else if (Array.isArray(rawData)) {
         samplesList = rawData;
-        activeSourceFileName = fileName;
       } else {
-        alert("Cấu trúc dữ liệu tệp không hợp lệ!");
-        return;
+        throw new Error("Cấu trúc dữ liệu không hợp lệ");
       }
 
-      // Xác định activeSourceFileName & activeSaveFileName
-      if (fileName.includes("_review_")) {
-        activeSaveFileName = fileName;
-        if (!activeSourceFileName) {
-          activeSourceFileName = rawData.reviewer_info?.source_file || "vlm_dataset.json";
-        }
-      } else {
-        activeSourceFileName = fileName;
-        activeSaveFileName = computeSaveFileName(activeSourceFileName, reviewerName);
-      }
+      activeSourceFileName = "vlm_dataset.json";
+      activeSaveFileName = json.filename && json.filename.includes("_review_")
+        ? json.filename
+        : (slug ? `vlm_dataset_review_${slug}.json` : "vlm_dataset_review_reviewer.json");
 
-      document.getElementById("fileSelectDropdown").value = fileName;
-      updateBanner();
+      updateFileDisplay(json.filename, json.is_review);
 
       document.getElementById("emptyView").style.display = "none";
       document.getElementById("workspaceView").style.display = "grid";
@@ -1074,12 +965,106 @@
       // Nhảy tới mẫu đầu tiên chưa duyệt nếu có
       const firstUnreviewed = samplesList.findIndex(s => !s.human_review || !s.human_review.reviewed);
       currentIndex = firstUnreviewed >= 0 ? firstUnreviewed : 0;
-      
+
       renderCurrentSample();
       updateStatistics();
+
+      if (saveIndicator) {
+        saveIndicator.innerText = json.is_review
+          ? `Đã mở bản review trước đó (${json.filename})`
+          : `Đã mở tập dữ liệu chuẩn (${json.filename})`;
+        saveIndicator.style.color = "var(--success)";
+      }
     } catch (e) {
-      alert("Lỗi tải tệp: " + e.message);
+      console.warn("Lỗi nạp qua /api/load, thử nạp trực tiếp qua file cục bộ:", e);
+
+      // Thử nạp fallback cục bộ (trong trường hợp mở qua static file server hoặc trình duyệt hỗ trợ)
+      try {
+        const fallbackRes = await fetch("data/vlm_dataset.json");
+        if (fallbackRes.ok) {
+          const localData = await fallbackRes.json();
+          samplesList = Array.isArray(localData) ? localData : (localData.samples || []);
+          activeSourceFileName = "vlm_dataset.json";
+          activeSaveFileName = slug ? `vlm_dataset_review_${slug}.json` : "vlm_dataset_review_reviewer.json";
+          updateFileDisplay("vlm_dataset.json", false);
+          document.getElementById("emptyView").style.display = "none";
+          document.getElementById("workspaceView").style.display = "grid";
+          currentIndex = 0;
+          renderCurrentSample();
+          updateStatistics();
+          if (saveIndicator) {
+            saveIndicator.innerText = "Đã nạp vlm_dataset.json (Chế độ Cục bộ)";
+            saveIndicator.style.color = "var(--success)";
+          }
+          return;
+        }
+      } catch (localErr) {
+        console.warn("Không thể nạp tự động qua file cục bộ:", localErr);
+      }
+
+      // Nếu cả 2 cách đều không được, hiển thị hướng dẫn rõ ràng trên emptyView thay vì để người dùng chờ
+      const emptyView = document.getElementById("emptyView");
+      if (emptyView) {
+        emptyView.innerHTML = `
+          <div style="background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:24px; max-width:620px; margin:30px auto; text-align:left; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+              <span style="font-size:1.6rem;">⚠️</span>
+              <h3 style="font-size:1.15rem; color:#b91c1c; margin:0;">Chưa kết nối được với máy chủ thẩm định</h3>
+            </div>
+            <p style="font-size:0.875rem; color:#475569; line-height:1.5; margin-bottom:12px;">
+              Để hệ thống tự động nạp <b>evaluation/image-experiment/data/vlm_dataset.json</b> và lưu kết quả thẩm định, bạn hãy bật máy chủ cục bộ bằng lệnh:
+            </p>
+            <div style="background:#0f172a; color:#38bdf8; padding:10px 14px; border-radius:6px; font-family:monospace; font-size:0.9rem; margin-bottom:16px;">
+              python evaluation/image-experiment/review_server.py
+            </div>
+            <p style="font-size:0.85rem; color:#64748b; margin-bottom:8px;">
+              Sau khi bật, truy cập lại địa chỉ: <a href="http://localhost:8080/image-experiment/human_review_ui.html" style="color:#2563eb; font-weight:600;">http://localhost:8080/image-experiment/human_review_ui.html</a>
+            </p>
+            <hr style="border:none; border-top:1px solid #e2e8f0; margin:16px 0;">
+            <p style="font-size:0.875rem; color:#334155; margin-bottom:8px;">
+              <b>Hoặc chọn thủ công tệp JSON từ máy tính</b> (chế độ xem Offline):
+            </p>
+            <input type="file" id="manualFileInput" accept=".json" onchange="handleManualFileInput(event)" style="font-size:0.85rem; padding:6px; border:1px solid #cbd5e1; border-radius:6px; width:100%;">
+          </div>
+        `;
+      }
+
+      if (saveIndicator) {
+        saveIndicator.innerText = "Chưa kết nối review_server.py";
+        saveIndicator.style.color = "#dc2626";
+      }
     }
+  }
+
+  function handleManualFileInput(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const raw = JSON.parse(evt.target.result);
+        if (raw && raw.samples) {
+          samplesList = raw.samples;
+        } else if (Array.isArray(raw)) {
+          samplesList = raw;
+        } else {
+          alert("Tệp JSON không chứa mảng bài đăng hợp lệ!");
+          return;
+        }
+        activeSourceFileName = file.name;
+        const mySlug = slugifyName(reviewerName);
+        activeSaveFileName = file.name.includes("_review_") ? file.name : `vlm_dataset_review_${mySlug}.json`;
+        updateFileDisplay(file.name, file.name.includes("_review_"));
+        document.getElementById("emptyView").style.display = "none";
+        document.getElementById("workspaceView").style.display = "grid";
+        currentIndex = 0;
+        renderCurrentSample();
+        updateStatistics();
+      } catch (err) {
+        alert("Lỗi đọc tệp JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
   }
 
   // Hiển thị mẫu hiện tại
@@ -1398,7 +1383,6 @@
 
       if (resData.saved_file && resData.saved_file !== activeSaveFileName) {
         activeSaveFileName = resData.saved_file;
-        updateBanner();
       }
 
       const d = new Date();
@@ -1406,11 +1390,8 @@
       indicator.innerText = `Đã lưu vào ${activeSaveFileName} (${timeStr})`;
       indicator.style.color = "var(--success)";
 
-      // Cập nhật lại danh sách tệp nếu vừa tạo file review mới
-      const alreadyInList = allFilesList.some(f => f.name === activeSaveFileName);
-      if (!alreadyInList) {
-        loadFilesList(false);
-      }
+      // Cập nhật nhãn hiển thị tệp đang làm việc
+      updateFileDisplay(activeSaveFileName, true);
     } catch (e) {
       indicator.innerText = e.message || "Lỗi khi lưu!";
       indicator.style.color = "#dc2626";

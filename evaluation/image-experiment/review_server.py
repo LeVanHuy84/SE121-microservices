@@ -43,9 +43,13 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 BASE_DIR = Path(__file__).resolve().parent
+# Chỉ biết các thư mục ở trong evaluation, không phụ thuộc bên ngoài
+EVALUATION_DIR = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
-ROOT_DIR = BASE_DIR.parent.parent
 DEFAULT_PORT = 8080
+
+DEFAULT_DATASET_NAME = "vlm_dataset.json"
+DEFAULT_DATASET_FILE = DATA_DIR / DEFAULT_DATASET_NAME
 
 # URL tải mặc định gói dữ liệu benchmark vlm_benchmark_assets.zip (37 MB)
 # Bạn có thể ghi đè qua biến môi trường VLM_ASSETS_URL hoặc cờ dòng lệnh --download-url
@@ -56,10 +60,7 @@ DEFAULT_ASSETS_URL = os.environ.get(
 
 # Các tệp dữ liệu gốc / benchmark dùng chung — TUYỆT ĐỐI KHÔNG ĐƯỢC GHI ĐÈ!
 PROTECTED_BASE_FILES = {
-    "vlm_preannotated_600_benchmark.json",
-    "benchmark_600_elite_pool.json",
-    "candidate_1000_benchmark_pool.json",
-    "vlm_dataset.json",
+    DEFAULT_DATASET_NAME,
 }
 
 
@@ -276,8 +277,25 @@ def ensure_dataset_ready(data_dir: Path, download_url: str = DEFAULT_ASSETS_URL,
 
 class ReviewAPIHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        # Serve static files from ROOT_DIR so relative image paths work seamlessly
-        super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
+        # Chỉ phục vụ static files từ trong thư mục EVALUATION_DIR (evaluation/)
+        super().__init__(*args, directory=str(EVALUATION_DIR), **kwargs)
+
+    def translate_path(self, path):
+        # Chuẩn hóa đường dẫn tương đối trong evaluation/
+        path = path.split("?", 1)[0]
+        path = path.split("#", 1)[0]
+
+        # Bỏ tiền tố /evaluation/ nếu có để map đúng vào thư mục EVALUATION_DIR
+        if path.startswith("/evaluation/"):
+            path = path[len("/evaluation"):]
+        elif path == "/evaluation":
+            path = "/"
+
+        # Nếu request gọi trực tiếp /data/... -> chuyển thành /image-experiment/data/...
+        if path.startswith("/data/"):
+            path = "/image-experiment" + path
+
+        return super().translate_path(path)
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -285,67 +303,102 @@ class ReviewAPIHandler(SimpleHTTPRequestHandler):
         # Redirect root to review UI
         if parsed.path in ["/", "/index.html"]:
             self.send_response(302)
-            self.send_header("Location", "/evaluation/image-experiment/human_review_ui.html")
+            self.send_header("Location", "/image-experiment/human_review_ui.html")
             self.end_headers()
             return
 
         # Redirect /quick-translate to quick translation UI
         if parsed.path in ["/quick-translate", "/quick-translate.html", "/quick_translation.html", "/quick_translate"]:
             self.send_response(302)
-            self.send_header("Location", "/evaluation/image-experiment/quick_translation_ui.html")
+            self.send_header("Location", "/image-experiment/quick_translation_ui.html")
             self.end_headers()
             return
 
-        # API: Liệt kê các file JSON trong evaluation/image-experiment/data/
-        if parsed.path == "/api/files":
+        req_path = parsed.path.rstrip("/")
+
+        # API: Liệt kê các file liên quan vlm_dataset (tệp chuẩn và bản review cá nhân)
+        if req_path == "/api/files" or req_path.endswith("/api/files"):
             files = []
+            if DEFAULT_DATASET_FILE.exists():
+                size_kb = round(DEFAULT_DATASET_FILE.stat().st_size / 1024, 1)
+                files.append({
+                    "name": DEFAULT_DATASET_NAME,
+                    "path": f"image-experiment/data/{DEFAULT_DATASET_NAME}",
+                    "size_kb": size_kb,
+                    "modified": datetime.fromtimestamp(DEFAULT_DATASET_FILE.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
+                    "is_protected": True,
+                    "is_review": False
+                })
+
             if DATA_DIR.exists():
-                for p in sorted(DATA_DIR.glob("*.json")):
-                    # Bỏ qua các file tạm
-                    if p.name.endswith(".tmp"):
+                for p in sorted(DATA_DIR.glob("vlm_dataset_review_*.json")):
+                    if p.name.endswith(".tmp") or p.name.endswith(".bak"):
                         continue
                     size_kb = round(p.stat().st_size / 1024, 1)
-                    is_protected = p.name in PROTECTED_BASE_FILES
-                    is_review = "_review_" in p.name
                     file_info = {
                         "name": p.name,
-                        "path": f"evaluation/image-experiment/data/{p.name}",
+                        "path": f"image-experiment/data/{p.name}",
                         "size_kb": size_kb,
                         "modified": datetime.fromtimestamp(p.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
-                        "is_protected": is_protected,
-                        "is_review": is_review
+                        "is_protected": False,
+                        "is_review": True
                     }
-                    if is_review:
-                        try:
-                            with open(p, "r", encoding="utf-8") as f:
-                                data_head = json.load(f)
-                            if isinstance(data_head, dict) and "reviewer_info" in data_head:
-                                r_info = data_head["reviewer_info"]
-                                file_info["reviewer_name"] = r_info.get("reviewer_name", "")
-                                file_info["reviewed_count"] = r_info.get("reviewed_count", 0)
-                                file_info["total_samples"] = r_info.get("total_samples", 0)
-                        except Exception:
-                            pass
+                    try:
+                        with open(p, "r", encoding="utf-8") as f:
+                            data_head = json.load(f)
+                        if isinstance(data_head, dict) and "reviewer_info" in data_head:
+                            r_info = data_head["reviewer_info"]
+                            file_info["reviewer_name"] = r_info.get("reviewer_name", "")
+                            file_info["reviewed_count"] = r_info.get("reviewed_count", 0)
+                            file_info["total_samples"] = r_info.get("total_samples", 0)
+                    except Exception:
+                        pass
                     files.append(file_info)
+
             self._send_json({"files": files, "protected_files": list(PROTECTED_BASE_FILES)})
             return
 
-        # API: Nạp nội dung 1 file JSON
-        if parsed.path == "/api/load":
+        # API: Nạp nội dung dataset (mặc định vlm_dataset.json hoặc tự động dùng file review của người dùng nếu đã có)
+        if req_path == "/api/load" or req_path.endswith("/api/load"):
             query = parse_qs(parsed.query)
-            filename = query.get("file", [""])[0]
-            target_path = DATA_DIR / Path(filename).name
+            reviewer_name = query.get("reviewer", [""])[0].strip()
+            requested_file = query.get("file", [""])[0].strip()
+
+            target_path = None
+
+            # 1. Nếu client chỉ định tệp review cụ thể hợp lệ
+            if requested_file and requested_file.startswith("vlm_dataset_review_") and requested_file.endswith(".json"):
+                cand = DATA_DIR / Path(requested_file).name
+                if cand.exists():
+                    target_path = cand
+
+            # 2. Nếu có tên reviewer, tự động kiểm tra xem đã có bản review trước đó chưa
+            if not target_path and reviewer_name:
+                slug = slugify_name(reviewer_name)
+                review_file = DATA_DIR / f"vlm_dataset_review_{slug}.json"
+                if review_file.exists():
+                    target_path = review_file
+
+            # 3. Mặc định luôn là vlm_dataset.json chuẩn
+            if not target_path:
+                target_path = DEFAULT_DATASET_FILE
 
             if not target_path.exists():
-                self._send_json({"error": f"Không tìm thấy file {target_path.name}"}, status=404)
+                self._send_json({"error": f"Không tìm thấy tệp {target_path.name}"}, status=404)
                 return
 
             try:
                 with open(target_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                self._send_json({"filename": target_path.name, "data": data})
+                is_review = "_review_" in target_path.name
+                self._send_json({
+                    "filename": target_path.name,
+                    "is_review": is_review,
+                    "source_file": DEFAULT_DATASET_NAME,
+                    "data": data
+                })
             except Exception as e:
-                self._send_json({"error": f"Lỗi đọc file: {str(e)}"}, status=500)
+                self._send_json({"error": f"Lỗi đọc file {target_path.name}: {str(e)}"}, status=500)
             return
 
         # Fallback to default static file handler
@@ -361,29 +414,27 @@ class ReviewAPIHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        req_path = parsed.path.rstrip("/")
 
-        # API: Lưu dữ liệu thẩm định vào đĩa
-        if parsed.path == "/api/save":
+        # API: Lưu dữ liệu thẩm định vào đĩa (luôn lưu vào tệp review cá nhân của reviewer)
+        if req_path == "/api/save" or req_path.endswith("/api/save"):
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_length).decode("utf-8")
                 payload = json.loads(body)
 
-                target_filename = payload.get("save_file", "") or payload.get("filename", "") or payload.get("file", "")
-                reviewer_name = payload.get("reviewer_name", "reviewer")
-                source_file = payload.get("source_file", "vlm_dataset.json")
+                reviewer_name = payload.get("reviewer_name", "").strip() or "reviewer"
+                slug = slugify_name(reviewer_name)
+                target_filename = f"vlm_dataset_review_{slug}.json"
+                source_file = DEFAULT_DATASET_NAME
                 samples = payload.get("samples", [])
 
-                if not target_filename:
-                    slug = slugify_name(reviewer_name)
-                    target_filename = f"vlm_dataset_review_{slug}.json"
+                target_path = DATA_DIR / target_filename
 
-                target_path = DATA_DIR / Path(target_filename).name
-
-                # Tuyệt đối không cho phép ghi đè các file chuẩn chung
+                # Tuyệt đối không cho phép ghi đè file chuẩn chung
                 if target_path.name in PROTECTED_BASE_FILES:
                     self._send_json({
-                        "error": f"Tệp '{target_path.name}' là tệp benchmark gốc/dùng chung. Vui lòng lưu vào tệp review cá nhân (*_review_<tên>.json) thay vì ghi đè tệp gốc!"
+                        "error": f"Tệp '{target_path.name}' là tệp gốc dùng chung. Vui lòng lưu vào tệp review cá nhân ({target_filename})!"
                     }, status=403)
                     return
 
@@ -420,7 +471,7 @@ class ReviewAPIHandler(SimpleHTTPRequestHandler):
             return
 
         # API: Cập nhật bản dịch text_vi vào cả vlm_dataset.json và các file review
-        if parsed.path == "/api/update_translation":
+        if req_path == "/api/update_translation" or req_path.endswith("/api/update_translation"):
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_length).decode("utf-8")
@@ -521,7 +572,7 @@ def run_server(port: int = DEFAULT_PORT, download_url: str = DEFAULT_ASSETS_URL,
     # 2. Khởi động HTTP Server
     server_address = ("", port)
     httpd = HTTPServer(server_address, ReviewAPIHandler)
-    url = f"http://localhost:{port}/evaluation/image-experiment/human_review_ui.html"
+    url = f"http://localhost:{port}/image-experiment/human_review_ui.html"
 
     print("=" * 80)
     print("  🚀 MÁY CHỦ THẨM ĐỊNH DỮ LIỆU ĐA PHƯƠNG THỨC (HUMAN-IN-THE-LOOP SERVER)")
