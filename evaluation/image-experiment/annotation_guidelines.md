@@ -21,8 +21,11 @@
 Để phục vụ phân tích học thuật đối đầu (so sánh mô hình đơn phương thức Text-only, Vision-only và mô hình đa phương thức VLM), mỗi mẫu dữ liệu được bóc tách theo các trường nhãn chuẩn hóa:
 
 ### 2.1 Ba trường cảm xúc bóc tách (7 nhãn Ekman)
-1. **`text_only_emotion` (Cảm xúc theo văn bản):** Cảm xúc được truyền tải khi chỉ đọc riêng câu chữ/status (không xem hình ảnh).
-2. **`image_only_emotion` (Cảm xúc theo hình ảnh):** Cảm xúc nổi trội của riêng bức ảnh (không đọc status đi kèm).
+Để đảm bảo tính khoa học và hạn chế tối đa **"Thiên kiến lây lan" (Anchoring / Priming Bias)** khi thẩm định:
+1. **`text_only_emotion` (Cảm xúc theo văn bản):** Cảm xúc được truyền tải khi chỉ đọc riêng câu chữ/status.
+   - *Kỹ thuật thẩm định chuẩn:* Tự đặt câu hỏi: *"Nếu bạn bè chỉ gửi riêng dòng tin nhắn/status này qua SMS (hoàn toàn không đính kèm hình ảnh), tôi sẽ nhận định đây là cảm xúc gì?"*.
+2. **`image_only_emotion` (Cảm xúc theo hình ảnh):** Cảm xúc nổi trội của riêng bức ảnh khi đứng độc lập (không đọc caption/status đi kèm).
+   - *Quy tắc đối với Meme có chữ in sẵn (Text-in-image):* Nếu bức ảnh là một meme/chế ảnh có chứa câu thoại hoặc chữ lồng bên trong hình, thẩm định viên **được phép đọc chữ nhúng trong ảnh** để hiểu ngữ cảnh của bức ảnh đó. Riêng trường `text_only_emotion` chỉ xét phần caption/status viết bên ngoài.
 3. **`combined_emotion` (Cảm xúc tổng hợp — Trục đánh giá cốt lõi):** Cảm xúc thực tế và nổi trội nhất của **toàn bộ bài đăng** khi người xem tiếp nhận đồng thời cả văn bản và hình ảnh trong bối cảnh mạng xã hội.
 
 ### 2.2 Mối quan hệ tương tác Ảnh – Chữ (`relationship_type`)
@@ -30,13 +33,14 @@ Phân loại chính xác 1 trong 3 trường hợp theo yêu cầu của GVHD:
 - **`CONGRUENT` — Đồng nhất:** Hình ảnh và câu chữ cùng chung một thông điệp và hướng cảm xúc; ảnh minh họa hoặc củng cố trực tiếp ý nghĩa đã rõ ràng trong văn bản. Không cần dựa vào một thông tin quan trọng mới từ ảnh để hiểu thông điệp.
   - *Ví dụ:* Text "Hôm nay nhận được học bổng rồi, vui quá đi!" + ảnh nụ cười rạng rỡ và giấy chứng nhận học bổng $\rightarrow$ Cả hai phương thức cùng mang sắc thái `joy`.
 - **`COMPLEMENTARY` — Bổ trợ:** Văn bản hoặc hình ảnh chưa đủ thông tin nếu đứng một mình; phương thức này bổ sung ngữ cảnh, đối tượng hoặc sự kiện quan trọng giúp xác định rõ cảm xúc tổng thể của bài đăng.
+  - *Lưu ý quan trọng về khác biệt cảm xúc:* Trường hợp câu chữ và hình ảnh mang sắc thái khác nhau nhưng **không có chủ đích châm biếm hay mỉa mai** (ví dụ: status than thở mệt mỏi nhưng đăng kèm ảnh hoa cỏ/thú cưng để tự an ủi làm dịu tâm trạng), trường hợp này được phân loại vào **`COMPLEMENTARY`** (hình ảnh bổ trợ sắc thái xoa dịu/tích cực cho văn bản), tuyệt đối không gượng ép xếp vào mỉa mai.
   - *Ví dụ:* Text "Cuối cùng cũng hoàn thành sau bao nhiêu nỗ lực!" (trung tính/chung chung) + ảnh ngôi nhà vừa xây xong khang trang $\rightarrow$ Bức ảnh định đoạt bối cảnh tự hào/vui mừng (`joy`).
-- **`INCONGRUENT_SARCASTIC` — Mâu thuẫn / Mỉa mai:** Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh để tạo ra sắc thái mỉa mai, châm biếm hoặc tự trào (sarcasm / irony).
+- **`INCONGRUENT_SARCASTIC` — Mâu thuẫn / Mỉa mai:** Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh nhằm tạo ra sắc thái **mỉa mai, châm biếm, chế giễu hoặc tự trào** (sarcasm / irony / satire).
   - *Ví dụ:* Text "Dịch vụ khách hàng ở đây đúng là tuyệt vời!" + ảnh hàng dài người đứng chờ đợi mệt mỏi trong mưa $\rightarrow$ Text mang nghĩa đen tích cực nhưng toàn bộ bài đăng truyền tải sự bức xúc/tức giận (`anger`).
 
 ### 2.3 Các trường kiểm soát chất lượng & giải thích
 - **`explanation`:** Lời giải thích ngắn gọn (1–2 câu) của VLM hoặc thẩm định viên về lý do lựa chọn nhãn tổng hợp và mối quan hệ ảnh-chữ.
-- **`INSUFFICIENT_CONTEXT` (Cờ chất lượng đặc biệt):** Không phải là nhãn cảm xúc hay loại quan hệ thứ tư. Cờ này chỉ được kích hoạt khi ảnh bị lỗi hiển thị nghiêm trọng, bản dịch bị hỏng nghĩa hoàn toàn, hoặc cặp text–image hoàn toàn ngẫu nhiên/vô nghĩa không thể đánh giá một cách khoa học.
+- **`INSUFFICIENT_CONTEXT` (Cờ chất lượng đặc biệt — Bộ lọc rác kỹ thuật):** Đây là cờ kỹ thuật để loại bỏ dữ liệu hỏng, **TUYỆT ĐỐI KHÔNG phải là nhãn cảm xúc thứ 8 hay loại quan hệ thứ 4**. Cờ này chỉ được kích hoạt khi ảnh bị lỗi hiển thị nghiêm trọng, bản dịch bị hỏng nghĩa hoàn toàn, hoặc cặp text–image hoàn toàn ngẫu nhiên/vô nghĩa do lỗi cào dữ liệu. Các mẫu dính cờ này sẽ bị loại khỏi tập chuẩn trước khi đo đạc chỉ số benchmark.
 
 ---
 
@@ -44,9 +48,9 @@ Phân loại chính xác 1 trong 3 trường hợp theo yêu cầu của GVHD:
 
 ### 3.1 Quy tắc xác định `relationship_type`
 Áp dụng theo thứ tự ưu tiên 4 bước:
-1. **Kiểm tra tính hợp lệ:** Nếu ảnh hỏng, text rác hoặc hoàn toàn không liên quan $\rightarrow$ Gắn cờ `INSUFFICIENT_CONTEXT` kèm lý do; không gượng ép gán nhãn.
-2. **Nhận diện Mâu thuẫn / Mỉa mai (`INCONGRUENT_SARCASTIC`):** Tìm kiếm bằng chứng tương phản rõ ràng giữa nghĩa đen câu chữ và nội dung bức ảnh, hoặc các mẫu meme mang tính châm biếm, tự trào. Lưu ý: Khác biệt cảm xúc đơn thuần chưa đủ để kết luận mỉa mai nếu không có chủ đích châm biếm.
-3. **Nhận diện Bổ trợ ngữ cảnh (`COMPLEMENTARY`):** Xác định xem nếu thiếu hình ảnh thì văn bản có bị thiếu thông tin cốt lõi hay không (hoặc ngược lại). Nếu một bên làm rõ bối cảnh/đối tượng cho bên kia, chọn `COMPLEMENTARY`.
+1. **Kiểm tra tính hợp lệ:** Nếu ảnh hỏng, text rác hoặc hoàn toàn không liên quan $\rightarrow$ Gắn cờ `INSUFFICIENT_CONTEXT` kèm lý do; loại bỏ mẫu khỏi tập benchmark.
+2. **Nhận diện Mâu thuẫn / Mỉa mai (`INCONGRUENT_SARCASTIC`):** Tìm kiếm bằng chứng tương phản rõ ràng giữa câu chữ và hình ảnh nhằm mục đích **châm biếm, mỉa mai hoặc tự trào**. Nếu có sự khác biệt cảm xúc nhưng không nhằm châm biếm $\rightarrow$ Chuyển sang bước 3.
+3. **Nhận diện Bổ trợ ngữ cảnh (`COMPLEMENTARY`):** Xác định xem nếu thiếu hình ảnh thì văn bản có bị thiếu thông tin cốt lõi hay không (hoặc ngược lại). Nếu một bên làm rõ bối cảnh/đối tượng hoặc bổ sung/điều chỉnh sắc thái cảm xúc cho bên kia, chọn `COMPLEMENTARY`.
 4. **Nhận diện Đồng nhất (`CONGRUENT`):** Khi cả hai phương thức cùng truyền tải một ý niệm, cùng chiều cảm xúc hoặc hình ảnh chỉ đơn thuần minh họa cho thông điệp đã hoàn chỉnh của văn bản.
 
 ### 3.2 Bảng phân loại 7 nhãn cảm xúc Ekman (`combined_emotion`)
@@ -62,9 +66,13 @@ Phân loại chính xác 1 trong 3 trường hợp theo yêu cầu của GVHD:
 | **`neutral`** | Khách quan, trung tính, không chứa cảm xúc nào nổi trội trong 6 nhóm trên. | Bản tin thời sự thuần túy, thông báo kỹ thuật, bài hướng dẫn, mô tả sự vật. |
 
 **Nguyên tắc cốt lõi khi gán nhãn cảm xúc:**
-- Đánh giá theo cảm xúc mà bài đăng thực sự muốn truyền tải, không suy diễn cảm xúc cá nhân của người xem.
-- Với hiện tượng mỉa mai/châm biếm, căn cứ vào cảm xúc ngầm ẩn thực tế của tác giả (thường là `anger`, `disgust` hoặc `sadness`, hiếm khi là `joy` nghĩa đen).
-- Nếu nội dung hoàn toàn mang tính thông báo khách quan hoặc không có cảm xúc nào đủ nổi trội, chọn `neutral`.
+- **Định vị chủ thể cảm xúc — Poster-centric (Cảm xúc của người đăng bài):**
+  - Trọng tâm đề tài là theo dõi trạng thái tâm lý người dùng mạng xã hội. Vì vậy, cảm xúc cần đánh giá là **trạng thái tâm lý mà người đăng muốn bộc lộ qua toàn bộ bài đăng**, tránh suy diễn cảm xúc chủ quan của người xem.
+  - *Phân biệt theo tính chất bài đăng (Heuristic tổng quát):*
+    + **Chia sẻ tin tức / Tư liệu / Trích dẫn khách quan:** Bài đăng mang phong cách báo chí, trích dẫn danh ngôn, ảnh tư liệu/sự kiện mà người đăng không kèm bình luận cảm xúc cá nhân $\rightarrow$ Ưu tiên chọn **`neutral`** (khách quan, trung tính).
+    + **Bài đăng đời thường / Cá nhân / Meme:** Bài đăng thể hiện trải nghiệm sống, ảnh đời thường/selfie, hoặc meme giải trí $\rightarrow$ Đánh giá cảm xúc thực tế toát ra từ bài đăng (**`joy`**, **`sadness`**, **`anger`**...).
+- **Hiện tượng Mỉa mai / Tự trào / Giễu cợt:** Căn cứ vào cảm xúc ngầm ẩn thực tế của bài đăng (ví dụ: tự trào, cà khịa hài hước $\rightarrow$ `joy`; bức xúc châm biếm sâu cay $\rightarrow$ `anger` hoặc `disgust`).
+- **Nguyên tắc nhãn trung tính (`neutral`):** Áp dụng cho các nội dung thông báo thuần túy, mô tả sự vật khách quan, hoặc khi không có cảm xúc nào đủ rõ nét.
 
 ---
 
@@ -153,9 +161,13 @@ Mẫu chỉ bị loại khỏi tập đánh giá khi vi phạm ít nhất một 
 
 Trước khi nhấn nút lưu phán quyết cho mỗi mẫu, thẩm định viên tự kiểm tra:
 - [ ] **Xem xét toàn diện:** Đã quan sát kỹ cả hình ảnh gốc và đọc kỹ văn bản gốc (đối chiếu bản dịch tiếng Việt).
-- [ ] **Bóc tách khách quan:** Đã nhận diện rõ cảm xúc theo văn bản (`text_only_emotion`), cảm xúc theo hình ảnh (`image_only_emotion`) trước khi đánh giá cảm xúc tổng hợp (`combined_emotion`).
+- [ ] **Bóc tách khách quan (Chống thiên kiến lây lan):** 
+  - Đã tự hỏi: *"Nếu chỉ đọc SMS không có ảnh, cảm xúc câu chữ là gì?"* để chọn `text_only_emotion`.
+  - Đã tự hỏi: *"Nếu chỉ nhìn lướt ảnh này không có status, cảm xúc ảnh là gì?"* (cho phép đọc chữ in trong meme) để chọn `image_only_emotion`.
 - [ ] **Không thiên lệch VLM:** Chỉ xem nhãn VLM (Gemini 1.5 Pro / GPT-4o) là gợi ý ban đầu; luôn căn cứ vào nhận thức khách quan của con người trong ngữ cảnh mạng xã hội.
-- [ ] **Phân biệt đúng quan hệ ảnh-chữ:** Phân biệt rõ giữa củng cố thông điệp (`CONGRUENT`) và bổ trợ ngữ cảnh mới (`COMPLEMENTARY`).
-- [ ] **Bằng chứng mỉa mai:** Chỉ chọn `INCONGRUENT_SARCASTIC` khi có bằng chứng tương phản rõ ràng tạo ra sự châm biếm, tự trào.
+- [ ] **Phân biệt đúng quan hệ ảnh-chữ:** 
+  - Củng cố thông điệp đã rõ ràng: `CONGRUENT`.
+  - Khác biệt cảm xúc mang tính xoa dịu/bổ sung bối cảnh: `COMPLEMENTARY`.
+  - Có bằng chứng rõ ràng về châm biếm, mỉa mai, cà khịa hoặc tự trào: `INCONGRUENT_SARCASTIC`.
 - [ ] **Xử lý mẫu nghi ngờ/mơ hồ:** Đã rà soát kỹ lưỡng các mẫu bị lệch cảm xúc giữa ảnh và chữ hoặc VLM có độ tự tin thấp; ghi chú lý do nếu điều chỉnh nhãn.
 - [ ] **Độc lập tuyệt đối:** Đã hoàn thành và lưu kết quả thẩm định cá nhân trước khi bước vào phiên họp hòa giải.

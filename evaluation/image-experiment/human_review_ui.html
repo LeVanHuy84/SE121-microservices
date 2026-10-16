@@ -312,24 +312,24 @@
 
       <!-- 1. Bốn trường nhãn bóc tách -->
       <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:16px 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
-        1. BỐN TRƯỜNG NHÃN BÓC TÁCH ĐA PHƯƠNG THỨC
+        1. BỐN TRƯỜNG NHÃN BÓC TÁCH ĐA PHƯƠNG THỨC (CHỐNG THIÊN KIẾN LÂY LAN)
       </div>
       <div style="font-size:0.85rem; color:#334155; line-height:1.7; margin-bottom:16px;">
-        • <b><code>text_only_emotion</code></b>: Cảm xúc truyền tải khi <b>CHỈ đọc riêng câu chữ/status</b> (không xem hình ảnh). Thuộc 7 nhãn Ekman.<br>
-        • <b><code>image_only_emotion</code></b>: Cảm xúc nổi trội của <b>CHỈ RIÊNG bức ảnh</b> (không đọc status đi kèm). Thuộc 7 nhãn Ekman.<br>
+        • <b><code>text_only_emotion</code></b>: Cảm xúc khi <b>CHỈ đọc riêng câu chữ/status</b> (Tự hỏi: <i>Nếu chỉ nhận SMS này không có ảnh thì mang cảm xúc gì?</i>). Thuộc 7 nhãn Ekman.<br>
+        • <b><code>image_only_emotion</code></b>: Cảm xúc của <b>CHỈ RIÊNG bức ảnh</b> (không đọc status bên ngoài). <i>Lưu ý: Nếu là Meme có chữ in sẵn trên ảnh, bạn <b>được phép đọc chữ nhúng trong ảnh</b> để hiểu nội dung meme.</i> Thuộc 7 nhãn Ekman.<br>
         • <b><code>combined_emotion</code></b>: Cảm xúc thực tế và nổi trội nhất của <b>TOÀN BỘ bài đăng</b> khi tiếp nhận đồng thời cả văn bản và hình ảnh trong ngữ cảnh mạng xã hội (Trục đánh giá cốt lõi). Thuộc 7 nhãn Ekman.<br>
         • <b><code>relationship_type</code></b>: Mối quan hệ tương tác ngữ nghĩa & cảm xúc giữa Ảnh và Chữ (chọn 1 trong 3 nhóm bên dưới).
       </div>
 
       <!-- 2. relationship_type -->
       <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:0 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
-        2. QUY TẮC PHÂN LOẠI <code>relationship_type</code> (3 NHÓM CHUẨN)
+        2. QUY TẮC PHÂN LOẠI <code>relationship_type</code> (3 NHÓM CHUẨN THEO GVHD)
       </div>
       <div style="font-size:0.84rem; color:#475569; margin-bottom:10px;">Áp dụng theo thứ tự ưu tiên 4 bước:</div>
       <div style="font-size:0.84rem; color:#334155; line-height:1.7; margin-bottom:12px;">
         <b>1.</b> Ảnh hỏng / dịch máy vô nghĩa / cặp text-image rác &rarr; Gắn cờ <code>INSUFFICIENT_CONTEXT</code> (loại khỏi tập chuẩn).<br>
-        <b>2.</b> Tương phản có chủ đích + bằng chứng mỉa mai, châm biếm, tự trào &rarr; <code>INCONGRUENT_SARCASTIC</code>.<br>
-        <b>3.</b> Một bên trung tính/thiếu thông tin, bên kia bổ sung ngữ cảnh quan trọng định hình cảm xúc &rarr; <code>COMPLEMENTARY</code>.<br>
+        <b>2.</b> Tương phản có chủ đích + có bằng chứng <b>châm biếm, mỉa mai, cà khịa hoặc tự trào</b> &rarr; <code>INCONGRUENT_SARCASTIC</code>.<br>
+        <b>3.</b> Một bên thiếu thông tin HOẶC hai bên lệch sắc thái mang tính <b>xoa dịu/bổ sung bối cảnh</b> (không châm biếm) &rarr; <code>COMPLEMENTARY</code>.<br>
         <b>4.</b> Cả hai phương thức cùng chiều cảm xúc hoặc ảnh minh họa trực tiếp thông điệp đã rõ &rarr; <code>CONGRUENT</code>.
       </div>
 
@@ -345,11 +345,12 @@
 
       <div class="guide-box guide-box-complementary">
         <div class="guide-box-header">
-          <span style="color:#7c3aed;">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Đối tượng)</span>
+          <span style="color:#7c3aed;">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Điều chỉnh sắc thái)</span>
         </div>
         <div><b>Định nghĩa:</b> Văn bản hoặc hình ảnh chưa đủ thông tin nếu đứng một mình; phương thức này bổ sung ngữ cảnh, đối tượng hoặc sự kiện quan trọng giúp xác định rõ cảm xúc tổng thể của bài đăng.</div>
         <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
-          • <b>Ví dụ:</b> Text "Cuối cùng cũng hoàn thành sau bao nỗ lực!" (trung tính/chung chung) + ảnh ngôi nhà vừa xây xong khang trang &rarr; Ảnh định đoạt cảm xúc tự hào, vui mừng (<code>joy</code>).
+          • <b>Ví dụ 1 (Bổ trợ bối cảnh):</b> Text "Cuối cùng cũng hoàn thành sau bao nỗ lực!" (trung tính/chung chung) + ảnh ngôi nhà vừa xây xong khang trang &rarr; Ảnh định đoạt cảm xúc tự hào, vui mừng (<code>joy</code>).<br>
+          • <b>Ví dụ 2 (Lệch sắc thái nhưng không mỉa mai):</b> Text than mệt mỏi nhưng ảnh đăng thú cưng/hoa lá để tự an ủi làm dịu tâm trạng &rarr; Thuộc <code>COMPLEMENTARY</code> (ảnh bổ trợ xoa dịu), không xếp vào mỉa mai.
         </div>
       </div>
 
@@ -357,16 +358,21 @@
         <div class="guide-box-header">
           <span style="color:#d97706;">⚡ INCONGRUENT_SARCASTIC (Mâu thuẫn / Mỉa mai / Châm biếm)</span>
         </div>
-        <div><b>Định nghĩa:</b> Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh để tạo ra sắc thái mỉa mai, châm biếm hoặc tự trào (sarcasm / irony).</div>
+        <div><b>Định nghĩa:</b> Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh để tạo ra sắc thái **mỉa mai, châm biếm, chế giễu hoặc tự trào** (sarcasm / irony / satire).</div>
         <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
           • <b>Ví dụ:</b> Text "Dịch vụ ở đây đúng là tuyệt vời!" + ảnh hàng dài người kiệt sức chờ đợi dưới mưa &rarr; Text mang nghĩa tích cực giả tạo nhưng toàn bài truyền tải sự tức giận/bất bình (<code>anger</code>).<br>
-          • <i>Lưu ý:</i> Khác biệt cảm xúc đơn thuần chưa đủ để kết luận mỉa mai nếu không có chủ đích châm biếm.
+          • <i>Lưu ý:</i> Phải có yếu tố châm biếm/mỉa mai rõ ràng mới chọn nhãn này.
         </div>
       </div>
 
       <!-- 3. combined_emotion -->
       <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:16px 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
-        3. QUY TẮC 7 NHÃN CẢM XÚC EKMAN
+        3. QUY TẮC 7 NHÃN CẢM XÚC EKMAN &amp; ĐỊNH VỊ CHỦ THỂ (POSTER-CENTRIC)
+      </div>
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 12px; margin-bottom:12px; font-size:0.83rem; color:#1e40af; line-height:1.6;">
+        ⭐ <b>NGUYÊN TẮC VÀNG CHO ĐỀ TÀI (POSTER-CENTRIC):</b> Cảm xúc cần đánh giá là <b>trạng thái tâm lý người đăng muốn bộc lộ</b> qua bài đăng:<br>
+        • <b>Tin tức / Tư liệu / Trích dẫn khách quan:</b> Phong cách báo chí, tư liệu lịch sử, chia sẻ danh ngôn mà người đăng không kèm cảm xúc cá nhân &rarr; Chọn <b><code>neutral</code></b>.<br>
+        • <b>Bài đăng đời thường / Cá nhân / Meme:</b> Ảnh đời thường/selfie, trải nghiệm sống, meme giải trí &rarr; Đánh giá cảm xúc thực tế toát ra (<code>joy</code>, <code>sadness</code>, <code>anger</code>...).
       </div>
       <div style="font-size:0.84rem; color:#475569; margin-bottom:10px;">Áp dụng đồng nhất cho cả 3 trường cảm xúc (chọn chính xác 1 nhãn nổi trội nhất):</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; font-size:0.84rem;">
@@ -376,7 +382,7 @@
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>🤢 disgust</b> — Ghê tởm về thể xác hoặc khinh miệt, chê bai mạnh mẽ về đạo đức/xã hội.</div>
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😨 fear</b> — Sợ hãi, hoảng hốt, bất an, lo lắng tột độ trước nguy cơ hoặc tai họa.</div>
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😲 surprise</b> — Ngạc nhiên, ngỡ ngàng, sửng sốt trước tình huống bất ngờ chưa lường trước.</div>
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; grid-column:span 2;"><b>😐 neutral</b> — Khách quan, trung tính, tin tức thuần túy; không có cảm xúc nào trong 6 nhóm trên đủ nổi trội.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; grid-column:span 2;"><b>😐 neutral</b> — Khách quan, trung tính, chia sẻ tin tức/danh ngôn; người đăng không bộc lộ cảm xúc cá nhân nổi trội.</div>
       </div>
 
       <!-- 4. Nhận diện mẫu nghi ngờ / mơ hồ -->
@@ -509,7 +515,10 @@
 
           <div class="edit-controls-grid">
             <div class="field-group">
-              <label for="selectTextEmo">1. Cảm xúc theo văn bản (Text-only): <span style="color:#ef4444;">*</span></label>
+              <label for="selectTextEmo" title="Độc lập: Tự hỏi nếu chỉ đọc tin nhắn này mà không có ảnh thì mang cảm xúc gì?">
+                1. Cảm xúc theo văn bản (Text-only): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:normal; color:#64748b;">(đọc riêng chữ)</span>
+              </label>
               <select id="selectTextEmo" class="review-select" onchange="onDecisionFieldChange()">
                 <option value="">-- Chưa chọn cảm xúc chữ --</option>
                 <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
@@ -523,7 +532,10 @@
             </div>
 
             <div class="field-group">
-              <label for="selectImgEmo">2. Cảm xúc theo hình ảnh (Image-only): <span style="color:#ef4444;">*</span></label>
+              <label for="selectImgEmo" title="Độc lập: Nhìn riêng ảnh; nếu ảnh là meme thì được phép đọc chữ in sẵn trên ảnh">
+                2. Cảm xúc theo hình ảnh (Image-only): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:normal; color:#64748b;">(được đọc chữ trong meme)</span>
+              </label>
               <select id="selectImgEmo" class="review-select" onchange="onDecisionFieldChange()">
                 <option value="">-- Chưa chọn cảm xúc ảnh --</option>
                 <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
@@ -537,7 +549,10 @@
             </div>
 
             <div class="field-group">
-              <label for="selectComb">3. Cảm xúc tổng hợp (Toàn bộ bài đăng): <span style="color:#ef4444;">*</span></label>
+              <label for="selectComb" title="Cảm xúc sau khi kết hợp đồng thời cả ảnh và chữ trong ngữ cảnh mạng xã hội">
+                3. Cảm xúc tổng hợp (Toàn bộ bài đăng): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:bold; color:#2563eb;">(Trục đánh giá chính)</span>
+              </label>
               <select id="selectComb" class="review-select" onchange="onDecisionFieldChange()">
                 <option value="">-- Chưa chọn cảm xúc tổng hợp --</option>
                 <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
@@ -551,11 +566,13 @@
             </div>
 
             <div class="field-group">
-              <label for="selectRel">4. Quan hệ tương tác ảnh – chữ: <span style="color:#ef4444;">*</span></label>
+              <label for="selectRel" title="Phân loại tương tác theo 3 nhóm chỉ đạo của GVHD">
+                4. Quan hệ tương tác ảnh – chữ: <span style="color:#ef4444;">*</span>
+              </label>
               <select id="selectRel" class="review-select" onchange="onDecisionFieldChange()">
                 <option value="">-- Chưa chọn quan hệ --</option>
                 <option value="CONGRUENT">🔗 CONGRUENT (Đồng nhất / Cùng thông điệp)</option>
-                <option value="COMPLEMENTARY">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Cảm xúc)</option>
+                <option value="COMPLEMENTARY">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Xoa dịu)</option>
                 <option value="INCONGRUENT_SARCASTIC">⚡ INCONGRUENT_SARCASTIC (Mâu thuẫn / Mỉa mai)</option>
               </select>
             </div>

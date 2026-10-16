@@ -165,22 +165,26 @@ def build_annotation_prompt(text_vi: str = "", text_en: str = "") -> str:
         content = (text_vi or text_en or "").strip()
         text_info = f'- Văn bản bài đăng: "{content}"'
 
-    return f"""Bạn là chuyên gia AI hàng đầu về Phân tích Cảm xúc Đa phương thức (Multimodal Emotion Analysis) trên Mạng xã hội.
+    return f"""Bạn là chuyên gia AI hàng đầu về Phân tích Cảm xúc Đa phương thức (Multimodal Emotion Analysis) trên Mạng xã hội, phục vụ hệ thống theo dõi sức khỏe tinh thần người dùng.
 
 Nhiệm vụ: Phân tích bài đăng mạng xã hội dưới đây gồm cả HÌNH ẢNH và VĂN BẢN (Text - Image):
 {text_info}
 - Hình ảnh đính kèm: [Xem hình ảnh được cung cấp]
 
+NGUYÊN TẮC CỐT LÕI (POSTER-CENTRIC):
+- Mục tiêu tối thượng là nhận diện TRẠNG THÁI TÂM LÝ CỦA CHÍNH NGƯỜI ĐĂNG BÀI (Poster's Emotion), KHÔNG PHẢI cảm xúc của nhân vật trong ảnh hay cảm xúc của người đọc lướt qua.
+- Nếu bài đăng chỉ là chia sẻ tin tức thời sự khách quan, thông báo kỹ thuật, hoặc trích dẫn danh ngôn/triết lý mà người đăng không bộc lộ cảm xúc cá nhân nổi trội (dù người trong ảnh đang cười hay khóc) -> CẢM XÚC TỔNG HỢP PHẢI CHỌN "neutral".
+
 Dựa trên Cẩm nang Quy chuẩn Gán nhãn (Annotation Guidelines) theo yêu cầu học thuật:
 HÃY ĐÁNH GIÁ ĐỘC LẬP TỪNG PHƯƠNG THỨC VÀ TỔNG HỢP, XUẤT RA JSON VỚI ĐÚNG 5 TRƯỜNG DƯỚI ĐÂY:
 
-1. "text_only_emotion": Cảm xúc nổi trội của RIÊNG VĂN BẢN khi chỉ đọc câu chữ/status mà KHÔNG xem hình ảnh. Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
-2. "image_only_emotion": Cảm xúc nổi trội của RIÊNG BỨC ẢNH khi chỉ xem hình ảnh mà KHÔNG đọc câu chữ đi kèm. Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
-3. "combined_emotion": Cảm xúc thực tế và nổi trội nhất của TOÀN BỘ BÀI ĐĂNG khi kết hợp đồng thời cả Văn bản và Hình ảnh trong bối cảnh mạng xã hội (đặc biệt lưu ý nghĩa ngầm, châm biếm, tự trào). Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
+1. "text_only_emotion": Cảm xúc nổi trội của RIÊNG VĂN BẢN khi chỉ đọc câu chữ/status mà KHÔNG xem hình ảnh (Đặt câu hỏi: Nếu chỉ nhận tin nhắn SMS này không có ảnh thì mang cảm xúc gì?). Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
+2. "image_only_emotion": Cảm xúc nổi trội của RIÊNG BỨC ẢNH khi chỉ xem hình ảnh mà KHÔNG đọc status bên ngoài (Lưu ý: Nếu ảnh là meme có chữ in sẵn trên ảnh, ĐƯỢC PHÉP đọc chữ nhúng để hiểu nội dung meme). Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
+3. "combined_emotion": Cảm xúc thực tế và nổi trội nhất của CHÍNH NGƯỜI ĐĂNG khi kết hợp đồng thời cả Văn bản và Hình ảnh trong bối cảnh mạng xã hội (Lưu ý: mỉa mai/cà khịa/tự trào gây cười thì chọn "joy"; bài trích dẫn tin tức khách quan chọn "neutral"). Chọn chính xác 1 trong 7 nhãn Ekman: ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"].
 4. "relationship_type": Mối quan hệ tương tác ngữ nghĩa & cảm xúc giữa Ảnh và Chữ. Chọn chính xác 1 trong 3 loại:
    - "CONGRUENT": Đồng nhất / Củng cố trực tiếp (Ảnh và Chữ cùng chung một thông điệp, cùng hướng cảm xúc; ảnh minh họa cho điều chữ đã nói).
-   - "COMPLEMENTARY": Bổ trợ ngữ cảnh (Một bên trung tính hoặc thiếu thông tin và bên kia bổ sung ngữ cảnh, đối tượng, tình huống hoặc cảm xúc quan trọng giúp định hình cảm xúc bài đăng).
-   - "INCONGRUENT_SARCASTIC": Mâu thuẫn / Mỉa mai / Châm biếm (Nghĩa đen câu chữ đối lập có chủ đích với hình ảnh, tự trào, nghịch lý châm biếm).
+   - "COMPLEMENTARY": Bổ trợ ngữ cảnh (Một bên trung tính/thiếu thông tin HOẶC hai bên lệch sắc thái mang tính xoa dịu/an ủi/giải thích bối cảnh mà KHÔNG mỉa mai).
+   - "INCONGRUENT_SARCASTIC": Mâu thuẫn / Mỉa mai / Châm biếm (Nghĩa đen câu chữ đối lập có chủ đích với hình ảnh để mỉa mai, cà khịa, giễu cợt hoặc tự trào hài hước).
 5. "explanation": Lời giải thích ngắn gọn (1-2 câu tiếng Việt) nêu rõ căn cứ nhận định 3 nhãn cảm xúc và mối quan hệ ảnh-chữ trên.
 
 Định dạng trả về: JSON thuần túy theo mẫu sau:
