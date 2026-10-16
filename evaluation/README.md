@@ -29,7 +29,9 @@ evaluation/
 │
 ├── image-experiment/      # 🖼️ Thử nghiệm phân tích cảm xúc đa phương tiện (VLM Vision-Language)
 │   ├── README.md
-│   └── vlm_groq_pipeline.py
+│   ├── review_server.py
+│   ├── human_review_ui.html
+│   └── data/              # 600 VLM benchmark samples, images & annotations
 │
 └── weights/               # ⚖️ Thư mục lưu trữ model checkpoints & ONNX weights dùng chung cho microservices
 ```

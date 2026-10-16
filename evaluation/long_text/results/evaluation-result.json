@@ -587,106 +587,6 @@
     "is_hit": false
   },
   {
-    "id": "GO_LONG_0036",
-    "text": "Translating...",
-    "ground_truth_labels": [
-      "Anger",
-      "Sadness"
-    ],
-    "predicted_labels": [
-      "Surprise",
-      "Disgust"
-    ],
-    "baseline_labels": [
-      "Surprise"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0041",
-    "text": "Translation",
-    "ground_truth_labels": [
-      "Enjoyment",
-      "Anger"
-    ],
-    "predicted_labels": [
-      "Disgust",
-      "Fear"
-    ],
-    "baseline_labels": [
-      "Disgust"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0044",
-    "text": "Exactly. Last year we were saying, “Don’t worry...next year we will get Long or Long. Or both.” What a joke",
-    "ground_truth_labels": [
-      "Enjoyment",
-      "Anger"
-    ],
-    "predicted_labels": [
-      "Other"
-    ],
-    "baseline_labels": [
-      "Sadness"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0046",
-    "text": "Translating...",
-    "ground_truth_labels": [
-      "Anger",
-      "Sadness"
-    ],
-    "predicted_labels": [
-      "Surprise",
-      "Disgust"
-    ],
-    "baseline_labels": [
-      "Surprise"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0047",
-    "text": "That's the biggest annoyance I have with this sub the past year; how little people value Hoàng. I don't get it.",
-    "ground_truth_labels": [
-      "Anger",
-      "Sadness"
-    ],
-    "predicted_labels": [
-      "Fear"
-    ],
-    "baseline_labels": [
-      "Fear"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0050",
-    "text": "Bless this woman. That honestly sounds horrific from every end. I hope her ex Khánh has lived a horrendous life since perpetuating that disgusting act.",
-    "ground_truth_labels": [
-      "Disgust",
-      "Fear"
-    ],
-    "predicted_labels": [
-      "Fear",
-      "Anger"
-    ],
-    "baseline_labels": [
-      "Fear"
-    ],
-    "is_exact_match": false,
-    "is_hit": true
-  },
-  {
     "id": "GO_LONG_0037",
     "text": "Đó là hành động có chủ đích. Có thể không phải là kết quả của sự suy tính kỹ lưỡng, nhưng lại là một bản năng rất nguy hiểm.",
     "ground_truth_labels": [
@@ -755,6 +655,23 @@
     "is_hit": true
   },
   {
+    "id": "GO_LONG_0041",
+    "text": "Translation",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Disgust"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
     "id": "GO_LONG_0042",
     "text": "Thật mừng vì bạn đã đòi lại được công lý và tìm thấy sự thanh thản. Giờ đây bạn có thể thực sự bắt đầu quá trình chữa lành rồi. Đáng tiếc là tôi không chắc liệu mình có bao giờ đạt được điều đó hay không.",
     "ground_truth_labels": [
@@ -789,6 +706,22 @@
     "is_hit": true
   },
   {
+    "id": "GO_LONG_0044",
+    "text": "Exactly. Last year we were saying, “Don’t worry...next year we will get Long or Long. Or both.” What a joke",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Anger"
+    ],
+    "predicted_labels": [
+      "Other"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
+  },
+  {
     "id": "GO_LONG_0045",
     "text": "Tôi đã được giải trí vào ngày thứ 4. Các con trai của tôi đã chơi tốt. Chúng tôi đã thua. Tôi sẽ lấy nó.",
     "ground_truth_labels": [
@@ -805,6 +738,22 @@
     ],
     "is_exact_match": false,
     "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0047",
+    "text": "That's the biggest annoyance I have with this sub the past year; how little people value Hoàng. I don't get it.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": false
   },
   {
     "id": "GO_LONG_0048",
@@ -835,6 +784,23 @@
     ],
     "baseline_labels": [
       "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0050",
+    "text": "Bless this woman. That honestly sounds horrific from every end. I hope her ex Khánh has lived a horrendous life since perpetuating that disgusting act.",
+    "ground_truth_labels": [
+      "Disgust",
+      "Fear"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
     ],
     "is_exact_match": false,
     "is_hit": true
@@ -2944,40 +2910,6 @@
     "is_hit": true
   },
   {
-    "id": "GO_LONG_0175",
-    "text": "Translating...",
-    "ground_truth_labels": [
-      "Anger",
-      "Sadness"
-    ],
-    "predicted_labels": [
-      "Surprise",
-      "Disgust"
-    ],
-    "baseline_labels": [
-      "Surprise"
-    ],
-    "is_exact_match": false,
-    "is_hit": false
-  },
-  {
-    "id": "GO_LONG_0176",
-    "text": "Translating...",
-    "ground_truth_labels": [
-      "Enjoyment",
-      "Surprise"
-    ],
-    "predicted_labels": [
-      "Surprise",
-      "Disgust"
-    ],
-    "baseline_labels": [
-      "Surprise"
-    ],
-    "is_exact_match": false,
-    "is_hit": true
-  },
-  {
     "id": "GO_LONG_0177",
     "text": "Haha. Tôi ước mình có thể nói rằng điều đó sẽ bớt đau đớn hơn theo thời gian nhưng không phải vậy. Xin lỗi anh bạn. F",
     "ground_truth_labels": [
@@ -4233,6 +4165,73 @@
     ],
     "baseline_labels": [
       "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0036",
+    "text": "Thực ra cũng chẳng quan trọng lắm đâu, vì kể từ khi BF có mặt trên hệ máy console, nó đã dần trở nên tệ hại rồi.:)",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Fear",
+      "Disgust",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Fear"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0046",
+    "text": "Thật bực mình. Và hoàn toàn là lỗi của hệ thống quản lý tại trường bạn trong việc xử lý vấn đề này. Chia buồn với bạn vì phải đối mặt với chuyện đó.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness",
+      "Anger"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": true,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0175",
+    "text": "Thật đáng buồn cho những người đã mắc bệnh sởi. Và cũng thật bức xúc với các bậc phụ huynh đã không cho con mình tiêm vắc-xin phòng bệnh sởi.",
+    "ground_truth_labels": [
+      "Anger",
+      "Sadness"
+    ],
+    "predicted_labels": [
+      "Sadness"
+    ],
+    "baseline_labels": [
+      "Sadness"
+    ],
+    "is_exact_match": false,
+    "is_hit": true
+  },
+  {
+    "id": "GO_LONG_0176",
+    "text": "Tôi rất hài lòng với những thay đổi này. Đồng thời cũng rất ngạc nhiên và vui mừng khi thấy ngành công nghiệp sữa đã không thể ép họ phải đưa thêm sữa vào thành phần sản phẩm.",
+    "ground_truth_labels": [
+      "Enjoyment",
+      "Surprise"
+    ],
+    "predicted_labels": [
+      "Surprise"
+    ],
+    "baseline_labels": [
+      "Surprise"
     ],
     "is_exact_match": false,
     "is_hit": true
