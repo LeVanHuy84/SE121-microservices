@@ -214,16 +214,12 @@ export class TrendingService {
           : 0;
 
       const finalScore = this.combiner.combine({
-        base,
+        base: item.baseScore,
         emotion,
         affinity: affinityScore,
         riskScore: emotionFeatures?.riskScore,
         recentNegativityScore: emotionFeatures?.recentNegativityScore,
       });
-
-      // this.logger.log(
-      //   `User ${userId} - Post ${item.postId} - Base score: ${1 / (1 + Math.exp(-(base - 200) / 50))}, Emotion: ${emotion}, Affinity: ${affinityScore}, Final score: ${finalScore}`,
-      // );
 
       return {
         postId: item.postId,
@@ -351,7 +347,7 @@ export class TrendingService {
   // ==============================
 
   private normalize(score: number): number {
-    return score / 5;
+    return this.combiner.normalizeBaseScore(score);
   }
 
   private parseZset(zset: string[]) {

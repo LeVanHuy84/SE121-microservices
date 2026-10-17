@@ -9,8 +9,6 @@ import {
   ShareSnapshot,
   ShareSnapshotSchema,
 } from "../mongo/schema/share-snapshot.schema";
-import { ClientsModule, Transport } from "@nestjs/microservices";
-import { ConfigModule, ConfigService } from "@nestjs/config";
 import { RankingModule } from "../ranking/ranking.module";
 import { UserSocialClientModule } from "../../post/client/user-social-client.module";
 import { ReactionModule } from "../../post/reaction/reaction.module";

@@ -47,7 +47,7 @@ export class PersonalFeedService {
   ): Promise<CursorPageResponse<FeedItemDTO>> {
     const limit = query.limit ?? 10;
     const cursor = query.cursor ? new Date(query.cursor) : null;
-    const fetchMultiplier = query.mainEmotion ? 1 : 2;
+    const fetchMultiplier = query.mainEmotion ? 4 : 2;
 
     /**
      * LOAD CANDIDATES (windowed)
@@ -59,7 +59,11 @@ export class PersonalFeedService {
     }
 
     if (query.mainEmotion) {
-      queryCond.emotionLabel = query.mainEmotion.toLowerCase();
+      queryCond.$or = [
+        { emotionLabel: query.mainEmotion.toLowerCase() },
+        { emotionLabel: { $exists: false } },
+        { emotionLabel: null },
+      ];
     }
 
     const candidates = await this.feedItemModel
@@ -155,9 +159,10 @@ export class PersonalFeedService {
       const post = postMap.get(item.postId);
 
       /**
-       * FALLBACK nếu thiếu post
+       * FALLBACK nếu thiếu post hoặc không khớp mainEmotion khi lọc
        */
       if (!post) {
+        if (mainEmotion) continue;
         result.push({
           itemId,
           score: recency * 0.7,
@@ -352,17 +357,18 @@ export class PersonalFeedService {
 
       if (!post) {
         this.logger.warn(
-          `[FEED] Missing POST postId=${item.postId} itemId=${id}`,
+          `[FEED] Missing POST postId=${item.postId} itemId=${id}. Removing orphan feed item.`,
         );
 
-        result.push({
-          id,
-          type: item.eventType,
-          item: {
-            id: item.refId,
-            status: "missing_post",
-          } as any,
-        });
+        if (item._id) {
+          this.feedItemModel
+            .deleteOne({ _id: item._id })
+            .catch((err) =>
+              this.logger.error(
+                `[FEED] Failed to clean up orphan feed item ${id}: ${err?.message}`,
+              ),
+            );
+        }
 
         continue;
       }
@@ -389,16 +395,19 @@ export class PersonalFeedService {
       const share = shareMap.get(item.refId);
 
       if (!share) {
-        this.logger.warn(`[FEED] Missing SHARE snapshot refId=${item.refId}`);
+        this.logger.warn(
+          `[FEED] Missing SHARE snapshot refId=${item.refId} itemId=${id}. Removing orphan feed item.`,
+        );
 
-        result.push({
-          id,
-          type: FeedEventType.SHARE,
-          item: {
-            id: item.refId,
-            status: "missing_share",
-          } as any,
-        });
+        if (item._id) {
+          this.feedItemModel
+            .deleteOne({ _id: item._id })
+            .catch((err) =>
+              this.logger.error(
+                `[FEED] Failed to clean up orphan feed item ${id}: ${err?.message}`,
+              ),
+            );
+        }
 
         continue;
       }
