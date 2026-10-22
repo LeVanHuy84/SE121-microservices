@@ -81,7 +81,8 @@ export class SnapshotMapper {
     };
   }
 
-  static toMediaItemDTOs(medias: MediaPreview[]): MediaItemDTO[] {
+  static toMediaItemDTOs(medias?: MediaPreview[]): MediaItemDTO[] {
+    if (!medias || !Array.isArray(medias)) return [];
     return medias.map((media) => {
       return this.toMediaItemDTO(media);
     });

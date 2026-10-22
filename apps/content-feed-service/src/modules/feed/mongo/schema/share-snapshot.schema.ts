@@ -28,14 +28,14 @@ export class ShareSnapshot {
   @Prop({ required: true, index: true })
   postId: string;
 
-  @Prop()
+  @Prop({ type: String, enum: Audience })
   audience?: Audience;
 
   // caption của share
-  @Prop()
+  @Prop({ type: String })
   content?: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: Date, required: true, index: true })
   shareCreatedAt: Date;
 
   @Prop({ type: StatsEmbedded, default: {} })

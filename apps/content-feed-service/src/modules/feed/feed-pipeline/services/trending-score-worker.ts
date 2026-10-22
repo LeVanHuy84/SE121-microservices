@@ -32,21 +32,30 @@ export class TrendingWorker {
     for (const postId of unique) {
       pipeline.hgetall(`post:meta:${postId}`);
       pipeline.hgetall(`post:engagement:${postId}`);
+      pipeline.hgetall(`post:rank:${postId}`);
     }
 
     const results = await pipeline.exec();
     if (!results) return;
 
     const updates = this.redis.pipeline();
-    const now = Date.now();
 
     for (let i = 0; i < unique.length; i++) {
       const postId = unique[i];
 
-      const meta = results[i * 2]?.[1] as RedisHash;
-      const engagement = results[i * 2 + 1]?.[1] as RedisHash;
+      const meta = results[i * 3]?.[1] as RedisHash;
+      const engagement = results[i * 3 + 1]?.[1] as RedisHash;
+      const rank = results[i * 3 + 2]?.[1] as RedisHash;
 
       if (!meta?.createdAt) continue;
+
+      // ------------------------------
+      // 🛡️ System-wide Safety Guardrail (Hard Drop HIGH mental health risk)
+      // ------------------------------
+      if (rank?.mentalHealthRiskLevel === "HIGH") {
+        updates.zrem("post:score", postId);
+        continue;
+      }
 
       // ------------------------------
       // 📊 Engagement
@@ -63,13 +72,34 @@ export class TrendingWorker {
       const raw = Math.log1p(weighted);
 
       const nowBucket = Math.floor(Date.now() / (60 * 1000)) * (60 * 1000); // làm tròn xuống phút gần nhất để tránh score nhảy liên tục mỗi giây
-
       const ageHours = (nowBucket - Number(meta.createdAt)) / (1000 * 60 * 60);
 
       const timeDecay = Math.exp(-ageHours / 48);
       const freshnessBoost = Math.exp(-ageHours / 12);
 
       let score = raw * timeDecay * (1 + 0.2 * freshnessBoost);
+
+      // ------------------------------
+      // 🛑 Rage-baiting Penalty & Toxicity Discount
+      // ------------------------------
+      let toxicity = 0;
+      if (rank?.scores) {
+        try {
+          const emotionScores =
+            typeof rank.scores === "string"
+              ? JSON.parse(rank.scores)
+              : rank.scores;
+          toxicity =
+            0.5 * (Number(emotionScores.anger) || 0) +
+            0.3 * (Number(emotionScores.fear) || 0) +
+            0.2 * (Number(emotionScores.disgust) || 0);
+        } catch {
+          toxicity = 0;
+        }
+      }
+
+      const penaltyMultiplier = Math.max(0.15, 1.0 - 1.2 * toxicity);
+      score = score * penaltyMultiplier;
 
       // ------------------------------
       // 🪶 Tie-break nhẹ
@@ -85,8 +115,7 @@ export class TrendingWorker {
       // ------------------------------
       // 🎭 Emotion ranking
       // ------------------------------
-      const rank = await this.redis.hgetall(`post:rank:${postId}`);
-      const emotionLabel = rank?.label;
+      const emotionLabel = rank?.label || rank?.primaryEmotion;
 
       if (emotionLabel) {
         updates.zadd(`post:emotion:${emotionLabel}:score`, score, postId);

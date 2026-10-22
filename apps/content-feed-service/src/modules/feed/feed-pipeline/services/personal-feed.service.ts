@@ -1,12 +1,16 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
 import { Model } from "mongoose";
+import { randomUUID } from "crypto";
 import {
   CursorPageResponse,
   FeedEventType,
   FeedItemDTO,
   PersonalFeedQuery,
   ReactionType,
+  RiskHintLevel,
   TargetType,
 } from "@repo/dtos";
 import {
@@ -28,6 +32,8 @@ import { UserClientService } from "../../../post/client/user-client.service";
 @Injectable()
 export class PersonalFeedService {
   private readonly logger = new Logger(PersonalFeedService.name);
+  private readonly SESSION_TTL = 1200; // 20 minutes TTL for ranking session
+  private readonly CANDIDATE_POOL_SIZE = 100;
 
   constructor(
     @InjectModel(FeedItem.name)
@@ -39,6 +45,7 @@ export class PersonalFeedService {
     private readonly affinityService: AffinityService,
     private readonly emotionService: EmotionFeatureService,
     private readonly userClient: UserClientService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async getUserFeed(
@@ -46,96 +53,102 @@ export class PersonalFeedService {
     query: PersonalFeedQuery,
   ): Promise<CursorPageResponse<FeedItemDTO>> {
     const limit = query.limit ?? 10;
-    const cursor = query.cursor ? new Date(query.cursor) : null;
-    const fetchMultiplier = query.mainEmotion ? 4 : 2;
+    const sessionData = PersonalFeedHelper.decodeSessionCursor(query.cursor);
 
-    /**
-     * LOAD CANDIDATES (windowed)
-     */
-    const queryCond: any = { userId };
+    // ========================================================
+    // 🔁 CASE A: SUBSEQUENT PAGE FROM REDIS SESSION SNAPSHOT
+    // ========================================================
+    if (sessionData) {
+      const sessionKey = this.getSessionKey(
+        userId,
+        query.mainEmotion,
+        sessionData.sessionId,
+      );
+      const totalSessionLength = await this.redis.llen(sessionKey);
 
-    if (cursor) {
-      queryCond.createdAt = { $lt: cursor };
+      if (totalSessionLength > 0 && sessionData.offset < totalSessionLength) {
+        this.logger.debug(
+          `[FEED SESSION HIT] user=${userId} session=${sessionData.sessionId} offset=${sessionData.offset}`,
+        );
+
+        const endOffset = sessionData.offset + limit - 1;
+        const pageItemIds = await this.redis.lrange(
+          sessionKey,
+          sessionData.offset,
+          endOffset,
+        );
+
+        const feedDTOs = await this.hydrateFeedPage(userId, pageItemIds);
+
+        const nextOffset = sessionData.offset + pageItemIds.length;
+        const hasMore = nextOffset < totalSessionLength;
+        const nextCursor = hasMore
+          ? PersonalFeedHelper.encodeSessionCursor(
+              sessionData.sessionId,
+              nextOffset,
+            )
+          : null;
+
+        return new CursorPageResponse(feedDTOs, nextCursor, hasMore);
+      }
+
+      if (totalSessionLength > 0 && sessionData.offset >= totalSessionLength) {
+        return new CursorPageResponse([], null, false);
+      }
+
+      this.logger.warn(
+        `[FEED SESSION MISS / EXPIRED] user=${userId} session=${sessionData.sessionId}. Fallback to new session.`,
+      );
     }
 
-    if (query.mainEmotion) {
-      queryCond.$or = [
-        { emotionLabel: query.mainEmotion.toLowerCase() },
-        { emotionLabel: { $exists: false } },
-        { emotionLabel: null },
-      ];
-    }
+    // ========================================================
+    // 🆕 CASE B: FIRST PAGE / NEW SESSION SNAPSHOT CREATION
+    // ========================================================
+    const sessionId = randomUUID();
 
     const candidates = await this.feedItemModel
-      .find(queryCond)
+      .find({ userId })
       .sort({ createdAt: -1 })
-      .limit(limit * fetchMultiplier)
+      .limit(this.CANDIDATE_POOL_SIZE)
       .lean();
 
-    this.logger.debug(`[FEED] candidates=${candidates.length} user=${userId}`);
+    this.logger.debug(
+      `[FEED CANDIDATE GENERATION] candidates=${candidates.length} user=${userId}`,
+    );
 
     if (candidates.length === 0) {
       return new CursorPageResponse([], null, false);
     }
 
-    /**
-     * RANK ALL (NO DROP)
-     */
+    // Stage 2: Heavy Adaptive Re-ranking & Dual-tier Safety Guardrails
     const ranked = await this.rankItems(userId, candidates, query.mainEmotion);
 
-    /**
-     * TAKE PAGE
-     */
-    const page = ranked.slice(0, limit);
+    if (ranked.length === 0) {
+      return new CursorPageResponse([], null, false);
+    }
 
-    const itemIds = page.map((x) => x.itemId);
+    // Persist ranked candidate IDs to Redis List
+    const sessionKey = this.getSessionKey(userId, query.mainEmotion, sessionId);
+    const rankedItemIds = ranked.map((x) => x.itemId);
 
-    /**
-     * LOAD FINAL ITEMS
-     */
-    const feedItems = await this.feedItemModel
-      .find({ _id: { $in: itemIds } })
-      .lean();
+    await this.redis.rpush(sessionKey, ...rankedItemIds);
+    await this.redis.expire(sessionKey, this.SESSION_TTL);
 
-    const itemMap = new Map(feedItems.map((i) => [i._id.toString(), i]));
+    // Slice First Page
+    const firstPageIds = rankedItemIds.slice(0, limit);
+    const feedDTOs = await this.hydrateFeedPage(userId, firstPageIds);
 
-    const orderedItems = itemIds
-      .map((id) => itemMap.get(id))
-      .filter(Boolean) as FeedItem[];
-
-    /**
-     * ENRICH
-     */
-    const { postMapFull, shareMapFull, postReactions, shareReactions } =
-      await this.enrichFinalItems(userId, orderedItems);
-
-    const data = this.buildFeedDTO(
-      orderedItems,
-      postMapFull,
-      shareMapFull,
-      postReactions,
-      shareReactions,
-    );
-
-    /**
-     * NEXT CURSOR
-     */
-    const lastCandidate = candidates[candidates.length - 1];
-
-    const nextCursor = lastCandidate?.createdAt
-      ? lastCandidate.createdAt.toISOString()
+    const hasMore = limit < rankedItemIds.length;
+    const nextCursor = hasMore
+      ? PersonalFeedHelper.encodeSessionCursor(sessionId, limit)
       : null;
 
-    return new CursorPageResponse(
-      data,
-      nextCursor,
-      candidates.length === limit * fetchMultiplier,
-    );
+    return new CursorPageResponse(feedDTOs, nextCursor, hasMore);
   }
 
-  /**
-   * SIMPLE RANK (NO HARD FILTER)
-   */
+  // ========================================================
+  // 🧠 RANKING & DUAL-TIER SAFETY GUARDRAILS
+  // ========================================================
   private async rankItems(
     userId: string,
     items: FeedItem[],
@@ -148,6 +161,8 @@ export class PersonalFeedService {
       this.affinityService.getAffinity(userId),
     ]);
 
+    const distress = this.emotionService.calcDistress(emotionFeatures);
+
     const result: { itemId: string; score: number }[] = [];
 
     for (const item of items) {
@@ -155,12 +170,8 @@ export class PersonalFeedService {
       if (!itemId) continue;
 
       const recency = PersonalFeedHelper.calcRecency(item.createdAt);
-
       const post = postMap.get(item.postId);
 
-      /**
-       * FALLBACK nếu thiếu post hoặc không khớp mainEmotion khi lọc
-       */
       if (!post) {
         if (mainEmotion) continue;
         result.push({
@@ -168,6 +179,31 @@ export class PersonalFeedService {
           score: recency * 0.7,
         });
         continue;
+      }
+
+      // 🛡️ TIER 1 SAFETY GUARDRAIL: System-wide Hard Drop (Mental Health Risk HIGH)
+      const mentalHealthRiskLevel =
+        post.emotionFeature?.mentalHealthRiskLevel || (post as any).mentalHealthRiskLevel;
+
+      if (mentalHealthRiskLevel === "HIGH" || mentalHealthRiskLevel === "high") {
+        this.logger.warn(
+          `[SAFETY GUARDRAIL] Dropped HIGH mental health risk post: postId=${post.postId}`,
+        );
+        continue;
+      }
+
+      // 🛡️ TIER 2 SAFETY GUARDRAIL: Contextual Protection for Distressed User
+      if (distress > 0.5) {
+        if (post.hasWarning) {
+          continue;
+        }
+
+        const scores = post.emotionFeature?.scores || {};
+        const anger = Number(scores.anger) || 0;
+        const fear = Number(scores.fear) || 0;
+        if (anger + fear > 0.5) {
+          continue;
+        }
       }
 
       const emotionScore = emotionFeatures
@@ -185,11 +221,19 @@ export class PersonalFeedService {
 
       const engagement = PersonalFeedHelper.calcEngagement(post.stats);
 
-      const score = PersonalFeedHelper.calcFinalScore({
+      const postScores = post.emotionFeature?.scores || {};
+      const toxicity =
+        0.5 * (Number(postScores.anger) || 0) +
+        0.3 * (Number(postScores.fear) || 0) +
+        0.2 * (Number(postScores.disgust) || 0);
+
+      const score = PersonalFeedHelper.calcAdaptiveScore({
         recency,
         emotion: emotionScore,
         affinity: affinityScore,
         engagement,
+        distress,
+        toxicity,
       });
 
       result.push({
@@ -198,13 +242,41 @@ export class PersonalFeedService {
       });
     }
 
-    /**
-     * SORT ONLY (KHÔNG DROP)
-     */
     return result.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return b.itemId.localeCompare(a.itemId);
     });
+  }
+
+  // ========================================================
+  // 💧 HYDRATION & ENRICHMENT PIPELINE
+  // ========================================================
+  private async hydrateFeedPage(
+    userId: string,
+    itemIds: string[],
+  ): Promise<FeedItemDTO[]> {
+    if (!itemIds.length) return [];
+
+    const feedItems = await this.feedItemModel
+      .find({ _id: { $in: itemIds } })
+      .lean();
+
+    const itemMap = new Map(feedItems.map((i) => [i._id.toString(), i]));
+
+    const orderedItems = itemIds
+      .map((id) => itemMap.get(id))
+      .filter(Boolean) as FeedItem[];
+
+    const { postMapFull, shareMapFull, postReactions, shareReactions } =
+      await this.enrichFinalItems(userId, orderedItems);
+
+    return this.buildFeedDTO(
+      orderedItems,
+      postMapFull,
+      shareMapFull,
+      postReactions,
+      shareReactions,
+    );
   }
 
   private async loadLightPosts(items: FeedItem[], mainEmotion?: string) {
@@ -218,7 +290,14 @@ export class PersonalFeedService {
     return new Map(posts.map((p) => [p.postId, p]));
   }
 
-  // ===== giữ nguyên enrich & build DTO của m =====
+  private getSessionKey(
+    userId: string,
+    mainEmotion?: string,
+    sessionId?: string,
+  ): string {
+    const emotion = mainEmotion?.toLowerCase() || "all";
+    return `feed:session:${userId}:${emotion}:${sessionId}`;
+  }
 
   /**
    * ENRICH FINAL ITEMS ONLY
@@ -382,7 +461,7 @@ export class PersonalFeedService {
           type: FeedEventType.POST,
           item: SnapshotMapper.toPostSnapshotDTO(
             post,
-            postReactions[item.postId], // dùng postId
+            postReactions[item.postId],
           ),
         });
 

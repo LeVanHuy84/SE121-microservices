@@ -1,24 +1,26 @@
-import { InjectRedis } from "@nestjs-modules/ioredis";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { ClientProxy } from "@nestjs/microservices";
+import { InjectRedis } from "@nestjs-modules/ioredis";
+import Redis from "ioredis";
+import { randomUUID } from "crypto";
 import {
   CursorPageResponse,
-  ReactionType,
+  FeedEventType,
+  FeedItemDTO,
   RiskHintLevel,
   TargetType,
   TrendingQuery,
 } from "@repo/dtos";
-import Redis from "ioredis";
-import { firstValueFrom } from "rxjs";
-import { SnapshotMapper } from "src/common/snapshot.mapper";
-import { AffinityService } from "src/modules/affinity/affinity.service";
-import { EmotionFeatureService } from "src/modules/ranking/services/emotion-feature.service";
-import { ScoreCombinerService } from "src/modules/ranking/services/score-combiner.service";
 import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
+import { SnapshotMapper } from "src/common/snapshot.mapper";
+import { EmotionFeatureService } from "../../ranking/services/emotion-feature.service";
+import { AffinityService } from "../../affinity/affinity.service";
+import { ScoreCombinerService } from "../../ranking/services/score-combiner.service";
 import { ReactionService } from "../../../post/reaction/reaction.service";
-
+import { ClientProxy } from "@nestjs/microservices";
+import { firstValueFrom } from "rxjs";
 import { UserClientService } from "../../../post/client/user-client.service";
 import { MICROSERVICES_CLIENT } from "src/constant";
+import { PersonalFeedHelper } from "../helpers/personal-feed.helper";
 
 type RankFeature = {
   label: string;
@@ -27,6 +29,7 @@ type RankFeature = {
   confidence: number;
   dominantScene?: string;
   riskHintLevel?: RiskHintLevel;
+  mentalHealthRiskLevel?: string;
   authorId?: string;
 };
 
@@ -44,6 +47,8 @@ type CursorPayload = {
 @Injectable()
 export class TrendingService {
   private readonly DEFAULT_PAGE_SIZE = 10;
+  private readonly SESSION_TTL = 1200; // 20 minutes in seconds
+  private readonly TRENDING_CANDIDATE_POOL = 100;
   private readonly logger = new Logger(TrendingService.name);
 
   constructor(
@@ -61,58 +66,92 @@ export class TrendingService {
   async getTrendingPosts(
     query: TrendingQuery,
     userId?: string,
-  ): Promise<CursorPageResponse<any>> {
-    const { cursor, limit = this.DEFAULT_PAGE_SIZE, mainEmotion } = query;
+  ): Promise<CursorPageResponse<FeedItemDTO>> {
+    const limit = query.limit ?? this.DEFAULT_PAGE_SIZE;
+    const sessionData = PersonalFeedHelper.decodeSessionCursor(query.cursor);
 
-    const candidateSize = mainEmotion ? limit : Math.max(limit * 10, 100);
+    // ========================================================
+    // 🔁 CASE A: SUBSEQUENT PAGE FROM REDIS SESSION SNAPSHOT
+    // ========================================================
+    if (sessionData) {
+      const sessionKey = `trending:session:${sessionData.sessionId}`;
+      const totalLen = await this.redis.llen(sessionKey);
 
-    const key = mainEmotion
-      ? `post:emotion:${mainEmotion.toLocaleLowerCase()}:score`
-      : "post:score";
+      if (totalLen > 0 && sessionData.offset < totalLen) {
+        this.logger.debug(
+          `[TRENDING SESSION HIT] session=${sessionData.sessionId} offset=${sessionData.offset}`,
+        );
 
-    // ==============================
-    // 1️⃣ Decode cursor (BASE ONLY)
-    // ==============================
-    let cursorData: CursorPayload | null = null;
+        const pageIds = await this.redis.lrange(
+          sessionKey,
+          sessionData.offset,
+          sessionData.offset + limit - 1,
+        );
 
-    if (cursor) {
-      cursorData = this.decodeCursor(cursor);
+        const items = await this.hydrateTrendingPage(pageIds, userId);
+
+        const nextOffset = sessionData.offset + pageIds.length;
+        const hasMore = nextOffset < totalLen;
+        const nextCursor = hasMore
+          ? PersonalFeedHelper.encodeSessionCursor(
+              sessionData.sessionId,
+              nextOffset,
+            )
+          : null;
+
+        return new CursorPageResponse(items, nextCursor, hasMore);
+      }
+
+      if (totalLen > 0 && sessionData.offset >= totalLen) {
+        return new CursorPageResponse([], null, false);
+      }
+
+      this.logger.warn(
+        `[TRENDING SESSION MISS] session=${sessionData.sessionId}. Fallback to new session.`,
+      );
     }
 
-    // ==============================
-    // 2️⃣ Query Redis (SOURCE OF TRUTH)
-    // ==============================
-    const max = cursorData ? `(${cursorData.baseScore}` : "+inf";
+    // ========================================================
+    // 🆕 CASE B: FIRST PAGE / NEW TRENDING SESSION SNAPSHOT
+    // ========================================================
+    const sessionId = randomUUID();
+    const mainEmotion = query.mainEmotion?.toLowerCase();
 
+    let key = "post:score";
+    if (mainEmotion) {
+      key = `post:emotion:${mainEmotion}:score`;
+    }
+
+    // Lấy Top 100 bài ứng viên từ Redis ZSET
     const zset = await this.redis.zrevrangebyscore(
       key,
-      max,
+      "+inf",
       "-inf",
       "WITHSCORES",
       "LIMIT",
       0,
-      candidateSize,
+      this.TRENDING_CANDIDATE_POOL,
     );
 
     const candidatesRaw = this.parseZset(zset);
 
-    console.log("Candidates raw count:", candidatesRaw.length);
+    this.logger.debug(
+      `[Trending] Initial ZSET candidates count: ${candidatesRaw.length}`,
+    );
 
     if (!candidatesRaw.length) {
       return new CursorPageResponse([], null, false);
     }
 
     // ==============================
-    // 3️⃣ Load rank features
+    // 3️⃣ Load rank features in batch
     // ==============================
     const pipeline = this.redis.pipeline();
-
     for (const c of candidatesRaw) {
       pipeline.hgetall(`post:rank:${c.postId}`);
     }
 
     const rankResults = await pipeline.exec();
-
     const candidates: Candidate[] = [];
 
     candidatesRaw.forEach((c, idx) => {
@@ -120,7 +159,6 @@ export class TrendingService {
         | Record<string, string>
         | undefined;
 
-      // Rank feature chưa tồn tại → fallback về base score
       if (!rank || !rank.scores) {
         candidates.push({
           postId: c.postId,
@@ -132,7 +170,6 @@ export class TrendingService {
             confidence: 0,
           },
         });
-
         return;
       }
 
@@ -147,11 +184,11 @@ export class TrendingService {
             confidence: Number(rank.confidence || 0),
             dominantScene: rank.dominantScene,
             riskHintLevel: rank.riskHintLevel as RiskHintLevel,
+            mentalHealthRiskLevel: rank.mentalHealthRiskLevel,
             authorId: rank.authorId,
           },
         });
       } catch {
-        // Corrupted rank feature → fallback về base score
         candidates.push({
           postId: c.postId,
           baseScore: c.score,
@@ -165,35 +202,57 @@ export class TrendingService {
       }
     });
 
-    this.logger.debug(
-      `[Trending] Redis candidates=${candidatesRaw.length}, valid candidates=${candidates.length}`,
-    );
-
-    if (!candidates.length) {
-      return new CursorPageResponse([], null, false);
-    }
-
     // ==============================
-    // 4️⃣ User context
+    // 4️⃣ User Context & Emotion Features
     // ==============================
     const [emotionFeatures, affinity] = await Promise.all([
       userId ? this.emotionService.getEmotionFeatures(userId) : null,
       userId ? this.affinityService.getAffinity(userId) : null,
     ]);
 
-    this.logger.debug(
-      `User ${userId} - Emotion features: ${JSON.stringify(
-        emotionFeatures,
-      )}, Affinity: ${JSON.stringify(affinity)}`,
-    );
+    const userDistress = emotionFeatures
+      ? this.emotionService.calcDistress(emotionFeatures)
+      : 0;
 
     // ==============================
-    // 5️⃣ Re-rank (ONLY FOR DISPLAY)
+    // 5️⃣ Safety Guardrails Filter
     // ==============================
-    const scored = candidates.map((item) => {
+    const safeCandidates = candidates.filter((item) => {
+      // 🛡️ Tier 1: System-wide Hard Drop (Mental Health Risk HIGH)
+      if (
+        item.feature.mentalHealthRiskLevel === "HIGH" ||
+        item.feature.mentalHealthRiskLevel === "high" ||
+        item.feature.riskHintLevel === RiskHintLevel.HIGH
+      ) {
+        return false;
+      }
+
+      // 🛡️ Tier 2: Contextual Safety Guardrail for Distressed Users
+      if (userDistress > 0.5) {
+        if (item.feature.riskHintLevel === RiskHintLevel.MEDIUM) {
+          return false;
+        }
+        const anger = Number(item.feature.scores?.anger) || 0;
+        const fear = Number(item.feature.scores?.fear) || 0;
+        if (anger + fear > 0.5) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (!safeCandidates.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
+    // ==============================
+    // 6️⃣ Re-rank (Personalized or Base)
+    // ==============================
+    const scored = safeCandidates.map((item) => {
       const base = this.normalize(item.baseScore);
 
-      if (mainEmotion) {
+      if (mainEmotion || !userId) {
         return {
           postId: item.postId,
           finalScore: base,
@@ -229,7 +288,7 @@ export class TrendingService {
     });
 
     // ==============================
-    // 6️⃣ Sort by FINAL SCORE (DISPLAY ONLY)
+    // 7️⃣ Sort by Final Score DESC
     // ==============================
     scored.sort((a, b) => {
       if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
@@ -237,142 +296,116 @@ export class TrendingService {
     });
 
     // ==============================
-    // 7️⃣ Take page
+    // 8️⃣ Persist to Redis Session List
     // ==============================
-    const page = scored.slice(0, limit);
+    const sessionKey = `trending:session:${sessionId}`;
+    const rankedPostIds = scored.map((s) => s.postId);
 
-    if (!page.length) {
-      return new CursorPageResponse([], null, false);
-    }
+    await this.redis.rpush(sessionKey, ...rankedPostIds);
+    await this.redis.expire(sessionKey, this.SESSION_TTL);
 
     // ==============================
-    // 8️⃣ Hydrate DB
+    // 9️⃣ Slice Page 1 & Hydrate
     // ==============================
-    const topIds = page.map((p) => p.postId);
+    const firstPageIds = rankedPostIds.slice(0, limit);
+    const items = await this.hydrateTrendingPage(firstPageIds, userId);
+
+    const hasMore = limit < rankedPostIds.length;
+    const nextCursor = hasMore
+      ? PersonalFeedHelper.encodeSessionCursor(sessionId, limit)
+      : null;
+
+    return new CursorPageResponse(items, nextCursor, hasMore);
+  }
+
+  // ==============================
+  // 💧 HYDRATION PIPELINE
+  // ==============================
+  private async hydrateTrendingPage(
+    topIds: string[],
+    userId?: string,
+  ): Promise<FeedItemDTO[]> {
+    if (!topIds.length) return [];
 
     const posts = await this.snapshotRepo.findPostsByIds(topIds);
-
     const postMap = new Map(posts.map((p) => [p.postId, p]));
 
     const orderedPosts = topIds
       .map((id) => postMap.get(id))
       .filter((p): p is any => !!p);
 
-    const groupIds = new Set<string>();
-    const userIds = new Set<string>();
+    const [reactions, groups, users] = await Promise.all([
+      userId
+        ? this.reactionService.getReactedTypesBatch(
+            userId,
+            TargetType.POST,
+            orderedPosts.map((p) => p.postId),
+          )
+        : Promise.resolve({}),
+      this.fetchGroups(orderedPosts),
+      this.fetchUsers(orderedPosts),
+    ]);
 
-    for (const p of orderedPosts) {
-      if (p.groupId) groupIds.add(p.groupId);
-      if (p.userId) userIds.add(p.userId);
-    }
-
-    const groupMap = new Map<string, any>();
-    let userMap: Record<string, any> = {};
-
-    const enrichmentPromises: Promise<any>[] = [];
-
-    if (groupIds.size > 0) {
-      enrichmentPromises.push(
-        firstValueFrom(
-          this.userSocialClient.send<any[]>(
-            "get_group_info_batch",
-            Array.from(groupIds),
-          ),
-        ).then((groups) => {
-          for (const g of groups) {
-            groupMap.set(g.id, g);
-          }
-        }),
-      );
-    }
-
-    if (userIds.size > 0) {
-      enrichmentPromises.push(
-        this.userClient.getUserInfos(Array.from(userIds)).then((users) => {
-          userMap = users;
-        }),
-      );
-    }
-
-    if (enrichmentPromises.length > 0) {
-      await Promise.all(enrichmentPromises);
-    }
-
-    for (const post of orderedPosts) {
+    return orderedPosts.map((post) => {
       if (post.groupId) {
-        post.group = groupMap.get(post.groupId);
+        post.group = groups.get(post.groupId);
       }
       if (post.userId) {
-        post.user = userMap[post.userId];
+        post.user = users[post.userId];
       }
-    }
 
-    // ==============================
-    // 9️⃣ Reactions
-    // ==============================
-    let reactions: Record<string, ReactionType> = {};
+      return {
+        id: post.postId,
+        type: FeedEventType.POST,
+        item: SnapshotMapper.toPostSnapshotDTO(post, reactions[post.postId]),
+      };
+    });
+  }
 
-    if (userId && orderedPosts.length) {
-      try {
-        reactions = await this.reactionService.getReactedTypesBatch(
-          userId,
-          TargetType.POST,
-          orderedPosts.map((p) => p.postId),
-        );
-      } catch {}
-    }
-
-    const dtoPosts = SnapshotMapper.toPostSnapshotDTOs(orderedPosts, reactions);
-
-    // ==============================
-    // 🔟 Next cursor (BASE ONLY)
-    // ==============================
-    let nextCursor: string | null = null;
-
-    if (candidatesRaw.length === candidateSize) {
-      const last = candidatesRaw[candidatesRaw.length - 1];
-
-      nextCursor = this.encodeCursor(last.score, last.postId);
-    }
-
-    return new CursorPageResponse(
-      dtoPosts,
-      nextCursor,
-      candidatesRaw.length === candidateSize,
+  // ==============================
+  // 👥 ENRICHMENT HELPERS
+  // ==============================
+  private async fetchGroups(posts: any[]) {
+    const groupIds = Array.from(
+      new Set(posts.map((p) => p.groupId).filter(Boolean)),
     );
+
+    if (!groupIds.length) return new Map();
+
+    const groups = await firstValueFrom(
+      this.userSocialClient.send<any[]>("get_group_info_batch", groupIds),
+    );
+
+    return new Map(groups.map((g) => [g.id, g]));
+  }
+
+  private async fetchUsers(posts: any[]) {
+    const userIds = Array.from(
+      new Set(posts.map((p) => p.userId).filter(Boolean)),
+    );
+
+    if (!userIds.length) return {};
+
+    return this.userClient.getUserInfos(userIds);
   }
 
   // ==============================
-  // Utils
+  // 🧮 HELPERS
   // ==============================
-
-  private normalize(score: number): number {
-    return this.combiner.normalizeBaseScore(score);
-  }
-
-  private parseZset(zset: string[]) {
+  private parseZset(zset: string[]): { postId: string; score: number }[] {
     const result: { postId: string; score: number }[] = [];
 
     for (let i = 0; i < zset.length; i += 2) {
       result.push({
         postId: zset[i],
-        score: Number(zset[i + 1]),
+        score: parseFloat(zset[i + 1]),
       });
     }
 
     return result;
   }
 
-  private encodeCursor(baseScore: number, postId: string): string {
-    return `${baseScore}_${postId}`;
-  }
-
-  private decodeCursor(cursor: string): CursorPayload {
-    const [baseScore, postId] = cursor.split("_");
-
-    return {
-      baseScore: Number(baseScore),
-      postId,
-    };
+  private normalize(score: number): number {
+    return this.combiner.normalizeBaseScore(score);
   }
 }

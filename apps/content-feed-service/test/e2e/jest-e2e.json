@@ -1,0 +1,27 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": "feed\\.e2e-spec\\.ts$",
+  "testTimeout": 180000,
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^src/entities/(.*)$": [
+      "<rootDir>/../../src/modules/post/entities/$1",
+      "<rootDir>/../../src/modules/media/entities/$1"
+    ],
+    "^src/modules/(.*)$": [
+      "<rootDir>/../../src/modules/post/$1",
+      "<rootDir>/../../src/modules/feed/$1",
+      "<rootDir>/../../src/modules/media/$1",
+      "<rootDir>/../../src/modules/logging/$1",
+      "<rootDir>/../../src/modules/notification/$1"
+    ],
+    "^src/common/(.*)$": "<rootDir>/../../src/modules/feed/common/$1",
+    "^src/utils/(.*)$": "<rootDir>/../../src/modules/feed/utils/$1",
+    "^src/constants$": "<rootDir>/../../src/modules/feed/constants",
+    "^src/(.*)$": "<rootDir>/../../src/$1"
+  }
+}
