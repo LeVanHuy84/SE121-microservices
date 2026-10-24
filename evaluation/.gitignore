@@ -15,14 +15,28 @@ __pycache__/
 
 # Large weights and model checkpoints (500MB+)
 weights/
+chrome_profile/
 *.bin
 *.safetensors
 *.onnx
 
 # Data directory (JSON datasets generated during pipeline execution)
 data/
+emotion/data/
+emotion/collection-data/
 *.json
 !results/*.json
+!**/results/*.json
+!emotion/results/*.json
+
+# Image experiment benchmark datasets (Gold standard & annotator reviews)
+!image-experiment/data/
+image-experiment/data/**
+!image-experiment/data/benchmark_gold_clean.json
+!image-experiment/data/multimodal_gold_test_set.json
+!image-experiment/data/vlm_dataset_review_huy_le.json
+!image-experiment/data/vlm_dataset_review_quach_vinh_co.json
+!image-experiment/data/cohen_kappa_report.md
 
 # Log files
 *.log

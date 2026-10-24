@@ -6,7 +6,7 @@ Thư mục này chứa toàn bộ pipeline tự động hóa quy trình thu th�
 
 ## 🏗️ Kiến Trúc Các Script Trong Pipeline
 
-Pipeline được thiết kế đồng bộ với `evaluation/pipeline` của hệ thống Emotion Analysis (sử dụng 100% LLM Translation + Instant Checkpoint Save):
+Pipeline được thiết kế đồng bộ với `evaluation/emotion/pipeline` của hệ thống Emotion Analysis (sử dụng 100% LLM Translation + Instant Checkpoint Save):
 
 ```
 evaluation/moderation/pipeline/

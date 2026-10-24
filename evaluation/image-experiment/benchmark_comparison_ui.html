@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bảng Đối Soát Benchmark VLM vs Chuẩn Vàng & Đối Chiếu Annotators — SE121 KLTN</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --warning: #d97706;
+      --warning-bg: #fef3c7;
+      --danger: #dc2626;
+      --danger-bg: #fee2e2;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 14px 20px; min-height: 100vh; }
+
+    header { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+    .header-title { font-size: 1.2rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+    .header-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Dashboard Metrics */
+    .metrics-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .metric-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 14px; cursor: pointer; transition: all 0.15s; }
+    .metric-card:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.05); }
+    .metric-card.active-filter { border-color: var(--primary); background: #eff6ff; }
+    .metric-title { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+    .metric-num { font-size: 1.35rem; font-weight: 800; color: #1e293b; display: flex; align-items: baseline; gap: 6px; }
+    .metric-pct { font-size: 0.8rem; font-weight: 700; }
+
+    /* Filter Controls Toolbar */
+    .filters-toolbar { background: var(--card); border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .filter-item { display: flex; align-items: center; gap: 6px; }
+    .filter-item label { font-size: 0.75rem; font-weight: 700; color: #334155; white-space: nowrap; }
+    .filter-select { padding: 5px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 600; color: #1e293b; background: #fff; outline: none; cursor: pointer; }
+    .filter-select:focus { border-color: var(--primary); }
+    .search-input { width: 220px; padding: 5px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-family: monospace; outline: none; }
+    .search-input:focus { border-color: var(--primary); }
+
+    /* Main Grid Layout */
+    .main-grid { display: grid; grid-template-columns: 320px 1fr; gap: 14px; }
+    @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* List Column */
+    .list-panel { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; height: calc(100vh - 240px); display: flex; flex-direction: column; overflow: hidden; }
+    .list-header-info { padding: 8px 12px; background: #f1f5f9; border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: #475569; display: flex; justify-content: space-between; }
+    .list-scroll { flex: 1; overflow-y: auto; }
+    .list-item { padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+    .list-item:hover { background: #f8fafc; }
+    .list-item.active { background: #eff6ff; border-left: 4px solid var(--primary); }
+    .list-item.is-correct { border-left: 4px solid #16a34a; }
+    .list-item.is-wrong { border-left: 4px solid #dc2626; background: #fffdfd; }
+    .list-item.is-wrong.active { background: #fee2e2; border-left: 4px solid #b91c1c; }
+    
+    .item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+    .item-id { font-size: 0.8rem; font-weight: 800; font-family: monospace; color: #1e293b; }
+    .item-badges { display: flex; gap: 4px; align-items: center; }
+    .badge { font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+    .badge-correct { background: var(--success-bg); color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-wrong { background: var(--danger-bg); color: #b91c1c; border: 1px solid #fecaca; }
+    .badge-annotator-diff { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .badge-annotator-agreed { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+    .item-preview { font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Detail View */
+    .detail-panel { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; padding: 14px 18px; height: calc(100vh - 240px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .detail-nav-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid var(--border); padding-bottom: 8px; }
+    .detail-split { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 1250px) { .detail-split { grid-template-columns: 290px 1fr; } }
+    @media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
+
+    .detail-img-box { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); background: #000; height: 230px; display: flex; justify-content: center; align-items: center; }
+    .detail-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .text-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; margin-top: 8px; }
+    .text-card-title { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 2px; }
+    .text-vi { font-size: 0.88rem; font-weight: 600; color: #0f172a; line-height: 1.35; margin-bottom: 6px; }
+    .text-en { font-size: 0.78rem; color: #475569; font-style: italic; line-height: 1.3; }
+
+    /* 4-Way Comparison Table (A1, A2, Gold, VLM) */
+    .four-way-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 10px; }
+    .four-way-table th { background: #f1f5f9; text-transform: uppercase; font-size: 0.7rem; font-weight: 700; color: #475569; padding: 6px 8px; border: 1px solid var(--border); text-align: left; }
+    .four-way-table td { padding: 6px 8px; border: 1px solid var(--border); vertical-align: middle; }
+    .row-annotator-diff { background: #fffcf8; }
+
+    /* Side-by-side Comparison Box */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .compare-col { border-radius: 8px; border: 1.5px solid var(--border); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .compare-col.col-gold { background: #fbfdff; border-color: #bfdbfe; }
+    .compare-col.col-vlm { background: #fdfdfe; border-color: #cbd5e1; }
+    .compare-col.col-vlm.is-correct { border-color: #86efac; background: #fcfdfc; }
+    .compare-col.col-vlm.is-wrong { border-color: #fca5a5; background: #fffcfc; }
+
+    .compare-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .compare-title { font-size: 0.86rem; font-weight: 800; }
+    .col-gold .compare-title { color: #1d4ed8; }
+    .col-vlm .compare-title { color: #334155; }
+
+    .emotion-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.88rem; font-weight: 800; text-transform: uppercase; }
+    .emo-joy { background: #fef08a; color: #854d0e; border: 1px solid #fde047; }
+    .emo-sadness { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+    .emo-anger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .emo-fear { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+    .emo-disgust { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .emo-surprise { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+    .emo-neutral { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+
+    /* Score Distribution Bar Chart */
+    .scores-box { margin-top: 6px; background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+    .score-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.72rem; }
+    .score-label { width: 55px; font-weight: 700; text-transform: uppercase; font-size: 0.68rem; color: #475569; }
+    .score-bar-bg { flex: 1; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+    .score-val { width: 35px; text-align: right; font-family: monospace; font-weight: 700; color: #334155; }
+
+    .btn-nav { padding: 5px 12px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+    .btn-nav:hover { background: #e2e8f0; }
+
+    /* Fullscreen Mode */
+    body.fullscreen-mode { padding: 4px 10px; overflow-y: hidden; }
+    body.fullscreen-mode header,
+    body.fullscreen-mode .metrics-bar { display: none !important; }
+    body.fullscreen-mode .filters-toolbar { margin-bottom: 6px; padding: 6px 10px; }
+    body.fullscreen-mode .list-panel,
+    body.fullscreen-mode .detail-panel { height: calc(100vh - 58px) !important; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <div class="header-title">
+        <span>🔬 BẢNG ĐỐI SOÁT & PHÂN TÍCH LỖI BENCHMARK VLM</span>
+      </div>
+      <div class="header-sub">So sánh VLM Prediction với Chuẩn Vàng & Kiểm tra Mức độ Bất đồng giữa Người dán nhãn (SE121 Gold Test Set)</div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button onclick="toggleFullscreen()" id="btnFs" style="padding:6px 12px; background:#eff6ff; color:#1d4ed8; font-size:0.8rem; font-weight:700; border-radius:6px; border:1px solid #bfdbfe; cursor:pointer;">⛶ Toàn Màn Hình</button>
+      <button onclick="exportMisclassifiedJson()" style="padding:6px 12px; background:#fef2f2; color:#b91c1c; font-size:0.8rem; font-weight:700; border-radius:6px; border:1px solid #fecaca; cursor:pointer;" title="Xuất toàn bộ danh sách mẫu VLM đoán sai sang file JSON">📥 Xuất Mẫu Bị Sai (JSON)</button>
+      <button onclick="loadAllData()" style="padding:6px 12px; background:#f1f5f9; color:#334155; font-size:0.8rem; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;">🔄 Nạp lại</button>
+    </div>
+  </header>
+
+  <!-- 1. DASHBOARD METRICS CARDS -->
+  <div class="metrics-bar">
+    <div class="metric-card" onclick="setQuickFilter('all', 'all')" id="cardTotal">
+      <div class="metric-title">Tổng Mẫu Benchmark</div>
+      <div class="metric-num"><span id="mTotal">0</span></div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Tập kiểm thử chuẩn sạch</div>
+    </div>
+    <div class="metric-card" onclick="setQuickFilter('correct', 'all')" id="cardCorrect" style="border-color:#86efac;">
+      <div class="metric-title" style="color:#15803d;">VLM Dự Đoán Đúng (Match)</div>
+      <div class="metric-num" style="color:#15803d;">
+        <span id="mCorrect">0</span>
+        <span class="metric-pct" id="mAccuracy">0%</span>
+      </div>
+      <div style="font-size:0.75rem; color:#166534; margin-top:2px;">Độ chính xác toàn thể (Acc)</div>
+    </div>
+    <div class="metric-card" onclick="setQuickFilter('wrong', 'all')" id="cardWrong" style="border-color:#fca5a5; background:#fffcfc;">
+      <div class="metric-title" style="color:#b91c1c;">VLM Bị Sai / Lệch Nhãn</div>
+      <div class="metric-num" style="color:#b91c1c;">
+        <span id="mWrong">0</span>
+        <span class="metric-pct" id="mErrorRate">0%</span>
+      </div>
+      <div style="font-size:0.75rem; color:#991b1b; margin-top:2px;">Cần tập trung phân tích lỗi</div>
+    </div>
+    <div class="metric-card" onclick="setQuickFilter('all', 'diff')" id="cardAnnotatorDiff" style="border-color:#fde68a;">
+      <div class="metric-title" style="color:#b45309;">Annotators Bất Đồng (Disputed)</div>
+      <div class="metric-num" style="color:#b45309;">
+        <span id="mAnnotatorDiff">0</span>
+        <span class="metric-pct" id="mDiffRate">0%</span>
+      </div>
+      <div style="font-size:0.75rem; color:#92400e; margin-top:2px;">Mẫu từng qua hòa giải thủ công</div>
+    </div>
+    <div class="metric-card" onclick="setQuickFilter('all', 'agreed')" id="cardAnnotatorAgreed" style="border-color:#bfdbfe;">
+      <div class="metric-title" style="color:#1d4ed8;">Annotators Khớp 100% (Agreed)</div>
+      <div class="metric-num" style="color:#1d4ed8;">
+        <span id="mAnnotatorAgreed">0</span>
+        <span class="metric-pct" id="mAgreedRate">0%</span>
+      </div>
+      <div style="font-size:0.75rem; color:#1e40af; margin-top:2px;">2 Annotator ban đầu đồng thuận</div>
+    </div>
+  </div>
+
+  <!-- 2. FILTERS & SEARCH TOOLBAR -->
+  <div class="filters-toolbar">
+    <!-- Filter 1: VLM Match Status -->
+    <div class="filter-item">
+      <label for="filterMatch">1. Kết quả VLM:</label>
+      <select id="filterMatch" class="filter-select" onchange="applyFilters()">
+        <option value="all">📁 Tất cả kết quả (Đúng & Sai)</option>
+        <option value="wrong" selected>❌ Chỉ mẫu VLM BỊ SAI / LỆCH NHÃN (GT ≠ VLM)</option>
+        <option value="correct">✅ Chỉ mẫu VLM ĐOÁN ĐÚNG (GT == VLM)</option>
+      </select>
+    </div>
+
+    <!-- Filter 2: Annotator Agreement in multimodal_gold_test_set.json -->
+    <div class="filter-item">
+      <label for="filterAgreement">2. Đối chiếu Annotators (A1 vs A2):</label>
+      <select id="filterAgreement" class="filter-select" onchange="applyFilters()">
+        <option value="all">📁 Tất cả (Khớp & Bất đồng)</option>
+        <option value="diff">⚡ Chỉ mẫu BẤT ĐỒNG (Manually Resolved / Disputed)</option>
+        <option value="agreed">✅ Chỉ mẫu ĐỒNG THUẬN (Auto Resolved / 100% Khớp)</option>
+        <option value="diff_combined">⚡ Lệch cảm xúc chính (A1.combined ≠ A2.combined)</option>
+      </select>
+    </div>
+
+    <!-- Filter 3: Ground Truth Emotion -->
+    <div class="filter-item">
+      <label for="filterGtEmotion">3. Cảm xúc Chuẩn:</label>
+      <select id="filterGtEmotion" class="filter-select" onchange="applyFilters()">
+        <option value="all">📁 Tất cả 7 cảm xúc</option>
+        <option value="joy">😄 Joy (Vui vẻ)</option>
+        <option value="sadness">😢 Sadness (Buồn bã)</option>
+        <option value="anger">😠 Anger (Tức giận)</option>
+        <option value="fear">😨 Fear (Sợ hãi)</option>
+        <option value="disgust">🤢 Disgust (Ghê tởm)</option>
+        <option value="surprise">😲 Surprise (Ngạc nhiên)</option>
+        <option value="neutral">😐 Neutral (Trung tính)</option>
+      </select>
+    </div>
+
+    <!-- Filter 4: Confusion Pair Debugger -->
+    <div class="filter-item">
+      <label for="filterPair">4. Cặp Nhầm Lẫn:</label>
+      <select id="filterPair" class="filter-select" onchange="applyFilters()">
+        <option value="all">Tất cả cặp</option>
+        <option value="joy->disgust">Joy ➔ Disgust</option>
+        <option value="anger->disgust">Anger ➔ Disgust</option>
+        <option value="disgust->anger">Disgust ➔ Anger</option>
+        <option value="sadness->joy">Sadness ➔ Joy</option>
+        <option value="surprise->joy">Surprise ➔ Joy</option>
+        <option value="neutral->joy">Neutral ➔ Joy</option>
+        <option value="joy->neutral">Joy ➔ Neutral</option>
+      </select>
+    </div>
+
+    <!-- Search box -->
+    <div class="filter-item" style="margin-left:auto;">
+      <input type="text" id="searchInput" class="search-input" placeholder="🔍 Tìm ID (0087), từ khóa..." oninput="onSearch(this.value)">
+    </div>
+  </div>
+
+  <!-- 3. MAIN WORKSPACE (SPLIT VIEW) -->
+  <div class="main-grid">
+    <!-- Column 1: Items List -->
+    <div class="list-panel">
+      <div class="list-header-info">
+        <span id="listCountLabel">Hiển thị: 0 mẫu</span>
+        <span style="font-size:0.7rem; color:var(--text-muted);">Phím [↓/↑] chuyển mẫu</span>
+      </div>
+      <div class="list-scroll" id="itemsListContainer">
+        <!-- Rendered items -->
+      </div>
+    </div>
+
+    <!-- Column 2: Comparison Detail Panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-nav-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:1.15rem; font-weight:800; font-family:monospace;" id="detailId">ELITE_0001</span>
+          <span id="detailStatusBadge"></span>
+          <span id="detailAnnotatorBadge"></span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button onclick="prevSample()" class="btn-nav" title="Mẫu trước (Phím [↑] hoặc [←])">◀ Trước</button>
+          <button onclick="nextSample()" class="btn-nav" title="Mẫu sau (Phím [↓] hoặc [→])">Sau ▶</button>
+        </div>
+      </div>
+
+      <div class="detail-split">
+        <!-- Media Column -->
+        <div class="media-col">
+          <div class="detail-img-box">
+            <img id="detailImg" class="detail-img" src="" alt="Hình ảnh bài đăng">
+          </div>
+          <div class="text-card">
+            <div class="text-card-title">BẢN DỊCH TIẾNG VIỆT</div>
+            <div class="text-vi" id="detailTextVi">Bản dịch tiếng Việt...</div>
+            <div class="text-card-title">NGUYÊN BẢN (ENGLISH)</div>
+            <div class="text-en" id="detailTextEn">English text...</div>
+          </div>
+        </div>
+
+        <!-- Action / Comparison Column -->
+        <div class="action-col">
+          <!-- 4-Way Comparison Table (Annotator 1 vs Annotator 2 vs Gold vs VLM) -->
+          <div>
+            <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">
+              BẢNG ĐỐI CHIẾU 4 PHƯƠNG DIỆN (A1 vs A2 vs CHUẨN VÀNG vs VLM):
+            </div>
+            <table class="four-way-table">
+              <thead>
+                <tr>
+                  <th style="width:25%;">Phương Diện</th>
+                  <th style="width:25%;" id="thA1">Annotator 1</th>
+                  <th style="width:25%;" id="thA2">Annotator 2</th>
+                  <th style="width:25%;">Chuẩn Vàng (Gold)</th>
+                </tr>
+              </thead>
+              <tbody id="fourWayTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Side-by-side Gold vs VLM -->
+          <div class="compare-grid">
+            <!-- Ground Truth Box -->
+            <div class="compare-col col-gold">
+              <div class="compare-header">
+                <span class="compare-title">🏆 CHUẨN VÀNG (GROUND TRUTH)</span>
+                <span style="font-size:0.7rem; font-weight:700; color:#1d4ed8;" id="goldStatusLabel">ĐÃ CHỐT</span>
+              </div>
+              <div>
+                <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Cảm xúc Hợp nhất:</span>
+                <div style="margin-top:4px;" id="goldEmotionPill"></div>
+              </div>
+              <div style="font-size:0.8rem;">
+                <b>Quan hệ Text-Image:</b> <span id="goldRelationship" style="font-weight:700;">CONGRUENT</span>
+              </div>
+              <div style="font-size:0.78rem; background:#fff; border:1px solid #bfdbfe; border-radius:6px; padding:8px 10px; margin-top:4px;">
+                <div style="font-size:0.68rem; font-weight:700; color:#1e40af; text-transform:uppercase; margin-bottom:2px;">Ghi chú & Lý do Chuẩn Vàng:</div>
+                <div id="goldExplanation" style="color:#1e293b; font-style:italic;">-</div>
+              </div>
+            </div>
+
+            <!-- VLM Prediction Box -->
+            <div class="compare-col col-vlm" id="vlmColCard">
+              <div class="compare-header">
+                <span class="compare-title">🤖 VLM DỰ ĐOÁN (PREDICTION)</span>
+                <span id="vlmMatchTag" style="font-size:0.72rem; font-weight:800;">-</span>
+              </div>
+              <div>
+                <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Cảm xúc Suy luận:</span>
+                <div style="margin-top:4px;" id="vlmEmotionPill"></div>
+              </div>
+              <div style="font-size:0.8rem; display:flex; justify-content:space-between;">
+                <span><b>Độ tin cậy:</b> <span id="vlmConfidence" style="font-weight:800; color:#0f172a;">-</span></span>
+                <span><b>Độ trễ:</b> <span id="vlmLatency" style="font-family:monospace; color:#475569;">-</span></span>
+              </div>
+              <div style="font-size:0.8rem;">
+                <b>Phát hiện Mỉa mai / Xung đột:</b> 
+                <span id="vlmSarcasmFlag" style="font-weight:700;">-</span>
+              </div>
+              <div style="font-size:0.78rem; background:#fff; border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-top:4px;">
+                <div style="font-size:0.68rem; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:2px;">VLM Lập luận (Conflict / Reasoning):</div>
+                <div id="vlmExplanation" style="color:#0f172a; line-height:1.35;">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Score Distribution Box -->
+          <div class="scores-box">
+            <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">
+              Phân bố điểm xác suất 7 nhãn cảm xúc của VLM (Confidence Distribution):
+            </div>
+            <div id="scoresBarsContainer">
+              <!-- Rendered 7 emotion bars -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let rawClean = [];
+    let rawFullMap = {};
+    let rawResults = {};
+    let combinedSamples = [];
+    let filteredSamples = [];
+    let currentIdx = 0;
+    let searchQuery = '';
+
+    const EMOTION_COLORS = {
+      joy: { bg: '#fef08a', text: '#854d0e', border: '#fde047', icon: '😄', label: 'Joy' },
+      sadness: { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe', icon: '😢', label: 'Sadness' },
+      anger: { bg: '#fee2e2', text: '#991b1b', border: '#fecaca', icon: '😠', label: 'Anger' },
+      fear: { bg: '#f3e8ff', text: '#6b21a8', border: '#e9d5ff', icon: '😨', label: 'Fear' },
+      disgust: { bg: '#dcfce7', text: '#166534', border: '#bbf7d0', icon: '🤢', label: 'Disgust' },
+      surprise: { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa', icon: '😲', label: 'Surprise' },
+      neutral: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', icon: '😐', label: 'Neutral' }
+    };
+
+    async function fetchJsonFromCandidates(urls) {
+      for (const u of urls) {
+        try {
+          const r = await fetch(u);
+          if (r.ok) return await r.json();
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function loadAllData() {
+      try {
+        const [cleanData, fullData, resultsData] = await Promise.all([
+          fetchJsonFromCandidates([
+            'data/benchmark_gold_clean.json',
+            '/image-experiment/data/benchmark_gold_clean.json',
+            '../data/benchmark_gold_clean.json',
+            '/evaluation/image-experiment/data/benchmark_gold_clean.json'
+          ]),
+          fetchJsonFromCandidates([
+            'data/multimodal_gold_test_set.json',
+            '/image-experiment/data/multimodal_gold_test_set.json',
+            '../data/multimodal_gold_test_set.json',
+            '/evaluation/image-experiment/data/multimodal_gold_test_set.json'
+          ]),
+          fetchJsonFromCandidates([
+            'results/benchmark_evaluation_results.json',
+            '/image-experiment/results/benchmark_evaluation_results.json',
+            '../results/benchmark_evaluation_results.json',
+            '/evaluation/image-experiment/results/benchmark_evaluation_results.json'
+          ])
+        ]);
+
+        rawClean = Array.isArray(cleanData) ? cleanData : [];
+        rawResults = (resultsData && typeof resultsData === 'object') ? resultsData : {};
+        
+        rawFullMap = {};
+        if (Array.isArray(fullData)) {
+          fullData.forEach(item => {
+            if (item && item.id) rawFullMap[item.id] = item;
+          });
+        }
+
+        mergeDatasets();
+        calculateDashboardMetrics();
+        applyFilters();
+      } catch (err) {
+        console.error("Lỗi nạp dữ liệu:", err);
+      }
+    }
+
+    function mergeDatasets() {
+      combinedSamples = [];
+      rawClean.forEach(g => {
+        const sid = g.id;
+        const res = rawResults[sid] || {};
+        const full = rawFullMap[sid] || {};
+        const gt = g.ground_truth || full.ground_truth || {};
+
+        const gtEmotion = (gt.combined_emotion || 'neutral').toLowerCase();
+        const predEmotion = (res.predicted_primary_emotion || 'neutral').toLowerCase();
+        const isMatch = (gtEmotion === predEmotion);
+
+        // Annotator agreement status in multimodal_gold_test_set.json
+        const adjStatus = g.adjudication_status || full.adjudication_status || 'AUTO_RESOLVED';
+        const isAnnotatorAgreed = (adjStatus === 'AUTO_RESOLVED');
+        const isAnnotatorDiff = !isAnnotatorAgreed;
+
+        // Annotators raw records
+        const ar = full.annotator_records || {};
+        const a1 = ar.annotator1 || {};
+        const a2 = ar.annotator2 || {};
+        const vlmProposal = ar.vlm_proposal || {};
+
+        const a1Comb = (a1.combined_emotion || '').toLowerCase();
+        const a2Comb = (a2.combined_emotion || '').toLowerCase();
+        const isDiffCombinedEmotion = (a1Comb && a2Comb && a1Comb !== a2Comb);
+
+        combinedSamples.push({
+          id: sid,
+          text_vi: g.text_vi || full.text_vi || '',
+          text: g.text || full.text || '',
+          image_path: g.image_path || full.image_path || '',
+          gt: gt,
+          gtEmotion: gtEmotion,
+          predEmotion: predEmotion,
+          isMatch: isMatch,
+          adjStatus: adjStatus,
+          isAnnotatorAgreed: isAnnotatorAgreed,
+          isAnnotatorDiff: isAnnotatorDiff,
+          isDiffCombinedEmotion: isDiffCombinedEmotion,
+          a1: a1,
+          a2: a2,
+          vlmProposal: vlmProposal,
+          adjNotes: g.adjudication_notes || full.adjudication_notes || '',
+          vlm: res
+        });
+      });
+    }
+
+    function calculateDashboardMetrics() {
+      const total = combinedSamples.length;
+      if (total === 0) return;
+
+      const correctCount = combinedSamples.filter(s => s.isMatch).length;
+      const wrongCount = total - correctCount;
+      const acc = (correctCount / total * 100).toFixed(1);
+      const err = (wrongCount / total * 100).toFixed(1);
+
+      const diffCount = combinedSamples.filter(s => s.isAnnotatorDiff).length;
+      const agreedCount = total - diffCount;
+      const diffRate = (diffCount / total * 100).toFixed(1);
+      const agreedRate = (agreedCount / total * 100).toFixed(1);
+
+      document.getElementById('mTotal').innerText = total;
+      document.getElementById('mCorrect').innerText = correctCount;
+      document.getElementById('mAccuracy').innerText = acc + '%';
+      document.getElementById('mWrong').innerText = wrongCount;
+      document.getElementById('mErrorRate').innerText = err + '%';
+      document.getElementById('mAnnotatorDiff').innerText = diffCount;
+      document.getElementById('mDiffRate').innerText = diffRate + '%';
+      document.getElementById('mAnnotatorAgreed').innerText = agreedCount;
+      document.getElementById('mAgreedRate').innerText = agreedRate + '%';
+    }
+
+    function setQuickFilter(matchMode, agreeMode) {
+      document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active-filter'));
+      document.getElementById('filterMatch').value = matchMode;
+      document.getElementById('filterAgreement').value = agreeMode;
+
+      if (matchMode === 'all' && agreeMode === 'all') document.getElementById('cardTotal').classList.add('active-filter');
+      else if (matchMode === 'correct') document.getElementById('cardCorrect').classList.add('active-filter');
+      else if (matchMode === 'wrong') document.getElementById('cardWrong').classList.add('active-filter');
+      else if (agreeMode === 'diff') document.getElementById('cardAnnotatorDiff').classList.add('active-filter');
+      else if (agreeMode === 'agreed') document.getElementById('cardAnnotatorAgreed').classList.add('active-filter');
+
+      applyFilters();
+    }
+
+    function onSearch(val) {
+      searchQuery = (val || '').trim().toLowerCase();
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const matchVal = document.getElementById('filterMatch').value;
+      const agreeVal = document.getElementById('filterAgreement').value;
+      const emoVal = document.getElementById('filterGtEmotion').value;
+      const pairVal = document.getElementById('filterPair').value;
+
+      filteredSamples = combinedSamples.filter(s => {
+        // Filter 1: VLM Match Status
+        if (matchVal === 'wrong' && s.isMatch) return false;
+        if (matchVal === 'correct' && !s.isMatch) return false;
+
+        // Filter 2: Annotator Agreement (Khớp hay Bất đồng)
+        if (agreeVal === 'diff' && !s.isAnnotatorDiff) return false;
+        if (agreeVal === 'agreed' && !s.isAnnotatorAgreed) return false;
+        if (agreeVal === 'diff_combined' && !s.isDiffCombinedEmotion) return false;
+
+        // Filter 3: GT Emotion
+        if (emoVal !== 'all' && s.gtEmotion !== emoVal) return false;
+
+        // Filter 4: Confusion Pair
+        if (pairVal !== 'all') {
+          const expectedPair = `${s.gtEmotion}->${s.predEmotion}`;
+          if (expectedPair !== pairVal) return false;
+        }
+
+        // Search Query
+        if (searchQuery) {
+          const sid = (s.id || '').toLowerCase();
+          const vi = (s.text_vi || '').toLowerCase();
+          const en = (s.text || '').toLowerCase();
+          if (!sid.includes(searchQuery) && !vi.includes(searchQuery) && !en.includes(searchQuery)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      currentIdx = 0;
+      renderList();
+      renderDetail(filteredSamples[0]);
+    }
+
+    function renderList() {
+      const container = document.getElementById('itemsListContainer');
+      container.innerHTML = '';
+      document.getElementById('listCountLabel').innerText = `Hiển thị: ${filteredSamples.length} / ${combinedSamples.length} mẫu`;
+
+      if (filteredSamples.length === 0) {
+        container.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.85rem;">Không tìm thấy mẫu nào khớp với bộ lọc.</div>';
+        return;
+      }
+
+      filteredSamples.forEach((s, idx) => {
+        const item = document.createElement('div');
+        item.className = 'list-item ' + (s.isMatch ? 'is-correct' : 'is-wrong') + (idx === currentIdx ? ' active' : '');
+        item.onclick = () => {
+          currentIdx = idx;
+          document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+          item.classList.add('active');
+          renderDetail(s);
+        };
+
+        const matchBadge = s.isMatch
+          ? '<span class="badge badge-correct">✓ ĐÚNG</span>'
+          : `<span class="badge badge-wrong">✗ LỆCH: ${s.gtEmotion} ➔ ${s.predEmotion}</span>`;
+
+        const agreeBadge = s.isAnnotatorDiff
+          ? '<span class="badge badge-annotator-diff">⚡ BẤT ĐỒNG</span>'
+          : '<span class="badge badge-annotator-agreed">✅ KHỚP</span>';
+
+        item.innerHTML = `
+          <div class="item-top">
+            <span class="item-id">${s.id}</span>
+            <div class="item-badges">
+              ${matchBadge}
+              ${agreeBadge}
+            </div>
+          </div>
+          <div class="item-preview">${s.text_vi || s.text || '(Chưa có văn bản)'}</div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function cleanImagePath(p) {
+      if (!p) return '';
+      let s = String(p).replace(/\\\\/g, '/');
+      if (s.startsWith('evaluation/image-experiment/')) {
+        s = s.substring('evaluation/image-experiment/'.length);
+      }
+      while (s.startsWith('/')) s = s.substring(1);
+      return s;
+    }
+
+    function createEmotionPillHtml(emo) {
+      const e = (emo || 'neutral').toLowerCase();
+      const cfg = EMOTION_COLORS[e] || EMOTION_COLORS.neutral;
+      return `<span class="emotion-pill" style="background:${cfg.bg}; color:${cfg.text}; border:1px solid ${cfg.border};">${cfg.icon} ${cfg.label}</span>`;
+    }
+
+    function renderDetail(s) {
+      if (!s) return;
+      document.getElementById('detailId').innerText = s.id;
+      document.getElementById('detailImg').src = cleanImagePath(s.image_path);
+      document.getElementById('detailTextVi').innerText = s.text_vi || '(Chưa có bản dịch tiếng Việt)';
+      document.getElementById('detailTextEn').innerText = s.text || '';
+
+      // Badges
+      const statusBadge = document.getElementById('detailStatusBadge');
+      if (s.isMatch) {
+        statusBadge.innerHTML = '<span class="badge badge-correct" style="font-size:0.75rem; padding:3px 8px;">✓ VLM ĐOÁN ĐÚNG</span>';
+      } else {
+        statusBadge.innerHTML = `<span class="badge badge-wrong" style="font-size:0.75rem; padding:3px 8px;">✗ VLM ĐOÁN SAI: Chuẩn [${s.gtEmotion}] vs VLM [${s.predEmotion}]</span>`;
+      }
+
+      const agreeBadge = document.getElementById('detailAnnotatorBadge');
+      if (s.isAnnotatorDiff) {
+        agreeBadge.innerHTML = `<span class="badge badge-annotator-diff" style="font-size:0.75rem; padding:3px 8px;">⚡ ANNOTATORS BẤT ĐỒNG (${s.adjStatus})</span>`;
+      } else {
+        agreeBadge.innerHTML = '<span class="badge badge-annotator-agreed" style="font-size:0.75rem; padding:3px 8px;">✅ ANNOTATORS KHỚP 100% (AUTO_RESOLVED)</span>';
+      }
+
+      // 4-Way Table Render (A1 vs A2 vs Gold vs VLM)
+      const tbody = document.getElementById('fourWayTableBody');
+      tbody.innerHTML = '';
+      const dimensions = [
+        { label: 'Cảm xúc Hợp nhất (Combined)', a1: s.a1.combined_emotion, a2: s.a2.combined_emotion, gold: s.gt.combined_emotion },
+        { label: 'Quan hệ Text-Image', a1: s.a1.relationship_type, a2: s.a2.relationship_type, gold: s.gt.relationship_type },
+        { label: 'Cảm xúc Text-only', a1: s.a1.text_only_emotion, a2: s.a2.text_only_emotion, gold: s.gt.text_only_emotion },
+        { label: 'Cảm xúc Image-only', a1: s.a1.image_only_emotion, a2: s.a2.image_only_emotion, gold: s.gt.image_only_emotion }
+      ];
+
+      dimensions.forEach(d => {
+        const tr = document.createElement('tr');
+        const isDiff = (d.a1 && d.a2 && String(d.a1).toLowerCase() !== String(d.a2).toLowerCase());
+        if (isDiff) tr.className = 'row-annotator-diff';
+
+        tr.innerHTML = `
+          <td><b>${d.label}</b> ${isDiff ? '<span style="color:#d97706; font-size:0.68rem; font-weight:800;">⚡ KHÁC</span>' : ''}</td>
+          <td><span style="font-weight:600; color:#1d4ed8;">${d.a1 || '-'}</span></td>
+          <td><span style="font-weight:600; color:#7e22ce;">${d.a2 || '-'}</span></td>
+          <td><span style="font-weight:800; color:#15803d;">${d.gold || '-'}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Ground Truth Box
+      document.getElementById('goldEmotionPill').innerHTML = createEmotionPillHtml(s.gtEmotion);
+      document.getElementById('goldRelationship').innerText = s.gt.relationship_type || 'CONGRUENT';
+      document.getElementById('goldStatusLabel').innerText = s.adjStatus;
+
+      const noteText = s.adjNotes || s.gt.explanation || 'Đồng thuận tự động, không có tranh chấp.';
+      document.getElementById('goldExplanation').innerText = noteText;
+
+      // VLM Box
+      const vCard = document.getElementById('vlmColCard');
+      vCard.className = 'compare-col col-vlm ' + (s.isMatch ? 'is-correct' : 'is-wrong');
+
+      const tagMatch = document.getElementById('vlmMatchTag');
+      tagMatch.innerHTML = s.isMatch
+        ? '<span style="color:#15803d;">✓ CHÍNH XÁC</span>'
+        : '<span style="color:#b91c1c;">✗ LỆCH CHUẨN VÀNG</span>';
+
+      document.getElementById('vlmEmotionPill').innerHTML = createEmotionPillHtml(s.predEmotion);
+      document.getElementById('vlmConfidence').innerText = (s.vlm.final_confidence !== undefined) ? ((s.vlm.final_confidence * 100).toFixed(1) + '%') : '-';
+      document.getElementById('vlmLatency').innerText = s.vlm.latency_seconds ? (s.vlm.latency_seconds + 's') : '-';
+
+      const sarcFlagEl = document.getElementById('vlmSarcasmFlag');
+      const isSarc = Boolean(s.vlm.is_sarcasm_or_conflict);
+      sarcFlagEl.innerHTML = isSarc
+        ? '<span style="color:#b45309;">⚠️ Có mỉa mai / Xung đột chữ-ảnh (True)</span>'
+        : '<span style="color:#15803d;">Bình thường / Bổ trợ (False)</span>';
+
+      document.getElementById('vlmExplanation').innerText = s.vlm.conflict_explanation || s.vlm.reasoning || '(Không có giải thích chi tiết)';
+
+      // Emotion scores bars
+      renderScoresBars(s.vlm.emotion_scores || {});
+    }
+
+    function renderScoresBars(scores) {
+      const container = document.getElementById('scoresBarsContainer');
+      container.innerHTML = '';
+      const emotions = ['joy', 'sadness', 'anger', 'fear', 'disgust', 'surprise', 'neutral'];
+
+      emotions.forEach(emo => {
+        const val = scores[emo] || 0.0;
+        const pct = Math.round(val * 100);
+        const cfg = EMOTION_COLORS[emo] || EMOTION_COLORS.neutral;
+
+        const row = document.createElement('div');
+        row.className = 'score-row';
+        row.innerHTML = `
+          <span class="score-label">${cfg.icon} ${emo}</span>
+          <div class="score-bar-bg">
+            <div class="score-bar-fill" style="width:${pct}%; background:${cfg.text};"></div>
+          </div>
+          <span class="score-val">${val.toFixed(2)}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function nextSample() {
+      if (currentIdx < filteredSamples.length - 1) {
+        currentIdx++;
+        updateActiveItem();
+      }
+    }
+
+    function prevSample() {
+      if (currentIdx > 0) {
+        currentIdx--;
+        updateActiveItem();
+      }
+    }
+
+    function updateActiveItem() {
+      const items = document.querySelectorAll('.list-item');
+      items.forEach((el, i) => {
+        el.classList.toggle('active', i === currentIdx);
+      });
+      renderDetail(filteredSamples[currentIdx]);
+      const activeEl = document.querySelector('.list-item.active');
+      if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function toggleFullscreen() {
+      document.body.classList.toggle('fullscreen-mode');
+      const isFs = document.body.classList.contains('fullscreen-mode');
+      document.getElementById('btnFs').innerText = isFs ? '🗗 Thu nhỏ' : '⛶ Toàn Màn Hình';
+    }
+
+    function exportMisclassifiedJson() {
+      const wrongList = combinedSamples.filter(s => !s.isMatch);
+      const exportData = wrongList.map(s => ({
+        id: s.id,
+        ground_truth_emotion: s.gtEmotion,
+        vlm_predicted_emotion: s.predEmotion,
+        annotator_agreement: s.isAnnotatorDiff ? 'DISAGREED' : 'AGREED',
+        adjudication_status: s.adjStatus,
+        text_vi: s.text_vi,
+        text_en: s.text,
+        vlm_explanation: s.vlm.conflict_explanation || s.vlm.reasoning || '',
+        confidence: s.vlm.final_confidence
+      }));
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vlm_misclassified_samples_${wrongList.length}_cases.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
+        e.preventDefault();
+        nextSample();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'k') {
+        e.preventDefault();
+        prevSample();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    });
+
+    window.onload = loadAllData;
+  </script>
+</body>
+</html>

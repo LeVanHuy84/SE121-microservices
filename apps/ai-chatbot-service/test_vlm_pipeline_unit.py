@@ -62,9 +62,9 @@ async def test_vlm_normalization():
     )
     normalized = vlm_analyzer._normalize_raw_output(raw)
     assert normalized["primaryEmotion"] == "joy"
-    assert "surprise" in normalized["secondaryEmotions"]
+    assert normalized["secondaryEmotions"] == []  # Single-label specification
     assert abs(sum(normalized["emotionScores"].values()) - 1.0) < 0.01
-    print("✓ Score normalization and secondary emotion thresholding passed!")
+    print("✓ Score normalization and single-label emotion output passed!")
 
 
 async def test_handle_updated_event_pipeline():

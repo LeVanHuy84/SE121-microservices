@@ -82,6 +82,11 @@ python_env/
 **/evaluation/collection-data/data/facebook_session.json
 **/evaluation/collection-data/data/images/
 **/evaluation/data/
+**/evaluation/emotion/collection-data/data/facebook_session.json
+**/evaluation/emotion/collection-data/data/images/
+**/evaluation/emotion/data/
+**/evaluation/emotion/versions/*/saved_phobert_emotion*/
+**/evaluation/emotion/versions/*/results_phobert_emotion*/
 **/evaluation/moderation/data*/
 **/evaluation/moderation/versions/*/saved_phobert_moderation*/
 **/evaluation/moderation/versions/*/results_phobert_moderation*/
