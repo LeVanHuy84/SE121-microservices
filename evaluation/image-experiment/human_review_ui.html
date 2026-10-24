@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Thẩm Định Dữ Liệu Đa Phương Thức — SE121 KLTN</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --success-hover: #15803d;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px 24px; min-height: 100vh; }
+    
+    /* Top Header Bar */
+    header { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; }
+    
+    .reviewer-input-group { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+    .reviewer-input-group label { font-weight: 600; color: #334155; }
+    .reviewer-input { padding: 6px 12px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 0.875rem; width: 220px; transition: border-color 0.15s; }
+    .reviewer-input.required-warning { border-color: #ef4444; background: #fef2f2; }
+
+    /* Modal Overlay */
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+    .modal-card { background: white; border-radius: 10px; width: 440px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-title { font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+    .modal-desc { font-size: 0.875rem; color: #64748b; margin-bottom: 16px; line-height: 1.45; }
+    .modal-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 0.95rem; margin-bottom: 16px; }
+    .modal-input:focus { border-color: var(--primary); outline: none; }
+    .btn-modal-submit { width: 100%; background: var(--primary); color: white; border: none; padding: 10px; font-size: 0.95rem; font-weight: 600; border-radius: 6px; cursor: pointer; }
+    .btn-modal-submit:hover { background: var(--primary-hover); }
+
+    .btn-guideline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-guideline:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e40af;
+    }
+
+    /* Annotation Guidelines Modal */
+    .guideline-modal-card {
+      background: white;
+      border-radius: 12px;
+      width: 950px;
+      max-width: 94vw;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    .guideline-modal-header {
+      padding: 16px 24px;
+      background: #f8fafc;
+      border-bottom: 1.5px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .guideline-modal-body {
+      padding: 22px 26px;
+      overflow-y: auto;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #334155;
+    }
+    .guideline-modal-footer {
+      padding: 12px 24px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .guide-box {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .guide-box-header {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #1e293b;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .guide-box-congruent { border-left: 4px solid #3b82f6; }
+    .guide-box-sarcastic { border-left: 4px solid #f59e0b; }
+    .guide-box-complementary { border-left: 4px solid #8b5cf6; }
+    .guide-box-flag { border-left: 4px solid #ef4444; background: #fffbfb; }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .active-file-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      background: #f8fafc;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .file-icon { font-size: 1rem; }
+    .file-label { font-weight: 600; color: #475569; }
+    .file-name { color: #1e293b; font-family: monospace; font-size: 0.88rem; font-weight: 700; }
+    .file-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tag-base { background: #e2e8f0; color: #334155; }
+    .tag-review { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+
+    /* Layout Grid (Full-Width, No Sidebar) */
+    .app-layout { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1600px; margin: 0 auto; }
+    
+    .stats-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-size: 0.875rem; font-weight: 500; }
+    .stats-badges { display: flex; gap: 14px; align-items: center; }
+    .stat-item b { color: var(--primary); font-weight: 700; }
+    .save-indicator { font-size: 0.8rem; font-weight: 600; color: var(--success); }
+
+    /* Review Mode Switcher */
+    .mode-switch-group { display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 3px 6px; border-radius: 6px; }
+    .mode-btn { border: none; background: transparent; padding: 4px 10px; font-size: 0.78rem; font-weight: 600; border-radius: 4px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; }
+    .mode-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+    /* Inspection Grid - 52% image, 48% decision controls */
+    .inspection-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+    
+    /* Image Panel with Zoom & Fullscreen Toolbar */
+    .image-panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 16px; }
+    .image-toolbar { display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .image-tools { display: flex; gap: 6px; }
+    .btn-tool { border: 1px solid var(--border); background: #f8fafc; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: #334155; }
+    .btn-tool:hover { background: #e2e8f0; }
+
+    .image-viewport { width: 100%; height: 580px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #0f172a; border-radius: 6px; position: relative; cursor: grab; }
+    .image-viewport:active { cursor: grabbing; }
+    .post-image { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.15s ease-out; transform-origin: center center; }
+    .image-path-info { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; word-break: break-all; margin-top: 4px; }
+
+    /* Content & Decision Panel */
+    .content-panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    
+    .badge-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .badge { font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; }
+    .badge-id { background: #f1f5f9; color: #334155; }
+    .badge-congruent { background: #dbeafe; color: #1d4ed8; }
+    .badge-sarcastic { background: #fef3c7; color: #b45309; }
+    .badge-complementary { background: #f3e8ff; color: #7e22ce; }
+    .badge-strategy { background: #f1f5f9; color: var(--text-muted); }
+
+    .text-container { background: #f8fafc; border-left: 3px solid var(--primary); padding: 12px 14px; border-radius: 4px; }
+    .text-vi { font-size: 1.02rem; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
+    .text-en { font-size: 0.82rem; color: var(--text-muted); font-style: italic; line-height: 1.4; }
+
+    /* Human Decision Box */
+    .decision-box { border: 1.5px solid #93c5fd; border-radius: 8px; padding: 16px; background: #ffffff; box-shadow: 0 1px 3px rgba(37,99,235,0.06); transition: all 0.2s ease; }
+    .decision-box.is-saved { border: 2px solid #16a34a; background: #f0fdf4; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.16); }
+    .decision-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eff6ff; }
+    .decision-box.is-saved .decision-header { border-bottom: 1px solid #bbf7d0; }
+    .header-title-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .box-role-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .role-human { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    .role-human.role-saved { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .role-vlm { background: #ede9fe; color: #6b21a8; border: 1px solid #ddd6fe; }
+    .box-title-text { font-size: 0.92rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.3px; }
+    .decision-box.is-saved .box-title-text { color: #15803d; }
+    .status-tag { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 700; border: 1px solid #e2e8f0; }
+    .decision-box.is-saved select.review-select,
+    .decision-box.is-saved textarea { border-color: #86efac; background: #ffffff; }
+    .decision-box.is-saved select.review-select:focus,
+    .decision-box.is-saved textarea:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2); }
+
+    .edit-controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-bottom: 12px; }
+    @media (max-width: 900px) {
+      .edit-controls-grid { grid-template-columns: 1fr; }
+      .field-group.full-width { grid-column: span 1 !important; }
+    }
+    .field-group label { display: block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 5px; }
+    select.review-select, textarea { width: 100%; padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.86rem; background: white; color: #0f172a; font-weight: 500; transition: border-color 0.15s, box-shadow 0.15s; }
+    select.review-select:focus, textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    textarea { resize: vertical; min-height: 52px; font-family: inherit; }
+
+    .action-row { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+    .btn-save-main { flex: 2; background: var(--primary); color: white; border: none; padding: 10px 14px; font-size: 0.9rem; font-weight: 700; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+    .btn-save-main:hover { background: var(--primary-hover); }
+    .btn-agree-vlm { flex: 1.2; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 10px 12px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .btn-agree-vlm:hover:not(:disabled) { background: #e2e8f0; border-color: #94a3b8; }
+    .btn-agree-vlm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-insufficient { border: 1px dashed #f59e0b; background: #fffbeb; color: #b45309; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; cursor: pointer; }
+    .btn-insufficient:hover { background: #fef3c7; }
+
+    /* VLM Prediction Panel */
+    .vlm-box { background: #fbfbfe; border: 1.5px solid #e0e7ff; border-radius: 8px; padding: 16px; margin-top: 2px; }
+    .vlm-box-header { font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    .vlm-model-tag { font-size: 0.78rem; font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 4px; font-family: monospace; }
+
+    .vlm-empty-notice { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 500; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+
+    /* Comparison Table (3 columns: Tiêu chí | Nhãn của bạn | Nhãn VLM) */
+    .comparison-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: white; margin-bottom: 10px; }
+    .comparison-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: left; }
+    .comparison-table th { background: #f8fafc; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 0.74rem; letter-spacing: 0.4px; padding: 8px 12px; border-bottom: 1.5px solid #e2e8f0; }
+    .comparison-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table tr.row-match { background: #f0fdf4; }
+    .comparison-table tr.row-diff { background: #fffcf8; }
+    .comparison-table tr.row-pending { background: #ffffff; }
+
+    .comp-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap; margin-top: 3px; }
+    .comp-badge-match { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .comp-badge-diff { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .comp-badge-pending { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+    .entity-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; font-weight: 600; padding: 3px 8px; border-radius: 5px; max-width: 100%; word-break: break-word; }
+    .chip-human { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+    .chip-vlm { background: #f5f3ff; color: #5b21b6; border: 1px solid #ede9fe; }
+    .chip-unselected { font-size: 0.78rem; color: #94a3b8; font-style: italic; font-weight: 500; }
+    .chip-empty { font-size: 0.78rem; color: #94a3b8; font-style: italic; font-weight: 500; }
+    .chip-desc { font-size: 0.74rem; font-weight: normal; color: #64748b; }
+
+    .vlm-explanation-box { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 9px 12px; }
+    .vlm-explanation-header { font-size: 0.73rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+    .vlm-explanation-text { font-size: 0.83rem; color: #334155; font-style: italic; line-height: 1.45; }
+
+    @media (max-width: 1100px) {
+      .inspection-grid { grid-template-columns: 1fr; }
+      .image-panel { position: static; }
+      .image-viewport { height: 440px; }
+    }
+
+    /* Image Fullscreen Lightbox Modal */
+    .lightbox-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.9); z-index: 10000; display: flex; justify-content: center; align-items: center; cursor: zoom-out; }
+    .lightbox-img { max-width: 95vw; max-height: 95vh; object-fit: contain; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .lightbox-close { position: absolute; top: 18px; right: 24px; color: white; font-size: 2rem; font-weight: bold; cursor: pointer; background: rgba(255,255,255,0.2); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+    /* Navigation */
+    .nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+    .btn-nav { padding: 8px 16px; border: 1px solid var(--border); background: white; border-radius: 5px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .btn-nav:hover { background: #f1f5f9; }
+    
+    .shortcuts-footer { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+    
+    /* Empty State */
+    .empty-state { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 60px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<!-- Mandatory Reviewer Modal -->
+<div id="reviewerModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-title">Xác Nhận Người Thẩm Định</div>
+    <div class="modal-desc">
+      Theo quy chuẩn KLTN, mọi kết quả thẩm định phải được gán danh tính thành viên để đo độ tin cậy liên thẩm định viên (Cohen's Kappa). Vui lòng nhập tên của bạn trước khi bắt đầu:
+    </div>
+    <input type="text" id="modalReviewerInput" class="modal-input" placeholder="Ví dụ: Annotator 1 (Nguyễn Văn A)..." onkeydown="if(event.key==='Enter') submitReviewerModal()">
+    <button class="btn-modal-submit" onclick="submitReviewerModal()">Xác Nhận & Bắt Đầu Review</button>
+  </div>
+</div>
+
+<!-- Annotation Guidelines Modal -->
+<div id="guidelineModal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeGuidelineModal()">
+  <div class="guideline-modal-card">
+    <div class="guideline-modal-header">
+      <div style="font-size:1.15rem; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:10px;">
+        <span>📖 CẨM NANG QUY CHUẨN GÁN NHÃN ĐA PHƯƠNG THỨC TEXT–IMAGE (V2.0)</span>
+        <span style="font-size:0.75rem; background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:4px; font-weight:700;">CHUẨN KHOA HỌC KLTN</span>
+      </div>
+      <button onclick="closeGuidelineModal()" style="border:none; background:transparent; font-size:1.6rem; cursor:pointer; color:#64748b; line-height:1;">&times;</button>
+    </div>
+    
+    <div class="guideline-modal-body">
+      <!-- Phạm vi & cơ chế -->
+      <div class="guide-box" style="background:#f8fafc;">
+        <div class="guide-box-header"><span>📋 PHẠM VI &amp; CƠ CHẾ GÁN NHÃN BÁN TỰ ĐỘNG (HUMAN-IN-THE-LOOP)</span></div>
+        <div style="font-size:0.84rem; color:#475569; line-height:1.65;">
+          • <b>Mục tiêu nghiên cứu:</b> Xây dựng tập kiểm thử chuẩn vàng (Evaluation Set / Gold Standard) gồm <b>700 mẫu tinh hoa</b> (ELITE_0001 -> ELITE_0700) từ MVSA và Memotion 7k để đo chính xác Precision, Recall, Macro-F1 của hệ thống AI.<br>
+          • <b>Gán nhãn bán tự động:</b> VLM (Gemini 1.5 Pro / GPT-4o) đề xuất nhãn sơ bộ 4 trường. Hai thẩm định viên tiến hành rà soát độc lập mù (Double-Blind), tập trung tinh chỉnh các mẫu nghi ngờ/mơ hồ.<br>
+          • <b>Đo độ tin cậy khoa học:</b> Đánh giá độ đồng thuận liên thẩm định viên bằng chỉ số <b>Cohen's Kappa (&kappa; &ge; 0.70)</b> trước khi hòa giải bất đồng.<br>
+          • <b>Nguyên tắc vàng:</b> Đề xuất VLM <b>chỉ là gợi ý ban đầu</b>, thẩm định viên con người giữ quyền quyết định tối hậu.
+        </div>
+      </div>
+
+      <!-- 1. Bốn trường nhãn bóc tách -->
+      <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:16px 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
+        1. BỐN TRƯỜNG NHÃN BÓC TÁCH ĐA PHƯƠNG THỨC (CHỐNG THIÊN KIẾN LÂY LAN)
+      </div>
+      <div style="font-size:0.85rem; color:#334155; line-height:1.7; margin-bottom:16px;">
+        • <b><code>text_only_emotion</code></b>: Cảm xúc khi <b>CHỈ đọc riêng câu chữ/status</b> (Tự hỏi: <i>Nếu chỉ nhận SMS này không có ảnh thì mang cảm xúc gì?</i>). Thuộc 7 nhãn Ekman.<br>
+        • <b><code>image_only_emotion</code></b>: Cảm xúc của <b>CHỈ RIÊNG bức ảnh</b> (không đọc status bên ngoài). <i>Lưu ý: Nếu là Meme có chữ in sẵn trên ảnh, bạn <b>được phép đọc chữ nhúng trong ảnh</b> để hiểu nội dung meme.</i> Thuộc 7 nhãn Ekman.<br>
+        • <b><code>combined_emotion</code></b>: Cảm xúc thực tế và nổi trội nhất của <b>TOÀN BỘ bài đăng</b> khi tiếp nhận đồng thời cả văn bản và hình ảnh trong ngữ cảnh mạng xã hội (Trục đánh giá cốt lõi). Thuộc 7 nhãn Ekman.<br>
+        • <b><code>relationship_type</code></b>: Mối quan hệ tương tác ngữ nghĩa & cảm xúc giữa Ảnh và Chữ (chọn 1 trong 3 nhóm bên dưới).
+      </div>
+
+      <!-- 2. relationship_type -->
+      <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:0 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
+        2. QUY TẮC PHÂN LOẠI <code>relationship_type</code> (3 NHÓM CHUẨN THEO GVHD)
+      </div>
+      <div style="font-size:0.84rem; color:#475569; margin-bottom:10px;">Áp dụng theo thứ tự ưu tiên 4 bước:</div>
+      <div style="font-size:0.84rem; color:#334155; line-height:1.7; margin-bottom:12px;">
+        <b>1.</b> Ảnh hỏng / dịch máy vô nghĩa / cặp text-image rác &rarr; Gắn cờ <code>INSUFFICIENT_CONTEXT</code> (loại khỏi tập chuẩn).<br>
+        <b>2.</b> Tương phản có chủ đích + có bằng chứng <b>châm biếm, mỉa mai, cà khịa hoặc tự trào</b> &rarr; <code>INCONGRUENT</code>.<br>
+        <b>3.</b> Một bên thiếu thông tin HOẶC hai bên lệch sắc thái mang tính <b>xoa dịu/bổ sung bối cảnh</b> (không châm biếm) &rarr; <code>COMPLEMENTARY</code>.<br>
+        <b>4.</b> Cả hai phương thức cùng chiều cảm xúc hoặc ảnh minh họa trực tiếp thông điệp đã rõ &rarr; <code>CONGRUENT</code>.
+      </div>
+
+      <div class="guide-box guide-box-congruent">
+        <div class="guide-box-header">
+          <span style="color:#2563eb;">🔗 CONGRUENT (Đồng nhất / Củng cố trực tiếp)</span>
+        </div>
+        <div><b>Định nghĩa:</b> Hình ảnh và câu chữ cùng chung một thông điệp và hướng cảm xúc; ảnh minh họa hoặc củng cố trực tiếp ý nghĩa đã rõ ràng trong văn bản. Không cần dựa vào thông tin mới từ ảnh để hiểu thông điệp.</div>
+        <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
+          • <b>Ví dụ:</b> Text "Hôm nay nhận học bổng rồi, vui quá đi!" + ảnh nụ cười rạng rỡ và bằng khen &rarr; Cả text và ảnh cùng mang sắc thái <code>joy</code>.
+        </div>
+      </div>
+
+      <div class="guide-box guide-box-complementary">
+        <div class="guide-box-header">
+          <span style="color:#7c3aed;">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Điều chỉnh sắc thái)</span>
+        </div>
+        <div><b>Định nghĩa:</b> Văn bản hoặc hình ảnh chưa đủ thông tin nếu đứng một mình; phương thức này bổ sung ngữ cảnh, đối tượng hoặc sự kiện quan trọng giúp xác định rõ cảm xúc tổng thể của bài đăng.</div>
+        <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
+          • <b>Ví dụ 1 (Bổ trợ bối cảnh):</b> Text "Cuối cùng cũng hoàn thành sau bao nỗ lực!" (trung tính/chung chung) + ảnh ngôi nhà vừa xây xong khang trang &rarr; Ảnh định đoạt cảm xúc tự hào, vui mừng (<code>joy</code>).<br>
+          • <b>Ví dụ 2 (Lệch sắc thái nhưng không mỉa mai):</b> Text than mệt mỏi nhưng ảnh đăng thú cưng/hoa lá để tự an ủi làm dịu tâm trạng &rarr; Thuộc <code>COMPLEMENTARY</code> (ảnh bổ trợ xoa dịu), không xếp vào mỉa mai.
+        </div>
+      </div>
+
+      <div class="guide-box guide-box-sarcastic">
+        <div class="guide-box-header">
+          <span style="color:#d97706;">⚡ INCONGRUENT (Mâu thuẫn / Mỉa mai / Châm biếm)</span>
+        </div>
+        <div><b>Định nghĩa:</b> Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh để tạo ra sắc thái **mỉa mai, châm biếm, chế giễu hoặc tự trào** (sarcasm / irony / satire).</div>
+        <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
+          • <b>Ví dụ:</b> Text "Dịch vụ ở đây đúng là tuyệt vời!" + ảnh hàng dài người kiệt sức chờ đợi dưới mưa &rarr; Text mang nghĩa tích cực giả tạo nhưng toàn bài truyền tải sự tức giận/bất bình (<code>anger</code>).<br>
+          • <i>Lưu ý:</i> Phải có yếu tố châm biếm/mỉa mai rõ ràng mới chọn nhãn này.
+        </div>
+      </div>
+
+      <!-- 3. combined_emotion -->
+      <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:16px 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
+        3. QUY TẮC 7 NHÃN CẢM XÚC EKMAN &amp; ĐỊNH VỊ CHỦ THỂ (POSTER-CENTRIC)
+      </div>
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 12px; margin-bottom:12px; font-size:0.83rem; color:#1e40af; line-height:1.6;">
+        ⭐ <b>NGUYÊN TẮC VÀNG CHO ĐỀ TÀI (POSTER-CENTRIC):</b> Cảm xúc cần đánh giá là <b>trạng thái tâm lý người đăng muốn bộc lộ</b> qua bài đăng:<br>
+        • <b>Tin tức / Tư liệu / Trích dẫn khách quan:</b> Phong cách báo chí, tư liệu lịch sử, chia sẻ danh ngôn mà người đăng không kèm cảm xúc cá nhân &rarr; Chọn <b><code>neutral</code></b>.<br>
+        • <b>Bài đăng đời thường / Cá nhân / Meme:</b> Ảnh đời thường/selfie, trải nghiệm sống, meme giải trí &rarr; Đánh giá cảm xúc thực tế toát ra (<code>joy</code>, <code>sadness</code>, <code>anger</code>...).
+      </div>
+      <div style="font-size:0.84rem; color:#475569; margin-bottom:10px;">Áp dụng đồng nhất cho cả 3 trường cảm xúc (chọn chính xác 1 nhãn nổi trội nhất):</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; font-size:0.84rem;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😄 joy</b> — Vui vẻ, hạnh phúc, hân hoan, tự hào, biết ơn hoặc hài hước tích cực.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😢 sadness</b> — Buồn bã, cô đơn, thất vọng, tiếc nuối, mất mát hoặc u uất.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😠 anger</b> — Tức giận, phẫn nộ, bực bội, bất bình trước bất công hoặc sự cố.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>🤢 disgust</b> — Ghê tởm về thể xác hoặc khinh miệt, chê bai mạnh mẽ về đạo đức/xã hội.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😨 fear</b> — Sợ hãi, hoảng hốt, bất an, lo lắng tột độ trước nguy cơ hoặc tai họa.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px;"><b>😲 surprise</b> — Ngạc nhiên, ngỡ ngàng, sửng sốt trước tình huống bất ngờ chưa lường trước.</div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; grid-column:span 2;"><b>😐 neutral</b> — Khách quan, trung tính, chia sẻ tin tức/danh ngôn; người đăng không bộc lộ cảm xúc cá nhân nổi trội.</div>
+      </div>
+
+      <!-- 4. Nhận diện mẫu nghi ngờ / mơ hồ -->
+      <div style="font-size:1rem; font-weight:800; color:#1e293b; margin:16px 0 10px 0; border-bottom:1.5px solid #e2e8f0; padding-bottom:5px;">
+        4. TIÊU CHÍ RÀ SOÁT CÁC "MẪU NGHI NGỜ / MƠ HỒ" (TRỌNG ĐIỂM GVHD YÊU CẦU)
+      </div>
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:12px; font-size:0.83rem; color:#92400e; margin-bottom:16px; line-height:1.65;">
+        <b>🔍 Hai bạn tập trung rà soát và tinh chỉnh các ca sau:</b><br>
+        1. <b>Lệch pha phương thức (Modality Divergence):</b> Khi <code>text_only_emotion</code> lệch hẳn <code>image_only_emotion</code> (ví dụ: Text là <code>joy</code> nhưng Image là <code>sadness</code>/<code>disgust</code>) &rarr; Tiềm ẩn mỉa mai, VLM dễ bị "lừa" bởi nghĩa đen.<br>
+        2. <b>Quan hệ không đồng nhất:</b> Toàn bộ mẫu có nhãn <code>INCONGRUENT</code> hoặc <code>COMPLEMENTARY</code> cần được soi chiếu kỹ vì tính đa nghĩa cao.<br>
+        3. <b>Lời giải thích VLM do dự:</b> VLM giải thích dùng từ "tuy nhiên", "khó phân định", "có thể hiểu hai cách".<br>
+        4. <b>Meme chứa chữ nhúng (Text-in-image):</b> Đọc kỹ chữ lồng trong ảnh và đối chiếu văn bản gốc tiếng Anh.<br>
+        5. <b>Bắt buộc ghi chú:</b> Khi điều chỉnh khác VLM hoặc gặp ca biên khó, vui lòng nhập lý do vào ô <code>Ghi chú lý do</code>.
+      </div>
+
+      <!-- 5. Cờ chất lượng -->
+      <div class="guide-box guide-box-flag">
+        <div class="guide-box-header">
+          <span style="color:#dc2626;">⚠️ CỜ CHẤT LƯỢNG ĐẶC BIỆT: INSUFFICIENT_CONTEXT</span>
+        </div>
+        <div style="font-size:0.84rem; color:#475569; line-height:1.6;">
+          • <b>Bản chất:</b> Cờ kỹ thuật loại bỏ mẫu rác, <b>KHÔNG phải nhãn cảm xúc thứ 8 hay quan hệ thứ 4</b>.<br>
+          • <b>Kích hoạt khi:</b> Ảnh bị lỗi hiển thị nghiêm trọng, văn bản rác vô nghĩa, hoặc cặp text–image hoàn toàn không liên quan.<br>
+          • <b>Tuyệt đối không gắn cờ chỉ vì:</b> Bài đăng trung tính (hãy chọn <code>neutral</code>), hoặc mẫu khó phân loại nhưng vẫn có căn cứ suy luận.
+        </div>
+      </div>
+    </div>
+
+    <div class="guideline-modal-footer">
+      <button class="btn-modal-submit" onclick="closeGuidelineModal()" style="width:auto; padding:8px 24px;">Đã hiểu quy chuẩn (Phím Esc)</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="header-left">
+    <div class="header-title">Hệ Thống Thẩm Định Đa Phương Thức (KLTN)</div>
+    <div class="reviewer-input-group">
+      <label for="reviewerNameInput">Người thẩm định <span style="color:#ef4444;">*</span>:</label>
+      <input type="text" id="reviewerNameInput" class="reviewer-input" placeholder="Bắt buộc nhập tên..." onchange="onReviewerNameChange()">
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn-guideline" onclick="openGuidelineModal()" title="Xem Cẩm Nang Quy Chuẩn Gán Nhãn Đa Phương Thức (Phím H)">
+      📖 Quy Chuẩn Gán Nhãn (H)
+    </button>
+    <div class="active-file-display" id="activeFileContainer" title="Tệp dữ liệu đang làm việc">
+      <span class="file-icon">📁</span>
+      <span class="file-label">Tệp làm việc:</span>
+      <span id="activeFileTitle" class="file-name">vlm_dataset.json</span>
+      <span id="activeFileTag" class="file-tag tag-base">Mặc định</span>
+    </div>
+  </div>
+</header>
+
+<div class="app-layout">
+  <div class="stats-bar">
+      <div class="stats-badges">
+        <span class="stat-item">Mẫu: <b id="statCurrentIdx">0 / 0</b></span>
+        
+        <!-- Nhảy nhanh đến mẫu mong muốn -->
+        <div class="jump-box" style="display:flex; align-items:center; gap:5px; background:#f1f5f9; padding:2px 8px; border-radius:5px; margin-left:4px;">
+          <label for="jumpSampleInput" style="font-size:0.75rem; font-weight:700; color:#475569;">NHẢY ĐẾN:</label>
+          <input type="text" id="jumpSampleInput" placeholder="Số (1-700) hoặc ID..." title="Gõ số thứ tự (vd: 218) hoặc mã ID (vd: ELITE_0218) rồi ấn Enter" style="width:145px; padding:3px 7px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:4px;" onkeydown="if(event.key==='Enter') jumpToSample()">
+          <button class="btn-tool" onclick="jumpToSample()" style="padding:3px 8px; font-size:0.75rem;" title="Nhảy tới mẫu">Đi tới</button>
+        </div>
+
+        <span class="stat-item">Đã duyệt: <b id="statReviewed">0</b></span>
+        <span class="stat-item">Tự chọn: <b id="statSelfDecided">0</b></span>
+        <span class="stat-item">Khớp VLM: <b id="statMatchVlm">0</b></span>
+        <span class="stat-item">Tiến độ: <b id="statProgress">0%</b></span>
+      </div>
+
+
+      <div id="saveIndicator" class="save-indicator">Sẵn sàng</div>
+    </div>
+
+    <!-- Fullscreen Lightbox Modal -->
+    <div id="lightboxModal" class="lightbox-modal" style="display:none;" onclick="closeLightbox()">
+      <span class="lightbox-close">&times;</span>
+      <img id="lightboxImg" class="lightbox-img" src="" alt="Ảnh phóng to đầy đủ">
+    </div>
+
+    <div id="emptyView" class="empty-state">
+      <h3 style="font-size:1.1rem; margin-bottom:8px;">Đang nạp tập dữ liệu vlm_dataset.json...</h3>
+      <p style="color:var(--text-muted); font-size:0.875rem;">Hệ thống đang tự động nạp tập dữ liệu chuẩn. Vui lòng chờ trong giây lát.</p>
+    </div>
+
+    <div id="workspaceView" class="inspection-grid" style="display:none;">
+      <!-- Image Panel (Compact, Zoom & Toolbar) -->
+      <div class="image-panel">
+        <div class="image-toolbar">
+          <span style="font-size:0.78rem; font-weight:700; color:#475569; text-transform:uppercase;">Hình Ảnh Bài Đăng</span>
+          <div class="image-tools">
+            <button class="btn-tool" onclick="zoomImage(0.2)" title="Phóng to ảnh">+</button>
+            <button class="btn-tool" onclick="zoomImage(-0.2)" title="Thu nhỏ ảnh">-</button>
+            <button class="btn-tool" onclick="resetZoom()" title="Vừa khung ảnh">Reset</button>
+            <button class="btn-tool" onclick="openLightbox()" title="Xem toàn màn hình">Xem Toàn Màn Hình</button>
+          </div>
+        </div>
+
+        <div id="imageViewport" class="image-viewport" onwheel="onImageWheel(event)">
+          <img id="currentImage" class="post-image" src="" alt="Hình ảnh bài đăng" onclick="openLightbox()">
+        </div>
+        <div id="currentImagePathText" class="image-path-info"></div>
+      </div>
+
+      <!-- Content & Decision Panel -->
+      <div class="content-panel">
+        <div class="badge-row">
+          <span id="badgeSampleId" class="badge badge-id">ELITE_0001</span>
+          <span id="badgeSource" class="badge badge-strategy">MVSA-Single</span>
+          <span id="badgeQuality" class="badge" style="display:none;"></span>
+        </div>
+
+        <div class="text-container">
+          <div id="textViContent" class="text-vi">Bản dịch tiếng Việt...</div>
+          <div id="textEnContent" class="text-en">Original English text...</div>
+        </div>
+
+        <!-- Human Decision Form (QUYẾT ĐỊNH THẨM ĐỊNH CỦA BẠN - 2 TRỤC GVHD YÊU CẦU) -->
+        <div id="decisionBox" class="decision-box">
+          <div class="decision-header">
+            <div class="header-title-wrap">
+              <span id="boxRoleBadge" class="box-role-badge role-human">QUYẾT ĐỊNH CỦA BẠN</span>
+              <span class="box-title-text">QUYẾT ĐỊNH THẨM ĐỊNH CỦA BẠN</span>
+            </div>
+            <span id="statusTag" class="status-tag">CHƯA THẨM ĐỊNH</span>
+          </div>
+
+          <div class="edit-controls-grid">
+            <div class="field-group">
+              <label for="selectTextEmo" title="Độc lập: Tự hỏi nếu chỉ đọc tin nhắn này mà không có ảnh thì mang cảm xúc gì?">
+                1. Cảm xúc theo văn bản (Text-only): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:normal; color:#64748b;">(đọc riêng chữ)</span>
+              </label>
+              <select id="selectTextEmo" class="review-select" onchange="onDecisionFieldChange()">
+                <option value="">-- Chưa chọn cảm xúc chữ --</option>
+                <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
+                <option value="sadness">😢 Sadness (Buồn bã, cô đơn, thất vọng)</option>
+                <option value="anger">😠 Anger (Tức giận, bực bội, bất công)</option>
+                <option value="fear">😨 Fear (Sợ hãi, lo âu, bất an)</option>
+                <option value="disgust">🤢 Disgust (Kinh tởm, chê bai, khinh bỉ)</option>
+                <option value="surprise">😲 Surprise (Ngạc nhiên, sửng sốt)</option>
+                <option value="neutral">😐 Neutral (Trung tính, khách quan)</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="selectImgEmo" title="Độc lập: Nhìn riêng ảnh; nếu ảnh là meme thì được phép đọc chữ in sẵn trên ảnh">
+                2. Cảm xúc theo hình ảnh (Image-only): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:normal; color:#64748b;">(được đọc chữ trong meme)</span>
+              </label>
+              <select id="selectImgEmo" class="review-select" onchange="onDecisionFieldChange()">
+                <option value="">-- Chưa chọn cảm xúc ảnh --</option>
+                <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
+                <option value="sadness">😢 Sadness (Buồn bã, cô đơn, thất vọng)</option>
+                <option value="anger">😠 Anger (Tức giận, bực bội, bất công)</option>
+                <option value="fear">😨 Fear (Sợ hãi, lo âu, bất an)</option>
+                <option value="disgust">🤢 Disgust (Kinh tởm, chê bai, khinh bỉ)</option>
+                <option value="surprise">😲 Surprise (Ngạc nhiên, sửng sốt)</option>
+                <option value="neutral">😐 Neutral (Trung tính, khách quan)</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="selectComb" title="Cảm xúc sau khi kết hợp đồng thời cả ảnh và chữ trong ngữ cảnh mạng xã hội">
+                3. Cảm xúc tổng hợp (Toàn bộ bài đăng): <span style="color:#ef4444;">*</span>
+                <span style="font-size:0.72rem; font-weight:bold; color:#2563eb;">(Trục đánh giá chính)</span>
+              </label>
+              <select id="selectComb" class="review-select" onchange="onDecisionFieldChange()">
+                <option value="">-- Chưa chọn cảm xúc tổng hợp --</option>
+                <option value="joy">😄 Joy (Vui vẻ, tích cực, tự hào)</option>
+                <option value="sadness">😢 Sadness (Buồn bã, cô đơn, thất vọng)</option>
+                <option value="anger">😠 Anger (Tức giận, bực bội, bất công)</option>
+                <option value="fear">😨 Fear (Sợ hãi, lo âu, bất an)</option>
+                <option value="disgust">🤢 Disgust (Kinh tởm, chê bai, khinh bỉ)</option>
+                <option value="surprise">😲 Surprise (Ngạc nhiên, sửng sốt)</option>
+                <option value="neutral">😐 Neutral (Trung tính, khách quan)</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="selectRel" title="Phân loại tương tác theo 3 nhóm chỉ đạo của GVHD">
+                4. Quan hệ tương tác ảnh – chữ: <span style="color:#ef4444;">*</span>
+              </label>
+              <select id="selectRel" class="review-select" onchange="onDecisionFieldChange()">
+                <option value="">-- Chưa chọn quan hệ --</option>
+                <option value="CONGRUENT">🔗 CONGRUENT (Đồng nhất / Cùng thông điệp)</option>
+                <option value="COMPLEMENTARY">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Xoa dịu)</option>
+                <option value="INCONGRUENT">⚡ INCONGRUENT (Mâu thuẫn / Mỉa mai)</option>
+              </select>
+            </div>
+
+            <!-- Ghi chú lý do / Đánh giá chất lượng mẫu -->
+            <div class="field-group full-width" style="grid-column: span 2;">
+              <label for="reviewNotes">Ghi chú lý do (Tùy chọn khi điều chỉnh khác VLM hoặc mẫu đặc biệt):</label>
+              <textarea id="reviewNotes" placeholder="Nhập lý do điều chỉnh hoặc ngữ cảnh đặc biệt nếu có..." oninput="onNotesInput()"></textarea>
+            </div>
+          </div>
+
+
+          <!-- Các nút hành động cân đối, không thiên vị VLM -->
+          <div class="action-row">
+            <button class="btn-save-main" onclick="submitDecision(false)">
+              LƯU PHÁN QUYẾT & TIẾP TỤC (Phím Enter)
+            </button>
+            <button id="btnAgreeVlm" class="btn-agree-vlm" onclick="submitDecision(true)" title="Áp dụng đề xuất VLM cho mẫu này (cập nhật tại chỗ, không chuyển tiếp)">
+              Theo VLM (Phím Space)
+            </button>
+
+            <button class="btn-insufficient" onclick="markInsufficient()" title="Đánh dấu bài đăng không đủ ngữ cảnh hoặc hình ảnh/dịch máy bị lỗi">
+              Gắn cờ: Thiếu thông tin
+            </button>
+          </div>
+        </div>
+
+        <!-- VLM Prediction Panel (KẾT QUẢ DỰ ĐOÁN CỦA VLM) -->
+        <div id="vlmProposalBox" class="vlm-box">
+          <div class="vlm-box-header">
+            <div class="header-title-wrap">
+              <span class="box-role-badge role-vlm">DỰ ĐOÁN CỦA MÁY</span>
+              <span class="box-title-text">KẾT QUẢ DỰ ĐOÁN CỦA VLM</span>
+            </div>
+            <div class="vlm-model-tag">
+              <span style="color:#64748b; font-weight:normal;">Model:</span>
+              <span id="vlmModelName">gemini-3.5-flash-lite</span>
+            </div>
+          </div>
+
+          <!-- Trạng thái chưa có dữ liệu nếu mẫu không chứa dự đoán VLM -->
+          <div id="vlmEmptyNotice" class="vlm-empty-notice" style="display:none;">
+            <span>ℹ️ Mẫu này chưa có kết quả dự đoán từ mô hình VLM trong tệp dữ liệu.</span>
+          </div>
+
+          <div id="vlmContentArea">
+            <!-- Bảng đối chiếu trực quan 3 cột: Tiêu chí | Nhãn của bạn | Nhãn VLM -->
+            <div class="comparison-table-wrap">
+              <table class="comparison-table">
+                <thead>
+                  <tr>
+                    <th style="width: 28%;">Tiêu chí</th>
+                    <th style="width: 36%;">Nhãn của bạn</th>
+                    <th style="width: 36%;">Nhãn VLM</th>
+                  </tr>
+                </thead>
+                <tbody id="comparisonTableBody">
+                  <!-- Được cập nhật tự động tức thì theo lựa chọn hiện tại -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Giải thích ngữ cảnh của VLM -->
+            <div id="vlmExplanationBox" class="vlm-explanation-box">
+              <div class="vlm-explanation-header">
+                <span>💡</span>
+                <span>GIẢI THÍCH NGỮ CẢNH CỦA VLM</span>
+              </div>
+              <div id="vlmExplanation" class="vlm-explanation-text">Lời giải thích bối cảnh của VLM...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-row">
+          <button class="btn-nav" onclick="changeIndex(-1)">Mẫu Trước (Phím ←)</button>
+          
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:0.8rem; color:var(--text-muted);">Đến mẫu thứ:</span>
+            <input type="number" id="jumpIndexBottom" min="1" max="1000" placeholder="Số..." style="width:75px; padding:4px 6px; font-size:0.82rem; border:1px solid var(--border); border-radius:4px;" onkeydown="if(event.key==='Enter') jumpByIndexBottom()">
+            <button class="btn-tool" onclick="jumpByIndexBottom()" style="padding:4px 10px; font-size:0.8rem;">Nhảy</button>
+          </div>
+
+          <button class="btn-nav" onclick="changeIndex(1)">Mẫu Tiếp Theo (Phím →)</button>
+        </div>
+
+        <div class="shortcuts-footer">
+          Phím tắt: [Enter]: Lưu phán quyết & Chuyển tiếp | [Space]: Áp dụng theo VLM (cập nhật tại chỗ) | [← / →]: Chuyển mẫu trước / sau | [G]: Nhảy đến mẫu | [H]: Quy chuẩn gán nhãn | [+/-/0]: Phóng to / Thu nhỏ / Vừa khung ảnh
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let activeSourceFileName = "vlm_dataset.json";
+  let activeSaveFileName = "";
+  let samplesList = [];
+  let currentIndex = 0;
+  let reviewerName = localStorage.getItem("se121_reviewer_name") || "";
+  let currentZoom = 1.0;
+  const localDrafts = {}; // Lưu tạm các lựa chọn chưa submit để khi chuyển mẫu không bị mất
+
+  // Từ điển ánh xạ icon & nhãn cảm xúc Ekman
+  const EMOTION_META = {
+    joy: { icon: "😄", label: "Joy", vi: "Vui vẻ, tích cực" },
+    sadness: { icon: "😢", label: "Sadness", vi: "Buồn bã, cô đơn" },
+    anger: { icon: "😠", label: "Anger", vi: "Tức giận, phẫn nộ" },
+    fear: { icon: "😨", label: "Fear", vi: "Sợ hãi, lo âu" },
+    disgust: { icon: "🤢", label: "Disgust", vi: "Kinh tởm, chê bai" },
+    surprise: { icon: "😲", label: "Surprise", vi: "Ngạc nhiên, thảng thốt" },
+    neutral: { icon: "😐", label: "Neutral", vi: "Trung tính" }
+  };
+
+  // Từ điển ánh xạ quan hệ ảnh - chữ
+  const RELATION_META = {
+    CONGRUENT: { icon: "🔗", label: "CONGRUENT", vi: "Đồng nhất cảm xúc" },
+    COMPLEMENTARY: { icon: "🧩", label: "COMPLEMENTARY", vi: "Bổ trợ ngữ cảnh" },
+    INCONGRUENT: { icon: "⚡", label: "INCONGRUENT", vi: "Mâu thuẫn / Mỉa mai" }
+  };
+
+  function formatEmotionChip(val, type) {
+    if (!val) {
+      return type === "human"
+        ? '<span class="chip-unselected">⚪ Chưa chọn nhãn</span>'
+        : '<span class="chip-empty">Chưa có dữ liệu</span>';
+    }
+    const key = String(val).trim().toLowerCase();
+    const meta = EMOTION_META[key] || { icon: "❔", label: val, vi: "Khác" };
+    const chipClass = type === "vlm" ? "chip-vlm" : "chip-human";
+    return `<span class="entity-chip ${chipClass}"><span>${meta.icon}</span> <span>${meta.label}</span> <span class="chip-desc">(${meta.vi})</span></span>`;
+  }
+
+  function formatRelationChip(val, type) {
+    if (!val) {
+      return type === "human"
+        ? '<span class="chip-unselected">⚪ Chưa chọn quan hệ</span>'
+        : '<span class="chip-empty">Chưa có dữ liệu</span>';
+    }
+    const key = String(val).trim().toUpperCase();
+    const meta = RELATION_META[key] || { icon: "❔", label: val, vi: "Khác" };
+    const chipClass = type === "vlm" ? "chip-vlm" : "chip-human";
+    return `<span class="entity-chip ${chipClass}"><span>${meta.icon}</span> <span>${meta.label}</span> <span class="chip-desc">(${meta.vi})</span></span>`;
+  }
+
+  function saveCurrentDraft() {
+    if (!samplesList || samplesList.length === 0 || currentIndex < 0 || currentIndex >= samplesList.length) return;
+    const item = samplesList[currentIndex];
+    if (!item || !item.id) return;
+    const textEmo = document.getElementById("selectTextEmo")?.value || "";
+    const imgEmo = document.getElementById("selectImgEmo")?.value || "";
+    const comb = document.getElementById("selectComb")?.value || "";
+    const rel = document.getElementById("selectRel")?.value || "";
+    const notes = document.getElementById("reviewNotes")?.value || "";
+    localDrafts[item.id] = { textEmo, imgEmo, comb, rel, notes };
+  }
+
+  function onDecisionFieldChange() {
+    saveCurrentDraft();
+    updateComparisonTable();
+  }
+
+  function onNotesInput() {
+    saveCurrentDraft();
+  }
+
+  function updateComparisonTable() {
+    if (!samplesList || samplesList.length === 0 || currentIndex < 0 || currentIndex >= samplesList.length) return;
+    const item = samplesList[currentIndex];
+    const prop = item.vlm_proposal || {};
+    const hasVlm = Boolean(prop && (prop.combined_emotion || prop.text_only_emotion || prop.image_only_emotion));
+
+    const rows = [
+      {
+        name: "1. Cảm xúc theo văn bản (Text-only)",
+        humanVal: document.getElementById("selectTextEmo")?.value || "",
+        vlmVal: hasVlm ? (prop.text_only_emotion || "") : "",
+        isEmotion: true
+      },
+      {
+        name: "2. Cảm xúc theo hình ảnh (Image-only)",
+        humanVal: document.getElementById("selectImgEmo")?.value || "",
+        vlmVal: hasVlm ? (prop.image_only_emotion || "") : "",
+        isEmotion: true
+      },
+      {
+        name: "3. Cảm xúc tổng hợp (Combined)",
+        humanVal: document.getElementById("selectComb")?.value || "",
+        vlmVal: hasVlm ? (prop.combined_emotion || "") : "",
+        isEmotion: true
+      },
+      {
+        name: "4. Quan hệ tương tác ảnh–chữ",
+        humanVal: document.getElementById("selectRel")?.value || "",
+        vlmVal: hasVlm ? (prop.relationship_type || "") : "",
+        isEmotion: false
+      }
+    ];
+
+    const tbody = document.getElementById("comparisonTableBody");
+    if (!tbody) return;
+
+    let html = "";
+    rows.forEach(r => {
+      const normHuman = (r.humanVal || "").trim().toLowerCase();
+      const normVlm = (r.vlmVal || "").trim().toLowerCase();
+
+      let statusBadge = "";
+      let rowClass = "row-pending";
+
+      if (!normHuman || !normVlm) {
+        statusBadge = `<span class="comp-badge comp-badge-pending">⚪ CHƯA CÓ NHÃN</span>`;
+        rowClass = "row-pending";
+      } else if (normHuman === normVlm) {
+        statusBadge = `<span class="comp-badge comp-badge-match">✓ TRÙNG KHỚP</span>`;
+        rowClass = "row-match";
+      } else {
+        statusBadge = `<span class="comp-badge comp-badge-diff">⚡ KHÁC BIỆT</span>`;
+        rowClass = "row-diff";
+      }
+
+      const humanChip = r.isEmotion
+        ? formatEmotionChip(r.humanVal, "human")
+        : formatRelationChip(r.humanVal, "human");
+
+      const vlmChip = r.isEmotion
+        ? formatEmotionChip(r.vlmVal, "vlm")
+        : formatRelationChip(r.vlmVal, "vlm");
+
+      html += `
+        <tr class="${rowClass}">
+          <td style="width: 28%;">
+            <div style="font-weight: 700; color: #1e293b; margin-bottom: 3px;">${r.name}</div>
+            ${statusBadge}
+          </td>
+          <td style="width: 36%;">${humanChip}</td>
+          <td style="width: 36%;">${vlmChip}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  // Thu phóng & xem toàn màn hình hình ảnh
+  function zoomImage(delta) {
+    currentZoom = Math.min(Math.max(0.5, currentZoom + delta), 3.0);
+    const img = document.getElementById("currentImage");
+    if (img) img.style.transform = `scale(${currentZoom})`;
+  }
+
+  function resetZoom() {
+    currentZoom = 1.0;
+    const img = document.getElementById("currentImage");
+    if (img) img.style.transform = "scale(1.0)";
+  }
+
+  function onImageWheel(e) {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.15 : -0.15;
+    zoomImage(delta);
+  }
+
+  function openLightbox() {
+    const src = document.getElementById("currentImage").src;
+    if (!src) return;
+    document.getElementById("lightboxImg").src = src;
+    document.getElementById("lightboxModal").style.display = "flex";
+  }
+
+  function closeLightbox() {
+    document.getElementById("lightboxModal").style.display = "none";
+  }
+
+  // Tạo slug tên an toàn cho file (hỗ trợ tiếng Việt đầy đủ)
+  function slugifyName(name) {
+    if (!name) return "reviewer";
+    let s = name.replace(/[đĐ]/g, "d");
+    s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    s = s.toLowerCase();
+    s = s.replace(/[^a-z0-9_-]+/g, "_");
+    s = s.replace(/^_+|_+$/g, "");
+    return s || "reviewer";
+  }
+
+  // Tự động tính toán tên tệp review riêng (không bao giờ trùng với tệp gốc dùng chung)
+  function computeSaveFileName(sourceFile, revName) {
+    if (!sourceFile) return "";
+    const slug = slugifyName(revName);
+    // Nếu sourceFile đã là tệp review riêng thì giữ nguyên
+    if (sourceFile.includes("_review_")) {
+      return sourceFile;
+    }
+    const dotIdx = sourceFile.lastIndexOf(".");
+    const baseStem = dotIdx > 0 ? sourceFile.substring(0, dotIdx) : sourceFile;
+    const cleanStem = baseStem.replace(/_review_.*$/, "");
+    return `${cleanStem}_review_${slug}.json`;
+  }
+
+  function updateBanner() {
+    // Đã lược bỏ banner để giao diện tối giản
+  }
+
+  // Khởi tạo ban đầu
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("reviewerNameInput").value = reviewerName;
+    checkReviewerRequirement();
+    loadActiveDataset(reviewerName);
+  });
+
+  function checkReviewerRequirement() {
+    if (!reviewerName || reviewerName.trim() === "" || reviewerName === "Chưa đặt tên") {
+      document.getElementById("reviewerModal").style.display = "flex";
+      document.getElementById("modalReviewerInput").focus();
+      document.getElementById("reviewerNameInput").classList.add("required-warning");
+      return false;
+    } else {
+      document.getElementById("reviewerModal").style.display = "none";
+      document.getElementById("reviewerNameInput").classList.remove("required-warning");
+      return true;
+    }
+  }
+
+  function submitReviewerModal() {
+    const val = document.getElementById("modalReviewerInput").value.trim();
+    if (!val) {
+      alert("Vui lòng nhập tên người thẩm định để tiếp tục!");
+      document.getElementById("modalReviewerInput").focus();
+      return;
+    }
+    reviewerName = val;
+    localStorage.setItem("se121_reviewer_name", reviewerName);
+    document.getElementById("reviewerNameInput").value = reviewerName;
+    document.getElementById("reviewerModal").style.display = "none";
+    document.getElementById("reviewerNameInput").classList.remove("required-warning");
+
+    loadActiveDataset(reviewerName);
+  }
+
+  function onReviewerNameChange() {
+    reviewerName = document.getElementById("reviewerNameInput").value.trim();
+    if (!reviewerName) {
+      checkReviewerRequirement();
+      return;
+    }
+    localStorage.setItem("se121_reviewer_name", reviewerName);
+    document.getElementById("reviewerNameInput").classList.remove("required-warning");
+
+    loadActiveDataset(reviewerName);
+  }
+
+  function updateFileDisplay(fileName, isReview) {
+    const titleEl = document.getElementById("activeFileTitle");
+    const tagEl = document.getElementById("activeFileTag");
+    if (titleEl) titleEl.innerText = fileName || "vlm_dataset.json";
+    if (tagEl) {
+      if (isReview || (fileName && fileName.includes("_review_"))) {
+        tagEl.innerText = "Bản review của bạn";
+        tagEl.className = "file-tag tag-review";
+      } else {
+        tagEl.innerText = "Mặc định (vlm_dataset.json)";
+        tagEl.className = "file-tag tag-base";
+      }
+    }
+  }
+
+  // Tự động nạp tệp vlm_dataset.json (hoặc bản review của reviewer nếu đã có)
+  async function loadActiveDataset(revName) {
+    const slug = slugifyName(revName);
+    const saveIndicator = document.getElementById("saveIndicator");
+    if (saveIndicator) {
+      saveIndicator.innerText = "Đang nạp dữ liệu...";
+      saveIndicator.style.color = "#d97706";
+    }
+
+    try {
+      const url = revName ? `/api/load?reviewer=${encodeURIComponent(revName)}` : `/api/load`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Không thể tải dữ liệu");
+
+      const rawData = json.data;
+      if (rawData && rawData.samples) {
+        samplesList = rawData.samples;
+        if (rawData.reviewer_info && rawData.reviewer_info.reviewer_name && !reviewerName) {
+          reviewerName = rawData.reviewer_info.reviewer_name;
+          localStorage.setItem("se121_reviewer_name", reviewerName);
+          document.getElementById("reviewerNameInput").value = reviewerName;
+        }
+      } else if (Array.isArray(rawData)) {
+        samplesList = rawData;
+      } else {
+        throw new Error("Cấu trúc dữ liệu không hợp lệ");
+      }
+
+      activeSourceFileName = "vlm_dataset.json";
+      activeSaveFileName = json.filename && json.filename.includes("_review_")
+        ? json.filename
+        : (slug ? `vlm_dataset_review_${slug}.json` : "vlm_dataset_review_reviewer.json");
+
+      updateFileDisplay(json.filename, json.is_review);
+
+      document.getElementById("emptyView").style.display = "none";
+      document.getElementById("workspaceView").style.display = "grid";
+
+      // Nhảy tới mẫu đầu tiên chưa duyệt nếu có
+      const firstUnreviewed = samplesList.findIndex(s => !s.human_review || !s.human_review.reviewed);
+      currentIndex = firstUnreviewed >= 0 ? firstUnreviewed : 0;
+
+      renderCurrentSample();
+      updateStatistics();
+
+      if (saveIndicator) {
+        saveIndicator.innerText = json.is_review
+          ? `Đã mở bản review trước đó (${json.filename})`
+          : `Đã mở tập dữ liệu chuẩn (${json.filename})`;
+        saveIndicator.style.color = "var(--success)";
+      }
+    } catch (e) {
+      console.warn("Lỗi nạp qua /api/load, thử nạp trực tiếp qua file cục bộ:", e);
+
+      // Thử nạp fallback cục bộ (trong trường hợp mở qua static file server hoặc trình duyệt hỗ trợ)
+      try {
+        const fallbackRes = await fetch("data/vlm_dataset.json");
+        if (fallbackRes.ok) {
+          const localData = await fallbackRes.json();
+          samplesList = Array.isArray(localData) ? localData : (localData.samples || []);
+          activeSourceFileName = "vlm_dataset.json";
+          activeSaveFileName = slug ? `vlm_dataset_review_${slug}.json` : "vlm_dataset_review_reviewer.json";
+          updateFileDisplay("vlm_dataset.json", false);
+          document.getElementById("emptyView").style.display = "none";
+          document.getElementById("workspaceView").style.display = "grid";
+          currentIndex = 0;
+          renderCurrentSample();
+          updateStatistics();
+          if (saveIndicator) {
+            saveIndicator.innerText = "Đã nạp vlm_dataset.json (Chế độ Cục bộ)";
+            saveIndicator.style.color = "var(--success)";
+          }
+          return;
+        }
+      } catch (localErr) {
+        console.warn("Không thể nạp tự động qua file cục bộ:", localErr);
+      }
+
+      // Nếu cả 2 cách đều không được, hiển thị hướng dẫn rõ ràng trên emptyView thay vì để người dùng chờ
+      const emptyView = document.getElementById("emptyView");
+      if (emptyView) {
+        emptyView.innerHTML = `
+          <div style="background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:24px; max-width:620px; margin:30px auto; text-align:left; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+              <span style="font-size:1.6rem;">⚠️</span>
+              <h3 style="font-size:1.15rem; color:#b91c1c; margin:0;">Chưa kết nối được với máy chủ thẩm định</h3>
+            </div>
+            <p style="font-size:0.875rem; color:#475569; line-height:1.5; margin-bottom:12px;">
+              Để hệ thống tự động nạp <b>evaluation/image-experiment/data/vlm_dataset.json</b> và lưu kết quả thẩm định, bạn hãy bật máy chủ cục bộ bằng lệnh:
+            </p>
+            <div style="background:#0f172a; color:#38bdf8; padding:10px 14px; border-radius:6px; font-family:monospace; font-size:0.9rem; margin-bottom:16px;">
+              python evaluation/image-experiment/review_server.py
+            </div>
+            <p style="font-size:0.85rem; color:#64748b; margin-bottom:8px;">
+              Sau khi bật, truy cập lại địa chỉ: <a href="http://localhost:8080/image-experiment/human_review_ui.html" style="color:#2563eb; font-weight:600;">http://localhost:8080/image-experiment/human_review_ui.html</a>
+            </p>
+            <hr style="border:none; border-top:1px solid #e2e8f0; margin:16px 0;">
+            <p style="font-size:0.875rem; color:#334155; margin-bottom:8px;">
+              <b>Hoặc chọn thủ công tệp JSON từ máy tính</b> (chế độ xem Offline):
+            </p>
+            <input type="file" id="manualFileInput" accept=".json" onchange="handleManualFileInput(event)" style="font-size:0.85rem; padding:6px; border:1px solid #cbd5e1; border-radius:6px; width:100%;">
+          </div>
+        `;
+      }
+
+      if (saveIndicator) {
+        saveIndicator.innerText = "Chưa kết nối review_server.py";
+        saveIndicator.style.color = "#dc2626";
+      }
+    }
+  }
+
+  function handleManualFileInput(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const raw = JSON.parse(evt.target.result);
+        if (raw && raw.samples) {
+          samplesList = raw.samples;
+        } else if (Array.isArray(raw)) {
+          samplesList = raw;
+        } else {
+          alert("Tệp JSON không chứa mảng bài đăng hợp lệ!");
+          return;
+        }
+        activeSourceFileName = file.name;
+        const mySlug = slugifyName(reviewerName);
+        activeSaveFileName = file.name.includes("_review_") ? file.name : `vlm_dataset_review_${mySlug}.json`;
+        updateFileDisplay(file.name, file.name.includes("_review_"));
+        document.getElementById("emptyView").style.display = "none";
+        document.getElementById("workspaceView").style.display = "grid";
+        currentIndex = 0;
+        renderCurrentSample();
+        updateStatistics();
+      } catch (err) {
+        alert("Lỗi đọc tệp JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Hiển thị mẫu hiện tại
+  function renderCurrentSample() {
+    if (samplesList.length === 0 || currentIndex < 0 || currentIndex >= samplesList.length) return;
+    const item = samplesList[currentIndex];
+
+    resetZoom();
+
+    document.getElementById("statCurrentIdx").innerText = `${currentIndex + 1} / ${samplesList.length}`;
+    document.getElementById("badgeSampleId").innerText = item.id || `SAMPLE_${currentIndex + 1}`;
+
+    const srcBadge = document.getElementById("badgeSource");
+    if (srcBadge) {
+      srcBadge.innerText = item.source_dataset || "MVSA-Single";
+    }
+
+    // Cờ chất lượng (nếu bị đánh dấu thiếu thông tin)
+    const qualityBadge = document.getElementById("badgeQuality");
+    if (item.data_quality_flag === "INSUFFICIENT_CONTEXT") {
+      qualityBadge.style.display = "inline-block";
+      qualityBadge.className = "badge";
+      qualityBadge.style.background = "#fef3c7";
+      qualityBadge.style.color = "#b45309";
+      qualityBadge.innerText = "THIẾU THÔNG TIN";
+    } else {
+      qualityBadge.style.display = "none";
+    }
+
+    document.getElementById("textViContent").innerText = item.text_vi || item.text || "(Trống)";
+    document.getElementById("textEnContent").innerText = item.text || "";
+
+    // Image path: trỏ tương đối từ thư mục gốc dự án
+    const imgPath = item.image_path || "";
+    document.getElementById("currentImage").src = "/" + imgPath;
+    document.getElementById("currentImagePathText").innerText = imgPath;
+
+    // VLM proposal
+    const prop = item.vlm_proposal || {};
+    const hasVlm = Boolean(prop && prop.combined_emotion);
+
+    const modelEl = document.getElementById("vlmModelName");
+    if (modelEl) modelEl.innerText = prop.model_used || "gemini-3.5-flash-lite";
+
+    const emptyNotice = document.getElementById("vlmEmptyNotice");
+    if (emptyNotice) emptyNotice.style.display = hasVlm ? "none" : "flex";
+
+    const explEl = document.getElementById("vlmExplanation");
+    if (explEl) explEl.innerText = prop.explanation || (hasVlm ? "(Không có lời giải thích từ VLM)" : "(Mẫu này không chứa kết quả dự đoán từ mô hình VLM)");
+
+    const btnAgree = document.getElementById("btnAgreeVlm");
+    if (btnAgree) {
+      btnAgree.disabled = !hasVlm;
+    }
+
+    // Human Review values: Mặc định không tự áp dụng nhãn VLM vào dropdown nếu chưa duyệt
+    const rev = item.human_review || {};
+    const draft = localDrafts[item.id];
+
+    if (rev.reviewed) {
+      document.getElementById("selectTextEmo").value = rev.final_text_only_emotion || "";
+      document.getElementById("selectImgEmo").value = rev.final_image_only_emotion || "";
+      document.getElementById("selectComb").value = rev.final_combined_emotion || "";
+      document.getElementById("selectRel").value = rev.final_relationship_type || "";
+      document.getElementById("reviewNotes").value = rev.notes || rev.reviewer_notes || "";
+    } else if (draft) {
+      document.getElementById("selectTextEmo").value = draft.textEmo || "";
+      document.getElementById("selectImgEmo").value = draft.imgEmo || "";
+      document.getElementById("selectComb").value = draft.comb || "";
+      document.getElementById("selectRel").value = draft.rel || "";
+      document.getElementById("reviewNotes").value = draft.notes || "";
+    } else {
+      document.getElementById("selectTextEmo").value = "";
+      document.getElementById("selectImgEmo").value = "";
+      document.getElementById("selectComb").value = "";
+      document.getElementById("selectRel").value = "";
+      document.getElementById("reviewNotes").value = "";
+    }
+
+
+    const decisionBox = document.getElementById("decisionBox");
+    const roleBadge = document.getElementById("boxRoleBadge");
+    const tag = document.getElementById("statusTag");
+
+    if (rev.reviewed) {
+      if (decisionBox) decisionBox.classList.add("is-saved");
+      if (roleBadge) {
+        roleBadge.innerText = "✓ ĐÃ LƯU QUYẾT ĐỊNH";
+        roleBadge.classList.add("role-saved");
+      }
+      if (rev.decision === "AGREE") {
+        tag.innerText = "✓ ĐÃ LƯU: THEO VLM";
+        tag.style.background = "#dcfce7";
+        tag.style.color = "#15803d";
+        tag.style.border = "1.5px solid #86efac";
+      } else if (rev.decision === "INSUFFICIENT") {
+        tag.innerText = "⚠ ĐÃ LƯU: THIẾU THÔNG TIN";
+        tag.style.background = "#fef3c7";
+        tag.style.color = "#b45309";
+        tag.style.border = "1.5px solid #fde68a";
+      } else {
+        tag.innerText = "✓ ĐÃ LƯU: TỰ THẨM ĐỊNH";
+        tag.style.background = "#dcfce7";
+        tag.style.color = "#15803d";
+        tag.style.border = "1.5px solid #86efac";
+      }
+    } else {
+      if (decisionBox) decisionBox.classList.remove("is-saved");
+      if (roleBadge) {
+        roleBadge.innerText = "QUYẾT ĐỊNH CỦA BẠN";
+        roleBadge.classList.remove("role-saved");
+      }
+      tag.innerText = "CHƯA THẨM ĐỊNH";
+      tag.style.background = "#f1f5f9";
+      tag.style.color = "#475569";
+      tag.style.border = "1px solid #e2e8f0";
+    }
+
+    // Cập nhật bảng đối chiếu ngay lập tức
+    updateComparisonTable();
+  }
+
+  // Xác nhận thẩm định người dùng (Độc lập hoặc Khớp VLM)
+  async function submitDecision(agreeWithVlm) {
+    if (!checkReviewerRequirement()) {
+      alert("Vui lòng nhập tên người thẩm định trước khi bắt đầu review!");
+      return;
+    }
+
+    if (samplesList.length === 0) return;
+    const item = samplesList[currentIndex];
+    const prop = item.vlm_proposal || {};
+    const notes = document.getElementById("reviewNotes").value.trim();
+
+    if (!item.human_review) item.human_review = {};
+    item.human_review.reviewed = true;
+    item.human_review.notes = notes;
+
+    if (agreeWithVlm) {
+      if (!prop || !prop.combined_emotion || prop.is_valid === false) {
+        alert("Mẫu này chưa có kết quả dự đoán hợp lệ từ VLM để áp dụng!");
+        return;
+      }
+      item.human_review.decision = "AGREE";
+      item.human_review.final_text_only_emotion = prop.text_only_emotion || "";
+      item.human_review.final_image_only_emotion = prop.image_only_emotion || "";
+      item.human_review.final_combined_emotion = prop.combined_emotion;
+      item.human_review.final_relationship_type = prop.relationship_type || "CONGRUENT";
+
+      // Cập nhật cả 4 dropdown tương ứng trên UI
+      document.getElementById("selectTextEmo").value = item.human_review.final_text_only_emotion;
+      document.getElementById("selectImgEmo").value = item.human_review.final_image_only_emotion;
+      document.getElementById("selectComb").value = item.human_review.final_combined_emotion;
+      document.getElementById("selectRel").value = item.human_review.final_relationship_type;
+    } else {
+      const chosenText = document.getElementById("selectTextEmo").value;
+      const chosenImg = document.getElementById("selectImgEmo").value;
+      const chosenComb = document.getElementById("selectComb").value;
+      const chosenRel = document.getElementById("selectRel").value;
+
+      if (!chosenComb || !chosenRel) {
+        alert("Vui lòng chọn Cảm xúc tổng hợp bài đăng và Quan hệ tương tác ảnh–chữ trước khi lưu!");
+        return;
+      }
+
+      const matchesVlm = Boolean(prop && prop.combined_emotion &&
+        (!chosenText || (chosenText || "").toLowerCase() === (prop.text_only_emotion || "").toLowerCase()) &&
+        (!chosenImg || (chosenImg || "").toLowerCase() === (prop.image_only_emotion || "").toLowerCase()) &&
+        (chosenComb || "").toLowerCase() === (prop.combined_emotion || "").toLowerCase() &&
+        (chosenRel || "").toUpperCase() === (prop.relationship_type || "").toUpperCase()
+      );
+      
+      item.human_review.decision = matchesVlm ? "AGREE" : "MODIFIED";
+      item.human_review.final_text_only_emotion = chosenText;
+      item.human_review.final_image_only_emotion = chosenImg;
+      item.human_review.final_combined_emotion = chosenComb;
+      item.human_review.final_relationship_type = chosenRel;
+    }
+
+    delete localDrafts[item.id];
+    item.annotation_status = "HUMAN_REVIEWED";
+    updateComparisonTable();
+    updateStatistics();
+
+    // LƯU TỨC THÌ VÀO FILE TRÊN ĐĨA
+    await saveToServer();
+
+    if (agreeWithVlm) {
+      // Khi chọn "Theo VLM", chỉ cập nhật lựa chọn và lưu tại chỗ, KHÔNG tự động chuyển mẫu tiếp theo
+      renderCurrentSample();
+    } else {
+      // Tự động chuyển mẫu kế tiếp khi bấm Lưu phán quyết & tiếp tục
+      if (currentIndex < samplesList.length - 1) {
+        changeIndex(1);
+      } else {
+        renderCurrentSample();
+        alert("Bạn đã duyệt xong mẫu cuối cùng trong tệp!");
+      }
+    }
+  }
+
+
+  // Đánh dấu mẫu không đủ ngữ cảnh / ảnh hoặc dịch lỗi
+  async function markInsufficient() {
+    if (!checkReviewerRequirement()) return;
+    if (samplesList.length === 0) return;
+
+    const reason = prompt("Lý do đánh dấu thiếu thông tin (ảnh vỡ, dịch tối nghĩa, meme quá mập mờ...):", "Ảnh hoặc câu chữ không đủ cơ sở xác định cảm xúc");
+    if (reason === null) return; // Người dùng bấm cancel
+
+    const item = samplesList[currentIndex];
+    if (!item.human_review) item.human_review = {};
+
+    item.data_quality_flag = "INSUFFICIENT_CONTEXT";
+    item.human_review.reviewed = true;
+    item.human_review.decision = "INSUFFICIENT";
+    item.human_review.notes = reason;
+    item.human_review.final_text_only_emotion = "neutral";
+    item.human_review.final_image_only_emotion = "neutral";
+    item.human_review.final_combined_emotion = "neutral";
+    item.human_review.final_relationship_type = "COMPLEMENTARY";
+    item.annotation_status = "HUMAN_REVIEWED";
+
+
+    delete localDrafts[item.id];
+    updateStatistics();
+    await saveToServer();
+
+    if (currentIndex < samplesList.length - 1) {
+      changeIndex(1);
+    } else {
+      renderCurrentSample();
+    }
+  }
+
+  function changeIndex(dir) {
+    saveCurrentDraft();
+    const nextIdx = currentIndex + dir;
+    if (nextIdx >= 0 && nextIdx < samplesList.length) {
+      currentIndex = nextIdx;
+      renderCurrentSample();
+    }
+  }
+
+  // Nhảy trực tiếp đến mẫu theo số thứ tự (1-N) hoặc theo mã ID (ELITE_xxxx)
+  function jumpToSample(query) {
+    saveCurrentDraft();
+    if (!samplesList || samplesList.length === 0) return;
+    const inputEl = document.getElementById("jumpSampleInput");
+    const val = (query || (inputEl ? inputEl.value : "")).trim();
+    if (!val) return;
+
+    // 1. Kiểm tra nếu nhập số thứ tự (1-based index)
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && String(num) === val) {
+      if (num >= 1 && num <= samplesList.length) {
+        currentIndex = num - 1;
+        renderCurrentSample();
+        if (inputEl) inputEl.value = "";
+        return;
+      } else {
+        alert(`Số thứ tự không hợp lệ! Vui lòng nhập từ 1 đến ${samplesList.length}.`);
+        return;
+      }
+    }
+
+    // 2. Kiểm tra nếu nhập theo mã ID (ví dụ ELITE_0218, hoặc chứa 0218)
+    const qLower = val.toLowerCase();
+    const foundIdx = samplesList.findIndex(s => {
+      const sId = (s.id || "").toLowerCase();
+      return sId === qLower || sId.endsWith(qLower) || sId.includes(qLower);
+    });
+
+    if (foundIdx !== -1) {
+      currentIndex = foundIdx;
+      renderCurrentSample();
+      if (inputEl) inputEl.value = "";
+    } else {
+      alert(`Không tìm thấy mẫu nào khớp với "${val}"!\n(Bạn có thể nhập số từ 1-${samplesList.length} hoặc mã ID như ELITE_0218)`);
+    }
+  }
+
+  function jumpByIndexBottom() {
+    saveCurrentDraft();
+    const inp = document.getElementById("jumpIndexBottom");
+    if (!inp) return;
+    const val = inp.value.trim();
+    if (!val) return;
+    jumpToSample(val);
+    inp.value = "";
+  }
+
+  // Gửi API lưu dữ liệu xuống file trên đĩa
+  async function saveToServer() {
+    if (!activeSaveFileName || samplesList.length === 0) return;
+    const indicator = document.getElementById("saveIndicator");
+    indicator.innerText = "Đang lưu...";
+    indicator.style.color = "#d97706";
+
+    try {
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_file: activeSourceFileName,
+          save_file: activeSaveFileName,
+          reviewer_name: reviewerName,
+          samples: samplesList
+        })
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(resData.error || "API lưu thất bại");
+      }
+
+      if (resData.saved_file && resData.saved_file !== activeSaveFileName) {
+        activeSaveFileName = resData.saved_file;
+      }
+
+      const d = new Date();
+      const timeStr = d.toTimeString().split(' ')[0];
+      indicator.innerText = `Đã lưu vào ${activeSaveFileName} (${timeStr})`;
+      indicator.style.color = "var(--success)";
+
+      // Cập nhật nhãn hiển thị tệp đang làm việc
+      updateFileDisplay(activeSaveFileName, true);
+    } catch (e) {
+      indicator.innerText = e.message || "Lỗi khi lưu!";
+      indicator.style.color = "#dc2626";
+      console.error(e);
+      if (e.message && e.message.includes("người thẩm định")) {
+        checkReviewerRequirement();
+      }
+    }
+  }
+
+  function updateStatistics() {
+    let reviewed = 0, agree = 0, selfDecided = 0;
+    samplesList.forEach(s => {
+      if (s.human_review && s.human_review.reviewed) {
+        reviewed++;
+        if (s.human_review.decision === "AGREE") agree++;
+        else selfDecided++;
+      }
+    });
+
+    document.getElementById("statReviewed").innerText = reviewed;
+    document.getElementById("statMatchVlm").innerText = agree;
+    document.getElementById("statSelfDecided").innerText = selfDecided;
+    document.getElementById("statProgress").innerText = samplesList.length 
+      ? Math.round((reviewed / samplesList.length) * 100) + "%" 
+      : "0%";
+  }
+
+  function openGuidelineModal() {
+    const modal = document.getElementById("guidelineModal");
+    if (modal) modal.style.display = "flex";
+  }
+
+  function closeGuidelineModal() {
+    const modal = document.getElementById("guidelineModal");
+    if (modal) modal.style.display = "none";
+  }
+
+  // Phím tắt bàn phím
+  window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
+    if (e.code === "Enter") {
+      e.preventDefault();
+      submitDecision(false);
+    } else if (e.code === "Space") {
+      e.preventDefault();
+      if (e.target && e.target.blur) e.target.blur();
+      submitDecision(true);
+    } else if (e.code === "ArrowRight") {
+      changeIndex(1);
+    } else if (e.code === "ArrowLeft") {
+      changeIndex(-1);
+    } else if (e.key === "h" || e.key === "H") {
+      e.preventDefault();
+      const modal = document.getElementById("guidelineModal");
+      if (modal && modal.style.display === "flex") {
+        closeGuidelineModal();
+      } else {
+        openGuidelineModal();
+      }
+    } else if (e.key === "g" || e.key === "G") {
+      e.preventDefault();
+      const jumpInp = document.getElementById("jumpSampleInput");
+      if (jumpInp) {
+        jumpInp.focus();
+        jumpInp.select();
+      }
+    } else if (e.key === "+" || e.key === "=") {
+      zoomImage(0.2);
+    } else if (e.key === "-" || e.key === "_") {
+      zoomImage(-0.2);
+    } else if (e.key === "0") {
+      resetZoom();
+    } else if (e.key === "Escape") {
+      closeLightbox();
+      closeGuidelineModal();
+    }
+  });
+</script>
+</body>
+</html>

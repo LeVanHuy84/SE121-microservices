@@ -1,0 +1,36 @@
+{
+  "dataset": {
+    "name": "long_text_benchmark_300.json",
+    "total_samples": 250,
+    "source": "GoEmotions Google ACL2020 Multi-Sentence Vietnamese Curated"
+  },
+  "model_info": {
+    "onnx_model_file": "D:\\VsCode\\NestJS\\projects\\SE121-microservices\\evaluation\\weights\\phobert_emotion_fp32.onnx",
+    "tokenizer": "huyleit/phobert-emotion-social",
+    "precision": "fp32"
+  },
+  "comparison": {
+    "baseline_phobert_standalone": {
+      "exact_match_ratio": 0.0,
+      "jaccard_accuracy": 0.3533333333333334,
+      "at_least_one_hit_rate": 0.716,
+      "micro_precision": 0.716,
+      "micro_recall": 0.35236220472440943,
+      "micro_f1": 0.47229551451187335,
+      "macro_f1": 0.35974602465570943,
+      "hamming_loss": 0.22857142857142856,
+      "avg_latency_ms": 36.74117000051774
+    },
+    "proposed_full_pipeline": {
+      "exact_match_ratio": 0.164,
+      "jaccard_accuracy": 0.44759999999999994,
+      "at_least_one_hit_rate": 0.868,
+      "micro_precision": 0.5782881002087683,
+      "micro_recall": 0.5452755905511811,
+      "micro_f1": 0.5612968591691996,
+      "macro_f1": 0.42095685963748364,
+      "hamming_loss": 0.24742857142857144,
+      "avg_latency_ms": 85.61610440007644
+    }
+  }
+}

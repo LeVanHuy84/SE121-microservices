@@ -2,7 +2,8 @@
 
 """
 Text Emotion Classification Engine using PhoBERT ONNX Runtime (FP32)
-- Multi-Sentence Weighted Hybrid Pooling (Length-weighted Average + Max Pooling)
+- Hierarchical Global-Local Fusion (Ensemble of Full Text Global Context + Per-Sentence Details)
+- Adaptive Length Routing (Direct inference for short texts, Segmented Hybrid Pooling for long texts)
 - Soft Multi-Label Extraction (Primary + Secondary Emotions via Dynamic Thresholding)
 - PhoBERT Fine-Tuned Model Integration (huyleit/phobert-emotion-social)
 - Language-gated (Vietnamese only)
@@ -35,8 +36,9 @@ LABEL_MAP_CANONICAL = {
 
 class TextEmotionClassifier:
     """
-    Production-ready Multi-label Emotion Classifier for Vietnamese Social Media.
-    Applies Hybrid Pooling across sentences and dynamic thresholding for multi-label outputs.
+    Production-ready Emotion Classifier for Vietnamese Social Media.
+    Combines Full-Text Global View with Sentence-Level Granularity to prevent 
+    truncation while preserving holistic context and sarcasm.
     """
 
     @staticmethod
@@ -52,11 +54,14 @@ class TextEmotionClassifier:
             return TextEmotionClassifier._build_fallback_result(text, "non_vietnamese", lang)
 
         # ---------------------------------------------------------------------
-        # 2. Sentence Splitting
+        # 2. Sentence Splitting & Word Count Check
         # ---------------------------------------------------------------------
         raw_sentences = split_sentences(text)
         if not raw_sentences:
-            return TextEmotionClassifier._build_fallback_result(text, "no_sentences")
+            raw_sentences = [text]
+
+        words = text.split()
+        total_word_count = len(words)
 
         # ---------------------------------------------------------------------
         # 3. Model Loading
@@ -70,81 +75,87 @@ class TextEmotionClassifier:
         if session is None:
             return TextEmotionClassifier._build_fallback_result(text, "session_unavailable")
 
-        # ---------------------------------------------------------------------
-        # 4. Per-Sentence Inference & Hybrid Pooling
-        # ---------------------------------------------------------------------
-        sentence_results = []
-        sentence_probs = []
-        sentence_weights = []
+        # Helper for ONNX single inference
+        def _run_single_inference(raw_chunk: str) -> np.ndarray:
+            prep = preprocess_single_sentence(raw_chunk, apply_word_tokenize=True)
+            if not prep:
+                return np.zeros(len(LABEL_NAMES))
+            inputs = tokenizer(
+                prep,
+                return_tensors="np",
+                truncation=True,
+                max_length=128
+            )
+            ort_inputs = {
+                "input_ids": inputs["input_ids"].astype(np.int64),
+                "attention_mask": inputs["attention_mask"].astype(np.int64)
+            }
+            logits = session.run(None, ort_inputs)[0][0]
+            exp_l = np.exp(logits - np.max(logits))
+            return exp_l / np.sum(exp_l)
 
         try:
-            for sent_text in raw_sentences:
-                prep_sent = preprocess_single_sentence(sent_text, apply_word_tokenize=True)
-                if not prep_sent:
-                    continue
+            # -----------------------------------------------------------------
+            # 4. Global View (Full text up to 128 tokens)
+            # -----------------------------------------------------------------
+            global_probs = _run_single_inference(text)
 
-                inputs = tokenizer(
-                    prep_sent,
-                    return_tensors="np",
-                    truncation=True,
-                    max_length=128
-                )
+            # ROUTE 1: Single sentence or short fragment (Zero-oversegmentation)
+            meaningful_sentences = [s for s in raw_sentences if len(s.split()) >= 3]
 
-                ort_inputs = {
-                    "input_ids": inputs["input_ids"].astype(np.int64),
-                    "attention_mask": inputs["attention_mask"].astype(np.int64)
-                }
+            if len(meaningful_sentences) <= 1:
+                final_probs = global_probs
+                top_idx = int(np.argmax(final_probs))
+                sentence_results = [{
+                    "rawText": text,
+                    "processedText": preprocess_single_sentence(text, apply_word_tokenize=True),
+                    "dominantEmotion": LABEL_NAMES[top_idx],
+                    "confidence": float(final_probs[top_idx])
+                }]
 
-                logits = session.run(None, ort_inputs)[0][0]  # Shape: (7,)
+            # ROUTE 2: Multi-Sentence Discourse (Hierarchical Global-Local Fusion)
+            else:
+                sentence_results = []
+                sentence_probs = []
+                sentence_weights = []
 
-                # Softmax in NumPy
-                exp_l = np.exp(logits - np.max(logits))
-                probs = exp_l / np.sum(exp_l)
+                for sent_text in meaningful_sentences:
+                    sent_words = sent_text.split()
+                    probs = _run_single_inference(sent_text)
+                    if np.sum(probs) == 0:
+                        continue
 
-                sentence_probs.append(probs)
+                    sentence_probs.append(probs)
+                    w = math.log(1 + len(sent_words))
+                    sentence_weights.append(w)
 
-                # Length weight: log(1 + word_count) to prevent ultra-long sentence dominance
-                word_count = len(sent_text.split())
-                w = math.log(1 + word_count)
-                sentence_weights.append(w)
+                    sent_top_idx = int(np.argmax(probs))
+                    sentence_results.append({
+                        "rawText": sent_text,
+                        "processedText": preprocess_single_sentence(sent_text, apply_word_tokenize=True),
+                        "dominantEmotion": LABEL_NAMES[sent_top_idx],
+                        "confidence": float(probs[sent_top_idx])
+                    })
 
-                # Timeline tracking per sentence
-                sent_top_idx = int(np.argmax(probs))
-                sentence_results.append({
-                    "rawText": sent_text,
-                    "processedText": prep_sent,
-                    "dominantEmotion": LABEL_NAMES[sent_top_idx],
-                    "confidence": float(probs[sent_top_idx])
-                })
+                if not sentence_probs:
+                    final_probs = global_probs
+                else:
+                    sentence_probs = np.array(sentence_probs)
+                    sentence_weights = np.array(sentence_weights)
+                    weight_sum = np.sum(sentence_weights)
+                    norm_weights = sentence_weights / weight_sum if weight_sum > 0 else np.ones(len(sentence_weights)) / len(sentence_weights)
+
+                    weighted_avg_probs = np.sum(sentence_probs * norm_weights[:, np.newaxis], axis=0)
+                    local_max_probs = np.max(sentence_probs, axis=0)
+
+                    # Hierarchical Fusion:
+                    # 35% Global Holistic Context + 45% Local Peak Outburst + 20% Weighted Tone
+                    fusion = 0.35 * global_probs + 0.45 * local_max_probs + 0.20 * weighted_avg_probs
+                    final_probs = fusion / np.sum(fusion)
 
         except Exception as e:
             logger.error(f"PhoBERT ONNX inference runtime error: {e}")
             raise RetryableException(f"PhoBERT ONNX inference failed: {e}")
-
-        if not sentence_probs:
-            return TextEmotionClassifier._build_fallback_result(text, "preprocessing_failed")
-
-        sentence_probs = np.array(sentence_probs)  # Shape: (N, 7)
-        sentence_weights = np.array(sentence_weights)
-        weight_sum = np.sum(sentence_weights)
-
-        if weight_sum > 0:
-            norm_weights = sentence_weights / weight_sum
-        else:
-            norm_weights = np.ones(len(sentence_weights)) / len(sentence_weights)
-
-        # Length-weighted Average Pooling
-        weighted_avg_probs = np.sum(sentence_probs * norm_weights[:, np.newaxis], axis=0)
-
-        # Max Pooling (Capture peak emotional outbursts)
-        max_probs = np.max(sentence_probs, axis=0)
-
-        # Hybrid Pooling: 50% Peak + 50% Length-weighted Average Tone
-        alpha = 0.5
-        hybrid_probs = alpha * max_probs + (1 - alpha) * weighted_avg_probs
-
-        # Re-normalize to probability sum = 1.0
-        final_probs = hybrid_probs / np.sum(hybrid_probs)
 
         # ---------------------------------------------------------------------
         # 5. Dynamic Soft Multi-Label Extraction
@@ -154,14 +165,15 @@ class TextEmotionClassifier:
         primary_emotion_raw = LABEL_NAMES[primary_idx]
         primary_prob = float(final_probs[primary_idx])
 
-        # Dynamic Threshold: max(10%, primary_prob * 0.45)
-        dynamic_threshold = max(0.10, primary_prob * 0.45)
+        # Dynamic Threshold: max(0.18, primary_prob * 0.32)
+        # Filters out trivial background noise while preserving co-occurring emotions
+        dynamic_threshold = max(0.18, primary_prob * 0.32)
 
         secondary_emotions_raw = []
         for idx in sorted_indices[1:]:
             prob = float(final_probs[idx])
             label_name = LABEL_NAMES[idx]
-            if prob >= dynamic_threshold:
+            if prob >= dynamic_threshold and label_name != "Other":
                 secondary_emotions_raw.append(label_name)
 
         # Canonical score dictionary
