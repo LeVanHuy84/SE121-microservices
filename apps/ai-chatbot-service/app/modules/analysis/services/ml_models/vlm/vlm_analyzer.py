@@ -49,6 +49,7 @@ class ContentModeration(BaseModel):
 
 
 class VLMRawOutput(BaseModel):
+    reasoning: Optional[str] = ""
     modality: str = "UNIFIED_MULTIMODAL_VLM"
     primary_emotion: str = "neutral"
     secondary_emotions: List[str] = Field(default_factory=list)
@@ -86,22 +87,70 @@ class VLMAnalyzer:
     - Single-request batch inference
     """
 
-    SYSTEM_PROMPT = """Bạn là AI Phân tích Đa phương thức cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
-Phân tích bài viết đính kèm văn bản và danh sách hình ảnh.
-TRẢ VỀ JSON DUY NHẤT VỚI CÁC TRƯỜNG DƯỚI ĐÂY:
-- content_moderation: {is_flagged (bool), flagged_categories (array: ["NSFW_ADULT","GRAPHIC_VIOLENCE","SELF_HARM","HATE_SPEECH","HARASSMENT"]), confidence (float 0-1), reason (string tiếng Việt nếu vi phạm)}
-- emotion_scores: {joy, sadness, anger, fear, disgust, surprise, neutral} (float 0-1)
-- primary_emotion (string trong 7 nhãn trên) & secondary_emotions (array strings)
-- final_confidence (float 0-1), intensity ("weak"|"moderate"|"strong")
-- is_sarcasm_or_conflict (bool) & conflict_explanation (string)
-- mental_health_risk_level ("none"|"weak"|"medium"|"high") & suggested_action ("NO_ACTION"|"MONITOR"|"TRIGGER_PROACTIVE_CHECKIN")
+    SYSTEM_PROMPT = """Bạn là Chuyên gia AI về Tính toán Cảm xúc Đa phương thức (Multimodal Affective Computing).
+Nhiệm vụ: Phân tích bài đăng mạng xã hội (văn bản + hình ảnh/meme) và xác định DUY NHẤT 1 nhãn cảm xúc chủ đạo (strongest dominant emotion) của người đăng trong 7 nhóm:
+[joy, sadness, anger, fear, disgust, surprise, neutral]
+
+HƯỚNG DẪN 7 NHÃN CẢM XÚC:
+- [joy]: Vui vẻ, hài hước, hạnh phúc, tán dương, giải trí tích cực.
+- [sadness]: Buồn bã, đau lòng, thất vọng, tiếc nuối, mất mát, bi kịch.
+- [anger]: Tức giận, bực bội, bức xúc, phẫn nộ, bất bình công kích việc sai trái hoặc kẻ gây hại.
+- [disgust]: Ghê tởm (dơ bẩn thể xác) HOẶC sự ngán ngẩm, khinh miệt, coi thường trước sự giả tạo, trò hề lố lăng, phốt drama (thái độ bài xích, kinh ngán).
+- [fear]: Sợ hãi, hoảng hốt, lo âu, bất an, cảm giác đe dọa trước hiểm họa, tội phạm.
+- [surprise]: Ngạc nhiên, ngỡ ngàng, sửng sốt trước điều bất ngờ, khó tin.
+- [neutral]: Khách quan, trung tính thuần túy, tin tức thông báo đời thường không bộc lộ cảm xúc rõ nét.
+
+QUY TẮC PHÂN ĐỊNH CÁC RANH GIỚI DỄ NHẦM LẪN:
+1. ANGER vs DISGUST (Khi bài đăng mang sắc thái tiêu cực hoặc châm biếm):
+   - Gán [anger] khi thái độ chính là BỰC TỨC / PHẪN NỘ / BẤT BÌNH CÔNG KÍCH: Người đăng bực bội, gay gắt lên án, phản đối hành động của đối tượng.
+   - Gán [disgust] khi thái độ chính là NGÁN NGẨM / KHINH BỈ / COI THƯỜNG: Người đăng chê bai thói giả tạo, coi đối tượng như trò hề lố lăng, rẻ tiền, khinh ngán xa lánh.
+2. SURPRISE vs JOY (Khi bài đăng thể hiện biểu cảm ngỡ ngàng hoặc meme hài):
+   - Gán [surprise] khi ngỡ ngàng, sửng sốt, khó tin trước sự việc bất ngờ, cú twist hoặc tình huống trái kỳ vọng.
+   - Gán [joy] khi trọng tâm là sự tận hưởng, vui vẻ, hạnh phúc, giải trí tích cực thuần túy mà không có yếu tố ngỡ ngàng/bất ngờ chiếm ưu thế.
+3. JOY vs DISGUST: Meme châm biếm/pha trò gây cười ưu tiên [joy]; chỉ gán [disgust] khi toát lên sự bài xích, khinh miệt tiêu cực sâu sắc.
+
+QUY TẮC SUY LUẬN:
+- Đọc kỹ cả văn bản và chữ nhúng trong ảnh/meme (OCR).
+- Tóm tắt 1 câu ngắn gọn trong 'reasoning' giải thích lý do trước khi chốt nhãn.
+- Sarcasm: Đặt is_sarcasm_or_conflict = True nếu dùng lời mỉa mai nói ngược, gán nhãn theo cảm xúc thật của tác giả.
+
+CẤU TRÚC JSON PHẢI TRẢ VỀ:
+{
+  "reasoning": "Tóm tắt ngắn gọn 1 câu phân tích ngữ cảnh và cảm xúc chủ đạo.",
+  "content_moderation": {"is_flagged": false, "flagged_categories": [], "confidence": 0.0, "reason": ""},
+  "emotion_scores": {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "disgust": 0.0, "surprise": 0.0, "neutral": 0.0},
+  "primary_emotion": "<1 trong 7 nhãn>",
+  "final_confidence": 0.85,
+  "intensity": "moderate",
+  "is_sarcasm_or_conflict": false,
+  "conflict_explanation": "",
+  "mental_health_risk_level": "none",
+  "suggested_action": "NO_ACTION"
+}
+Chú ý:
+- mental_health_risk_level thuộc: ["none", "weak", "medium", "high"]
+- suggested_action thuộc: ["NO_ACTION", "MONITOR", "TRIGGER_PROACTIVE_CHECKIN"]
 """
 
-    BATCH_SYSTEM_PROMPT = """Bạn là AI Phân tích Đa phương thức cho Mạng Xã Hội Hỗ trợ Sức khỏe Tâm thần.
-Nhiệm vụ: Phân tích danh sách gồm nhiều bài viết (mỗi bài có id, text và danh sách ảnh).
-TRẢ VỀ JSON DUY NHẤT dưới dạng: {"results": [{"id": "post_id", "content_moderation": {...}, "emotion_scores": {...}, "primary_emotion": "...", "secondary_emotions": [...], "final_confidence": 0.8, "intensity": "moderate", "is_sarcasm_or_conflict": false, "conflict_explanation": "", "mental_health_risk_level": "none", "suggested_action": "NO_ACTION"}]}
-Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
-"""
+    BATCH_SYSTEM_PROMPT = """Bạn là Chuyên gia AI về Tính toán Cảm xúc Đa phương thức (Multimodal Affective Computing).
+Nhiệm vụ: Phân tích danh sách bài đăng (văn bản + hình ảnh/meme) và gán DUY NHẤT 1 nhãn cảm xúc chủ đạo:
+[joy, sadness, anger, fear, disgust, surprise, neutral]
+
+ĐỊNH NGHĨA 7 NHÃN:
+- [joy]: Vui vẻ, hài hước, hạnh phúc, tán dương, tích cực.
+- [sadness]: Buồn bã, đau lòng, thất vọng, tiếc nuối, mất mát.
+- [anger]: Tức giận, bực bội, bức xúc, phẫn nộ, bất bình công kích đối tượng sai trái.
+- [disgust]: Ghê tởm dơ bẩn HOẶC khinh miệt, ngán ngẩm, coi thường thói giả tạo, trò hề lố lăng, phốt drama.
+- [fear]: Sợ hãi, hoảng hốt, lo âu, bất an trước hiểm họa, tội phạm.
+- [surprise]: Ngạc nhiên, ngỡ ngàng, sửng sốt trước điều bất ngờ, khó tin.
+- [neutral]: Khách quan, trung tính, thông tin đời thường không bộc lộ cảm xúc rõ nét.
+QUY TẮC PHÂN ĐỊNH:
+- ANGER (bực tức, phẫn nộ, bất bình công kích) vs DISGUST (ngán ngẩm, khinh bỉ, coi thường trò hề lố lăng/đạo đức giả).
+- SURPRISE (sững sờ, ngỡ ngàng trước biến cố/twist/vi phạm kỳ vọng khó tin) vs JOY (vui vẻ, giải trí tích cực thuần túy).
+- JOY vs DISGUST: Meme châm biếm/pha trò gây cười ưu tiên [joy]; chỉ gán [disgust] khi bài xích, khinh miệt tiêu cực sâu sắc.
+
+CẤU TRÚC JSON:
+{"results": [{"id": "post_id", "reasoning": "Phân tích 1 câu", "content_moderation": {"is_flagged": false, "flagged_categories": [], "confidence": 0.0, "reason": ""}, "emotion_scores": {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "disgust": 0.0, "surprise": 0.0, "neutral": 0.0}, "primary_emotion": "<1 trong 7 nhãn>", "final_confidence": 0.85, "intensity": "moderate", "is_sarcasm_or_conflict": false, "conflict_explanation": "", "mental_health_risk_level": "none", "suggested_action": "NO_ACTION"}]}"""
 
     def __init__(self):
         self.api_key = settings.VLM_API_KEY
@@ -238,14 +287,12 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
         primary_emotion = VALID_EMOTIONS[primary_idx]
         primary_prob = float(norm_arr[primary_idx])
         
-        dynamic_threshold = max(0.10, primary_prob * 0.45)
-        secondary_emotions = [
-            VALID_EMOTIONS[idx] for idx in sorted_indices[1:]
-            if norm_arr[idx] >= dynamic_threshold and VALID_EMOTIONS[idx] != primary_emotion
-        ]
+        # Chuẩn Đơn nhãn (Single-label): Tự động map secondaryEmotions thành [] để tương thích schema DTO hệ thống
+        secondary_emotions: List[str] = []
 
         return {
             "modality": "UNIFIED_MULTIMODAL_VLM",
+            "reasoning": getattr(raw_output, "reasoning", ""),
             "primaryEmotion": primary_emotion,
             "secondaryEmotions": secondary_emotions,
             "finalConfidence": primary_prob,
@@ -351,7 +398,7 @@ Chú ý: Giữ đúng "id" cho từng bài viết tương ứng.
         }
 
         logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post (images={len(compressed_urls)})...")
-        res_json = await self._call_vlm_api_with_retry(client, payload, timeout=40.0)
+        res_json = await self._call_vlm_api_with_retry(client, payload, timeout=60.0, max_retries=4)
 
         raw_content = res_json["choices"][0]["message"]["content"]
         parsed_data = json.loads(raw_content)

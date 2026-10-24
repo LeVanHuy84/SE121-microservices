@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bảng Đối Soát & Hòa Giải Nhãn Đa Phương Thức — Cohen's Kappa & Adjudication (SE121)</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px 24px; min-height: 100vh; }
+    
+    header { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .header-title { font-size: 1.25rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+    .header-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+    
+    /* Metrics Grid */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+    .metric-title { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .metric-val { font-size: 1.45rem; font-weight: 800; color: #1e293b; display: flex; align-items: baseline; gap: 6px; }
+    .metric-po { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+    .metric-grade { font-size: 0.73rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+    .grade-perfect { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .grade-substantial { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .grade-moderate { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+    /* Nav Tabs */
+    .tabs-bar { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+    .tab-btn { background: none; border: none; padding: 8px 16px; font-size: 0.9rem; font-weight: 700; color: var(--text-muted); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 6px; }
+    .tab-btn.active { background: #eff6ff; color: var(--primary); }
+    .tab-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 800; }
+    .badge-diff { background: #fef3c7; color: #b45309; }
+    .badge-missing { background: #fee2e2; color: #b91c1c; }
+    .badge-agreed { background: #dcfce7; color: #15803d; }
+    .badge-all { background: #f1f5f9; color: #475569; }
+
+    /* Fullscreen & Focus Mode */
+    body.fullscreen-mode { padding: 6px 14px; overflow-y: hidden; }
+    body.fullscreen-mode header,
+    body.fullscreen-mode .metrics-grid { display: none !important; }
+    body.fullscreen-mode .tabs-bar { margin-bottom: 8px; padding-bottom: 4px; }
+    body.fullscreen-mode .list-panel,
+    body.fullscreen-mode .detail-panel { height: calc(100vh - 56px) !important; }
+    .metrics-collapsed { display: none !important; }
+
+    /* Layout */
+    .main-grid { display: grid; grid-template-columns: 290px 1fr; gap: 14px; }
+    @media (max-width: 992px) { .main-grid { grid-template-columns: 1fr; } }
+    
+    /* List Panel */
+    .list-panel { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; height: calc(100vh - 270px); display: flex; flex-direction: column; overflow: hidden; }
+    .list-search-box { padding: 8px 10px; border-bottom: 1px solid var(--border); background: #f8fafc; position: relative; display: flex; align-items: center; gap: 6px; }
+    .list-search-input { width: 100%; padding: 6px 28px 6px 10px; font-size: 0.82rem; font-family: monospace; border: 1.5px solid #cbd5e1; border-radius: 6px; outline: none; transition: border-color 0.15s; }
+    .list-search-input:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+    .list-search-clear { position: absolute; right: 18px; cursor: pointer; color: #94a3b8; font-size: 0.85rem; font-weight: 800; display: none; }
+    .list-search-clear:hover { color: #475569; }
+    .list-filters-bar { padding: 6px 10px; border-bottom: 1px solid var(--border); background: #f8fafc; display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; }
+    .filter-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .filter-row label { font-weight: 700; color: #475569; font-size: 0.72rem; white-space: nowrap; }
+    .filter-select { flex: 1; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.74rem; background: #fff; color: #1e293b; font-weight: 600; outline: none; }
+    .filter-select:focus { border-color: var(--primary); }
+    .filter-stats-text { font-size: 0.71rem; color: var(--text-muted); font-weight: 600; text-align: right; padding: 1px 2px 0; }
+    .list-items-scroll { flex: 1; overflow-y: auto; }
+    .list-item { padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+    .list-item:hover { background: #f8fafc; }
+    .list-item.active { background: #eff6ff; border-left: 4px solid var(--primary); }
+    .list-item.is-resolved { background: #fcfdfc; }
+    .list-item.is-resolved:hover { background: #f0fdf4; }
+    .list-item.is-resolved.active { background: #f0fdf4; border-left: 4px solid var(--success); }
+    .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .list-id { font-size: 0.82rem; font-weight: 800; color: #1e293b; font-family: monospace; }
+    .list-preview { font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Detail View - Panoramic Zero Scroll */
+    .detail-panel { background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; padding: 14px 18px; height: calc(100vh - 270px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .detail-header-bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .detail-split { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 1200px) { .detail-split { grid-template-columns: 280px 1fr; } }
+    @media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
+    
+    .media-col { display: flex; flex-direction: column; gap: 8px; }
+    .detail-img-box { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); background: #000; height: 210px; display: flex; justify-content: center; align-items: center; }
+    .detail-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .text-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+    .text-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 2px; }
+    .text-vi { font-size: 0.88rem; font-weight: 600; color: #0f172a; line-height: 1.35; margin-bottom: 6px; }
+    .text-en { font-size: 0.78rem; color: #475569; font-style: italic; line-height: 1.3; }
+
+    .action-col { display: flex; flex-direction: column; gap: 10px; }
+    .btn-nav { padding: 5px 10px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+    .btn-nav:hover { background: #e2e8f0; }
+    .btn-fs { padding: 5px 12px; background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+    .btn-fs:hover { background: #dbeafe; }
+
+    /* Comparison Table */
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .comp-table th { background: #f1f5f9; text-transform: uppercase; font-size: 0.72rem; font-weight: 700; color: #475569; padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+    .comp-table td { padding: 6px 10px; border: 1px solid var(--border); vertical-align: middle; }
+    .row-diff { background: #fffcf8; font-weight: 600; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+    .chip-a1 { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .chip-a2 { background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+    .chip-vlm { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .diff-alert { color: var(--warning); font-size: 0.7rem; font-weight: 800; display: inline-flex; align-items: center; gap: 3px; }
+
+    /* Resolution Box */
+    .resolution-box { background: #fdfefe; border: 2px solid #93c5fd; border-radius: 8px; padding: 10px 12px; }
+    .res-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+    .res-title { font-size: 0.86rem; font-weight: 800; color: #1e40af; }
+    .res-quick-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-quick { padding: 5px 10px; font-size: 0.75rem; font-weight: 700; border-radius: 6px; cursor: pointer; border: 1px solid; }
+    .btn-q-a1 { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .btn-q-a2 { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+    .btn-q-vlm { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+
+    .res-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+    @media (max-width: 1100px) { .res-grid { grid-template-columns: repeat(2, 1fr); } }
+    .res-field label { display: block; font-size: 0.72rem; font-weight: 700; color: #334155; margin-bottom: 2px; }
+    .res-select { width: 100%; padding: 5px 8px; border: 1.5px solid var(--border); border-radius: 5px; font-size: 0.8rem; background: white; }
+    
+    .btn-save-gold { background: var(--primary); color: white; border: none; padding: 8px 14px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; cursor: pointer; }
+    .btn-save-gold:hover { background: var(--primary-hover); }
+    .btn-toggle-flag { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 8px 12px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; cursor: pointer; }
+    .btn-reset-auto { background: #f8fafc; color: #334155; border: 1.5px solid #cbd5e1; padding: 8px 12px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .btn-reset-auto:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+
+    /* Missing info dedicated table */
+    .missing-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .missing-table th { background: #fee2e2; color: #991b1b; padding: 10px 12px; border: 1px solid #fecaca; font-weight: 700; text-align: left; }
+    .missing-table td { padding: 10px 12px; border: 1px solid #e2e8f0; vertical-align: top; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <div class="header-title">
+        <span>⚖️ HỆ THỐNG ĐỐI SOÁT & HÒA GIẢI NHÃN ĐA PHƯƠNG THỨC</span>
+      </div>
+      <div class="header-sub">Đo lường độ tin cậy liên thẩm định viên (Cohen's Kappa &ge; 0.70) và chuẩn hóa tập đánh giá Benchmark (SE121)</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button onclick="toggleMetrics()" id="btnMetricsToggle" style="padding:7px 12px; background:#f8fafc; color:#475569; font-size:0.82rem; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;">📊 Thu gọn chỉ số ▲</button>
+      <button onclick="toggleFullscreen()" id="btnHeaderFs" style="padding:7px 12px; background:#eff6ff; color:#1d4ed8; font-size:0.82rem; font-weight:700; border-radius:6px; border:1px solid #bfdbfe; cursor:pointer;">⛶ Toàn Màn Hình (Focus)</button>
+      <button onclick="exportCleanBenchmark()" style="padding:7px 12px; background:#f0fdf4; color:#15803d; font-size:0.82rem; font-weight:700; border-radius:6px; border:1.5px solid #bbf7d0; cursor:pointer;" title="Xuất tập Benchmark sạch (chỉ gồm các mẫu VALID, loại bỏ trường thừa)">📥 Xuất Benchmark Sạch</button>
+      <a href="/data/cohen_kappa_report.md" target="_blank" style="text-decoration:none; padding:7px 12px; background:#f1f5f9; color:#334155; font-size:0.82rem; font-weight:700; border-radius:6px; border:1px solid #cbd5e1;">📄 Xem Báo Cáo</a>
+      <button onclick="loadAllData()" style="padding:7px 12px; background:#f1f5f9; color:#334155; font-size:0.82rem; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;">🔄 Nạp lại</button>
+    </div>
+  </header>
+
+  <!-- 1. DASHBOARD HIỂN THỊ SỐ LIỆU COHEN'S KAPPA TRÊN 5 PHƯƠNG DIỆN -->
+  <div class="metrics-grid" id="metricsCards">
+    <div class="metric-card">
+      <div class="metric-title">1. Cảm Xúc Văn Bản (Text)</div>
+      <div class="metric-val"><span id="kText">0.880</span> <span class="metric-po" id="poText">Po: 90.9%</span></div>
+      <div class="metric-grade grade-perfect">Almost Perfect</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">2. Cảm Xúc Hình Ảnh (Image)</div>
+      <div class="metric-val"><span id="kImg">0.816</span> <span class="metric-po" id="poImg">Po: 86.4%</span></div>
+      <div class="metric-grade grade-perfect">Almost Perfect</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">3. Cảm Xúc Hợp Nhất (Combined)</div>
+      <div class="metric-val"><span id="kComb">0.864</span> <span class="metric-po" id="poComb">Po: 90.6%</span></div>
+      <div class="metric-grade grade-perfect">Almost Perfect</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">4. Quan Hệ Text-Image (GVHD)</div>
+      <div class="metric-val"><span id="kRel">0.707</span> <span class="metric-po" id="poRel">Po: 82.4%</span></div>
+      <div class="metric-grade grade-substantial">Substantial (&ge; 0.70)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">5. Cực Tính (Sentiment)</div>
+      <div class="metric-val"><span id="kSent">0.863</span> <span class="metric-po" id="poSent">Po: 91.9%</span></div>
+      <div class="metric-grade grade-perfect">Almost Perfect</div>
+    </div>
+    <div class="metric-card" style="border-color:#3b82f6; background:#fbfdff;">
+      <div class="metric-title" style="color:#1d4ed8;">Đồng Thuận Tổng Thể (Overall)</div>
+      <div class="metric-val" style="color:#1d4ed8;"><span id="kOverall">0.826</span></div>
+      <div class="metric-grade grade-perfect">Almost Perfect</div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION TABS -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="setTab('diff')" id="tabDiff">
+      <span>⚡ Mẫu Bất Đồng Cần Hòa Giải</span>
+      <span class="tab-badge badge-diff" id="badgeDiffCount">0</span>
+    </button>
+    <button class="tab-btn" onclick="setTab('missing')" id="tabMissing">
+      <span>⚠️ Mẫu Thiếu Thông Tin / Gắn Cờ</span>
+      <span class="tab-badge badge-missing" id="badgeMissingCount">0</span>
+    </button>
+    <button class="tab-btn" onclick="setTab('agreed')" id="tabAgreed">
+      <span>✅ Mẫu Đã Đồng Thuận 100%</span>
+      <span class="tab-badge badge-agreed" id="badgeAgreedCount">0</span>
+    </button>
+    <button class="tab-btn" onclick="setTab('all')" id="tabAll">
+      <span>📁 Toàn Bộ Tập Dữ Liệu</span>
+      <span class="tab-badge badge-all" id="badgeAllCount">0</span>
+    </button>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:10px; font-size:0.75rem; color:var(--text-muted); font-weight:600;">
+      <span>⌨️ Phím tắt: <b>[1]</b> A1 & Lưu &nbsp;|&nbsp; <b>[2]</b> A2 & Lưu &nbsp;|&nbsp; <b>[3]</b> VLM & Lưu &nbsp;|&nbsp; <b>[0/R]</b> Khôi phục AUTO &nbsp;|&nbsp; <b>[↓/↑]</b> Chuyển mẫu &nbsp;|&nbsp; <b>[F]</b> Toàn màn hình</span>
+    </div>
+  </div>
+
+  <!-- 2. KHU VỰC HIỂN THỊ RIÊNG CHO MẪU THIẾU THÔNG TIN (KHI CHỌN TAB MISSING) -->
+  <div id="missingDedicatedView" style="display:none; background:white; border:1.5px solid var(--border); border-radius:10px; padding:20px;">
+    <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h3 style="color:#b91c1c; font-size:1.05rem;">⚠️ DANH SÁCH CÁC MẪU THIẾU THÔNG TIN / KHÔNG ĐỦ NGỮ CẢNH (HIỂN THỊ RIÊNG)</h3>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-top:2px;">
+          Các mẫu này bị gắn cờ <code>INSUFFICIENT_CONTEXT</code> do ảnh hỏng, dịch sai hoặc meme tối nghĩa. Bạn có thể duyệt từng mẫu để chỉnh sửa bổ sung thông tin hoặc xác nhận loại bỏ khỏi tập chuẩn vàng Benchmark.
+        </p>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="missing-table">
+        <thead>
+          <tr>
+            <th style="width: 100px;">Mã ID</th>
+            <th style="width: 140px;">Hình Ảnh</th>
+            <th style="width: 280px;">Nội Dung Status</th>
+            <th style="width: 150px;">Quyết Định A1 & A2</th>
+            <th>Lý Do / Ghi Chú Cụ Thể</th>
+            <th style="width: 130px; text-align:center;">Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="missingTableBody">
+          <!-- Dynamically populated -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MAIN COMPARISON WORKSPACE -->
+  <div id="mainWorkspace" class="main-grid">
+    <!-- List Column -->
+    <div class="list-panel">
+      <div class="list-search-box">
+        <input type="text" id="sampleSearchInput" class="list-search-input" placeholder="🔍 Nhập mã ID (vd: 0013, 0543)..." oninput="onSearchInput(this.value)">
+        <span id="searchClearBtn" class="list-search-clear" onclick="clearSearch()" title="Xóa tìm kiếm">✕</span>
+      </div>
+      <div class="list-filters-bar">
+        <div class="filter-row">
+          <label for="filterAgreement">Tương quan:</label>
+          <select id="filterAgreement" class="filter-select" onchange="onFilterChange()">
+            <option value="diff">⚡ Bất đồng (A1 ≠ A2)</option>
+            <option value="agreed">✅ Khớp (A1 == A2)</option>
+            <option value="all">📁 Tất cả (Khớp & Bất đồng)</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label for="filterResolution">Hòa giải:</label>
+          <select id="filterResolution" class="filter-select" onchange="onFilterChange()">
+            <option value="all">Tất cả (Đã giải & Chưa giải)</option>
+            <option value="unresolved">⏳ Chưa hòa giải</option>
+            <option value="resolved">✓ Đã hòa giải thủ công</option>
+          </select>
+        </div>
+        <div class="filter-stats-text" id="filterStatsCount">Hiển thị: 0 mẫu</div>
+      </div>
+      <div class="list-items-scroll" id="samplesListContainer">
+        <!-- Items dynamically populated -->
+      </div>
+    </div>
+
+    <!-- Detail Column -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header-bar">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:1.15rem; font-weight:800; font-family:monospace;" id="detailId">ELITE_0001</span>
+          <span id="detailQualityTag"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button onclick="prevSample()" class="btn-nav" title="Mẫu trước (Phím [↑] hoặc [←])">◀ Trước</button>
+          <button onclick="nextSample()" class="btn-nav" title="Mẫu sau (Phím [↓] hoặc [→])">Sau ▶</button>
+          <button onclick="toggleFullscreen()" class="btn-fs" id="btnToggleFs">⛶ Toàn Màn Hình (Focus)</button>
+        </div>
+      </div>
+
+      <div class="detail-split">
+        <!-- Media Column -->
+        <div class="media-col">
+          <div class="detail-img-box">
+            <img id="detailImg" class="detail-img" src="" alt="Hình ảnh">
+          </div>
+          <div class="text-box">
+            <div class="text-label">BẢN DỊCH TIẾNG VIỆT</div>
+            <div class="text-vi" id="detailTextVi">Bản dịch tiếng Việt...</div>
+            <div class="text-label" style="margin-top:6px;">NGUYÊN BẢN (ENGLISH)</div>
+            <div class="text-en" id="detailTextEn">English text...</div>
+          </div>
+        </div>
+
+        <!-- Action Column -->
+        <div class="action-col">
+          <!-- Comparison Table -->
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th style="width: 24%;">Phương Diện</th>
+                <th style="width: 25%;" id="colNameA1">Annotator 1</th>
+                <th style="width: 25%;" id="colNameA2">Annotator 2</th>
+                <th style="width: 26%;">Dự Đoán VLM</th>
+              </tr>
+            </thead>
+            <tbody id="compTableBody">
+              <!-- Populated -->
+            </tbody>
+          </table>
+
+          <!-- Gold Resolution Box -->
+          <div class="resolution-box">
+            <div class="res-header">
+              <div class="res-title">🏆 CHỐT NHÃN CHUẨN VÀNG (GOLD ADJUDICATION)</div>
+              <div class="res-quick-actions">
+                <button class="btn-quick btn-q-a1" onclick="applyQuick('a1')" title="Lấy nhãn A1 và tự động lưu phán quyết (Phím 1)">⚡ Dùng của A1 & Lưu (1)</button>
+                <button class="btn-quick btn-q-a2" onclick="applyQuick('a2')" title="Lấy nhãn A2 và tự động lưu phán quyết (Phím 2)">⚡ Dùng của A2 & Lưu (2)</button>
+                <button class="btn-quick btn-q-vlm" onclick="applyQuick('vlm')" title="Lấy nhãn gợi ý VLM và tự động lưu phán quyết (Phím 3)">⚡ Dùng của VLM & Lưu (3)</button>
+              </div>
+            </div>
+
+            <div class="res-grid">
+              <div class="res-field">
+                <label>1. Text-only Emotion:</label>
+                <select id="goldText" class="res-select">
+                  <option value="joy">😄 Joy</option>
+                  <option value="sadness">😢 Sadness</option>
+                  <option value="anger">😠 Anger</option>
+                  <option value="fear">😨 Fear</option>
+                  <option value="disgust">🤢 Disgust</option>
+                  <option value="surprise">😲 Surprise</option>
+                  <option value="neutral">😐 Neutral</option>
+                </select>
+              </div>
+              <div class="res-field">
+                <label>2. Image-only Emotion:</label>
+                <select id="goldImg" class="res-select">
+                  <option value="joy">😄 Joy</option>
+                  <option value="sadness">😢 Sadness</option>
+                  <option value="anger">😠 Anger</option>
+                  <option value="fear">😨 Fear</option>
+                  <option value="disgust">🤢 Disgust</option>
+                  <option value="surprise">😲 Surprise</option>
+                  <option value="neutral">😐 Neutral</option>
+                </select>
+              </div>
+              <div class="res-field">
+                <label>3. Combined Emotion:</label>
+                <select id="goldComb" class="res-select">
+                  <option value="joy">😄 Joy</option>
+                  <option value="sadness">😢 Sadness</option>
+                  <option value="anger">😠 Anger</option>
+                  <option value="fear">😨 Fear</option>
+                  <option value="disgust">🤢 Disgust</option>
+                  <option value="surprise">😲 Surprise</option>
+                  <option value="neutral">😐 Neutral</option>
+                </select>
+              </div>
+              <div class="res-field">
+                <label>4. Relationship Type:</label>
+                <select id="goldRel" class="res-select">
+                  <option value="CONGRUENT">🔗 CONGRUENT</option>
+                  <option value="COMPLEMENTARY">🧩 COMPLEMENTARY</option>
+                  <option value="INCONGRUENT">⚡ INCONGRUENT (Mâu thuẫn / Mỉa mai)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <input type="text" id="goldNotes" placeholder="Ghi chú lý do hòa giải (nếu có)..." style="flex:1; margin-right:8px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+              <button class="btn-save-gold" onclick="saveGoldDecision()">💾 Lưu Chuẩn Vàng</button>
+              <button class="btn-reset-auto" onclick="resetToAutoVLM()" style="margin-left:8px;" title="Khôi phục trạng thái AUTO theo VLM, xóa ghi chú và hoàn trả trạng thái tự động ban đầu (Phím 0 hoặc R)">↺ Khôi phục AUTO (VLM)</button>
+              <button class="btn-toggle-flag" onclick="toggleQualityFlag()" style="margin-left:8px;" id="btnToggleFlag">⚠️ Gắn cờ thiếu TT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allSamples = [];
+    let currentTab = 'diff';
+    let currentSampleIdx = 0;
+    let searchQuery = '';
+
+    function onSearchInput(val) {
+      searchQuery = (val || '').trim().toLowerCase();
+      const clearBtn = document.getElementById('searchClearBtn');
+      if (clearBtn) {
+        clearBtn.style.display = searchQuery ? 'block' : 'none';
+      }
+      currentSampleIdx = 0;
+      renderCurrentTab();
+    }
+
+    function clearSearch() {
+      const inp = document.getElementById('sampleSearchInput');
+      if (inp) inp.value = '';
+      onSearchInput('');
+    }
+    let annotator1Name = "Annotator 1";
+    let annotator2Name = "Annotator 2";
+
+    async function loadAllData() {
+      try {
+        const [sumRes, sampRes] = await Promise.all([
+          fetch('/api/summary').then(r => r.json()),
+          fetch('/api/samples').then(r => r.json())
+        ]);
+
+        if (sumRes.clean_metrics) {
+          const m = sumRes.clean_metrics;
+          document.getElementById('kText').innerText = m.text_only.kappa.toFixed(3);
+          document.getElementById('poText').innerText = 'Po: ' + (m.text_only.po * 100).toFixed(1) + '%';
+          document.getElementById('kImg').innerText = m.image_only.kappa.toFixed(3);
+          document.getElementById('poImg').innerText = 'Po: ' + (m.image_only.po * 100).toFixed(1) + '%';
+          document.getElementById('kComb').innerText = m.combined.kappa.toFixed(3);
+          document.getElementById('poComb').innerText = 'Po: ' + (m.combined.po * 100).toFixed(1) + '%';
+          document.getElementById('kRel').innerText = m.relationship.kappa.toFixed(3);
+          document.getElementById('poRel').innerText = 'Po: ' + (m.relationship.po * 100).toFixed(1) + '%';
+          document.getElementById('kSent').innerText = m.sentiment.kappa.toFixed(3);
+          document.getElementById('poSent').innerText = 'Po: ' + (m.sentiment.po * 100).toFixed(1) + '%';
+          document.getElementById('kOverall').innerText = m.overall_kappa.toFixed(3);
+        }
+
+        annotator1Name = sampRes.annotator1_name || "Annotator 1";
+        annotator2Name = sampRes.annotator2_name || "Annotator 2";
+        document.getElementById('colNameA1').innerText = 'A1: ' + annotator1Name;
+        document.getElementById('colNameA2').innerText = 'A2: ' + annotator2Name;
+
+        allSamples = sampRes.samples || [];
+
+        updateBadgeCounts();
+        renderCurrentTab();
+      } catch (e) {
+        console.error("Error loading data:", e);
+      }
+    }
+
+    function updateBadgeCounts() {
+      const totalDiff = allSamples.filter(s => s.diffs && s.diffs.any && !s.is_missing).length;
+      const resolvedDiff = allSamples.filter(s => s.diffs && s.diffs.any && !s.is_missing && s.gold && s.gold.adjudication_status === 'MANUALLY_RESOLVED').length;
+      const missingCount = allSamples.filter(s => s.is_missing).length;
+      const agreedCount = allSamples.filter(s => !s.diffs.any && !s.is_missing).length;
+
+      const diffBadge = document.getElementById('badgeDiffCount');
+      if (diffBadge) {
+        if (resolvedDiff > 0) {
+          diffBadge.innerText = `${resolvedDiff}/${totalDiff} đã giải`;
+          diffBadge.style.background = '#dcfce7';
+          diffBadge.style.color = '#15803d';
+        } else {
+          diffBadge.innerText = totalDiff;
+          diffBadge.style.background = '#fef3c7';
+          diffBadge.style.color = '#b45309';
+        }
+      }
+      if (document.getElementById('badgeMissingCount')) document.getElementById('badgeMissingCount').innerText = missingCount;
+      if (document.getElementById('badgeAgreedCount')) document.getElementById('badgeAgreedCount').innerText = agreedCount;
+      if (document.getElementById('badgeAllCount')) document.getElementById('badgeAllCount').innerText = allSamples.length;
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      currentSampleIdx = 0;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const agrEl = document.getElementById('filterAgreement');
+      if (tab === 'diff') { document.getElementById('tabDiff').classList.add('active'); if (agrEl) agrEl.value = 'diff'; }
+      if (tab === 'missing') document.getElementById('tabMissing').classList.add('active');
+      if (tab === 'agreed') { document.getElementById('tabAgreed').classList.add('active'); if (agrEl) agrEl.value = 'agreed'; }
+      if (tab === 'all') { document.getElementById('tabAll').classList.add('active'); if (agrEl) agrEl.value = 'all'; }
+
+      if (tab === 'missing') {
+        document.getElementById('missingDedicatedView').style.display = 'block';
+        document.getElementById('mainWorkspace').style.display = 'none';
+        renderMissingTable();
+      } else {
+        document.getElementById('missingDedicatedView').style.display = 'none';
+        document.getElementById('mainWorkspace').style.display = 'grid';
+        renderCurrentTab();
+      }
+    }
+
+    function onFilterChange() {
+      const agrEl = document.getElementById('filterAgreement');
+      const agr = agrEl ? agrEl.value : 'all';
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      if (agr === 'diff') {
+        currentTab = 'diff';
+        document.getElementById('tabDiff').classList.add('active');
+      } else if (agr === 'agreed') {
+        currentTab = 'agreed';
+        document.getElementById('tabAgreed').classList.add('active');
+      } else if (agr === 'all') {
+        currentTab = 'all';
+        document.getElementById('tabAll').classList.add('active');
+      }
+      currentSampleIdx = 0;
+      renderCurrentTab();
+    }
+
+    function getFilteredSamples() {
+      let res = allSamples;
+      const agrEl = document.getElementById('filterAgreement');
+      const agr = agrEl ? agrEl.value : (currentTab === 'diff' ? 'diff' : (currentTab === 'agreed' ? 'agreed' : 'all'));
+      if (agr === 'diff') res = allSamples.filter(s => s.diffs && s.diffs.any && !s.is_missing);
+      else if (agr === 'agreed') res = allSamples.filter(s => !s.diffs.any && !s.is_missing);
+      else if (agr === 'missing') res = allSamples.filter(s => s.is_missing);
+      const resEl = document.getElementById('filterResolution');
+      const resState = resEl ? resEl.value : 'all';
+      if (resState === 'unresolved') res = res.filter(s => !(s.gold && s.gold.adjudication_status === 'MANUALLY_RESOLVED'));
+      else if (resState === 'resolved') res = res.filter(s => Boolean(s.gold && s.gold.adjudication_status === 'MANUALLY_RESOLVED'));
+
+
+
+      if (searchQuery) {
+        res = res.filter(s => {
+          const sid = (s.id || '').toLowerCase();
+          const txtVi = (s.text_vi || '').toLowerCase();
+          const txtEn = (s.text || '').toLowerCase();
+          return sid.includes(searchQuery) || txtVi.includes(searchQuery) || txtEn.includes(searchQuery);
+        });
+      }
+      const countEl = document.getElementById('filterStatsCount');
+      if (countEl) countEl.innerText = `Hiển thị: ${res.length} / ${allSamples.length} mẫu`;
+      return res;
+    }
+
+    function renderCurrentTab() {
+      const filtered = getFilteredSamples();
+      const listEl = document.getElementById('samplesListContainer');
+      listEl.innerHTML = '';
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; color:var(--text-muted); text-align:center;">Không có mẫu nào trong danh mục này.</div>';
+        return;
+      }
+
+      if (currentSampleIdx >= filtered.length) {
+        currentSampleIdx = 0;
+      }
+
+      filtered.forEach((s, idx) => {
+        const itemEl = document.createElement('div');
+        const isResolved = Boolean(s.gold && s.gold.adjudication_status === 'MANUALLY_RESOLVED');
+        itemEl.className = 'list-item' + (isResolved ? ' is-resolved' : '') + (idx === currentSampleIdx ? ' active' : '');
+        itemEl.onclick = () => { currentSampleIdx = idx; renderCurrentTab(); };
+
+        let badge = '';
+        if (s.is_missing) {
+          badge = '<span style="font-size:0.7rem; color:#dc2626; font-weight:700;">⚠️ THIẾU TT</span>';
+        } else if (isResolved) {
+          badge = '<span style="font-size:0.7rem; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:1px 6px; border-radius:4px; font-weight:800;">✓ HÒA GIẢI</span>';
+        } else if (s.diffs && s.diffs.any) {
+          badge = '<span style="font-size:0.7rem; color:#d97706; font-weight:700;">⚡ BẤT ĐỒNG</span>';
+        } else {
+          badge = '<span style="font-size:0.7rem; color:#16a34a; font-weight:700;">✓ KHỚP</span>';
+        }
+
+        itemEl.innerHTML = `
+          <div class="list-header">
+            <span class="list-id">${s.id}</span>
+            ${badge}
+          </div>
+          <div class="list-preview">${s.text_vi || s.text || 'Chưa có văn bản'}</div>
+        `;
+        listEl.appendChild(itemEl);
+      });
+
+      renderDetail(filtered[currentSampleIdx] || filtered[0]);
+    }
+
+    function cleanImagePath(path) {
+      if (!path) return '';
+      let p = String(path).split('\\\\').join('/');
+      while (p.startsWith('/')) {
+        p = p.substring(1);
+      }
+      return '/' + p;
+    }
+
+    function renderDetail(s) {
+      if (!s) return;
+      document.getElementById('detailId').innerText = s.id;
+      document.getElementById('detailImg').src = cleanImagePath(s.image_path);
+      document.getElementById('detailTextVi').innerText = s.text_vi || '(Chưa có bản dịch)';
+      document.getElementById('detailTextEn').innerText = s.text || '';
+
+      const tagEl = document.getElementById('detailQualityTag');
+      if (s.is_missing) {
+        tagEl.innerHTML = '<span style="background:#fee2e2; color:#b91c1c; padding:3px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;">⚠️ THIẾU THÔNG TIN / GẮN CỜ</span>';
+      } else if (s.gold && s.gold.adjudication_status === 'MANUALLY_RESOLVED') {
+        tagEl.innerHTML = '<span style="background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;">✓ ĐÃ HÒA GIẢI THỦ CÔNG</span>';
+      } else {
+        tagEl.innerHTML = '';
+      }
+
+      const rows = [
+        { name: '1. Cảm xúc Text-only', a1: s.a1.text_only_emotion, a2: s.a2.text_only_emotion, vlm: s.vlm.text_only_emotion, diff: s.diffs.text },
+        { name: '2. Cảm xúc Image-only', a1: s.a1.image_only_emotion, a2: s.a2.image_only_emotion, vlm: s.vlm.image_only_emotion, diff: s.diffs.image },
+        { name: '3. Cảm xúc Hợp nhất (Combined)', a1: s.a1.combined_emotion, a2: s.a2.combined_emotion, vlm: s.vlm.combined_emotion, diff: s.diffs.combined },
+        { name: '4. Quan hệ Text-Image', a1: s.a1.relationship_type, a2: s.a2.relationship_type, vlm: s.vlm.relationship_type, diff: s.diffs.relationship }
+      ];
+
+      const tbody = document.getElementById('compTableBody');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        if (r.diff) tr.className = 'row-diff';
+        tr.innerHTML = `
+          <td>${r.name} ${r.diff ? '<span class="diff-alert">⚡ KHÁC</span>' : ''}</td>
+          <td><span class="chip chip-a1">${r.a1}</span></td>
+          <td><span class="chip chip-a2">${r.a2}</span></td>
+          <td><span class="chip chip-vlm">${r.vlm}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const g = s.gold || {};
+      document.getElementById('goldText').value = g.text_only_emotion || s.a1.text_only_emotion;
+      document.getElementById('goldImg').value = g.image_only_emotion || s.a1.image_only_emotion;
+      document.getElementById('goldComb').value = g.combined_emotion || s.a1.combined_emotion;
+      document.getElementById('goldRel').value = g.relationship_type || s.a1.relationship_type;
+      document.getElementById('goldNotes').value = g.adjudication_notes || '';
+
+      const btnFlag = document.getElementById('btnToggleFlag');
+      if (s.is_missing) {
+        btnFlag.innerText = '✓ Gỡ cờ thiếu thông tin (Hợp lệ)';
+        btnFlag.style.background = '#f0fdf4';
+        btnFlag.style.color = '#15803d';
+        btnFlag.style.borderColor = '#bbf7d0';
+      } else {
+        btnFlag.innerText = '⚠️ Gắn cờ thiếu thông tin';
+        btnFlag.style.background = '#fef2f2';
+        btnFlag.style.color = '#dc2626';
+        btnFlag.style.borderColor = '#fecaca';
+      }
+    }
+
+    function showToast(message, type = 'success') {
+      let toast = document.getElementById('uiToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'uiToast';
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.right = '20px';
+        toast.style.padding = '8px 14px';
+        toast.style.borderRadius = '6px';
+        toast.style.fontSize = '0.82rem';
+        toast.style.fontWeight = '600';
+        toast.style.zIndex = '99999';
+        toast.style.pointerEvents = 'none';
+        toast.style.boxShadow = '0 4px 14px rgba(0,0,0,0.15)';
+        toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        toast.style.display = 'flex';
+        toast.style.alignItems = 'center';
+        toast.style.gap = '6px';
+        document.body.appendChild(toast);
+      }
+      toast.style.background = type === 'error' ? '#ef4444' : '#15803d';
+      toast.style.color = '#ffffff';
+      toast.innerText = message;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+      clearTimeout(toast._timeout);
+      toast._timeout = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(6px)';
+      }, 1800);
+    }
+
+    async function applyQuick(source) {
+      const filtered = getFilteredSamples();
+      const s = filtered[currentSampleIdx];
+      if (!s) return;
+      const srcObj = source === 'a1' ? s.a1 : (source === 'a2' ? s.a2 : s.vlm);
+      const sourceLabel = source === 'a1' ? ('A1 (' + annotator1Name + ')') : (source === 'a2' ? ('A2 (' + annotator2Name + ')') : 'VLM Proposal');
+
+      document.getElementById('goldText').value = srcObj.text_only_emotion || 'neutral';
+      document.getElementById('goldImg').value = srcObj.image_only_emotion || 'neutral';
+      document.getElementById('goldComb').value = srcObj.combined_emotion || 'neutral';
+      document.getElementById('goldRel').value = srcObj.relationship_type || 'CONGRUENT';
+
+      const notesEl = document.getElementById('goldNotes');
+      if (!notesEl.value.trim()) {
+        notesEl.value = 'Đồng thuận theo ' + sourceLabel;
+      }
+
+      await saveGoldDecision();
+    }
+
+    async function saveGoldDecision() {
+      const filtered = getFilteredSamples();
+      const s = filtered[currentSampleIdx];
+      if (!s) return;
+
+      const payload = {
+        id: s.id,
+        ground_truth: {
+          text_only_emotion: document.getElementById('goldText').value,
+          image_only_emotion: document.getElementById('goldImg').value,
+          combined_emotion: document.getElementById('goldComb').value,
+          relationship_type: document.getElementById('goldRel').value
+        },
+        data_quality_flag: s.is_missing ? 'INSUFFICIENT_CONTEXT' : 'VALID',
+        notes: document.getElementById('goldNotes').value.trim()
+      };
+
+      try {
+        const res = await fetch('/api/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast('✓ Đã lưu & đồng bộ vào benchmark_gold_clean.json (' + s.id + ')');
+          if (!s.gold) s.gold = {};
+          s.gold.adjudication_status = 'MANUALLY_RESOLVED';
+          s.gold.text_only_emotion = payload.ground_truth.text_only_emotion;
+          s.gold.image_only_emotion = payload.ground_truth.image_only_emotion;
+          s.gold.combined_emotion = payload.ground_truth.combined_emotion;
+          s.gold.relationship_type = payload.ground_truth.relationship_type;
+          s.gold.adjudication_notes = payload.notes;
+
+          updateBadgeCounts();
+          renderCurrentTab();
+        } else {
+          showToast('Lỗi: ' + (d.error || 'Không lưu được'), 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối API: ' + e, 'error');
+      }
+    }
+
+    async function resetToAutoVLM() {
+      const filtered = getFilteredSamples();
+      const s = filtered[currentSampleIdx];
+      if (!s) return;
+
+      const vlmObj = s.vlm || {};
+      document.getElementById('goldText').value = vlmObj.text_only_emotion || 'neutral';
+      document.getElementById('goldImg').value = vlmObj.image_only_emotion || 'neutral';
+      document.getElementById('goldComb').value = vlmObj.combined_emotion || 'neutral';
+      document.getElementById('goldRel').value = vlmObj.relationship_type || 'CONGRUENT';
+      document.getElementById('goldNotes').value = '';
+
+      const targetStatus = (!s.diffs || !s.diffs.any) ? 'AUTO_MATCHED' : 'PENDING_RESOLUTION';
+
+      const payload = {
+        id: s.id,
+        ground_truth: {
+          text_only_emotion: document.getElementById('goldText').value,
+          image_only_emotion: document.getElementById('goldImg').value,
+          combined_emotion: document.getElementById('goldComb').value,
+          relationship_type: document.getElementById('goldRel').value
+        },
+        data_quality_flag: s.is_missing ? 'INSUFFICIENT_CONTEXT' : 'VALID',
+        adjudication_status: targetStatus,
+        notes: ''
+      };
+
+      try {
+        const res = await fetch('/api/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast('↺ Đã khôi phục AUTO & đồng bộ vào benchmark_gold_clean.json (' + s.id + ')');
+          if (!s.gold) s.gold = {};
+          s.gold.adjudication_status = targetStatus;
+          s.gold.text_only_emotion = payload.ground_truth.text_only_emotion;
+          s.gold.image_only_emotion = payload.ground_truth.image_only_emotion;
+          s.gold.combined_emotion = payload.ground_truth.combined_emotion;
+          s.gold.relationship_type = payload.ground_truth.relationship_type;
+          s.gold.adjudication_notes = '';
+
+          updateBadgeCounts();
+          renderCurrentTab();
+        } else {
+          showToast('Lỗi: ' + (d.error || 'Không thể khôi phục'), 'error');
+        }
+      } catch (e) {
+        showToast('Lỗi kết nối API: ' + e, 'error');
+      }
+    }
+
+    async function toggleQualityFlag() {
+      const filtered = getFilteredSamples();
+      const s = filtered[currentSampleIdx];
+      if (!s) return;
+      const newStatus = !s.is_missing;
+
+      try {
+        const res = await fetch('/api/toggle_missing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: s.id, is_missing: newStatus })
+        });
+        const d = await res.json();
+        if (d.success) {
+          s.is_missing = newStatus;
+          showToast(newStatus ? '⚠️ Đã loại bỏ ' + s.id + ' khỏi benchmark_gold_clean.json' : '✓ Đã đồng bộ ' + s.id + ' vào benchmark_gold_clean.json');
+          loadAllData();
+        }
+      } catch (e) {
+        showToast('Lỗi cập nhật cờ: ' + e, 'error');
+      }
+    }
+
+    function renderMissingTable() {
+      const missingList = allSamples.filter(s => s.is_missing);
+      const tbody = document.getElementById('missingTableBody');
+      tbody.innerHTML = '';
+
+      missingList.forEach((ms, idx) => {
+        const tr = document.createElement('tr');
+        const reasonText = (ms.a1.notes || ms.a2.notes || (ms.missing_reasons || []).join(', ')) || 'Chưa rõ lý do';
+        tr.innerHTML = `
+          <td style="font-weight:800; font-family:monospace;">${ms.id}</td>
+          <td><img src="${cleanImagePath(ms.image_path)}" style="height:65px; border-radius:4px; object-fit:contain; background:#000;"></td>
+          <td>
+            <div style="font-weight:600; font-size:0.83rem;">${ms.text_vi || '(Chưa dịch)'}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">${ms.text || ''}</div>
+          </td>
+          <td>
+            <div style="font-size:0.75rem;"><b>A1:</b> ${ms.a1.decision}</div>
+            <div style="font-size:0.75rem;"><b>A2:</b> ${ms.a2.decision}</div>
+          </td>
+          <td style="font-size:0.8rem; color:#b91c1c;">${reasonText}</td>
+          <td style="text-align:center;">
+            <button onclick="inspectSample('${ms.id}')" style="padding:5px 10px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; font-weight:700; font-size:0.75rem; cursor:pointer;">Xem & Xử lý</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function inspectSample(sampleId) {
+      setTab('all');
+      const filtered = getFilteredSamples();
+      const foundIdx = filtered.findIndex(s => s.id === sampleId);
+      if (foundIdx !== -1) {
+        currentSampleIdx = foundIdx;
+        renderCurrentTab();
+      }
+    }
+
+    function nextSample() {
+      const filtered = getFilteredSamples();
+      if (currentSampleIdx < filtered.length - 1) {
+        currentSampleIdx++;
+        renderCurrentTab();
+        scrollToCurrentSample();
+      }
+    }
+
+    function prevSample() {
+      if (currentSampleIdx > 0) {
+        currentSampleIdx--;
+        renderCurrentTab();
+        scrollToCurrentSample();
+      }
+    }
+
+    function scrollToCurrentSample() {
+      const activeEl = document.querySelector('.list-item.active');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function toggleFullscreen() {
+      document.body.classList.toggle('fullscreen-mode');
+      const isFs = document.body.classList.contains('fullscreen-mode');
+      const btn = document.getElementById('btnToggleFs');
+      if (btn) btn.innerText = isFs ? '🗗 Thu nhỏ' : '⛶ Toàn Màn Hình (Focus)';
+      const btnHead = document.getElementById('btnHeaderFs');
+      if (btnHead) btnHead.innerText = isFs ? '🗗 Thu nhỏ' : '⛶ Toàn Màn Hình (Focus)';
+    }
+
+    function toggleMetrics() {
+      const grid = document.getElementById('metricsCards');
+      const btn = document.getElementById('btnMetricsToggle');
+      if (!grid) return;
+      const isHidden = grid.classList.toggle('metrics-collapsed');
+      if (btn) btn.innerText = isHidden ? '📊 Hiện chỉ số Kappa ▼' : '📊 Thu gọn chỉ số ▲';
+      
+      const listP = document.getElementById('samplesListContainer');
+      const detP = document.getElementById('detailPanel');
+      if (!document.body.classList.contains('fullscreen-mode')) {
+        const newH = isHidden ? 'calc(100vh - 160px)' : 'calc(100vh - 270px)';
+        if (listP) listP.style.height = newH;
+        if (detP) detP.style.height = newH;
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
+        e.preventDefault();
+        nextSample();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'k') {
+        e.preventDefault();
+        prevSample();
+      } else if (e.key === '1') {
+        e.preventDefault();
+        applyQuick('a1');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        applyQuick('a2');
+      } else if (e.key === '3') {
+        e.preventDefault();
+        applyQuick('vlm');
+      } else if (e.key === '0' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        resetToAutoVLM();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    });
+
+    async function exportCleanBenchmark() {
+      try {
+        showToast("Đang tạo tập dữ liệu Benchmark sạch...");
+        const res = await fetch('/api/export_clean');
+        const d = await res.json();
+        if (d.success) {
+          showToast(`✓ Đã xuất thành công ${d.count} mẫu sạch vào benchmark_gold_clean.json`);
+          // Tự động tải file JSON sạch về trình duyệt
+          const blob = new Blob([JSON.stringify(d.samples, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'benchmark_gold_clean.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          showToast("Lỗi xuất file: " + (d.error || "Thất bại"), "error");
+        }
+      } catch (e) {
+        showToast("Lỗi kết nối API: " + e, "error");
+      }
+    }
+
+    window.onload = loadAllData;
+  </script>
+</body>
+</html>

@@ -12,7 +12,7 @@ Mục đích:
         1. text_only_emotion (Cảm xúc theo riêng văn bản - 7 Ekman)
         2. image_only_emotion (Cảm xúc theo riêng hình ảnh - 7 Ekman)
         3. combined_emotion (Cảm xúc tổng hợp toàn bài đăng - 7 Ekman)
-        4. relationship_type (Phân loại quan hệ Ảnh-Chữ: CONGRUENT | INCONGRUENT_SARCASTIC | COMPLEMENTARY)
+        4. relationship_type (Phân loại quan hệ Ảnh-Chữ: CONGRUENT | INCONGRUENT | COMPLEMENTARY)
         + explanation (Lời giải thích ngắn gọn 1-2 câu tiếng Việt)
     - Đồng bộ chuẩn schema vlm_proposal và human_review (đầy đủ cả 4 trường).
 
@@ -67,7 +67,7 @@ DEFAULT_INPUT_FILE = DATA_DIR / "candidate_1000_benchmark_pool.json" if (DATA_DI
 DEFAULT_OUTPUT_FILE = DATA_DIR / "vlm_preannotated_1000_benchmark.json" if (DATA_DIR / "candidate_1000_benchmark_pool.json").exists() else DATA_DIR / "rare_100_annotated.json"
 
 VALID_EMOTIONS = ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neutral"]
-VALID_RELATIONSHIPS = ["CONGRUENT", "INCONGRUENT_SARCASTIC", "COMPLEMENTARY"]
+VALID_RELATIONSHIPS = ["CONGRUENT", "INCONGRUENT", "COMPLEMENTARY"]
 
 
 # ============================================================================
@@ -184,7 +184,7 @@ HÃY ĐÁNH GIÁ ĐỘC LẬP TỪNG PHƯƠNG THỨC VÀ TỔNG HỢP, XUẤT RA
 4. "relationship_type": Mối quan hệ tương tác ngữ nghĩa & cảm xúc giữa Ảnh và Chữ. Chọn chính xác 1 trong 3 loại:
    - "CONGRUENT": Đồng nhất / Củng cố trực tiếp (Ảnh và Chữ cùng chung một thông điệp, cùng hướng cảm xúc; ảnh minh họa cho điều chữ đã nói).
    - "COMPLEMENTARY": Bổ trợ ngữ cảnh (Một bên trung tính/thiếu thông tin HOẶC hai bên lệch sắc thái mang tính xoa dịu/an ủi/giải thích bối cảnh mà KHÔNG mỉa mai).
-   - "INCONGRUENT_SARCASTIC": Mâu thuẫn / Mỉa mai / Châm biếm (Nghĩa đen câu chữ đối lập có chủ đích với hình ảnh để mỉa mai, cà khịa, giễu cợt hoặc tự trào hài hước).
+   - "INCONGRUENT": Mâu thuẫn / Mỉa mai / Châm biếm (Nghĩa đen câu chữ đối lập có chủ đích với hình ảnh để mỉa mai, cà khịa, giễu cợt hoặc tự trào hài hước).
 5. "explanation": Lời giải thích ngắn gọn (1-2 câu tiếng Việt) nêu rõ căn cứ nhận định 3 nhãn cảm xúc và mối quan hệ ảnh-chữ trên.
 
 Định dạng trả về: JSON thuần túy theo mẫu sau:

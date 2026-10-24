@@ -328,7 +328,7 @@
       <div style="font-size:0.84rem; color:#475569; margin-bottom:10px;">Áp dụng theo thứ tự ưu tiên 4 bước:</div>
       <div style="font-size:0.84rem; color:#334155; line-height:1.7; margin-bottom:12px;">
         <b>1.</b> Ảnh hỏng / dịch máy vô nghĩa / cặp text-image rác &rarr; Gắn cờ <code>INSUFFICIENT_CONTEXT</code> (loại khỏi tập chuẩn).<br>
-        <b>2.</b> Tương phản có chủ đích + có bằng chứng <b>châm biếm, mỉa mai, cà khịa hoặc tự trào</b> &rarr; <code>INCONGRUENT_SARCASTIC</code>.<br>
+        <b>2.</b> Tương phản có chủ đích + có bằng chứng <b>châm biếm, mỉa mai, cà khịa hoặc tự trào</b> &rarr; <code>INCONGRUENT</code>.<br>
         <b>3.</b> Một bên thiếu thông tin HOẶC hai bên lệch sắc thái mang tính <b>xoa dịu/bổ sung bối cảnh</b> (không châm biếm) &rarr; <code>COMPLEMENTARY</code>.<br>
         <b>4.</b> Cả hai phương thức cùng chiều cảm xúc hoặc ảnh minh họa trực tiếp thông điệp đã rõ &rarr; <code>CONGRUENT</code>.
       </div>
@@ -356,7 +356,7 @@
 
       <div class="guide-box guide-box-sarcastic">
         <div class="guide-box-header">
-          <span style="color:#d97706;">⚡ INCONGRUENT_SARCASTIC (Mâu thuẫn / Mỉa mai / Châm biếm)</span>
+          <span style="color:#d97706;">⚡ INCONGRUENT (Mâu thuẫn / Mỉa mai / Châm biếm)</span>
         </div>
         <div><b>Định nghĩa:</b> Có sự tương phản hoặc nghịch lý có chủ đích giữa câu chữ và hình ảnh để tạo ra sắc thái **mỉa mai, châm biếm, chế giễu hoặc tự trào** (sarcasm / irony / satire).</div>
         <div style="font-size:0.83rem; color:#475569; margin-top:4px;">
@@ -392,7 +392,7 @@
       <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:12px; font-size:0.83rem; color:#92400e; margin-bottom:16px; line-height:1.65;">
         <b>🔍 Hai bạn tập trung rà soát và tinh chỉnh các ca sau:</b><br>
         1. <b>Lệch pha phương thức (Modality Divergence):</b> Khi <code>text_only_emotion</code> lệch hẳn <code>image_only_emotion</code> (ví dụ: Text là <code>joy</code> nhưng Image là <code>sadness</code>/<code>disgust</code>) &rarr; Tiềm ẩn mỉa mai, VLM dễ bị "lừa" bởi nghĩa đen.<br>
-        2. <b>Quan hệ không đồng nhất:</b> Toàn bộ mẫu có nhãn <code>INCONGRUENT_SARCASTIC</code> hoặc <code>COMPLEMENTARY</code> cần được soi chiếu kỹ vì tính đa nghĩa cao.<br>
+        2. <b>Quan hệ không đồng nhất:</b> Toàn bộ mẫu có nhãn <code>INCONGRUENT</code> hoặc <code>COMPLEMENTARY</code> cần được soi chiếu kỹ vì tính đa nghĩa cao.<br>
         3. <b>Lời giải thích VLM do dự:</b> VLM giải thích dùng từ "tuy nhiên", "khó phân định", "có thể hiểu hai cách".<br>
         4. <b>Meme chứa chữ nhúng (Text-in-image):</b> Đọc kỹ chữ lồng trong ảnh và đối chiếu văn bản gốc tiếng Anh.<br>
         5. <b>Bắt buộc ghi chú:</b> Khi điều chỉnh khác VLM hoặc gặp ca biên khó, vui lòng nhập lý do vào ô <code>Ghi chú lý do</code>.
@@ -573,7 +573,7 @@
                 <option value="">-- Chưa chọn quan hệ --</option>
                 <option value="CONGRUENT">🔗 CONGRUENT (Đồng nhất / Cùng thông điệp)</option>
                 <option value="COMPLEMENTARY">🧩 COMPLEMENTARY (Bổ trợ ngữ cảnh / Xoa dịu)</option>
-                <option value="INCONGRUENT_SARCASTIC">⚡ INCONGRUENT_SARCASTIC (Mâu thuẫn / Mỉa mai)</option>
+                <option value="INCONGRUENT">⚡ INCONGRUENT (Mâu thuẫn / Mỉa mai)</option>
               </select>
             </div>
 
@@ -692,7 +692,7 @@
   const RELATION_META = {
     CONGRUENT: { icon: "🔗", label: "CONGRUENT", vi: "Đồng nhất cảm xúc" },
     COMPLEMENTARY: { icon: "🧩", label: "COMPLEMENTARY", vi: "Bổ trợ ngữ cảnh" },
-    INCONGRUENT_SARCASTIC: { icon: "⚡", label: "INCONGRUENT_SARCASTIC", vi: "Mâu thuẫn / Mỉa mai" }
+    INCONGRUENT: { icon: "⚡", label: "INCONGRUENT", vi: "Mâu thuẫn / Mỉa mai" }
   };
 
   function formatEmotionChip(val, type) {

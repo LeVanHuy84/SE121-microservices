@@ -318,7 +318,7 @@ def curate_benchmark_700() -> List[Dict[str, Any]]:
             "source_id": f"MEMOTION_{img_name.split('.')[0]}",
             "source_dataset": "Memotion_7k",
             "sampling_strategy": "CURATED_SARCASM",
-            "category_candidate": "INCONGRUENT_SARCASTIC",
+            "category_candidate": "INCONGRUENT",
             "target_candidate_hint": "sarcasm",
             "text": c_txt,
             "image_path": f"evaluation/image-experiment/data/images/{img_name}"
@@ -379,7 +379,7 @@ def curate_benchmark_700() -> List[Dict[str, Any]]:
             "source_id": f"MEMOTION_{img_name.split('.')[0]}",
             "source_dataset": "Memotion_7k",
             "sampling_strategy": "RARE_MINING",
-            "category_candidate": "INCONGRUENT_SARCASTIC",
+            "category_candidate": "INCONGRUENT",
             "target_candidate_hint": "rare_sarcasm",
             "text": c_txt,
             "image_path": f"evaluation/image-experiment/data/images/{img_name}"
