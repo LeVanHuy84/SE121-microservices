@@ -64,7 +64,77 @@ export class PersonalFeedService {
         query.mainEmotion,
         sessionData.sessionId,
       );
-      const totalSessionLength = await this.redis.llen(sessionKey);
+      const metaKey = this.getSessionMetaKey(
+        userId,
+        query.mainEmotion,
+        sessionData.sessionId,
+      );
+      let totalSessionLength = await this.redis.llen(sessionKey);
+      const meta = await this.redis.hgetall(metaKey);
+      let isExhausted = meta?.exhausted === "true";
+
+      // 🛡️ Deep Archive Extension: When current active session is nearing exhaustion,
+      // seamlessly load older historical candidates from MongoDB feedItemModel
+      if (
+        sessionData.offset + limit > totalSessionLength &&
+        meta &&
+        meta.oldestCreatedAt &&
+        !isExhausted
+      ) {
+        const oldestTime = new Date(parseInt(meta.oldestCreatedAt, 10));
+        const olderCandidates = await this.feedItemModel
+          .find({
+            userId,
+            createdAt: { $lt: oldestTime },
+          })
+          .sort({ createdAt: -1 })
+          .limit(this.CANDIDATE_POOL_SIZE)
+          .lean();
+
+        if (olderCandidates.length > 0) {
+          this.logger.debug(
+            `[FEED DEEP ARCHIVE EXPANSION] loaded=${olderCandidates.length} older posts for user=${userId}`,
+          );
+
+          const rankedOlder = await this.rankItems(
+            userId,
+            olderCandidates,
+            query.mainEmotion,
+          );
+
+          const existingIds = new Set(
+            await this.redis.lrange(sessionKey, 0, -1),
+          );
+          const newRankedIds = rankedOlder
+            .map((x) => x.itemId)
+            .filter((id) => !existingIds.has(id));
+
+          if (newRankedIds.length > 0) {
+            await this.redis.rpush(sessionKey, ...newRankedIds);
+            await this.redis.expire(sessionKey, this.SESSION_TTL);
+            totalSessionLength += newRankedIds.length;
+          }
+
+          const nextOldestCandidate =
+            olderCandidates[olderCandidates.length - 1];
+          if (nextOldestCandidate && nextOldestCandidate.createdAt) {
+            await this.redis.hset(
+              metaKey,
+              "oldestCreatedAt",
+              new Date(nextOldestCandidate.createdAt).getTime().toString(),
+            );
+            await this.redis.expire(metaKey, this.SESSION_TTL);
+          }
+
+          if (olderCandidates.length < this.CANDIDATE_POOL_SIZE) {
+            await this.redis.hset(metaKey, "exhausted", "true");
+            isExhausted = true;
+          }
+        } else {
+          await this.redis.hset(metaKey, "exhausted", "true");
+          isExhausted = true;
+        }
+      }
 
       if (totalSessionLength > 0 && sessionData.offset < totalSessionLength) {
         this.logger.debug(
@@ -81,7 +151,18 @@ export class PersonalFeedService {
         const feedDTOs = await this.hydrateFeedPage(userId, pageItemIds);
 
         const nextOffset = sessionData.offset + pageItemIds.length;
-        const hasMore = nextOffset < totalSessionLength;
+        let hasMore =
+          pageItemIds.length === limit && nextOffset < totalSessionLength;
+        if (
+          pageItemIds.length === limit &&
+          !hasMore &&
+          meta &&
+          meta.oldestCreatedAt &&
+          !isExhausted
+        ) {
+          hasMore = true;
+        }
+
         const nextCursor = hasMore
           ? PersonalFeedHelper.encodeSessionCursor(
               sessionData.sessionId,
@@ -134,6 +215,20 @@ export class PersonalFeedService {
     await this.redis.rpush(sessionKey, ...rankedItemIds);
     await this.redis.expire(sessionKey, this.SESSION_TTL);
 
+    // Save session metadata for Deep Archive Historical Pagination
+    const oldestCandidate = candidates[candidates.length - 1];
+    if (oldestCandidate && oldestCandidate.createdAt) {
+      const metaKey = this.getSessionMetaKey(
+        userId,
+        query.mainEmotion,
+        sessionId,
+      );
+      await this.redis.hset(metaKey, {
+        oldestCreatedAt: new Date(oldestCandidate.createdAt).getTime().toString(),
+      });
+      await this.redis.expire(metaKey, this.SESSION_TTL);
+    }
+
     // Slice First Page
     const firstPageIds = rankedItemIds.slice(0, limit);
     const feedDTOs = await this.hydrateFeedPage(userId, firstPageIds);
@@ -163,13 +258,14 @@ export class PersonalFeedService {
 
     const distress = this.emotionService.calcDistress(emotionFeatures);
 
+    const batchNow = Date.now();
     const result: { itemId: string; score: number }[] = [];
 
     for (const item of items) {
       const itemId = item._id?.toString();
       if (!itemId) continue;
 
-      const recency = PersonalFeedHelper.calcRecency(item.createdAt);
+      const recency = PersonalFeedHelper.calcRecency(item.createdAt, batchNow);
       const post = postMap.get(item.postId);
 
       if (!post) {
@@ -194,7 +290,7 @@ export class PersonalFeedService {
 
       // 🛡️ TIER 2 SAFETY GUARDRAIL: Contextual Protection for Distressed User
       if (distress > 0.5) {
-        if (post.hasWarning) {
+        if (post.hasWarning || post.emotionFeature?.isSarcasmOrConflict) {
           continue;
         }
 
@@ -297,6 +393,15 @@ export class PersonalFeedService {
   ): string {
     const emotion = mainEmotion?.toLowerCase() || "all";
     return `feed:session:${userId}:${emotion}:${sessionId}`;
+  }
+
+  private getSessionMetaKey(
+    userId: string,
+    mainEmotion?: string,
+    sessionId?: string,
+  ): string {
+    const emotion = mainEmotion?.toLowerCase() || "all";
+    return `feed:meta:${userId}:${emotion}:${sessionId}`;
   }
 
   /**

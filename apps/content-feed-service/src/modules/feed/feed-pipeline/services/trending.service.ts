@@ -75,7 +75,54 @@ export class TrendingService {
     // ========================================================
     if (sessionData) {
       const sessionKey = `trending:session:${sessionData.sessionId}`;
-      const totalLen = await this.redis.llen(sessionKey);
+      const metaKey = `trending:meta:${sessionData.sessionId}`;
+      let totalLen = await this.redis.llen(sessionKey);
+      const meta = await this.redis.hgetall(metaKey);
+      let isExhausted = meta?.exhausted === "true";
+
+      // 🚀 Two-Tier Infinite Discovery: If session is nearing exhaustion,
+      // dynamically fetch the next batch of viral candidates from Redis ZSET
+      if (
+        sessionData.offset + limit > totalLen &&
+        meta &&
+        meta.zsetKey &&
+        !isExhausted
+      ) {
+        const BATCH_SIZE = 50;
+        const currentIds = new Set(await this.redis.lrange(sessionKey, 0, -1));
+        const scanLimit = currentIds.size + BATCH_SIZE;
+
+        const nextZset = await this.redis.zrevrangebyscore(
+          meta.zsetKey,
+          "+inf",
+          "-inf",
+          "WITHSCORES",
+          "LIMIT",
+          0,
+          scanLimit,
+        );
+
+        if (nextZset.length > 0) {
+          const nextCandidates = this.parseZset(nextZset);
+          const newIds = nextCandidates
+            .map((c) => c.postId)
+            .filter((id) => !currentIds.has(id));
+
+          if (newIds.length > 0) {
+            await this.redis.rpush(sessionKey, ...newIds);
+            await this.redis.expire(sessionKey, this.SESSION_TTL);
+            totalLen += newIds.length;
+          }
+
+          if (newIds.length === 0 || nextZset.length < scanLimit) {
+            await this.redis.hset(metaKey, "exhausted", "true");
+            isExhausted = true;
+          }
+        } else {
+          await this.redis.hset(metaKey, "exhausted", "true");
+          isExhausted = true;
+        }
+      }
 
       if (totalLen > 0 && sessionData.offset < totalLen) {
         this.logger.debug(
@@ -91,7 +138,18 @@ export class TrendingService {
         const items = await this.hydrateTrendingPage(pageIds, userId);
 
         const nextOffset = sessionData.offset + pageIds.length;
-        const hasMore = nextOffset < totalLen;
+        let hasMore =
+          pageIds.length === limit && nextOffset < totalLen;
+        if (
+          pageIds.length === limit &&
+          !hasMore &&
+          meta &&
+          meta.zsetKey &&
+          !isExhausted
+        ) {
+          hasMore = true;
+        }
+
         const nextCursor = hasMore
           ? PersonalFeedHelper.encodeSessionCursor(
               sessionData.sessionId,
@@ -303,6 +361,14 @@ export class TrendingService {
 
     await this.redis.rpush(sessionKey, ...rankedPostIds);
     await this.redis.expire(sessionKey, this.SESSION_TTL);
+
+    // Save session metadata for Two-Tier Infinite Discovery
+    const metaKey = `trending:meta:${sessionId}`;
+    await this.redis.hset(metaKey, {
+      zsetKey: key,
+      fetchedOffset: candidatesRaw.length.toString(),
+    });
+    await this.redis.expire(metaKey, this.SESSION_TTL);
 
     // ==============================
     // 9️⃣ Slice Page 1 & Hydrate

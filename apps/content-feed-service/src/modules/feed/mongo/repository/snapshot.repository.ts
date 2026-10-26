@@ -53,11 +53,14 @@ export class SnapshotRepository {
         {
           postId: 1,
           userId: 1,
+          hasWarning: 1,
           "emotionFeature.label": 1,
           "emotionFeature.scores": 1,
           "emotionFeature.intensity": 1,
           "emotionFeature.confidence": 1,
           "emotionFeature.riskHintLevel": 1,
+          "emotionFeature.mentalHealthRiskLevel": 1,
+          "emotionFeature.isSarcasmOrConflict": 1,
           stats: 1,
         },
       )

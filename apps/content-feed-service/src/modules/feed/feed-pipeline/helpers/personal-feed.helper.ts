@@ -63,10 +63,10 @@ export class PersonalFeedHelper {
   // ==========================================
   // 📊 COMPONENT SIGNALS
   // ==========================================
-  static calcRecency(createdAt?: Date): number {
+  static calcRecency(createdAt?: Date, now = Date.now()): number {
     if (!createdAt) return 0;
 
-    const age = Date.now() - new Date(createdAt).getTime();
+    const age = now - new Date(createdAt).getTime();
     return Math.exp(-age / this.TAU);
   }
 

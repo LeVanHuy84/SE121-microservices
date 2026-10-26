@@ -36,7 +36,7 @@ describe("EmotionFeatureService - Iso-Principle & Safety", () => {
       expect(score).toBeGreaterThan(0.4);
     });
 
-    it("should prioritize Calming Bridge (neutral, calm, trust) and avoid Toxic Positivity when user is distressed", () => {
+    it("should prioritize Calming Bridge (neutral) and avoid Toxic Positivity when user is distressed", () => {
       const distressedFeatures: EmotionRankingFeaturesDto = {
         userEmotionPreference: { sadness: 0.8, neutral: 0.1 },
         last24hEmotionDistribution: { sadness: 0.7, neutral: 0.3 },
@@ -47,8 +47,8 @@ describe("EmotionFeatureService - Iso-Principle & Safety", () => {
         emotionMomentum: -0.3,
       };
 
-      // Calming post (neutral, calm)
-      const calmingPost = { neutral: 0.8, calm: 0.7 };
+      // Calming post with high neutral score (7-class PhoBERT canonical)
+      const calmingPost = { neutral: 0.8 };
       const calmingScore = service.calcIsoPrincipleScore(distressedFeatures, calmingPost);
 
       // Sad post that amplifies depression (Echo chamber)

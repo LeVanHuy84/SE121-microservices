@@ -97,25 +97,36 @@ export class EmotionFeatureService {
     const anger = userState.anger || 0;
     const fear = userState.fear || 0;
 
-    // Giai đoạn 1 & 2: Thấu cảm & Cầu nối Xoa dịu (Calming Bridge)
-    const calmingBridge =
-      (postScores.neutral || 0) * 0.4 +
-      (postScores.calm || 0) * 0.25 +
-      (postScores.trust || 0) * 0.2 +
-      (postScores.surprise || 0) * 0.15;
+    // Pha 1: Thấu cảm (Empathetic Matching) - đồng cảm với nỗi buồn nhưng không sa đà
+    const empatheticSadness =
+      sadness > 0 ? sadness * Math.min(postScores.sadness || 0, 0.7) * 0.45 : 0;
 
-    // Giai đoạn 3: Phục hồi nhẹ nhàng (Gentle Uplift - Joy vừa phải, tránh Extreme Joy)
-    const gentleJoy = Math.min(postScores.joy || 0, 0.6);
+    // Pha 2: Cầu nối Xoa dịu (Calming Bridge)
+    // Chuẩn hóa 100% trên 7 nhãn Ekman PhoBERT: nội dung an định, khách quan (neutral) làm trọng tâm xoa dịu
+    const calmingBridge = postScores.neutral || 0;
+
+    // Pha 3: Nâng đỡ Nhẹ nhàng (Gentle Uplift) & Phạt Toxic Positivity
+    const rawJoy = postScores.joy || 0;
+    const isCrisis = distress > 0.6;
+    const toxicPositivityPenalty =
+      isCrisis && rawJoy > 0.7
+        ? (rawJoy - 0.5) * 1.5
+        : rawJoy > 0.6
+          ? (rawJoy - 0.6) * 0.8
+          : 0;
+    const gentleJoy = Math.max(0, Math.min(rawJoy, 0.6) - toxicPositivityPenalty);
 
     // Chống Buồng vang Bi quan (Doomscrolling Echo Penalty):
+    const excessiveSadness = Math.max(0, (postScores.sadness || 0) - 0.7);
     const echoPenalty =
-      sadness * (postScores.sadness || 0) * 0.6 +
+      sadness * excessiveSadness * 1.5 +
       anger * (postScores.anger || 0) * 0.8 +
       fear * (postScores.fear || 0) * 0.7;
 
     const rawScore =
-      calmingBridge * (gentleJoy > 0 ? 0.65 : 1.0) +
-      gentleJoy * 0.35 -
+      calmingBridge * 0.55 +
+      empatheticSadness * 0.35 +
+      gentleJoy * 0.25 -
       echoPenalty;
     return this.clamp(rawScore);
   }
