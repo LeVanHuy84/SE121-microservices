@@ -20,19 +20,29 @@ class OutboxEmitter:
 
         is_violation = moderation.get("isViolation", False)
         mod_action = moderation.get("action", "ALLOW")
+        label = moderation.get("label", "CLEAN")
+        mental_health_support = moderation.get("mentalHealthSupport", False)
+        confidence_val = moderation.get("confidence", moderation.get("violationScore", 1.0))
+
         violations = build_violations(moderation)
-        display_message = build_display_message(is_violation, violations, action=mod_action)
+        display_message = build_display_message(
+            is_violation,
+            violations,
+            action=mod_action,
+            mental_health_support=mental_health_support,
+            label=label,
+        )
 
         moderation_payload = {
             "targetId": moderation["targetId"],
             "targetType": moderation["targetType"],
             "userId": moderation.get("userId"),
             "action": mod_action,
-            "label": moderation.get("label", "CLEAN"),
+            "label": label,
             "isViolation": is_violation,
-            "mentalHealthSupport": moderation.get("mentalHealthSupport", False),
+            "mentalHealthSupport": mental_health_support,
             "violations": violations,
-            "confidence": moderation.get("confidence", moderation.get("violationScore")),
+            "confidence": confidence_val,
             "displayMessage": display_message,
             "createdAt": moderation.get("createdAt").isoformat() if hasattr(moderation.get("createdAt"), "isoformat") else str(moderation.get("createdAt", "")),
         }
@@ -46,6 +56,7 @@ class OutboxEmitter:
         }
 
         if emotion:
+            risk_level = emotion.get("mentalHealthRiskLevel", "none")
             payload.update({
                 "modelVersion": emotion.get("modelVersion"),
                 "primaryEmotion": (emotion.get("primaryEmotion") or emotion.get("finalEmotion", "")).upper(),
@@ -53,15 +64,23 @@ class OutboxEmitter:
                 "scores": emotion.get("finalScores", {}),
                 "confidence": emotion.get("finalConfidence", 1.0),
                 "isSarcasmOrConflict": emotion.get("isSarcasmOrConflict", False),
-                "mentalHealthRiskLevel": emotion.get("mentalHealthRiskLevel", "none"),
+                "mentalHealthRiskLevel": risk_level,
                 "createdAt": emotion.get("createdAt").isoformat() if emotion.get("createdAt") else None,
             })
         else:
+            # Khi emotion là None (vi phạm bị chặn hoặc skip): tính toán riskLevel dựa trên moderation
+            if label == "SELF_HARM":
+                fallback_risk = "critical"
+            elif label == "EMOTIONAL_CRISIS" or mental_health_support:
+                fallback_risk = "high"
+            else:
+                fallback_risk = "none"
+
             payload.update({
                 "modelVersion": moderation.get("modelVersion", "1.0.0"),
                 "scores": {},
-                "confidence": moderation.get("confidence", 1.0),
-                "mentalHealthRiskLevel": "none",
+                "confidence": confidence_val,
+                "mentalHealthRiskLevel": fallback_risk,
             })
 
         outbox = Outbox(

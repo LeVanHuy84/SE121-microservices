@@ -8,6 +8,7 @@ import {
   CursorPageResponse,
   FeedEventType,
   FeedItemDTO,
+  ModerationAction,
   PersonalFeedQuery,
   ReactionType,
   RiskHintLevel,
@@ -277,20 +278,35 @@ export class PersonalFeedService {
         continue;
       }
 
-      // 🛡️ TIER 1 SAFETY GUARDRAIL: System-wide Hard Drop (Mental Health Risk HIGH)
+      // 🛡️ TIER 1 SAFETY GUARDRAIL: System-wide Hard Drop (Content Moderation HARD_BLOCK)
+      // Những bài độc hại nghiêm trọng (tự hại cấp tính, bạo lực, khiêu dâm) đã bị HARD_BLOCK
+      const moderationAction = (post as any).moderationAction;
+      const isDeleted = (post as any).isDeleted;
       const mentalHealthRiskLevel =
         post.emotionFeature?.mentalHealthRiskLevel || (post as any).mentalHealthRiskLevel;
 
-      if (mentalHealthRiskLevel === "HIGH" || mentalHealthRiskLevel === "high") {
+      // Hard block nếu bài bị đánh dấu HARD_BLOCK, đã xóa, hoặc có dấu hiệu tự hại cấp tính mà KHÔNG phải là ca khủng hoảng tâm lý cần hỗ trợ
+      if (
+        isDeleted ||
+        moderationAction === ModerationAction.HARD_BLOCK ||
+        (mentalHealthRiskLevel === "HIGH" && moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT && !(post as any).needsMentalSupport)
+      ) {
         this.logger.warn(
-          `[SAFETY GUARDRAIL] Dropped HIGH mental health risk post: postId=${post.postId}`,
+          `[SAFETY GUARDRAIL] Dropped HARD_BLOCK / acute self-harm post: postId=${post.postId}`,
         );
         continue;
       }
 
       // 🛡️ TIER 2 SAFETY GUARDRAIL: Contextual Protection for Distressed User
+      // Người xem đang khỏe mạnh (distress <= 0.5) sẽ thấy bài viết cần hỗ trợ (needsMentalSupport) để an ủi bạn bè.
+      // Người xem cũng đang suy sụp (distress > 0.5) sẽ được ẩn bài khủng hoảng để tránh hiệu ứng lây lan tiêu cực.
       if (distress > 0.5) {
-        if (post.hasWarning || post.emotionFeature?.isSarcasmOrConflict) {
+        if (
+          post.hasWarning ||
+          (post as any).needsMentalSupport ||
+          moderationAction === ModerationAction.ALLOW_WITH_SUPPORT ||
+          post.emotionFeature?.isSarcasmOrConflict
+        ) {
           continue;
         }
 

@@ -6,6 +6,7 @@ import {
   CursorPageResponse,
   FeedEventType,
   FeedItemDTO,
+  ModerationAction,
   RiskHintLevel,
   TargetType,
   TrendingQuery,
@@ -276,11 +277,21 @@ export class TrendingService {
     // 5️⃣ Safety Guardrails Filter
     // ==============================
     const safeCandidates = candidates.filter((item) => {
-      // 🛡️ Tier 1: System-wide Hard Drop (Mental Health Risk HIGH)
+      // 🛡️ Tier 1: System-wide Hard Drop (HARD_BLOCK hoặc HIGH risk không phải ca hỗ trợ)
       if (
-        item.feature.mentalHealthRiskLevel === "HIGH" ||
-        item.feature.mentalHealthRiskLevel === "high" ||
-        item.feature.riskHintLevel === RiskHintLevel.HIGH
+        (item.feature as any).moderationAction === ModerationAction.HARD_BLOCK ||
+        ((item.feature.mentalHealthRiskLevel === "HIGH" ||
+          item.feature.mentalHealthRiskLevel === "high" ||
+          item.feature.riskHintLevel === RiskHintLevel.HIGH) &&
+          (item.feature as any).moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT)
+      ) {
+        return false;
+      }
+
+      // 🛡️ Trending Virality Guardrail: Khủng hoảng tâm lý cá nhân không được đưa lên Bảng tin Xu hướng toàn cầu
+      if (
+        (item.feature as any).needsMentalSupport ||
+        (item.feature as any).moderationAction === ModerationAction.ALLOW_WITH_SUPPORT
       ) {
         return false;
       }

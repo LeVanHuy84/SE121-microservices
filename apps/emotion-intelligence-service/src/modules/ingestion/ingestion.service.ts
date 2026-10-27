@@ -56,12 +56,13 @@ export class IngestionService {
 
   private async processEvent(payload: AnalysisResultEventPayload) {
     const moderation = payload.moderation;
-    if (
+    const isHardBlockedOrViolation =
       moderation?.action === ModerationAction.HARD_BLOCK ||
-      moderation?.isViolation
-    ) {
+      Boolean(moderation?.isViolation);
+
+    if (isHardBlockedOrViolation) {
       this.logger.log(
-        `Removing analytics snapshot for HARD_BLOCK target=${payload.targetId}`,
+        `Removing analytics snapshot for violation/blocked target=${payload.targetId}`,
       );
       await this.model.deleteOne({
         targetId: payload.targetId,
@@ -71,13 +72,26 @@ export class IngestionService {
       if (payload.userId) {
         await this.markUserDirty(payload.userId);
       }
-      return;
+
+      // Kiểm tra nếu KHÔNG PHẢI vụ việc sức khỏe tâm thần/tự hại thì mới return dừng lại
+      const rawRiskStr = (payload.mentalHealthRiskLevel || '').toLowerCase();
+      const isMentalHealthConcern =
+        Boolean(moderation?.mentalHealthSupport) ||
+        moderation?.label === ModerationLabel.SELF_HARM ||
+        moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+        rawRiskStr === 'critical' ||
+        rawRiskStr === 'high';
+
+      if (!isMentalHealthConcern) {
+        return; // Vi phạm thuần túy (porn, violence, hate speech) -> dừng, không can thiệp
+      }
+    } else {
+      // Bài viết hợp lệ -> lưu snapshot bình thường
+      await this.upsertSnapshot(payload);
+      await this.markUserDirty(payload.userId);
     }
 
-    await this.upsertSnapshot(payload);
-    await this.markUserDirty(payload.userId);
-
-    // Evaluate real-time proactive intervention (<5ms)
+    // Luôn kích hoạt can thiệp tâm lý (chạy cho cả bài viết hợp lệ lẫn các ca SELF_HARM/Crisis bị ẩn!)
     try {
       await this.proactiveInterventionService.evaluateFromEvent(
         payload.userId,

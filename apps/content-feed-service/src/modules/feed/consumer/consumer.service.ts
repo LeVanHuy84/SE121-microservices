@@ -6,6 +6,7 @@ import {
   Emotion,
   InteractionEventPayload,
   ModerationAction,
+  ModerationLabel,
   RiskHintLevel,
   RootType,
   TargetType,
@@ -53,6 +54,16 @@ export class ConsumerService {
       return;
     }
 
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.deletePostFromTrending(payload.targetId);
+    }
+
     await this.upsertEmotionFeature(payload);
   }
 
@@ -62,6 +73,16 @@ export class ConsumerService {
     if (payload.moderation?.action === ModerationAction.HARD_BLOCK) {
       await this.deletePostFromFeed(payload.targetId);
       return;
+    }
+
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.deletePostFromTrending(payload.targetId);
     }
 
     await this.upsertEmotionFeature(payload);
@@ -97,6 +118,30 @@ export class ConsumerService {
       );
     } catch (err) {
       this.logger.error(`Error deleting post ${postId} from feed`, err);
+    }
+  }
+
+  private async deletePostFromTrending(postId: string): Promise<void> {
+    try {
+      const pipeline = this.redis.pipeline();
+      pipeline.zrem("post:score", postId);
+      pipeline.zrem("post:fresh", postId);
+      pipeline.del(`post:meta:${postId}`);
+      pipeline.del(`post:rank:${postId}`);
+      pipeline.del(`post:engagement:${postId}`);
+      pipeline.del(`emotion:post:${postId}`);
+
+      for (const emotion of Object.values(Emotion)) {
+        pipeline.zrem(`post:emotion:${emotion.toLowerCase()}:score`, postId);
+        pipeline.zrem(`post:score:emotion:${emotion.toLowerCase()}`, postId);
+      }
+
+      await pipeline.exec();
+      this.logger.log(
+        `Removed crisis/self-harm post ${postId} from trending Redis while keeping for friends feed`,
+      );
+    } catch (err) {
+      this.logger.error(`Error removing post ${postId} from trending redis`, err);
     }
   }
 
@@ -142,7 +187,28 @@ export class ConsumerService {
     /**
      * 3. REDIS (chỉ khi không có group)
      */
-    if (!updatedPost.groupId) {
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.postModel.updateOne(
+        { postId: payload.targetId },
+        {
+          $set: {
+            needsMentalSupport: true,
+            hasWarning: true,
+            warningReason:
+              payload.moderation?.displayMessage ||
+              "Bài viết có thể chứa nội dung tự hại hoặc khủng hoảng tâm lý. Hãy liên hệ ngay để hỗ trợ bạn bè của bạn!",
+          },
+        },
+      );
+    }
+
+    if (!updatedPost.groupId && !isCrisisOrSelfHarm) {
       const emotionKey = `emotion:post:${payload.targetId}`;
 
       await this.redis.pipeline().del(emotionKey).exec();

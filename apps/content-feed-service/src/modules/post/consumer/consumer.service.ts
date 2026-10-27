@@ -71,12 +71,18 @@ export class ConsumerService {
     return ModerationLabel.CLEAN;
   }
 
-  private normalizeSeverity(severity?: string | Severity): Severity {
-    if (!severity) return Severity.NONE;
-    const normalized = String(severity).toUpperCase().replace(/-/g, "_");
-    if (Object.values(Severity).includes(normalized as Severity)) {
-      return normalized as Severity;
+  private normalizeSeverity(
+    severity?: string | Severity,
+    action?: ModerationAction,
+  ): Severity {
+    if (severity) {
+      const normalized = String(severity).toUpperCase().replace(/-/g, "_");
+      if (Object.values(Severity).includes(normalized as Severity)) {
+        return normalized as Severity;
+      }
     }
+    if (action === ModerationAction.HARD_BLOCK) return Severity.HIGH;
+    if (action === ModerationAction.ALLOW_WITH_WARNING) return Severity.LOW;
     return Severity.NONE;
   }
 
@@ -211,7 +217,7 @@ export class ConsumerService {
         }))
       : [];
 
-    moderation.maxSeverity = this.normalizeSeverity(payload.maxSeverity);
+    moderation.maxSeverity = this.normalizeSeverity(payload.maxSeverity, action);
     moderation.confidence = payload.confidence ?? 0;
     moderation.displayMessage = payload.displayMessage ?? "";
 
@@ -247,7 +253,11 @@ export class ConsumerService {
         entity.warningReason = payload.displayMessage;
       } else if (action === ModerationAction.ALLOW_WITH_SUPPORT) {
         entity.needsMentalSupport = true;
-        entity.hasWarning = false;
+        // Bật cảnh báo nhạy cảm để UI làm mờ nội dung và hiện banner nhắc nhở bạn bè can thiệp
+        entity.hasWarning = true;
+        entity.warningReason =
+          payload.displayMessage ||
+          "Bài viết có thể chứa nội dung tự hại hoặc khủng hoảng tâm lý. Hãy liên hệ ngay để hỗ trợ bạn bè của bạn!";
       } else {
         entity.hasWarning = false;
       }
@@ -266,9 +276,15 @@ export class ConsumerService {
       Boolean(payload.mentalHealthSupport);
 
     if (shouldSendNotification) {
+      const isSelfHarmOrMentalCrisis =
+        Boolean(payload.mentalHealthSupport) ||
+        payload.label === ModerationLabel.SELF_HARM;
+
       const defaultMessage =
         action === ModerationAction.HARD_BLOCK
-          ? "Nội dung của bạn đã bị ẩn do vi phạm quy chuẩn cộng đồng."
+          ? isSelfHarmOrMentalCrisis
+            ? "Nội dung của bạn đã tạm ẩn để bảo đảm an toàn cộng đồng. Nếu bạn đang gặp khó khăn hoặc cần trợ giúp tâm lý khẩn cấp, chúng tôi luôn ở đây để hỗ trợ bạn."
+            : "Nội dung của bạn đã bị ẩn do vi phạm quy chuẩn cộng đồng."
           : action === ModerationAction.ALLOW_WITH_WARNING
             ? "Nội dung của bạn có lưu ý về quy chuẩn cộng đồng."
             : action === ModerationAction.ALLOW_WITH_SUPPORT

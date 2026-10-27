@@ -109,10 +109,21 @@ QUY TẮC PHÂN ĐỊNH CÁC RANH GIỚI DỄ NHẦM LẪN:
    - Gán [joy] khi trọng tâm là sự tận hưởng, vui vẻ, hạnh phúc, giải trí tích cực thuần túy mà không có yếu tố ngỡ ngàng/bất ngờ chiếm ưu thế.
 3. JOY vs DISGUST: Meme châm biếm/pha trò gây cười ưu tiên [joy]; chỉ gán [disgust] khi toát lên sự bài xích, khinh miệt tiêu cực sâu sắc.
 
-QUY TẮC SUY LUẬN:
+QUY TẮC SUY LUẬN & KIỂM DUYỆT (CONTENT MODERATION):
 - Đọc kỹ cả văn bản và chữ nhúng trong ảnh/meme (OCR).
-- Tóm tắt 1 câu ngắn gọn trong 'reasoning' giải thích lý do trước khi chốt nhãn.
+- Tóm tắt 1 câu ngắn gọn trong 'reasoning' giải thích lý do trước khi chốt nhãn cảm xúc.
 - Sarcasm: Đặt is_sarcasm_or_conflict = True nếu dùng lời mỉa mai nói ngược, gán nhãn theo cảm xúc thật của tác giả.
+- KIỂM DUYỆT NỘI DUNG (content_moderation):
+  + is_flagged: True nếu vi phạm tiêu chuẩn cộng đồng, False nếu an toàn.
+  + flagged_categories: Danh sách vi phạm (chỉ dùng các từ khóa chuẩn sau):
+    * "self_harm": Hình ảnh/hành vi tự cắt tay, tự gây thương tích, thòng lọng, tự tử.
+    * "graphic_violence": Bạo lực máu me, vết thương hở, tai nạn ghê rợn, xác chết, đánh chém tàn nhẫn.
+    * "weapon_threat": Vũ khí nguy hiểm (súng, dao kiếm chĩa đe dọa), bom mìn, đe dọa vũ lực.
+    * "nsfw_adult": Khỏa thân, khiêu dâm, đồi trụy 18+.
+    * "hate_speech": Ngôn từ/meme thù ghét, xúc phạm, công kích danh dự, tôn giáo, sắc tộc.
+    * "profanity_venting": Ngôn từ thô mộc, chửi bậy xả stress nhẹ trên ảnh/meme.
+  + confidence: Mức độ tin cậy vi phạm (0.0 đến 1.0).
+  + reason: Giải thích ngắn gọn lý do vi phạm nếu có.
 
 CẤU TRÚC JSON PHẢI TRẢ VỀ:
 {
@@ -128,7 +139,7 @@ CẤU TRÚC JSON PHẢI TRẢ VỀ:
   "suggested_action": "NO_ACTION"
 }
 Chú ý:
-- mental_health_risk_level thuộc: ["none", "weak", "medium", "high"]
+- mental_health_risk_level thuộc: ["none", "weak", "medium", "high", "critical"]
 - suggested_action thuộc: ["NO_ACTION", "MONITOR", "TRIGGER_PROACTIVE_CHECKIN"]
 """
 
@@ -148,6 +159,10 @@ QUY TẮC PHÂN ĐỊNH:
 - ANGER (bực tức, phẫn nộ, bất bình công kích) vs DISGUST (ngán ngẩm, khinh bỉ, coi thường trò hề lố lăng/đạo đức giả).
 - SURPRISE (sững sờ, ngỡ ngàng trước biến cố/twist/vi phạm kỳ vọng khó tin) vs JOY (vui vẻ, giải trí tích cực thuần túy).
 - JOY vs DISGUST: Meme châm biếm/pha trò gây cười ưu tiên [joy]; chỉ gán [disgust] khi bài xích, khinh miệt tiêu cực sâu sắc.
+
+KIỂM DUYỆT NỘI DUNG (content_moderation):
+- is_flagged: true nếu vi phạm, false nếu an toàn.
+- flagged_categories: chọn trong ["self_harm", "graphic_violence", "weapon_threat", "nsfw_adult", "hate_speech", "profanity_venting"].
 
 CẤU TRÚC JSON:
 {"results": [{"id": "post_id", "reasoning": "Phân tích 1 câu", "content_moderation": {"is_flagged": false, "flagged_categories": [], "confidence": 0.0, "reason": ""}, "emotion_scores": {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "disgust": 0.0, "surprise": 0.0, "neutral": 0.0}, "primary_emotion": "<1 trong 7 nhãn>", "final_confidence": 0.85, "intensity": "moderate", "is_sarcasm_or_conflict": false, "conflict_explanation": "", "mental_health_risk_level": "none", "suggested_action": "NO_ACTION"}]}"""

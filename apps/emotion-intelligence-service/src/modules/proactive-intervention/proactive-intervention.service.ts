@@ -68,19 +68,13 @@ export class ProactiveInterventionService {
     payload: AnalysisResultEventPayload,
   ): Promise<ProactiveInterventionDto | null> {
     const rawRiskStr = (payload.mentalHealthRiskLevel || '').toLowerCase();
-    const isCrisisOrHighFromAi =
-      rawRiskStr === 'critical' || rawRiskStr === 'high';
-
     const moderation = payload.moderation;
-    const isCrisisOrSupportFromModeration =
-      moderation &&
-      (moderation.action === ModerationAction.ALLOW_WITH_SUPPORT ||
-        moderation.label === ModerationLabel.EMOTIONAL_CRISIS ||
-        moderation.mentalHealthSupport);
 
-    const hasVlmSelfHarm = (moderation?.violations || []).some(
-      (v) => (v.category || '').toUpperCase() === 'SELF_HARM',
-    );
+    const hasSelfHarm =
+      moderation?.label === ModerationLabel.SELF_HARM ||
+      (moderation?.violations || []).some(
+        (v) => (v.category || '').toUpperCase() === 'SELF_HARM',
+      );
 
     const textToMatch = payload.content || moderation?.displayMessage || '';
     const hasEmergencyKeywords =
@@ -89,10 +83,18 @@ export class ProactiveInterventionService {
     let riskLevel = RiskLevel.NORMAL;
     const triggers: TriggerFlag[] = [];
 
-    if (hasEmergencyKeywords || hasVlmSelfHarm) {
+    // MỨC 1: KHẨN CẤP ĐE DỌA TÍNH MẠNG (SELF_HARM / TỰ SÁT TỨC THÌ)
+    if (hasEmergencyKeywords || hasSelfHarm || rawRiskStr === 'critical') {
       riskLevel = RiskLevel.CRISIS;
       triggers.push(TriggerFlag.SUICIDAL_IDEATION);
-    } else if (isCrisisOrHighFromAi || isCrisisOrSupportFromModeration) {
+    } 
+    // MỨC 2: KHỦNG HOẢNG CẢM XÚC / TRẦM CẢM (EMOTIONAL_CRISIS)
+    else if (
+      rawRiskStr === 'high' ||
+      moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      Boolean(moderation?.mentalHealthSupport)
+    ) {
       riskLevel = RiskLevel.HIGH_RISK;
       triggers.push(TriggerFlag.LONG_TERM_SADNESS);
     }

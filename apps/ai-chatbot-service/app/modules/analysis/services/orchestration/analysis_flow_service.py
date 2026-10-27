@@ -27,6 +27,46 @@ from app.modules.analysis.enums import TargetTypeEnum
 logger = logging.getLogger(__name__)
 
 
+def map_vlm_moderation(vlm_mod: dict) -> tuple:
+    """
+    Map VLM content moderation output to:
+    (should_block, action, label, label_code, mental_health_support, normalized_cats)
+    """
+    is_flagged = bool(vlm_mod.get("is_flagged", False))
+    raw_cats = vlm_mod.get("flagged_categories", [])
+    normalized_cats = [str(c).strip().upper().replace("-", "_") for c in raw_cats if str(c).strip()]
+
+    if not is_flagged:
+        return False, "ALLOW", "CLEAN", 0, False, normalized_cats
+
+    # 1. Tu hai / Tu tu (SELF_HARM): Giu lai tren feed cho ban be thay de ho tro kip thoi, go khoi trending, bat canh bao
+    if "SELF_HARM" in normalized_cats:
+        return False, "ALLOW_WITH_SUPPORT", "SELF_HARM", 5, True, normalized_cats
+
+    # 2. Khung hoang tam ly / Be tac (EMOTIONAL_CRISIS): Cho dang kem ho tro
+    if "EMOTIONAL_CRISIS" in normalized_cats:
+        return False, "ALLOW_WITH_SUPPORT", "EMOTIONAL_CRISIS", 3, True, normalized_cats
+
+    # 3. Chui the xa stress nhe (PROFANITY_VENTING): Cho dang kem canh bao
+    if any(c in normalized_cats for c in ["PROFANITY_VENTING", "PROFANITY", "BAD_WORDS"]):
+        return False, "ALLOW_WITH_WARNING", "PROFANITY_VENTING", 1, False, normalized_cats
+
+    # 4. Khieu dam / Doi truy / 18+ (ILLEGAL_PORN)
+    if any(c in normalized_cats for c in ["ILLEGAL_PORN", "NSFW_ADULT", "NSFW", "SEXUAL", "PORN"]):
+        return True, "HARD_BLOCK", "ILLEGAL_PORN", 4, False, normalized_cats
+
+    # 5. Bao luc dam mau / Mau me (GRAPHIC_VIOLENCE)
+    if any(c in normalized_cats for c in ["GRAPHIC_VIOLENCE", "BLOOD", "VIOLENCE", "GORE"]):
+        return True, "HARD_BLOCK", "GRAPHIC_VIOLENCE", 6, False, normalized_cats
+
+    # 6. Vu khi / De doa bao luc (WEAPON_THREAT)
+    if any(c in normalized_cats for c in ["WEAPON_THREAT", "WEAPON", "THREAT"]):
+        return True, "HARD_BLOCK", "WEAPON_THREAT", 7, False, normalized_cats
+
+    # 7. Ngon tu thu ghet / Cong kich / Vi pham khac
+    return True, "HARD_BLOCK", "HATE_SPEECH", 2, False, normalized_cats
+
+
 class AnalysisFlowService:
     """
     Orchestration Layer
@@ -84,32 +124,14 @@ class AnalysisFlowService:
             return await self._analyze_text_only(text, target_type, is_fallback=True)
 
         vlm_mod = vlm_res.get("contentModeration", {})
-        should_block = bool(vlm_mod.get("is_flagged", False))
-        flagged_cats = vlm_mod.get("flagged_categories", [])
-        
-        # Determine VLM action & label based on VLM moderation response
-        if should_block:
-            if "SELF_HARM" in flagged_cats:
-                action = "ALLOW_WITH_SUPPORT"
-                should_block = False  # Do not block self-harm/emotional crisis posts
-                label = "EMOTIONAL_CRISIS"
-                label_code = 3
-                mental_health_support = True
-            elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
-                action = "HARD_BLOCK"
-                label = "ILLEGAL_PORN"
-                label_code = 4
-                mental_health_support = False
-            else:
-                action = "HARD_BLOCK"
-                label = "HATE_SPEECH"
-                label_code = 2
-                mental_health_support = False
-        else:
-            action = "ALLOW"
-            label = "CLEAN"
-            label_code = 0
-            mental_health_support = False
+        (
+            should_block,
+            action,
+            label,
+            label_code,
+            mental_health_support,
+            flagged_cats,
+        ) = map_vlm_moderation(vlm_mod)
 
         confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
 
@@ -214,31 +236,14 @@ class AnalysisFlowService:
                 continue
 
             vlm_mod = vlm_res.get("contentModeration", {})
-            should_block = bool(vlm_mod.get("is_flagged", False))
-            flagged_cats = vlm_mod.get("flagged_categories", [])
-
-            if should_block:
-                if "SELF_HARM" in flagged_cats:
-                    action = "ALLOW_WITH_SUPPORT"
-                    should_block = False
-                    label = "EMOTIONAL_CRISIS"
-                    label_code = 3
-                    mental_health_support = True
-                elif any(cat in flagged_cats for cat in ["NSFW_ADULT"]):
-                    action = "HARD_BLOCK"
-                    label = "ILLEGAL_PORN"
-                    label_code = 4
-                    mental_health_support = False
-                else:
-                    action = "HARD_BLOCK"
-                    label = "HATE_SPEECH"
-                    label_code = 2
-                    mental_health_support = False
-            else:
-                action = "ALLOW"
-                label = "CLEAN"
-                label_code = 0
-                mental_health_support = False
+            (
+                should_block,
+                action,
+                label,
+                label_code,
+                mental_health_support,
+                flagged_cats,
+            ) = map_vlm_moderation(vlm_mod)
 
             confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
 

@@ -577,7 +577,7 @@ describe("Feed Plumbing & Infrastructure E2E Test Suite (Testcontainers)", () =>
         userId: "author-toxic",
         content: "Dangerous harmful self-harm content",
         audience: Audience.PUBLIC,
-        moderationAction: ModerationAction.ALLOW,
+        moderationAction: ModerationAction.HARD_BLOCK,
         postCreatedAt: now,
         mediaPreviews: [],
         emotionFeature: {

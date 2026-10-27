@@ -7,7 +7,7 @@ import { RedisContainer, StartedRedisContainer } from "@testcontainers/redis";
 import Redis from "ioredis";
 import mongoose, { Model } from "mongoose";
 import { of } from "rxjs";
-import { FeedEventType, Emotion, InteractionType } from "@repo/dtos";
+import { FeedEventType, Emotion, InteractionType, Audience, ModerationAction } from "@repo/dtos";
 
 import { PersonalFeedController } from "../../src/modules/feed/feed-pipeline/controllers/personal-feed.controller";
 import { PersonalFeedService } from "../../src/modules/feed/feed-pipeline/services/personal-feed.service";
@@ -656,6 +656,58 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       const returnedIds = getReturnedPostIds(res);
       expect(returnedIds).not.toContain("golden-rage-001");
       expect(returnedIds).toContain("golden-calm-001");
+    });
+
+    it("R4.6: Emotional Crisis with ALLOW_WITH_SUPPORT: Visible to healthy friend to offer support, but suppressed for distressed friend", async () => {
+      // 1. Seed an emotional crisis post that needs support
+      const crisisPostId = "crisis-support-post-01";
+      await postSnapshotModel.create({
+        postId: crisisPostId,
+        snapshotId: crisisPostId,
+        refId: crisisPostId,
+        userId: "author-friend-in-need",
+        content: "Mình đang cảm thấy kiệt sức và bế tắc, cần một ai đó lắng nghe...",
+        audience: Audience.PUBLIC,
+        moderationAction: ModerationAction.ALLOW_WITH_SUPPORT,
+        needsMentalSupport: true,
+        hasWarning: false,
+        postCreatedAt: new Date(),
+        mediaPreviews: [],
+        emotionFeature: {
+          primaryEmotion: "sadness",
+          confidence: 0.9,
+          mentalHealthRiskLevel: "mild",
+        },
+      });
+
+      // 2. Healthy friend (distress = 0.1) looks at personal feed
+      mockUserEmotionState = { riskScore: 0.1, recentNegativityScore: 0.1 };
+      await seedUserCandidates("user-healthy-friend", [crisisPostId, "golden-calm-001"]);
+
+      const healthyRes = await personalFeedController.getUserFeeds({
+        userId: "user-healthy-friend",
+        query: { limit: 5 },
+      });
+      const healthyReturnedIds = getReturnedPostIds(healthyRes);
+      expect(healthyReturnedIds).toContain(crisisPostId); // Visible so friend can help!
+
+      // 3. Severely distressed friend (distress = 0.8) looks at personal feed
+      mockUserEmotionState = {
+        riskScore: 0.85,
+        recentNegativityScore: 0.85,
+        negativeRatio7d: 0.80,
+        emotionVolatility7d: 0.70,
+        emotionMomentum: 0.20,
+      };
+      await seedUserCandidates("user-distressed-friend", [crisisPostId, "golden-calm-001"]);
+
+      const distressedRes = await personalFeedController.getUserFeeds({
+        userId: "user-distressed-friend",
+        query: { limit: 5 },
+      });
+      const distressedReturnedIds = getReturnedPostIds(distressedRes);
+      expect(distressedReturnedIds).not.toContain(crisisPostId); // Suppressed to avoid contagion!
+      expect(distressedReturnedIds).toContain("golden-calm-001");
     });
   });
 
