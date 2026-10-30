@@ -17,6 +17,7 @@ import { TrendingController } from "./controllers/trending.controller";
 import { PersonalFeedService } from "./services/personal-feed.service";
 import { TrendingService } from "./services/trending.service";
 import { TrendingWorker } from "./services/trending-score-worker";
+import { FeedInterleaverService } from "./services/feed-interleaver.service";
 import { AffinityModule } from "../affinity/affinity.module";
 
 @Module({
@@ -32,6 +33,12 @@ import { AffinityModule } from "../affinity/affinity.module";
     AffinityModule,
   ],
   controllers: [PersonalFeedController, TrendingController],
-  providers: [PersonalFeedService, TrendingService, TrendingWorker],
+  providers: [
+    PersonalFeedService,
+    TrendingService,
+    TrendingWorker,
+    FeedInterleaverService,
+  ],
+  exports: [FeedInterleaverService],
 })
 export class FeedPipelineModule {}

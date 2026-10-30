@@ -49,11 +49,17 @@ describe("EmotionFeatureService - Iso-Principle & Safety", () => {
 
       // Calming post with high neutral score (7-class PhoBERT canonical)
       const calmingPost = { neutral: 0.8 };
-      const calmingScore = service.calcIsoPrincipleScore(distressedFeatures, calmingPost);
+      const calmingScore = service.calcIsoPrincipleScore(
+        distressedFeatures,
+        calmingPost,
+      );
 
       // Sad post that amplifies depression (Echo chamber)
       const depressingPost = { sadness: 0.9 };
-      const depressingScore = service.calcIsoPrincipleScore(distressedFeatures, depressingPost);
+      const depressingScore = service.calcIsoPrincipleScore(
+        distressedFeatures,
+        depressingPost,
+      );
 
       expect(calmingScore).toBeGreaterThan(0.4);
       expect(depressingScore).toBeLessThan(0.1);

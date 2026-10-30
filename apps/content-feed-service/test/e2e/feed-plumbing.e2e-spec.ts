@@ -2,20 +2,20 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { getModelToken, MongooseModule } from "@nestjs/mongoose";
 import { getRedisConnectionToken } from "@nestjs-modules/ioredis";
-import { MongoDBContainer, StartedMongoDBContainer } from "@testcontainers/mongodb";
+import {
+  MongoDBContainer,
+  StartedMongoDBContainer,
+} from "@testcontainers/mongodb";
 import { RedisContainer, StartedRedisContainer } from "@testcontainers/redis";
 import Redis from "ioredis";
 import mongoose, { Model } from "mongoose";
 import { of } from "rxjs";
-import {
-  FeedEventType,
-  ModerationAction,
-  Audience,
-} from "@repo/dtos";
+import { FeedEventType, ModerationAction, Audience } from "@repo/dtos";
 
 import { PersonalFeedController } from "../../src/modules/feed/feed-pipeline/controllers/personal-feed.controller";
 import { TrendingController } from "../../src/modules/feed/feed-pipeline/controllers/trending.controller";
 import { PersonalFeedService } from "../../src/modules/feed/feed-pipeline/services/personal-feed.service";
+import { FeedInterleaverService } from "../../src/modules/feed/feed-pipeline/services/feed-interleaver.service";
 import { TrendingService } from "../../src/modules/feed/feed-pipeline/services/trending.service";
 import { ScoreCombinerService } from "../../src/modules/feed/ranking/services/score-combiner.service";
 import { EmotionFeatureService } from "../../src/modules/feed/ranking/services/emotion-feature.service";
@@ -99,6 +99,7 @@ describe("Feed Plumbing & Infrastructure E2E Test Suite (Testcontainers)", () =>
       controllers: [PersonalFeedController, TrendingController],
       providers: [
         PersonalFeedService,
+        FeedInterleaverService,
         TrendingService,
         SnapshotRepository,
         {
@@ -108,12 +109,13 @@ describe("Feed Plumbing & Infrastructure E2E Test Suite (Testcontainers)", () =>
         {
           provide: ScoreCombinerService,
           useValue: {
-            normalizeBaseScore: jest.fn().mockImplementation((score: number) => score / 1000),
+            normalizeBaseScore: jest
+              .fn()
+              .mockImplementation((score: number) => score / 1000),
             combine: jest.fn().mockReturnValue(0.7),
             calcScore: jest.fn().mockImplementation((post, distress) => {
               const eng =
-                (post.stats?.reactions || 0) +
-                (post.stats?.comments || 0) * 2;
+                (post.stats?.reactions || 0) + (post.stats?.comments || 0) * 2;
               return 1.0 + Math.log(1 + eng);
             }),
           },
@@ -136,7 +138,9 @@ describe("Feed Plumbing & Infrastructure E2E Test Suite (Testcontainers)", () =>
         {
           provide: AffinityService,
           useValue: {
-            getAffinity: jest.fn().mockResolvedValue({ category: {}, author: {} }),
+            getAffinity: jest
+              .fn()
+              .mockResolvedValue({ category: {}, author: {} }),
             calcAffinityScore: jest.fn().mockReturnValue(0.1),
           },
         },
@@ -152,7 +156,12 @@ describe("Feed Plumbing & Infrastructure E2E Test Suite (Testcontainers)", () =>
             getUserInfos: jest.fn().mockImplementation((ids: string[]) => {
               const res: Record<string, any> = {};
               for (const id of ids) {
-                res[id] = { id, firstName: "Author", lastName: "Mock", avatarUrl: "" };
+                res[id] = {
+                  id,
+                  firstName: "Author",
+                  lastName: "Mock",
+                  avatarUrl: "",
+                };
               }
               return Promise.resolve(res);
             }),

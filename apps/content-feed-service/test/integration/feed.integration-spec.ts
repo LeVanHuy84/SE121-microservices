@@ -50,7 +50,11 @@ class InMemoryRedisMock {
   async del(...keys: string[]): Promise<number> {
     let count = 0;
     for (const k of keys) {
-      if (this.lists.delete(k) || this.hashes.delete(k) || this.zsets.delete(k)) {
+      if (
+        this.lists.delete(k) ||
+        this.hashes.delete(k) ||
+        this.zsets.delete(k)
+      ) {
         count++;
       }
     }
@@ -122,7 +126,7 @@ describe("Feed Module E2E & Integration Test Suite", () => {
 
   // Mock In-Memory Databases
   let mockFeedItems: any[] = [];
-  let mockPostSnapshots = new Map<string, any>();
+  const mockPostSnapshots = new Map<string, any>();
 
   const mockUserSocialClient = {
     send: jest.fn().mockImplementation((pattern: string) => {
@@ -177,15 +181,18 @@ describe("Feed Module E2E & Integration Test Suite", () => {
     };
 
     const mockSnapshotRepo = {
-      findPostsForRanking: jest.fn().mockImplementation(async (ids: string[], mainEmotion?: string) => {
-        return ids
-          .map((id) => mockPostSnapshots.get(id))
-          .filter((p) => {
-            if (!p) return false;
-            if (mainEmotion && p.emotionFeature?.label !== mainEmotion) return false;
-            return true;
-          });
-      }),
+      findPostsForRanking: jest
+        .fn()
+        .mockImplementation(async (ids: string[], mainEmotion?: string) => {
+          return ids
+            .map((id) => mockPostSnapshots.get(id))
+            .filter((p) => {
+              if (!p) return false;
+              if (mainEmotion && p.emotionFeature?.label !== mainEmotion)
+                return false;
+              return true;
+            });
+        }),
       findPostsByIds: jest.fn().mockImplementation(async (ids: string[]) => {
         return ids.map((id) => mockPostSnapshots.get(id)).filter(Boolean);
       }),
@@ -202,8 +209,14 @@ describe("Feed Module E2E & Integration Test Suite", () => {
         { provide: SnapshotRepository, useValue: mockSnapshotRepo },
         { provide: getModelToken(FeedItem.name), useValue: mockFeedItemModel },
         { provide: getRedisConnectionToken(), useValue: redisMock },
-        { provide: MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE, useValue: mockUserSocialClient },
-        { provide: "EMOTION_INTELLIGENCE_SERVICE", useValue: mockEmotionIntelligenceClient },
+        {
+          provide: MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE,
+          useValue: mockUserSocialClient,
+        },
+        {
+          provide: "EMOTION_INTELLIGENCE_SERVICE",
+          useValue: mockEmotionIntelligenceClient,
+        },
         { provide: ReactionService, useValue: mockReactionService },
         { provide: UserClientService, useValue: mockUserClient },
         { provide: AffinityService, useValue: mockAffinityService },
@@ -213,8 +226,11 @@ describe("Feed Module E2E & Integration Test Suite", () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    personalFeedController = moduleFixture.get<PersonalFeedController>(PersonalFeedController);
-    trendingController = moduleFixture.get<TrendingController>(TrendingController);
+    personalFeedController = moduleFixture.get<PersonalFeedController>(
+      PersonalFeedController,
+    );
+    trendingController =
+      moduleFixture.get<TrendingController>(TrendingController);
   });
 
   afterAll(async () => {
@@ -246,7 +262,11 @@ describe("Feed Module E2E & Integration Test Suite", () => {
           postId,
           userId: `author-${i}`,
           content: `Test Post ${i}`,
-          emotionFeature: { label: "joy", scores: { joy: 0.8 }, confidence: 0.9 },
+          emotionFeature: {
+            label: "joy",
+            scores: { joy: 0.8 },
+            confidence: 0.9,
+          },
           stats: { reactions: i * 10, comments: i, shares: 0 },
         });
       }
@@ -264,7 +284,9 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       // Verify that Redis List session snapshot was created with 25 candidate IDs
       const sessionKeyPattern = "feed:session:user-1:all:";
       // Check that a list key was saved in Redis
-      const redisKeys = [...redisMock.lists.keys()].filter((k) => k.startsWith("feed:session:user-1:all:"));
+      const redisKeys = [...redisMock.lists.keys()].filter((k) =>
+        k.startsWith("feed:session:user-1:all:"),
+      );
       expect(redisKeys).toHaveLength(1);
       expect(redisMock.lists.get(redisKeys[0])).toHaveLength(25);
     });
@@ -358,7 +380,10 @@ describe("Feed Module E2E & Integration Test Suite", () => {
 
       // Attempting to scroll further past end of existing session (deep scrolling boundary)
       const decoded = PersonalFeedHelper.decodeSessionCursor(page1.nextCursor!);
-      const outOfBoundsCursor = PersonalFeedHelper.encodeSessionCursor(decoded!.sessionId, 100);
+      const outOfBoundsCursor = PersonalFeedHelper.encodeSessionCursor(
+        decoded!.sessionId,
+        100,
+      );
       const page3 = await personalFeedController.getUserFeeds({
         userId: "user-3",
         query: { limit: 10, cursor: outOfBoundsCursor },
@@ -384,7 +409,10 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       // Pass an expired/unknown cursor
       const res = await personalFeedController.getUserFeeds({
         userId: "user-4",
-        query: { limit: 10, cursor: "eyJzIjoidW5rbm93bi1leHBpcmVkLXNlc3Npb24iLCJvIjoxMH0=" },
+        query: {
+          limit: 10,
+          cursor: "eyJzIjoidW5rbm93bi1leHBpcmVkLXNlc3Npb24iLCJvIjoxMH0=",
+        },
       });
 
       expect(res.data).toHaveLength(1);
@@ -480,7 +508,10 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       mockPostSnapshots.set("post-calm", {
         postId: "post-calm",
         content: "Peaceful nature and mindfulness",
-        emotionFeature: { label: "neutral", scores: { neutral: 0.9, calm: 0.8 } },
+        emotionFeature: {
+          label: "neutral",
+          scores: { neutral: 0.9, calm: 0.8 },
+        },
         stats: { reactions: 5 },
       });
 
@@ -539,7 +570,10 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       mockPostSnapshots.set("post-gentle", {
         postId: "post-gentle",
         content: "A gentle reminder that it is okay to rest",
-        emotionFeature: { label: "neutral", scores: { neutral: 0.8, calm: 0.6 } },
+        emotionFeature: {
+          label: "neutral",
+          scores: { neutral: 0.8, calm: 0.6 },
+        },
         stats: { reactions: 20 },
       });
 
@@ -615,13 +649,21 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       mockPostSnapshots.set("post-safe", {
         postId: "post-safe",
         content: "Safe daily sharing",
-        emotionFeature: { label: "neutral", scores: { neutral: 0.8 }, mentalHealthRiskLevel: "none" },
+        emotionFeature: {
+          label: "neutral",
+          scores: { neutral: 0.8 },
+          mentalHealthRiskLevel: "none",
+        },
       });
 
       mockPostSnapshots.set("post-high-risk", {
         postId: "post-high-risk",
         content: "Dangerous self-harm content",
-        emotionFeature: { label: "sadness", scores: { sadness: 0.99 }, mentalHealthRiskLevel: "HIGH" },
+        emotionFeature: {
+          label: "sadness",
+          scores: { sadness: 0.99 },
+          mentalHealthRiskLevel: "HIGH",
+        },
       });
 
       const res = await personalFeedController.getUserFeeds({
@@ -711,8 +753,14 @@ describe("Feed Module E2E & Integration Test Suite", () => {
         label: "neutral",
       });
 
-      mockPostSnapshots.set("trend-1", { postId: "trend-1", content: "Viral 1" });
-      mockPostSnapshots.set("trend-2", { postId: "trend-2", content: "Viral 2" });
+      mockPostSnapshots.set("trend-1", {
+        postId: "trend-1",
+        content: "Viral 1",
+      });
+      mockPostSnapshots.set("trend-2", {
+        postId: "trend-2",
+        content: "Viral 2",
+      });
 
       const res = await trendingController.getTrending({
         userId: "user-trend-auth",
@@ -727,11 +775,21 @@ describe("Feed Module E2E & Integration Test Suite", () => {
       await redisMock.zadd("post:score", 15.0, "guest-top");
       await redisMock.zadd("post:score", 9.0, "guest-sub");
 
-      await redisMock.hset("post:rank:guest-top", { scores: JSON.stringify({ neutral: 0.5 }) });
-      await redisMock.hset("post:rank:guest-sub", { scores: JSON.stringify({ neutral: 0.5 }) });
+      await redisMock.hset("post:rank:guest-top", {
+        scores: JSON.stringify({ neutral: 0.5 }),
+      });
+      await redisMock.hset("post:rank:guest-sub", {
+        scores: JSON.stringify({ neutral: 0.5 }),
+      });
 
-      mockPostSnapshots.set("guest-top", { postId: "guest-top", content: "Top trend" });
-      mockPostSnapshots.set("guest-sub", { postId: "guest-sub", content: "Sub trend" });
+      mockPostSnapshots.set("guest-top", {
+        postId: "guest-top",
+        content: "Top trend",
+      });
+      mockPostSnapshots.set("guest-sub", {
+        postId: "guest-sub",
+        content: "Sub trend",
+      });
 
       const res = await trendingController.getTrending({
         userId: undefined as any,
@@ -809,7 +867,9 @@ describe("Feed Module E2E & Integration Test Suite", () => {
         mentalHealthRiskLevel: "none",
       });
 
-      mockPostSnapshots.set("super-viral-dangerous", { postId: "super-viral-dangerous" });
+      mockPostSnapshots.set("super-viral-dangerous", {
+        postId: "super-viral-dangerous",
+      });
       mockPostSnapshots.set("normal-viral", { postId: "normal-viral" });
 
       const res = await trendingController.getTrending({
@@ -874,8 +934,14 @@ describe("Feed Module E2E & Integration Test Suite", () => {
             createdAt: new Date(),
           },
         );
-        mockPostSnapshots.set(`post-A-${i}`, { postId: `post-A-${i}`, content: "User A post" });
-        mockPostSnapshots.set(`post-B-${i}`, { postId: `post-B-${i}`, content: "User B post" });
+        mockPostSnapshots.set(`post-A-${i}`, {
+          postId: `post-A-${i}`,
+          content: "User A post",
+        });
+        mockPostSnapshots.set(`post-B-${i}`, {
+          postId: `post-B-${i}`,
+          content: "User B post",
+        });
       }
 
       const resA = await personalFeedController.getUserFeeds({

@@ -141,7 +141,10 @@ export class ConsumerService {
         `Removed crisis/self-harm post ${postId} from trending Redis while keeping for friends feed`,
       );
     } catch (err) {
-      this.logger.error(`Error removing post ${postId} from trending redis`, err);
+      this.logger.error(
+        `Error removing post ${postId} from trending redis`,
+        err,
+      );
     }
   }
 

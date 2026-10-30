@@ -29,6 +29,7 @@ import { EmotionFeatureService } from "src/modules/ranking/services/emotion-feat
 import { ReactionService } from "../../../post/reaction/reaction.service";
 import { MICROSERVICES_CLIENT } from "src/constant";
 import { UserClientService } from "../../../post/client/user-client.service";
+import { FeedInterleaverService } from "./feed-interleaver.service";
 
 @Injectable()
 export class PersonalFeedService {
@@ -46,6 +47,7 @@ export class PersonalFeedService {
     private readonly affinityService: AffinityService,
     private readonly emotionService: EmotionFeatureService,
     private readonly userClient: UserClientService,
+    private readonly interleaverService: FeedInterleaverService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
@@ -97,7 +99,7 @@ export class PersonalFeedService {
             `[FEED DEEP ARCHIVE EXPANSION] loaded=${olderCandidates.length} older posts for user=${userId}`,
           );
 
-          const rankedOlder = await this.rankItems(
+          const { ranked: rankedOlder } = await this.rankItems(
             userId,
             olderCandidates,
             query.mainEmotion,
@@ -150,6 +152,12 @@ export class PersonalFeedService {
         );
 
         const feedDTOs = await this.hydrateFeedPage(userId, pageItemIds);
+        const finalDTOs =
+          await this.interleaverService.maybeInterleaveSafeSpaceCard(
+            userId,
+            feedDTOs,
+            sessionData.offset,
+          );
 
         const nextOffset = sessionData.offset + pageItemIds.length;
         let hasMore =
@@ -171,7 +179,7 @@ export class PersonalFeedService {
             )
           : null;
 
-        return new CursorPageResponse(feedDTOs, nextCursor, hasMore);
+        return new CursorPageResponse(finalDTOs, nextCursor, hasMore);
       }
 
       if (totalSessionLength > 0 && sessionData.offset >= totalSessionLength) {
@@ -203,7 +211,11 @@ export class PersonalFeedService {
     }
 
     // Stage 2: Heavy Adaptive Re-ranking & Dual-tier Safety Guardrails
-    const ranked = await this.rankItems(userId, candidates, query.mainEmotion);
+    const { ranked, distress } = await this.rankItems(
+      userId,
+      candidates,
+      query.mainEmotion,
+    );
 
     if (ranked.length === 0) {
       return new CursorPageResponse([], null, false);
@@ -225,7 +237,9 @@ export class PersonalFeedService {
         sessionId,
       );
       await this.redis.hset(metaKey, {
-        oldestCreatedAt: new Date(oldestCandidate.createdAt).getTime().toString(),
+        oldestCreatedAt: new Date(oldestCandidate.createdAt)
+          .getTime()
+          .toString(),
       });
       await this.redis.expire(metaKey, this.SESSION_TTL);
     }
@@ -233,13 +247,21 @@ export class PersonalFeedService {
     // Slice First Page
     const firstPageIds = rankedItemIds.slice(0, limit);
     const feedDTOs = await this.hydrateFeedPage(userId, firstPageIds);
+    const finalDTOs =
+      await this.interleaverService.maybeInterleaveSafeSpaceCard(
+        userId,
+        feedDTOs,
+        0,
+        distress,
+        limit,
+      );
 
     const hasMore = limit < rankedItemIds.length;
     const nextCursor = hasMore
       ? PersonalFeedHelper.encodeSessionCursor(sessionId, limit)
       : null;
 
-    return new CursorPageResponse(feedDTOs, nextCursor, hasMore);
+    return new CursorPageResponse(finalDTOs, nextCursor, hasMore);
   }
 
   // ========================================================
@@ -249,7 +271,10 @@ export class PersonalFeedService {
     userId: string,
     items: FeedItem[],
     mainEmotion?: string,
-  ): Promise<{ itemId: string; score: number }[]> {
+  ): Promise<{
+    ranked: { itemId: string; score: number }[];
+    distress: number;
+  }> {
     const postMap = await this.loadLightPosts(items, mainEmotion);
 
     const [emotionFeatures, affinity] = await Promise.all([
@@ -283,13 +308,16 @@ export class PersonalFeedService {
       const moderationAction = (post as any).moderationAction;
       const isDeleted = (post as any).isDeleted;
       const mentalHealthRiskLevel =
-        post.emotionFeature?.mentalHealthRiskLevel || (post as any).mentalHealthRiskLevel;
+        post.emotionFeature?.mentalHealthRiskLevel ||
+        (post as any).mentalHealthRiskLevel;
 
       // Hard block nếu bài bị đánh dấu HARD_BLOCK, đã xóa, hoặc có dấu hiệu tự hại cấp tính mà KHÔNG phải là ca khủng hoảng tâm lý cần hỗ trợ
       if (
         isDeleted ||
         moderationAction === ModerationAction.HARD_BLOCK ||
-        (mentalHealthRiskLevel === "HIGH" && moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT && !(post as any).needsMentalSupport)
+        (mentalHealthRiskLevel === "HIGH" &&
+          moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT &&
+          !(post as any).needsMentalSupport)
       ) {
         this.logger.warn(
           `[SAFETY GUARDRAIL] Dropped HARD_BLOCK / acute self-harm post: postId=${post.postId}`,
@@ -354,10 +382,13 @@ export class PersonalFeedService {
       });
     }
 
-    return result.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.itemId.localeCompare(a.itemId);
-    });
+    return {
+      ranked: result.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return b.itemId.localeCompare(a.itemId);
+      }),
+      distress,
+    };
   }
 
   // ========================================================

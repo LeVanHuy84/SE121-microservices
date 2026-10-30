@@ -114,7 +114,10 @@ export class EmotionFeatureService {
         : rawJoy > 0.6
           ? (rawJoy - 0.6) * 0.8
           : 0;
-    const gentleJoy = Math.max(0, Math.min(rawJoy, 0.6) - toxicPositivityPenalty);
+    const gentleJoy = Math.max(
+      0,
+      Math.min(rawJoy, 0.6) - toxicPositivityPenalty,
+    );
 
     // Chống Buồng vang Bi quan (Doomscrolling Echo Penalty):
     const excessiveSadness = Math.max(0, (postScores.sadness || 0) - 0.7);

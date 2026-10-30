@@ -4,6 +4,7 @@ import Redis from "ioredis";
 import { randomUUID } from "crypto";
 import {
   CursorPageResponse,
+  EmotionRankingFeaturesDto,
   FeedEventType,
   FeedItemDTO,
   ModerationAction,
@@ -16,6 +17,7 @@ import { SnapshotMapper } from "src/common/snapshot.mapper";
 import { EmotionFeatureService } from "../../ranking/services/emotion-feature.service";
 import { AffinityService } from "../../affinity/affinity.service";
 import { ScoreCombinerService } from "../../ranking/services/score-combiner.service";
+import { FeedInterleaverService } from "./feed-interleaver.service";
 import { ReactionService } from "../../../post/reaction/reaction.service";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
@@ -32,6 +34,8 @@ type RankFeature = {
   riskHintLevel?: RiskHintLevel;
   mentalHealthRiskLevel?: string;
   authorId?: string;
+  moderationAction?: ModerationAction;
+  needsMentalSupport?: boolean;
 };
 
 type Candidate = {
@@ -40,9 +44,11 @@ type Candidate = {
   feature: RankFeature;
 };
 
-type CursorPayload = {
-  baseScore: number;
+type ScoredCandidate = {
   postId: string;
+  finalScore: number;
+  baseScore: number;
+  feature: RankFeature;
 };
 
 @Injectable()
@@ -58,6 +64,7 @@ export class TrendingService {
     private readonly emotionService: EmotionFeatureService,
     private readonly affinityService: AffinityService,
     private readonly combiner: ScoreCombinerService,
+    private readonly interleaverService: FeedInterleaverService,
     private readonly reactionService: ReactionService,
     private readonly userClient: UserClientService,
     @Inject(MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE)
@@ -83,6 +90,7 @@ export class TrendingService {
 
       // 🚀 Two-Tier Infinite Discovery: If session is nearing exhaustion,
       // dynamically fetch the next batch of viral candidates from Redis ZSET
+      // using an accumulation loop to prevent Scan-Limit Starvation.
       if (
         sessionData.offset + limit > totalLen &&
         meta &&
@@ -90,39 +98,85 @@ export class TrendingService {
         !isExhausted
       ) {
         const BATCH_SIZE = 50;
-        const currentIds = new Set(await this.redis.lrange(sessionKey, 0, -1));
-        const scanLimit = currentIds.size + BATCH_SIZE;
-
-        const nextZset = await this.redis.zrevrangebyscore(
-          meta.zsetKey,
-          "+inf",
-          "-inf",
-          "WITHSCORES",
-          "LIMIT",
-          0,
-          scanLimit,
+        const MAX_FETCH_ATTEMPTS = 4;
+        const currentZsetOffset = parseInt(
+          meta.zsetOffset || meta.fetchedOffset || "0",
+          10,
         );
+        const currentIds = new Set(await this.redis.lrange(sessionKey, 0, -1));
 
-        if (nextZset.length > 0) {
-          const nextCandidates = this.parseZset(nextZset);
-          const newIds = nextCandidates
-            .map((c) => c.postId)
-            .filter((id) => !currentIds.has(id));
+        const [emotionFeatures, affinity] = await Promise.all([
+          userId ? this.emotionService.getEmotionFeatures(userId) : null,
+          userId ? this.affinityService.getAffinity(userId) : null,
+        ]);
+        const userDistress = emotionFeatures
+          ? this.emotionService.calcDistress(emotionFeatures)
+          : 0;
 
-          if (newIds.length > 0) {
-            await this.redis.rpush(sessionKey, ...newIds);
-            await this.redis.expire(sessionKey, this.SESSION_TTL);
-            totalLen += newIds.length;
+        let attempt = 0;
+        while (
+          sessionData.offset + limit > totalLen &&
+          !isExhausted &&
+          attempt < MAX_FETCH_ATTEMPTS
+        ) {
+          attempt++;
+
+          const scanLimit = currentIds.size + BATCH_SIZE;
+          const nextZset = await this.redis.zrevrangebyscore(
+            meta.zsetKey,
+            "+inf",
+            "-inf",
+            "WITHSCORES",
+            "LIMIT",
+            0,
+            scanLimit,
+          );
+
+          if (!nextZset || nextZset.length === 0) {
+            isExhausted = true;
+            break;
           }
 
-          if (newIds.length === 0 || nextZset.length < scanLimit) {
-            await this.redis.hset(metaKey, "exhausted", "true");
+          const nextCandidates = this.parseZset(nextZset);
+          if (nextCandidates.length < scanLimit) {
             isExhausted = true;
           }
-        } else {
-          await this.redis.hset(metaKey, "exhausted", "true");
-          isExhausted = true;
+
+          const newCandidates = nextCandidates.filter(
+            (c) => !currentIds.has(c.postId),
+          );
+
+          if (newCandidates.length === 0) {
+            isExhausted = true;
+            break;
+          }
+
+          if (newCandidates.length > 0) {
+            const newIds = await this.processAndRankCandidates(
+              newCandidates,
+              userId,
+              emotionFeatures,
+              affinity,
+              userDistress,
+              meta.mainEmotion,
+            );
+
+            if (newIds.length > 0) {
+              await this.redis.rpush(sessionKey, ...newIds);
+              await this.redis.expire(sessionKey, this.SESSION_TTL);
+              for (const id of newIds) {
+                currentIds.add(id);
+              }
+              totalLen += newIds.length;
+            }
+          }
         }
+
+        await this.redis.hset(metaKey, {
+          zsetOffset: currentZsetOffset.toString(),
+          exhausted: isExhausted ? "true" : "false",
+        });
+        await this.redis.expire(metaKey, this.SESSION_TTL);
       }
 
       if (totalLen > 0 && sessionData.offset < totalLen) {
@@ -137,18 +191,18 @@ export class TrendingService {
         );
 
         const items = await this.hydrateTrendingPage(pageIds, userId);
+        const finalItems = userId
+          ? await this.interleaverService.maybeInterleaveSafeSpaceCard(
+              userId,
+              items,
+              sessionData.offset,
+            )
+          : items;
 
         const nextOffset = sessionData.offset + pageIds.length;
-        let hasMore =
-          pageIds.length === limit && nextOffset < totalLen;
-        if (
-          pageIds.length === limit &&
-          !hasMore &&
-          meta &&
-          meta.zsetKey &&
-          !isExhausted
-        ) {
-          hasMore = true;
+        let hasMore = nextOffset < totalLen || !isExhausted;
+        if (pageIds.length === 0) {
+          hasMore = false;
         }
 
         const nextCursor = hasMore
@@ -158,7 +212,7 @@ export class TrendingService {
             )
           : null;
 
-        return new CursorPageResponse(items, nextCursor, hasMore);
+        return new CursorPageResponse(finalItems, nextCursor, hasMore);
       }
 
       if (totalLen > 0 && sessionData.offset >= totalLen) {
@@ -202,9 +256,83 @@ export class TrendingService {
       return new CursorPageResponse([], null, false);
     }
 
+    // Load User Context & Emotion Features
+    const [emotionFeatures, affinity] = await Promise.all([
+      userId ? this.emotionService.getEmotionFeatures(userId) : null,
+      userId ? this.affinityService.getAffinity(userId) : null,
+    ]);
+
+    const userDistress = emotionFeatures
+      ? this.emotionService.calcDistress(emotionFeatures)
+      : 0;
+
+    const rankedPostIds = await this.processAndRankCandidates(
+      candidatesRaw,
+      userId,
+      emotionFeatures,
+      affinity,
+      userDistress,
+      mainEmotion,
+    );
+
+    if (!rankedPostIds.length) {
+      return new CursorPageResponse([], null, false);
+    }
+
     // ==============================
-    // 3️⃣ Load rank features in batch
+    // 8️⃣ Persist to Redis Session List
     // ==============================
+    const sessionKey = `trending:session:${sessionId}`;
+    await this.redis.rpush(sessionKey, ...rankedPostIds);
+    await this.redis.expire(sessionKey, this.SESSION_TTL);
+
+    // Save session metadata for Two-Tier Infinite Discovery
+    const metaKey = `trending:meta:${sessionId}`;
+    await this.redis.hset(metaKey, {
+      zsetKey: key,
+      mainEmotion: mainEmotion || "",
+      zsetOffset: candidatesRaw.length.toString(),
+      fetchedOffset: candidatesRaw.length.toString(),
+    });
+    await this.redis.expire(metaKey, this.SESSION_TTL);
+
+    // ==============================
+    // 9️⃣ Slice Page 1 & Hydrate
+    // ==============================
+    const firstPageIds = rankedPostIds.slice(0, limit);
+    const items = await this.hydrateTrendingPage(firstPageIds, userId);
+    const finalItems = userId
+      ? await this.interleaverService.maybeInterleaveSafeSpaceCard(
+          userId,
+          items,
+          0,
+          userDistress,
+          limit,
+        )
+      : items;
+
+    const hasMore = limit < rankedPostIds.length;
+    const nextCursor = hasMore
+      ? PersonalFeedHelper.encodeSessionCursor(sessionId, limit)
+      : null;
+
+    return new CursorPageResponse(finalItems, nextCursor, hasMore);
+  }
+
+  // ========================================================
+  // 🛡️ DUAL-STAGE ANTI-DOOMSCROLLING CANDIDATE PIPELINE
+  // ========================================================
+  private async processAndRankCandidates(
+    candidatesRaw: { postId: string; score: number }[],
+    userId?: string,
+    emotionFeatures?: EmotionRankingFeaturesDto | null,
+    affinity?: any,
+    userDistress = 0,
+    mainEmotion?: string,
+  ): Promise<string[]> {
+    if (!candidatesRaw.length) return [];
+
+    // 1️⃣ Load rank features in batch
     const pipeline = this.redis.pipeline();
     for (const c of candidatesRaw) {
       pipeline.hgetall(`post:rank:${c.postId}`);
@@ -245,6 +373,8 @@ export class TrendingService {
             riskHintLevel: rank.riskHintLevel as RiskHintLevel,
             mentalHealthRiskLevel: rank.mentalHealthRiskLevel,
             authorId: rank.authorId,
+            moderationAction: rank.moderationAction as ModerationAction,
+            needsMentalSupport: rank.needsMentalSupport === "true",
           },
         });
       } catch {
@@ -261,37 +391,23 @@ export class TrendingService {
       }
     });
 
-    // ==============================
-    // 4️⃣ User Context & Emotion Features
-    // ==============================
-    const [emotionFeatures, affinity] = await Promise.all([
-      userId ? this.emotionService.getEmotionFeatures(userId) : null,
-      userId ? this.affinityService.getAffinity(userId) : null,
-    ]);
-
-    const userDistress = emotionFeatures
-      ? this.emotionService.calcDistress(emotionFeatures)
-      : 0;
-
-    // ==============================
-    // 5️⃣ Safety Guardrails Filter
-    // ==============================
+    // 2️⃣ Safety Guardrails Filter
     const safeCandidates = candidates.filter((item) => {
-      // 🛡️ Tier 1: System-wide Hard Drop (HARD_BLOCK hoặc HIGH risk không phải ca hỗ trợ)
+      // 🛡️ Tier 1: System-wide Hard Drop
       if (
-        (item.feature as any).moderationAction === ModerationAction.HARD_BLOCK ||
+        item.feature.moderationAction === ModerationAction.HARD_BLOCK ||
         ((item.feature.mentalHealthRiskLevel === "HIGH" ||
           item.feature.mentalHealthRiskLevel === "high" ||
           item.feature.riskHintLevel === RiskHintLevel.HIGH) &&
-          (item.feature as any).moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT)
+          item.feature.moderationAction !== ModerationAction.ALLOW_WITH_SUPPORT)
       ) {
         return false;
       }
 
       // 🛡️ Trending Virality Guardrail: Khủng hoảng tâm lý cá nhân không được đưa lên Bảng tin Xu hướng toàn cầu
       if (
-        (item.feature as any).needsMentalSupport ||
-        (item.feature as any).moderationAction === ModerationAction.ALLOW_WITH_SUPPORT
+        item.feature.needsMentalSupport ||
+        item.feature.moderationAction === ModerationAction.ALLOW_WITH_SUPPORT
       ) {
         return false;
       }
@@ -312,13 +428,11 @@ export class TrendingService {
     });
 
     if (!safeCandidates.length) {
-      return new CursorPageResponse([], null, false);
+      return [];
     }
 
-    // ==============================
-    // 6️⃣ Re-rank (Personalized or Base)
-    // ==============================
-    const scored = safeCandidates.map((item) => {
+    // 3️⃣ Re-rank (Personalized or Base)
+    const scored: ScoredCandidate[] = safeCandidates.map((item) => {
       const base = this.normalize(item.baseScore);
 
       if (mainEmotion || !userId) {
@@ -326,6 +440,7 @@ export class TrendingService {
           postId: item.postId,
           finalScore: base,
           baseScore: item.baseScore,
+          feature: item.feature,
         };
       }
 
@@ -353,46 +468,97 @@ export class TrendingService {
         postId: item.postId,
         finalScore,
         baseScore: item.baseScore,
+        feature: item.feature,
       };
     });
 
-    // ==============================
-    // 7️⃣ Sort by Final Score DESC
-    // ==============================
+    // 4️⃣ Sort by Final Score DESC
     scored.sort((a, b) => {
       if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
       return b.baseScore - a.baseScore;
     });
 
-    // ==============================
-    // 8️⃣ Persist to Redis Session List
-    // ==============================
-    const sessionKey = `trending:session:${sessionId}`;
-    const rankedPostIds = scored.map((s) => s.postId);
+    // 5️⃣ Anti-Doomscrolling: Tail Pruning & Pacing (khi userDistress > 0.3 và không lọc theo mainEmotion cụ thể)
+    if (userDistress > 0.3 && !mainEmotion) {
+      return this.applyAntiDoomscrollingPacing(scored, userDistress);
+    }
 
-    await this.redis.rpush(sessionKey, ...rankedPostIds);
-    await this.redis.expire(sessionKey, this.SESSION_TTL);
+    return scored.map((s) => s.postId);
+  }
 
-    // Save session metadata for Two-Tier Infinite Discovery
-    const metaKey = `trending:meta:${sessionId}`;
-    await this.redis.hset(metaKey, {
-      zsetKey: key,
-      fetchedOffset: candidatesRaw.length.toString(),
+  // ========================================================
+  // 🛡️ ANTI-DOOMSCROLLING: TAIL PRUNING & PACING LOGIC
+  // ========================================================
+  private applyAntiDoomscrollingPacing(
+    scored: ScoredCandidate[],
+    userDistress: number,
+  ): string[] {
+    // 🛡️ Bước 1: Tail Pruning - Cắt bỏ các bài có sắc thái u uất/buồn mà điểm thấp ở đuôi
+    const pruned = scored.filter((item) => {
+      const sadness = Number(item.feature.scores?.sadness) || 0;
+
+      // Loại bỏ bài u buồn có điểm xếp hạng thấp (finalScore < 0.25)
+      if (sadness > 0.4 && item.finalScore < 0.25) {
+        return false;
+      }
+
+      // Nếu user đang khủng hoảng nặng (distress > 0.5), loại bỏ triệt để các bài có sadness > 0.6
+      if (userDistress > 0.5 && sadness > 0.7) {
+        return false;
+      }
+
+      return true;
     });
-    await this.redis.expire(metaKey, this.SESSION_TTL);
 
-    // ==============================
-    // 9️⃣ Slice Page 1 & Hydrate
-    // ==============================
-    const firstPageIds = rankedPostIds.slice(0, limit);
-    const items = await this.hydrateTrendingPage(firstPageIds, userId);
+    // 🛡️ Bước 2: Anti-Clustering Pacing - Đảm bảo không bao giờ có 2 bài buồn đứng cạnh nhau
+    const paced: ScoredCandidate[] = [];
+    const sadQueue: ScoredCandidate[] = [];
+    const nonSadQueue: ScoredCandidate[] = [];
 
-    const hasMore = limit < rankedPostIds.length;
-    const nextCursor = hasMore
-      ? PersonalFeedHelper.encodeSessionCursor(sessionId, limit)
-      : null;
+    for (const item of pruned) {
+      const sadness = Number(item.feature.scores?.sadness) || 0;
+      if (sadness > 0.35) {
+        sadQueue.push(item);
+      } else {
+        nonSadQueue.push(item);
+      }
+    }
 
-    return new CursorPageResponse(items, nextCursor, hasMore);
+    let lastWasSad = false;
+    while (sadQueue.length > 0 || nonSadQueue.length > 0) {
+      if (!lastWasSad && sadQueue.length > 0 && nonSadQueue.length > 0) {
+        if (sadQueue[0].finalScore >= nonSadQueue[0].finalScore) {
+          paced.push(sadQueue.shift()!);
+          lastWasSad = true;
+        } else {
+          paced.push(nonSadQueue.shift()!);
+          lastWasSad = false;
+        }
+      } else if (lastWasSad) {
+        // Sau bài buồn BẮT BUỘC phải là bài non-sad (xoa dịu/tích cực)
+        if (nonSadQueue.length > 0) {
+          paced.push(nonSadQueue.shift()!);
+          lastWasSad = false;
+        } else {
+          // Hết bài non-sad: Dừng lại để tránh tạo cụm bài buồn ở đáy
+          break;
+        }
+      } else {
+        // Chỉ còn 1 trong 2 hàng đợi
+        if (nonSadQueue.length > 0) {
+          paced.push(nonSadQueue.shift()!);
+          lastWasSad = false;
+        } else {
+          // Chỉ còn sadQueue nhưng lastWasSad là false -> chỉ lấy tối đa 1 bài nhẹ
+          if (sadQueue.length > 0) {
+            paced.push(sadQueue.shift()!);
+          }
+          break;
+        }
+      }
+    }
+
+    return paced.map((p) => p.postId);
   }
 
   // ==============================

@@ -217,7 +217,10 @@ export class ConsumerService {
         }))
       : [];
 
-    moderation.maxSeverity = this.normalizeSeverity(payload.maxSeverity, action);
+    moderation.maxSeverity = this.normalizeSeverity(
+      payload.maxSeverity,
+      action,
+    );
     moderation.confidence = payload.confidence ?? 0;
     moderation.displayMessage = payload.displayMessage ?? "";
 

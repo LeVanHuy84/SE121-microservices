@@ -87,7 +87,7 @@ export class ProactiveInterventionService {
     if (hasEmergencyKeywords || hasSelfHarm || rawRiskStr === 'critical') {
       riskLevel = RiskLevel.CRISIS;
       triggers.push(TriggerFlag.SUICIDAL_IDEATION);
-    } 
+    }
     // MỨC 2: KHỦNG HOẢNG CẢM XÚC / TRẦM CẢM (EMOTIONAL_CRISIS)
     else if (
       rawRiskStr === 'high' ||

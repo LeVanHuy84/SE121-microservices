@@ -16,7 +16,9 @@ describe("PersonalFeedHelper", () => {
     });
 
     it("should return null when decoding invalid cursor", () => {
-      expect(PersonalFeedHelper.decodeSessionCursor("invalid-base64")).toBeNull();
+      expect(
+        PersonalFeedHelper.decodeSessionCursor("invalid-base64"),
+      ).toBeNull();
       expect(PersonalFeedHelper.decodeSessionCursor(undefined)).toBeNull();
       expect(PersonalFeedHelper.decodeSessionCursor("")).toBeNull();
     });
@@ -99,7 +101,10 @@ describe("PersonalFeedHelper", () => {
       // At d = 0.8, lambda = 0.3 + 0.7*0.8 = 0.86
       // Penalty should significantly reduce final score
       expect(scoreWithToxicity).toBeLessThan(scoreWithoutToxicity);
-      expect(scoreWithoutToxicity - scoreWithToxicity).toBeCloseTo(0.86 * 0.5, 2);
+      expect(scoreWithoutToxicity - scoreWithToxicity).toBeCloseTo(
+        0.86 * 0.5,
+        2,
+      );
     });
   });
 });

@@ -7,10 +7,13 @@ export class PositiveStateRule implements InsightRule {
   readonly type = InsightType.POSITIVE_STATE;
 
   evaluate(context: InsightContext): Insight | null {
-    const { decayedNegativityScore } = context.profile;
+    const negativityScore =
+      context.profile.recentNegativityScore ??
+      context.profile.decayedNegativityScore ??
+      0;
     const { riskLevel } = context.riskState;
 
-    if (!(decayedNegativityScore < 0.3 && riskLevel === RiskLevel.NORMAL)) {
+    if (!(negativityScore < 0.3 && riskLevel === RiskLevel.NORMAL)) {
       return null;
     }
 

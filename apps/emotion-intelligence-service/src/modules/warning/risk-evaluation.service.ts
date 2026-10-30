@@ -22,6 +22,7 @@ const RISK_CONFIG = {
 } as const;
 
 export interface ProfileSpikeSignals {
+  recentNegativityScore?: number;
   decayedNegativityScore?: number;
   consecutiveNegativeDays?: number;
   emotionMomentum?: number;
@@ -78,8 +79,8 @@ export class RiskEvaluationService {
     currentScore: number,
     previousScore: number,
   ): boolean {
-    const decayedNegativityScore = this.clamp01(
-      profile?.decayedNegativityScore ?? 0,
+    const negativity = this.clamp01(
+      profile?.recentNegativityScore ?? profile?.decayedNegativityScore ?? 0,
     );
     const emotionMomentum = this.clampSigned(profile?.emotionMomentum ?? 0);
     const consecutiveNegativeDays = this.toSafeNumber(
@@ -91,7 +92,7 @@ export class RiskEvaluationService {
     );
 
     return (
-      (decayedNegativityScore > 0.8 && emotionMomentum > 0.5) ||
+      (negativity > 0.8 && emotionMomentum > 0.5) ||
       consecutiveNegativeDays >= 3 ||
       scoreDelta > RISK_CONFIG.spikeThreshold
     );

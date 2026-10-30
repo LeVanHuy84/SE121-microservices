@@ -2,15 +2,26 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { getModelToken, MongooseModule } from "@nestjs/mongoose";
 import { getRedisConnectionToken } from "@nestjs-modules/ioredis";
-import { MongoDBContainer, StartedMongoDBContainer } from "@testcontainers/mongodb";
+import {
+  MongoDBContainer,
+  StartedMongoDBContainer,
+} from "@testcontainers/mongodb";
 import { RedisContainer, StartedRedisContainer } from "@testcontainers/redis";
 import Redis from "ioredis";
 import mongoose, { Model } from "mongoose";
 import { of } from "rxjs";
-import { FeedEventType, Emotion, InteractionType, Audience, ModerationAction } from "@repo/dtos";
+import {
+  FeedEventType,
+  Emotion,
+  InteractionType,
+  Audience,
+  ModerationAction,
+  InterventionType,
+} from "@repo/dtos";
 
 import { PersonalFeedController } from "../../src/modules/feed/feed-pipeline/controllers/personal-feed.controller";
 import { PersonalFeedService } from "../../src/modules/feed/feed-pipeline/services/personal-feed.service";
+import { FeedInterleaverService } from "../../src/modules/feed/feed-pipeline/services/feed-interleaver.service";
 import { ScoreCombinerService } from "../../src/modules/feed/ranking/services/score-combiner.service";
 import { EmotionFeatureService } from "../../src/modules/feed/ranking/services/emotion-feature.service";
 import { AffinityService } from "../../src/modules/feed/affinity/affinity.service";
@@ -98,6 +109,7 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       controllers: [PersonalFeedController],
       providers: [
         PersonalFeedService,
+        FeedInterleaverService,
         AffinityService,
         SnapshotRepository,
         ScoreCombinerService,
@@ -118,7 +130,12 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
             getUserInfos: jest.fn().mockImplementation((ids: string[]) => {
               const res: Record<string, any> = {};
               for (const id of ids) {
-                res[id] = { id, firstName: "Author", lastName: "Mock", avatarUrl: "" };
+                res[id] = {
+                  id,
+                  firstName: "Author",
+                  lastName: "Mock",
+                  avatarUrl: "",
+                };
               }
               return Promise.resolve(res);
             }),
@@ -144,12 +161,20 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    personalFeedController = moduleFixture.get<PersonalFeedController>(PersonalFeedController);
+    personalFeedController = moduleFixture.get<PersonalFeedController>(
+      PersonalFeedController,
+    );
     affinityService = moduleFixture.get<AffinityService>(AffinityService);
 
-    feedItemModel = moduleFixture.get<Model<FeedItemDocument>>(getModelToken(FeedItem.name));
-    postSnapshotModel = moduleFixture.get<Model<PostSnapshotDocument>>(getModelToken(PostSnapshot.name));
-    shareSnapshotModel = moduleFixture.get<Model<ShareSnapshotDocument>>(getModelToken(ShareSnapshot.name));
+    feedItemModel = moduleFixture.get<Model<FeedItemDocument>>(
+      getModelToken(FeedItem.name),
+    );
+    postSnapshotModel = moduleFixture.get<Model<PostSnapshotDocument>>(
+      getModelToken(PostSnapshot.name),
+    );
+    shareSnapshotModel = moduleFixture.get<Model<ShareSnapshotDocument>>(
+      getModelToken(ShareSnapshot.name),
+    );
   });
 
   afterAll(async () => {
@@ -181,7 +206,7 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
   // Helpers
   function getReturnedPostIds(res: { data: any[] }): string[] {
-    return res.data.map((x) => (x.item as any)?.postId || x.id);
+    return res.data.map((x) => x.item?.postId || x.id);
   }
 
   async function seedUserCandidateItems(
@@ -248,11 +273,11 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
     it("R1.2: Highly distressed user (Distress > 0.6) elevates Emotional Resonance over Recency", async () => {
       mockUserEmotionState = {
         riskScore: 0.85,
-        recentNegativityScore: 0.80,
+        recentNegativityScore: 0.8,
         negativeRatio7d: 0.75,
-        emotionVolatility7d: 0.60,
-        emotionMomentum: 0.30,
-        userEmotionPreference: { sadness: 0.80, neutral: 0.20 },
+        emotionVolatility7d: 0.6,
+        emotionMomentum: 0.3,
+        userEmotionPreference: { sadness: 0.8, neutral: 0.2 },
       };
 
       const now = Date.now();
@@ -278,12 +303,12 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
     it("R1.3: Stressed user (Distress = 0.7) suppresses Social Affinity of negative close connection posts in favor of calming casual connection content", async () => {
       mockUserEmotionState = {
-        riskScore: 0.70,
-        recentNegativityScore: 0.70,
+        riskScore: 0.7,
+        recentNegativityScore: 0.7,
         negativeRatio7d: 0.65,
-        emotionVolatility7d: 0.50,
-        emotionMomentum: 0.20,
-        userEmotionPreference: { sadness: 0.70, neutral: 0.30 },
+        emotionVolatility7d: 0.5,
+        emotionMomentum: 0.2,
+        userEmotionPreference: { sadness: 0.7, neutral: 0.3 },
       };
 
       const userId = "user-stressed-r13";
@@ -316,8 +341,8 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       mockUserEmotionState = {
         riskScore: 0.15,
         recentNegativityScore: 0.15,
-        negativeRatio7d: 0.10,
-        emotionVolatility7d: 0.10,
+        negativeRatio7d: 0.1,
+        emotionVolatility7d: 0.1,
         emotionMomentum: 0.0,
       };
 
@@ -356,13 +381,17 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       mockUserEmotionState = {
         riskScore: 0.85,
         recentNegativityScore: 0.85,
-        negativeRatio7d: 0.80,
-        emotionVolatility7d: 0.60,
-        emotionMomentum: 0.20,
-        userEmotionPreference: { sadness: 0.85, neutral: 0.10, joy: 0.05 },
+        negativeRatio7d: 0.8,
+        emotionVolatility7d: 0.6,
+        emotionMomentum: 0.2,
+        userEmotionPreference: { sadness: 0.85, neutral: 0.1, joy: 0.05 },
       };
 
-      const testPostIds = ["golden-joy-001", "golden-sad-001", "golden-calm-001"];
+      const testPostIds = [
+        "golden-joy-001",
+        "golden-sad-001",
+        "golden-calm-001",
+      ];
       await seedUserCandidates("user-sad-iso", testPostIds);
 
       const res = await personalFeedController.getUserFeeds({
@@ -385,13 +414,16 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       mockUserEmotionState = {
         riskScore: 0.75,
         recentNegativityScore: 0.75,
-        negativeRatio7d: 0.70,
-        emotionVolatility7d: 0.60,
-        emotionMomentum: 0.30,
+        negativeRatio7d: 0.7,
+        emotionVolatility7d: 0.6,
+        emotionMomentum: 0.3,
         userEmotionPreference: { anger: 0.85, neutral: 0.15 },
       };
 
-      await seedUserCandidates("user-anger-iso", ["golden-rage-002", "golden-calm-001"]);
+      await seedUserCandidates("user-anger-iso", [
+        "golden-rage-002",
+        "golden-calm-001",
+      ]);
 
       const res = await personalFeedController.getUserFeeds({
         userId: "user-anger-iso",
@@ -404,12 +436,12 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
     it("R2.3: User with positive recovery momentum (M > 0) elevates Gentle Uplift content", async () => {
       mockUserEmotionState = {
-        riskScore: 0.20,
-        recentNegativityScore: 0.20,
-        negativeRatio7d: 0.20,
-        emotionVolatility7d: 0.20,
-        emotionMomentum: 0.30,
-        userEmotionPreference: { joy: 0.60, neutral: 0.30, sadness: 0.10 },
+        riskScore: 0.2,
+        recentNegativityScore: 0.2,
+        negativeRatio7d: 0.2,
+        emotionVolatility7d: 0.2,
+        emotionMomentum: 0.3,
+        userEmotionPreference: { joy: 0.6, neutral: 0.3, sadness: 0.1 },
       };
 
       const testPostIds = ["golden-calm-001", "golden-joy-001"];
@@ -426,15 +458,18 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
     it("R2.4: Fear/anxious user (Distress = 0.7) suppresses sensational fear posts in favor of calming content", async () => {
       mockUserEmotionState = {
-        riskScore: 0.70,
-        recentNegativityScore: 0.70,
+        riskScore: 0.7,
+        recentNegativityScore: 0.7,
         negativeRatio7d: 0.65,
         emotionVolatility7d: 0.55,
         emotionMomentum: 0.25,
-        userEmotionPreference: { fear: 0.80, neutral: 0.20 },
+        userEmotionPreference: { fear: 0.8, neutral: 0.2 },
       };
 
-      await seedUserCandidates("user-fear-iso", ["golden-fear-001", "golden-calm-001"]);
+      await seedUserCandidates("user-fear-iso", [
+        "golden-fear-001",
+        "golden-calm-001",
+      ]);
 
       const res = await personalFeedController.getUserFeeds({
         userId: "user-fear-iso",
@@ -452,12 +487,12 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
   describe("Suite R3: Anti-Echo-Chamber & Doomscrolling Suppression", () => {
     it("R3.1: Consecutive sadness candidates trigger Echo-Chamber Penalty and interleave calming content", async () => {
       mockUserEmotionState = {
-        riskScore: 0.60,
+        riskScore: 0.6,
         recentNegativityScore: 0.65,
-        negativeRatio7d: 0.60,
-        emotionVolatility7d: 0.40,
-        emotionMomentum: 0.10,
-        userEmotionPreference: { sadness: 0.80, neutral: 0.20 },
+        negativeRatio7d: 0.6,
+        emotionVolatility7d: 0.4,
+        emotionMomentum: 0.1,
+        userEmotionPreference: { sadness: 0.8, neutral: 0.2 },
       };
 
       const postIds = [
@@ -484,10 +519,10 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
     it("R3.2: Multi-page deep scrolling ensures diverse distribution (Ambient Interleaving)", async () => {
       mockUserEmotionState = {
-        riskScore: 0.50,
-        recentNegativityScore: 0.50,
-        negativeRatio7d: 0.50,
-        emotionVolatility7d: 0.30,
+        riskScore: 0.5,
+        recentNegativityScore: 0.5,
+        negativeRatio7d: 0.5,
+        emotionVolatility7d: 0.3,
         emotionMomentum: 0.0,
       };
 
@@ -610,17 +645,19 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
       const returnedIds = getReturnedPostIds(res);
       expect(returnedIds).toContain("golden-warn-001");
-      const postInDb = await postSnapshotModel.findOne({ postId: "golden-warn-001" });
+      const postInDb = await postSnapshotModel.findOne({
+        postId: "golden-warn-001",
+      });
       expect(postInDb?.hasWarning).toBe(true);
     });
 
     it("R4.4: Tier 2 Contextual Drop: hasWarning post is suppressed/dropped when user is in distress (> 0.6)", async () => {
       mockUserEmotionState = {
-        riskScore: 0.80,
+        riskScore: 0.8,
         recentNegativityScore: 0.75,
-        negativeRatio7d: 0.70,
-        emotionVolatility7d: 0.60,
-        emotionMomentum: 0.30,
+        negativeRatio7d: 0.7,
+        emotionVolatility7d: 0.6,
+        emotionMomentum: 0.3,
       };
 
       const postIds = ["golden-calm-001", "golden-warn-005"];
@@ -638,11 +675,11 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
     it("R4.5: Tier 2 Contextual Drop: Sarcasm / conflict post is suppressed when user is in distress (> 0.6)", async () => {
       mockUserEmotionState = {
-        riskScore: 0.80,
-        recentNegativityScore: 0.80,
-        negativeRatio7d: 0.70,
-        emotionVolatility7d: 0.60,
-        emotionMomentum: 0.20,
+        riskScore: 0.8,
+        recentNegativityScore: 0.8,
+        negativeRatio7d: 0.7,
+        emotionVolatility7d: 0.6,
+        emotionMomentum: 0.2,
       };
 
       const postIds = ["golden-calm-001", "golden-rage-001"];
@@ -666,7 +703,8 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
         snapshotId: crisisPostId,
         refId: crisisPostId,
         userId: "author-friend-in-need",
-        content: "Mình đang cảm thấy kiệt sức và bế tắc, cần một ai đó lắng nghe...",
+        content:
+          "Mình đang cảm thấy kiệt sức và bế tắc, cần một ai đó lắng nghe...",
         audience: Audience.PUBLIC,
         moderationAction: ModerationAction.ALLOW_WITH_SUPPORT,
         needsMentalSupport: true,
@@ -682,7 +720,10 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
 
       // 2. Healthy friend (distress = 0.1) looks at personal feed
       mockUserEmotionState = { riskScore: 0.1, recentNegativityScore: 0.1 };
-      await seedUserCandidates("user-healthy-friend", [crisisPostId, "golden-calm-001"]);
+      await seedUserCandidates("user-healthy-friend", [
+        crisisPostId,
+        "golden-calm-001",
+      ]);
 
       const healthyRes = await personalFeedController.getUserFeeds({
         userId: "user-healthy-friend",
@@ -695,11 +736,14 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       mockUserEmotionState = {
         riskScore: 0.85,
         recentNegativityScore: 0.85,
-        negativeRatio7d: 0.80,
-        emotionVolatility7d: 0.70,
-        emotionMomentum: 0.20,
+        negativeRatio7d: 0.8,
+        emotionVolatility7d: 0.7,
+        emotionMomentum: 0.2,
       };
-      await seedUserCandidates("user-distressed-friend", [crisisPostId, "golden-calm-001"]);
+      await seedUserCandidates("user-distressed-friend", [
+        crisisPostId,
+        "golden-calm-001",
+      ]);
 
       const distressedRes = await personalFeedController.getUserFeeds({
         userId: "user-distressed-friend",
@@ -800,6 +844,140 @@ describe("Personal Feed Recommendation & Ethical AI E2E Test Suite", () => {
       expect(p2).toBeDefined();
       expect(p2.data.length).toBeGreaterThan(0);
       expect(p2.data[0].id).toBeDefined();
+    });
+  });
+
+  // =========================================================================
+  // SUITE R7: AMBIENT SAFE SPACE INTERVENTION INTERLEAVING (SPRINT 3)
+  // =========================================================================
+  describe("Suite R7: Ambient Safe Space Intervention Interleaving", () => {
+    it("R7.1: Distressed user (Distress > 0.5) receives Safe Space Card interleaved at slot 5 on Page 1", async () => {
+      mockUserEmotionState = {
+        riskScore: 0.85,
+        recentNegativityScore: 0.8,
+        negativeRatio7d: 0.75,
+        emotionVolatility7d: 0.5,
+        emotionMomentum: 0.3,
+        userEmotionPreference: { sadness: 0.7, fear: 0.2, neutral: 0.1 },
+      };
+
+      const candidateIds = goldenPosts.slice(0, 15).map((p: any) => p.postId);
+      await seedUserCandidates("user-distressed-safespace", candidateIds);
+
+      // Query Page 1
+      const res = await personalFeedController.getUserFeeds({
+        userId: "user-distressed-safespace",
+        query: { limit: 10 },
+      });
+
+      // 1. Array length is 11 (10 posts + 1 card)
+      expect(res.data).toHaveLength(11);
+
+      // 2. Slot 5 (index 4) is the Safe Space Intervention Card
+      const card = res.data[4];
+      expect(card.type).toBe(FeedEventType.INTERVENTION);
+      expect(card.intervention).toBeDefined();
+      expect(card.intervention?.type).toBe(
+        InterventionType.AI_CHATBOT_SAFE_SPACE,
+      );
+      expect(card.intervention?.title).toBe("Góc nhỏ lắng nghe");
+      expect(card.intervention?.buttonText).toBe("Trò chuyện cùng Trợ lý AI");
+
+      // 3. Redis Cooldown TTL key is set
+      const cooldownKey =
+        "feed:intervention:cooldown:user-distressed-safespace";
+      const ttl = await redisClient.ttl(cooldownKey);
+      expect(ttl).toBeGreaterThan(0);
+    });
+
+    it("R7.2: Redis Cooldown prevents spamming Safe Space Card on repeated requests within 12h", async () => {
+      mockUserEmotionState = {
+        riskScore: 0.85,
+        recentNegativityScore: 0.8,
+        negativeRatio7d: 0.75,
+        emotionVolatility7d: 0.5,
+        emotionMomentum: 0.3,
+        userEmotionPreference: { sadness: 0.7, fear: 0.2, neutral: 0.1 },
+      };
+
+      const candidateIds = goldenPosts.slice(0, 15).map((p: any) => p.postId);
+      await seedUserCandidates("user-distressed-cooldown", candidateIds);
+
+      // Actively set the 12h cooldown key in Redis
+      const cooldownKey = "feed:intervention:cooldown:user-distressed-cooldown";
+      await redisClient.set(cooldownKey, "1", "EX", 43200);
+
+      const res = await personalFeedController.getUserFeeds({
+        userId: "user-distressed-cooldown",
+        query: { limit: 10 },
+      });
+
+      // Returns exactly 10 posts, no intervention card
+      expect(res.data).toHaveLength(10);
+      const hasIntervention = res.data.some(
+        (item) => item.type === FeedEventType.INTERVENTION,
+      );
+      expect(hasIntervention).toBe(false);
+    });
+
+    it("R7.3: Safe Space Card is strictly excluded from subsequent pages (Page 2, 3...)", async () => {
+      // Clear cooldown to test page 2 isolation independently
+      await redisClient.del("feed:intervention:cooldown:user-distressed-page2");
+
+      mockUserEmotionState = {
+        riskScore: 0.85,
+        recentNegativityScore: 0.8,
+        negativeRatio7d: 0.75,
+        emotionVolatility7d: 0.5,
+        emotionMomentum: 0.3,
+      };
+
+      const candidateIds = goldenPosts.slice(0, 20).map((p: any) => p.postId);
+      await seedUserCandidates("user-distressed-page2", candidateIds);
+
+      // Page 1
+      const p1 = await personalFeedController.getUserFeeds({
+        userId: "user-distressed-page2",
+        query: { limit: 5 },
+      });
+      expect(p1.nextCursor).toBeDefined();
+
+      // Page 2
+      const p2 = await personalFeedController.getUserFeeds({
+        userId: "user-distressed-page2",
+        query: { limit: 5, cursor: p1.nextCursor! },
+      });
+
+      expect(p2.data.length).toBeGreaterThan(0);
+      const hasInterventionOnP2 = p2.data.some(
+        (item) => item.type === FeedEventType.INTERVENTION,
+      );
+      expect(hasInterventionOnP2).toBe(false);
+    });
+
+    it("R7.4: Emotionally stable user (Distress <= 0.5) does not receive Safe Space Card", async () => {
+      mockUserEmotionState = {
+        riskScore: 0.1,
+        recentNegativityScore: 0.15,
+        negativeRatio7d: 0.1,
+        emotionVolatility7d: 0.1,
+        emotionMomentum: -0.1,
+        userEmotionPreference: { joy: 0.8, neutral: 0.2 },
+      };
+
+      const candidateIds = goldenPosts.slice(0, 10).map((p: any) => p.postId);
+      await seedUserCandidates("user-stable-healthy", candidateIds);
+
+      const res = await personalFeedController.getUserFeeds({
+        userId: "user-stable-healthy",
+        query: { limit: 10 },
+      });
+
+      expect(res.data).toHaveLength(10);
+      const hasIntervention = res.data.some(
+        (item) => item.type === FeedEventType.INTERVENTION,
+      );
+      expect(hasIntervention).toBe(false);
     });
   });
 });

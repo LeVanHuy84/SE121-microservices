@@ -31,7 +31,8 @@
     "seed:feed": "ts-node -r tsconfig-paths/register --project apps/feed-service/tsconfig.json seed-data/seeds/seed-feed-service.ts",
     "seed:search": "ts-node -r tsconfig-paths/register --project apps/search-recommendation-service/tsconfig.json seed-data/seeds/seed-search-service.ts",
     "seed:emotion": "ts-node -r tsconfig-paths/register --project apps/emotion-intelligence-service/tsconfig.json seed-data/seeds/seed-emotion-intelligence-service.ts",
-    "seed:sync-users": "ts-node -r tsconfig-paths/register --project apps/post-service/tsconfig.json seed-data/seeds/randomize-seed-users.ts"
+    "seed:sync-users": "ts-node -r tsconfig-paths/register --project apps/post-service/tsconfig.json seed-data/seeds/randomize-seed-users.ts",
+    "seed:distress": "node seed-data/seeds/set-user-distressed.js"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

@@ -60,9 +60,6 @@ class TextEmotionClassifier:
         if not raw_sentences:
             raw_sentences = [text]
 
-        words = text.split()
-        total_word_count = len(words)
-
         # ---------------------------------------------------------------------
         # 3. Model Loading
         # ---------------------------------------------------------------------

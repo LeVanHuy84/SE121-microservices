@@ -28,14 +28,19 @@ export class ProfileProcessor {
         const elapsedHours =
           (now.getTime() - new Date(lastTime).getTime()) / (1000 * 60 * 60);
 
+        const currentScore =
+          profile.recentNegativityScore ??
+          (profile as any).decayedNegativityScore ??
+          0;
+
         const newDecayedScore = this.timeDecayCalculator.calculateDecayedScore(
-          profile.decayedNegativityScore ?? 0,
+          currentScore,
           elapsedHours,
         );
 
         await this.profileRepository.upsert(profile.userId, {
           userId: profile.userId,
-          decayedNegativityScore: newDecayedScore,
+          recentNegativityScore: newDecayedScore,
           consecutiveNegativeDays: Math.max(
             0,
             (profile.consecutiveNegativeDays ?? 0) - 1,
@@ -70,9 +75,14 @@ export class ProfileProcessor {
         return { success: true, userId };
       }
 
+      const previousNegativity =
+        profile?.recentNegativityScore ??
+        (profile as any)?.decayedNegativityScore ??
+        0;
+
       const updateResult = this.profileService.applyEventLevelUpdate(
         profile?.emotionVectorEMA,
-        profile?.decayedNegativityScore ?? 0,
+        previousNegativity,
         windowEvents,
         profile?.consecutiveNegativeDays ?? 0,
         profile?.lastEventAt,
@@ -83,7 +93,7 @@ export class ProfileProcessor {
       await this.profileRepository.upsert(userId, {
         userId,
         emotionVectorEMA: updateResult.emotionVectorEMA,
-        decayedNegativityScore: updateResult.recentNegativityScore,
+        recentNegativityScore: updateResult.recentNegativityScore,
         consecutiveNegativeDays: updateResult.negativeEventStreak,
         lastEventAt: updateResult.lastEventAt,
         lastStrongNegativeAt: updateResult.lastStrongNegativeAt,
