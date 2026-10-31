@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Audience } from "@repo/dtos";
 import { Model } from "mongoose";
@@ -10,33 +10,121 @@ import {
   ShareSnapshot,
   ShareSnapshotDocument,
 } from "../schema/share-snapshot.schema";
+import { CacheLayerService } from "../../cache-layer/cache-layer.service";
 
 @Injectable()
 export class SnapshotRepository {
+  private readonly logger = new Logger(SnapshotRepository.name);
+
   constructor(
     @InjectModel(PostSnapshot.name)
     private readonly postModel: Model<PostSnapshotDocument>,
 
     @InjectModel(ShareSnapshot.name)
     private readonly shareModel: Model<ShareSnapshotDocument>,
+
+    private readonly cacheLayer: CacheLayerService,
   ) {}
 
-  async findPostsByIds(ids: string[], mainEmotion?: string) {
+  async findPostsByIds(
+    ids: string[],
+    mainEmotion?: string,
+  ): Promise<PostSnapshot[]> {
     if (!ids?.length) return [];
-    const filter = {
-      postId: { $in: ids },
-      ...(mainEmotion ? { mainEmotion } : {}),
-    };
-    return this.postModel.find(filter).lean<PostSnapshot[]>().exec();
+    const uniqueIds = Array.from(new Set(ids));
+
+    // 1. Fetch from Redis Cache first
+    const cachedMap = await this.cacheLayer.getPostBatch(uniqueIds);
+    const result: PostSnapshot[] = [];
+    const missingIds: string[] = [];
+
+    for (const id of uniqueIds) {
+      const cached = cachedMap.get(id);
+      if (cached) {
+        const emotion =
+          cached.emotionFeature?.label || cached.emotionFeature?.primaryEmotion;
+        if (
+          !mainEmotion ||
+          emotion?.toLowerCase() === mainEmotion.toLowerCase()
+        ) {
+          result.push(cached);
+        }
+      } else {
+        missingIds.push(id);
+      }
+    }
+
+    // 2. Query MongoDB for cache misses
+    if (missingIds.length > 0) {
+      const filter: Record<string, any> = {
+        postId: { $in: missingIds },
+      };
+      if (mainEmotion) {
+        filter["emotionFeature.label"] = mainEmotion.toLowerCase();
+      }
+
+      const dbPosts = await this.postModel
+        .find(filter)
+        .lean<PostSnapshot[]>()
+        .exec();
+
+      if (dbPosts.length > 0) {
+        result.push(...dbPosts);
+        // Write-through to cache asynchronously
+        await this.cacheLayer.setPostBatch(dbPosts).catch((err: any) => {
+          this.logger.warn(`Failed to set post cache batch: ${err?.message}`);
+        });
+      }
+    }
+
+    return result;
   }
 
-  async findSharesByIds(ids: string[], mainEmotion?: string) {
+  async findSharesByIds(
+    ids: string[],
+    mainEmotion?: string,
+  ): Promise<ShareSnapshot[]> {
     if (!ids?.length) return [];
-    const filter = {
-      shareId: { $in: ids },
-      ...(mainEmotion ? { "post.mainEmotion": mainEmotion } : {}),
-    };
-    return this.shareModel.find(filter).lean<ShareSnapshot[]>().exec();
+    const uniqueIds = Array.from(new Set(ids));
+
+    // 1. Fetch from Redis Cache first
+    const cachedMap = await this.cacheLayer.getShareBatch(uniqueIds);
+    const result: ShareSnapshot[] = [];
+    const missingIds: string[] = [];
+
+    for (const id of uniqueIds) {
+      const cached = cachedMap.get(id);
+      if (cached) {
+        result.push(cached);
+      } else {
+        missingIds.push(id);
+      }
+    }
+
+    // 2. Query MongoDB for cache misses
+    if (missingIds.length > 0) {
+      const filter: Record<string, any> = {
+        shareId: { $in: missingIds },
+      };
+      if (mainEmotion) {
+        filter["post.mainEmotion"] = mainEmotion;
+      }
+
+      const dbShares = await this.shareModel
+        .find(filter)
+        .lean<ShareSnapshot[]>()
+        .exec();
+
+      if (dbShares.length > 0) {
+        result.push(...dbShares);
+        // Write-through to cache asynchronously
+        await this.cacheLayer.setShareBatch(dbShares).catch((err: any) => {
+          this.logger.warn(`Failed to set share cache batch: ${err?.message}`);
+        });
+      }
+    }
+
+    return result;
   }
 
   async findPostsForRanking(ids: string[], mainEmotion?: string) {

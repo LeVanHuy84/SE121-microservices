@@ -19,6 +19,7 @@ import {
 import { InjectRedis } from "@nestjs-modules/ioredis";
 import Redis from "ioredis";
 import { DistributionService } from "./distribution.service";
+import { CacheLayerService } from "../../cache-layer/cache-layer.service";
 
 @Injectable()
 export class IngestionPostService {
@@ -33,6 +34,7 @@ export class IngestionPostService {
     private readonly shareModel: Model<ShareSnapshotDocument>,
     private readonly distributionService: DistributionService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly cacheLayer: CacheLayerService,
   ) {}
 
   // ------------------------------------------------
@@ -124,6 +126,9 @@ export class IngestionPostService {
       { $set: updateData },
       { session },
     );
+
+    // Invalidate post snapshot cache
+    await this.cacheLayer.delPost(payload.postId);
   }
 
   // ------------------------------------------------
@@ -141,6 +146,14 @@ export class IngestionPostService {
       },
       { session },
     );
+
+    // Xóa các share liên quan trong cache trước khi xóa trong Mongo
+    const relatedShares = await this.shareModel
+      .find({ postId: payload.postId }, { shareId: 1 })
+      .lean();
+    if (relatedShares.length > 0) {
+      await this.cacheLayer.delShareBatch(relatedShares.map((s) => s.shareId));
+    }
 
     await this.shareModel.deleteMany({ postId: payload.postId }, { session });
 
@@ -164,6 +177,9 @@ export class IngestionPostService {
     for (const key of emotionKeys) {
       await this.redis.zrem(key, postId);
     }
+
+    // 4. Xóa khỏi Cache Layer snapshot
+    await this.cacheLayer.delPost(postId);
 
     // ------------------------------
     // Phân phối remove

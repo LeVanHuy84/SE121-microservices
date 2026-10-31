@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, Repository } from "typeorm";
+import { Repository } from "typeorm";
 import { plainToInstance } from "class-transformer";
 import {
   Audience,
@@ -23,6 +23,7 @@ import { Reaction } from "src/entities/reaction.entity";
 import { Post } from "src/entities/post.entity";
 import { PostCacheService } from "./post-cache.service";
 import { PostShortenMapper } from "../post-shorten.mapper";
+import { ReactionService } from "../../reaction/reaction.service";
 
 @Injectable()
 export class PostQueryService {
@@ -33,6 +34,7 @@ export class PostQueryService {
     @Inject("USER_SOCIAL_SERVICE")
     private readonly userSocialClient: ClientProxy,
     private readonly postCache: PostCacheService,
+    private readonly reactionService: ReactionService,
   ) {}
 
   // ----------------------------------------
@@ -264,11 +266,6 @@ export class PostQueryService {
         statusCode: 404,
         message: "Post not found",
       });
-    // if (userId !== postEdit.userId)
-    //   throw new RpcException({
-    //     statusCode: 403,
-    //     message: 'Forbidden: You are not the owner of the post',
-    //   });
 
     return plainToInstance(
       EditHistoryReponseDTO,
@@ -339,10 +336,12 @@ export class PostQueryService {
     postIds: string[],
   ): Promise<Map<string, ReactionType>> {
     if (!postIds.length) return new Map();
-    const reactions = await this.reactionRepo.find({
-      where: { userId, targetId: In(postIds), targetType: TargetType.POST },
-    });
-    return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
+    const record = await this.reactionService.getReactedTypesBatch(
+      userId,
+      TargetType.POST,
+      postIds,
+    );
+    return new Map(Object.entries(record));
   }
 
   async ensureCanViewPost(userId: string, post: Post): Promise<void> {

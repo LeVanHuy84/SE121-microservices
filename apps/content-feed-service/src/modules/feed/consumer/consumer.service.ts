@@ -25,6 +25,7 @@ import {
 } from "src/utils/emotion-normalizer";
 import { AffinityService } from "../affinity/affinity.service";
 import { FeedItem } from "../mongo/schema/feed-item.schema";
+import { CacheLayerService } from "../cache-layer/cache-layer.service";
 
 @Injectable()
 export class ConsumerService {
@@ -44,6 +45,7 @@ export class ConsumerService {
     private readonly redis: Redis,
 
     private readonly affinityService: AffinityService,
+    private readonly cacheLayer: CacheLayerService,
   ) {}
 
   async handleCreated(payload: AnalysisResultEventPayload) {
@@ -113,8 +115,12 @@ export class ConsumerService {
       }
 
       await pipeline.exec();
+
+      // 3. Xóa khỏi Cache Layer snapshot ngay lập tức
+      await this.cacheLayer.delPost(postId);
+
       this.logger.log(
-        `Deleted post ${postId} from personal feed and trending redis due to HARD_BLOCK moderation`,
+        `Deleted post ${postId} from personal feed, trending redis and cache layer due to HARD_BLOCK moderation`,
       );
     } catch (err) {
       this.logger.error(`Error deleting post ${postId} from feed`, err);
@@ -210,6 +216,9 @@ export class ConsumerService {
         },
       );
     }
+
+    // Invalidate post snapshot cache để phản ánh emotionFeature / warning mới
+    await this.cacheLayer.delPost(payload.targetId);
 
     if (!updatedPost.groupId && !isCrisisOrSelfHarm) {
       const emotionKey = `emotion:post:${payload.targetId}`;

@@ -11,6 +11,7 @@ import { ShareCacheService } from "./service/share-cache.service";
 import { UserSocialClientModule } from "../client/user-social-client.module";
 import { EventModule } from "../event/event.module";
 import { StatsModule } from "../stats/stats.module";
+import { ReactionModule } from "../reaction/reaction.module";
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { StatsModule } from "../stats/stats.module";
     UserSocialClientModule,
     EventModule,
     StatsModule,
+    ReactionModule,
   ],
   controllers: [ShareController],
   providers: [ShareCommandService, ShareQueryService, ShareCacheService],

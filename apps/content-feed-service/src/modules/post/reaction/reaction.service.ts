@@ -237,12 +237,20 @@ export class ReactionService {
     targetIds: string[],
   ): Promise<Record<string, ReactionType>> {
     if (!targetIds.length) return {};
-    const reactions = await this.reactionRepo.find({
-      where: { userId, targetId: In(targetIds), targetType },
-    });
-    return Object.fromEntries(
-      reactions.map((r) => [r.targetId, r.reactionType]),
-    );
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validTargetIds = targetIds.filter((id) => uuidRegex.test(id));
+    if (!validTargetIds.length) return {};
+    try {
+      const reactions = await this.reactionRepo.find({
+        where: { userId, targetId: In(validTargetIds), targetType },
+        select: ["targetId", "reactionType"],
+      });
+      return Object.fromEntries(
+        reactions.map((r) => [r.targetId, r.reactionType]),
+      );
+    } catch {
+      return {};
+    }
   }
 
   // --------------------------------------------------

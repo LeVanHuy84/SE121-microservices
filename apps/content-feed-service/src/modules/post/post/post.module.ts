@@ -16,6 +16,7 @@ import { PostGroupController } from "./controller/post-group.controller";
 import { PostGroupService } from "./service/post-group.service";
 import { PostGroupInfo } from "src/entities/post-group-info.entity";
 import { OutboxService } from "../event/outbox.service";
+import { ReactionModule } from "../reaction/reaction.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { OutboxService } from "../event/outbox.service";
       PostGroupInfo,
     ]),
     UserSocialClientModule,
+    ReactionModule,
   ],
   controllers: [PostController, PostGroupController],
   providers: [

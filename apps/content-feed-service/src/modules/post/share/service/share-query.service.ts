@@ -14,11 +14,12 @@ import {
 import { plainToInstance } from "class-transformer";
 import { Reaction } from "src/entities/reaction.entity";
 import { Share } from "src/entities/share.entity";
-import { Repository, In } from "typeorm";
+import { Repository } from "typeorm";
 import { ShareCacheService } from "./share-cache.service";
 import { ShareShortenMapper } from "../share-shorten.mapper";
 import { firstValueFrom } from "rxjs";
 import { MICROSERVICES_CLIENT } from "src/constant";
+import { ReactionService } from "../../reaction/reaction.service";
 
 @Injectable()
 export class ShareQueryService {
@@ -30,6 +31,7 @@ export class ShareQueryService {
     @InjectRepository(Reaction)
     private readonly reactionRepo: Repository<Reaction>,
     private readonly shareCache: ShareCacheService,
+    private readonly reactionService: ReactionService,
   ) {}
 
   /** 🔹 Get a single share by id (cached) */
@@ -252,11 +254,12 @@ export class ShareQueryService {
     shareIds: string[],
   ): Promise<Map<string, ReactionType | undefined>> {
     if (!shareIds.length) return new Map();
-    const reactions = await this.reactionRepo.find({
-      where: { userId, targetType: TargetType.SHARE, targetId: In(shareIds) },
-      select: ["targetId", "reactionType"],
-    });
-    return new Map(reactions.map((r) => [r.targetId, r.reactionType]));
+    const record = await this.reactionService.getReactedTypesBatch(
+      userId,
+      TargetType.SHARE,
+      shareIds,
+    );
+    return new Map(Object.entries(record));
   }
 
   private async ensureCanView(
