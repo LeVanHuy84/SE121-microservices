@@ -2,7 +2,7 @@
 EmotionContextService — fetches the user's latest emotion snapshot from MongoDB.
 
 Design:
-- Uses the singleton `emotion_aggregate_repo` (initialized in analysis/lifespan.py).
+- Uses the singleton `emotion_aggregate_repo` (via app.core.messaging).
 - Implements a 500ms asyncio timeout and fallbacks to a neutral snapshot to prevent blocking the chat flow.
 - Uses lazy imports for the analysis module to avoid circular dependencies.
 """
@@ -27,6 +27,8 @@ class EmotionSnapshot:
     risk_level: str = "none"            # none | weak | medium | high
     suggested_action: str = "NO_ACTION" # NO_ACTION | MONITOR | TRIGGER_PROACTIVE_CHECKIN
     chatbot_prompt_context: str | None = None
+    persistent_distress: bool = False
+    recent_trend: str = "stable"        # stable | deteriorating | recovering
 
     @property
     def needs_empathetic_tone(self) -> bool:
@@ -105,16 +107,18 @@ class EmotionContextService:
         if not redis:
             return
         
-        key = f"chatbot:emotion:{user_id}"
         data = {
             "primary_emotion": snapshot.primary_emotion,
             "risk_level": snapshot.risk_level,
             "suggested_action": snapshot.suggested_action,
+            "persistent_distress": snapshot.persistent_distress,
+            "recent_trend": snapshot.recent_trend,
         }
         if snapshot.chatbot_prompt_context:
             data["chatbot_prompt_context"] = snapshot.chatbot_prompt_context
             
         try:
+            key = f"chatbot:emotion:{user_id}"
             await redis.setex(key, int(self._CACHE_TTL_SECONDS), json.dumps(data))
         except Exception as exc:
             self._disable_redis(exc)
@@ -141,6 +145,8 @@ class EmotionContextService:
                         risk_level=data.get("risk_level", "none"),
                         suggested_action=data.get("suggested_action", "NO_ACTION"),
                         chatbot_prompt_context=data.get("chatbot_prompt_context"),
+                        persistent_distress=bool(data.get("persistent_distress", False)),
+                        recent_trend=data.get("recent_trend", "stable"),
                     )
             except Exception as exc:
                 self._disable_redis(exc)
@@ -165,28 +171,49 @@ class EmotionContextService:
     async def _fetch(self, user_id: str) -> EmotionSnapshot:
         repo = self._repo
         if repo is None:
-            # Lazy import to avoid circular dependency since the analysis module might not be fully initialized
-            from app.modules.analysis.lifespan import emotion_aggregate_repo  # noqa: PLC0415
-            repo = emotion_aggregate_repo
+            from app.core.messaging import get_emotion_aggregate_repo
 
-        docs = await repo.get_user_recent_analyses(user_id, limit=1)
+            repo = get_emotion_aggregate_repo()
+            if repo is None:
+                return _DEFAULT_SNAPSHOT
+
+        docs = await repo.get_user_recent_analyses(user_id, limit=3)
         if not docs:
             return _DEFAULT_SNAPSHOT
 
-        doc = docs[0]
+        latest = docs[0]
         # The Emotion aggregate stores either primaryEmotion or finalEmotion (due to 2 different pipelines)
         primary = (
-            doc.get("primaryEmotion")
-            or doc.get("finalEmotion")
+            latest.get("primaryEmotion")
+            or latest.get("finalEmotion")
             or "neutral"
         ).lower()
-        risk = (doc.get("mentalHealthRiskLevel") or "none").lower()
-        action = doc.get("suggestedAction") or "NO_ACTION"
+        risk = (latest.get("mentalHealthRiskLevel") or "none").lower()
+        action = latest.get("suggestedAction") or "NO_ACTION"
+
+        # Calculate persistent distress & trend across recent history
+        negative_count = 0
+        for doc in docs:
+            emo = (doc.get("primaryEmotion") or doc.get("finalEmotion") or "neutral").lower()
+            if emo in _NEGATIVE_EMOTIONS:
+                negative_count += 1
+
+        persistent = negative_count >= 2
+
+        trend = "stable"
+        if len(docs) >= 2:
+            prev_risk = (docs[1].get("mentalHealthRiskLevel") or "none").lower()
+            if risk in _HIGH_RISK_LEVELS and prev_risk not in _HIGH_RISK_LEVELS:
+                trend = "deteriorating"
+            elif prev_risk in _HIGH_RISK_LEVELS and risk not in _HIGH_RISK_LEVELS:
+                trend = "recovering"
 
         return EmotionSnapshot(
             primary_emotion=primary,
             risk_level=risk,
             suggested_action=action,
+            persistent_distress=persistent,
+            recent_trend=trend,
         )
 
 

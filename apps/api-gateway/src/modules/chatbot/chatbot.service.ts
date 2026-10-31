@@ -461,4 +461,33 @@ export class ChatbotService {
     }
     return fallback;
   }
+
+  async recordActionClick(
+    userId: string,
+    body: { actionId: string; destinationId: string },
+  ) {
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+    try {
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/actions/click`,
+          {
+            userId,
+            actionId: body.actionId,
+            destinationId: body.destinationId,
+          },
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+      return res.data;
+    } catch (error) {
+      this.logger.warn(`Failed to record action click for ${userId}: ${error}`);
+      return { success: false };
+    }
+  }
 }

@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, Union
+from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 AssistantRole = Literal["system", "user", "assistant"]
@@ -16,6 +17,7 @@ AssistantResponseType = Literal[
     "community_blocked",
     "crisis",
     "fallback",
+    "navigation",
 ]
 
 
@@ -65,17 +67,29 @@ class AssistantSource(BaseModel):
     score: Optional[float] = None
 
 
-class AssistantSuggestedAction(BaseModel):
-    type: str
-    label: str
-    payload: dict[str, Any] = Field(default_factory=dict)
+class NavigatePayload(BaseModel):
+    destinationId: str = Field(pattern=r"^[a-z]+(\.[a-z_]+)*$")
+    params: dict[str, str] = Field(default_factory=dict)
+
+
+class NavigateAction(BaseModel):
+    type: Literal["navigate"] = "navigate"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(max_length=40)
+    payload: NavigatePayload
+
+
+AssistantSuggestedAction = Annotated[
+    Union[NavigateAction],
+    Field(discriminator="type"),
+]
 
 
 class AssistantRespondData(BaseModel):
     type: AssistantResponseType = "answer"
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
-    suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
+    suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list, max_length=3)
     model: str
     provider: str
     requestId: Optional[str] = None
@@ -83,6 +97,12 @@ class AssistantRespondData(BaseModel):
     persisted: Optional[bool] = None
     conversationId: Optional[str] = None
     crisis: Optional[CrisisInfo] = None
+
+    @model_validator(mode="after")
+    def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
+        if self.type == "crisis" and self.suggestedActions:
+            raise ValueError("Crisis response must not contain suggestedActions")
+        return self
 
 
 class AssistantRespondResponse(BaseModel):

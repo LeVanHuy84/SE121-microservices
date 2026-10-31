@@ -1,0 +1,119 @@
+{"utterance": "mở trang chủ", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "về newsfeed", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "cho tôi xem bảng tin", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "quay ve trang chu", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "feed", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "mở danh sách bạn bè", "expected_destination": "friends", "expected_path": "command"}
+{"utterance": "xem bạn bè của tôi", "expected_destination": "friends", "expected_path": "command"}
+{"utterance": "danh sach ban be o dau", "expected_destination": "friends", "expected_path": "howto"}
+{"utterance": "vao trang ban be", "expected_destination": "friends", "expected_path": "command"}
+{"utterance": "friends", "expected_destination": "friends", "expected_path": "command"}
+{"utterance": "xem lời mời kết bạn", "expected_destination": "friends.requests", "expected_path": "command"}
+{"utterance": "ai gửi lời mời kết bạn cho tôi", "expected_destination": "friends.requests", "expected_path": "command"}
+{"utterance": "mở yêu cầu kết bạn", "expected_destination": "friends.requests", "expected_path": "command"}
+{"utterance": "chap nhan ket ban o dau", "expected_destination": "friends.requests", "expected_path": "howto"}
+{"utterance": "loi moi kb", "expected_destination": "friends.requests", "expected_path": "command"}
+{"utterance": "gợi ý bạn bè", "expected_destination": "friends.suggestions", "expected_path": "command"}
+{"utterance": "tìm bạn mới ở đâu", "expected_destination": "friends.suggestions", "expected_path": "howto"}
+{"utterance": "nhung nguoi ban co the biet", "expected_destination": "friends.suggestions", "expected_path": "command"}
+{"utterance": "cho xem gợi ý kết bạn", "expected_destination": "friends.suggestions", "expected_path": "command"}
+{"utterance": "friend suggestions", "expected_destination": "friends.suggestions", "expected_path": "command"}
+{"utterance": "danh sách người đã chặn", "expected_destination": "friends.blocked", "expected_path": "command"}
+{"utterance": "mở danh sách block", "expected_destination": "friends.blocked", "expected_path": "command"}
+{"utterance": "làm sao để mở chặn người khác", "expected_destination": "friends.blocked", "expected_path": "howto"}
+{"utterance": "xem danh sach da chan", "expected_destination": "friends.blocked", "expected_path": "command"}
+{"utterance": "blocked users", "expected_destination": "friends.blocked", "expected_path": "command"}
+{"utterance": "khám phá các nhóm", "expected_destination": "groups.explore", "expected_path": "command"}
+{"utterance": "tìm hội nhóm trên sentimeta", "expected_destination": "groups.explore", "expected_path": "command"}
+{"utterance": "muốn tham gia nhóm thì vào đâu", "expected_destination": "groups.explore", "expected_path": "howto"}
+{"utterance": "kham pha nhom", "expected_destination": "groups.explore", "expected_path": "command"}
+{"utterance": "explore groups", "expected_destination": "groups.explore", "expected_path": "command"}
+{"utterance": "các nhóm của tôi", "expected_destination": "groups.my_groups", "expected_path": "command"}
+{"utterance": "xem nhóm đã tham gia", "expected_destination": "groups.my_groups", "expected_path": "command"}
+{"utterance": "nhom cua toi", "expected_destination": "groups.my_groups", "expected_path": "command"}
+{"utterance": "quan ly nhom o dau", "expected_destination": "groups.my_groups", "expected_path": "howto"}
+{"utterance": "my groups", "expected_destination": "groups.my_groups", "expected_path": "command"}
+{"utterance": "lời mời vào nhóm", "expected_destination": "groups.invites", "expected_path": "command"}
+{"utterance": "xem lời mời tham gia nhóm", "expected_destination": "groups.invites", "expected_path": "command"}
+{"utterance": "ai mời tôi vào nhóm", "expected_destination": "groups.invites", "expected_path": "command"}
+{"utterance": "group invites", "expected_destination": "groups.invites", "expected_path": "command"}
+{"utterance": "mở tin nhắn", "expected_destination": "conversations", "expected_path": "command"}
+{"utterance": "vào hộp thư chat", "expected_destination": "conversations", "expected_path": "command"}
+{"utterance": "xem inbox", "expected_destination": "conversations", "expected_path": "command"}
+{"utterance": "mở messenger", "expected_destination": "conversations", "expected_path": "command"}
+{"utterance": "tro chuyen voi ban be o dau", "expected_destination": "conversations", "expected_path": "howto"}
+{"utterance": "xem thông báo", "expected_destination": "notifications", "expected_path": "command"}
+{"utterance": "mở thông báo mới", "expected_destination": "notifications", "expected_path": "command"}
+{"utterance": "chuong thong bao o dau", "expected_destination": "notifications", "expected_path": "howto"}
+{"utterance": "co thong bao gi moi khong", "expected_destination": null, "expected_path": "none"}
+{"utterance": "notifications", "expected_destination": "notifications", "expected_path": "command"}
+{"utterance": "theo dõi cảm xúc", "expected_destination": "emotions", "expected_path": "command"}
+{"utterance": "xem biểu đồ tâm trạng", "expected_destination": "emotions", "expected_path": "command"}
+{"utterance": "nhật ký cảm xúc ở đâu", "expected_destination": "emotions", "expected_path": "howto"}
+{"utterance": "mở trang sentiment", "expected_destination": "emotions", "expected_path": "command"}
+{"utterance": "trang sức khỏe tinh thần", "expected_destination": "emotions", "expected_path": "command"}
+{"utterance": "tìm kiếm bài viết về sức khỏe", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "tìm nhóm yoga", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "tìm bạn nam", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "tra cứu bài viết cbt", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "mở trang cá nhân", "expected_destination": "profile.me", "expected_path": "command"}
+{"utterance": "xem hồ sơ của tôi", "expected_destination": "profile.me", "expected_path": "command"}
+{"utterance": "thông tin cá nhân của tôi ở đâu", "expected_destination": "profile.me", "expected_path": "howto"}
+{"utterance": "my profile", "expected_destination": "profile.me", "expected_path": "command"}
+{"utterance": "vào phần profile", "expected_destination": "profile.me", "expected_path": "command"}
+{"utterance": "mở cài đặt", "expected_destination": "settings", "expected_path": "command"}
+{"utterance": "vào thiết lập tài khoản", "expected_destination": "settings", "expected_path": "command"}
+{"utterance": "settings", "expected_destination": "settings", "expected_path": "command"}
+{"utterance": "cấu hình ứng dụng", "expected_destination": "settings", "expected_path": "command"}
+{"utterance": "mở cài đặt quyền riêng tư", "expected_destination": "settings.privacy", "expected_path": "command"}
+{"utterance": "chỉnh chế độ riêng tư", "expected_destination": "settings.privacy", "expected_path": "command"}
+{"utterance": "cài đặt bảo mật ai thấy bài viết", "expected_destination": "settings.privacy", "expected_path": "command"}
+{"utterance": "làm sao để ẩn bài viết", "expected_destination": "settings.privacy", "expected_path": "howto"}
+{"utterance": "privacy settings", "expected_destination": "settings.privacy", "expected_path": "command"}
+{"utterance": "cài đặt thông báo", "expected_destination": "settings.notifications", "expected_path": "command"}
+{"utterance": "tắt thông báo ở đâu", "expected_destination": "settings.notifications", "expected_path": "howto"}
+{"utterance": "chỉnh thông báo ứng dụng", "expected_destination": "settings.notifications", "expected_path": "command"}
+{"utterance": "notification settings", "expected_destination": "settings.notifications", "expected_path": "command"}
+{"utterance": "mở nhật ký hoạt động", "expected_destination": "settings.activity", "expected_path": "command"}
+{"utterance": "xem lịch sử tương tác của tôi", "expected_destination": "settings.activity", "expected_path": "command"}
+{"utterance": "activity log", "expected_destination": "settings.activity", "expected_path": "command"}
+{"utterance": "lịch sử hoạt động ở đâu", "expected_destination": "settings.activity", "expected_path": "howto"}
+{"utterance": "xem lịch sử kiểm duyệt", "expected_destination": "settings.moderation_history", "expected_path": "command"}
+{"utterance": "tại sao bài viết bị ẩn", "expected_destination": "settings.moderation_history", "expected_path": "command"}
+{"utterance": "khiếu nại kiểm duyệt ở đâu", "expected_destination": "settings.moderation_history", "expected_path": "howto"}
+{"utterance": "moderation history", "expected_destination": "settings.moderation_history", "expected_path": "command"}
+{"utterance": "trung tâm trợ giúp", "expected_destination": "settings.support", "expected_path": "command"}
+{"utterance": "liên hệ hỗ trợ", "expected_destination": "settings.support", "expected_path": "command"}
+{"utterance": "hướng dẫn sử dụng app ở đâu", "expected_destination": "settings.support", "expected_path": "howto"}
+{"utterance": "support sentimeta", "expected_destination": "settings.support", "expected_path": "command"}
+{"utterance": "chính sách quyền riêng tư", "expected_destination": "settings.privacy_policy", "expected_path": "command"}
+{"utterance": "xem điều khoản sử dụng", "expected_destination": "settings.privacy_policy", "expected_path": "command"}
+{"utterance": "chính sách bảo mật", "expected_destination": "settings.privacy_policy", "expected_path": "command"}
+{"utterance": "privacy policy", "expected_destination": "settings.privacy_policy", "expected_path": "command"}
+{"utterance": "hôm nay thời tiết đẹp quá", "expected_destination": null, "expected_path": "none"}
+{"utterance": "bạn có khỏe không", "expected_destination": null, "expected_path": "none"}
+{"utterance": "xin chào trợ lý", "expected_destination": null, "expected_path": "none"}
+{"utterance": "tôi cảm thấy buồn và mệt mỏi", "expected_destination": null, "expected_path": "none"}
+{"utterance": "bài tập thở 4-7-8 làm như thế nào", "expected_destination": null, "expected_path": "none"}
+{"utterance": "kỹ thuật tiếp đất là gì", "expected_destination": null, "expected_path": "none"}
+{"utterance": "1 + 1 bằng mấy", "expected_destination": null, "expected_path": "none"}
+{"utterance": "tôi muốn chết", "expected_destination": null, "expected_path": "none"}
+{"utterance": "mở bảng điều khiển admin", "expected_destination": null, "expected_path": "none"}
+{"utterance": "trang admin", "expected_destination": null, "expected_path": "none"}
+{"utterance": "admin analytics", "expected_destination": null, "expected_path": "none"}
+{"utterance": "quản trị hệ thống", "expected_destination": null, "expected_path": "none"}
+{"utterance": "chat hiện tại có chức năng video call không", "expected_destination": null, "expected_path": "none"}
+{"utterance": "app có tính năng nghe nhạc không", "expected_destination": null, "expected_path": "none"}
+{"utterance": "hôm nay ăn gì nhỉ", "expected_destination": null, "expected_path": "none"}
+{"utterance": "kể chuyện cười đi", "expected_destination": null, "expected_path": "none"}
+{"utterance": "lập trình python như thế nào", "expected_destination": null, "expected_path": "none"}
+{"utterance": "mở cài đặt", "expected_destination": "settings", "expected_path": "command"}
+{"utterance": "vào trang thông báo", "expected_destination": "notifications", "expected_path": "command"}
+{"utterance": "đi tới trang chủ", "expected_destination": "home", "expected_path": "command"}
+{"utterance": "xem danh sách bạn", "expected_destination": "friends", "expected_path": "command"}
+{"utterance": "mở nhóm của tôi", "expected_destination": "groups.my_groups", "expected_path": "command"}
+{"utterance": "tìm bài viết về thiền định", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "tìm người dùng an", "expected_destination": "search", "expected_path": "command"}
+{"utterance": "xem lịch sử hoạt động", "expected_destination": "settings.activity", "expected_path": "command"}
+{"utterance": "mở hộp thư", "expected_destination": "conversations", "expected_path": "command"}
+{"utterance": "chuyển tới trang cá nhân", "expected_destination": "profile.me", "expected_path": "command"}

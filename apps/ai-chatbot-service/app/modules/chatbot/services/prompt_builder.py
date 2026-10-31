@@ -85,15 +85,32 @@ class PromptBuilder:
 
     def _build_emotion_tone_directive(self, snapshot) -> str:
         """Inject TONE_DIRECTIVE to adapt the response style based on emotion and risk level."""
-        if snapshot is None or snapshot.primary_emotion not in {"sadness", "fear", "anger", "disgust"}:
+        if snapshot is None:
             return ""
-            
-        directive = (
-            f"TONE_DIRECTIVE: Người dùng đang ở trạng thái cảm xúc: {snapshot.primary_emotion.upper()} "
-            f"(Mức rủi ro: {snapshot.risk_level}).\n"
-            "- Bắt buộc sử dụng giọng điệu thấu cảm, nhẹ nhàng và an toàn, không phán xét.\n"
-        )
-        
+
+        has_negative_emotion = snapshot.primary_emotion in {"sadness", "fear", "anger", "disgust"}
+        persistent_distress = bool(getattr(snapshot, "persistent_distress", False))
+        if not has_negative_emotion and not persistent_distress:
+            return ""
+
+        if has_negative_emotion:
+            directive = (
+                f"TONE_DIRECTIVE: Người dùng đang ở trạng thái cảm xúc: {snapshot.primary_emotion.upper()} "
+                f"(Mức rủi ro: {snapshot.risk_level}).\n"
+            )
+        else:
+            directive = (
+                "TONE_DIRECTIVE: Người dùng có dấu hiệu căng thẳng kéo dài trong thời gian gần đây "
+                f"(Mức rủi ro: {snapshot.risk_level}).\n"
+            )
+        directive += "- Bắt buộc sử dụng giọng điệu thấu cảm, nhẹ nhàng và an toàn, không phán xét.\n"
+
+        if persistent_distress:
+            directive += (
+                "- CHÚ Ý: Trạng thái căng thẳng đã kéo dài. Hãy đặc biệt ưu tiên sự ấm áp, chậm rãi, "
+                "và gợi ý nhẹ nhàng bài tập thở 4-7-8 hoặc kỹ thuật grounding nếu cảm thấy phù hợp.\n"
+            )
+
         if snapshot.risk_level in {"high", "medium"}:
             directive += (
                 "- Ưu tiên SƠ CỨU TÂM LÝ (PFA): Tập trung lắng nghe, trấn an và hướng dẫn các kỹ thuật grounding (ví dụ: hít thở). KHÔNG cố gắng tranh luận hay thay đổi suy nghĩ của họ lúc này.\n"
@@ -104,7 +121,7 @@ class PromptBuilder:
                 "- Áp dụng PHƯƠNG PHÁP SOCRATES: Sau khi đồng cảm, thay vì đưa ra lời khuyên, hãy đặt MỘT câu hỏi mở nhằm giúp họ tự nhìn nhận lại vấn đề (ví dụ: 'Điều gì khiến bạn cảm thấy...', 'Có góc nhìn nào khác tích cực hơn không?').\n"
                 "- KHÔNG dồn dập hỏi cung. Chỉ hỏi một câu duy nhất để gợi mở."
             )
-            
+
         return directive
 
     def _build_system_prompt(self) -> str:

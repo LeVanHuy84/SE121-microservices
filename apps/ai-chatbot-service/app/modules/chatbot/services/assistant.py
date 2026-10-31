@@ -6,9 +6,14 @@ import logging
 import re
 import time
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
+from typing import Any
 from uuid import uuid4
 
 from app.core.settings import settings
+from app.modules.chatbot.navigation.policy import NavOutcome, build_nav_outcome
+from app.modules.chatbot.navigation.resolver import NavResolver, nav_resolver
+from app.modules.chatbot.navigation.telemetry import intent_telemetry
 from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
 from app.modules.chatbot.schemas import (
     AssistantHistoryItem,
@@ -17,6 +22,7 @@ from app.modules.chatbot.schemas import (
     AssistantSource,
     CrisisInfo,
     CrisisResource,
+    NavigateAction,
 )
 from app.modules.chatbot.services.context_resolver import (
     AssistantContextResolver,
@@ -62,6 +68,17 @@ _ALERT_REASON_DEFAULT = "Chatbot phát hiện dấu hiệu khủng hoảng tâm 
 
 
 
+@dataclass(slots=True)
+class GuardResult:
+    """Outcome of the guard chain: either a final `data` reply, or the context to generate one."""
+
+    data: AssistantRespondData | None = None
+    intent: str | None = None
+    scope_decision: ScopeDecision | None = None
+    contexts: list = field(default_factory=list)
+    pending_actions: list[NavigateAction] = field(default_factory=list)
+
+
 class RespondCommand:
     def __init__(
         self,
@@ -74,6 +91,7 @@ class RespondCommand:
         persist_history: PersistHistoryCommand | None = None,
         kafka_producer=None,
         outbox_repo=None,
+        nav_resolver_instance: NavResolver | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or GroqProvider()
@@ -84,6 +102,7 @@ class RespondCommand:
         self.emotion_ctx = emotion_context_service
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
+        self.nav_resolver = nav_resolver_instance or nav_resolver
         self._kafka_producer = kafka_producer
         self._outbox_repo = outbox_repo
 
@@ -94,7 +113,7 @@ class RespondCommand:
         last_intent: str | None,
         has_follow_up_anchor: bool,
         emotion_snapshot: EmotionSnapshot,
-    ) -> tuple[AssistantRespondData | None, str | None, ScopeDecision | None, list]:
+    ) -> GuardResult:
         # --- Mental health crisis check (highest priority guard) ---
         crisis_decision = self.crisis_guard.evaluate(working_request.message)
         if crisis_decision.is_crisis:
@@ -113,13 +132,19 @@ class RespondCommand:
                 crisis_decision.severity,
                 notification_sent,
             )
-            return data, "mental_health_crisis", None, []
+            return GuardResult(data=data, intent="mental_health_crisis")
 
         # --- Community Guard ---
         community_decision = self.community_guard.evaluate(working_request.message)
         if not community_decision.allowed:
             data = self._community_response(community_decision.reason)
-            return data, "community_guard", None, []
+            return GuardResult(data=data, intent="community_guard")
+
+        # --- Navigation Resolver ---
+        nav = build_nav_outcome(self.nav_resolver.resolve(working_request.message))
+        if nav.response is not None:
+            self._track_nav_offer(working_request, nav)
+            return GuardResult(data=nav.response, intent=nav.intent)
 
         # --- Context Resolver ---
         candidate_contexts = (
@@ -141,7 +166,12 @@ class RespondCommand:
         )
 
         if scope_decision.reason == "greeting":
-            return self._greeting_response(), "greeting", scope_decision, candidate_contexts
+            return GuardResult(
+                data=self._greeting_response(),
+                intent="greeting",
+                scope_decision=scope_decision,
+                contexts=candidate_contexts,
+            )
 
         general_knowledge = self._is_general_knowledge_only(scope_decision)
 
@@ -153,7 +183,7 @@ class RespondCommand:
             elif scope_decision.state == "in_domain_unknown":
                 if general_knowledge:
                     # Mental health / emotion knowledge: still let the LLM answer.
-                    return None, None, scope_decision, candidate_contexts
+                    return self._continue_to_llm(working_request, nav, scope_decision, candidate_contexts)
                 data = self._in_domain_unknown_response(scope_decision.matched_domains)
                 intent = "in_domain_unknown"
             elif scope_decision.state == "ambiguous":
@@ -161,7 +191,12 @@ class RespondCommand:
                 intent = "clarify"
             else:
                 data = self._out_of_scope_response()
-            return data, intent, scope_decision, candidate_contexts
+            return GuardResult(
+                data=data,
+                intent=intent,
+                scope_decision=scope_decision,
+                contexts=candidate_contexts,
+            )
 
         prompt_limits = resolve_prompt_limits(working_request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
@@ -173,9 +208,36 @@ class RespondCommand:
             and not general_knowledge
         ):
             data = self._in_domain_unknown_response(scope_decision.matched_domains)
-            return data, "in_domain_unknown", scope_decision, candidate_contexts
+            return GuardResult(
+                data=data,
+                intent="in_domain_unknown",
+                scope_decision=scope_decision,
+                contexts=candidate_contexts,
+            )
 
-        return None, None, scope_decision, candidate_contexts
+        return self._continue_to_llm(working_request, nav, scope_decision, candidate_contexts)
+
+    def _track_nav_offer(self, request: AssistantRespondRequest, nav: NavOutcome) -> None:
+        intent_telemetry.track_offer(
+            user_id=request.userId,
+            actions=nav.offered_actions,
+            resolver_path=nav.path,
+        )
+
+    def _continue_to_llm(
+        self,
+        request: AssistantRespondRequest,
+        nav: NavOutcome,
+        scope_decision: ScopeDecision,
+        contexts: list,
+    ) -> GuardResult:
+        """The turn goes to RAG + LLM; how-to navigation buttons ride along and are tracked as offered."""
+        self._track_nav_offer(request, nav)
+        return GuardResult(
+            scope_decision=scope_decision,
+            contexts=contexts,
+            pending_actions=nav.howto_actions,
+        )
 
     def _is_general_knowledge_only(self, scope_decision: ScopeDecision) -> bool:
         """True if every matched domain is general knowledge (mental_health/emotion).
@@ -211,9 +273,12 @@ class RespondCommand:
         # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
         emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
 
-        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+        guard = await self._run_guard_chain(
             working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
         )
+        guard_data, guard_intent = guard.data, guard.intent
+        scope_decision, candidate_contexts = guard.scope_decision, guard.contexts
+        pending_actions = guard.pending_actions
         
         if guard_data:
             await self._persist_session_memory(request, guard_data.reply, [], guard_intent)
@@ -222,6 +287,7 @@ class RespondCommand:
                 assistant_reply=guard_data.reply,
                 sources=[],
                 intent=guard_intent,
+                actions=guard_data.suggestedActions,
             )
             return guard_data.model_copy(
                 update={
@@ -306,13 +372,14 @@ class RespondCommand:
             assistant_reply=reply_content,
             sources=sources,
             intent=resolved_intent,
+            actions=pending_actions,
         )
 
         return AssistantRespondData(
             type="fallback" if generation.model == "timeout-guard" else "answer",
             reply=reply_content,
             sources=sources,
-            suggestedActions=[],
+            suggestedActions=pending_actions,
             model=generation.model,
             provider=generation.provider,
             requestId=request_id,
@@ -670,12 +737,10 @@ class RespondCommand:
             kafka_producer = self._kafka_producer
             outbox_repo = self._outbox_repo
             if kafka_producer is None or outbox_repo is None:
-                from app.modules.analysis.lifespan import (
-                    kafka_producer as default_producer,
-                    outbox_repo as default_outbox,
-                )
-                kafka_producer = kafka_producer or default_producer
-                outbox_repo = outbox_repo or default_outbox
+                from app.core.messaging import get_kafka_producer, get_outbox_repo
+
+                kafka_producer = kafka_producer or get_kafka_producer()
+                outbox_repo = outbox_repo or get_outbox_repo()
             from datetime import datetime, timezone
 
             timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -735,13 +800,18 @@ class RespondCommand:
         # --- Emotion snapshot (fire-and-forget timeout 500ms in service layer) ---
         emotion_snapshot: EmotionSnapshot = await self.emotion_ctx.get_snapshot(request.userId)
 
-        guard_data, guard_intent, scope_decision, candidate_contexts = await self._run_guard_chain(
+        guard = await self._run_guard_chain(
             working_request, history, last_intent, has_follow_up_anchor, emotion_snapshot
         )
+        guard_data, guard_intent = guard.data, guard.intent
+        scope_decision, candidate_contexts = guard.scope_decision, guard.contexts
+        pending_actions = guard.pending_actions
         
         if guard_data:
             yield self._finalize_stream_data(guard_data, request_id, started_at, request)
-            await self._after_generation(request, guard_data.reply, [], guard_intent)
+            await self._after_generation(
+                request, guard_data.reply, [], guard_intent, actions=guard_data.suggestedActions
+            )
             return
 
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
@@ -787,13 +857,26 @@ class RespondCommand:
                     yield AssistantRespondData(
                         reply=chunk.content,
                         sources=sources if len(full_reply_parts) == 1 else [],
-                        suggestedActions=[],
+                        suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
                         model=chunk.model or settings.GROQ_MODEL,
                         provider=chunk.provider or "groq",
                         requestId=request_id,
                         latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
                         conversationId=request.conversationId or "default",
                     )
+        except (asyncio.CancelledError, GeneratorExit):
+            logger.debug("Assistant stream cancelled or client disconnected mid-stream")
+            if full_reply_parts:
+                full_reply = "".join(full_reply_parts)
+                resolved_intent = request.intent or self._infer_intent(
+                    final_contexts,
+                    fallback_domains=scope_decision.matched_domains,
+                )
+                try:
+                    await self._after_generation(request, full_reply, sources, resolved_intent)
+                except Exception:
+                    logger.debug("Failed to persist partial stream after cancellation")
+            raise
         except Exception:
             logger.exception("Assistant stream generation failed")
             yield AssistantRespondData(
@@ -814,7 +897,9 @@ class RespondCommand:
             final_contexts,
             fallback_domains=scope_decision.matched_domains,
         )
-        await self._after_generation(request, full_reply, sources, resolved_intent)
+        await self._after_generation(
+            request, full_reply, sources, resolved_intent, actions=pending_actions
+        )
 
     def _finalize_stream_data(
         self, 
@@ -836,7 +921,8 @@ class RespondCommand:
         request: AssistantRespondRequest, 
         reply: str, 
         sources: list[AssistantSource], 
-        intent: str | None
+        intent: str | None,
+        actions: list[Any] | None = None,
     ):
         reply_content = self._sanitize_assistant_reply(reply)
         await self._persist_session_memory(
@@ -850,6 +936,7 @@ class RespondCommand:
             assistant_reply=reply_content,
             sources=sources,
             intent=intent,
+            actions=actions,
         )
 
 

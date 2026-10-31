@@ -45,11 +45,28 @@ def get_readiness_status():
             },
         )
 
+    from app.modules.chatbot.navigation.catalog import destination_catalog
+
+    destinations_count = len(destination_catalog)
+    if destinations_count == 0:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "service": "ai-chatbot-service",
+                "reason": "Navigation destination catalog is empty",
+            },
+        )
+
     return {
         "status": "ready",
         "service": "ai-chatbot-service",
         "provider": "groq",
         "model": settings.GROQ_MODEL,
+        "navigator": {
+            "status": "ready",
+            "destinations_count": destinations_count,
+        },
     }
 
 

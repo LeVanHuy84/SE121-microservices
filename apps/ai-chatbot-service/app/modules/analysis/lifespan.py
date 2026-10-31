@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from app.core.settings import settings
+from app.core.messaging import set_emotion_aggregate_repo, set_kafka_producer, set_outbox_repo
 from app.modules.analysis.messaging.init_kafka import start_kafka, register_consumer
 from app.modules.analysis.messaging.kafka_consumer import KafkaConsumerService
 from app.modules.analysis.messaging.kafka_producer import KafkaProducerService
@@ -33,7 +34,9 @@ logging.basicConfig(
 # INIT SINGLETONS - Now using Motor collections
 # -------------------------------------------------------
 outbox_repo = OutboxRepository(collections['outbox_events'])
+set_outbox_repo(outbox_repo)
 emotion_aggregate_repo = EmotionAggregateRepository(collections['emotion_aggregates'])
+set_emotion_aggregate_repo(emotion_aggregate_repo)
 moderation_repo = ModerationRepository(collections['moderation_results'])
 task_repo = TaskRepository(collections['analysis_tasks'])
 idempotency_repo = IdempotencyRepository(collections['processed_events'])
@@ -45,6 +48,7 @@ analysis_flow_service = AnalysisFlowService(
 )
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
+set_kafka_producer(kafka_producer)
 dlq_service = KafkaDLQService(kafka_producer)
 consumer_helper = KafkaConsumerHelper(idempotency_repo, dlq_service)
 

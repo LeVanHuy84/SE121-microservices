@@ -102,15 +102,52 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snapshot.primary_emotion, "neutral")
         self.assertEqual(snapshot.risk_level, "none")
 
+    async def test_persistent_distress_and_trend(self) -> None:
+        mock_docs = [
+            {"primaryEmotion": "sadness", "mentalHealthRiskLevel": "medium"},
+            {"primaryEmotion": "anger", "mentalHealthRiskLevel": "none"},
+            {"primaryEmotion": "joy", "mentalHealthRiskLevel": "none"},
+        ]
+        mock_repo = AsyncMock()
+        mock_repo.get_user_recent_analyses.return_value = mock_docs
+
+        mock_lifespan = MagicMock()
+        mock_lifespan.emotion_aggregate_repo = mock_repo
+
+        with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
+            with patch.object(self.service, "_get_redis", return_value=None):
+                snapshot = await self.service._fetch("user_distressed")
+
+        self.assertEqual(snapshot.primary_emotion, "sadness")
+        self.assertTrue(snapshot.persistent_distress)
+        self.assertEqual(snapshot.recent_trend, "deteriorating")
+
+    async def test_positive_emotions_with_risk_level_are_not_persistent_distress(self) -> None:
+        mock_docs = [
+            {"primaryEmotion": "joy", "mentalHealthRiskLevel": "medium"},
+            {"primaryEmotion": "neutral", "mentalHealthRiskLevel": "high"},
+            {"primaryEmotion": "sadness", "mentalHealthRiskLevel": "none"},
+        ]
+        mock_repo = AsyncMock()
+        mock_repo.get_user_recent_analyses.return_value = mock_docs
+
+        with patch.object(self.service, "_get_redis", return_value=None):
+            self.service._repo = mock_repo
+            snapshot = await self.service._fetch("user_mixed")
+
+        self.assertFalse(snapshot.persistent_distress)
+
     async def test_get_snapshot_from_redis(self) -> None:
         mock_redis = AsyncMock()
-        mock_redis.get.return_value = '{"primary_emotion": "fear", "risk_level": "high", "suggested_action": "TRIGGER_PROACTIVE_CHECKIN"}'
+        mock_redis.get.return_value = '{"primary_emotion": "fear", "risk_level": "high", "suggested_action": "TRIGGER_PROACTIVE_CHECKIN", "persistent_distress": true, "recent_trend": "deteriorating"}'
 
         with patch.object(self.service, "_get_redis", return_value=mock_redis):
             snapshot = await self.service.get_snapshot("user123")
 
         self.assertEqual(snapshot.primary_emotion, "fear")
         self.assertEqual(snapshot.risk_level, "high")
+        self.assertTrue(snapshot.persistent_distress)
+        self.assertEqual(snapshot.recent_trend, "deteriorating")
         mock_redis.get.assert_called_once_with("chatbot:emotion:user123")
 
 
@@ -148,6 +185,27 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
         directive = self.builder._build_emotion_tone_directive(snapshot)
         self.assertIn("SOCRATES", directive)
         self.assertIn("câu hỏi mở", directive)
+
+    def test_persistent_distress_with_joy_primary_does_not_mislabel_emotion(self) -> None:
+        snapshot = EmotionSnapshot(
+            primary_emotion="joy",
+            risk_level="weak",
+            persistent_distress=True,
+        )
+        directive = self.builder._build_emotion_tone_directive(snapshot)
+        self.assertIn("TONE_DIRECTIVE", directive)
+        self.assertNotIn("JOY", directive)
+        self.assertIn("kéo dài", directive)
+
+    def test_tone_directive_includes_persistent_distress(self) -> None:
+        snapshot = EmotionSnapshot(
+            primary_emotion="sadness",
+            risk_level="medium",
+            persistent_distress=True,
+        )
+        directive = self.builder._build_emotion_tone_directive(snapshot)
+        self.assertIn("kéo dài", directive)
+        self.assertIn("thở 4-7-8", directive)
 
 
 # ---------------------------------------------------------------------------

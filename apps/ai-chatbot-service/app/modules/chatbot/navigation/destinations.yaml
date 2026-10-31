@@ -1,0 +1,278 @@
+# Sentimeta In-App Navigation Destination Catalog
+# Source of truth for navigation routing
+
+destinations:
+  - id: "home"
+    labelVi: "Trang chủ"
+    description: "Bảng tin chính và các bài đăng mới nhất"
+    synonyms:
+      - "trang chu"
+      - "bang tin"
+      - "newfeed"
+      - "newsfeed"
+      - "feed"
+      - "ve trang chu"
+      - "quay ve trang chu"
+    helpDocIds: ["guide-general"]
+    params: {}
+
+  - id: "friends"
+    labelVi: "Bạn bè"
+    description: "Danh sách bạn bè hiện tại"
+    synonyms:
+      - "ban be"
+      - "danh sach ban be"
+      - "danh sach ban"
+      - "xem ban be"
+      - "trang ban be"
+      - "ban cua toi"
+      - "friends"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "friends.requests"
+    labelVi: "Lời mời kết bạn"
+    description: "Các lời mời kết bạn đang chờ phản hồi"
+    synonyms:
+      - "loi moi ket ban"
+      - "yeu cau ket ban"
+      - "ai ket ban voi toi"
+      - "loi moi kb"
+      - "chap nhan ket ban"
+      - "cho ket ban"
+      - "friend requests"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "friends.suggestions"
+    labelVi: "Gợi ý bạn bè"
+    description: "Những người bạn có thể biết và gợi ý kết bạn"
+    synonyms:
+      - "goi y ban be"
+      - "goi y ket ban"
+      - "tim ban moi"
+      - "nhung nguoi ban co the biet"
+      - "ket ban moi"
+      - "friend suggestions"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "friends.blocked"
+    labelVi: "Danh sách đã chặn"
+    description: "Quản lý người dùng đã bị chặn"
+    synonyms:
+      - "danh sach chan"
+      - "danh sach da chan"
+      - "nguoi da chan"
+      - "mo chan"
+      - "bo chan"
+      - "danh sach block"
+      - "blocked users"
+    helpDocIds: ["guide-settings-support", "guide-group-social"]
+    params: {}
+
+  - id: "groups.explore"
+    labelVi: "Khám phá nhóm"
+    description: "Tìm kiếm và khám phá các cộng đồng nhóm mới"
+    synonyms:
+      - "kham pha nhom"
+      - "tim nhom"
+      - "tim kiem nhom"
+      - "cac nhom tren sentimeta"
+      - "tham gia nhom"
+      - "hoi nhom"
+      - "explore groups"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "groups.my_groups"
+    labelVi: "Nhóm của tôi"
+    description: "Các nhóm bạn đang tham gia hoặc quản trị"
+    synonyms:
+      - "nhom cua toi"
+      - "cac nhom da tham gia"
+      - "nhom da tham gia"
+      - "xem nhom da tham gia"
+      - "nhom tham gia"
+      - "quan ly nhom"
+      - "my groups"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "groups.invites"
+    labelVi: "Lời mời vào nhóm"
+    description: "Các lời mời tham gia nhóm đang chờ bạn phản hồi"
+    synonyms:
+      - "loi moi vao nhom"
+      - "loi moi tham gia nhom"
+      - "xem loi moi tham gia nhom"
+      - "moi vao nhom"
+      - "group invites"
+    helpDocIds: ["guide-group-social"]
+    params: {}
+
+  - id: "conversations"
+    labelVi: "Tin nhắn"
+    description: "Hộp thư trò chuyện 1-1 và nhóm chat"
+    synonyms:
+      - "tin nhan"
+      - "hop thu"
+      - "chat"
+      - "inbox"
+      - "tro chuyen"
+      - "nhan tin"
+      - "messenger"
+      - "conversations"
+    helpDocIds: ["guide-chat"]
+    params: {}
+
+  - id: "notifications"
+    labelVi: "Thông báo"
+    description: "Thông báo về hoạt động, tương tác và cảm xúc"
+    synonyms:
+      - "thong bao"
+      - "xem thong bao"
+      - "co thong bao gi moi"
+      - "chuong thong bao"
+      - "notifications"
+    helpDocIds: ["guide-search-notification"]
+    params: {}
+
+  - id: "emotions"
+    labelVi: "Theo dõi cảm xúc"
+    description: "Không gian cảm xúc, biểu đồ tâm trạng và bài tập xoa dịu"
+    synonyms:
+      - "cam xuc"
+      - "theo doi cam xuc"
+      - "bieu do cam xuc"
+      - "bieu do tam trang"
+      - "xem bieu do tam trang"
+      - "nhat ky tam trang"
+      - "nhat ky cam xuc"
+      - "tam trang hom nay"
+      - "suc khoe tinh than"
+      - "emotions"
+      - "sentiment"
+    helpDocIds: ["guide-calls-share-emotion", "guide-ai-features"]
+    params: {}
+
+  - id: "search"
+    labelVi: "Tìm kiếm"
+    description: "Tìm kiếm bài viết, người dùng hoặc nhóm"
+    synonyms:
+      - "tim kiem"
+      - "tim bai viet"
+      - "tim ban"
+      - "tim nguoi"
+      - "tra cuu"
+      - "search"
+    helpDocIds: ["guide-search-notification"]
+    params:
+      q: "string"
+      type: "string"
+
+  - id: "profile.me"
+    labelVi: "Trang cá nhân"
+    description: "Trang hồ sơ cá nhân của bạn"
+    synonyms:
+      - "trang ca nhan"
+      - "ho so"
+      - "profile"
+      - "trang cua toi"
+      - "thong tin ca nhan"
+      - "my profile"
+    helpDocIds: ["guide-general"]
+    params: {}
+
+  - id: "settings"
+    labelVi: "Cài đặt"
+    description: "Trung tâm cài đặt chung của tài khoản"
+    synonyms:
+      - "cai dat"
+      - "thiet lap"
+      - "cau hinh"
+      - "settings"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.privacy"
+    labelVi: "Quyền riêng tư"
+    description: "Cài đặt ai có thể xem bài đăng và tìm thấy bạn"
+    synonyms:
+      - "quyen rieng tu"
+      - "cai dat quyen rieng tu"
+      - "mo quyen rieng tu"
+      - "cai dat rieng tu"
+      - "bao mat tai khoan"
+      - "ai thay bai viet cua toi"
+      - "che do rieng tu"
+      - "an bai viet"
+      - "privacy"
+      - "privacy settings"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.notifications"
+    labelVi: "Cài đặt thông báo"
+    description: "Bật tắt thông báo bài viết, bình luận và tin nhắn"
+    synonyms:
+      - "cai dat thong bao"
+      - "mo cai dat thong bao"
+      - "tat thong bao"
+      - "bat thong bao"
+      - "cau hinh thong bao"
+      - "chinh thong bao"
+      - "notification settings"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.activity"
+    labelVi: "Nhật ký hoạt động"
+    description: "Lịch sử tương tác, bài viết và hoạt động của bạn"
+    synonyms:
+      - "nhat ky hoat dong"
+      - "lich su hoat dong"
+      - "hoat dong cua toi"
+      - "lich su tuong tac"
+      - "activity log"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.moderation_history"
+    labelVi: "Lịch sử kiểm duyệt"
+    description: "Xem các bài viết bị gắn cờ và gửi khiếu nại kiểm duyệt"
+    synonyms:
+      - "lich su kiem duyet"
+      - "bai viet bi an"
+      - "kiem duyet noi dung"
+      - "khieu nai kiem duyet"
+      - "vi sao bi xoa bai"
+      - "moderation history"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.support"
+    labelVi: "Hỗ trợ & Trợ giúp"
+    description: "Trung tâm trợ giúp, câu hỏi thường gặp và liên hệ hỗ trợ"
+    synonyms:
+      - "ho tro"
+      - "tro giup"
+      - "lien he ho tro"
+      - "trung tam tro giup"
+      - "huong dan su dung"
+      - "support"
+      - "help"
+    helpDocIds: ["guide-settings-support"]
+    params: {}
+
+  - id: "settings.privacy_policy"
+    labelVi: "Chính sách quyền riêng tư"
+    description: "Chính sách bảo mật và điều khoản dịch vụ Sentimeta"
+    synonyms:
+      - "chinh sach quyen rieng tu"
+      - "dieu khoan su dung"
+      - "chinh sach bao mat"
+      - "quy dinh bao mat"
+      - "privacy policy"
+    helpDocIds: ["guide-settings-support"]
+    params: {}

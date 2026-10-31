@@ -87,6 +87,7 @@ class ChatHistoryRepository:
         intent: str | None = None,
         sources: list[dict[str, Any]] | None = None,
         client_message_id: str | None = None,
+        actions: list[dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         if client_message_id:
             existing = await self.get_exchange_by_client_message_id(user_id, client_message_id)
@@ -111,6 +112,10 @@ class ChatHistoryRepository:
             "created_at": user_now
         }
         
+        assistant_meta: dict[str, Any] = {"message_kind": "assistant"}
+        if actions:
+            assistant_meta["actions"] = actions
+
         assistant_msg = {
             "id": str(uuid.uuid4()),
             "conversation_id": conversation["id"],
@@ -120,7 +125,7 @@ class ChatHistoryRepository:
             "content": assistant_reply,
             "intent": intent,
             "sources": sources or [],
-            "meta": {"message_kind": "assistant"},
+            "meta": assistant_meta,
             "created_at": assistant_now
         }
         
@@ -245,6 +250,7 @@ class HistoryStore:
         intent: str | None,
         sources: list[AssistantSource],
         client_message_id: str | None = None,
+        actions: list[Any] | None = None,
     ) -> bool:
         if not self.is_enabled():
             return False
@@ -253,6 +259,10 @@ class HistoryStore:
         if self._write_queue is None:
             return False
 
+        serialized_actions = [
+            item.model_dump() if hasattr(item, "model_dump") else item
+            for item in (actions or [])
+        ]
         payload = {
             "user_id": user_id,
             "user_message": user_message,
@@ -260,6 +270,7 @@ class HistoryStore:
             "intent": intent,
             "sources": [item.model_dump() for item in sources],
             "client_message_id": client_message_id,
+            "actions": serialized_actions,
         }
         try:
             await asyncio.wait_for(self._write_queue.put(payload), timeout=1.5)
@@ -275,6 +286,7 @@ class HistoryStore:
                         intent=intent,
                         sources=payload["sources"],
                         client_message_id=client_message_id,
+                        actions=serialized_actions,
                     ),
                     timeout=2.0,
                 )
@@ -349,6 +361,7 @@ class HistoryStore:
                     intent=payload["intent"],
                     sources=payload["sources"],
                     client_message_id=payload["client_message_id"],
+                    actions=payload.get("actions"),
                 )
                 self.invalidate_user_cache(payload["user_id"])
             except Exception:
@@ -458,6 +471,7 @@ class PersistHistoryCommand:
         assistant_reply: str,
         sources: list[AssistantSource],
         intent: str | None,
+        actions: list[Any] | None = None,
     ) -> bool:
         if not self.store.is_enabled():
             return False
@@ -469,6 +483,7 @@ class PersistHistoryCommand:
             intent=intent,
             sources=sources,
             client_message_id=request.clientMessageId,
+            actions=actions,
         )
 
 history_store = HistoryStore()

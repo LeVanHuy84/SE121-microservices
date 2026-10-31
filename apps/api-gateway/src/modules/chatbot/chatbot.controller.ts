@@ -79,6 +79,14 @@ export class ChatbotController {
     return this.chatbotService.clearHistory(userId);
   }
 
+  @Post("actions/click")
+  recordActionClick(
+    @CurrentUserId() userId: string,
+    @Body() body: { actionId: string; destinationId: string },
+  ) {
+    return this.chatbotService.recordActionClick(userId, body);
+  }
+
   private parsePageSize(pageSize?: string): number | undefined {
     if (!pageSize) {
       return undefined;

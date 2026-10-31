@@ -2,8 +2,9 @@ import logging
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.modules.chatbot.services.assistant import RespondCommand
 from app.core.security import verify_internal_key
@@ -161,3 +162,52 @@ async def clear_history_by_user(user_id: str):
                 "Assistant history could not be cleared.",
             ),
         ) from exc
+
+
+class InternalActionClickRequest(BaseModel):
+    userId: str = Field(max_length=128)
+    actionId: str = Field(max_length=128)
+    destinationId: str = Field(max_length=128)
+
+
+@assistant_router.post(
+    "/actions/click",
+    dependencies=[Depends(verify_internal_key)],
+)
+async def record_action_click(req: InternalActionClickRequest):
+    from app.modules.chatbot.navigation.telemetry import intent_telemetry
+
+    success = await intent_telemetry.record_action_click(
+        user_id=req.userId,
+        action_id=req.actionId,
+        destination_id=req.destinationId,
+    )
+    return {"success": True, "recorded": success}
+
+
+@assistant_router.post(
+    "/admin/rag/reindex",
+    dependencies=[Depends(verify_internal_key)],
+)
+async def admin_reindex_rag_docs(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+):
+    from app.modules.chatbot.services.rag_indexer import rag_indexer_service
+
+    if rag_indexer_service.is_indexing:
+        return {"status": "in_progress", "message": "Reindexing is already running in background"}
+
+    background_tasks.add_task(rag_indexer_service.trigger_reindex, force=force)
+    return {"status": "accepted", "message": "Reindex triggered in background"}
+
+
+@assistant_router.get(
+    "/admin/telemetry/stats",
+    dependencies=[Depends(verify_internal_key)],
+)
+async def get_telemetry_stats():
+    from app.modules.chatbot.navigation.telemetry import intent_telemetry
+
+    stats = await intent_telemetry.get_stats()
+    return {"success": True, "data": stats}

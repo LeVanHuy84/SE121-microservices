@@ -324,3 +324,28 @@ async def clear_my_history(user_id: str = Depends(require_gateway_user)):
             502, "ASSISTANT_HISTORY_CLEAR_FAILED", "Assistant history could not be cleared."
         ) from exc
     return PublicClearResponse(data=PublicClearData(deletedCount=deleted, sessionCleared=True))
+
+
+class PublicActionClickRequest(BaseModel):
+    actionId: str = Field(max_length=128)
+    destinationId: str = Field(max_length=128)
+
+
+class PublicActionClickResponse(BaseModel):
+    success: bool
+    data: dict[str, bool]
+
+
+@public_router.post("/actions/click", response_model=PublicActionClickResponse)
+async def public_record_action_click(
+    body: PublicActionClickRequest,
+    user_id: str = Depends(require_gateway_user),
+):
+    from app.modules.chatbot.navigation.telemetry import intent_telemetry
+
+    success = await intent_telemetry.record_action_click(
+        user_id=user_id,
+        action_id=body.actionId,
+        destination_id=body.destinationId,
+    )
+    return PublicActionClickResponse(success=True, data={"recorded": success})
