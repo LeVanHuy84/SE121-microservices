@@ -1,34 +1,26 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectRedis } from "@nestjs-modules/ioredis";
 import Redis from "ioredis";
 import { randomUUID } from "crypto";
 import {
   CursorPageResponse,
   EmotionRankingFeaturesDto,
-  FeedEventType,
   FeedItemDTO,
   ModerationAction,
   RiskHintLevel,
-  TargetType,
   TrendingQuery,
 } from "@repo/dtos";
 import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
-import { SnapshotMapper } from "src/common/snapshot.mapper";
 import { EmotionFeatureService } from "../../ranking/services/emotion-feature.service";
 import { AffinityService } from "../../affinity/affinity.service";
 import { ScoreCombinerService } from "../../ranking/services/score-combiner.service";
 import { FeedInterleaverService } from "./feed-interleaver.service";
-import { ReactionService } from "../../../post/reaction/reaction.service";
-import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
-import { UserClientService } from "../../../post/client/user-client.service";
-import { MICROSERVICES_CLIENT } from "src/constant";
+import { FeedHydrationService } from "./feed-hydration.service";
 import { PersonalFeedHelper } from "../helpers/personal-feed.helper";
 
 type RankFeature = {
   label: string;
   scores: Record<string, number>;
-  intensity: number;
   confidence: number;
   dominantScene?: string;
   riskHintLevel?: RiskHintLevel;
@@ -65,10 +57,7 @@ export class TrendingService {
     private readonly affinityService: AffinityService,
     private readonly combiner: ScoreCombinerService,
     private readonly interleaverService: FeedInterleaverService,
-    private readonly reactionService: ReactionService,
-    private readonly userClient: UserClientService,
-    @Inject(MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE)
-    private readonly userSocialClient: ClientProxy,
+    private readonly hydrationService: FeedHydrationService,
   ) {}
 
   async getTrendingPosts(
@@ -90,7 +79,7 @@ export class TrendingService {
 
       // 🚀 Two-Tier Infinite Discovery: If session is nearing exhaustion,
       // dynamically fetch the next batch of viral candidates from Redis ZSET
-      // using an accumulation loop to prevent Scan-Limit Starvation.
+      // using an offset-based accumulation loop to prevent O(N^2) scan-limit starvation.
       if (
         sessionData.offset + limit > totalLen &&
         meta &&
@@ -99,7 +88,7 @@ export class TrendingService {
       ) {
         const BATCH_SIZE = 50;
         const MAX_FETCH_ATTEMPTS = 4;
-        const currentZsetOffset = parseInt(
+        let currentZsetOffset = parseInt(
           meta.zsetOffset || meta.fetchedOffset || "0",
           10,
         );
@@ -121,15 +110,14 @@ export class TrendingService {
         ) {
           attempt++;
 
-          const scanLimit = currentIds.size + BATCH_SIZE;
           const nextZset = await this.redis.zrevrangebyscore(
             meta.zsetKey,
             "+inf",
             "-inf",
             "WITHSCORES",
             "LIMIT",
-            0,
-            scanLimit,
+            currentZsetOffset,
+            BATCH_SIZE,
           );
 
           if (!nextZset || nextZset.length === 0) {
@@ -138,18 +126,15 @@ export class TrendingService {
           }
 
           const nextCandidates = this.parseZset(nextZset);
-          if (nextCandidates.length < scanLimit) {
+          currentZsetOffset += nextCandidates.length;
+
+          if (nextCandidates.length < BATCH_SIZE) {
             isExhausted = true;
           }
 
           const newCandidates = nextCandidates.filter(
             (c) => !currentIds.has(c.postId),
           );
-
-          if (newCandidates.length === 0) {
-            isExhausted = true;
-            break;
-          }
 
           if (newCandidates.length > 0) {
             const newIds = await this.processAndRankCandidates(
@@ -190,14 +175,10 @@ export class TrendingService {
           sessionData.offset + limit - 1,
         );
 
-        const items = await this.hydrateTrendingPage(pageIds, userId);
-        const finalItems = userId
-          ? await this.interleaverService.maybeInterleaveSafeSpaceCard(
-              userId,
-              items,
-              sessionData.offset,
-            )
-          : items;
+        const items = await this.hydrationService.hydratePostPage(
+          pageIds,
+          userId,
+        );
 
         const nextOffset = sessionData.offset + pageIds.length;
         let hasMore = nextOffset < totalLen || !isExhausted;
@@ -212,7 +193,7 @@ export class TrendingService {
             )
           : null;
 
-        return new CursorPageResponse(finalItems, nextCursor, hasMore);
+        return new CursorPageResponse(items, nextCursor, hasMore);
       }
 
       if (totalLen > 0 && sessionData.offset >= totalLen) {
@@ -300,7 +281,10 @@ export class TrendingService {
     // 9️⃣ Slice Page 1 & Hydrate
     // ==============================
     const firstPageIds = rankedPostIds.slice(0, limit);
-    const items = await this.hydrateTrendingPage(firstPageIds, userId);
+    const items = await this.hydrationService.hydratePostPage(
+      firstPageIds,
+      userId,
+    );
     const finalItems = userId
       ? await this.interleaverService.maybeInterleaveSafeSpaceCard(
           userId,
@@ -340,6 +324,7 @@ export class TrendingService {
 
     const rankResults = await pipeline.exec();
     const candidates: Candidate[] = [];
+    const missingFeatureCandidates: { postId: string; score: number }[] = [];
 
     candidatesRaw.forEach((c, idx) => {
       const rank = rankResults?.[idx]?.[1] as
@@ -347,16 +332,7 @@ export class TrendingService {
         | undefined;
 
       if (!rank || !rank.scores) {
-        candidates.push({
-          postId: c.postId,
-          baseScore: c.score,
-          feature: {
-            label: "",
-            scores: {},
-            intensity: 0,
-            confidence: 0,
-          },
-        });
+        missingFeatureCandidates.push(c);
         return;
       }
 
@@ -367,7 +343,6 @@ export class TrendingService {
           feature: {
             label: rank.label || "",
             scores: JSON.parse(rank.scores),
-            intensity: Number(rank.intensity || 0),
             confidence: Number(rank.confidence || 0),
             dominantScene: rank.dominantScene,
             riskHintLevel: rank.riskHintLevel as RiskHintLevel,
@@ -378,18 +353,44 @@ export class TrendingService {
           },
         });
       } catch {
+        missingFeatureCandidates.push(c);
+      }
+    });
+
+    // 🛡️ Safety Fallback: Nếu thiếu rank feature trên Redis, query MongoDB Snapshot để kiểm tra
+    // Tránh việc bypass safety guardrails do Redis cache miss
+    if (missingFeatureCandidates.length > 0) {
+      const missingIds = missingFeatureCandidates.map((c) => c.postId);
+      const dbSnapshots =
+        await this.snapshotRepo.findPostsForRanking(missingIds);
+      const snapshotMap = new Map(dbSnapshots.map((s) => [s.postId, s]));
+
+      for (const c of missingFeatureCandidates) {
+        const snap = snapshotMap.get(c.postId);
+        if (!snap || (snap as any).isDeleted) {
+          // Bài viết không tồn tại trong snapshot hoặc đã bị xóa -> Bỏ qua an toàn
+          continue;
+        }
+
         candidates.push({
           postId: c.postId,
           baseScore: c.score,
           feature: {
-            label: "",
-            scores: {},
-            intensity: 0,
-            confidence: 0,
+            label: snap.emotionFeature?.label || "",
+            scores: snap.emotionFeature?.scores || {},
+            confidence: Number(snap.emotionFeature?.confidence || 0),
+            dominantScene: (snap.emotionFeature as any)?.dominantScene,
+            riskHintLevel: (snap.emotionFeature as any)
+              ?.riskHintLevel as RiskHintLevel,
+            mentalHealthRiskLevel: snap.emotionFeature?.mentalHealthRiskLevel,
+            authorId: snap.userId,
+            moderationAction: (snap as any)
+              .moderationAction as ModerationAction,
+            needsMentalSupport: (snap as any).needsMentalSupport,
           },
         });
       }
-    });
+    }
 
     // 2️⃣ Safety Guardrails Filter
     const safeCandidates = candidates.filter((item) => {
@@ -559,77 +560,6 @@ export class TrendingService {
     }
 
     return paced.map((p) => p.postId);
-  }
-
-  // ==============================
-  // 💧 HYDRATION PIPELINE
-  // ==============================
-  private async hydrateTrendingPage(
-    topIds: string[],
-    userId?: string,
-  ): Promise<FeedItemDTO[]> {
-    if (!topIds.length) return [];
-
-    const posts = await this.snapshotRepo.findPostsByIds(topIds);
-    const postMap = new Map(posts.map((p) => [p.postId, p]));
-
-    const orderedPosts = topIds
-      .map((id) => postMap.get(id))
-      .filter((p): p is any => !!p);
-
-    const [reactions, groups, users] = await Promise.all([
-      userId
-        ? this.reactionService.getReactedTypesBatch(
-            userId,
-            TargetType.POST,
-            orderedPosts.map((p) => p.postId),
-          )
-        : Promise.resolve({}),
-      this.fetchGroups(orderedPosts),
-      this.fetchUsers(orderedPosts),
-    ]);
-
-    return orderedPosts.map((post) => {
-      if (post.groupId) {
-        post.group = groups.get(post.groupId);
-      }
-      if (post.userId) {
-        post.user = users[post.userId];
-      }
-
-      return {
-        id: post.postId,
-        type: FeedEventType.POST,
-        item: SnapshotMapper.toPostSnapshotDTO(post, reactions[post.postId]),
-      };
-    });
-  }
-
-  // ==============================
-  // 👥 ENRICHMENT HELPERS
-  // ==============================
-  private async fetchGroups(posts: any[]) {
-    const groupIds = Array.from(
-      new Set(posts.map((p) => p.groupId).filter(Boolean)),
-    );
-
-    if (!groupIds.length) return new Map();
-
-    const groups = await firstValueFrom(
-      this.userSocialClient.send<any[]>("get_group_info_batch", groupIds),
-    );
-
-    return new Map(groups.map((g) => [g.id, g]));
-  }
-
-  private async fetchUsers(posts: any[]) {
-    const userIds = Array.from(
-      new Set(posts.map((p) => p.userId).filter(Boolean)),
-    );
-
-    if (!userIds.length) return {};
-
-    return this.userClient.getUserInfos(userIds);
   }
 
   // ==============================

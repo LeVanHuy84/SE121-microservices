@@ -115,7 +115,7 @@ export class TrendingWorker {
       // ------------------------------
       // 🎭 Emotion ranking
       // ------------------------------
-      const emotionLabel = rank?.label || rank?.primaryEmotion;
+      const emotionLabel = (rank?.label || rank?.primaryEmotion)?.toLowerCase();
 
       if (emotionLabel) {
         updates.zadd(`post:emotion:${emotionLabel}:score`, score, postId);

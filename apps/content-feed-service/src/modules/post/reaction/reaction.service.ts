@@ -237,7 +237,8 @@ export class ReactionService {
     targetIds: string[],
   ): Promise<Record<string, ReactionType>> {
     if (!targetIds.length) return {};
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const validTargetIds = targetIds.filter((id) => uuidRegex.test(id));
     if (!validTargetIds.length) return {};
     try {

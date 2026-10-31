@@ -18,6 +18,7 @@ import { PersonalFeedService } from "./services/personal-feed.service";
 import { TrendingService } from "./services/trending.service";
 import { TrendingWorker } from "./services/trending-score-worker";
 import { FeedInterleaverService } from "./services/feed-interleaver.service";
+import { FeedHydrationService } from "./services/feed-hydration.service";
 import { AffinityModule } from "../affinity/affinity.module";
 
 @Module({
@@ -38,7 +39,8 @@ import { AffinityModule } from "../affinity/affinity.module";
     TrendingService,
     TrendingWorker,
     FeedInterleaverService,
+    FeedHydrationService,
   ],
-  exports: [FeedInterleaverService],
+  exports: [FeedInterleaverService, FeedHydrationService],
 })
 export class FeedPipelineModule {}

@@ -17,7 +17,8 @@ export class ClerkAuthGuard extends AuthGuard("clerk") {
       const authHeader = req.headers?.authorization;
       const mockUserId =
         req.headers?.["x-mock-user-id"] ||
-        (typeof authHeader === "string" && authHeader.startsWith("Bearer mock_user_")
+        (typeof authHeader === "string" &&
+        authHeader.startsWith("Bearer mock_user_")
           ? authHeader.replace("Bearer ", "").trim()
           : null);
 

@@ -140,7 +140,6 @@ export class RedisTrendingWarmupService {
 
       pipeline.hset(rankKey, {
         scores: JSON.stringify(post.emotionFeature?.scores || {}),
-        intensity: post.emotionFeature?.intensity?.toString() || "0",
         confidence: post.emotionFeature?.confidence?.toString() || "0",
         dominantScene: post.emotionFeature?.dominantScene || "",
         riskHintLevel: post.emotionFeature?.riskHintLevel || "",
@@ -150,17 +149,14 @@ export class RedisTrendingWarmupService {
       pipeline.expire(rankKey, this.SCORE_TTL_SECONDS);
 
       // -----------------------------
-      // EMOTION SCORE (scaled)
+      // EMOTION SCORE
       // -----------------------------
       const emotionLabel = post.emotionFeature?.label?.toLowerCase();
-      const intensity = Number(post.emotionFeature?.intensity ?? 0);
 
-      if (emotionLabel && intensity > 0) {
+      if (emotionLabel) {
         const emotionKey = `post:emotion:${emotionLabel}:score`;
 
-        const emotionScore = intensity * score;
-
-        pipeline.zadd(emotionKey, emotionScore, post.postId);
+        pipeline.zadd(emotionKey, score, post.postId);
         pipeline.expire(emotionKey, this.SCORE_TTL_SECONDS);
       }
     }

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { InjectRedis } from "@nestjs-modules/ioredis";
 import Redis from "ioredis";
@@ -6,30 +6,20 @@ import { Model } from "mongoose";
 import { randomUUID } from "crypto";
 import {
   CursorPageResponse,
-  FeedEventType,
   FeedItemDTO,
   ModerationAction,
   PersonalFeedQuery,
-  ReactionType,
-  RiskHintLevel,
-  TargetType,
 } from "@repo/dtos";
 import {
   FeedItem,
   FeedItemDocument,
 } from "../../mongo/schema/feed-item.schema";
 import { SnapshotRepository } from "../../mongo/repository/snapshot.repository";
-import { SnapshotMapper } from "src/common/snapshot.mapper";
-import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
-
 import { PersonalFeedHelper } from "../helpers/personal-feed.helper";
 import { AffinityService } from "src/modules/affinity/affinity.service";
 import { EmotionFeatureService } from "src/modules/ranking/services/emotion-feature.service";
-import { ReactionService } from "../../../post/reaction/reaction.service";
-import { MICROSERVICES_CLIENT } from "src/constant";
-import { UserClientService } from "../../../post/client/user-client.service";
 import { FeedInterleaverService } from "./feed-interleaver.service";
+import { FeedHydrationService } from "./feed-hydration.service";
 
 @Injectable()
 export class PersonalFeedService {
@@ -41,13 +31,10 @@ export class PersonalFeedService {
     @InjectModel(FeedItem.name)
     private readonly feedItemModel: Model<FeedItemDocument>,
     private readonly snapshotRepo: SnapshotRepository,
-    @Inject(MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE)
-    private readonly userSocialClient: ClientProxy,
-    private readonly reactionService: ReactionService,
     private readonly affinityService: AffinityService,
     private readonly emotionService: EmotionFeatureService,
-    private readonly userClient: UserClientService,
     private readonly interleaverService: FeedInterleaverService,
+    private readonly hydrationService: FeedHydrationService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
@@ -151,13 +138,10 @@ export class PersonalFeedService {
           endOffset,
         );
 
-        const feedDTOs = await this.hydrateFeedPage(userId, pageItemIds);
-        const finalDTOs =
-          await this.interleaverService.maybeInterleaveSafeSpaceCard(
-            userId,
-            feedDTOs,
-            sessionData.offset,
-          );
+        const feedDTOs = await this.hydrationService.hydrateFeedItemPage(
+          userId,
+          pageItemIds,
+        );
 
         const nextOffset = sessionData.offset + pageItemIds.length;
         let hasMore =
@@ -179,7 +163,7 @@ export class PersonalFeedService {
             )
           : null;
 
-        return new CursorPageResponse(finalDTOs, nextCursor, hasMore);
+        return new CursorPageResponse(feedDTOs, nextCursor, hasMore);
       }
 
       if (totalSessionLength > 0 && sessionData.offset >= totalSessionLength) {
@@ -246,7 +230,12 @@ export class PersonalFeedService {
 
     // Slice First Page
     const firstPageIds = rankedItemIds.slice(0, limit);
-    const feedDTOs = await this.hydrateFeedPage(userId, firstPageIds);
+    // Reuse already-fetched candidates to eliminate redundant MongoDB queries
+    const feedDTOs = await this.hydrationService.hydrateFeedItemPage(
+      userId,
+      firstPageIds,
+      candidates,
+    );
     const finalDTOs =
       await this.interleaverService.maybeInterleaveSafeSpaceCard(
         userId,
@@ -304,14 +293,12 @@ export class PersonalFeedService {
       }
 
       // 🛡️ TIER 1 SAFETY GUARDRAIL: System-wide Hard Drop (Content Moderation HARD_BLOCK)
-      // Những bài độc hại nghiêm trọng (tự hại cấp tính, bạo lực, khiêu dâm) đã bị HARD_BLOCK
       const moderationAction = (post as any).moderationAction;
       const isDeleted = (post as any).isDeleted;
       const mentalHealthRiskLevel =
         post.emotionFeature?.mentalHealthRiskLevel ||
         (post as any).mentalHealthRiskLevel;
 
-      // Hard block nếu bài bị đánh dấu HARD_BLOCK, đã xóa, hoặc có dấu hiệu tự hại cấp tính mà KHÔNG phải là ca khủng hoảng tâm lý cần hỗ trợ
       if (
         isDeleted ||
         moderationAction === ModerationAction.HARD_BLOCK ||
@@ -326,8 +313,6 @@ export class PersonalFeedService {
       }
 
       // 🛡️ TIER 2 SAFETY GUARDRAIL: Contextual Protection for Distressed User
-      // Người xem đang khỏe mạnh (distress <= 0.5) sẽ thấy bài viết cần hỗ trợ (needsMentalSupport) để an ủi bạn bè.
-      // Người xem cũng đang suy sụp (distress > 0.5) sẽ được ẩn bài khủng hoảng để tránh hiệu ứng lây lan tiêu cực.
       if (distress > 0.5) {
         if (
           post.hasWarning ||
@@ -391,37 +376,6 @@ export class PersonalFeedService {
     };
   }
 
-  // ========================================================
-  // 💧 HYDRATION & ENRICHMENT PIPELINE
-  // ========================================================
-  private async hydrateFeedPage(
-    userId: string,
-    itemIds: string[],
-  ): Promise<FeedItemDTO[]> {
-    if (!itemIds.length) return [];
-
-    const feedItems = await this.feedItemModel
-      .find({ _id: { $in: itemIds } })
-      .lean();
-
-    const itemMap = new Map(feedItems.map((i) => [i._id.toString(), i]));
-
-    const orderedItems = itemIds
-      .map((id) => itemMap.get(id))
-      .filter(Boolean) as FeedItem[];
-
-    const { postMapFull, shareMapFull, postReactions, shareReactions } =
-      await this.enrichFinalItems(userId, orderedItems);
-
-    return this.buildFeedDTO(
-      orderedItems,
-      postMapFull,
-      shareMapFull,
-      postReactions,
-      shareReactions,
-    );
-  }
-
   private async loadLightPosts(items: FeedItem[], mainEmotion?: string) {
     const postIds = Array.from(new Set(items.map((i) => i.postId)));
 
@@ -449,211 +403,5 @@ export class PersonalFeedService {
   ): string {
     const emotion = mainEmotion?.toLowerCase() || "all";
     return `feed:meta:${userId}:${emotion}:${sessionId}`;
-  }
-
-  /**
-   * ENRICH FINAL ITEMS ONLY
-   */
-  private async enrichFinalItems(userId: string, items: FeedItem[]) {
-    const postIdSet = new Set<string>();
-    const shareIdSet = new Set<string>();
-
-    for (const item of items) {
-      postIdSet.add(item.postId);
-
-      if (item.eventType === FeedEventType.SHARE) {
-        shareIdSet.add(item.refId);
-      }
-    }
-
-    const postIds = Array.from(postIdSet);
-    const shareIds = Array.from(shareIdSet);
-
-    const [posts, shares] = await Promise.all([
-      postIds.length
-        ? this.snapshotRepo.findPostsByIds(postIds)
-        : Promise.resolve([]),
-
-      shareIds.length
-        ? this.snapshotRepo.findSharesByIds(shareIds)
-        : Promise.resolve([]),
-    ]);
-
-    const postMap = new Map(posts.map((p) => [p.postId, p]));
-    const shareMap = new Map(shares.map((s) => [s.shareId, s]));
-
-    const [postReactions, shareReactions] = await Promise.all([
-      postIds.length
-        ? this.reactionService.getReactedTypesBatch(
-            userId,
-            TargetType.POST,
-            postIds,
-          )
-        : Promise.resolve({}),
-      shareIds.length
-        ? this.reactionService.getReactedTypesBatch(
-            userId,
-            TargetType.SHARE,
-            shareIds,
-          )
-        : Promise.resolve({}),
-    ]);
-
-    const groupIds = new Set<string>();
-    const userIds = new Set<string>();
-
-    for (const p of posts) {
-      if (p.groupId) groupIds.add(p.groupId);
-      if (p.userId) userIds.add(p.userId);
-    }
-    for (const s of shares) {
-      if (s.userId) userIds.add(s.userId);
-    }
-
-    const groupMap = new Map<string, any>();
-    let userMap: Record<string, any> = {};
-
-    const enrichmentPromises: Promise<any>[] = [];
-
-    if (groupIds.size > 0) {
-      enrichmentPromises.push(
-        firstValueFrom(
-          this.userSocialClient.send<any[]>(
-            "get_group_info_batch",
-            Array.from(groupIds),
-          ),
-        ).then((groups) => {
-          for (const g of groups) {
-            groupMap.set(g.id, g);
-          }
-        }),
-      );
-    }
-
-    if (userIds.size > 0) {
-      enrichmentPromises.push(
-        this.userClient.getUserInfos(Array.from(userIds)).then((users) => {
-          userMap = users;
-        }),
-      );
-    }
-
-    if (enrichmentPromises.length > 0) {
-      await Promise.all(enrichmentPromises);
-    }
-
-    for (const post of posts) {
-      if (post.groupId) {
-        (post as any).group = groupMap.get(post.groupId);
-      }
-      if (post.userId) {
-        (post as any).user = userMap[post.userId];
-      }
-    }
-
-    for (const share of shares) {
-      const post = postMap.get(share.postId);
-      if (post?.groupId) {
-        (share as any).group = groupMap.get(post.groupId);
-      }
-      if (share.userId) {
-        (share as any).user = userMap[share.userId];
-      }
-    }
-
-    return {
-      postMapFull: postMap,
-      shareMapFull: shareMap,
-      postReactions,
-      shareReactions,
-    };
-  }
-
-  /**
-   * BUILD DTO
-   */
-  private buildFeedDTO(
-    items: FeedItem[],
-    postMap: Map<string, any>,
-    shareMap: Map<string, any>,
-    postReactions: Record<string, ReactionType>,
-    shareReactions: Record<string, ReactionType>,
-  ): FeedItemDTO[] {
-    const result: FeedItemDTO[] = [];
-
-    for (const item of items) {
-      const id = item._id?.toString() ?? "";
-
-      const post = postMap.get(item.postId);
-
-      if (!post) {
-        this.logger.warn(
-          `[FEED] Missing POST postId=${item.postId} itemId=${id}. Removing orphan feed item.`,
-        );
-
-        if (item._id) {
-          this.feedItemModel
-            .deleteOne({ _id: item._id })
-            .catch((err) =>
-              this.logger.error(
-                `[FEED] Failed to clean up orphan feed item ${id}: ${err?.message}`,
-              ),
-            );
-        }
-
-        continue;
-      }
-
-      // ======================
-      // POST
-      // ======================
-      if (item.eventType === FeedEventType.POST) {
-        result.push({
-          id,
-          type: FeedEventType.POST,
-          item: SnapshotMapper.toPostSnapshotDTO(
-            post,
-            postReactions[item.postId],
-          ),
-        });
-
-        continue;
-      }
-
-      // ======================
-      // SHARE
-      // ======================
-      const share = shareMap.get(item.refId);
-
-      if (!share) {
-        this.logger.warn(
-          `[FEED] Missing SHARE snapshot refId=${item.refId} itemId=${id}. Removing orphan feed item.`,
-        );
-
-        if (item._id) {
-          this.feedItemModel
-            .deleteOne({ _id: item._id })
-            .catch((err) =>
-              this.logger.error(
-                `[FEED] Failed to clean up orphan feed item ${id}: ${err?.message}`,
-              ),
-            );
-        }
-
-        continue;
-      }
-
-      result.push({
-        id,
-        type: FeedEventType.SHARE,
-        item: SnapshotMapper.toShareSnapshotDTO(
-          share,
-          post,
-          shareReactions[item.refId],
-        ),
-      });
-    }
-
-    return result;
   }
 }

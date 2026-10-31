@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import {
   Audience,
+  BaseUserDTO,
+  GroupInfoDTO,
   MediaItemDTO,
-  MediaType,
   PostSnapshotDTO,
   ReactionType,
   ShareSnapshotDTO,
@@ -23,12 +24,14 @@ export class SnapshotMapper {
   static toPostSnapshotDTO(
     post: any,
     reactedType?: ReactionType,
+    user?: BaseUserDTO,
+    group?: GroupInfoDTO,
   ): PostSnapshotDTO {
     return {
       postId: post.postId,
       userId: post.userId,
-      user: post.user || undefined,
-      group: post.group || undefined,
+      user: user || post.user || undefined,
+      group: group || post.group || undefined,
       audience: post.audience,
       content: post.content,
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
@@ -56,18 +59,21 @@ export class SnapshotMapper {
     share: any,
     post: any,
     reactedType?: ReactionType,
+    shareUser?: BaseUserDTO,
+    postUser?: BaseUserDTO,
+    postGroup?: GroupInfoDTO,
   ): ShareSnapshotDTO {
     return {
       shareId: share.shareId,
       userId: share.userId,
-      user: share.user || undefined,
+      user: shareUser || share.user || undefined,
       content: share.content,
       audience: share.audience ? share.audience : Audience.PUBLIC,
       post: {
         postId: post.postId,
         userId: post.userId,
-        user: post.user || undefined,
-        group: post.group || undefined,
+        user: postUser || post.user || undefined,
+        group: postGroup || post.group || undefined,
         audience: post.audience || Audience.PUBLIC,
         content: post.content,
         mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),

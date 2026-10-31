@@ -1,11 +1,7 @@
-import { EmotionRankingFeaturesDto, PersonalFeedQuery } from "@repo/dtos";
+import { EmotionRankingFeaturesDto } from "@repo/dtos";
 
 export class PersonalFeedHelper {
   private static readonly TAU = 1000 * 60 * 60 * 12; // 12h
-
-  static getRankingCacheKey(userId: string, query: PersonalFeedQuery) {
-    return `feed:ranking:${userId}:${query.mainEmotion?.toLowerCase() || "all"}`;
-  }
 
   // ==========================================
   // 🎟️ SESSION SNAPSHOT CURSOR ENCODING
@@ -31,30 +27,6 @@ export class PersonalFeedHelper {
         };
       }
       return null;
-    } catch {
-      return null;
-    }
-  }
-
-  // ==========================================
-  // ⌛ LEGACY CURSOR (BACKWARD COMPATIBILITY)
-  // ==========================================
-  static encodeCursor(score: number, itemId: string) {
-    return Buffer.from(`${score}|${itemId}`).toString("base64");
-  }
-
-  static decodeCursor(cursor?: string) {
-    if (!cursor) return null;
-
-    try {
-      const [score, itemId] = Buffer.from(cursor, "base64")
-        .toString()
-        .split("|");
-
-      return {
-        score: Number(score),
-        itemId,
-      };
     } catch {
       return null;
     }
@@ -134,17 +106,5 @@ export class PersonalFeedHelper {
 
     const penalty = lambda * (input.toxicity ?? 0);
     return Math.max(0, Math.min(1, base - penalty));
-  }
-
-  static calcFinalScore(input: {
-    recency: number;
-    emotion: number;
-    affinity: number;
-    engagement: number;
-  }): number {
-    return this.calcAdaptiveScore({
-      ...input,
-      distress: 0,
-    });
   }
 }

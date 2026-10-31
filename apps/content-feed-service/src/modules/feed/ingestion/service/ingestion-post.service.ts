@@ -76,7 +76,7 @@ export class IngestionPostService {
       const metaKey = `post:meta:${payload.postId}`;
       await this.redis.hset(metaKey, {
         createdAt: createdAt.getTime(),
-        lastStatAt: createdAt.getTime(), // 👈 thêm dòng này
+        lastStatAt: createdAt.getTime(),
       });
       await this.redis.expire(metaKey, this.META_TTL_SECONDS);
       await this.redis.zadd("post:score", 1, payload.postId);
@@ -162,21 +162,25 @@ export class IngestionPostService {
     // ------------------------------
     // Dọn Redis
     // ------------------------------
+    const pipeline = this.redis.pipeline();
 
     // 1. Xóa trending score chính
-    await this.redis.zrem("post:score", postId);
+    pipeline.zrem("post:score", postId);
+    pipeline.zrem("post:fresh", postId);
 
-    // 2. Xóa meta
-    await this.redis.del(`post:meta:${postId}`);
+    // 2. Xóa meta & rank
+    pipeline.del(`post:meta:${postId}`);
+    pipeline.del(`post:rank:${postId}`);
+    pipeline.del(`post:engagement:${postId}`);
+    pipeline.del(`emotion:post:${postId}`);
 
-    // 3. Xóa khỏi toàn bộ emotion score
-    const emotionKeys = Object.values(Emotion).map(
-      (emotion) => `post:score:emotion:${emotion.toLowerCase()}`,
-    );
-
-    for (const key of emotionKeys) {
-      await this.redis.zrem(key, postId);
+    // 3. Xóa khỏi toàn bộ emotion score (dọn cả 2 pattern post:emotion:<label>:score và post:score:emotion:<label>)
+    for (const emotion of Object.values(Emotion)) {
+      pipeline.zrem(`post:emotion:${emotion.toLowerCase()}:score`, postId);
+      pipeline.zrem(`post:score:emotion:${emotion.toLowerCase()}`, postId);
     }
+
+    await pipeline.exec();
 
     // 4. Xóa khỏi Cache Layer snapshot
     await this.cacheLayer.delPost(postId);

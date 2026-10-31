@@ -135,7 +135,7 @@ export class SnapshotRepository {
         {
           postId: { $in: ids },
           ...(mainEmotion && {
-            "emotionFeature.label": mainEmotion,
+            "emotionFeature.label": mainEmotion.toLowerCase(),
           }),
         },
         {
@@ -148,7 +148,6 @@ export class SnapshotRepository {
           isDeleted: 1,
           "emotionFeature.label": 1,
           "emotionFeature.scores": 1,
-          "emotionFeature.intensity": 1,
           "emotionFeature.confidence": 1,
           "emotionFeature.riskHintLevel": 1,
           "emotionFeature.mentalHealthRiskLevel": 1,
