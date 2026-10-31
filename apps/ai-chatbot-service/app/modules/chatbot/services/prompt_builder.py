@@ -5,6 +5,7 @@ from app.modules.chatbot.schemas import (
     AssistantContextItem,
     AssistantHistoryItem,
     AssistantRespondRequest,
+    SurfaceContext,
 )
 
 # Hotline list shared by the crisis reply, the `crisis.resources` response field and the docs.
@@ -47,6 +48,7 @@ class PromptBuilder:
         parts = [
             self._build_system_prompt(),
             self._build_emotion_tone_directive(emotion_snapshot),
+            self._build_surface_context_directive(request.surface),
             self._build_user_profile(request),
             self._build_memory_summary_block(memory_summary),
             self._build_context_block(
@@ -66,6 +68,27 @@ class PromptBuilder:
             parts.append(self._build_current_message(request.message))
             
         return "\n\n".join(part for part in parts if part)
+
+    def _build_surface_context_directive(self, surface: SurfaceContext | None) -> str:
+        """Inject active application surface context (screen, entity, lightweight metadata)."""
+        if surface is None:
+            return ""
+
+        lines = [
+            "SURFACE_CONTEXT (Ngữ cảnh màn hình hiện tại của người dùng):",
+            f"- Màn hình đang mở: {surface.screen}",
+        ]
+        if surface.entityId:
+            lines.append(f"- Thực thể đang xem: {surface.entityId}")
+        if surface.metadata:
+            meta_items = [f"{k}={v}" for k, v in surface.metadata.items()]
+            lines.append(f"- Thông tin phụ: {', '.join(meta_items)}")
+
+        lines.append(
+            "- Hướng dẫn: Chỉ sử dụng ngữ cảnh này để làm rõ các đại từ hoặc câu hỏi ngữ cảnh "
+            "(như 'ở đây', 'nhóm này', 'trang này', 'người này'). Không tự ý áp đặt nếu người dùng hỏi chủ đề khác."
+        )
+        return "\n".join(lines)
 
     def _build_proactive_checkin_directive(self, snapshot) -> str:
         if snapshot and getattr(snapshot, "chatbot_prompt_context", None):

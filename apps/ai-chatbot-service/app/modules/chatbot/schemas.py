@@ -49,6 +49,12 @@ class AssistantContextItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SurfaceContext(BaseModel):
+    screen: str = Field(pattern=r"^[a-z]+(\.[a-z_]+)*$")
+    entityId: Optional[str] = Field(default=None, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class AssistantRespondRequest(BaseModel):
     userId: str
     conversationId: Optional[str] = None
@@ -57,6 +63,7 @@ class AssistantRespondRequest(BaseModel):
     history: list[AssistantHistoryItem] = Field(default_factory=list)
     contexts: list[AssistantContextItem] = Field(default_factory=list)
     intent: Optional[str] = None
+    surface: Optional[SurfaceContext] = None
 
 
 class AssistantSource(BaseModel):

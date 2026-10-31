@@ -67,6 +67,7 @@ export class ChatbotService {
             message: dto.message,
             clientMessageId: dto.clientMessageId,
             contexts,
+            surface: dto.surface,
           },
           {
             headers: {
@@ -113,6 +114,7 @@ export class ChatbotService {
                 message: dto.message,
                 clientMessageId: dto.clientMessageId,
                 contexts,
+                surface: dto.surface,
               },
               {
                 headers: {
