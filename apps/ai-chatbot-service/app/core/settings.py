@@ -181,7 +181,9 @@ class Settings:
             "MONGO_URL", "mongodb://localhost:27017"
         ).strip()
         self.MONGO_DB: str = os.getenv("MONGO_DB", "ai_chatbot_service").strip()
-        self.CHATBOT_DB_ENABLED: bool = True
+        self.CHATBOT_DB_ENABLED: bool = (
+            os.getenv("CHATBOT_DB_ENABLED", "true").lower() == "true"
+        )
         self.CHATBOT_DB_ECHO: bool = False
         self.CHATBOT_DB_POOL_SIZE: int = int(os.getenv("CHATBOT_DB_POOL_SIZE", 10))
         self.CHATBOT_DB_MAX_OVERFLOW: int = int(

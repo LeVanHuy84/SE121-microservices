@@ -4,7 +4,7 @@ from typing import Dict
 from app.modules.analysis.repositories.outbox import ModerationRepository
 from app.modules.analysis.schemas import ModerationResult
 from app.modules.analysis.enums import TargetTypeEnum
-from app.core.config import settings
+from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
 

@@ -80,7 +80,7 @@ async def test_redis_session_memory():
         memory = SessionMemory()
         
         session_key = "test_user:default"
-        memory.update_session_batch(
+        await memory.update_session_batch(
             key=session_key,
             user_message="Hello world",
             assistant_reply="Hi there",
@@ -90,22 +90,22 @@ async def test_redis_session_memory():
             facts={"last_intent": "greeting"}
         )
         
-        summary = memory.get_summary(session_key)
+        summary = await memory.get_summary(session_key)
         assert summary == "User said hello"
         
-        intent = memory.get_last_intent(session_key)
+        intent = await memory.get_last_intent(session_key)
         assert intent == "greeting"
         
-        facts = memory.get_facts(session_key)
+        facts = await memory.get_facts(session_key)
         assert facts["last_intent"] == "greeting"
         
-        recent = memory.get_recent(session_key, 5)
+        recent = await memory.get_recent(session_key, 5)
         assert len(recent) == 2
         assert recent[-1].role == "assistant"
         
-        memory.clear_session(session_key)
-        assert memory.get_summary(session_key) == ""
-        assert memory.get_recent(session_key, 5) == []
+        await memory.clear_session(session_key)
+        assert await memory.get_summary(session_key) == ""
+        assert await memory.get_recent(session_key, 5) == []
 
 @pytest.mark.asyncio
 async def test_rag_document_service():

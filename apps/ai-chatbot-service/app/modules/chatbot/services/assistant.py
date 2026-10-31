@@ -72,6 +72,8 @@ class RespondCommand:
         community_guard: CommunityGuard | None = None,
         memory: SessionMemory | None = None,
         persist_history: PersistHistoryCommand | None = None,
+        kafka_producer=None,
+        outbox_repo=None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or GroqProvider()
@@ -82,6 +84,8 @@ class RespondCommand:
         self.emotion_ctx = emotion_context_service
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
+        self._kafka_producer = kafka_producer
+        self._outbox_repo = outbox_repo
 
     async def _run_guard_chain(
         self,
@@ -189,9 +193,9 @@ class RespondCommand:
         started_at = time.perf_counter()
         request_id = str(uuid4())
         session_key = self._session_key(request)
-        history = self._resolve_history(request, session_key)
-        last_intent = request.intent or self.memory.get_last_intent(session_key)
-        memory_facts = self.memory.get_facts(session_key)
+        history = await self._resolve_history(request, session_key)
+        last_intent = request.intent or await self.memory.get_last_intent(session_key)
+        memory_facts = await self.memory.get_facts(session_key)
         effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
@@ -212,7 +216,7 @@ class RespondCommand:
         )
         
         if guard_data:
-            self._persist_session_memory(request, guard_data.reply, [], guard_intent)
+            await self._persist_session_memory(request, guard_data.reply, [], guard_intent)
             persisted = await self.persist_history.execute(
                 request=request,
                 assistant_reply=guard_data.reply,
@@ -230,7 +234,7 @@ class RespondCommand:
 
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
 
-        memory_summary = self.memory.get_summary(session_key)
+        memory_summary = await self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
@@ -291,7 +295,7 @@ class RespondCommand:
             final_contexts,
             fallback_domains=scope_decision.matched_domains,
         )
-        self._persist_session_memory(
+        await self._persist_session_memory(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
@@ -317,10 +321,10 @@ class RespondCommand:
             conversationId=request.conversationId or "default",
         )
 
-    def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
+    async def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
         if request.history:
             return request.history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]
-        return self.memory.get_recent(session_key, settings.CHATBOT_MEMORY_RECENT_ITEMS)
+        return await self.memory.get_recent(session_key, settings.CHATBOT_MEMORY_RECENT_ITEMS)
 
     def _session_key(self, request: AssistantRespondRequest) -> str:
         return f"{request.userId}:default"
@@ -340,7 +344,7 @@ class RespondCommand:
         except Exception:
             return self._dedupe_contexts(request.contexts)
 
-    def _persist_session_memory(
+    async def _persist_session_memory(
         self,
         request: AssistantRespondRequest,
         assistant_reply: str,
@@ -348,7 +352,7 @@ class RespondCommand:
         intent: str | None,
     ):
         session_key = self._session_key(request)
-        memory_summary = self.memory.get_summary(session_key)
+        memory_summary = await self.memory.get_summary(session_key)
         updated_summary = self._build_updated_summary(
             memory_summary,
             request.message,
@@ -359,7 +363,7 @@ class RespondCommand:
             "last_user_message": self._truncate_text(request.message, 140),
             "last_assistant_reply": self._truncate_text(assistant_reply, 180),
         }
-        self.memory.update_session_batch(
+        await self.memory.update_session_batch(
             key=session_key,
             user_message=request.message,
             assistant_reply=assistant_reply,
@@ -663,7 +667,15 @@ class RespondCommand:
         Returns True only if the event was sent successfully within the allowed time.
         """
         try:
-            from app.modules.analysis.lifespan import kafka_producer, outbox_repo
+            kafka_producer = self._kafka_producer
+            outbox_repo = self._outbox_repo
+            if kafka_producer is None or outbox_repo is None:
+                from app.modules.analysis.lifespan import (
+                    kafka_producer as default_producer,
+                    outbox_repo as default_outbox,
+                )
+                kafka_producer = kafka_producer or default_producer
+                outbox_repo = outbox_repo or default_outbox
             from datetime import datetime, timezone
 
             timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -705,9 +717,9 @@ class RespondCommand:
         started_at = time.perf_counter()
         request_id = str(uuid4())
         session_key = self._session_key(request)
-        history = self._resolve_history(request, session_key)
-        last_intent = request.intent or self.memory.get_last_intent(session_key)
-        memory_facts = self.memory.get_facts(session_key)
+        history = await self._resolve_history(request, session_key)
+        last_intent = request.intent or await self.memory.get_last_intent(session_key)
+        memory_facts = await self.memory.get_facts(session_key)
         effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
@@ -734,7 +746,7 @@ class RespondCommand:
 
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
 
-        memory_summary = self.memory.get_summary(session_key)
+        memory_summary = await self.memory.get_summary(session_key)
         memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
@@ -827,7 +839,7 @@ class RespondCommand:
         intent: str | None
     ):
         reply_content = self._sanitize_assistant_reply(reply)
-        self._persist_session_memory(
+        await self._persist_session_memory(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
@@ -852,12 +864,16 @@ class AssistantService:
         provider: LlmProvider | None = None,
         context_resolver: AssistantContextResolver | None = None,
         scope_guard: AssistantScopeGuard | None = None,
+        kafka_producer=None,
+        outbox_repo=None,
     ):
         self._respond_command = RespondCommand(
             prompt_builder=prompt_builder,
             provider=provider,
             context_resolver=context_resolver,
             scope_guard=scope_guard,
+            kafka_producer=kafka_producer,
+            outbox_repo=outbox_repo,
         )
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:

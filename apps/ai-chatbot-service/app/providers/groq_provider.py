@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import AsyncIterator
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.providers.base import LlmGeneration, LlmChunk
 from app.modules.chatbot.schemas import AssistantRespondRequest
 

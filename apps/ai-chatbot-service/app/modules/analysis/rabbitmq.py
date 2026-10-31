@@ -4,7 +4,7 @@ from typing import Any
 
 import aio_pika
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.modules.chatbot.services.emotion_context import emotion_context_service
 
 logger = logging.getLogger("uvicorn.error")

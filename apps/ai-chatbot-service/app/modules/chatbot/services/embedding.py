@@ -9,7 +9,7 @@ import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
 from app.utils.text_normalizer import normalize_text
 

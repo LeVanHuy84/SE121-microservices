@@ -51,11 +51,25 @@ class EmotionContextService:
     _TIMEOUT_SECONDS: float = 0.5  # 500ms — prevents blocking the chat flow
     _CACHE_TTL_SECONDS: float = 300.0  # 5 minutes cache to prevent excessive DB calls
 
-    def __init__(self) -> None:
+    def __init__(self, repo=None) -> None:
         self._redis = None
+        self._loop = None
         self._redis_disabled_until = 0.0
+        self._repo = repo
+
+    def _get_current_loop(self):
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            return None
 
     def _get_redis(self):
+        current_loop = self._get_current_loop()
+        if self._redis is not None and self._redis is not False:
+            if self._loop is not current_loop or (self._loop and self._loop.is_closed()):
+                self._redis = None
+                self._loop = None
+
         if self._redis is False:
             if time.time() < self._redis_disabled_until:
                 return None
@@ -66,7 +80,7 @@ class EmotionContextService:
 
         try:
             from redis.asyncio import Redis
-            from app.core.config import settings
+            from app.core.settings import settings
 
             self._redis = Redis.from_url(
                 settings.CHATBOT_REDIS_URL,
@@ -74,13 +88,14 @@ class EmotionContextService:
                 socket_connect_timeout=settings.CHATBOT_REDIS_CONNECT_TIMEOUT_SECONDS,
                 socket_timeout=settings.CHATBOT_REDIS_SOCKET_TIMEOUT_SECONDS,
             )
+            self._loop = current_loop
             return self._redis
         except Exception as exc:
             self._disable_redis(exc)
             return None
 
     def _disable_redis(self, exc: Exception):
-        from app.core.config import settings
+        from app.core.settings import settings
         logger.warning("[EmotionCtx] Disabling Redis temporarily due to error: %s", exc)
         self._redis = False
         self._redis_disabled_until = time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
@@ -148,10 +163,13 @@ class EmotionContextService:
         return _DEFAULT_SNAPSHOT
 
     async def _fetch(self, user_id: str) -> EmotionSnapshot:
-        # Lazy import to avoid circular dependency since the analysis module might not be fully initialized
-        from app.modules.analysis.lifespan import emotion_aggregate_repo  # noqa: PLC0415
+        repo = self._repo
+        if repo is None:
+            # Lazy import to avoid circular dependency since the analysis module might not be fully initialized
+            from app.modules.analysis.lifespan import emotion_aggregate_repo  # noqa: PLC0415
+            repo = emotion_aggregate_repo
 
-        docs = await emotion_aggregate_repo.get_user_recent_analyses(user_id, limit=1)
+        docs = await repo.get_user_recent_analyses(user_id, limit=1)
         if not docs:
             return _DEFAULT_SNAPSHOT
 

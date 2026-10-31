@@ -13,7 +13,7 @@ os.environ["CHATBOT_DB_ENABLED"] = "false"
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.core.config import settings as core_settings
+from app.core.settings import settings as core_settings
 from app.modules.chatbot import public_router as pr
 from app.modules.chatbot.schemas import (
     AssistantHistoryMessage,

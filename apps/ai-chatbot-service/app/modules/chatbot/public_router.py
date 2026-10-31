@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import datetime
 from typing import AsyncIterator, Literal, Optional
 
@@ -20,7 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.config import settings as core_settings
+from app.core.settings import settings as core_settings
 from app.modules.chatbot.repositories.chat_history import ClearHistoryCommand, GetHistoryQuery
 from app.modules.chatbot.schemas import (
     AssistantRespondRequest,
@@ -95,7 +96,8 @@ def require_gateway_user(
     x_internal_key: Optional[str] = Header(default=None),
     x_user_id: Optional[str] = Header(default=None),
 ) -> str:
-    if not x_internal_key or x_internal_key != core_settings.INTERNAL_SERVICE_KEY:
+    expected_key = core_settings.INTERNAL_SERVICE_KEY
+    if not expected_key or not x_internal_key or not secrets.compare_digest(x_internal_key, expected_key):
         raise ApiError(403, "FORBIDDEN", "Access denied.")
     user_id = (x_user_id or "").strip()
     if not user_id:

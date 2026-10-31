@@ -55,7 +55,7 @@ class AssistantServiceTest(unittest.TestCase):
         provider = FakeProvider()
         service = AssistantService(provider=provider)
         session_key = "user-1:default"
-        session_memory.clear_session(session_key)
+        asyncio.run(session_memory.clear_session(session_key))
 
         req = AssistantRespondRequest(
             userId="user-1",
@@ -63,7 +63,7 @@ class AssistantServiceTest(unittest.TestCase):
         )
 
         res = asyncio.run(service.respond(req))
-        recent = session_memory.get_recent(session_key, 2)
+        recent = asyncio.run(session_memory.get_recent(session_key, 2))
 
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.model, "scope-guard")
@@ -72,7 +72,7 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(recent[0].role, "user")
         self.assertEqual(recent[1].role, "assistant")
 
-        session_memory.clear_session(session_key)
+        asyncio.run(session_memory.clear_session(session_key))
 
     def test_greeting_skips_provider_even_when_contexts_present(self):
         provider = FakeProvider()
@@ -116,7 +116,7 @@ class AssistantServiceTest(unittest.TestCase):
         provider = FakeProvider()
         service = AssistantService(provider=provider)
         session_key = "user-3:default"
-        session_memory.clear_session(session_key)
+        asyncio.run(session_memory.clear_session(session_key))
 
         first = AssistantRespondRequest(
             userId="user-3",
@@ -168,7 +168,7 @@ class AssistantServiceTest(unittest.TestCase):
 
         self.assertGreaterEqual(provider.calls, 3)
         self.assertIn("fake reply for", res.reply)
-        session_memory.clear_session(session_key)
+        asyncio.run(session_memory.clear_session(session_key))
 
 
 if __name__ == "__main__":

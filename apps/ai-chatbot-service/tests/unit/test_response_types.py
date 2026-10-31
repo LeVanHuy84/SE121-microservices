@@ -42,13 +42,16 @@ class FakeKafka:
 
 
 def _run(service: AssistantService, message: str, user: str, contexts=None):
-    session_memory.clear_session(f"{user}:default")
-    req = AssistantRespondRequest(
-        userId=user,
-        message=message,
-        contexts=contexts or [],
-    )
-    return asyncio.run(service.respond(req))
+    async def _async_run():
+        await session_memory.clear_session(f"{user}:default")
+        req = AssistantRespondRequest(
+            userId=user,
+            message=message,
+            contexts=contexts or [],
+        )
+        return await service.respond(req)
+
+    return asyncio.run(_async_run())
 
 
 class FakeOutboxRepo:

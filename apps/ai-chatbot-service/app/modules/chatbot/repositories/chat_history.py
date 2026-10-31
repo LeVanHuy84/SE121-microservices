@@ -217,7 +217,7 @@ class HistoryStore:
         self._history_cache: dict[tuple[str, int], _HistoryCacheEntry] = {}
 
     def is_enabled(self) -> bool:
-        return True
+        return settings.CHATBOT_DB_ENABLED
 
     async def start(self):
         if not self.is_enabled():
@@ -262,11 +262,27 @@ class HistoryStore:
             "client_message_id": client_message_id,
         }
         try:
-            self._write_queue.put_nowait(payload)
+            await asyncio.wait_for(self._write_queue.put(payload), timeout=1.5)
             return True
-        except asyncio.QueueFull:
-            logger.warning("History write queue full; dropping persist event userId=%s", user_id)
-            return False
+        except (asyncio.QueueFull, TimeoutError, asyncio.TimeoutError):
+            logger.warning("History write queue congested; falling back to direct DB write for userId=%s", user_id)
+            try:
+                await asyncio.wait_for(
+                    self._repository.append_exchange(
+                        user_id=user_id,
+                        user_message=user_message,
+                        assistant_reply=assistant_reply,
+                        intent=intent,
+                        sources=payload["sources"],
+                        client_message_id=client_message_id,
+                    ),
+                    timeout=2.0,
+                )
+                self.invalidate_user_cache(user_id)
+                return True
+            except Exception as exc:
+                logger.error("Direct history persist fallback failed for userId=%s: %s", user_id, exc)
+                return False
 
     async def get_messages_page_by_user(
         self,
@@ -407,7 +423,7 @@ class ClearHistoryCommand:
 
     async def execute(self, user_id: str) -> int:
         deleted_count = await self.store.clear_history_by_user(user_id)
-        self.memory.clear_session(f"{user_id}:default")
+        await self.memory.clear_session(f"{user_id}:default")
         return deleted_count
 
 

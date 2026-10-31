@@ -5,7 +5,7 @@ from typing import Dict
 from app.modules.analysis.repositories.emotion import EmotionAggregateRepository
 from app.modules.analysis.schemas import EmotionAggregate
 from app.modules.analysis.enums import TargetTypeEnum, RiskHintLevelEnum
-from app.core.config import settings
+from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
 
