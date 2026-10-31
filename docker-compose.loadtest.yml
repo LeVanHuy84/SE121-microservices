@@ -1,0 +1,271 @@
+# docker-compose.loadtest.yml
+# Sprint 4: Performance Load Testing Benchmark (Full Isolated Environment with Local DBs)
+# Total Resource Budget: Exactly 7.0 vCPU & ~7.8 GB RAM
+
+name: se121-loadtest
+
+networks:
+  loadtest-network:
+    name: se121-loadtest_network
+    driver: bridge
+
+volumes:
+  redis_loadtest_data:
+    name: se121-loadtest_redis_data
+  mongo_loadtest_data:
+    name: se121-loadtest_mongo_data
+  postgres_loadtest_data:
+    name: se121-loadtest_postgres_data
+
+services:
+  # ========================================================
+  # 🗄️ CƠ SỞ DỮ LIỆU NỘI BỘ (MONGODB, POSTGRES, REDIS)
+  # ========================================================
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_loadtest_data:/data/db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-user_social_service}
+    volumes:
+      - postgres_loadtest_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    container_name: redis-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_loadtest_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  kafka:
+    container_name: kafka-loadtest
+    networks:
+      - loadtest-network
+
+  rabbitmq:
+    container_name: rabbitmq-loadtest
+    networks:
+      - loadtest-network
+
+  # ========================================================
+  # 🎯 NHÓM DỊCH VỤ TRỰC TIẾP LUỒNG PERSONAL FEED (4.0 vCPU)
+  # ========================================================
+  api-gateway:
+    container_name: api-gateway-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4000:4000'
+      - '5000:5000'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - ENABLE_LOAD_TEST_MODE=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+      - CHAT_SERVICE_HOST=chat-service
+      - AI_CHATBOT_SERVICE_URL=http://ai-chatbot-service:4006
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  content-feed-service:
+    container_name: content-feed-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4002:4002'
+      - '5002:5002'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - ENABLE_LOAD_TEST_MODE=true
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - POST_REDIS_HOST=redis
+      - POST_REDIS_PORT=6379
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+
+  emotion-intelligence-service:
+    container_name: emotion-intelligence-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4005:4005'
+      - '5005:5005'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  k6:
+    image: grafana/k6:latest
+    container_name: k6-loadtest
+    networks:
+      - loadtest-network
+    volumes:
+      - ./tests/load:/scripts
+    environment:
+      - TARGET_URL=http://api-gateway:4000
+      - SMOKE_TEST=${SMOKE_TEST:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 512M
+    command: ["run", "/scripts/k6-feed-session-loadtest.js"]
+
+  # ========================================================
+  # 🛡️ CÁC SERVICE NỀN ĐƯỢC GIỚI HẠN TÀI NGUYÊN (1.5 vCPU)
+  # ========================================================
+  user-social-service:
+    container_name: user-social-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4001:4001'
+      - '5001:5001'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/user_social_service}
+      - POSTGRES_URL=${POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/user_social_service}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 512M
+
+  search-recommendation-service:
+    container_name: search-recommendation-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4003:4003'
+      - '5003:5003'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/user_social_service}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 512M
+
+  chat-service:
+    container_name: chat-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4004:4004'
+      - '5004:5004'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  ai-chatbot-service:
+    container_name: ai-chatbot-loadtest
+    networks:
+      - loadtest-network
+    ports:
+      - '4006:4006'
+      - '5006:5006'
+    env_file:
+      - path: .env.test.local
+        required: false
+      - path: .env.test
+        required: false
+    environment:
+      - MONGO_URL=${MONGODB_URI:-mongodb://mongodb:27017}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 1024M

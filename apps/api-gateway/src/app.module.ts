@@ -1,7 +1,8 @@
 import { Module, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { LoadTestThrottlerGuard } from "./common/guards/load-test-throttler.guard";
 import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { MetricsInterceptor } from "./common/interceptors/metrics.interceptor";
 
@@ -90,7 +91,7 @@ import { MusicModule } from "./modules/music/music.module";
     },
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: LoadTestThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,

@@ -1,0 +1,90 @@
+[
+    {
+        "Container":  "user-social-loadtest",
+        "Peak CPU %":  43.93,
+        "Avg CPU %":  18.97,
+        "Peak Mem %":  27.03,
+        "Avg Mem %":  17.66,
+        "Mem Usage / Limit":  "106MiB / 512MiB"
+    },
+    {
+        "Container":  "emotion-intelligence-loadtest",
+        "Peak CPU %":  7.1,
+        "Avg CPU %":  4.14,
+        "Peak Mem %":  25.77,
+        "Avg Mem %":  25.6,
+        "Mem Usage / Limit":  "130.5MiB / 512MiB"
+    },
+    {
+        "Container":  "content-feed-loadtest",
+        "Peak CPU %":  108.68,
+        "Avg CPU %":  68.71,
+        "Peak Mem %":  21.6,
+        "Avg Mem %":  18.77,
+        "Mem Usage / Limit":  "193.6MiB / 1GiB"
+    },
+    {
+        "Container":  "api-gateway-loadtest",
+        "Peak CPU %":  101.35,
+        "Avg CPU %":  62.17,
+        "Peak Mem %":  49.54,
+        "Avg Mem %":  47.13,
+        "Mem Usage / Limit":  "241.9MiB / 512MiB"
+    },
+    {
+        "Container":  "mongodb-loadtest",
+        "Peak CPU %":  11.4,
+        "Avg CPU %":  7.09,
+        "Peak Mem %":  52.63,
+        "Avg Mem %":  51.2,
+        "Mem Usage / Limit":  "269.5MiB / 512MiB"
+    },
+    {
+        "Container":  "postgres-loadtest",
+        "Peak CPU %":  10.72,
+        "Avg CPU %":  5.6,
+        "Peak Mem %":  10.41,
+        "Avg Mem %":  9.96,
+        "Mem Usage / Limit":  "53.02MiB / 512MiB"
+    },
+    {
+        "Container":  "redis-loadtest",
+        "Peak CPU %":  10.36,
+        "Avg CPU %":  5,
+        "Peak Mem %":  11.59,
+        "Avg Mem %":  7.22,
+        "Mem Usage / Limit":  "59.32MiB / 512MiB"
+    },
+    {
+        "Container":  "kafka-loadtest",
+        "Peak CPU %":  9.87,
+        "Avg CPU %":  1.75,
+        "Peak Mem %":  95.42,
+        "Avg Mem %":  95.12,
+        "Mem Usage / Limit":  "366.4MiB / 384MiB"
+    },
+    {
+        "Container":  "rabbitmq-loadtest",
+        "Peak CPU %":  0.83,
+        "Avg CPU %":  0.28,
+        "Peak Mem %":  1.17,
+        "Avg Mem %":  1.14,
+        "Mem Usage / Limit":  "137.3MiB / 11.69GiB"
+    },
+    {
+        "Container":  "vibrant_elion",
+        "Peak CPU %":  31.82,
+        "Avg CPU %":  17.03,
+        "Peak Mem %":  34.42,
+        "Avg Mem %":  24.45,
+        "Mem Usage / Limit":  "175.9MiB / 512MiB"
+    },
+    {
+        "Container":  "--",
+        "Peak CPU %":  0,
+        "Avg CPU %":  0,
+        "Peak Mem %":  0,
+        "Avg Mem %":  0,
+        "Mem Usage / Limit":  "0B / 0B"
+    }
+]
