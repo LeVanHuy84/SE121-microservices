@@ -43,6 +43,13 @@ from app.modules.chatbot.services.guardrails import (
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES, PromptBuilder
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
+from app.modules.chatbot.tools import (
+    ToolDispatcher,
+    ToolExecutionContext,
+    ToolRouter,
+    tool_dispatcher,
+    tool_router,
+)
 from app.providers.base import LlmGeneration, LlmProvider
 from app.providers.groq_provider import GroqProvider
 
@@ -92,6 +99,8 @@ class RespondCommand:
         kafka_producer=None,
         outbox_repo=None,
         nav_resolver_instance: NavResolver | None = None,
+        tool_router_instance: ToolRouter | None = None,
+        tool_dispatcher_instance: ToolDispatcher | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or GroqProvider()
@@ -103,6 +112,8 @@ class RespondCommand:
         self.memory = memory or session_memory
         self.persist_history = persist_history or PersistHistoryCommand()
         self.nav_resolver = nav_resolver_instance or nav_resolver
+        self.tool_router = tool_router_instance or tool_router
+        self.dispatcher = tool_dispatcher_instance or tool_dispatcher
         self._kafka_producer = kafka_producer
         self._outbox_repo = outbox_repo
 
@@ -200,9 +211,11 @@ class RespondCommand:
 
         prompt_limits = resolve_prompt_limits(working_request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        
+        has_tools = bool(self.tool_router.get_openai_tools(working_request.surface))
+
         if (
             not final_contexts
+            and not has_tools
             and scope_decision.matched_domains
             and not has_follow_up_anchor
             and not general_knowledge
@@ -327,14 +340,24 @@ class RespondCommand:
         )
         prompt = self._prepend_turn_policy(prompt)
 
+        # Check if active tools are available for surface
+        active_tools = self.tool_router.get_openai_tools(resolved_request.surface)
+        supports_tools = self._supports_tools(active_tools)
+
         llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
         generation: LlmGeneration
         try:
             async with _LLM_SEMAPHORE:
-                generation = await asyncio.wait_for(
-                    self.provider.generate(prompt, resolved_request),
-                    timeout=max(llm_timeout_ms, 1) / 1000,
-                )
+                if supports_tools:
+                    generation = await asyncio.wait_for(
+                        self.provider.generate(prompt, resolved_request, tools=active_tools),
+                        timeout=max(llm_timeout_ms, 1) / 1000,
+                    )
+                else:
+                    generation = await asyncio.wait_for(
+                        self.provider.generate(prompt, resolved_request),
+                        timeout=max(llm_timeout_ms, 1) / 1000,
+                    )
         except asyncio.TimeoutError:
             generation = self._llm_timeout_generation()
         except Exception:
@@ -345,6 +368,22 @@ class RespondCommand:
                 len(final_contexts),
             )
             raise
+
+        # If LLM requested tool calling, execute in parallel and synthesize in second pass
+        if hasattr(generation, "tool_calls") and generation.tool_calls:
+            augmented_prompt = await self._execute_tools_and_augment_prompt(
+                generation.tool_calls, prompt, request
+            )
+            try:
+                async with _LLM_SEMAPHORE:
+                    generation = await asyncio.wait_for(
+                        self.provider.generate(augmented_prompt, resolved_request),
+                        timeout=max(llm_timeout_ms, 1) / 1000,
+                    )
+            except asyncio.TimeoutError:
+                generation = self._llm_timeout_generation()
+            except Exception:
+                logger.exception("Assistant tool synthesis generation failed")
 
         sources = [
             AssistantSource(
@@ -386,6 +425,42 @@ class RespondCommand:
             latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
             persisted=persisted,
             conversationId=request.conversationId or "default",
+        )
+
+    def _supports_tools(self, active_tools: list[dict[str, Any]]) -> bool:
+        if not active_tools:
+            return False
+        try:
+            import inspect
+            sig = inspect.signature(self.provider.generate)
+            return "tools" in sig.parameters
+        except Exception:
+            return False
+
+    async def _execute_tools_and_augment_prompt(
+        self,
+        tool_calls: tuple[Any, ...],
+        prompt: str,
+        request: AssistantRespondRequest,
+    ) -> str:
+        exec_ctx = ToolExecutionContext(
+            user_id=request.userId,
+            surface=request.surface,
+        )
+        # Execute tool calls concurrently for optimal latency
+        tool_results = await asyncio.gather(
+            *(self.dispatcher.dispatch(tc.name, tc.args, exec_ctx) for tc in tool_calls)
+        )
+        tool_results_text = [
+            f"- Công cụ `{tc.name}`: {res.to_tool_message_content()}"
+            for tc, res in zip(tool_calls, tool_results)
+        ]
+
+        return (
+            f"{prompt}\n\n"
+            "[KẾT QUẢ TRẢ VỀ TỪ CÔNG CỤ HỆ THỐNG]:\n"
+            + "\n".join(tool_results_text)
+            + "\nHãy tổng hợp thông tin trên thành câu trả lời tự nhiên, thân thiện và chính xác cho người dùng."
         )
 
     async def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
@@ -849,21 +924,63 @@ class RespondCommand:
             for item in final_contexts
         ]
 
+        # Check if active tools are available for surface
+        active_tools = self.tool_router.get_openai_tools(resolved_request.surface)
+        supports_tools = self._supports_tools(active_tools)
+
         full_reply_parts = []
         try:
-            async with _LLM_SEMAPHORE:
-                async for chunk in self.provider.stream(prompt, resolved_request):
-                    full_reply_parts.append(chunk.content)
+            if supports_tools:
+                initial_gen: LlmGeneration
+                async with _LLM_SEMAPHORE:
+                    initial_gen = await asyncio.wait_for(
+                        self.provider.generate(prompt, resolved_request, tools=active_tools),
+                        timeout=max(settings.CHATBOT_LLM_TIMEOUT_MS, 1) / 1000,
+                    )
+                if hasattr(initial_gen, "tool_calls") and initial_gen.tool_calls:
+                    augmented_prompt = await self._execute_tools_and_augment_prompt(
+                        initial_gen.tool_calls, prompt, request
+                    )
+                    async with _LLM_SEMAPHORE:
+                        async for chunk in self.provider.stream(augmented_prompt, resolved_request):
+                            full_reply_parts.append(chunk.content)
+                            yield AssistantRespondData(
+                                reply=chunk.content,
+                                sources=sources if len(full_reply_parts) == 1 else [],
+                                suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
+                                model=chunk.model or settings.GROQ_MODEL,
+                                provider=chunk.provider or "groq",
+                                requestId=request_id,
+                                latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                                conversationId=request.conversationId or "default",
+                            )
+                else:
+                    direct_content = self._sanitize_assistant_reply(initial_gen.content)
+                    full_reply_parts.append(direct_content)
                     yield AssistantRespondData(
-                        reply=chunk.content,
-                        sources=sources if len(full_reply_parts) == 1 else [],
-                        suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
-                        model=chunk.model or settings.GROQ_MODEL,
-                        provider=chunk.provider or "groq",
+                        reply=direct_content,
+                        sources=sources,
+                        suggestedActions=pending_actions,
+                        model=initial_gen.model or settings.GROQ_MODEL,
+                        provider=initial_gen.provider or "groq",
                         requestId=request_id,
                         latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
                         conversationId=request.conversationId or "default",
                     )
+            else:
+                async with _LLM_SEMAPHORE:
+                    async for chunk in self.provider.stream(prompt, resolved_request):
+                        full_reply_parts.append(chunk.content)
+                        yield AssistantRespondData(
+                            reply=chunk.content,
+                            sources=sources if len(full_reply_parts) == 1 else [],
+                            suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
+                            model=chunk.model or settings.GROQ_MODEL,
+                            provider=chunk.provider or "groq",
+                            requestId=request_id,
+                            latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                            conversationId=request.conversationId or "default",
+                        )
         except (asyncio.CancelledError, GeneratorExit):
             logger.debug("Assistant stream cancelled or client disconnected mid-stream")
             if full_reply_parts:
@@ -953,6 +1070,8 @@ class AssistantService:
         scope_guard: AssistantScopeGuard | None = None,
         kafka_producer=None,
         outbox_repo=None,
+        tool_router_instance: ToolRouter | None = None,
+        tool_dispatcher_instance: ToolDispatcher | None = None,
     ):
         self._respond_command = RespondCommand(
             prompt_builder=prompt_builder,
@@ -961,6 +1080,8 @@ class AssistantService:
             scope_guard=scope_guard,
             kafka_producer=kafka_producer,
             outbox_repo=outbox_repo,
+            tool_router_instance=tool_router_instance,
+            tool_dispatcher_instance=tool_dispatcher_instance,
         )
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:

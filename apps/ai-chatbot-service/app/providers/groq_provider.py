@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, Optional
 
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantRespondRequest
-from app.providers.base import LlmChunk, LlmGeneration
+from app.providers.base import LlmChunk, LlmGeneration, ToolCallInfo
 
 
 def _is_transient_error(exc: Exception) -> bool:
@@ -29,13 +29,17 @@ class GroqProvider:
         self,
         prompt: str,
         request: AssistantRespondRequest,
+        tools: Optional[list[dict[str, Any]]] = None,
     ) -> LlmGeneration:
         temperature = self._resolve_temperature(request)
+        if tools:
+            return await self._generate_with_tools_async(prompt, temperature, tools)
         content = await self._generate_async(prompt, temperature)
         return LlmGeneration(
             content=content,
             model=settings.GROQ_MODEL,
             provider="groq",
+            tool_calls=(),
         )
 
     async def stream(
@@ -84,6 +88,78 @@ class GroqProvider:
                 raise
         raise RuntimeError("Groq retry limit exceeded")
 
+    async def _generate_with_tools_async(
+        self,
+        prompt: str,
+        temperature: float,
+        tools: list[dict[str, Any]],
+    ) -> LlmGeneration:
+        if not settings.GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY is not set")
+
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+        except ImportError as exc:
+            raise RuntimeError(
+                "LangChain dependencies are not installed. "
+                "Run: pip install -r requirements.txt"
+            ) from exc
+
+        llm = self._get_llm(temperature)
+        llm_with_tools = llm.bind_tools(tools)
+        messages = [
+            SystemMessage(
+                content=(
+                    "Tuân thủ hệ thống trong prompt. "
+                    "Chỉ dùng thông tin trong prompt/context hoặc công cụ được cung cấp, không bịa dữ liệu."
+                )
+            ),
+            HumanMessage(content=prompt),
+        ]
+
+        for attempt in range(3):
+            try:
+                ai_msg = await llm_with_tools.ainvoke(messages)
+                tool_calls: list[ToolCallInfo] = []
+                if hasattr(ai_msg, "tool_calls") and ai_msg.tool_calls:
+                    for tc in ai_msg.tool_calls:
+                        tool_calls.append(
+                            ToolCallInfo(
+                                id=tc.get("id", ""),
+                                name=tc.get("name", ""),
+                                args=tc.get("args") or {},
+                            )
+                        )
+                return LlmGeneration(
+                    content=str(ai_msg.content or "").strip(),
+                    model=settings.GROQ_MODEL,
+                    provider="groq",
+                    tool_calls=tuple(tool_calls),
+                )
+            except Exception as exc:
+                if attempt < 2 and _is_transient_error(exc):
+                    await asyncio.sleep(0.5 * (2**attempt))
+                    continue
+                raise
+        raise RuntimeError("Groq retry limit exceeded")
+
+    def _get_llm(self, temperature: float):
+        try:
+            from langchain_groq import ChatGroq
+        except ImportError as exc:
+            raise RuntimeError(
+                "LangChain Groq dependencies are not installed. "
+                "Run: pip install -r requirements.txt"
+            ) from exc
+
+        return ChatGroq(
+            api_key=settings.GROQ_API_KEY,
+            model=settings.GROQ_MODEL,
+            temperature=round(float(temperature), 3),
+            max_tokens=settings.GROQ_MAX_TOKENS,
+            timeout=settings.GROQ_TIMEOUT_SECONDS,
+        )
+
     def _get_chain(self, temperature: float):
         cache_key = round(float(temperature), 3)
         cached = self._chains.get(cache_key)
@@ -93,20 +169,13 @@ class GroqProvider:
         try:
             from langchain_core.output_parsers import StrOutputParser
             from langchain_core.prompts import ChatPromptTemplate
-            from langchain_groq import ChatGroq
         except ImportError as exc:
             raise RuntimeError(
                 "LangChain Groq dependencies are not installed. "
                 "Run: pip install -r requirements.txt"
             ) from exc
 
-        llm = ChatGroq(
-            api_key=settings.GROQ_API_KEY,
-            model=settings.GROQ_MODEL,
-            temperature=cache_key,
-            max_tokens=settings.GROQ_MAX_TOKENS,
-            timeout=settings.GROQ_TIMEOUT_SECONDS,
-        )
+        llm = self._get_llm(temperature)
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 (
@@ -128,4 +197,3 @@ class GroqProvider:
         if request.intent or request.contexts:
             return settings.GROQ_TEMPERATURE_TASK
         return settings.GROQ_TEMPERATURE
-

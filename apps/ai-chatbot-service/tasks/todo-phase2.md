@@ -14,12 +14,12 @@
 - [x] Connect current pathname to `surface` in `AssistantSheet` (Web) and `AssistantChatModal` (Native)
 
 ## Slice 2.2: Tool Catalog, Dynamic Tool Router & Groq Tool Calling
-- [ ] Create `apps/ai-chatbot-service/app/modules/chatbot/tools/` package
-- [ ] Define multi-domain schemas in `tools/catalog.py` (Social, Groups, Emotions & Music, Posts, Account & Safety)
-- [ ] Implement `tools/router.py` to dynamically pick max 6 tools based on `surface.screen`
-- [ ] Implement `tools/dispatcher.py` with forwarded auth headers, timeout, and circuit breaker
-- [ ] Update `GroqProvider` and `assistant.py` to support tool calling stream loop
-- [ ] Add unit tests in `tests/test_tool_router.py` and `tests/test_tool_dispatcher.py`
+- [x] Create `apps/ai-chatbot-service/app/modules/chatbot/tools/` package
+- [x] Define multi-domain schemas in `tools/catalog.py` (Social, Groups, Emotions & Music, Posts, Account & Safety)
+- [x] Implement `tools/router.py` to dynamically pick max 6 tools based on `surface.screen`
+- [x] Implement `tools/dispatcher.py` with forwarded auth headers, timeout, and circuit breaker
+- [x] Update `GroqProvider` and `assistant.py` to support tool calling stream loop
+- [x] Add unit tests in `tests/test_tool_router.py` and `tests/test_tool_dispatcher.py`
 
 ## Slice 2.3: Downstream Service Integrations & Auth Forwarding
 - [ ] Update `api-gateway` chatbot forwarder to forward `Authorization: Bearer <token>` to chatbot service
