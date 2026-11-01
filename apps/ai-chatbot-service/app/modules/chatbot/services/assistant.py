@@ -20,9 +20,11 @@ from app.modules.chatbot.schemas import (
     AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
+    CardPayload,
     CrisisInfo,
     CrisisResource,
     NavigateAction,
+    ShowCardAction,
 )
 from app.modules.chatbot.services.context_resolver import (
     AssistantContextResolver,
@@ -369,11 +371,13 @@ class RespondCommand:
             )
             raise
 
+        generated_cards: list[ShowCardAction] = []
         # If LLM requested tool calling, execute in parallel and synthesize in second pass
         if hasattr(generation, "tool_calls") and generation.tool_calls:
-            augmented_prompt = await self._execute_tools_and_augment_prompt(
+            augmented_prompt, generated_cards = await self._execute_tools_and_augment_prompt(
                 generation.tool_calls, prompt, request
             )
+            pending_actions.extend(generated_cards)
             try:
                 async with _LLM_SEMAPHORE:
                     generation = await asyncio.wait_for(
@@ -419,6 +423,7 @@ class RespondCommand:
             reply=reply_content,
             sources=sources,
             suggestedActions=pending_actions,
+            cards=generated_cards,
             model=generation.model,
             provider=generation.provider,
             requestId=request_id,
@@ -437,12 +442,154 @@ class RespondCommand:
         except Exception:
             return False
 
+    def _extract_cards(
+        self,
+        tool_calls: tuple[Any, ...],
+        tool_results: list[Any],
+    ) -> list[ShowCardAction]:
+        cards: list[ShowCardAction] = []
+        for tc, res in zip(tool_calls, tool_results):
+            if not getattr(res, "success", False) or getattr(res, "data", None) is None:
+                continue
+            data = res.data
+            name = getattr(tc, "name", "")
+
+            # 1. Profile cards
+            if name in ("get_my_friends", "search_users", "get_friend_recommendations", "get_my_friend_requests"):
+                user_list = []
+                if isinstance(data, dict):
+                    user_list = data.get("friends") or data.get("users") or data.get("recommendations") or data.get("requests") or []
+                elif isinstance(data, list):
+                    user_list = data
+                for u in user_list[:2]:
+                    if isinstance(u, dict):
+                        u_name = u.get("name") or u.get("senderName") or u.get("username") or "Người dùng"
+                        u_sub = f"@{u['username']}" if u.get("username") else (f"{u.get('mutualFriends', 0)} bạn chung" if u.get("mutualFriends") else "Thành viên Sentimeta")
+                        username_or_id = u.get("username") or u.get("id") or u.get("targetUserId") or ""
+                        cards.append(
+                            ShowCardAction(
+                                label="Xem trang cá nhân",
+                                payload=CardPayload(
+                                    cardType="profile",
+                                    title=u_name,
+                                    subtitle=u_sub,
+                                    imageUrl=u.get("avatarUrl"),
+                                    actionUrl=f"/profile/{username_or_id}" if username_or_id else "/friends",
+                                    actionLabel="Xem trang cá nhân",
+                                    metadata={"userId": u.get("id"), "username": u.get("username")},
+                                ),
+                            )
+                        )
+
+            # 2. Group cards
+            elif name in ("get_group_context", "get_my_groups", "get_group_recommendations", "get_group_invitations"):
+                group_list = []
+                if isinstance(data, dict):
+                    group_list = data.get("groups") or data.get("recommendations") or data.get("invitations") or [data]
+                elif isinstance(data, list):
+                    group_list = data
+                for g in group_list[:2]:
+                    if isinstance(g, dict) and (g.get("id") or g.get("name")):
+                        g_name = g.get("name") or "Nhóm cộng đồng"
+                        m_count = g.get("memberCount") or g.get("membersCount") or 0
+                        g_sub = f"{m_count} thành viên" if m_count else "Cộng đồng Sentimeta"
+                        g_id = g.get("id") or g.get("groupId") or ""
+                        cards.append(
+                            ShowCardAction(
+                                label="Xem nhóm",
+                                payload=CardPayload(
+                                    cardType="group",
+                                    title=g_name,
+                                    subtitle=g_sub,
+                                    imageUrl=g.get("avatarUrl") or g.get("coverUrl"),
+                                    actionUrl=f"/groups/{g_id}" if g_id else "/groups",
+                                    actionLabel="Xem nhóm",
+                                    metadata={"groupId": g_id},
+                                ),
+                            )
+                        )
+
+            # 3. Music cards
+            elif name == "get_recommended_music_for_mood":
+                track_list = []
+                if isinstance(data, dict):
+                    track_list = data.get("tracks") or data.get("data") or data.get("recommendations") or [data]
+                elif isinstance(data, list):
+                    track_list = data
+                for t in track_list[:2]:
+                    if isinstance(t, dict):
+                        t_title = t.get("title") or t.get("name") or "Bài hát thư giãn"
+                        t_artist = t.get("artist") or "Nghệ sĩ Sentimeta"
+                        cards.append(
+                            ShowCardAction(
+                                label="Nghe thử",
+                                payload=CardPayload(
+                                    cardType="music",
+                                    title=t_title,
+                                    subtitle=t_artist,
+                                    imageUrl=t.get("coverUrl") or t.get("thumbnailUrl"),
+                                    actionUrl=t.get("previewUrl") or t.get("streamUrl") or f"/music/{t.get('id', '')}",
+                                    actionLabel="Nghe thử",
+                                    metadata={"trackId": t.get("id"), "previewUrl": t.get("previewUrl")},
+                                ),
+                            )
+                        )
+
+            # 4. Post cards
+            elif name in ("get_trending_posts", "get_my_posts_overview", "get_my_saved_posts"):
+                post_list = []
+                if isinstance(data, dict):
+                    post_list = data.get("posts") or data.get("data") or [data]
+                elif isinstance(data, list):
+                    post_list = data
+                for p in post_list[:2]:
+                    if isinstance(p, dict) and (p.get("id") or p.get("content")):
+                        p_author = p.get("authorName") or "Bài viết nổi bật"
+                        p_content = str(p.get("content", ""))
+                        p_sub = (p_content[:75] + "...") if len(p_content) > 75 else p_content
+                        p_id = p.get("id") or ""
+                        cards.append(
+                            ShowCardAction(
+                                label="Xem bài viết",
+                                payload=CardPayload(
+                                    cardType="post",
+                                    title=p_author,
+                                    subtitle=p_sub,
+                                    imageUrl=p.get("thumbnailUrl"),
+                                    actionUrl=f"/posts/{p_id}" if p_id else "/feed",
+                                    actionLabel="Xem bài viết",
+                                    metadata={"postId": p_id},
+                                ),
+                            )
+                        )
+
+            # 5. Emotion cards
+            elif name in ("get_my_emotion_summary", "get_my_emotion_trends"):
+                if isinstance(data, dict):
+                    dominant = data.get("dominantEmotion") or data.get("topEmotion")
+                    if dominant:
+                        cards.append(
+                            ShowCardAction(
+                                label="Xem phân tích",
+                                payload=CardPayload(
+                                    cardType="emotion",
+                                    title=f"Tâm trạng: {dominant}",
+                                    subtitle="Báo cáo phân tích cảm xúc cá nhân gần đây",
+                                    actionUrl="/emotions",
+                                    actionLabel="Xem phân tích cảm xúc",
+                                    metadata=data,
+                                ),
+                            )
+                        )
+
+        return cards[:2]
+
     async def _execute_tools_and_augment_prompt(
         self,
         tool_calls: tuple[Any, ...],
         prompt: str,
         request: AssistantRespondRequest,
-    ) -> str:
+    ) -> tuple[str, list[ShowCardAction]]:
         exec_ctx = ToolExecutionContext(
             user_id=request.userId,
             surface=request.surface,
@@ -452,17 +599,19 @@ class RespondCommand:
         tool_results = await asyncio.gather(
             *(self.dispatcher.dispatch(tc.name, tc.args, exec_ctx) for tc in tool_calls)
         )
+        cards = self._extract_cards(tool_calls, list(tool_results))
         tool_results_text = [
             f"- Công cụ `{tc.name}`: {res.to_tool_message_content()}"
             for tc, res in zip(tool_calls, tool_results)
         ]
 
-        return (
+        augmented_prompt = (
             f"{prompt}\n\n"
             "[KẾT QUẢ TRẢ VỀ TỪ CÔNG CỤ HỆ THỐNG]:\n"
             + "\n".join(tool_results_text)
             + "\nHãy tổng hợp thông tin trên thành câu trả lời tự nhiên, thân thiện và chính xác cho người dùng."
         )
+        return augmented_prompt, cards
 
     async def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
         if request.history:
@@ -939,9 +1088,10 @@ class RespondCommand:
                         timeout=max(settings.CHATBOT_LLM_TIMEOUT_MS, 1) / 1000,
                     )
                 if hasattr(initial_gen, "tool_calls") and initial_gen.tool_calls:
-                    augmented_prompt = await self._execute_tools_and_augment_prompt(
+                    augmented_prompt, stream_cards = await self._execute_tools_and_augment_prompt(
                         initial_gen.tool_calls, prompt, request
                     )
+                    pending_actions.extend(stream_cards)
                     async with _LLM_SEMAPHORE:
                         async for chunk in self.provider.stream(augmented_prompt, resolved_request):
                             full_reply_parts.append(chunk.content)
@@ -949,6 +1099,7 @@ class RespondCommand:
                                 reply=chunk.content,
                                 sources=sources if len(full_reply_parts) == 1 else [],
                                 suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
+                                cards=stream_cards if len(full_reply_parts) == 1 else [],
                                 model=chunk.model or settings.GROQ_MODEL,
                                 provider=chunk.provider or "groq",
                                 requestId=request_id,

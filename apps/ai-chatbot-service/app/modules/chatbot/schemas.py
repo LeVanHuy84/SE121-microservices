@@ -87,8 +87,25 @@ class NavigateAction(BaseModel):
     payload: NavigatePayload
 
 
+class CardPayload(BaseModel):
+    cardType: Literal["profile", "group", "post", "music", "emotion"]
+    title: str
+    subtitle: Optional[str] = None
+    imageUrl: Optional[str] = None
+    actionUrl: Optional[str] = None
+    actionLabel: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ShowCardAction(BaseModel):
+    type: Literal["show_card"] = "show_card"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(default="Xem chi tiết", max_length=40)
+    payload: CardPayload
+
+
 AssistantSuggestedAction = Annotated[
-    Union[NavigateAction],
+    Union[NavigateAction, ShowCardAction],
     Field(discriminator="type"),
 ]
 
@@ -98,6 +115,7 @@ class AssistantRespondData(BaseModel):
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list, max_length=3)
+    cards: list[ShowCardAction] = Field(default_factory=list, max_length=3)
     model: str
     provider: str
     requestId: Optional[str] = None
@@ -108,8 +126,8 @@ class AssistantRespondData(BaseModel):
 
     @model_validator(mode="after")
     def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
-        if self.type == "crisis" and self.suggestedActions:
-            raise ValueError("Crisis response must not contain suggestedActions")
+        if self.type == "crisis" and (self.suggestedActions or self.cards):
+            raise ValueError("Crisis response must not contain suggestedActions or cards")
         return self
 
 

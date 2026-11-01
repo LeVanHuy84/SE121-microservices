@@ -29,6 +29,67 @@ class MicroserviceToolHandlers:
     # ==========================================================================
     # Social Domain Handlers
     # ==========================================================================
+    async def get_my_friends(
+        self, args: dict[str, Any], ctx: ToolExecutionContext
+    ) -> Any:
+        limit = min(args.get("limit", 5), 10)
+        res = await self.http_client.get(
+            "/social/friends/me",
+            params={"limit": limit},
+            auth_token=ctx.auth_token,
+        )
+        if isinstance(res, dict) and "_error" in res:
+            logger.info("Using baseline fallback for get_my_friends: %s", res.get("message"))
+            if self.mock_fallbacks_enabled:
+                return {
+                    "total": 3,
+                    "friends": [
+                        {"id": "user-1", "name": "Nguyễn Văn A", "username": "vana", "avatarUrl": None},
+                        {"id": "user-2", "name": "Trần Thị B", "username": "thib", "avatarUrl": None},
+                    ],
+                }
+            return {
+                "total": 0,
+                "friends": [],
+                "error": res.get("message", "Không thể lấy danh sách bạn bè lúc này."),
+            }
+        # Normalize if microservice returns list or paginated dict
+        if isinstance(res, dict):
+            items = res.get("data") or res.get("friends") or []
+            total = res.get("total") or len(items)
+            return {"total": total, "friends": items[:limit]}
+        if isinstance(res, list):
+            return {"total": len(res), "friends": res[:limit]}
+        return res
+
+    async def search_users(
+        self, args: dict[str, Any], ctx: ToolExecutionContext
+    ) -> Any:
+        query = str(args.get("query", "")).strip()
+        if not query:
+            return {"total": 0, "users": []}
+        res = await self.http_client.get(
+            "/search/users",
+            params={"q": query, "limit": 3},
+            auth_token=ctx.auth_token,
+        )
+        if isinstance(res, dict) and "_error" in res:
+            logger.info("Using baseline fallback for search_users: %s", res.get("message"))
+            if self.mock_fallbacks_enabled:
+                return {
+                    "total": 1,
+                    "users": [
+                        {"id": "user-found-1", "name": query, "username": query.lower().replace(" ", ""), "avatarUrl": None}
+                    ],
+                }
+            return {"total": 0, "users": [], "error": res.get("message", "Không thể tìm kiếm người dùng lúc này.")}
+        if isinstance(res, dict):
+            users = res.get("data") or res.get("users") or []
+            return {"total": len(users), "users": users[:3]}
+        if isinstance(res, list):
+            return {"total": len(res), "users": res[:3]}
+        return res
+
     async def get_my_friend_requests(
         self, args: dict[str, Any], ctx: ToolExecutionContext
     ) -> Any:
@@ -262,6 +323,47 @@ class MicroserviceToolHandlers:
     # ==========================================================================
     # Content & Feed Domain Handlers
     # ==========================================================================
+    async def get_trending_posts(
+        self, args: dict[str, Any], ctx: ToolExecutionContext
+    ) -> Any:
+        limit = min(args.get("limit", 3), 5)
+        res = await self.http_client.get(
+            "/feeds/trending",
+            params={"limit": limit},
+            auth_token=ctx.auth_token,
+        )
+        if isinstance(res, dict) and "_error" in res:
+            logger.info("Using baseline fallback for get_trending_posts: %s", res.get("message"))
+            if self.mock_fallbacks_enabled:
+                return {
+                    "posts": [
+                        {
+                            "id": "post-trend-1",
+                            "authorName": "Sentimeta Community",
+                            "content": "Chào mừng tính năng Trợ lý AI thế hệ mới trên Sentimeta! Cùng trải nghiệm trao đổi và chia sẻ tâm trạng ngay hôm nay.",
+                            "likeCount": 128,
+                            "commentCount": 34,
+                        }
+                    ]
+                }
+            return {"posts": [], "error": res.get("message", "Không thể lấy bài viết thịnh hành lúc này.")}
+
+        posts_data = []
+        raw_items = res.get("data") if isinstance(res, dict) else (res if isinstance(res, list) else [])
+        for item in raw_items[:limit]:
+            if isinstance(item, dict):
+                content = str(item.get("content", ""))
+                snippet = (content[:120] + "...") if len(content) > 120 else content
+                author = item.get("author") or {}
+                posts_data.append({
+                    "id": item.get("id") or item.get("_id"),
+                    "authorName": author.get("name") or author.get("username") or "Người dùng Sentimeta",
+                    "content": snippet,
+                    "likeCount": item.get("reactionCount") or item.get("reactions") or 0,
+                    "commentCount": item.get("commentCount") or item.get("comments") or 0,
+                })
+        return {"posts": posts_data}
+
     async def get_my_posts_overview(
         self, args: dict[str, Any], ctx: ToolExecutionContext
     ) -> Any:
@@ -383,6 +485,8 @@ class MicroserviceToolHandlers:
 
 def register_production_handlers(dispatcher, http_client: GatewayHttpClient | None = None) -> None:
     handlers = MicroserviceToolHandlers(http_client)
+    dispatcher.register_handler("get_my_friends", handlers.get_my_friends)
+    dispatcher.register_handler("search_users", handlers.search_users)
     dispatcher.register_handler("get_my_friend_requests", handlers.get_my_friend_requests)
     dispatcher.register_handler("get_friend_recommendations", handlers.get_friend_recommendations)
     dispatcher.register_handler("get_user_relationship", handlers.get_user_relationship)
@@ -395,6 +499,7 @@ def register_production_handlers(dispatcher, http_client: GatewayHttpClient | No
     dispatcher.register_handler("get_my_emotion_trends", handlers.get_my_emotion_trends)
     dispatcher.register_handler("get_recommended_music_for_mood", handlers.get_recommended_music_for_mood)
     dispatcher.register_handler("get_mindfulness_exercises", handlers.get_mindfulness_exercises)
+    dispatcher.register_handler("get_trending_posts", handlers.get_trending_posts)
     dispatcher.register_handler("get_my_posts_overview", handlers.get_my_posts_overview)
     dispatcher.register_handler("get_post_comments_summary", handlers.get_post_comments_summary)
     dispatcher.register_handler("get_my_saved_posts", handlers.get_my_saved_posts)

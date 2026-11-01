@@ -12,10 +12,13 @@ from app.modules.chatbot.tools.router import (
 
 
 class ToolCatalogAndRouterTest(unittest.TestCase):
-    def test_catalog_contains_all_18_tools(self):
-        self.assertEqual(len(ALL_TOOLS), 18)
+    def test_catalog_contains_all_21_tools(self):
+        self.assertEqual(len(ALL_TOOLS), 21)
         expected_domains = {"social", "groups", "emotions", "content", "account"}
         self.assertEqual(set(DOMAIN_TOOLS.keys()), expected_domains)
+        self.assertIn("get_my_friends", ALL_TOOLS)
+        self.assertIn("search_users", ALL_TOOLS)
+        self.assertIn("get_trending_posts", ALL_TOOLS)
 
         for name, tool in ALL_TOOLS.items():
             self.assertEqual(tool.name, name)

@@ -79,6 +79,41 @@ GET_USER_RELATIONSHIP = ToolDefinition(
     },
 )
 
+GET_MY_FRIENDS = ToolDefinition(
+    name="get_my_friends",
+    domain="social",
+    target_service="user-social-service",
+    description="Lấy tổng số lượng và danh sách bạn bè hiện tại trong danh bạ mạng xã hội của tôi.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "description": "Số lượng bạn bè cần lấy (mặc định 5, tối đa 10)",
+                "default": 5,
+            }
+        },
+        "required": [],
+    },
+)
+
+SEARCH_USERS = ToolDefinition(
+    name="search_users",
+    domain="social",
+    target_service="search-recommendation-service",
+    description="Tìm kiếm người dùng hoặc bạn bè trên mạng xã hội bằng tên hiển thị hoặc username (tối đa 3 kết quả).",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Tên hoặc username người dùng cần tìm",
+            }
+        },
+        "required": ["query"],
+    },
+)
+
 GET_MY_BLOCKED_LIST = ToolDefinition(
     name="get_my_blocked_list",
     domain="social",
@@ -301,6 +336,24 @@ GET_MY_SAVED_POSTS = ToolDefinition(
     },
 )
 
+GET_TRENDING_POSTS = ToolDefinition(
+    name="get_trending_posts",
+    domain="content",
+    target_service="content-feed-service",
+    description="Lấy top 3 bài viết thịnh hành và được quan tâm nhiều nhất gần đây trên mạng xã hội Sentimeta.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "description": "Số lượng bài viết thịnh hành cần lấy (mặc định 3, tối đa 3)",
+                "default": 3,
+            }
+        },
+        "required": [],
+    },
+)
+
 # ==============================================================================
 # Domain 5: Account & Safety (notification-service, user-social-service, moderation-service)
 # ==============================================================================
@@ -352,9 +405,11 @@ GET_MY_MODERATION_HISTORY = ToolDefinition(
     },
 )
 
-# Registry of all 18 tools
+# Registry of all 21 tools
 ALL_TOOLS: dict[str, ToolDefinition] = {
     # Social
+    GET_MY_FRIENDS.name: GET_MY_FRIENDS,
+    SEARCH_USERS.name: SEARCH_USERS,
     GET_MY_FRIEND_REQUESTS.name: GET_MY_FRIEND_REQUESTS,
     GET_FRIEND_RECOMMENDATIONS.name: GET_FRIEND_RECOMMENDATIONS,
     GET_USER_RELATIONSHIP.name: GET_USER_RELATIONSHIP,
@@ -370,6 +425,7 @@ ALL_TOOLS: dict[str, ToolDefinition] = {
     GET_RECOMMENDED_MUSIC_FOR_MOOD.name: GET_RECOMMENDED_MUSIC_FOR_MOOD,
     GET_MINDFULNESS_EXERCISES.name: GET_MINDFULNESS_EXERCISES,
     # Content
+    GET_TRENDING_POSTS.name: GET_TRENDING_POSTS,
     GET_MY_POSTS_OVERVIEW.name: GET_MY_POSTS_OVERVIEW,
     GET_POST_COMMENTS_SUMMARY.name: GET_POST_COMMENTS_SUMMARY,
     GET_MY_SAVED_POSTS.name: GET_MY_SAVED_POSTS,
@@ -381,6 +437,8 @@ ALL_TOOLS: dict[str, ToolDefinition] = {
 
 DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
     "social": [
+        GET_MY_FRIENDS,
+        SEARCH_USERS,
         GET_MY_FRIEND_REQUESTS,
         GET_FRIEND_RECOMMENDATIONS,
         GET_USER_RELATIONSHIP,
@@ -399,6 +457,7 @@ DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
         GET_MINDFULNESS_EXERCISES,
     ],
     "content": [
+        GET_TRENDING_POSTS,
         GET_MY_POSTS_OVERVIEW,
         GET_POST_COMMENTS_SUMMARY,
         GET_MY_SAVED_POSTS,
