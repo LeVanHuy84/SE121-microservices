@@ -1,13 +1,12 @@
 import { InsightEngine } from './insight.engine';
-import { InsightRule, InsightContext, Insight } from './insight.types';
+import { Insight, InsightContext, InsightRule } from './insight.types';
 import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
 describe('InsightEngine', () => {
   let engine: InsightEngine;
-  let mockRules: InsightRule[];
 
   beforeEach(() => {
-    mockRules = [
+    const mockRules: InsightRule[] = [
       {
         type: InsightType.HIGH_RISK,
         evaluate: (ctx: InsightContext): Insight | null => {
@@ -25,7 +24,7 @@ describe('InsightEngine', () => {
       {
         type: InsightType.DETERIORATING_TREND,
         evaluate: (ctx: InsightContext): Insight | null => {
-          if (ctx.profile.decayedNegativityScore > 0.6) {
+          if (ctx.profile.recentNegativityScore > 0.6) {
             return {
               type: InsightType.DETERIORATING_TREND,
               message: 'Negative trend detected',
@@ -44,7 +43,7 @@ describe('InsightEngine', () => {
   it('should return matched insights sorted by priority', () => {
     const mockContext: InsightContext = {
       profile: {
-        decayedNegativityScore: 0.7,
+        recentNegativityScore: 0.7,
         consecutiveNegativeDays: 3,
         emotionMomentum: -0.5,
       },
@@ -73,7 +72,7 @@ describe('InsightEngine', () => {
   it('should return DEFAULT_STABLE_INSIGHT when no rules match', () => {
     const mockContext: InsightContext = {
       profile: {
-        decayedNegativityScore: 0.1,
+        recentNegativityScore: 0.1,
         consecutiveNegativeDays: 0,
         emotionMomentum: 0.1,
       },

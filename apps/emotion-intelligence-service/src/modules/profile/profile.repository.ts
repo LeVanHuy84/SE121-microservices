@@ -51,10 +51,15 @@ export class ProfileRepository {
       consecutiveNegativeDays,
       lastEventAt,
       lastStrongNegativeAt,
-      decayedNegativityScore,
+      recentNegativityScore,
       emotionMomentum,
       ...restPayload
     } = payload;
+
+    const negativityVal =
+      recentNegativityScore !== undefined
+        ? recentNegativityScore
+        : (payload as any).decayedNegativityScore;
 
     await this.profileModel.updateOne(
       { userId },
@@ -67,8 +72,9 @@ export class ProfileRepository {
           }),
           ...(lastEventAt !== undefined && { lastEventAt }),
           ...(lastStrongNegativeAt !== undefined && { lastStrongNegativeAt }),
-          ...(decayedNegativityScore !== undefined && {
-            decayedNegativityScore,
+          ...(negativityVal !== undefined && {
+            recentNegativityScore: negativityVal,
+            decayedNegativityScore: negativityVal,
           }),
           ...(emotionMomentum !== undefined && { emotionMomentum }),
         },
@@ -76,7 +82,8 @@ export class ProfileRepository {
           ...(consecutiveNegativeDays === undefined && {
             consecutiveNegativeDays: 0,
           }),
-          ...(decayedNegativityScore === undefined && {
+          ...(negativityVal === undefined && {
+            recentNegativityScore: 0,
             decayedNegativityScore: 0,
           }),
           ...(emotionMomentum === undefined && { emotionMomentum: 0 }),
@@ -99,7 +106,14 @@ export class ProfileRepository {
           { lastEventAt: { $lt: cutoff } },
           { lastEventAt: { $exists: false } },
         ],
-        decayedNegativityScore: { $gt: 0.05 },
+        $and: [
+          {
+            $or: [
+              { recentNegativityScore: { $gt: 0.05 } },
+              { decayedNegativityScore: { $gt: 0.05 } },
+            ],
+          },
+        ],
       })
       .exec();
   }
@@ -148,7 +162,7 @@ export class ProfileRepository {
         surprise: 0.1,
         neutral: 0.3,
       },
-      decayedNegativityScore: 0,
+      recentNegativityScore: 0,
       consecutiveNegativeDays: 0,
       lastEventAt: undefined,
       lastStrongNegativeAt: undefined,

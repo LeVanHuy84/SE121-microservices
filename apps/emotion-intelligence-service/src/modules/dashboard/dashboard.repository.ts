@@ -56,6 +56,7 @@ export interface DashboardRiskStateProjection {
 
 export interface DashboardProfileProjection {
   emotionVectorEMA?: Record<string, number>;
+  recentNegativityScore?: number;
   decayedNegativityScore?: number;
   consecutiveNegativeDays?: number;
   lastStrongNegativeAt?: Date;
@@ -277,7 +278,14 @@ export class DashboardRepository {
 
     const profile: InsightProfileProjection | null = profileRaw
       ? {
-          decayedNegativityScore: profileRaw.decayedNegativityScore ?? 0,
+          recentNegativityScore:
+            profileRaw.recentNegativityScore ??
+            profileRaw.decayedNegativityScore ??
+            0,
+          decayedNegativityScore:
+            profileRaw.recentNegativityScore ??
+            profileRaw.decayedNegativityScore ??
+            0,
           consecutiveNegativeDays: profileRaw.consecutiveNegativeDays ?? 0,
           emotionMomentum: profileRaw.emotionMomentum ?? 0,
           lastStrongNegativeAt: profileRaw.lastStrongNegativeAt,

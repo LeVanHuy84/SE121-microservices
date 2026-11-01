@@ -57,7 +57,7 @@ export class EmotionFeatureService {
 
     // ===== PROFILE FEATURES =====
     const recentNegativityScore = this.toSafeNumber(
-      profile?.decayedNegativityScore,
+      profile?.recentNegativityScore ?? profile?.decayedNegativityScore,
     );
 
     const emotionMomentum = this.toSafeNumber(profile?.emotionMomentum);
@@ -88,7 +88,9 @@ export class EmotionFeatureService {
         ? profile.emotionVectorEMA
         : { ...NEUTRAL_DISTRIBUTION };
 
-    const negativity = this.toSafeNumber(profile?.decayedNegativityScore);
+    const negativity = this.toSafeNumber(
+      profile?.recentNegativityScore ?? profile?.decayedNegativityScore,
+    );
 
     const momentum = this.toSafeNumber(profile?.emotionMomentum);
 

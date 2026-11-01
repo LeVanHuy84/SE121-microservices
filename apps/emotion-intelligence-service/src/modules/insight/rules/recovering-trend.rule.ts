@@ -7,10 +7,14 @@ export class RecoveringTrendRule implements InsightRule {
   readonly type = InsightType.RECOVERING_TREND;
 
   evaluate(context: InsightContext): Insight | null {
-    const { emotionMomentum, decayedNegativityScore } = context.profile;
+    const { emotionMomentum } = context.profile;
+    const negativityScore =
+      context.profile.recentNegativityScore ??
+      context.profile.decayedNegativityScore ??
+      0;
 
     // Recovery trend is surfaced only when recent negativity is still meaningful.
-    if (!(emotionMomentum < 0 && decayedNegativityScore > 0.4)) {
+    if (!(emotionMomentum < 0 && negativityScore > 0.4)) {
       return null;
     }
 

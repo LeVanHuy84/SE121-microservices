@@ -1,4 +1,4 @@
-﻿import { HighRiskRule } from './high-risk.rule';
+import { HighRiskRule } from './high-risk.rule';
 import { InsightContext } from '../insight.types';
 import { InsightTone, InsightType, RiskLevel } from '@repo/dtos';
 
@@ -12,7 +12,7 @@ describe('HighRiskRule', () => {
   it('should return insight when riskLevel is HIGH_RISK or CRISIS', () => {
     const contextHigh: InsightContext = {
       profile: {
-        decayedNegativityScore: 0.8,
+        recentNegativityScore: 0.8,
         consecutiveNegativeDays: 4,
         emotionMomentum: -0.6,
       },
@@ -39,7 +39,7 @@ describe('HighRiskRule', () => {
   it('should return null when riskLevel is STABLE or NORMAL', () => {
     const contextNormal: InsightContext = {
       profile: {
-        decayedNegativityScore: 0.1,
+        recentNegativityScore: 0.1,
         consecutiveNegativeDays: 0,
         emotionMomentum: 0,
       },

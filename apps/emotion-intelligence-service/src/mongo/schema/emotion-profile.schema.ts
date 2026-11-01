@@ -15,9 +15,9 @@ export class UserEmotionProfile {
   @Prop({ type: Object, required: true })
   emotionVectorEMA: Record<string, number>;
 
-  // Điểm tiêu cực tích lũy theo thời gian (Time-Decay)
+  // Điểm tiêu cực gần đây (Time-Decayed Recent Negativity)
   @Prop({ required: true, default: 0 })
-  decayedNegativityScore: number;
+  recentNegativityScore: number;
 
   // Streak theo ngày liên tiếp có chỉ số tiêu cực (Daily Window Streak)
   @Prop({ required: true, default: 0 })

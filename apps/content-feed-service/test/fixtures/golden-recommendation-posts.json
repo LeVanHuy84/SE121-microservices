@@ -1,0 +1,4337 @@
+[
+  {
+    "postId": "golden-joy-001",
+    "userId": "author-joy-1",
+    "content": "per đồng nghiệp tốt giúp ta dễ vào nhà thương điên kkkk",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 400,
+      "likes": 210,
+      "loves": 190,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9343,
+      "intensity": 0.9343,
+      "scores": {
+        "joy": 0.9343,
+        "sadness": 0.0127,
+        "disgust": 0.0097,
+        "anger": 0.0057,
+        "fear": 0.0063,
+        "surprise": 0.0112,
+        "neutral": 0.0201
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 800
+  },
+  {
+    "postId": "golden-joy-002",
+    "userId": "author-joy-2",
+    "content": "khoảnh khắc nhận ra đồng nghiệp mình is the best :)) nguyễn ngọc thái hiền",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 390,
+      "likes": 205,
+      "loves": 185,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9341,
+      "intensity": 0.9341,
+      "scores": {
+        "joy": 0.9341,
+        "sadness": 0.0131,
+        "disgust": 0.009,
+        "anger": 0.0062,
+        "fear": 0.0065,
+        "surprise": 0.013,
+        "neutral": 0.0181
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 790
+  },
+  {
+    "postId": "golden-joy-003",
+    "userId": "author-joy-3",
+    "content": "mà sếp cũng duyệt , cũng in rồi haha",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 380,
+      "likes": 200,
+      "loves": 180,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9341,
+      "intensity": 0.9341,
+      "scores": {
+        "joy": 0.9341,
+        "sadness": 0.0121,
+        "disgust": 0.0086,
+        "anger": 0.0056,
+        "fear": 0.0067,
+        "surprise": 0.0133,
+        "neutral": 0.0196
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 780
+  },
+  {
+    "postId": "golden-joy-004",
+    "userId": "author-joy-4",
+    "content": "bây giờ gọi hành hiếmkkk",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 370,
+      "likes": 195,
+      "loves": 175,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.934,
+      "intensity": 0.934,
+      "scores": {
+        "joy": 0.934,
+        "sadness": 0.0124,
+        "disgust": 0.0098,
+        "anger": 0.0067,
+        "fear": 0.007,
+        "surprise": 0.0123,
+        "neutral": 0.0178
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 770
+  },
+  {
+    "postId": "golden-joy-005",
+    "userId": "author-joy-5",
+    "content": "nhiều khi nghĩ mình không phải con gái mà là 1 thằng đàn ông chính hiệu kkkk ....",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 360,
+      "likes": 190,
+      "loves": 170,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9339,
+      "intensity": 0.9339,
+      "scores": {
+        "joy": 0.9339,
+        "sadness": 0.0127,
+        "disgust": 0.0101,
+        "anger": 0.0058,
+        "fear": 0.0063,
+        "surprise": 0.0107,
+        "neutral": 0.0205
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 760
+  },
+  {
+    "postId": "golden-joy-006",
+    "userId": "author-joy-1",
+    "content": "dễ thương vầy :>",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 350,
+      "likes": 185,
+      "loves": 165,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9339,
+      "intensity": 0.9339,
+      "scores": {
+        "joy": 0.9339,
+        "sadness": 0.0109,
+        "disgust": 0.0097,
+        "anger": 0.0062,
+        "fear": 0.0054,
+        "surprise": 0.0133,
+        "neutral": 0.0206
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 750
+  },
+  {
+    "postId": "golden-joy-007",
+    "userId": "author-joy-2",
+    "content": "vừa lên dốc thấy crush cười =))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 340,
+      "likes": 180,
+      "loves": 160,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9339,
+      "intensity": 0.9339,
+      "scores": {
+        "joy": 0.9339,
+        "sadness": 0.0121,
+        "disgust": 0.0096,
+        "anger": 0.0062,
+        "fear": 0.0064,
+        "surprise": 0.0124,
+        "neutral": 0.0194
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 740
+  },
+  {
+    "postId": "golden-joy-008",
+    "userId": "author-joy-3",
+    "content": "per đem rác về nhà vứt luôn haha",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 330,
+      "likes": 175,
+      "loves": 155,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9338,
+      "intensity": 0.9338,
+      "scores": {
+        "joy": 0.9338,
+        "sadness": 0.0115,
+        "disgust": 0.0102,
+        "anger": 0.0062,
+        "fear": 0.0069,
+        "surprise": 0.0116,
+        "neutral": 0.0198
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 730
+  },
+  {
+    "postId": "golden-joy-009",
+    "userId": "author-joy-4",
+    "content": "ở đâu cũng có người tốt nè anh kkkk",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 320,
+      "likes": 170,
+      "loves": 150,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9338,
+      "intensity": 0.9338,
+      "scores": {
+        "joy": 0.9338,
+        "sadness": 0.0108,
+        "disgust": 0.0093,
+        "anger": 0.0064,
+        "fear": 0.0062,
+        "surprise": 0.0142,
+        "neutral": 0.0193
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 720
+  },
+  {
+    "postId": "golden-joy-010",
+    "userId": "author-joy-5",
+    "content": "crush của tao cười hơi bị xinh :3 xinh + cười = đỗ mãi • 3 •",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 310,
+      "likes": 165,
+      "loves": 145,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9337,
+      "intensity": 0.9337,
+      "scores": {
+        "joy": 0.9337,
+        "sadness": 0.0129,
+        "disgust": 0.0107,
+        "anger": 0.0072,
+        "fear": 0.0063,
+        "surprise": 0.0111,
+        "neutral": 0.0181
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 710
+  },
+  {
+    "postId": "golden-joy-011",
+    "userId": "author-joy-1",
+    "content": "năm nay thì đở hơn rồi kkkk",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 160,
+      "loves": 140,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9336,
+      "intensity": 0.9336,
+      "scores": {
+        "joy": 0.9336,
+        "sadness": 0.0117,
+        "disgust": 0.009,
+        "anger": 0.0059,
+        "fear": 0.0061,
+        "surprise": 0.0127,
+        "neutral": 0.021
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-joy-012",
+    "userId": "author-joy-2",
+    "content": "các bác dẫn crush qua cây sữa nay mà hứng nước đái ve nha haha",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 290,
+      "likes": 155,
+      "loves": 135,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9336,
+      "intensity": 0.9336,
+      "scores": {
+        "joy": 0.9336,
+        "sadness": 0.0121,
+        "disgust": 0.0107,
+        "anger": 0.0071,
+        "fear": 0.0076,
+        "surprise": 0.0126,
+        "neutral": 0.0163
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 690
+  },
+  {
+    "postId": "golden-joy-013",
+    "userId": "author-joy-3",
+    "content": "cuối cùng là hai mình ăn được ngủ được :))) đứa nào cũng lên vài kí",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 280,
+      "likes": 150,
+      "loves": 130,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9336,
+      "intensity": 0.9336,
+      "scores": {
+        "joy": 0.9336,
+        "sadness": 0.0132,
+        "disgust": 0.0093,
+        "anger": 0.0065,
+        "fear": 0.0065,
+        "surprise": 0.0128,
+        "neutral": 0.0181
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 680
+  },
+  {
+    "postId": "golden-joy-014",
+    "userId": "author-joy-4",
+    "content": "per thịt nướng lò xô ne ăn z mà không chết 😎😎😎😎",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 270,
+      "likes": 145,
+      "loves": 125,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9336,
+      "intensity": 0.9336,
+      "scores": {
+        "joy": 0.9336,
+        "sadness": 0.0117,
+        "disgust": 0.0098,
+        "anger": 0.0062,
+        "fear": 0.0074,
+        "surprise": 0.0132,
+        "neutral": 0.0181
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 670
+  },
+  {
+    "postId": "golden-joy-015",
+    "userId": "author-joy-5",
+    "content": "cảm ơn mày đã khai phá cho tao thêm một nét văn hoá đẹp :))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 260,
+      "likes": 140,
+      "loves": 120,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9335,
+      "intensity": 0.9335,
+      "scores": {
+        "joy": 0.9335,
+        "sadness": 0.0129,
+        "disgust": 0.0099,
+        "anger": 0.0062,
+        "fear": 0.0059,
+        "surprise": 0.0131,
+        "neutral": 0.0185
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 660
+  },
+  {
+    "postId": "golden-joy-016",
+    "userId": "author-joy-1",
+    "content": "má toàn truyện trong mơ không hà mắc cười quá 😂",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 250,
+      "likes": 135,
+      "loves": 115,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9335,
+      "intensity": 0.9335,
+      "scores": {
+        "joy": 0.9335,
+        "sadness": 0.0104,
+        "disgust": 0.0101,
+        "anger": 0.006,
+        "fear": 0.0066,
+        "surprise": 0.0147,
+        "neutral": 0.0187
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 650
+  },
+  {
+    "postId": "golden-joy-017",
+    "userId": "author-joy-2",
+    "content": "ai muốn đi thái hè này với tôiii nào cũng chim ưng phết đấyy :)))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 240,
+      "likes": 130,
+      "loves": 110,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9335,
+      "intensity": 0.9335,
+      "scores": {
+        "joy": 0.9335,
+        "sadness": 0.0114,
+        "disgust": 0.0105,
+        "anger": 0.0059,
+        "fear": 0.007,
+        "surprise": 0.0105,
+        "neutral": 0.0212
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 640
+  },
+  {
+    "postId": "golden-joy-018",
+    "userId": "author-joy-3",
+    "content": "thích cái đầm nào mua cho bận ngủ cho mát nè :))) per",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 230,
+      "likes": 125,
+      "loves": 105,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9335,
+      "intensity": 0.9335,
+      "scores": {
+        "joy": 0.9335,
+        "sadness": 0.0116,
+        "disgust": 0.0082,
+        "anger": 0.0058,
+        "fear": 0.0061,
+        "surprise": 0.0124,
+        "neutral": 0.0224
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 630
+  },
+  {
+    "postId": "golden-joy-019",
+    "userId": "author-joy-4",
+    "content": "thích cái bộ đồ ngủ gê 😂",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 220,
+      "likes": 120,
+      "loves": 100,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9334,
+      "intensity": 0.9334,
+      "scores": {
+        "joy": 0.9334,
+        "sadness": 0.012,
+        "disgust": 0.0093,
+        "anger": 0.007,
+        "fear": 0.0069,
+        "surprise": 0.0152,
+        "neutral": 0.0162
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 620
+  },
+  {
+    "postId": "golden-joy-020",
+    "userId": "author-joy-5",
+    "content": "có gì đâu bé vậy mới cool đó anh thích 😉😉😉",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 210,
+      "likes": 115,
+      "loves": 95,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9334,
+      "intensity": 0.9334,
+      "scores": {
+        "joy": 0.9334,
+        "sadness": 0.0099,
+        "disgust": 0.0095,
+        "anger": 0.0062,
+        "fear": 0.0063,
+        "surprise": 0.015,
+        "neutral": 0.0197
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 610
+  },
+  {
+    "postId": "golden-joy-021",
+    "userId": "author-joy-1",
+    "content": "chuẩn luôn khi ở công tình yêu toàn là các anh chị em đồng nghiệp tốt he he",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 200,
+      "likes": 110,
+      "loves": 90,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9334,
+      "intensity": 0.9334,
+      "scores": {
+        "joy": 0.9334,
+        "sadness": 0.0124,
+        "disgust": 0.0098,
+        "anger": 0.007,
+        "fear": 0.0071,
+        "surprise": 0.0135,
+        "neutral": 0.0168
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 600
+  },
+  {
+    "postId": "golden-joy-022",
+    "userId": "author-joy-2",
+    "content": "per câu chuyện ngắn gọn trọn tình 😂😂",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 190,
+      "likes": 105,
+      "loves": 85,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9334,
+      "intensity": 0.9334,
+      "scores": {
+        "joy": 0.9334,
+        "sadness": 0.0117,
+        "disgust": 0.0104,
+        "anger": 0.0062,
+        "fear": 0.0059,
+        "surprise": 0.0125,
+        "neutral": 0.0199
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 590
+  },
+  {
+    "postId": "golden-joy-023",
+    "userId": "author-joy-3",
+    "content": "haha giờ thấy thằng nào là cho ăn cây baton",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 180,
+      "likes": 100,
+      "loves": 80,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9333,
+      "intensity": 0.9333,
+      "scores": {
+        "joy": 0.9333,
+        "sadness": 0.0118,
+        "disgust": 0.011,
+        "anger": 0.0064,
+        "fear": 0.0068,
+        "surprise": 0.01,
+        "neutral": 0.0207
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 580
+  },
+  {
+    "postId": "golden-joy-024",
+    "userId": "author-joy-4",
+    "content": "per facebook cứ để tao phải xem được những cái lãng mạn là sao cay vãi :))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 170,
+      "likes": 95,
+      "loves": 75,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9333,
+      "intensity": 0.9333,
+      "scores": {
+        "joy": 0.9333,
+        "sadness": 0.0097,
+        "disgust": 0.0111,
+        "anger": 0.0068,
+        "fear": 0.0066,
+        "surprise": 0.0136,
+        "neutral": 0.0189
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 570
+  },
+  {
+    "postId": "golden-joy-025",
+    "userId": "author-joy-5",
+    "content": "cảm thấy bạn trai tớ giận dỗi đáng yêu cực",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 160,
+      "likes": 90,
+      "loves": 70,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9333,
+      "intensity": 0.9333,
+      "scores": {
+        "joy": 0.9333,
+        "sadness": 0.0132,
+        "disgust": 0.0095,
+        "anger": 0.0068,
+        "fear": 0.0067,
+        "surprise": 0.0132,
+        "neutral": 0.0173
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 560
+  },
+  {
+    "postId": "golden-joy-026",
+    "userId": "author-joy-1",
+    "content": "per haha bữa 3 đứa mới phong trào xong",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 150,
+      "likes": 85,
+      "loves": 65,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9333,
+      "intensity": 0.9333,
+      "scores": {
+        "joy": 0.9333,
+        "sadness": 0.012,
+        "disgust": 0.0102,
+        "anger": 0.0065,
+        "fear": 0.0062,
+        "surprise": 0.0116,
+        "neutral": 0.0202
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 550
+  },
+  {
+    "postId": "golden-joy-027",
+    "userId": "author-joy-2",
+    "content": "xem chỉ đợi đến đọan nó ngã để cười :))))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 140,
+      "likes": 80,
+      "loves": 60,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9332,
+      "intensity": 0.9332,
+      "scores": {
+        "joy": 0.9332,
+        "sadness": 0.0125,
+        "disgust": 0.0112,
+        "anger": 0.0063,
+        "fear": 0.0062,
+        "surprise": 0.0106,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 540
+  },
+  {
+    "postId": "golden-joy-028",
+    "userId": "author-joy-3",
+    "content": "ngọt hơn cả người yêu haaaaa",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 130,
+      "likes": 75,
+      "loves": 55,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9332,
+      "intensity": 0.9332,
+      "scores": {
+        "joy": 0.9332,
+        "sadness": 0.0125,
+        "disgust": 0.0096,
+        "anger": 0.0063,
+        "fear": 0.0067,
+        "surprise": 0.0133,
+        "neutral": 0.0184
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 530
+  },
+  {
+    "postId": "golden-joy-029",
+    "userId": "author-joy-4",
+    "content": "có ai đéo hiểu gì như mình không mình trong sáng vãi heee",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 120,
+      "likes": 70,
+      "loves": 50,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9332,
+      "intensity": 0.9332,
+      "scores": {
+        "joy": 0.9332,
+        "sadness": 0.0136,
+        "disgust": 0.011,
+        "anger": 0.0065,
+        "fear": 0.0064,
+        "surprise": 0.0104,
+        "neutral": 0.0189
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 520
+  },
+  {
+    "postId": "golden-joy-030",
+    "userId": "author-joy-5",
+    "content": "hahaa coi cái mặt con nhỏ thấy thương",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 110,
+      "likes": 65,
+      "loves": 45,
+      "comments": 20,
+      "shares": 5
+    },
+    "emotionFeature": {
+      "primaryEmotion": "joy",
+      "label": "joy",
+      "confidence": 0.9331,
+      "intensity": 0.9331,
+      "scores": {
+        "joy": 0.9331,
+        "sadness": 0.0126,
+        "disgust": 0.0101,
+        "anger": 0.0069,
+        "fear": 0.0068,
+        "surprise": 0.0146,
+        "neutral": 0.0159
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 510
+  },
+  {
+    "postId": "golden-sad-001",
+    "userId": "author-sad-1",
+    "content": "em buông tay anh nhé .... quá khứ ấy anh hãy xoá hết đi .......",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 230,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.6799,
+      "intensity": 0.6799,
+      "scores": {
+        "joy": 0.0351,
+        "sadness": 0.6799,
+        "disgust": 0.0515,
+        "anger": 0.0305,
+        "fear": 0.0312,
+        "surprise": 0.0062,
+        "neutral": 0.1656
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-sad-002",
+    "userId": "author-sad-2",
+    "content": "vâng em gặp anh rồi mà giờ đây em vẫn cô đơn đi lang thang tìm những thứ vô nghĩa lấp vào nỗi cô đơn ấy",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 225,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9016,
+      "intensity": 0.9016,
+      "scores": {
+        "joy": 0.0176,
+        "sadness": 0.9016,
+        "disgust": 0.0141,
+        "anger": 0.0155,
+        "fear": 0.0169,
+        "surprise": 0.0122,
+        "neutral": 0.0221
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 690
+  },
+  {
+    "postId": "golden-sad-003",
+    "userId": "author-sad-3",
+    "content": "xài vietcombank sinh nhật cũng không được chúc luôn :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 220,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9012,
+      "intensity": 0.9012,
+      "scores": {
+        "joy": 0.0185,
+        "sadness": 0.9012,
+        "disgust": 0.0141,
+        "anger": 0.0158,
+        "fear": 0.0165,
+        "surprise": 0.0129,
+        "neutral": 0.021
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 680
+  },
+  {
+    "postId": "golden-sad-004",
+    "userId": "author-sad-4",
+    "content": "đau đớn quá sao phải tham mấy đồng tiền đó nhỉ",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 215,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9011,
+      "intensity": 0.9011,
+      "scores": {
+        "joy": 0.0147,
+        "sadness": 0.9011,
+        "disgust": 0.0159,
+        "anger": 0.0183,
+        "fear": 0.0172,
+        "surprise": 0.0136,
+        "neutral": 0.0192
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 670
+  },
+  {
+    "postId": "golden-sad-005",
+    "userId": "author-sad-5",
+    "content": "phần còn lại là nỗi nhớ và những lần thở dài :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 210,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9007,
+      "intensity": 0.9007,
+      "scores": {
+        "joy": 0.0183,
+        "sadness": 0.9007,
+        "disgust": 0.014,
+        "anger": 0.0155,
+        "fear": 0.0172,
+        "surprise": 0.0128,
+        "neutral": 0.0215
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 660
+  },
+  {
+    "postId": "golden-sad-006",
+    "userId": "author-sad-1",
+    "content": "mày nói thôi mà tao nghĩ cũng thấy buồn rồi :(((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 205,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9006,
+      "intensity": 0.9006,
+      "scores": {
+        "joy": 0.0185,
+        "sadness": 0.9006,
+        "disgust": 0.0144,
+        "anger": 0.0155,
+        "fear": 0.0176,
+        "surprise": 0.0125,
+        "neutral": 0.0209
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 650
+  },
+  {
+    "postId": "golden-sad-007",
+    "userId": "author-sad-2",
+    "content": "và khi quay lại nói chuyện với nhau .... biết nói gì giờ huhu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 200,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9003,
+      "intensity": 0.9003,
+      "scores": {
+        "joy": 0.0166,
+        "sadness": 0.9003,
+        "disgust": 0.0144,
+        "anger": 0.0166,
+        "fear": 0.0217,
+        "surprise": 0.0128,
+        "neutral": 0.0176
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 640
+  },
+  {
+    "postId": "golden-sad-008",
+    "userId": "author-sad-3",
+    "content": "ôi đời vẫn là chịu không nỗi đời mà , chán",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 195,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9003,
+      "intensity": 0.9003,
+      "scores": {
+        "joy": 0.0183,
+        "sadness": 0.9003,
+        "disgust": 0.0161,
+        "anger": 0.0175,
+        "fear": 0.0155,
+        "surprise": 0.0125,
+        "neutral": 0.0198
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 630
+  },
+  {
+    "postId": "golden-sad-009",
+    "userId": "author-sad-4",
+    "content": "tới lúc chia tay rồi khóc :(",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 190,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9003,
+      "intensity": 0.9003,
+      "scores": {
+        "joy": 0.0181,
+        "sadness": 0.9003,
+        "disgust": 0.0145,
+        "anger": 0.0167,
+        "fear": 0.0166,
+        "surprise": 0.0126,
+        "neutral": 0.0212
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 620
+  },
+  {
+    "postId": "golden-sad-010",
+    "userId": "author-sad-5",
+    "content": "câu chuyện của mày làm tao buồn quá",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 185,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9003,
+      "intensity": 0.9003,
+      "scores": {
+        "joy": 0.0178,
+        "sadness": 0.9003,
+        "disgust": 0.0168,
+        "anger": 0.0168,
+        "fear": 0.0163,
+        "surprise": 0.0108,
+        "neutral": 0.0212
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 610
+  },
+  {
+    "postId": "golden-sad-011",
+    "userId": "author-sad-1",
+    "content": "bản thân cố gắng cũng chẳng dễ dàng gì :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 180,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9002,
+      "intensity": 0.9002,
+      "scores": {
+        "joy": 0.0177,
+        "sadness": 0.9002,
+        "disgust": 0.0138,
+        "anger": 0.0152,
+        "fear": 0.0171,
+        "surprise": 0.0127,
+        "neutral": 0.0233
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 600
+  },
+  {
+    "postId": "golden-sad-012",
+    "userId": "author-sad-2",
+    "content": "xem không dưới 3 lần chia sẻ không dưới 2 lần nhưng mỗi lần nhìn thấy lại xem lại buồn",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 175,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9002,
+      "intensity": 0.9002,
+      "scores": {
+        "joy": 0.019,
+        "sadness": 0.9002,
+        "disgust": 0.0151,
+        "anger": 0.017,
+        "fear": 0.0176,
+        "surprise": 0.0128,
+        "neutral": 0.0183
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 590
+  },
+  {
+    "postId": "golden-sad-013",
+    "userId": "author-sad-3",
+    "content": "tao đang cố un crush nhưng khi xem xong video trên thì ..........( khóc không ra nước mắt )",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 170,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.9002,
+      "intensity": 0.9002,
+      "scores": {
+        "joy": 0.0183,
+        "sadness": 0.9002,
+        "disgust": 0.013,
+        "anger": 0.0164,
+        "fear": 0.0211,
+        "surprise": 0.0135,
+        "neutral": 0.0175
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 580
+  },
+  {
+    "postId": "golden-sad-014",
+    "userId": "author-sad-4",
+    "content": "xem mà đau lòng , đau lòng nhưng vẫn xem :((((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 165,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8999,
+      "intensity": 0.8999,
+      "scores": {
+        "joy": 0.0177,
+        "sadness": 0.8999,
+        "disgust": 0.0144,
+        "anger": 0.017,
+        "fear": 0.019,
+        "surprise": 0.0131,
+        "neutral": 0.0189
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 570
+  },
+  {
+    "postId": "golden-sad-015",
+    "userId": "author-sad-5",
+    "content": "bất cứ lúc nào nghĩ về đời tao chỉ thấy vị cay , nồng nơi khóe mắt :))",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 160,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8998,
+      "intensity": 0.8998,
+      "scores": {
+        "joy": 0.0183,
+        "sadness": 0.8998,
+        "disgust": 0.0159,
+        "anger": 0.0153,
+        "fear": 0.0207,
+        "surprise": 0.0104,
+        "neutral": 0.0196
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 560
+  },
+  {
+    "postId": "golden-sad-016",
+    "userId": "author-sad-1",
+    "content": "có người đến gần cuối đời rồi vẫn còn khổ ! :(",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 155,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8997,
+      "intensity": 0.8997,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.8997,
+        "disgust": 0.0146,
+        "anger": 0.0161,
+        "fear": 0.0149,
+        "surprise": 0.0132,
+        "neutral": 0.0215
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 550
+  },
+  {
+    "postId": "golden-sad-017",
+    "userId": "author-sad-2",
+    "content": "coi khúc đầu không hiểu , đến lúc ổng bước ra khỏi làn khói , thật không thể cầm được nước mắt",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 150,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8996,
+      "intensity": 0.8996,
+      "scores": {
+        "joy": 0.0155,
+        "sadness": 0.8996,
+        "disgust": 0.0127,
+        "anger": 0.0166,
+        "fear": 0.0233,
+        "surprise": 0.0155,
+        "neutral": 0.0168
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 540
+  },
+  {
+    "postId": "golden-sad-018",
+    "userId": "author-sad-3",
+    "content": "sau mỗi cuộc chia ly người ở lại vẫn là người đau lòng nhất :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 145,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8996,
+      "intensity": 0.8996,
+      "scores": {
+        "joy": 0.0196,
+        "sadness": 0.8996,
+        "disgust": 0.0134,
+        "anger": 0.0155,
+        "fear": 0.0176,
+        "surprise": 0.0128,
+        "neutral": 0.0215
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 530
+  },
+  {
+    "postId": "golden-sad-019",
+    "userId": "author-sad-4",
+    "content": "quê vải mà chưa được ăn quả nào . huhu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 140,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8995,
+      "intensity": 0.8995,
+      "scores": {
+        "joy": 0.0184,
+        "sadness": 0.8995,
+        "disgust": 0.0133,
+        "anger": 0.016,
+        "fear": 0.0192,
+        "surprise": 0.0138,
+        "neutral": 0.0198
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 520
+  },
+  {
+    "postId": "golden-sad-020",
+    "userId": "author-sad-5",
+    "content": "mà hầu hết fandom không hiểu được điều đó thật đáng buồn",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 135,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8995,
+      "intensity": 0.8995,
+      "scores": {
+        "joy": 0.0186,
+        "sadness": 0.8995,
+        "disgust": 0.0144,
+        "anger": 0.0162,
+        "fear": 0.0166,
+        "surprise": 0.0138,
+        "neutral": 0.0209
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 510
+  },
+  {
+    "postId": "golden-sad-021",
+    "userId": "author-sad-1",
+    "content": "mới đây thôi mà đa 3 năm rồi , những ngày chia tay buồn đó :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 130,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8995,
+      "intensity": 0.8995,
+      "scores": {
+        "joy": 0.0193,
+        "sadness": 0.8995,
+        "disgust": 0.0137,
+        "anger": 0.0154,
+        "fear": 0.0158,
+        "surprise": 0.0143,
+        "neutral": 0.022
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 500
+  },
+  {
+    "postId": "golden-sad-022",
+    "userId": "author-sad-2",
+    "content": "nó bỏ mình đi rồi mỗi lần nghĩ tới nó ôi sao mà xót tim gan hơn mất người yêu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 125,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8994,
+      "intensity": 0.8994,
+      "scores": {
+        "joy": 0.0184,
+        "sadness": 0.8994,
+        "disgust": 0.0132,
+        "anger": 0.0157,
+        "fear": 0.0212,
+        "surprise": 0.013,
+        "neutral": 0.0191
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 490
+  },
+  {
+    "postId": "golden-sad-023",
+    "userId": "author-sad-3",
+    "content": "và mày chợt nhận ra người yêu củ của mày có người yêu mới huhu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 120,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8994,
+      "intensity": 0.8994,
+      "scores": {
+        "joy": 0.0208,
+        "sadness": 0.8994,
+        "disgust": 0.0135,
+        "anger": 0.0142,
+        "fear": 0.0165,
+        "surprise": 0.0125,
+        "neutral": 0.0231
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 480
+  },
+  {
+    "postId": "golden-sad-024",
+    "userId": "author-sad-4",
+    "content": "cái thứ ba , trời nhìn mà rơi nước mắt thay cho luôn công cả một mùa mà đi tong chỉ vì một trận mưa",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 115,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8994,
+      "intensity": 0.8994,
+      "scores": {
+        "joy": 0.0212,
+        "sadness": 0.8994,
+        "disgust": 0.0137,
+        "anger": 0.0149,
+        "fear": 0.015,
+        "surprise": 0.0134,
+        "neutral": 0.0224
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 470
+  },
+  {
+    "postId": "golden-sad-025",
+    "userId": "author-sad-5",
+    "content": "đó là 1 câu chuyện buồn , tao không có bạn trai hix hix",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 110,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8994,
+      "intensity": 0.8994,
+      "scores": {
+        "joy": 0.0198,
+        "sadness": 0.8994,
+        "disgust": 0.0131,
+        "anger": 0.0146,
+        "fear": 0.0193,
+        "surprise": 0.0137,
+        "neutral": 0.0201
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 460
+  },
+  {
+    "postId": "golden-sad-026",
+    "userId": "author-sad-1",
+    "content": "có lẽ vì vậy nên moi thứ trở nên thật khó khăn lúc này :(((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 105,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8993,
+      "intensity": 0.8993,
+      "scores": {
+        "joy": 0.0151,
+        "sadness": 0.8993,
+        "disgust": 0.013,
+        "anger": 0.0143,
+        "fear": 0.0228,
+        "surprise": 0.0134,
+        "neutral": 0.0221
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 450
+  },
+  {
+    "postId": "golden-sad-027",
+    "userId": "author-sad-2",
+    "content": "ước mơ nhỏ nhoi của tao là được làm chị mà không thể nào làm được huhu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 100,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8993,
+      "intensity": 0.8993,
+      "scores": {
+        "joy": 0.0185,
+        "sadness": 0.8993,
+        "disgust": 0.0134,
+        "anger": 0.0162,
+        "fear": 0.0202,
+        "surprise": 0.0144,
+        "neutral": 0.018
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 440
+  },
+  {
+    "postId": "golden-sad-028",
+    "userId": "author-sad-3",
+    "content": "đây là một câu chuyện buồn không chỉ riêng tao",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 95,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8993,
+      "intensity": 0.8993,
+      "scores": {
+        "joy": 0.0155,
+        "sadness": 0.8993,
+        "disgust": 0.0149,
+        "anger": 0.0151,
+        "fear": 0.019,
+        "surprise": 0.0131,
+        "neutral": 0.0231
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 430
+  },
+  {
+    "postId": "golden-sad-029",
+    "userId": "author-sad-4",
+    "content": "đúng là chân thật luôn luôn tổn thương !",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 90,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8993,
+      "intensity": 0.8993,
+      "scores": {
+        "joy": 0.0187,
+        "sadness": 0.8993,
+        "disgust": 0.0149,
+        "anger": 0.0173,
+        "fear": 0.0187,
+        "surprise": 0.012,
+        "neutral": 0.0191
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 420
+  },
+  {
+    "postId": "golden-sad-030",
+    "userId": "author-sad-5",
+    "content": "số tao không được ăn uống mà :((",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 85,
+      "likes": 40,
+      "loves": 20,
+      "comments": 30,
+      "shares": 2
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.8992,
+      "intensity": 0.8992,
+      "scores": {
+        "joy": 0.0172,
+        "sadness": 0.8992,
+        "disgust": 0.0144,
+        "anger": 0.0153,
+        "fear": 0.017,
+        "surprise": 0.0121,
+        "neutral": 0.0248
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 410
+  },
+  {
+    "postId": "golden-calm-001",
+    "userId": "author-calm-1",
+    "content": "cái này nó giống câu “ em ăn cơm chưa ” vãi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 170,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8466,
+      "intensity": 0.8466,
+      "scores": {
+        "joy": 0.0421,
+        "sadness": 0.0324,
+        "disgust": 0.0316,
+        "anger": 0.0099,
+        "fear": 0.014,
+        "surprise": 0.0234,
+        "neutral": 0.8466
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 550
+  },
+  {
+    "postId": "golden-calm-002",
+    "userId": "author-calm-2",
+    "content": "cho nghe lại cái khúc đó đi anh hai à :v",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 165,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8463,
+      "intensity": 0.8463,
+      "scores": {
+        "joy": 0.0373,
+        "sadness": 0.0309,
+        "disgust": 0.0302,
+        "anger": 0.0116,
+        "fear": 0.0146,
+        "surprise": 0.0292,
+        "neutral": 0.8462
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 540
+  },
+  {
+    "postId": "golden-calm-003",
+    "userId": "author-calm-3",
+    "content": "cai lo xô tôi đang xài mỗi ngày",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 160,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8453,
+      "intensity": 0.8453,
+      "scores": {
+        "joy": 0.0358,
+        "sadness": 0.0298,
+        "disgust": 0.0351,
+        "anger": 0.0127,
+        "fear": 0.0146,
+        "surprise": 0.0267,
+        "neutral": 0.8453
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 530
+  },
+  {
+    "postId": "golden-calm-004",
+    "userId": "author-calm-4",
+    "content": "bắc sơn lạng sơn đang cháy khô rồi mưa cái gì chứ 😠",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 155,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.844,
+      "intensity": 0.844,
+      "scores": {
+        "joy": 0.0348,
+        "sadness": 0.0344,
+        "disgust": 0.0438,
+        "anger": 0.0109,
+        "fear": 0.0134,
+        "surprise": 0.0187,
+        "neutral": 0.844
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 520
+  },
+  {
+    "postId": "golden-calm-005",
+    "userId": "author-calm-5",
+    "content": "mình chỉ nói đến cơ hội việc làm thôi chứ không bàn luận gì về việc ông ấy là người như thế nào bạn nhé ??",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 150,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8436,
+      "intensity": 0.8436,
+      "scores": {
+        "joy": 0.0479,
+        "sadness": 0.037,
+        "disgust": 0.034,
+        "anger": 0.0092,
+        "fear": 0.01,
+        "surprise": 0.0184,
+        "neutral": 0.8435
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 510
+  },
+  {
+    "postId": "golden-calm-006",
+    "userId": "author-calm-1",
+    "content": "per nó chỉ muốn biết bạn có nhu cầu làm áo lớp hay không thôi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 145,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8432,
+      "intensity": 0.8432,
+      "scores": {
+        "joy": 0.04,
+        "sadness": 0.036,
+        "disgust": 0.0348,
+        "anger": 0.0119,
+        "fear": 0.0138,
+        "surprise": 0.0202,
+        "neutral": 0.8433
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 500
+  },
+  {
+    "postId": "golden-calm-007",
+    "userId": "author-calm-2",
+    "content": "gửi nhầm video mình hát chế cho nó nghe",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 140,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8426,
+      "intensity": 0.8426,
+      "scores": {
+        "joy": 0.0416,
+        "sadness": 0.03,
+        "disgust": 0.0445,
+        "anger": 0.0125,
+        "fear": 0.0126,
+        "surprise": 0.0162,
+        "neutral": 0.8426
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 490
+  },
+  {
+    "postId": "golden-calm-008",
+    "userId": "author-calm-3",
+    "content": "đen thôi đỏ vẫn thế",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 135,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8424,
+      "intensity": 0.8424,
+      "scores": {
+        "joy": 0.0432,
+        "sadness": 0.0273,
+        "disgust": 0.0362,
+        "anger": 0.012,
+        "fear": 0.0146,
+        "surprise": 0.0243,
+        "neutral": 0.8424
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 480
+  },
+  {
+    "postId": "golden-calm-009",
+    "userId": "author-calm-4",
+    "content": "làm bát phở đã bác ơi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 130,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8412,
+      "intensity": 0.8412,
+      "scores": {
+        "joy": 0.0437,
+        "sadness": 0.036,
+        "disgust": 0.0322,
+        "anger": 0.0115,
+        "fear": 0.014,
+        "surprise": 0.0216,
+        "neutral": 0.841
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 470
+  },
+  {
+    "postId": "golden-calm-010",
+    "userId": "author-calm-5",
+    "content": "cái bài hát dẫn đến mối tình đầu tiên",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 125,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8412,
+      "intensity": 0.8412,
+      "scores": {
+        "joy": 0.0374,
+        "sadness": 0.0397,
+        "disgust": 0.0392,
+        "anger": 0.011,
+        "fear": 0.011,
+        "surprise": 0.0205,
+        "neutral": 0.8412
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 460
+  },
+  {
+    "postId": "golden-calm-011",
+    "userId": "author-calm-1",
+    "content": "đây là bếp cồn có từ trước khi giải phóng nha mấy chế",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 120,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8409,
+      "intensity": 0.8409,
+      "scores": {
+        "joy": 0.0388,
+        "sadness": 0.0205,
+        "disgust": 0.043,
+        "anger": 0.0146,
+        "fear": 0.0158,
+        "surprise": 0.0264,
+        "neutral": 0.8409
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 450
+  },
+  {
+    "postId": "golden-calm-012",
+    "userId": "author-calm-2",
+    "content": "tăng sáng lên nhìn cho rõ mặt chứ",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 115,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8405,
+      "intensity": 0.8405,
+      "scores": {
+        "joy": 0.0351,
+        "sadness": 0.0234,
+        "disgust": 0.0497,
+        "anger": 0.014,
+        "fear": 0.0142,
+        "surprise": 0.0232,
+        "neutral": 0.8404
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 440
+  },
+  {
+    "postId": "golden-calm-013",
+    "userId": "author-calm-3",
+    "content": "cái này thì hôm nào nói chuyện tao nói cho nghe ??",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 110,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8403,
+      "intensity": 0.8403,
+      "scores": {
+        "joy": 0.0328,
+        "sadness": 0.0375,
+        "disgust": 0.0374,
+        "anger": 0.0137,
+        "fear": 0.0162,
+        "surprise": 0.022,
+        "neutral": 0.8404
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 430
+  },
+  {
+    "postId": "golden-calm-014",
+    "userId": "author-calm-4",
+    "content": "thế rồi cha lái xe có giả tiền không các bác",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 105,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8402,
+      "intensity": 0.8402,
+      "scores": {
+        "joy": 0.027,
+        "sadness": 0.0282,
+        "disgust": 0.0463,
+        "anger": 0.0161,
+        "fear": 0.0162,
+        "surprise": 0.0261,
+        "neutral": 0.8401
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 420
+  },
+  {
+    "postId": "golden-calm-015",
+    "userId": "author-calm-5",
+    "content": "có khi nào là chủ tịch giả vờ không ?",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 100,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.84,
+      "intensity": 0.84,
+      "scores": {
+        "joy": 0.0428,
+        "sadness": 0.0277,
+        "disgust": 0.0301,
+        "anger": 0.0119,
+        "fear": 0.0121,
+        "surprise": 0.0354,
+        "neutral": 0.84
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 410
+  },
+  {
+    "postId": "golden-calm-016",
+    "userId": "author-calm-1",
+    "content": "cái gì nó cũng phải thực tế",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 95,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8398,
+      "intensity": 0.8398,
+      "scores": {
+        "joy": 0.0547,
+        "sadness": 0.0221,
+        "disgust": 0.0365,
+        "anger": 0.0112,
+        "fear": 0.0134,
+        "surprise": 0.0223,
+        "neutral": 0.8398
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 400
+  },
+  {
+    "postId": "golden-calm-017",
+    "userId": "author-calm-2",
+    "content": "quan trọng là ông bà nội ngoại bạn phải giàu cái đã",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 90,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8397,
+      "intensity": 0.8397,
+      "scores": {
+        "joy": 0.055,
+        "sadness": 0.0232,
+        "disgust": 0.0414,
+        "anger": 0.0111,
+        "fear": 0.0119,
+        "surprise": 0.0178,
+        "neutral": 0.8396
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 390
+  },
+  {
+    "postId": "golden-calm-018",
+    "userId": "author-calm-3",
+    "content": "trừ khi đường có biển cấm dừng đỗ thì mới không được đỗ , còn có phải phố nào cũng kẻ ô cho ô tô đỗ đâu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 85,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8397,
+      "intensity": 0.8397,
+      "scores": {
+        "joy": 0.0316,
+        "sadness": 0.0352,
+        "disgust": 0.0454,
+        "anger": 0.0124,
+        "fear": 0.017,
+        "surprise": 0.0187,
+        "neutral": 0.8397
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 380
+  },
+  {
+    "postId": "golden-calm-019",
+    "userId": "author-calm-4",
+    "content": "lò xô xài bằng dầu lửa con gọi là dầu thôi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 80,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8396,
+      "intensity": 0.8396,
+      "scores": {
+        "joy": 0.0454,
+        "sadness": 0.0233,
+        "disgust": 0.0429,
+        "anger": 0.0127,
+        "fear": 0.0142,
+        "surprise": 0.0218,
+        "neutral": 0.8397
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 370
+  },
+  {
+    "postId": "golden-calm-020",
+    "userId": "author-calm-5",
+    "content": "kiểu xem đứa nào thắng !",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 75,
+      "likes": 50,
+      "loves": 20,
+      "comments": 15,
+      "shares": 3
+    },
+    "emotionFeature": {
+      "primaryEmotion": "neutral",
+      "label": "neutral",
+      "confidence": 0.8393,
+      "intensity": 0.8393,
+      "scores": {
+        "joy": 0.0484,
+        "sadness": 0.0216,
+        "disgust": 0.0383,
+        "anger": 0.0143,
+        "fear": 0.0118,
+        "surprise": 0.0262,
+        "neutral": 0.8394
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 360
+  },
+  {
+    "postId": "golden-rage-001",
+    "userId": "author-rage-1",
+    "content": "Tôi tùy tiện ghét poo-lice Hãy RA KHỎI POO CỦA TÔI",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8287,
+      "intensity": 0.8287,
+      "scores": {
+        "joy": 0.0087,
+        "sadness": 0.026,
+        "disgust": 0.0766,
+        "anger": 0.8287,
+        "fear": 0.0268,
+        "surprise": 0.0238,
+        "neutral": 0.0094
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": true
+    },
+    "baseTrendingScore": 750
+  },
+  {
+    "postId": "golden-rage-002",
+    "userId": "author-rage-2",
+    "content": "Tôi ngay lập tức chặn những kẻ khốn nạn này",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 480,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8281,
+      "intensity": 0.8281,
+      "scores": {
+        "joy": 0.0073,
+        "sadness": 0.0249,
+        "disgust": 0.0688,
+        "anger": 0.8281,
+        "fear": 0.036,
+        "surprise": 0.0255,
+        "neutral": 0.0094
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 740
+  },
+  {
+    "postId": "golden-rage-003",
+    "userId": "author-rage-3",
+    "content": "Đúng rồi Dũng Tôi sẽ phải yêu cầu bạn ngừng tranh cãi với tài khoản Reddit khác của bạn Dũng trong mọi chủ đề khốn nạn",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 460,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8276,
+      "intensity": 0.8276,
+      "scores": {
+        "joy": 0.0073,
+        "sadness": 0.0255,
+        "disgust": 0.0723,
+        "anger": 0.8276,
+        "fear": 0.0332,
+        "surprise": 0.0259,
+        "neutral": 0.0082
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 730
+  },
+  {
+    "postId": "golden-rage-004",
+    "userId": "author-rage-4",
+    "content": "Chết tiệt nhìn vào cơ thể đó",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 440,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8272,
+      "intensity": 0.8272,
+      "scores": {
+        "joy": 0.0085,
+        "sadness": 0.0225,
+        "disgust": 0.0784,
+        "anger": 0.8272,
+        "fear": 0.0294,
+        "surprise": 0.0246,
+        "neutral": 0.0094
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 720
+  },
+  {
+    "postId": "golden-rage-005",
+    "userId": "author-rage-5",
+    "content": "Các trọng tài chết tiệt hút bóng của tôi.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 420,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8255,
+      "intensity": 0.8255,
+      "scores": {
+        "joy": 0.0078,
+        "sadness": 0.0305,
+        "disgust": 0.0646,
+        "anger": 0.8255,
+        "fear": 0.0347,
+        "surprise": 0.0284,
+        "neutral": 0.0085
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 710
+  },
+  {
+    "postId": "golden-rage-006",
+    "userId": "author-rage-1",
+    "content": "Tôi ghét phải thông báo với bạn nhưng Phương KHÔNG ký ở đây",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 400,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8254,
+      "intensity": 0.8254,
+      "scores": {
+        "joy": 0.0082,
+        "sadness": 0.0324,
+        "disgust": 0.0712,
+        "anger": 0.8254,
+        "fear": 0.0299,
+        "surprise": 0.0225,
+        "neutral": 0.0104
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-rage-007",
+    "userId": "author-rage-2",
+    "content": "Chết tiệt Nhà Trắng, chết tiệt McDonald's và chết tiệt bài đăng này.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 380,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.825,
+      "intensity": 0.825,
+      "scores": {
+        "joy": 0.0084,
+        "sadness": 0.0247,
+        "disgust": 0.0847,
+        "anger": 0.825,
+        "fear": 0.0252,
+        "surprise": 0.0225,
+        "neutral": 0.0095
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 690
+  },
+  {
+    "postId": "golden-rage-008",
+    "userId": "author-rage-3",
+    "content": "Có phải bạn vừa nói là chết tiệt không?",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 360,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.825,
+      "intensity": 0.825,
+      "scores": {
+        "joy": 0.0059,
+        "sadness": 0.024,
+        "disgust": 0.0692,
+        "anger": 0.825,
+        "fear": 0.0349,
+        "surprise": 0.0331,
+        "neutral": 0.0079
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 680
+  },
+  {
+    "postId": "golden-rage-009",
+    "userId": "author-rage-4",
+    "content": "Tôi thách từng tên khốn trong số các bạn thử đổ lỗi cho Huy về chuyện này",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 340,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8249,
+      "intensity": 0.8249,
+      "scores": {
+        "joy": 0.006,
+        "sadness": 0.027,
+        "disgust": 0.063,
+        "anger": 0.8249,
+        "fear": 0.0462,
+        "surprise": 0.0248,
+        "neutral": 0.0081
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 670
+  },
+  {
+    "postId": "golden-rage-010",
+    "userId": "author-rage-5",
+    "content": "Chết tiệt những người không thể trả tiền thuê nhà, thanh toán hóa đơn hoặc chi phí y tế vì ngừng hoạt động, phải không?",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 320,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8246,
+      "intensity": 0.8246,
+      "scores": {
+        "joy": 0.0076,
+        "sadness": 0.0242,
+        "disgust": 0.0844,
+        "anger": 0.8246,
+        "fear": 0.0272,
+        "surprise": 0.0231,
+        "neutral": 0.0089
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 660
+  },
+  {
+    "postId": "golden-rage-011",
+    "userId": "author-rage-1",
+    "content": "Tôi ghét Bình trời ơi tôi chỉ làm vậy thôi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.824,
+      "intensity": 0.824,
+      "scores": {
+        "joy": 0.0088,
+        "sadness": 0.0293,
+        "disgust": 0.0812,
+        "anger": 0.824,
+        "fear": 0.0261,
+        "surprise": 0.0199,
+        "neutral": 0.0107
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 650
+  },
+  {
+    "postId": "golden-rage-012",
+    "userId": "author-rage-2",
+    "content": "Không cấm mọi người vì quan điểm của họ chống lại toàn bộ khái niệm chết tiệt đó",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 280,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8239,
+      "intensity": 0.8239,
+      "scores": {
+        "joy": 0.0091,
+        "sadness": 0.0252,
+        "disgust": 0.0841,
+        "anger": 0.8239,
+        "fear": 0.0242,
+        "surprise": 0.0231,
+        "neutral": 0.0104
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 640
+  },
+  {
+    "postId": "golden-rage-013",
+    "userId": "author-rage-3",
+    "content": "Cái thùng vận chuyển là bạn tôi đấy, chết tiệt",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 260,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8238,
+      "intensity": 0.8238,
+      "scores": {
+        "joy": 0.0083,
+        "sadness": 0.021,
+        "disgust": 0.0881,
+        "anger": 0.8238,
+        "fear": 0.0279,
+        "surprise": 0.0213,
+        "neutral": 0.0096
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 630
+  },
+  {
+    "postId": "golden-rage-014",
+    "userId": "author-rage-4",
+    "content": "Ừ tôi không nghĩ Ngọc muốn anh đụ vợ tôi/bạn gái anh ta nữa đồ khốn",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 240,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8232,
+      "intensity": 0.8232,
+      "scores": {
+        "joy": 0.0079,
+        "sadness": 0.0228,
+        "disgust": 0.0874,
+        "anger": 0.8232,
+        "fear": 0.0275,
+        "surprise": 0.022,
+        "neutral": 0.0092
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 620
+  },
+  {
+    "postId": "golden-rage-015",
+    "userId": "author-rage-5",
+    "content": "Chết tiệt Huy đang GIẾT nó rồi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 220,
+      "likes": 50,
+      "loves": 10,
+      "comments": 100,
+      "shares": 30
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.8228,
+      "intensity": 0.8228,
+      "scores": {
+        "joy": 0.0072,
+        "sadness": 0.0241,
+        "disgust": 0.0804,
+        "anger": 0.8228,
+        "fear": 0.0363,
+        "surprise": 0.0212,
+        "neutral": 0.008
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 610
+  },
+  {
+    "postId": "golden-fear-001",
+    "userId": "author-fear-1",
+    "content": "Thảo dude I see Thảo so rarely that I forget that he's the OG \"Fuck this character fuck this stupid game\" king.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 250,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8826,
+      "intensity": 0.8826,
+      "scores": {
+        "joy": 0.0113,
+        "sadness": 0.0193,
+        "disgust": 0.0268,
+        "anger": 0.0258,
+        "fear": 0.8826,
+        "surprise": 0.0234,
+        "neutral": 0.0108
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 550
+  },
+  {
+    "postId": "golden-fear-002",
+    "userId": "author-fear-2",
+    "content": "per sao bố lại đủ bình tĩnh để xem hết cái trailer này nhỉ . _ . sợ vãi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 240,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8821,
+      "intensity": 0.8821,
+      "scores": {
+        "joy": 0.0121,
+        "sadness": 0.0215,
+        "disgust": 0.0274,
+        "anger": 0.0234,
+        "fear": 0.8821,
+        "surprise": 0.0212,
+        "neutral": 0.0123
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 540
+  },
+  {
+    "postId": "golden-fear-003",
+    "userId": "author-fear-3",
+    "content": "ôi, là người thường xuyên làm trật đồ vật (Sơn), điều này làm tôi sợ quá!",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 230,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8818,
+      "intensity": 0.8818,
+      "scores": {
+        "joy": 0.0125,
+        "sadness": 0.0216,
+        "disgust": 0.0264,
+        "anger": 0.0221,
+        "fear": 0.8818,
+        "surprise": 0.0246,
+        "neutral": 0.011
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 530
+  },
+  {
+    "postId": "golden-fear-004",
+    "userId": "author-fear-4",
+    "content": "Đó là điều tôi sợ nhưng tôi không có nhiều thời gian rảnh nên sẽ không bao giờ có tác dụng.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 220,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8815,
+      "intensity": 0.8815,
+      "scores": {
+        "joy": 0.0125,
+        "sadness": 0.0225,
+        "disgust": 0.0256,
+        "anger": 0.024,
+        "fear": 0.8815,
+        "surprise": 0.0212,
+        "neutral": 0.0127
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 520
+  },
+  {
+    "postId": "golden-fear-005",
+    "userId": "author-fear-5",
+    "content": "Tôi quá sợ hãi khi bắt đầu Black Mirror bởi vì thực sự có vẻ như chúng tôi có thể không còn xa nữa với một số thứ trong số đó.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 210,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.881,
+      "intensity": 0.881,
+      "scores": {
+        "joy": 0.0119,
+        "sadness": 0.0218,
+        "disgust": 0.0253,
+        "anger": 0.0249,
+        "fear": 0.881,
+        "surprise": 0.0244,
+        "neutral": 0.0107
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 510
+  },
+  {
+    "postId": "golden-fear-006",
+    "userId": "author-fear-1",
+    "content": "chưa bao giờ sử dụng cũng như không cần súng trường trong bất kỳ lần chơi nào, tôi muốn cảm thấy sợ hãi và căng thẳng Chỉnh sửa: Đây là lần thứ 6 hoặc thứ 7 của tôi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 200,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.881,
+      "intensity": 0.881,
+      "scores": {
+        "joy": 0.0111,
+        "sadness": 0.0248,
+        "disgust": 0.0266,
+        "anger": 0.0261,
+        "fear": 0.881,
+        "surprise": 0.0196,
+        "neutral": 0.0108
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 500
+  },
+  {
+    "postId": "golden-fear-007",
+    "userId": "author-fear-2",
+    "content": "Đầu tiên tôi sợ hãi, tôi như hóa đá...",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 190,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.881,
+      "intensity": 0.881,
+      "scores": {
+        "joy": 0.0116,
+        "sadness": 0.0192,
+        "disgust": 0.0255,
+        "anger": 0.0268,
+        "fear": 0.881,
+        "surprise": 0.0253,
+        "neutral": 0.0106
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 490
+  },
+  {
+    "postId": "golden-fear-008",
+    "userId": "author-fear-3",
+    "content": "Tôi sợ quá, tưởng thằng bé sẽ đạp lùi ra đường.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 180,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8807,
+      "intensity": 0.8807,
+      "scores": {
+        "joy": 0.0123,
+        "sadness": 0.0203,
+        "disgust": 0.0251,
+        "anger": 0.0252,
+        "fear": 0.8807,
+        "surprise": 0.0245,
+        "neutral": 0.0119
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 480
+  },
+  {
+    "postId": "golden-fear-009",
+    "userId": "author-fear-4",
+    "content": "Tôi rất sợ tòa nhà màu trắng đó.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 170,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8806,
+      "intensity": 0.8806,
+      "scores": {
+        "joy": 0.0115,
+        "sadness": 0.0199,
+        "disgust": 0.0264,
+        "anger": 0.0272,
+        "fear": 0.8806,
+        "surprise": 0.0224,
+        "neutral": 0.012
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 470
+  },
+  {
+    "postId": "golden-fear-010",
+    "userId": "author-fear-5",
+    "content": "Điều này được đăng cùng lúc với một anh chàng khác đăng nó ở đây, và điều đó làm tôi sợ.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW",
+    "hasWarning": false,
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 160,
+      "likes": 40,
+      "loves": 10,
+      "comments": 60,
+      "shares": 20
+    },
+    "emotionFeature": {
+      "primaryEmotion": "fear",
+      "label": "fear",
+      "confidence": 0.8805,
+      "intensity": 0.8805,
+      "scores": {
+        "joy": 0.0113,
+        "sadness": 0.0186,
+        "disgust": 0.0267,
+        "anger": 0.0276,
+        "fear": 0.8805,
+        "surprise": 0.0243,
+        "neutral": 0.011
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 460
+  },
+  {
+    "postId": "golden-toxic-high-001",
+    "userId": "author-toxic-1",
+    "content": "khó ngủ, đầu óc bối rối, lòng bồn chồn. Tất cả đều lạc nhịp",
+    "audience": "PUBLIC",
+    "moderationAction": "HARD_BLOCK",
+    "hasWarning": true,
+    "needsMentalSupport": true,
+    "warningReason": "Tự hại hoặc khủng hoảng tâm lý nghiêm trọng",
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 100,
+      "loves": 50,
+      "comments": 200,
+      "shares": 50
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.95,
+      "intensity": 0.95,
+      "scores": {
+        "joy": 0.01,
+        "sadness": 0.85,
+        "disgust": 0.02,
+        "anger": 0.05,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.01
+      },
+      "mentalHealthRiskLevel": "HIGH",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 1000
+  },
+  {
+    "postId": "golden-toxic-high-002",
+    "userId": "author-toxic-2",
+    "content": "Tất cả đều sai, hãy lùi lại đi em yêu, hãy tiến về phía trước nghi ngờ. Ở trong một nơi bồn chồn và bồn chồn",
+    "audience": "PUBLIC",
+    "moderationAction": "HARD_BLOCK",
+    "hasWarning": true,
+    "needsMentalSupport": true,
+    "warningReason": "Tự hại hoặc khủng hoảng tâm lý nghiêm trọng",
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 100,
+      "loves": 50,
+      "comments": 200,
+      "shares": 50
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.95,
+      "intensity": 0.95,
+      "scores": {
+        "joy": 0.01,
+        "sadness": 0.85,
+        "disgust": 0.02,
+        "anger": 0.05,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.01
+      },
+      "mentalHealthRiskLevel": "HIGH",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 1000
+  },
+  {
+    "postId": "golden-toxic-high-003",
+    "userId": "author-toxic-3",
+    "content": "Tôi đã chuyển sự tập trung của mình sang thứ khác nhưng tôi vẫn lo lắng",
+    "audience": "PUBLIC",
+    "moderationAction": "HARD_BLOCK",
+    "hasWarning": true,
+    "needsMentalSupport": true,
+    "warningReason": "Tự hại hoặc khủng hoảng tâm lý nghiêm trọng",
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 100,
+      "loves": 50,
+      "comments": 200,
+      "shares": 50
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.95,
+      "intensity": 0.95,
+      "scores": {
+        "joy": 0.01,
+        "sadness": 0.85,
+        "disgust": 0.02,
+        "anger": 0.05,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.01
+      },
+      "mentalHealthRiskLevel": "HIGH",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 1000
+  },
+  {
+    "postId": "golden-toxic-high-004",
+    "userId": "author-toxic-4",
+    "content": "Tôi bồn chồn và bồn chồn, đã một tháng rồi đấy chàng trai. Ý anh là gì?",
+    "audience": "PUBLIC",
+    "moderationAction": "HARD_BLOCK",
+    "hasWarning": true,
+    "needsMentalSupport": true,
+    "warningReason": "Tự hại hoặc khủng hoảng tâm lý nghiêm trọng",
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 100,
+      "loves": 50,
+      "comments": 200,
+      "shares": 50
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.95,
+      "intensity": 0.95,
+      "scores": {
+        "joy": 0.01,
+        "sadness": 0.85,
+        "disgust": 0.02,
+        "anger": 0.05,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.01
+      },
+      "mentalHealthRiskLevel": "HIGH",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 1000
+  },
+  {
+    "postId": "golden-toxic-high-005",
+    "userId": "author-toxic-5",
+    "content": "Mỗi lần nghỉ giải lao, bạn chắc hẳn phải lo lắng, như thể có điều gì đó không ổn, nhưng cái quái gì vậy?",
+    "audience": "PUBLIC",
+    "moderationAction": "HARD_BLOCK",
+    "hasWarning": true,
+    "needsMentalSupport": true,
+    "warningReason": "Tự hại hoặc khủng hoảng tâm lý nghiêm trọng",
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 500,
+      "likes": 100,
+      "loves": 50,
+      "comments": 200,
+      "shares": 50
+    },
+    "emotionFeature": {
+      "primaryEmotion": "sadness",
+      "label": "sadness",
+      "confidence": 0.95,
+      "intensity": 0.95,
+      "scores": {
+        "joy": 0.01,
+        "sadness": 0.85,
+        "disgust": 0.02,
+        "anger": 0.05,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.01
+      },
+      "mentalHealthRiskLevel": "HIGH",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 1000
+  },
+  {
+    "postId": "golden-warn-001",
+    "userId": "author-warn-1",
+    "content": "thật là vãi lol a ơi",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": true
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-002",
+    "userId": "author-warn-2",
+    "content": "Không cho chúng bố ăn là chết với chúng bố. Thiên đường xhcn nó thế đấy con ạ.",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": true
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-003",
+    "userId": "author-warn-3",
+    "content": "Chó hùa kìa",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": true
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-004",
+    "userId": "author-warn-4",
+    "content": "ôi a dg nhai bcs rùi đấy",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": true
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-005",
+    "userId": "author-warn-5",
+    "content": "Óc chó",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-006",
+    "userId": "author-warn-1",
+    "content": "Đc vailin anh ui 😇😇😇",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-007",
+    "userId": "author-warn-2",
+    "content": "Kệ đi thớt , 1 lũ trẻ trâu",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-008",
+    "userId": "author-warn-3",
+    "content": "Trần Hoàng Long đĩ mẹ m con? Trần Hensy của c nè",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-009",
+    "userId": "author-warn-4",
+    "content": "bầu cử cl gì mà tao lên fb biết kq đâu mấy tháng trc rồi. bâu làm cm gì nữa lấy tiền chia đi nhâu có đã k",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  },
+  {
+    "postId": "golden-warn-010",
+    "userId": "author-warn-5",
+    "content": "Hat nhu lon 🙂",
+    "audience": "PUBLIC",
+    "moderationAction": "ALLOW_WITH_WARNING",
+    "hasWarning": true,
+    "warningReason": "Nội dung có thể gây khó chịu hoặc tranh cãi",
+    "needsMentalSupport": false,
+    "postCreatedAt": "2026-10-24T12:00:00.000Z",
+    "mediaPreviews": [],
+    "stats": {
+      "reactions": 300,
+      "likes": 50,
+      "loves": 10,
+      "comments": 120,
+      "shares": 40
+    },
+    "emotionFeature": {
+      "primaryEmotion": "anger",
+      "label": "anger",
+      "confidence": 0.88,
+      "intensity": 0.88,
+      "scores": {
+        "joy": 0.02,
+        "sadness": 0.05,
+        "disgust": 0.2,
+        "anger": 0.65,
+        "fear": 0.05,
+        "surprise": 0.01,
+        "neutral": 0.02
+      },
+      "mentalHealthRiskLevel": "none",
+      "isSarcasmOrConflict": false
+    },
+    "baseTrendingScore": 700
+  }
+]

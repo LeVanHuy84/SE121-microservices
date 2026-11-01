@@ -10,6 +10,7 @@ import {
   ShareSnapshotSchema,
 } from "./schema/share-snapshot.schema";
 import { FeedItem, FeedItemSchema } from "./schema/feed-item.schema";
+import { CacheLayerModule } from "../cache-layer/cache-layer.module";
 
 @Global()
 @Module({
@@ -19,6 +20,7 @@ import { FeedItem, FeedItemSchema } from "./schema/feed-item.schema";
       { name: ShareSnapshot.name, schema: ShareSnapshotSchema },
       { name: FeedItem.name, schema: FeedItemSchema },
     ]),
+    CacheLayerModule,
   ],
   providers: [SnapshotRepository],
   exports: [MongooseModule, SnapshotRepository],

@@ -9,8 +9,6 @@ import {
   ShareSnapshot,
   ShareSnapshotSchema,
 } from "../mongo/schema/share-snapshot.schema";
-import { ClientsModule, Transport } from "@nestjs/microservices";
-import { ConfigModule, ConfigService } from "@nestjs/config";
 import { RankingModule } from "../ranking/ranking.module";
 import { UserSocialClientModule } from "../../post/client/user-social-client.module";
 import { ReactionModule } from "../../post/reaction/reaction.module";
@@ -19,6 +17,8 @@ import { TrendingController } from "./controllers/trending.controller";
 import { PersonalFeedService } from "./services/personal-feed.service";
 import { TrendingService } from "./services/trending.service";
 import { TrendingWorker } from "./services/trending-score-worker";
+import { FeedInterleaverService } from "./services/feed-interleaver.service";
+import { FeedHydrationService } from "./services/feed-hydration.service";
 import { AffinityModule } from "../affinity/affinity.module";
 
 @Module({
@@ -34,6 +34,13 @@ import { AffinityModule } from "../affinity/affinity.module";
     AffinityModule,
   ],
   controllers: [PersonalFeedController, TrendingController],
-  providers: [PersonalFeedService, TrendingService, TrendingWorker],
+  providers: [
+    PersonalFeedService,
+    TrendingService,
+    TrendingWorker,
+    FeedInterleaverService,
+    FeedHydrationService,
+  ],
+  exports: [FeedInterleaverService, FeedHydrationService],
 })
 export class FeedPipelineModule {}

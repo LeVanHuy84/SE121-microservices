@@ -6,31 +6,31 @@ import { FeedEventType } from "@repo/dtos";
 export class FeedItem {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, type: String, index: true })
   userId: string; // feed của user nào
 
-  @Prop({ required: true, enum: FeedEventType })
+  @Prop({ required: true, type: String, enum: FeedEventType })
   eventType: FeedEventType; // POST | SHARE
 
   // snapshot id tương ứng
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   snapshotId: string;
 
   // QUAN TRỌNG: luôn có postId cho ranking
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, type: String, index: true })
   postId: string;
 
-  @Prop({ index: true })
+  @Prop({ type: String, index: true })
   emotionLabel?: string; // optional
 
   // ref gốc (postId hoặc shareId)
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   refId: string;
 
-  @Prop({ index: true })
+  @Prop({ type: Date, index: true })
   createdAt?: Date;
 
-  @Prop()
+  @Prop({ type: Date })
   updatedAt?: Date;
 }
 

@@ -28,7 +28,9 @@ import { ClientsModule, Transport } from "@nestjs/microservices";
             host:
               config.get<string>("EMOTION_INTELLIGENCE_SERVICE_HOST") ||
               "127.0.0.1",
-            port: config.get<number>("EMOTION_INTELLIGENCE_SERVICE_PORT"),
+            port:
+              config.get<number>("EMOTION_INTELLIGENCE_SERVICE_PORT", 4005) ||
+              4005,
           },
         }),
       },

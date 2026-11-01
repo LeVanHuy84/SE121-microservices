@@ -1,37 +1,44 @@
-import { PersonalFeedQuery } from "@repo/dtos";
+import { EmotionRankingFeaturesDto } from "@repo/dtos";
 
 export class PersonalFeedHelper {
   private static readonly TAU = 1000 * 60 * 60 * 12; // 12h
 
-  static getRankingCacheKey(userId: string, query: PersonalFeedQuery) {
-    return `feed:ranking:${userId}:${query.mainEmotion?.toLowerCase() || "all"}`;
+  // ==========================================
+  // 🎟️ SESSION SNAPSHOT CURSOR ENCODING
+  // ==========================================
+  static encodeSessionCursor(sessionId: string, offset: number): string {
+    const payload = JSON.stringify({ s: sessionId, o: offset, t: Date.now() });
+    return Buffer.from(payload, "utf-8").toString("base64url");
   }
 
-  static encodeCursor(score: number, itemId: string) {
-    return Buffer.from(`${score}|${itemId}`).toString("base64");
-  }
-
-  static decodeCursor(cursor?: string) {
+  static decodeSessionCursor(
+    cursor?: string,
+  ): { sessionId: string; offset: number } | null {
     if (!cursor) return null;
 
     try {
-      const [score, itemId] = Buffer.from(cursor, "base64")
-        .toString()
-        .split("|");
+      const decoded = Buffer.from(cursor, "base64url").toString("utf-8");
+      const parsed = JSON.parse(decoded);
 
-      return {
-        score: Number(score),
-        itemId,
-      };
+      if (typeof parsed.s === "string" && typeof parsed.o === "number") {
+        return {
+          sessionId: parsed.s,
+          offset: Math.max(0, parsed.o),
+        };
+      }
+      return null;
     } catch {
       return null;
     }
   }
 
-  static calcRecency(createdAt?: Date): number {
+  // ==========================================
+  // 📊 COMPONENT SIGNALS
+  // ==========================================
+  static calcRecency(createdAt?: Date, now = Date.now()): number {
     if (!createdAt) return 0;
 
-    const age = Date.now() - new Date(createdAt).getTime();
+    const age = now - new Date(createdAt).getTime();
     return Math.exp(-age / this.TAU);
   }
 
@@ -44,17 +51,60 @@ export class PersonalFeedHelper {
     return Math.min(1, Math.log1p(raw) / 10);
   }
 
-  static calcFinalScore(input: {
+  // ==========================================
+  // 🧠 5-PARAMETER EMA DISTRESS FORMULATION
+  // ==========================================
+  static calcDistress(
+    features?: Partial<EmotionRankingFeaturesDto> | null,
+  ): number {
+    if (!features) return 0;
+
+    const risk = Number(features.riskScore) || 0;
+    const recentNeg = Number(features.recentNegativityScore) || 0;
+    const negRatio7d = Number(features.negativeRatio7d) || 0;
+    const volatility = Number(features.emotionVolatility7d) || 0;
+    const momentum = Number(features.emotionMomentum) || 0;
+
+    const raw =
+      0.3 * risk +
+      0.35 * recentNeg +
+      0.15 * negRatio7d +
+      0.2 * volatility -
+      0.1 * momentum;
+
+    return Math.max(0, Math.min(1, raw));
+  }
+
+  // ==========================================
+  // 🎯 DYNAMIC ADAPTIVE MULTI-OBJECTIVE RANKING
+  // ==========================================
+  static calcAdaptiveScore(input: {
     recency: number;
-    emotion: number;
     affinity: number;
+    emotion: number;
     engagement: number;
+    distress: number;
+    toxicity?: number;
   }): number {
-    return (
-      0.4 * input.recency +
-      0.2 * input.affinity +
-      0.35 * input.emotion +
-      0.05 * input.engagement
-    );
+    const d = Math.max(0, Math.min(1, input.distress));
+
+    const wRec = 0.4 * (1 - 0.75 * d);
+    const wAff = 0.2 * (1 - 0.5 * d);
+    const wEmo = 0.35 + 0.45 * d;
+    const wEng = 0.05 * (1 - 0.6 * d);
+    const lambda = 0.3 + 0.7 * d;
+
+    const sum = wRec + wAff + wEmo + wEng;
+    const base =
+      sum > 0
+        ? (wRec * input.recency +
+            wAff * input.affinity +
+            wEmo * input.emotion +
+            wEng * input.engagement) /
+          sum
+        : 0;
+
+    const penalty = lambda * (input.toxicity ?? 0);
+    return Math.max(0, Math.min(1, base - penalty));
   }
 }
