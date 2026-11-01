@@ -281,6 +281,13 @@ class Settings:
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
 
+        # Downstream Gateway Client Settings for Phase 2 Tools
+        self.API_GATEWAY_URL: str = os.getenv("API_GATEWAY_URL", "http://localhost:4000").rstrip("/")
+        self.TOOL_HTTP_TIMEOUT_SECONDS: float = float(os.getenv("TOOL_HTTP_TIMEOUT_SECONDS", 2.0))
+        self.TOOL_ENABLE_MOCK_FALLBACKS: bool = os.getenv(
+            "TOOL_ENABLE_MOCK_FALLBACKS", "true"
+        ).lower() in ("true", "1", "yes")
+
         # VLM Multimodal Settings
         self.VLM_API_KEY: str = os.getenv("VLM_API_KEY", "").strip()
         self.VLM_BASE_URL: str = os.getenv(

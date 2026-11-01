@@ -2,7 +2,7 @@ import logging
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -42,7 +42,16 @@ def _stable_client_error(
     dependencies=[Depends(verify_internal_key)],
     response_model=AssistantRespondResponse,
 )
-async def respond(req: AssistantRespondRequest):
+async def respond(
+    req: AssistantRespondRequest,
+    authorization: str | None = Header(None),
+):
+    if not req.authToken and authorization:
+        token = authorization.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        req.authToken = token
+
     try:
         data = await respond_command.execute(req)
         return AssistantRespondResponse(success=True, data=data)
@@ -66,7 +75,16 @@ async def respond(req: AssistantRespondRequest):
     "/respond-stream",
     dependencies=[Depends(verify_internal_key)],
 )
-async def respond_stream(req: AssistantRespondRequest):
+async def respond_stream(
+    req: AssistantRespondRequest,
+    authorization: str | None = Header(None),
+):
+    if not req.authToken and authorization:
+        token = authorization.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        req.authToken = token
+
     async def event_generator():
         try:
             async for data in respond_command.execute_stream(req):

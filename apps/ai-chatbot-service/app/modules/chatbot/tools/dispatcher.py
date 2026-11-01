@@ -311,3 +311,6 @@ class ToolDispatcher:
 
 
 tool_dispatcher = ToolDispatcher()
+
+from app.modules.chatbot.tools.handlers import register_production_handlers
+register_production_handlers(tool_dispatcher)

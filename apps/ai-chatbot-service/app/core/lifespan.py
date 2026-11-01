@@ -86,6 +86,8 @@ async def lifespan(app: FastAPI):
 
         from app.modules.chatbot.services.rag_engine import rag_document_service
         await rag_document_service.close()
+        from app.modules.chatbot.tools.http_client import gateway_http_client
+        await gateway_http_client.close()
         await history_store.stop()
         await close_database()
         logger.info("[Shutdown] Cleanup complete. Shutdown successful.")

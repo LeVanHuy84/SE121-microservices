@@ -22,12 +22,12 @@
 - [x] Add unit tests in `tests/test_tool_router.py` and `tests/test_tool_dispatcher.py`
 
 ## Slice 2.3: Downstream Service Integrations & Auth Forwarding
-- [ ] Update `api-gateway` chatbot forwarder to forward `Authorization: Bearer <token>` to chatbot service
-- [ ] Implement dispatcher handlers for `user-social-service`
-- [ ] Implement dispatcher handlers for `emotion-intelligence-service` & `music-service`
-- [ ] Implement dispatcher handlers for `notification-service`
-- [ ] Implement dispatcher handlers for `content-feed-service` & `group-service`
-- [ ] Write integration tests with mocked downstream HTTP responses in `tests/test_tool_integration.py`
+- [x] Update `api-gateway` chatbot forwarder to forward `Authorization: Bearer <token>` to chatbot service
+- [x] Implement dispatcher handlers for `user-social-service`
+- [x] Implement dispatcher handlers for `emotion-intelligence-service` & `music-service`
+- [x] Implement dispatcher handlers for `notification-service`
+- [x] Implement dispatcher handlers for `content-feed-service` & `group-service`
+- [x] Write integration tests with mocked downstream HTTP responses in `tests/test_tool_integration.py`
 
 ## Slice 2.4: Mini Cards (`show_card`) Support
 - [ ] Update `schemas.py` and `@repo/dtos` with `CardAction` & `CardPayload`

@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Post,
   Query,
   Sse,
@@ -20,8 +21,12 @@ export class ChatbotController {
   constructor(private readonly chatbotService: ChatbotService) {}
 
   @Post("respond")
-  respond(@CurrentUserId() userId: string, @Body() dto: AssistantMessageDto) {
-    return this.chatbotService.respond(userId, dto);
+  respond(
+    @CurrentUserId() userId: string,
+    @Body() dto: AssistantMessageDto,
+    @Headers("authorization") authHeader?: string,
+  ) {
+    return this.chatbotService.respond(userId, dto, authHeader);
   }
 
   @Post("respond-stream")
@@ -29,13 +34,14 @@ export class ChatbotController {
     @CurrentUserId() userId: string,
     @Body() dto: AssistantMessageDto,
     @Res() res: any, // use any or express Response
+    @Headers("authorization") authHeader?: string,
   ) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
     const subscription = this.chatbotService
-      .respondStream(userId, dto)
+      .respondStream(userId, dto, authHeader)
       .subscribe({
         next: (event) => {
           if (event.type) res.write(`event: ${event.type}\n`);
@@ -65,6 +71,7 @@ export class ChatbotController {
     @Query("clientMessageId") clientMessageId: string | undefined,
     @Query("surface") surfaceJson: string | undefined,
     @Res() res: any,
+    @Headers("authorization") authHeader?: string,
   ) {
     if (!message) {
       throw new BadRequestException("message is required");
@@ -90,7 +97,7 @@ export class ChatbotController {
     res.setHeader("Connection", "keep-alive");
 
     const subscription = this.chatbotService
-      .respondStream(userId, dto)
+      .respondStream(userId, dto, authHeader)
       .subscribe({
         next: (event) => {
           if (event.type) res.write(`event: ${event.type}\n`);

@@ -11,6 +11,14 @@ from app.modules.chatbot.tools.dispatcher import (
     sanitize_tool_output,
     tool_dispatcher,
 )
+from app.modules.chatbot.tools.handlers import (
+    MicroserviceToolHandlers,
+    register_production_handlers,
+)
+from app.modules.chatbot.tools.http_client import (
+    GatewayHttpClient,
+    gateway_http_client,
+)
 from app.modules.chatbot.tools.router import (
     MAX_ACTIVE_TOOLS,
     ToolRouter,
@@ -20,13 +28,17 @@ from app.modules.chatbot.tools.router import (
 __all__ = [
     "ALL_TOOLS",
     "DOMAIN_TOOLS",
+    "GatewayHttpClient",
     "MAX_ACTIVE_TOOLS",
+    "MicroserviceToolHandlers",
     "ToolDefinition",
     "ToolDispatcher",
     "ToolExecutionContext",
     "ToolExecutionResult",
     "ToolRouter",
+    "gateway_http_client",
     "get_tool_by_name",
+    "register_production_handlers",
     "sanitize_tool_output",
     "tool_dispatcher",
     "tool_router",

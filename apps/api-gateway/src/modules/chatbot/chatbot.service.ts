@@ -45,7 +45,7 @@ export class ChatbotService {
     private readonly contextService: AssistantContextService,
   ) {}
 
-  async respond(userId: string, dto: AssistantMessageDto) {
+  async respond(userId: string, dto: AssistantMessageDto, authHeader?: string) {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
 
@@ -59,6 +59,13 @@ export class ChatbotService {
         ),
       );
 
+      const headers: Record<string, string> = {
+        "x-internal-key": internalKey,
+      };
+      if (authHeader) {
+        headers["authorization"] = authHeader;
+      }
+
       const res = await firstValueFrom(
         this.httpService.post(
           `${baseUrl}/assistant/respond`,
@@ -70,9 +77,7 @@ export class ChatbotService {
             surface: dto.surface,
           },
           {
-            headers: {
-              "x-internal-key": internalKey,
-            },
+            headers,
             timeout: timeoutMs,
           },
         ),
@@ -87,6 +92,7 @@ export class ChatbotService {
   respondStream(
     userId: string,
     dto: AssistantMessageDto,
+    authHeader?: string,
   ): Observable<MessageEvent> {
     const { baseUrl, internalKey } = this.resolveClientConfig();
 
@@ -106,6 +112,14 @@ export class ChatbotService {
 
           if (isCancelled) return;
 
+          const headers: Record<string, string> = {
+            "x-internal-key": internalKey,
+            Accept: "text/event-stream",
+          };
+          if (authHeader) {
+            headers["authorization"] = authHeader;
+          }
+
           const response = await firstValueFrom(
             this.httpService.post(
               `${baseUrl}/assistant/respond-stream`,
@@ -117,10 +131,7 @@ export class ChatbotService {
                 surface: dto.surface,
               },
               {
-                headers: {
-                  "x-internal-key": internalKey,
-                  Accept: "text/event-stream",
-                },
+                headers,
                 responseType: "stream",
               },
             ),

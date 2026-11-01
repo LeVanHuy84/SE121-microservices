@@ -446,6 +446,7 @@ class RespondCommand:
         exec_ctx = ToolExecutionContext(
             user_id=request.userId,
             surface=request.surface,
+            auth_token=request.authToken,
         )
         # Execute tool calls concurrently for optimal latency
         tool_results = await asyncio.gather(

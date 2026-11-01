@@ -64,6 +64,7 @@ class AssistantRespondRequest(BaseModel):
     contexts: list[AssistantContextItem] = Field(default_factory=list)
     intent: Optional[str] = None
     surface: Optional[SurfaceContext] = None
+    authToken: Optional[str] = None
 
 
 class AssistantSource(BaseModel):
