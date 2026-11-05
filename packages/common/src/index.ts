@@ -1,6 +1,9 @@
 // filters
 export * from './filters/rpc-exception.filter';
 
+// decorators
+export * from './decorators';
+
 // redis module
 export * from './redis/redis.module';
 export * from './redis/redis.service';
@@ -23,4 +26,3 @@ export * from './event';
 
 // observability
 export * from './observability/otel';
-

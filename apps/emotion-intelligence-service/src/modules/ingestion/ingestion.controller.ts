@@ -1,18 +1,13 @@
 import { Controller, Logger } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
-import {
-  EventPattern,
-  Payload,
-  Ctx,
-  KafkaContext,
-} from '@nestjs/microservices';
+import { Payload, Ctx, KafkaContext } from '@nestjs/microservices';
 import {
   AnalysisEventType,
   AnalysisResultEvent,
   EventTopic,
   ChatbotCrisisAlertEvent,
 } from '@repo/dtos';
-import { KafkaConsumerHelper } from '@repo/common';
+import { KafkaConsumerHelper, KafkaEventPattern } from '@repo/common';
 import { ClientSession } from 'mongoose';
 
 @Controller('ingestion')
@@ -27,7 +22,7 @@ export class IngestionController {
   // ----------------------------
   // ANALYSIS RESULT TOPIC
   // ----------------------------
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @KafkaEventPattern(EventTopic.ANALYSIS_RESULT)
   async handleAnalysisEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,
@@ -59,7 +54,7 @@ export class IngestionController {
   // ----------------------------
   // CHATBOT CRISIS ALERT TOPIC
   // ----------------------------
-  @EventPattern(EventTopic.CHATBOT_CRISIS_ALERT)
+  @KafkaEventPattern(EventTopic.CHATBOT_CRISIS_ALERT)
   async handleChatbotCrisisAlert(
     @Payload() message: ChatbotCrisisAlertEvent,
     @Ctx() context: KafkaContext,

@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import {
   CreateConversationDTO,
   GetConversationsQueryDTO,
@@ -11,7 +12,7 @@ import { ConversationService } from './conversation.service';
 export class ConversationController {
   constructor(private readonly conversationService: ConversationService) {}
 
-  @MessagePattern('getConversations')
+  @TcpMessagePattern('getConversations')
   async getConversations(
     @Payload()
     data: {
@@ -22,7 +23,7 @@ export class ConversationController {
     return this.conversationService.getConversations(data.userId, data.query);
   }
 
-  @MessagePattern('getConversationById')
+  @TcpMessagePattern('getConversationById')
   async getConversationById(
     @Payload()
     data: {
@@ -36,7 +37,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('createConversation')
+  @TcpMessagePattern('createConversation')
   async createConversation(
     @Payload()
     data: {
@@ -47,7 +48,7 @@ export class ConversationController {
     return this.conversationService.createConversation(data.userId, data.dto);
   }
 
-  @MessagePattern('updateConversation')
+  @TcpMessagePattern('updateConversation')
   async updateConversation(
     @Payload()
     data: {
@@ -63,7 +64,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('hideConversation')
+  @TcpMessagePattern('hideConversation')
   async hideConversation(
     @Payload()
     data: {
@@ -77,7 +78,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('unhideConversation')
+  @TcpMessagePattern('unhideConversation')
   async unhideConversation(
     @Payload()
     data: {
@@ -91,7 +92,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('leaveConversation')
+  @TcpMessagePattern('leaveConversation')
   async leaveConversation(
     @Payload()
     data: {
@@ -105,7 +106,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('deleteConversation')
+  @TcpMessagePattern('deleteConversation')
   async deleteConversation(
     @Payload()
     data: {
@@ -119,7 +120,7 @@ export class ConversationController {
     );
   }
 
-  @MessagePattern('markConversationAsRead')
+  @TcpMessagePattern('markConversationAsRead')
   async markConversationAsRead(
     @Payload()
     data: {

@@ -1,13 +1,14 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
 import { FeedbackService } from './feedback.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import { CreateFeedbackDto, FeedbackResponseDto, TargetType } from '@repo/dtos';
 
 @Controller()
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 
-  @MessagePattern('emotion-feedback.create')
+  @TcpMessagePattern('emotion-feedback.create')
   async createFeedback(
     @Payload()
     payload: {
@@ -18,7 +19,7 @@ export class FeedbackController {
     return this.feedbackService.createFeedback(payload.userId, payload.data);
   }
 
-  @MessagePattern('emotion-feedback.get_by_target')
+  @TcpMessagePattern('emotion-feedback.get_by_target')
   async getByTarget(
     @Payload()
     payload: {

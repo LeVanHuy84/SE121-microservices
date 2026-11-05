@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import { QueryService } from './services/query.service';
 import { QueryCacheService } from './services/query-cache.service';
 
@@ -12,7 +13,7 @@ export class RecommendationController {
     private readonly cacheService: QueryCacheService,
   ) {}
 
-  @MessagePattern('query_recommendation_candidates')
+  @TcpMessagePattern('query_recommendation_candidates')
   async queryCandidates(@Payload() payload: any) {
     this.logger.log(
       `Received query candidates request: viewerId=${payload?.viewerId}`,
@@ -35,7 +36,7 @@ export class RecommendationController {
     }
   }
 
-  @MessagePattern('get_recommendation_cache_stats')
+  @TcpMessagePattern('get_recommendation_cache_stats')
   async getCacheStats() {
     return {
       success: true,

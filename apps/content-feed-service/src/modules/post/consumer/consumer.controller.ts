@@ -1,12 +1,7 @@
 import { Controller, Logger } from "@nestjs/common";
-import {
-  Ctx,
-  EventPattern,
-  KafkaContext,
-  Payload,
-} from "@nestjs/microservices";
+import { Ctx, KafkaContext, Payload } from "@nestjs/microservices";
 import { AnalysisResultEvent, EventTopic } from "@repo/dtos";
-import { KafkaConsumerHelper } from "@repo/common";
+import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { ConsumerService } from "./consumer.service";
 import { EntityManager } from "typeorm";
 
@@ -22,7 +17,7 @@ export class ConsumerController {
   // ----------------------------
   // 🧩 POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @KafkaEventPattern(EventTopic.ANALYSIS_RESULT)
   async handleAnalysisEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,
@@ -47,7 +42,7 @@ export class ConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.TEST_FAULT)
+  @KafkaEventPattern(EventTopic.TEST_FAULT)
   async handleTestFault(@Payload() message: any, @Ctx() context: KafkaContext) {
     const topic = context.getTopic();
     const partition = context.getPartition();

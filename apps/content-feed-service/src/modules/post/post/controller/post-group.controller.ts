@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller, UseGuards } from "@nestjs/common";
 import { PostGroupService } from "../service/post-group.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { CreatePostDTO } from "@repo/dtos";
 
 @Controller("post-group")
@@ -8,7 +9,7 @@ export class PostGroupController {
   constructor(private postGroup: PostGroupService) {}
 
   // Tạo post trong group
-  @MessagePattern("create_post_in_group")
+  @TcpMessagePattern("create_post_in_group")
   async createPostInGroup(
     @Payload()
     payload: {
@@ -25,7 +26,7 @@ export class PostGroupController {
   }
 
   // Duyệt post trong group
-  @MessagePattern("approve_post_in_group")
+  @TcpMessagePattern("approve_post_in_group")
   async approvePostInGroup(
     @Payload() payload: { userId: string; groupId: string; postId: string },
   ) {
@@ -37,7 +38,7 @@ export class PostGroupController {
   }
 
   // Từ chối post trong group
-  @MessagePattern("reject_post_in_group")
+  @TcpMessagePattern("reject_post_in_group")
   async rejectPostInGroup(
     @Payload() payload: { userId: string; groupId: string; postId: string },
   ) {

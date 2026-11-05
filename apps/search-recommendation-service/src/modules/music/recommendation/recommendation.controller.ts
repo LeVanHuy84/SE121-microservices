@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
 import { RecommendationService } from './services/recommendation.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import {
   MusicFeatureResponse,
   PageResponse,
@@ -12,7 +13,7 @@ import {
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
-  @MessagePattern('get_music_recommendations')
+  @TcpMessagePattern('get_music_recommendations')
   getRecommendations(
     @Payload() payload: { userId: string; query: PaginationDTO },
   ): Promise<PageResponse<MusicFeatureResponse>> {
@@ -20,7 +21,7 @@ export class RecommendationController {
     return this.recommendationService.getRecommendations(userId, query);
   }
 
-  @MessagePattern('get_music_recommendations_by_signal')
+  @TcpMessagePattern('get_music_recommendations_by_signal')
   getRecommendationsBySignal(
     @Payload()
     payload: {

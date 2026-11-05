@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { GroupMemberService } from "../services/group-member.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { GroupMemberFilter, GroupPermission, GroupRole } from "@repo/dtos";
 import { RequireGroupPermission } from "../decorators/require-group-permission.decorator";
 import { RequireGroupRole } from "../decorators/require-group-role.decatator";
@@ -9,12 +10,12 @@ import { RequireGroupRole } from "../decorators/require-group-role.decatator";
 export class GroupMemberController {
   constructor(private readonly groupMemberService: GroupMemberService) {}
 
-  @MessagePattern("leave-group")
+  @TcpMessagePattern("leave-group")
   async leaveGroup(@Payload() payload: { groupId: string; userId: string }) {
     return this.groupMemberService.leaveGroup(payload.userId, payload.groupId);
   }
 
-  @MessagePattern("remove-member")
+  @TcpMessagePattern("remove-member")
   @RequireGroupPermission(GroupPermission.MANAGE_MEMBERS)
   async removeMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
@@ -26,7 +27,7 @@ export class GroupMemberController {
     );
   }
 
-  @MessagePattern("ban-member")
+  @TcpMessagePattern("ban-member")
   @RequireGroupPermission(GroupPermission.BAN_MEMBER)
   async banMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
@@ -38,7 +39,7 @@ export class GroupMemberController {
     );
   }
 
-  @MessagePattern("unban-member")
+  @TcpMessagePattern("unban-member")
   @RequireGroupPermission(GroupPermission.BAN_MEMBER)
   async unbanMember(
     @Payload() payload: { groupId: string; memberId: string; userId: string },
@@ -50,7 +51,7 @@ export class GroupMemberController {
     );
   }
 
-  @MessagePattern("change-member-role")
+  @TcpMessagePattern("change-member-role")
   // @RequireGroupRole(GroupRole.ADMIN)
   @RequireGroupPermission(GroupPermission.MANAGE_MEMBERS)
   async changeRole(
@@ -70,7 +71,7 @@ export class GroupMemberController {
     );
   }
 
-  @MessagePattern("change-member-permission")
+  @TcpMessagePattern("change-member-permission")
   @RequireGroupRole(GroupRole.ADMIN)
   async changePermission(
     @Payload()
@@ -88,7 +89,7 @@ export class GroupMemberController {
     );
   }
 
-  @MessagePattern("get-member-by-filter")
+  @TcpMessagePattern("get-member-by-filter")
   async getMembers(
     @Payload()
     payload: {
@@ -99,7 +100,7 @@ export class GroupMemberController {
     return this.groupMemberService.getMembers(payload.groupId, payload.filter);
   }
 
-  @MessagePattern("get_group_member_user_ids")
+  @TcpMessagePattern("get_group_member_user_ids")
   async getMemberUserIds(
     @Payload() payload: { groupId: string },
   ): Promise<string[]> {

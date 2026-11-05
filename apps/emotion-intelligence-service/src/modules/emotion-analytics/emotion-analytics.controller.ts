@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
 import { EmotionAnalyticsService } from './emotion-analytics.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import { TargetType, AnalysisSummaryDto } from '@repo/dtos';
 
 @Controller()
@@ -9,7 +10,7 @@ export class EmotionAnalyticsController {
     private readonly emotionAnalyticsService: EmotionAnalyticsService,
   ) {}
 
-  @MessagePattern('emotion-analytics.get_by_target')
+  @TcpMessagePattern('emotion-analytics.get_by_target')
   async getByTarget(
     @Payload()
     payload: {

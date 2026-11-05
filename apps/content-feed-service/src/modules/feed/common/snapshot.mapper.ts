@@ -36,7 +36,11 @@ export class SnapshotMapper {
       content: post.content,
       mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
       mediaRemaining: post.mediaRemaining,
-      mainEmotion: post.emotionFeature?.label?.toUpperCase() || null,
+      mainEmotion:
+        (
+          post.emotionFeature?.primaryEmotion || post.emotionFeature?.label
+        )?.toUpperCase() || null,
+      secondaryEmotions: post.emotionFeature?.secondaryEmotions || [],
       createdAt: post.postCreatedAt,
       postStat: post.stats,
       reactedType: reactedType,
@@ -78,7 +82,11 @@ export class SnapshotMapper {
         content: post.content,
         mediaPreviews: this.toMediaItemDTOs(post.mediaPreviews),
         mediaRemaining: post.mediaRemaining,
-        mainEmotion: post.emotionFeature?.label?.toUpperCase() || null,
+        mainEmotion:
+          (
+            post.emotionFeature?.primaryEmotion || post.emotionFeature?.label
+          )?.toUpperCase() || null,
+        secondaryEmotions: post.emotionFeature?.secondaryEmotions || [],
         createdAt: post.postCreatedAt,
       },
       createdAt: share.shareCreatedAt,

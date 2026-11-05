@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload, Transport } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { CursorPaginationDTO } from "@repo/dtos";
 import { FriendshipService } from "./friendship.service";
 
@@ -7,7 +8,7 @@ import { FriendshipService } from "./friendship.service";
 export class FriendshipController {
   constructor(private readonly friendshipService: FriendshipService) {}
 
-  @MessagePattern("get_relationship_status")
+  @TcpMessagePattern("get_relationship_status")
   getRelationshipStatus(@Payload() data: { userId: string; targetId: string }) {
     return this.friendshipService.getRelationshipStatus(
       data.userId,
@@ -15,7 +16,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("send_friend_request")
+  @TcpMessagePattern("send_friend_request")
   async sendFriendRequest(
     @Payload()
     data: {
@@ -35,7 +36,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("cancel_friend_request")
+  @TcpMessagePattern("cancel_friend_request")
   async cancelFriendRequest(
     @Payload()
     data: {
@@ -49,7 +50,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("accept_friend_request")
+  @TcpMessagePattern("accept_friend_request")
   async acceptFriendRequest(
     @Payload()
     data: {
@@ -63,7 +64,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("decline_friend_request")
+  @TcpMessagePattern("decline_friend_request")
   async declineFriendRequest(
     @Payload()
     data: {
@@ -77,7 +78,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("remove_friend")
+  @TcpMessagePattern("remove_friend")
   async removeFriend(
     @Payload()
     data: {
@@ -88,14 +89,14 @@ export class FriendshipController {
     return this.friendshipService.removeFriend(data.userId, data.friendId);
   }
 
-  @MessagePattern("get_friends_request")
+  @TcpMessagePattern("get_friends_request")
   async getFriendsRequest(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.friendshipService.getFriendRequests(data.userId, data.query);
   }
 
-  @MessagePattern("get_friends")
+  @TcpMessagePattern("get_friends")
   async getFriends(
     @Payload()
     data: {
@@ -111,21 +112,21 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("get_blocked_users")
+  @TcpMessagePattern("get_blocked_users")
   async getBlockedUsers(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.friendshipService.getBlockedUsers(data.userId, data.query);
   }
 
-  @MessagePattern("suggest_friends")
+  @TcpMessagePattern("suggest_friends")
   async recommendFriends(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.friendshipService.recommendFriends(data.userId, data.query);
   }
 
-  @MessagePattern("get_friend_recommendation_analytics")
+  @TcpMessagePattern("get_friend_recommendation_analytics")
   async getFriendRecommendationAnalytics(
     @Payload()
     data: {
@@ -139,7 +140,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("get_global_friend_recommendation_analytics")
+  @TcpMessagePattern("get_global_friend_recommendation_analytics")
   async getGlobalFriendRecommendationAnalytics(
     @Payload()
     data: {
@@ -151,7 +152,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("block_user")
+  @TcpMessagePattern("block_user")
   async blockUser(
     @Payload()
     data: {
@@ -162,7 +163,7 @@ export class FriendshipController {
     return this.friendshipService.blockUser(data.userId, data.targetId);
   }
 
-  @MessagePattern("dismiss_friend_recommendation")
+  @TcpMessagePattern("dismiss_friend_recommendation")
   async dismissFriendRecommendation(
     @Payload()
     data: {
@@ -182,7 +183,7 @@ export class FriendshipController {
     );
   }
 
-  @MessagePattern("unblock_user")
+  @TcpMessagePattern("unblock_user")
   async unblockUser(
     @Payload()
     data: {
@@ -193,7 +194,7 @@ export class FriendshipController {
     return this.friendshipService.unblockUser(data.userId, data.targetId);
   }
 
-  @MessagePattern({ cmd: "get_friend_ids" }, Transport.TCP)
+  @TcpMessagePattern({ cmd: "get_friend_ids" })
   async getFriendIds(@Payload() payload: { userId: string; limit: number }) {
     return this.friendshipService.getFriendIds(payload.userId, payload.limit);
   }

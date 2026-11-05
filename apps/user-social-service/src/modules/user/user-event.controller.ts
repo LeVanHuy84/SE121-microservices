@@ -1,5 +1,6 @@
+import { KafkaEventPattern } from "@repo/common";
 import { Controller, Logger } from "@nestjs/common";
-import { EventPattern, Payload, Transport } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { UserService } from "./user.service";
 import {
   EventTopic,
@@ -17,7 +18,7 @@ export class UserEventController {
 
   constructor(private readonly userService: UserService) {}
 
-  @EventPattern(EventTopic.POST, Transport.KAFKA)
+  @KafkaEventPattern(EventTopic.POST)
   async handlePostEvent(@Payload() message: PostEventMessage) {
     // Do not count group posts for personal profile stats
     if ("groupId" in message.payload && message.payload.groupId) {
@@ -51,7 +52,7 @@ export class UserEventController {
     }
   }
 
-  @EventPattern(EventTopic.RECOMMENDATION_GRAPH, Transport.KAFKA)
+  @KafkaEventPattern(EventTopic.RECOMMENDATION_GRAPH)
   async handleGraphEvent(@Payload() message: RecommendationGraphEventMessage) {
     try {
       if (

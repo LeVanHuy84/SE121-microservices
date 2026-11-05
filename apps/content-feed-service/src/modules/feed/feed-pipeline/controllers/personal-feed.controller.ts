@@ -1,13 +1,14 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { PersonalFeedService } from "../services/personal-feed.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { PersonalFeedQuery } from "@repo/dtos";
 
 @Controller("personal-feed")
 export class PersonalFeedController {
   constructor(private readonly queryService: PersonalFeedService) {}
 
-  @MessagePattern("get_my_feed")
+  @TcpMessagePattern("get_my_feed")
   async getUserFeeds(
     @Payload() payload: { userId: string; query: PersonalFeedQuery },
   ) {

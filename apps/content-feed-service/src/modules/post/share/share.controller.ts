@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { ShareCommandService } from "./service/share-command.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import {
   CreateShareDTO,
   CursorPaginationDTO,
@@ -15,12 +16,12 @@ export class ShareController {
     private readonly queryService: ShareQueryService,
   ) {}
 
-  @MessagePattern("share_post")
+  @TcpMessagePattern("share_post")
   async sharePost(@Payload() payload: { userId: string; dto: CreateShareDTO }) {
     return this.commandService.sharePost(payload.userId, payload.dto);
   }
 
-  @MessagePattern("update_share_post")
+  @TcpMessagePattern("update_share_post")
   async update(
     @Payload()
     payload: {
@@ -36,19 +37,19 @@ export class ShareController {
     );
   }
 
-  @MessagePattern("find_share_by_id")
+  @TcpMessagePattern("find_share_by_id")
   async findById(@Payload() payload: { userId: string; shareId: string }) {
     return this.queryService.findById(payload.userId, payload.shareId);
   }
 
-  @MessagePattern("get_my_shares")
+  @TcpMessagePattern("get_my_shares")
   async getMyPosts(
     @Payload() payload: { currentUserId: string; query: CursorPaginationDTO },
   ) {
     return this.queryService.getMyShares(payload.currentUserId, payload.query);
   }
 
-  @MessagePattern("find_shares_by_user_id")
+  @TcpMessagePattern("find_shares_by_user_id")
   async findPostsByUserId(
     @Payload()
     payload: {
@@ -64,7 +65,7 @@ export class ShareController {
     );
   }
 
-  @MessagePattern("find_shares_by_post_id")
+  @TcpMessagePattern("find_shares_by_post_id")
   async findSharesByPostId(
     @Payload()
     payload: {
@@ -80,7 +81,7 @@ export class ShareController {
     );
   }
 
-  @MessagePattern("remove_share")
+  @TcpMessagePattern("remove_share")
   remove(@Payload() payload: { userId: string; shareId: string }) {
     return this.commandService.remove(payload.userId, payload.shareId);
   }
