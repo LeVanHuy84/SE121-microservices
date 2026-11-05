@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 
 import { UserService } from "./user.service";
 
@@ -9,17 +10,17 @@ import { CreateUserDTO, UpdateUserDTO } from "@repo/dtos";
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @MessagePattern("createUser")
+  @TcpMessagePattern("createUser")
   async create(@Payload() createUserDto: CreateUserDTO) {
     return this.userService.create(createUserDto);
   }
 
-  @MessagePattern("findAllUser")
+  @TcpMessagePattern("findAllUser")
   async findAll() {
     return this.userService.findAll();
   }
 
-  @MessagePattern("findOneUser")
+  @TcpMessagePattern("findOneUser")
   async findOne(@Payload() data: { userId: string; targetId: string }) {
     const profile = await this.userService.findOne(data.targetId);
 
@@ -32,34 +33,34 @@ export class UserController {
     return profile;
   }
 
-  @MessagePattern("updateUser")
+  @TcpMessagePattern("updateUser")
   async update(@Payload() data: { id: string; updateUserDto: UpdateUserDTO }) {
     return this.userService.update(data.id, data.updateUserDto);
   }
 
-  @MessagePattern("removeUser")
+  @TcpMessagePattern("removeUser")
   async remove(@Payload() id: string) {
     return this.userService.remove(id);
   }
 
-  @MessagePattern("getUsersBatch")
+  @TcpMessagePattern("getUsersBatch")
   async getUsersBatch(@Payload() ids: string[]) {
     return this.userService.getUsersBatch(ids);
   }
 
-  @MessagePattern("searchUserIds")
+  @TcpMessagePattern("searchUserIds")
   async searchUserIds(
     @Payload() data: { ids: string[]; search: string; limit?: number },
   ) {
     return this.userService.searchUserIds(data.ids, data.search, data.limit);
   }
 
-  @MessagePattern("getBaseUsersBatch")
+  @TcpMessagePattern("getBaseUsersBatch")
   async getBaseUserBatch(@Payload() ids: string[]) {
     return this.userService.getBaseUsersBatch(ids);
   }
 
-  @MessagePattern("getProfileRecommendationCandidates")
+  @TcpMessagePattern("getProfileRecommendationCandidates")
   async getProfileRecommendationCandidates(
     @Payload() data: { userId: string; limit?: number },
   ) {

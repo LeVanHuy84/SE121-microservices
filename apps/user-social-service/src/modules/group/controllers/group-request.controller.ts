@@ -1,7 +1,8 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { GroupJoinRequestService } from "../services/group-request.service";
 import { GroupPermission, JoinRequestFilter } from "@repo/dtos";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { RequireGroupPermission } from "../decorators/require-group-permission.decorator";
 import { GroupJoinRequestQueryService } from "../services/group-request-query.service";
 
@@ -13,7 +14,7 @@ export class GroupJoinRequestController {
   ) {}
 
   // 📨 Gửi yêu cầu tham gia nhóm
-  @MessagePattern("request_to_join_group")
+  @TcpMessagePattern("request_to_join_group")
   async requestToJoin(@Payload() payload: { groupId: string; userId: string }) {
     return this.groupJoinRequestService.requestToJoin(
       payload.groupId,
@@ -23,7 +24,7 @@ export class GroupJoinRequestController {
 
   // ✅ Duyệt yêu cầu tham gia
   @RequireGroupPermission(GroupPermission.MANAGE_JOIN_REQUESTS)
-  @MessagePattern("approve_group_join_request")
+  @TcpMessagePattern("approve_group_join_request")
   async approveRequest(
     @Payload() payload: { requestId: string; userId: string },
   ) {
@@ -35,7 +36,7 @@ export class GroupJoinRequestController {
 
   // ❌ Từ chối yêu cầu
   @RequireGroupPermission(GroupPermission.MANAGE_JOIN_REQUESTS)
-  @MessagePattern("reject_group_join_request")
+  @TcpMessagePattern("reject_group_join_request")
   async rejectRequest(
     @Payload() payload: { requestId: string; userId: string },
   ) {
@@ -46,7 +47,7 @@ export class GroupJoinRequestController {
   }
 
   // 🛑 Hủy yêu cầu tham gia nhóm
-  @MessagePattern("cancel_group_join_request")
+  @TcpMessagePattern("cancel_group_join_request")
   async cancelRequest(
     @Payload() payload: { requestId: string; userId: string },
   ) {
@@ -58,7 +59,7 @@ export class GroupJoinRequestController {
 
   // 🔍 Lọc yêu cầu tham gia nhóm
   @RequireGroupPermission(GroupPermission.MANAGE_JOIN_REQUESTS)
-  @MessagePattern("filter_group_join_requests")
+  @TcpMessagePattern("filter_group_join_requests")
   async filterRequests(
     @Payload()
     payload: {

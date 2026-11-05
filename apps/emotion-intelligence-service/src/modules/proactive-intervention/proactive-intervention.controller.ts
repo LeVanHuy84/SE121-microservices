@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import { ProactiveInterventionService } from './proactive-intervention.service';
 import { RiskLevel } from '@repo/dtos';
 
@@ -9,7 +10,7 @@ export class ProactiveInterventionController {
     private readonly proactiveInterventionService: ProactiveInterventionService,
   ) {}
 
-  @MessagePattern('emotion.intervention.history')
+  @TcpMessagePattern('emotion.intervention.history')
   async getUserInterventionHistory(
     @Payload() payload: { userId: string; limit?: number },
   ) {
@@ -19,7 +20,7 @@ export class ProactiveInterventionController {
     );
   }
 
-  @MessagePattern('emotion.intervention.get_by_id')
+  @TcpMessagePattern('emotion.intervention.get_by_id')
   async getUserInterventionById(
     @Payload() payload: { userId: string; id: string },
   ) {

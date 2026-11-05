@@ -18,7 +18,7 @@ async function ensureKafkaTopics() {
   try {
     await admin.connect();
     const existingTopics = await admin.listTopics();
-    const requiredTopics = [EventTopic.ANALYSIS_RESULT];
+    const requiredTopics = [...Object.values(EventTopic)];
     const topicsToCreate = requiredTopics
       .filter((topic) => !existingTopics.includes(topic))
       .map((topic) => ({ topic }));

@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { GroupInviteService } from "../services/group-invite.service";
 import { RequireGroupPermission } from "../decorators/require-group-permission.decorator";
 import { GroupPermission } from "@repo/dtos";
@@ -10,7 +11,7 @@ export class GroupInviteController {
 
   // 📩 Mời user vào group
   //   @RequireGroupPermission(GroupPermission.INVITE_MEMBERS)
-  @MessagePattern("invite_user_to_group")
+  @TcpMessagePattern("invite_user_to_group")
   async invite(
     @Payload()
     payload: {
@@ -27,7 +28,7 @@ export class GroupInviteController {
   }
 
   // ✅ Accept invite
-  @MessagePattern("accept_group_invite")
+  @TcpMessagePattern("accept_group_invite")
   async acceptInvite(@Payload() payload: { groupId: string; userId: string }) {
     return this.groupInviteService.acceptInvite(
       payload.groupId,
@@ -36,7 +37,7 @@ export class GroupInviteController {
   }
 
   // ❌ Decline invite
-  @MessagePattern("decline_group_invite")
+  @TcpMessagePattern("decline_group_invite")
   async declineInvite(@Payload() payload: { groupId: string; userId: string }) {
     return this.groupInviteService.declineInvite(
       payload.groupId,

@@ -1,10 +1,10 @@
 import { Controller, Logger } from "@nestjs/common";
-import { EventPattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import * as dtos from "@repo/dtos";
 import { IngestionPostService } from "./service/ingestion-post.service";
 import { IngestionShareService } from "./service/ingestion-share.service";
 import { StatsIngestionService } from "./service/ingestion-stats.service";
-import { KafkaConsumerHelper } from "@repo/common";
+import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { Ctx, KafkaContext } from "@nestjs/microservices";
 import { ClientSession } from "mongoose";
 
@@ -22,7 +22,7 @@ export class IngestionController {
   // ----------------------------
   // POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(dtos.EventTopic.POST)
+  @KafkaEventPattern(dtos.EventTopic.POST)
   async handlePostEvents(
     @Payload() message: dtos.PostEventMessage,
     @Ctx() context: KafkaContext,
@@ -63,7 +63,7 @@ export class IngestionController {
   // ----------------------------
   // SHARE TOPIC HANDLER
   // ----------------------------
-  @EventPattern(dtos.EventTopic.SHARE)
+  @KafkaEventPattern(dtos.EventTopic.SHARE)
   async handleShareEvents(
     @Payload() message: dtos.ShareEventMessage,
     @Ctx() context: KafkaContext,
@@ -103,7 +103,7 @@ export class IngestionController {
   // ----------------------------
   // STATS TOPIC HANDLER
   // ----------------------------
-  @EventPattern(dtos.EventTopic.STATS)
+  @KafkaEventPattern(dtos.EventTopic.STATS)
   async handleStatsEvents(
     @Payload() message: dtos.StatsEvent,
     @Ctx() context: KafkaContext,
@@ -126,7 +126,7 @@ export class IngestionController {
     });
   }
 
-  @EventPattern(dtos.EventTopic.TEST_FAULT)
+  @KafkaEventPattern(dtos.EventTopic.TEST_FAULT)
   async handleTestFault(
     @Payload() message: dtos.TestEventMessage,
     @Ctx() context: KafkaContext,

@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 
 import { EmotionFeatureService } from './emotion-feature.service';
 import {
@@ -16,14 +17,14 @@ const GET_USER_EMOTION_SIGNAL_PATTERN = 'get_user_emotion_signal';
 export class EmotionFeatureController {
   constructor(private readonly emotionFeatureService: EmotionFeatureService) {}
 
-  @MessagePattern(GET_EMOTION_RANKING_FEATURES_PATTERN)
+  @TcpMessagePattern(GET_EMOTION_RANKING_FEATURES_PATTERN)
   async getEmotionRankingFeatures(
     @Payload() payload: GetEmotionRankingFeaturesInputDto,
   ): Promise<EmotionRankingFeaturesDto> {
     return this.emotionFeatureService.getUserEmotionFeatures(payload.userId);
   }
 
-  @MessagePattern(GET_USER_EMOTION_SIGNAL_PATTERN)
+  @TcpMessagePattern(GET_USER_EMOTION_SIGNAL_PATTERN)
   async getUserEmotionSignal(
     @Payload() payload: { userId: string },
   ): Promise<UserEmotionSignalDto> {

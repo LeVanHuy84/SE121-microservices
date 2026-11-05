@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { CommentService } from "./service/comment.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import {
   CreateCommentDTO,
   GetCommentQueryDTO,
@@ -15,24 +16,24 @@ export class CommentController {
     private readonly queryService: CommentQueryService,
   ) {}
 
-  @MessagePattern("create_comment")
+  @TcpMessagePattern("create_comment")
   create(@Payload() payload: { userId: string; dto: CreateCommentDTO }) {
     return this.commentService.create(payload.userId, payload.dto);
   }
 
-  @MessagePattern("find_comment_by_id")
+  @TcpMessagePattern("find_comment_by_id")
   findById(@Payload() payload: { userRequestId: string; commentId: string }) {
     return this.queryService.findById(payload.userRequestId, payload.commentId);
   }
 
-  @MessagePattern("find_comments_by_query")
+  @TcpMessagePattern("find_comments_by_query")
   findByQuery(
     @Payload() payload: { userRequestId: string; query: GetCommentQueryDTO },
   ) {
     return this.queryService.findByQuery(payload.userRequestId, payload.query);
   }
 
-  @MessagePattern("update_comment")
+  @TcpMessagePattern("update_comment")
   update(
     @Payload()
     payload: {
@@ -48,7 +49,7 @@ export class CommentController {
     );
   }
 
-  @MessagePattern("remove_comment")
+  @TcpMessagePattern("remove_comment")
   remove(@Payload() payload: { userId: string; commentId: string }) {
     return this.commentService.remove(payload.userId, payload.commentId);
   }

@@ -1,11 +1,6 @@
+import { TcpMessagePattern, RmqEventPattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import {
-  Ctx,
-  EventPattern,
-  MessagePattern,
-  Payload,
-  RmqContext,
-} from "@nestjs/microservices";
+import { Ctx, Payload, RmqContext } from "@nestjs/microservices";
 import {
   CursorPaginationDTO,
   GetNotificationQueryDto,
@@ -22,7 +17,7 @@ export class NotificationController {
     private readonly chatPushService: ChatPushService,
   ) {}
 
-  @EventPattern("create_notification")
+  @RmqEventPattern("create_notification")
   async handleNotification(@Payload() data: any, @Ctx() context: RmqContext) {
     const channel = context.getChannelRef();
     const originalMsg = context.getMessage();
@@ -38,7 +33,7 @@ export class NotificationController {
     }
   }
 
-  @EventPattern("proactive.intervention")
+  @RmqEventPattern("proactive.intervention")
   async handleProactiveIntervention(
     @Payload() dto: ProactiveInterventionDto,
     @Ctx() context: RmqContext,
@@ -87,7 +82,7 @@ export class NotificationController {
     }
   }
 
-  @EventPattern("send_chat_push")
+  @RmqEventPattern("send_chat_push")
   async handleSendChatPush(@Payload() data: any, @Ctx() context: RmqContext) {
     const channel = context.getChannelRef();
     const originalMsg = context.getMessage();
@@ -101,7 +96,7 @@ export class NotificationController {
     }
   }
 
-  @EventPattern("send_call_push")
+  @RmqEventPattern("send_call_push")
   async handleSendCallPush(@Payload() data: any, @Ctx() context: RmqContext) {
     const channel = context.getChannelRef();
     const originalMsg = context.getMessage();
@@ -115,7 +110,7 @@ export class NotificationController {
     }
   }
 
-  @EventPattern("send_call_cancel_push")
+  @RmqEventPattern("send_call_cancel_push")
   async handleSendCallCancelPush(
     @Payload() data: any,
     @Ctx() context: RmqContext,
@@ -132,7 +127,7 @@ export class NotificationController {
     }
   }
 
-  @EventPattern("clear_chat_push_state")
+  @RmqEventPattern("clear_chat_push_state")
   async handleClearChatPushState(
     @Payload() data: any,
     @Ctx() context: RmqContext,
@@ -149,32 +144,32 @@ export class NotificationController {
     }
   }
 
-  @MessagePattern("get_notifications")
+  @TcpMessagePattern("get_notifications")
   findAll(@Payload() data: { userId: string; query: GetNotificationQueryDto }) {
     return this.notificationService.findByUser(data.userId, data.query);
   }
 
-  @MessagePattern("get_unread_count")
+  @TcpMessagePattern("get_unread_count")
   getUnreadCount(@Payload() userId: string) {
     return this.notificationService.countUnread(userId);
   }
 
-  @MessagePattern("mark_read")
+  @TcpMessagePattern("mark_read")
   markAsRead(@Payload() id: string) {
     return this.notificationService.markRead(id);
   }
 
-  @MessagePattern("mark_read_all")
+  @TcpMessagePattern("mark_read_all")
   markAllAsRead(@Payload() userId: string) {
     return this.notificationService.markAllRead(userId);
   }
 
-  @MessagePattern("delete_notification")
+  @TcpMessagePattern("delete_notification")
   remove(@Payload() id: string) {
     return this.notificationService.removeById(id);
   }
 
-  @MessagePattern("delete_all_notifications")
+  @TcpMessagePattern("delete_all_notifications")
   removeAll(@Payload() userId: string) {
     return this.notificationService.removeAll(userId);
   }

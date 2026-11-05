@@ -1,5 +1,6 @@
+import { TcpMessagePattern, TcpEventPattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
-import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import {
   AcceptCallDTO,
   CreateCallDTO,
@@ -21,7 +22,7 @@ export class CallController {
     private readonly streamMediaProvider: StreamMediaProvider,
   ) {}
 
-  @MessagePattern('getCallById')
+  @TcpMessagePattern('getCallById')
   async getCallById(
     @Payload()
     data: {
@@ -31,7 +32,7 @@ export class CallController {
     return this.callService.getCallById(data.callId);
   }
 
-  @MessagePattern('createCall')
+  @TcpMessagePattern('createCall')
   async createCall(
     @Payload()
     data: {
@@ -42,7 +43,7 @@ export class CallController {
     return this.callService.createCall(data.userId, data.dto);
   }
 
-  @MessagePattern('acceptCall')
+  @TcpMessagePattern('acceptCall')
   async acceptCall(
     @Payload()
     data: {
@@ -53,7 +54,7 @@ export class CallController {
     return this.callService.acceptCall(data.userId, data.dto);
   }
 
-  @MessagePattern('rejectCall')
+  @TcpMessagePattern('rejectCall')
   async rejectCall(
     @Payload()
     data: {
@@ -64,7 +65,7 @@ export class CallController {
     return this.callService.rejectCall(data.userId, data.dto);
   }
 
-  @MessagePattern('endCall')
+  @TcpMessagePattern('endCall')
   async endCall(
     @Payload()
     data: {
@@ -75,7 +76,7 @@ export class CallController {
     return this.callService.endCall(data.userId, data.dto);
   }
 
-  @MessagePattern('joinCall')
+  @TcpMessagePattern('joinCall')
   async joinCall(
     @Payload()
     data: {
@@ -86,7 +87,7 @@ export class CallController {
     return this.callService.joinCall(data.userId, data.dto);
   }
 
-  @MessagePattern('leaveCall')
+  @TcpMessagePattern('leaveCall')
   async leaveCall(
     @Payload()
     data: {
@@ -97,7 +98,7 @@ export class CallController {
     return this.callService.leaveCall(data.userId, data.dto);
   }
 
-  @MessagePattern('kickCallParticipant')
+  @TcpMessagePattern('kickCallParticipant')
   async kickCallParticipant(
     @Payload()
     data: {
@@ -108,7 +109,7 @@ export class CallController {
     return this.callService.kickCallParticipant(data.userId, data.dto);
   }
 
-  @MessagePattern('issueUserMediaToken')
+  @TcpMessagePattern('issueUserMediaToken')
   async issueUserMediaToken(
     @Payload()
     data: {
@@ -118,7 +119,7 @@ export class CallController {
     const token = await this.streamMediaProvider.issueUserToken(data.userId);
     return { token };
   }
-  @EventPattern('handleStreamCallEndedWebhook')
+  @TcpEventPattern('handleStreamCallEndedWebhook')
   async handleStreamCallEndedWebhook(
     @Payload()
     data: {

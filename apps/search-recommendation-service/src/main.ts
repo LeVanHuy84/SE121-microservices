@@ -19,12 +19,7 @@ async function ensureKafkaTopics() {
     await admin.connect();
     const existingTopics = await admin.listTopics();
     const requiredTopics = [
-      EventTopic.POST,
-      EventTopic.GROUP_CRUD,
-      EventTopic.USER,
-      EventTopic.ANALYSIS_RESULT,
-      EventTopic.RECOMMENDATION_PROFILE,
-      EventTopic.RECOMMENDATION_GRAPH,
+      ...Object.values(EventTopic),
       'recommendation-emotion-events',
     ];
     const topicsToCreate = requiredTopics

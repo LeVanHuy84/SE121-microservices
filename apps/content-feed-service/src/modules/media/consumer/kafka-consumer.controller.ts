@@ -1,13 +1,8 @@
 import { Controller, Logger } from "@nestjs/common";
-import {
-  EventPattern,
-  Payload,
-  Ctx,
-  KafkaContext,
-} from "@nestjs/microservices";
+import { Payload, Ctx, KafkaContext } from "@nestjs/microservices";
 import * as dtos from "@repo/dtos";
 import { MediaConsumerService } from "./media-consumer.service";
-import { KafkaConsumerHelper } from "@repo/common";
+import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { EntityManager } from "typeorm";
 
 @Controller()
@@ -19,7 +14,7 @@ export class KafkaConsumerController {
     private readonly consumerHelper: KafkaConsumerHelper,
   ) {}
 
-  @EventPattern(dtos.EventTopic.MEDIA)
+  @KafkaEventPattern(dtos.EventTopic.MEDIA)
   async handleMediaEvents(
     @Payload() message: dtos.MediaEventMessage,
     @Ctx() context: KafkaContext,

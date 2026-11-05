@@ -1,13 +1,8 @@
 import { Controller, Logger } from "@nestjs/common";
 import { ConsumerService } from "./consumer.service";
-import {
-  EventPattern,
-  Payload,
-  Ctx,
-  KafkaContext,
-} from "@nestjs/microservices";
+import { Payload, Ctx, KafkaContext } from "@nestjs/microservices";
 import { EventTopic, LogEvent, UserActivityLogEvent } from "@repo/dtos";
-import { KafkaConsumerHelper } from "@repo/common";
+import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { ClientSession } from "mongoose";
 
 @Controller()
@@ -19,7 +14,7 @@ export class ConsumerController {
     private readonly consumerHelper: KafkaConsumerHelper,
   ) {}
 
-  @EventPattern(EventTopic.LOGGING)
+  @KafkaEventPattern(EventTopic.LOGGING)
   async handleLoggingEvents(
     @Payload() message: LogEvent,
     @Ctx() context: KafkaContext,
@@ -48,7 +43,7 @@ export class ConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.USER_ACTIVITY_LOG)
+  @KafkaEventPattern(EventTopic.USER_ACTIVITY_LOG)
   async handleUserActivityEvents(
     @Payload() message: UserActivityLogEvent,
     @Ctx() context: KafkaContext,
