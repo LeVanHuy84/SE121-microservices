@@ -36,10 +36,16 @@ export async function retryWithBackoff(
 }
 
 async function withTimeout(fn: () => Promise<void>, timeoutMs: number) {
-  return Promise.race([
-    fn(),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout exceeded')), timeoutMs),
-    ),
-  ]);
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Timeout exceeded')), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }

@@ -11,7 +11,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     private readonly clientId: string
   ) {
     this.kafka = new Kafka({ brokers: this.brokers, clientId: this.clientId });
-    this.producer = this.producer = this.kafka.producer({
+    this.producer = this.kafka.producer({
       idempotent: true,
       maxInFlightRequests: 1, // đảm bảo thứ tự + exactly-once
       retry: {

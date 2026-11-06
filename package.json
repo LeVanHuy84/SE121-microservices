@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "test": "turbo run test",
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=7",
     "dev:test": "turbo run start:prod --parallel --concurrency=7",
