@@ -11,7 +11,7 @@ import { HydratedDocument, Types } from 'mongoose';
 export class EmotionAnalyticsSnapshot {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true })
   userId: string;
 
   @Prop({ required: true, index: true })

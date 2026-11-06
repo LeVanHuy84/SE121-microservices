@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 import onnxruntime as ort
-from transformers import AutoTokenizer
 
 from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
@@ -65,7 +64,11 @@ class PhoBERTEmotionModel:
                 self.tokenizer_source,
             )
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_source)
+            from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                safe_load_tokenizer,
+            )
+
+            self.tokenizer = safe_load_tokenizer(self.tokenizer_source)
 
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = 2

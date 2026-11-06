@@ -15,6 +15,17 @@ class Settings:
             "X_INTERNAL_KEY", os.getenv("INTERNAL_SERVICE_KEY", "")
         ).strip()
 
+        # Offline unit test flags
+        self.UNIT_TEST_MODE: bool = (
+            os.getenv("UNIT_TEST_MODE", "false").lower() == "true"
+        )
+        self.CHATBOT_REDIS_ENABLED: bool = (
+            os.getenv("CHATBOT_REDIS_ENABLED", "true").lower() == "true"
+        )
+        self.MOCK_EXTERNAL_MODELS: bool = (
+            os.getenv("MOCK_EXTERNAL_MODELS", "false").lower() == "true"
+        )
+
         # Redis analysis settings fallback
         self.REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost").strip()
         self.REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
@@ -308,7 +319,10 @@ class Settings:
             raise RuntimeError("HOST must not be empty")
 
         if not self.INTERNAL_SERVICE_KEY:
-            raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
+            if self.UNIT_TEST_MODE:
+                self.INTERNAL_SERVICE_KEY = "test-internal-key"
+            else:
+                raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
 
         if self.CHATBOT_MEMORY_RECENT_TURNS <= 0:
             raise RuntimeError("CHATBOT_MEMORY_RECENT_TURNS must be positive")

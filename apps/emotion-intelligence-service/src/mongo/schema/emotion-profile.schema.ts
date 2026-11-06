@@ -8,7 +8,7 @@ import { HydratedDocument, Types } from 'mongoose';
 export class UserEmotionProfile {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ required: true, unique: true })
   userId: string;
 
   // EMA cảm xúc 7 nhãn (joy, sadness, anger, fear, disgust, surprise, neutral)
@@ -42,5 +42,3 @@ export type UserEmotionProfileDocument = HydratedDocument<UserEmotionProfile>;
 
 export const UserEmotionProfileSchema =
   SchemaFactory.createForClass(UserEmotionProfile);
-
-UserEmotionProfileSchema.index({ userId: 1 }, { unique: true });
