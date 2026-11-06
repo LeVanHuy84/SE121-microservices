@@ -10,7 +10,7 @@ export class GroupInitService extends BaseInitService implements OnModuleInit {
     super(esClient);
   }
 
-  onModuleInit() {
-    this.ensureIndex(GroupIndexMapping);
+  async onModuleInit() {
+    await this.ensureIndex(GroupIndexMapping);
   }
 }

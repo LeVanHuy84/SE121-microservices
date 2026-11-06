@@ -37,7 +37,7 @@ export class CatalogService {
     if (!musicFeature) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Post not found',
+        message: 'Music track not found',
       });
     }
 
@@ -51,7 +51,7 @@ export class CatalogService {
     if (!musicFeature) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Post not found',
+        message: 'Music track not found',
       });
     }
     return plainToInstance(MusicFeatureResponse, musicFeature);
@@ -62,7 +62,7 @@ export class CatalogService {
     if (!musicFeature) {
       throw new RpcException({
         statusCode: 404,
-        message: 'Post not found',
+        message: 'Music track not found',
       });
     }
 

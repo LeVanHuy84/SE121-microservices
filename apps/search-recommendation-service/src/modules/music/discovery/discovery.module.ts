@@ -17,7 +17,7 @@ import { EmotionSignalService } from './emotion-signal.service';
               config.get<string>('EMOTION_INTELLIGENCE_SERVICE_HOST') ||
               '127.0.0.1',
             port:
-              config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT') || 4013,
+              config.get<number>('EMOTION_INTELLIGENCE_SERVICE_PORT') || 4005,
           },
         }),
       },
