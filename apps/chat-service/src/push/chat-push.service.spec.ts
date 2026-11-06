@@ -74,4 +74,27 @@ describe('ChatPushService', () => {
       conversationId: 'conv-1',
     });
   });
+
+  it('TC-CS-19: does not send any push notification when all receivers are currently inside the active conversation', async () => {
+    const service = createService();
+    conversationActivityService.filterReceiversOutsideConversation.mockResolvedValue(
+      [],
+    );
+
+    await service.sendMessagePush({
+      senderId: 'user-1',
+      conversationId: 'conv-1',
+      conversationName: 'SE121',
+      isGroup: true,
+      receiverIds: ['user-2'],
+      messageId: 'msg-1',
+      preview: 'hello',
+    });
+
+    expect(
+      conversationActivityService.filterReceiversOutsideConversation,
+    ).toHaveBeenCalledWith(['user-2'], 'conv-1');
+    expect(userClientService.getUserInfo).not.toHaveBeenCalled();
+    expect(notificationService.sendChatPush).not.toHaveBeenCalled();
+  });
 });

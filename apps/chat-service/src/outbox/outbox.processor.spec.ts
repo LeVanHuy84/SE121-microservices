@@ -11,8 +11,16 @@ describe('OutboxProcessor', () => {
     sendMessage: jest.fn(),
   };
 
+  const chatStreamProducer = {
+    publishEvent: jest.fn().mockResolvedValue('stream-id-123'),
+  };
+
   const createProcessor = () =>
-    new OutboxProcessor(outboxModel as any, kafkaProducer as any);
+    new OutboxProcessor(
+      outboxModel as any,
+      kafkaProducer as any,
+      chatStreamProducer as any,
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,7 +104,7 @@ describe('OutboxProcessor', () => {
     );
   });
 
-  it('skips legacy chat outbox events instead of forwarding them to Kafka', async () => {
+  it('reconciles chat outbox events to Redis stream via fallback reconciliation', async () => {
     const processor = createProcessor();
     const event = {
       id: 'evt-chat-1',
@@ -113,8 +121,11 @@ describe('OutboxProcessor', () => {
     await (processor as any).processEvent(event);
 
     expect(kafkaProducer.sendMessage).not.toHaveBeenCalled();
+    expect(chatStreamProducer.publishEvent).toHaveBeenCalledWith(
+      'message.created',
+      { _id: 'msg-1', conversationId: 'conv-1' },
+    );
     expect(event.processed).toBe(true);
-    expect(event.lastError).toBe('skipped_chat_outbox_event');
     expect(event.save).toHaveBeenCalled();
   });
 });

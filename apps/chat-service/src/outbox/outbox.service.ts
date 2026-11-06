@@ -11,7 +11,10 @@ import {
 export class OutboxService {
   private readonly pendingChatPublishes = new WeakMap<
     ClientSession,
-    Array<() => Promise<void>>
+    Array<{
+      publish: () => Promise<void>;
+      outboxId?: string;
+    }>
   >();
 
   constructor(
@@ -47,13 +50,27 @@ export class OutboxService {
     aggregateId?: string,
     session?: ClientSession,
   ) {
-    void aggregateId;
-
     if (session) {
+      // Persist fallback outbox event inside transaction with a 10s delay window
+      const outbox = new this.outboxModel({
+        topic: 'chat-events',
+        eventType,
+        payload,
+        aggregateId: aggregateId || null,
+        processed: false,
+        retryCount: 0,
+        nextRetryAt: new Date(Date.now() + 10_000), // 10s fallback threshold
+        lastError: null,
+      });
+
+      const saved = await outbox.save({ session });
+      const outboxId = (saved as any)?.id || (saved as any)?._id?.toString();
+
       const pending = this.pendingChatPublishes.get(session) ?? [];
-      pending.push(() =>
-        this.chatStreamProducer.publishEvent(eventType, payload),
-      );
+      pending.push({
+        publish: () => this.chatStreamProducer.publishEvent(eventType, payload),
+        outboxId,
+      });
       this.pendingChatPublishes.set(session, pending);
       return;
     }
@@ -67,8 +84,17 @@ export class OutboxService {
 
     this.pendingChatPublishes.delete(session);
 
-    for (const publish of pending) {
-      await publish();
+    for (const item of pending) {
+      await item.publish();
+      if (item.outboxId) {
+        // Direct Redis stream publish succeeded; mark fallback outbox event processed
+        await this.outboxModel
+          .updateOne(
+            { _id: item.outboxId },
+            { $set: { processed: true, processedAt: new Date() } },
+          )
+          .catch(() => {});
+      }
     }
   }
 

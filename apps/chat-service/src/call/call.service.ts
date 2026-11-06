@@ -88,12 +88,12 @@ export class CallService {
         await session.commitTransaction();
         await this.outboxService.flushPendingChatEvents(session);
         return result;
-      } catch (error) {
+      } catch (error: any) {
         await session.abortTransaction();
         this.outboxService.clearPendingChatEvents(session);
 
         const isWriteConflict =
-          error.message?.includes('Write conflict') || error.code === 112;
+          error?.message?.includes('Write conflict') || error?.code === 112;
         if (isWriteConflict && attempts < maxRetries - 1) {
           attempts++;
           this.logger.warn(
@@ -262,15 +262,16 @@ export class CallService {
         participants: result.conversation.participants,
         moderatorUserIds,
       });
-    } catch (streamError) {
+    } catch (streamError: any) {
       this.logger.error(
-        `[createCall] Stream registration failed for call=${result.callDto._id}, auto-cancelling: ${streamError?.message}`,
+        `[createCall] Stream registration failed for call=${result.callDto._id}, auto-cancelling: ${streamError?.message || streamError}`,
       );
       // Best-effort cancel so the user is not stuck in BUSY state
-      void this.rejectCall(userId, { callId: result.callDto._id }).catch((e) =>
-        this.logger.error(
-          `[createCall] Auto-cancel after Stream failure also failed: ${e?.message}`,
-        ),
+      void this.rejectCall(userId, { callId: result.callDto._id }).catch(
+        (e: any) =>
+          this.logger.error(
+            `[createCall] Auto-cancel after Stream failure also failed: ${e?.message || e}`,
+          ),
       );
       throw new RpcException(
         'Failed to register call with media infrastructure',
@@ -311,8 +312,10 @@ export class CallService {
         callType: callDto.type,
         receiverIds,
       });
-    } catch (error) {
-      this.logger.error(`Failed to trigger call push: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to trigger call push: ${error?.message || error}`,
+      );
     }
   }
 
@@ -428,8 +431,10 @@ export class CallService {
         actorId,
         receiverIds,
       });
-    } catch (error) {
-      this.logger.error(`Failed to trigger call cancel push: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to trigger call cancel push: ${error?.message || error}`,
+      );
     }
   }
 
@@ -748,13 +753,13 @@ export class CallService {
       });
       void this.streamProvider
         .endCallOnStream(callId)
-        .catch((e) =>
+        .catch((e: any) =>
           this.logger.warn(
-            `[markMissedCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+            `[markMissedCallBySystem] Stream endCall failed for ${callId}: ${e?.message || e}`,
           ),
         );
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
         `markMissedCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -833,13 +838,13 @@ export class CallService {
       });
       void this.streamProvider
         .endCallOnStream(callId)
-        .catch((e) =>
+        .catch((e: any) =>
           this.logger.warn(
-            `[markReconnectTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+            `[markReconnectTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message || e}`,
           ),
         );
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
         `markReconnectTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -916,13 +921,13 @@ export class CallService {
       });
       void this.streamProvider
         .endCallOnStream(callId)
-        .catch((e) =>
+        .catch((e: any) =>
           this.logger.warn(
-            `[markEmptyRoomTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message}`,
+            `[markEmptyRoomTimeoutCallBySystem] Stream endCall failed for ${callId}: ${e?.message || e}`,
           ),
         );
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
         `markEmptyRoomTimeoutCallBySystem failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -991,7 +996,7 @@ export class CallService {
         );
       });
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `handleStreamCallEndedWebhook failed callId=${callId}: ${error instanceof Error ? error.message : String(error)}`,
       );

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { KafkaProducerService } from '@repo/common';
+import { ChatStreamProducerService } from 'src/chat-stream-producer/chat-stream-producer.service';
 import {
   OutboxEvent,
   OutboxEventDocument,
@@ -28,6 +29,7 @@ export class OutboxProcessor {
     @InjectModel(OutboxEvent.name)
     private readonly outboxModel: Model<OutboxEventDocument>,
     private readonly kafkaProducer: KafkaProducerService,
+    private readonly chatStreamProducer: ChatStreamProducerService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -40,8 +42,8 @@ export class OutboxProcessor {
     this.running = true;
     try {
       await this.processBatch();
-    } catch (err) {
-      this.logger.error(`Outbox job error: ${err.message}`, err.stack);
+    } catch (err: any) {
+      this.logger.error(`Outbox job error: ${err?.message || err}`, err?.stack);
     } finally {
       this.running = false;
     }
@@ -118,28 +120,19 @@ export class OutboxProcessor {
   private async processEvent(event: OutboxEventDocument) {
     const { id, topic, eventType, payload, aggregateId } = event;
     const leaseRefresher = setInterval(() => {
-      this.refreshEventLease(id).catch((err) =>
+      this.refreshEventLease(id).catch((err: any) =>
         this.logger.warn(
-          `Failed to refresh outbox lease for ${id}: ${err.message}`,
+          `Failed to refresh outbox lease for ${id}: ${err?.message || err}`,
         ),
       );
     }, this.leaseRefreshMs);
 
     try {
       if (topic === this.chatTopic) {
-        event.processed = true;
-        event.processing = false;
-        event.lockedAt = undefined;
-        event.lockedBy = undefined;
-        event.processedAt = new Date();
-        event.nextRetryAt = undefined;
-        event.lastError = 'skipped_chat_outbox_event';
-        await event.save();
-
-        this.logger.warn(
-          `Skipped legacy chat outbox event ${id} (${eventType}) because chat events publish directly to Redis stream.`,
+        await this.chatStreamProducer.publishEvent(eventType, payload);
+        this.logger.log(
+          `Reconciled chat outbox event ${id} (${eventType}) to Redis stream via fallback outbox.`,
         );
-        return;
       } else {
         await this.kafkaProducer.sendMessage(
           topic,
@@ -158,7 +151,7 @@ export class OutboxProcessor {
       await event.save();
 
       this.logger.debug(`Outbox event ${id} processed successfully.`);
-    } catch (err) {
+    } catch (err: any) {
       const retryCount = (event.retryCount || 0) + 1;
       const delayMs = Math.min(
         this.baseDelayMs * Math.pow(2, retryCount - 1),
@@ -176,11 +169,11 @@ export class OutboxProcessor {
             lockedBy: null,
             processedAt: new Date(),
             retryCount,
-            lastError: err.message,
+            lastError: err?.message || String(err),
           },
         );
         this.logger.error(
-          `Outbox event ${id} dropped after ${this.maxRetries} retries: ${err.message}`,
+          `Outbox event ${id} dropped after ${this.maxRetries} retries: ${err?.message || err}`,
         );
         return;
       }
@@ -194,12 +187,12 @@ export class OutboxProcessor {
           lockedBy: null,
           retryCount,
           nextRetryAt,
-          lastError: err.message,
+          lastError: err?.message || String(err),
         },
       );
       this.logger.error(
-        `Failed to process outbox event ${id}, retry #${retryCount} at ${nextRetryAt.toISOString()}: ${err.message}`,
-        err.stack,
+        `Failed to process outbox event ${id}, retry #${retryCount} at ${nextRetryAt.toISOString()}: ${err?.message || err}`,
+        err?.stack,
       );
     } finally {
       clearInterval(leaseRefresher);

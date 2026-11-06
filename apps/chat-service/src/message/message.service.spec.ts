@@ -1,4 +1,5 @@
 import { MessageService } from './message.service';
+import { Emotion } from '@repo/dtos';
 
 describe('MessageService', () => {
   const session = {
@@ -282,5 +283,62 @@ describe('MessageService', () => {
       'msg-1',
       session,
     );
+  });
+
+  it('TC-CS-05: retries transaction with jitter when encountering MongoDB write conflict (code 112)', async () => {
+    const service = createService();
+    let attemptCount = 0;
+
+    const workFn = jest.fn().mockImplementation(async () => {
+      attemptCount++;
+      if (attemptCount === 1) {
+        const err: any = new Error('Write conflict error');
+        err.code = 112;
+        throw err;
+      }
+      return 'success_after_conflict_retry';
+    });
+
+    const result = await (service as any).withTransaction(workFn);
+
+    expect(result).toBe('success_after_conflict_retry');
+    expect(attemptCount).toBe(2);
+    expect(session.abortTransaction).toHaveBeenCalledTimes(1);
+    expect(session.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('TC-CS-07: reactToMessage increments reactionStats and enqueues message.reactionUpdated event', async () => {
+    const service = createService();
+    const mockMsg: any = {
+      _id: { toString: () => 'msg-react-1' },
+      conversationId: { toString: () => 'conv-react-1' },
+      senderId: 'user-1',
+      content: 'Great post!',
+      reactionStats: { JOY: 2, SADNESS: 0 },
+      markModified: jest.fn(),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    messageModel.findById.mockReturnValue({
+      session: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(mockMsg),
+    });
+
+    const result = await service.reactToMessage(
+      'user-2',
+      'msg-react-1',
+      Emotion.JOY,
+    );
+
+    expect(mockMsg.reactionStats.JOY).toBe(3);
+    expect(mockMsg.markModified).toHaveBeenCalledWith('reactionStats');
+    expect(mockMsg.save).toHaveBeenCalled();
+    expect(outboxService.enqueueChatEvent).toHaveBeenCalledWith(
+      'message.reactionUpdated',
+      expect.anything(),
+      'conv-react-1',
+      session,
+    );
+    expect(result._id).toBe('msg-react-1');
   });
 });
