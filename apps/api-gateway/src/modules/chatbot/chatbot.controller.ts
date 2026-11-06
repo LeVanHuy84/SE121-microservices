@@ -149,6 +149,21 @@ export class ChatbotController {
     return this.chatbotService.recordActionClick(userId, body);
   }
 
+  @Post("actions/execute")
+  executeAction(
+    @CurrentUserId() userId: string,
+    @Headers("authorization") authHeader: string | undefined,
+    @Body()
+    body: {
+      actionId: string;
+      actionName: string;
+      params?: Record<string, unknown>;
+      idempotencyKey: string;
+    },
+  ) {
+    return this.chatbotService.executeAction(userId, authHeader, body);
+  }
+
   private parsePageSize(pageSize?: string): number | undefined {
     if (!pageSize) {
       return undefined;

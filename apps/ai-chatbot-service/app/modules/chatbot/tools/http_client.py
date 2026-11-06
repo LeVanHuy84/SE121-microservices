@@ -35,13 +35,11 @@ class GatewayHttpClient:
             ),
         )
 
-    async def get(
+    def _build_headers(
         self,
-        path: str,
-        params: dict[str, Any] | None = None,
         auth_token: str | None = None,
         headers: dict[str, str] | None = None,
-    ) -> Any:
+    ) -> dict[str, str]:
         req_headers = {
             "Accept": "application/json",
             "x-internal-key": settings.INTERNAL_SERVICE_KEY,
@@ -53,7 +51,25 @@ class GatewayHttpClient:
             if clean_token.lower().startswith("bearer "):
                 clean_token = clean_token[7:].strip()
             req_headers["Authorization"] = f"Bearer {clean_token}"
+        return req_headers
 
+    def _unwrap_data(self, response: httpx.Response) -> Any:
+        try:
+            data = response.json()
+            if isinstance(data, dict) and "data" in data and "success" in data:
+                return data["data"]
+            return data
+        except Exception:
+            return {"status": "ok"}
+
+    async def get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        auth_token: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
+        req_headers = self._build_headers(auth_token, headers)
         try:
             response = await self._client.get(
                 path,
@@ -62,11 +78,7 @@ class GatewayHttpClient:
                 timeout=self.timeout,
             )
             response.raise_for_status()
-            data = response.json()
-            # If standard NestJS envelope { success: true, data: ... }, unwrap data
-            if isinstance(data, dict) and "data" in data and "success" in data:
-                return data["data"]
-            return data
+            return self._unwrap_data(response)
         except httpx.TimeoutException:
             logger.warning("Gateway call to %s timed out after %.2fs", path, self.timeout)
             return {
@@ -93,6 +105,110 @@ class GatewayHttpClient:
             }
         except Exception as exc:
             logger.exception("Unexpected error calling gateway %s: %s", path, exc)
+            return {
+                "_error": "unexpected_error",
+                "message": str(exc),
+            }
+
+    async def post(
+        self,
+        path: str,
+        json_body: Any = None,
+        params: dict[str, Any] | None = None,
+        auth_token: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
+        req_headers = self._build_headers(auth_token, headers)
+        if json_body is not None:
+            req_headers["Content-Type"] = "application/json"
+        try:
+            response = await self._client.post(
+                path,
+                json=json_body,
+                params=params,
+                headers=req_headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            return self._unwrap_data(response)
+        except httpx.TimeoutException:
+            logger.warning("Gateway POST to %s timed out after %.2fs", path, self.timeout)
+            return {
+                "_error": "timeout",
+                "message": "Thao tác quá thời gian chờ xử lý.",
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Gateway POST to %s failed with status %d: %s",
+                path,
+                exc.response.status_code,
+                exc.response.text[:200],
+            )
+            return {
+                "_error": f"http_{exc.response.status_code}",
+                "status": exc.response.status_code,
+                "message": "Không thể thực hiện thao tác vào lúc này.",
+            }
+        except httpx.RequestError as exc:
+            logger.warning("Gateway POST to %s connection error: %s", path, exc)
+            return {
+                "_error": "connection_error",
+                "message": "Lỗi kết nối tới dịch vụ nội bộ.",
+            }
+        except Exception as exc:
+            logger.exception("Unexpected error in gateway POST %s: %s", path, exc)
+            return {
+                "_error": "unexpected_error",
+                "message": str(exc),
+            }
+
+    async def patch(
+        self,
+        path: str,
+        json_body: Any = None,
+        params: dict[str, Any] | None = None,
+        auth_token: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
+        req_headers = self._build_headers(auth_token, headers)
+        if json_body is not None:
+            req_headers["Content-Type"] = "application/json"
+        try:
+            response = await self._client.patch(
+                path,
+                json=json_body,
+                params=params,
+                headers=req_headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            return self._unwrap_data(response)
+        except httpx.TimeoutException:
+            logger.warning("Gateway PATCH to %s timed out after %.2fs", path, self.timeout)
+            return {
+                "_error": "timeout",
+                "message": "Thao tác quá thời gian chờ xử lý.",
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Gateway PATCH to %s failed with status %d: %s",
+                path,
+                exc.response.status_code,
+                exc.response.text[:200],
+            )
+            return {
+                "_error": f"http_{exc.response.status_code}",
+                "status": exc.response.status_code,
+                "message": "Không thể cập nhật thông tin lúc này.",
+            }
+        except httpx.RequestError as exc:
+            logger.warning("Gateway PATCH to %s connection error: %s", path, exc)
+            return {
+                "_error": "connection_error",
+                "message": "Lỗi kết nối tới dịch vụ nội bộ.",
+            }
+        except Exception as exc:
+            logger.exception("Unexpected error in gateway PATCH %s: %s", path, exc)
             return {
                 "_error": "unexpected_error",
                 "message": str(exc),

@@ -11,6 +11,8 @@ from app.core.security import verify_internal_key
 from app.modules.chatbot.repositories.chat_history import ClearHistoryCommand
 from app.modules.chatbot.repositories.chat_history import GetHistoryQuery
 from app.modules.chatbot.schemas import (
+    ActionExecutionRequest,
+    ActionExecutionResponse,
     AssistantHistoryClearData,
     AssistantHistoryClearResponse,
     AssistantHistoryPageResponse,
@@ -186,6 +188,31 @@ class InternalActionClickRequest(BaseModel):
     userId: str = Field(max_length=128)
     actionId: str = Field(max_length=128)
     destinationId: str = Field(max_length=128)
+
+
+@assistant_router.post(
+    "/actions/execute",
+    dependencies=[Depends(verify_internal_key)],
+    response_model=ActionExecutionResponse,
+)
+async def execute_action(
+    req: ActionExecutionRequest,
+    authorization: str | None = Header(None),
+    x_user_id: str | None = Header(None, alias="x-user-id"),
+):
+    from app.modules.chatbot.actions.executor import action_executor_service
+
+    token = None
+    if authorization:
+        token = authorization.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+
+    return await action_executor_service.execute(
+        req,
+        auth_token=token,
+        user_id=x_user_id,
+    )
 
 
 @assistant_router.post(

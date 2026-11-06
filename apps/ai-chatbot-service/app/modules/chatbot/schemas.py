@@ -104,8 +104,28 @@ class ShowCardAction(BaseModel):
     payload: CardPayload
 
 
+class ProposeActionPayload(BaseModel):
+    actionName: str
+    title: str
+    description: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    idempotencyKey: str = Field(default_factory=lambda: str(uuid4()))
+    confirmLabel: Optional[str] = "Xác nhận"
+    cancelLabel: Optional[str] = "Hủy"
+    category: Optional[str] = "social"
+    isDestructive: Optional[bool] = False
+    expiresAt: Optional[str] = None
+
+
+class ProposeAction(BaseModel):
+    type: Literal["propose_action"] = "propose_action"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(default="Xác nhận thao tác", max_length=40)
+    payload: ProposeActionPayload
+
+
 AssistantSuggestedAction = Annotated[
-    Union[NavigateAction, ShowCardAction],
+    Union[NavigateAction, ShowCardAction, ProposeAction],
     Field(discriminator="type"),
 ]
 
@@ -116,6 +136,7 @@ class AssistantRespondData(BaseModel):
     sources: list[AssistantSource] = Field(default_factory=list)
     suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list, max_length=3)
     cards: list[ShowCardAction] = Field(default_factory=list, max_length=3)
+    proposals: list[ProposeAction] = Field(default_factory=list, max_length=3)
     model: str
     provider: str
     requestId: Optional[str] = None
@@ -126,9 +147,26 @@ class AssistantRespondData(BaseModel):
 
     @model_validator(mode="after")
     def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
-        if self.type == "crisis" and (self.suggestedActions or self.cards):
-            raise ValueError("Crisis response must not contain suggestedActions or cards")
+        if self.type == "crisis" and (self.suggestedActions or self.cards or self.proposals):
+            raise ValueError("Crisis response must not contain suggestedActions, cards, or proposals")
         return self
+
+
+class ActionExecutionRequest(BaseModel):
+    actionId: str
+    actionName: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    idempotencyKey: str
+    authToken: Optional[str] = None
+    userId: Optional[str] = None
+
+
+class ActionExecutionResponse(BaseModel):
+    success: bool
+    actionName: str
+    message: str
+    data: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
 
 
 class AssistantRespondResponse(BaseModel):

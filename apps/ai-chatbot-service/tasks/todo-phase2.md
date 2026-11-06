@@ -30,14 +30,14 @@
 - [x] Write integration tests with mocked downstream HTTP responses in `tests/test_tool_integration.py`
 
 ## Slice 2.4: Mini Cards (`show_card`) Support
-- [ ] Update `schemas.py` and `@repo/dtos` with `CardAction` & `CardPayload`
-- [ ] Update `packages/shared/src/types/chatbot.types.ts` and `navigation/actions.ts` to extract `show_card`
-- [ ] Build Web Mini Card components in `apps/web/components/chatbot/assistant-cards/`
-- [ ] Build Native Mini Card components in `apps/native/components/chatbot/assistant-cards/`
-- [ ] Add visual & accessibility tests for Mini Cards
+- [x] Update `schemas.py` and `@repo/dtos` with `CardAction` & `CardPayload`
+- [x] Update `packages/shared/src/types/chatbot.types.ts` and `navigation/actions.ts` to extract `show_card`
+- [x] Build Web Mini Card components in `apps/web/components/chatbot/assistant-cards/`
+- [x] Build Native Mini Card components in `apps/native/components/chatbot/assistant-cards/`
+- [x] Add visual & audio preview tests for Mini Cards
 
 ## Slice 2.5: Safety Mutation Testing & Final Verification
-- [ ] Verify CrisisGuard precedence over Tool Calling (100% guarantee crisis aborts tools)
-- [ ] Verify Tool permissions: ensure all tools are strictly read-only
-- [ ] Verify timeout & degraded network handling (graceful polite response when downstream fails)
-- [ ] Run full test suites: pytest in `ai-chatbot-service` and vitest / typecheck in `social-network-2.0`
+- [x] Verify CrisisGuard precedence over Tool Calling (100% guarantee crisis aborts tools)
+- [x] Verify Tool permissions: ensure all tools are strictly read-only
+- [x] Verify timeout & degraded network handling (graceful polite response when downstream fails)
+- [x] Run full test suites: pytest in `ai-chatbot-service` and vitest / typecheck in `social-network-2.0`

@@ -503,4 +503,44 @@ export class ChatbotService {
       return { success: false };
     }
   }
+
+  async executeAction(
+    userId: string,
+    authHeader: string | undefined,
+    body: {
+      actionId: string;
+      actionName: string;
+      params?: Record<string, unknown>;
+      idempotencyKey: string;
+    },
+  ) {
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+    const headers: Record<string, string> = {
+      "x-internal-key": internalKey,
+      "x-user-id": userId,
+    };
+    if (authHeader) {
+      headers.authorization = authHeader;
+    }
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/actions/execute`,
+          {
+            ...body,
+            userId,
+          },
+          {
+            headers,
+            timeout: timeoutMs,
+          },
+        ),
+      );
+      return res.data;
+    } catch (error) {
+      this.logger.warn(`Failed to execute action for ${userId}: ${error}`);
+      throw this.mapGatewayError(error, userId, Date.now(), "assistant.actions.execute");
+    }
+  }
 }

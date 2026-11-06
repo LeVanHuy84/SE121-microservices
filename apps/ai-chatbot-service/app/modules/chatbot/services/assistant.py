@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.core.settings import settings
+from app.modules.chatbot.actions.registry import get_action_definition, is_action_allowed
 from app.modules.chatbot.navigation.policy import NavOutcome, build_nav_outcome
 from app.modules.chatbot.navigation.resolver import NavResolver, nav_resolver
 from app.modules.chatbot.navigation.telemetry import intent_telemetry
@@ -24,6 +25,8 @@ from app.modules.chatbot.schemas import (
     CrisisInfo,
     CrisisResource,
     NavigateAction,
+    ProposeAction,
+    ProposeActionPayload,
     ShowCardAction,
 )
 from app.modules.chatbot.services.context_resolver import (
@@ -372,9 +375,12 @@ class RespondCommand:
             raise
 
         generated_cards: list[ShowCardAction] = []
+        tool_results_list: list[Any] = []
+        tool_calls_tuple: tuple[Any, ...] = ()
         # If LLM requested tool calling, execute in parallel and synthesize in second pass
         if hasattr(generation, "tool_calls") and generation.tool_calls:
-            augmented_prompt, generated_cards = await self._execute_tools_and_augment_prompt(
+            tool_calls_tuple = tuple(generation.tool_calls)
+            augmented_prompt, generated_cards, tool_results_list = await self._execute_tools_and_augment_prompt(
                 generation.tool_calls, prompt, request
             )
             pending_actions.extend(generated_cards)
@@ -389,6 +395,15 @@ class RespondCommand:
             except Exception:
                 logger.exception("Assistant tool synthesis generation failed")
 
+        # Synthesize write action proposals (Zero Silent Mutation)
+        cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(generation.content)
+        if not reply_proposals:
+            reply_proposals = self._detect_action_proposals(request, tool_calls_tuple, tool_results_list)
+
+        generated_proposals = reply_proposals[:3]
+        pending_actions.extend(generated_proposals)
+        pending_actions = pending_actions[:3]
+
         sources = [
             AssistantSource(
                 type=item.type,
@@ -399,7 +414,7 @@ class RespondCommand:
             )
             for item in final_contexts
         ]
-        reply_content = self._sanitize_assistant_reply(generation.content)
+        reply_content = self._sanitize_assistant_reply(cleaned_reply)
         resolved_intent = request.intent or self._infer_intent(
             final_contexts,
             fallback_domains=scope_decision.matched_domains,
@@ -423,7 +438,8 @@ class RespondCommand:
             reply=reply_content,
             sources=sources,
             suggestedActions=pending_actions,
-            cards=generated_cards,
+            cards=generated_cards[:3],
+            proposals=generated_proposals,
             model=generation.model,
             provider=generation.provider,
             requestId=request_id,
@@ -589,7 +605,7 @@ class RespondCommand:
         tool_calls: tuple[Any, ...],
         prompt: str,
         request: AssistantRespondRequest,
-    ) -> tuple[str, list[ShowCardAction]]:
+    ) -> tuple[str, list[ShowCardAction], list[Any]]:
         exec_ctx = ToolExecutionContext(
             user_id=request.userId,
             surface=request.surface,
@@ -599,7 +615,8 @@ class RespondCommand:
         tool_results = await asyncio.gather(
             *(self.dispatcher.dispatch(tc.name, tc.args, exec_ctx) for tc in tool_calls)
         )
-        cards = self._extract_cards(tool_calls, list(tool_results))
+        tool_results_list = list(tool_results)
+        cards = self._extract_cards(tool_calls, tool_results_list)
         tool_results_text = [
             f"- Công cụ `{tc.name}`: {res.to_tool_message_content()}"
             for tc, res in zip(tool_calls, tool_results)
@@ -611,7 +628,398 @@ class RespondCommand:
             + "\n".join(tool_results_text)
             + "\nHãy tổng hợp thông tin trên thành câu trả lời tự nhiên, thân thiện và chính xác cho người dùng."
         )
-        return augmented_prompt, cards
+        return augmented_prompt, cards, tool_results_list
+
+    def _extract_proposals_from_llm_reply(
+        self,
+        reply: str,
+    ) -> tuple[str, list[ProposeAction]]:
+        """Extract structured ```action { ... } ``` proposals from the LLM reply and sanitize."""
+        pattern = re.compile(r"```(?:action|json:action)\s*(\{.*?\})\s*```", re.DOTALL)
+        proposals: list[ProposeAction] = []
+
+        for m in pattern.finditer(reply):
+            raw_json = m.group(1).strip()
+            try:
+                data = json.loads(raw_json)
+                action_name = data.get("actionName") or data.get("action")
+                if action_name and is_action_allowed(action_name):
+                    action_def = get_action_definition(action_name)
+                    title = data.get("title") or (action_def.description if action_def else action_name)
+                    desc = data.get("description") or (action_def.description if action_def else "")
+                    params = data.get("params") if isinstance(data.get("params"), dict) else {}
+                    confirm_lbl = data.get("confirmLabel") or (action_def.confirm_label if action_def else "Xác nhận")
+                    cancel_lbl = data.get("cancelLabel") or (action_def.cancel_label if action_def else "Hủy")
+                    category = data.get("category") or (action_def.category if action_def else "social")
+                    is_destructive = data.get("isDestructive") if "isDestructive" in data else (action_def.is_destructive if action_def else False)
+
+                    proposals.append(
+                        ProposeAction(
+                            label=confirm_lbl,
+                            payload=ProposeActionPayload(
+                                actionName=action_name,
+                                title=title,
+                                description=desc,
+                                params=params,
+                                idempotencyKey=str(uuid4()),
+                                confirmLabel=confirm_lbl,
+                                cancelLabel=cancel_lbl,
+                                category=category,
+                                isDestructive=is_destructive,
+                            ),
+                        )
+                    )
+            except Exception as exc:
+                logger.warning("Failed to parse action proposal from LLM output: %s", exc)
+
+        cleaned_reply = pattern.sub("", reply).strip()
+        return cleaned_reply, proposals
+
+    def _detect_action_proposals(
+        self,
+        request: AssistantRespondRequest,
+        tool_calls: tuple[Any, ...],
+        tool_results: list[Any],
+    ) -> list[ProposeAction]:
+        """Synthesize write action proposals based on user intent, surface context, and tool results."""
+        proposals: list[ProposeAction] = []
+        msg = (request.message or "").lower()
+
+        # Reject negative/refusal intents to avoid false-positive action proposals
+        # e.g., "Tôi không muốn kết bạn", "Đừng gửi lời mời", "Chưa muốn vào nhóm"
+        if any(neg in msg for neg in ("không muốn", "đừng", "chưa muốn", "không cần", "don't want", "do not")):
+            return []
+
+        # 1. Mark all notifications as read
+        if any(kw in msg for kw in ("đọc hết thông báo", "đánh dấu đã đọc", "mark all notifications", "đọc tất cả thông báo")):
+            action_def = get_action_definition("mark_all_notifications_read")
+            if action_def:
+                proposals.append(
+                    ProposeAction(
+                        label=action_def.confirm_label,
+                        payload=ProposeActionPayload(
+                            actionName="mark_all_notifications_read",
+                            title="Đánh dấu đã đọc",
+                            description="Đánh dấu toàn bộ thông báo của bạn là đã đọc",
+                            params={},
+                            idempotencyKey=str(uuid4()),
+                            confirmLabel=action_def.confirm_label,
+                            cancelLabel=action_def.cancel_label,
+                            category=action_def.category,
+                            isDestructive=action_def.is_destructive,
+                        ),
+                    )
+                )
+
+        # 2. Friend interactions (send / accept / decline / cancel / unfriend)
+        if any(kw in msg for kw in ("kết bạn", "gửi kết bạn", "add friend", "lời mời kết bạn", "chấp nhận", "đồng ý", "thu hồi", "hủy", "từ chối", "bỏ qua", "decline", "unfriend", "xóa bạn")):
+            # Check decline friend request
+            if any(kw in msg for kw in ("từ chối", "bỏ qua", "decline", "reject")):
+                requester_id = None
+                requester_name = "người dùng"
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") == "get_my_friend_requests" and getattr(res, "success", False):
+                        reqs = res.data.get("requests", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(reqs, list) and reqs:
+                            first_req = reqs[0]
+                            requester_id = first_req.get("senderId") or first_req.get("requesterId") or first_req.get("id")
+                            requester_name = first_req.get("senderName") or first_req.get("name") or "người dùng"
+                            break
+                if not requester_id and request.surface and request.surface.entityId and "profile" in (request.surface.screen or ""):
+                    requester_id = request.surface.entityId
+                    requester_name = (request.surface.metadata or {}).get("userName") or "người dùng"
+                if requester_id:
+                    action_def = get_action_definition("decline_friend_request")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="decline_friend_request",
+                                    title="Từ chối kết bạn",
+                                    description=f"Từ chối lời mời kết bạn từ {requester_name}",
+                                    params={"requester_id": requester_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+            # Check accept
+            elif any(kw in msg for kw in ("đồng ý", "chấp nhận", "accept")):
+                requester_id = None
+                requester_name = "người dùng"
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") == "get_my_friend_requests" and getattr(res, "success", False):
+                        reqs = res.data.get("requests", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(reqs, list) and reqs:
+                            first_req = reqs[0]
+                            requester_id = first_req.get("senderId") or first_req.get("requesterId") or first_req.get("id")
+                            requester_name = first_req.get("senderName") or first_req.get("name") or "người dùng"
+                            break
+                if requester_id:
+                    action_def = get_action_definition("accept_friend_request")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="accept_friend_request",
+                                    title="Đồng ý kết bạn",
+                                    description=f"Chấp nhận lời mời kết bạn từ {requester_name}",
+                                    params={"requester_id": requester_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+            # Check unfriend
+            elif any(kw in msg for kw in ("hủy kết bạn", "xóa bạn", "unfriend")):
+                target_user_id = (
+                    request.surface.entityId
+                    if (request.surface and "profile" in (request.surface.screen or ""))
+                    else None
+                )
+                target_name = (request.surface.metadata or {}).get("userName") or "người dùng" if request.surface else "người dùng"
+                if not target_user_id:
+                    for tc, res in zip(tool_calls, tool_results):
+                        if getattr(tc, "name", "") in ("search_users", "get_user_friends") and getattr(res, "success", False):
+                            users = res.data.get("users", []) if isinstance(res.data, dict) else (res.data.get("friends", []) if isinstance(res.data, dict) else res.data)
+                            if isinstance(users, list) and users:
+                                first_u = users[0]
+                                target_user_id = first_u.get("id") or first_u.get("userId")
+                                target_name = first_u.get("name") or first_u.get("username") or "người dùng"
+                                break
+                if target_user_id:
+                    action_def = get_action_definition("unfriend_user")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="unfriend_user",
+                                    title=f"Hủy kết bạn với {target_name}",
+                                    description=f"Hủy quan hệ bạn bè với {target_name}",
+                                    params={"target_user_id": target_user_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+            # Check cancel friend request
+            elif any(kw in msg for kw in ("hủy", "thu hồi", "cancel")):
+                target_user_id = (
+                    request.surface.entityId
+                    if (request.surface and "profile" in (request.surface.screen or ""))
+                    else None
+                )
+                if target_user_id:
+                    action_def = get_action_definition("cancel_friend_request")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="cancel_friend_request",
+                                    title="Thu hồi lời mời",
+                                    description="Thu hồi lời mời kết bạn đã gửi",
+                                    params={"target_user_id": target_user_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+            # Send friend request
+            elif any(kw in msg for kw in ("kết bạn", "gửi kết bạn", "add friend")):
+                target_user_id = None
+                target_name = "người dùng"
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") in ("search_users", "get_friend_recommendations") and getattr(res, "success", False):
+                        users = res.data.get("users", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(users, list) and users:
+                            first_u = users[0]
+                            target_user_id = first_u.get("id") or first_u.get("userId")
+                            target_name = first_u.get("name") or first_u.get("username") or "người dùng"
+                            break
+
+                if not target_user_id and request.surface and request.surface.entityId and "profile" in (request.surface.screen or ""):
+                    target_user_id = request.surface.entityId
+                    target_name = (request.surface.metadata or {}).get("userName") or "người dùng"
+
+                if target_user_id:
+                    action_def = get_action_definition("send_friend_request")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="send_friend_request",
+                                    title=f"Gửi kết bạn tới {target_name}",
+                                    description=f"Gửi lời mời kết bạn tới {target_name}",
+                                    params={"target_user_id": target_user_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+
+        # 3. Block user
+        if any(kw in msg for kw in ("chặn", "block")):
+            target_user_id = (
+                request.surface.entityId
+                if (request.surface and "profile" in (request.surface.screen or ""))
+                else None
+            )
+            target_name = (request.surface.metadata or {}).get("userName") or "người này" if request.surface else "người này"
+            if not target_user_id:
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") in ("search_users",) and getattr(res, "success", False):
+                        users = res.data.get("users", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(users, list) and users:
+                            first_u = users[0]
+                            target_user_id = first_u.get("id") or first_u.get("userId")
+                            target_name = first_u.get("name") or first_u.get("username") or "người này"
+                            break
+            if target_user_id:
+                action_def = get_action_definition("block_user")
+                if action_def:
+                    proposals.append(
+                        ProposeAction(
+                            label=action_def.confirm_label,
+                            payload=ProposeActionPayload(
+                                actionName="block_user",
+                                title=f"Chặn người dùng {target_name}",
+                                description=f"Chặn {target_name} để dừng mọi liên lạc và tương tác",
+                                params={"target_user_id": target_user_id},
+                                idempotencyKey=str(uuid4()),
+                                confirmLabel=action_def.confirm_label,
+                                cancelLabel=action_def.cancel_label,
+                                category=action_def.category,
+                                isDestructive=action_def.is_destructive,
+                            ),
+                        )
+                    )
+
+        # 4. Community Group interactions (join / leave)
+        if any(kw in msg for kw in ("nhóm", "group")):
+            if any(kw in msg for kw in ("tham gia", "vào nhóm", "join")):
+                group_id = None
+                group_name = "nhóm"
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") == "search_groups" and getattr(res, "success", False):
+                        groups = res.data.get("groups", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(groups, list) and groups:
+                            first_g = groups[0]
+                            group_id = first_g.get("id") or first_g.get("groupId")
+                            group_name = first_g.get("name") or "nhóm"
+                            break
+                if not group_id and request.surface and request.surface.entityId and "group" in (request.surface.screen or ""):
+                    group_id = request.surface.entityId
+                    group_name = (request.surface.metadata or {}).get("groupName") or "nhóm này"
+
+                if group_id:
+                    action_def = get_action_definition("join_group")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="join_group",
+                                    title=f"Tham gia nhóm {group_name}",
+                                    description=f"Gửi yêu cầu hoặc tham gia nhóm {group_name}",
+                                    params={"group_id": group_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+            elif any(kw in msg for kw in ("rời", "thoát", "leave")):
+                group_id = (
+                    request.surface.entityId
+                    if (request.surface and "group" in (request.surface.screen or ""))
+                    else None
+                )
+                group_name = (request.surface.metadata or {}).get("groupName", "nhóm") if request.surface else "nhóm"
+                if group_id:
+                    action_def = get_action_definition("leave_group")
+                    if action_def:
+                        proposals.append(
+                            ProposeAction(
+                                label=action_def.confirm_label,
+                                payload=ProposeActionPayload(
+                                    actionName="leave_group",
+                                    title=f"Rời nhóm {group_name}",
+                                    description=f"Rời khỏi nhóm {group_name}",
+                                    params={"group_id": group_id},
+                                    idempotencyKey=str(uuid4()),
+                                    confirmLabel=action_def.confirm_label,
+                                    cancelLabel=action_def.cancel_label,
+                                    category=action_def.category,
+                                    isDestructive=action_def.is_destructive,
+                                ),
+                            )
+                        )
+
+        # 5. Post Reaction interactions
+        if any(kw in msg for kw in ("thích", "thả tim", "like bài", "bài viết này", "react")):
+            post_id = None
+            if request.surface and "post" in (request.surface.screen or ""):
+                post_id = request.surface.entityId
+            if not post_id:
+                for tc, res in zip(tool_calls, tool_results):
+                    if getattr(tc, "name", "") in ("get_trending_posts", "get_my_posts_overview") and getattr(res, "success", False):
+                        posts = res.data.get("posts", []) if isinstance(res.data, dict) else res.data
+                        if isinstance(posts, list) and posts:
+                            first_p = posts[0]
+                            post_id = first_p.get("id") or first_p.get("postId")
+                            break
+            if post_id:
+                rxn = "love" if any(w in msg for w in ("tim", "love")) else "like"
+                action_def = get_action_definition("react_post")
+                if action_def:
+                    proposals.append(
+                        ProposeAction(
+                            label=action_def.confirm_label,
+                            payload=ProposeActionPayload(
+                                actionName="react_post",
+                                title=f"Thả cảm xúc ({rxn})",
+                                description=f"Bày tỏ cảm xúc '{rxn}' cho bài viết",
+                                params={"post_id": post_id, "reaction_type": rxn},
+                                idempotencyKey=str(uuid4()),
+                                confirmLabel=action_def.confirm_label,
+                                cancelLabel=action_def.cancel_label,
+                                category=action_def.category,
+                                isDestructive=action_def.is_destructive,
+                            ),
+                        )
+                    )
+
+        # Deduplicate proposals by (actionName, str(params))
+        seen = set()
+        deduped = []
+        for p in proposals:
+            key = (p.payload.actionName, json.dumps(p.payload.params, sort_keys=True))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(p)
+        return deduped[:2]
 
     async def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
         if request.history:
@@ -1088,10 +1496,15 @@ class RespondCommand:
                         timeout=max(settings.CHATBOT_LLM_TIMEOUT_MS, 1) / 1000,
                     )
                 if hasattr(initial_gen, "tool_calls") and initial_gen.tool_calls:
-                    augmented_prompt, stream_cards = await self._execute_tools_and_augment_prompt(
+                    augmented_prompt, stream_cards, stream_tool_results = await self._execute_tools_and_augment_prompt(
                         initial_gen.tool_calls, prompt, request
                     )
+                    stream_proposals = self._detect_action_proposals(
+                        request, tuple(initial_gen.tool_calls), stream_tool_results
+                    )
                     pending_actions.extend(stream_cards)
+                    pending_actions.extend(stream_proposals)
+                    pending_actions = pending_actions[:3]
                     async with _LLM_SEMAPHORE:
                         async for chunk in self.provider.stream(augmented_prompt, resolved_request):
                             full_reply_parts.append(chunk.content)
@@ -1100,6 +1513,7 @@ class RespondCommand:
                                 sources=sources if len(full_reply_parts) == 1 else [],
                                 suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
                                 cards=stream_cards if len(full_reply_parts) == 1 else [],
+                                proposals=stream_proposals if len(full_reply_parts) == 1 else [],
                                 model=chunk.model or settings.GROQ_MODEL,
                                 provider=chunk.provider or "groq",
                                 requestId=request_id,
@@ -1107,12 +1521,18 @@ class RespondCommand:
                                 conversationId=request.conversationId or "default",
                             )
                 else:
-                    direct_content = self._sanitize_assistant_reply(initial_gen.content)
+                    direct_content, direct_proposals = self._extract_proposals_from_llm_reply(initial_gen.content)
+                    if not direct_proposals:
+                        direct_proposals = self._detect_action_proposals(request, (), [])
+                    direct_content = self._sanitize_assistant_reply(direct_content)
+                    pending_actions.extend(direct_proposals)
+                    pending_actions = pending_actions[:3]
                     full_reply_parts.append(direct_content)
                     yield AssistantRespondData(
                         reply=direct_content,
                         sources=sources,
                         suggestedActions=pending_actions,
+                        proposals=direct_proposals,
                         model=initial_gen.model or settings.GROQ_MODEL,
                         provider=initial_gen.provider or "groq",
                         requestId=request_id,
@@ -1120,6 +1540,9 @@ class RespondCommand:
                         conversationId=request.conversationId or "default",
                     )
             else:
+                stream_proposals = self._detect_action_proposals(request, (), [])
+                pending_actions.extend(stream_proposals)
+                pending_actions = pending_actions[:3]
                 async with _LLM_SEMAPHORE:
                     async for chunk in self.provider.stream(prompt, resolved_request):
                         full_reply_parts.append(chunk.content)
@@ -1127,6 +1550,7 @@ class RespondCommand:
                             reply=chunk.content,
                             sources=sources if len(full_reply_parts) == 1 else [],
                             suggestedActions=pending_actions if len(full_reply_parts) == 1 else [],
+                            proposals=stream_proposals if len(full_reply_parts) == 1 else [],
                             model=chunk.model or settings.GROQ_MODEL,
                             provider=chunk.provider or "groq",
                             requestId=request_id,
