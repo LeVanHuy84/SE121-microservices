@@ -1,6 +1,6 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Payload, Ctx, KafkaContext } from "@nestjs/microservices";
-import { AnalysisEventType, AnalysisResultEvent, EventTopic } from "@repo/dtos";
+import { EventTopic } from "@repo/dtos";
 import { ConsumerService } from "./consumer.service";
 import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { ClientSession } from "mongoose";
@@ -14,49 +14,9 @@ export class ConsumerController {
     private readonly consumerHelper: KafkaConsumerHelper,
   ) {}
 
-  // ----------------------------
-  // ANALYSIS RESULT TOPIC
-  // ----------------------------
-  @KafkaEventPattern(EventTopic.ANALYSIS_RESULT)
-  async handleAnalysisEvents(
-    @Payload() message: AnalysisResultEvent,
-    @Ctx() context: KafkaContext,
-  ) {
-    const topic = context.getTopic();
-    const partition = context.getPartition();
-    const raw = context.getMessage();
-
-    const eventId =
-      raw.key?.toString() || `${topic}-${partition}-${raw.offset}`;
-
-    await this.consumerHelper.handle({
-      topic,
-      eventId,
-      message,
-      context,
-      handler: async (_session: ClientSession) => {
-        const { type, payload } = message;
-
-        this.logger.debug(
-          `Received event ${type} for target ${payload.targetId}`,
-        );
-
-        switch (type) {
-          case AnalysisEventType.CREATED:
-            await this.consumerService.handleCreated(payload);
-            break;
-
-          case AnalysisEventType.UPDATED:
-            await this.consumerService.handleUpdated(payload);
-            break;
-
-          default:
-            this.logger.warn(`Unknown event type: ${type}`);
-            break;
-        }
-      },
-    });
-  }
+  // Ghi chú kiến trúc: Handler ANALYSIS_RESULT đã được hợp nhất về PostConsumerController
+  // để xử lý tuần tự/song song cả TypeORM Post Moderation và Mongoose Feed Snapshot,
+  // loại bỏ hoàn toàn xung đột Kafka Event Pattern giữa 2 module.
 
   // ----------------------------
   // INTERACTION TOPIC

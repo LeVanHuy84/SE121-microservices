@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { ClientSession, Model, Types } from "mongoose";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
@@ -9,6 +9,7 @@ import {
 } from "../../mongo/schema/feed-item.schema";
 import { FeedEventType } from "@repo/dtos";
 import { MICROSERVICES_CLIENT } from "src/constant";
+import { KafkaDLQService } from "@repo/common";
 
 @Injectable()
 export class DistributionService {
@@ -18,6 +19,7 @@ export class DistributionService {
     @InjectModel(FeedItem.name) private feedItemModel: Model<FeedItemDocument>,
     @Inject(MICROSERVICES_CLIENT.USER_SOCIAL_SERVICE)
     private readonly userSocialClient: ClientProxy,
+    @Optional() private readonly dlqService?: KafkaDLQService,
   ) {}
 
   /**
@@ -75,6 +77,38 @@ export class DistributionService {
         `✅ Distributed snapshot ${snapshotId} to ${receiver.length} friends`,
       );
     } catch (error) {
+      this.logger.error(
+        `Failed to distribute snapshot ${snapshotId} (post: ${postId}, actor: ${actorId}): ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+
+      // Dead-Letter / Retry forward for Eventual Consistency
+      if (this.dlqService) {
+        try {
+          await this.dlqService.send(
+            "feed-distribution-events",
+            {
+              type,
+              snapshotId,
+              refId,
+              postId,
+              actorId,
+              groupId,
+            },
+            error instanceof Error ? error : new Error(String(error)),
+          );
+          this.logger.warn(
+            `Forwarded failed distribution event for post ${postId} to DLQ for retry`,
+          );
+        } catch (dlqErr) {
+          this.logger.error(
+            `Failed to forward distribution error to DLQ`,
+            dlqErr,
+          );
+        }
+      }
+
       if (error instanceof Error) {
         throw new RpcException(error.message);
       }

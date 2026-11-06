@@ -14,9 +14,9 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests --runInBand",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test:cov": "jest --coverage --runInBand",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/e2e/jest-e2e.json --runInBand",
     "test:integration": "jest --config ./test/integration/jest-integration.json",
@@ -93,6 +93,16 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^src/entities/media\\.entity$": "<rootDir>/modules/media/entities/media.entity",
+      "^src/entities/(.*)$": "<rootDir>/modules/post/entities/$1",
+      "^src/modules/stats/(.*)$": "<rootDir>/modules/post/stats/$1",
+      "^src/modules/event/(.*)$": "<rootDir>/modules/post/event/$1",
+      "^src/modules/ranking/(.*)$": "<rootDir>/modules/feed/ranking/$1",
+      "^src/modules/affinity/(.*)$": "<rootDir>/modules/feed/affinity/$1",
+      "^src/modules/(.*)$": "<rootDir>/modules/$1",
+      "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
