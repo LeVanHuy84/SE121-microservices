@@ -1527,18 +1527,43 @@ class RespondCommand:
                     direct_content = self._sanitize_assistant_reply(direct_content)
                     pending_actions.extend(direct_proposals)
                     pending_actions = pending_actions[:3]
-                    full_reply_parts.append(direct_content)
-                    yield AssistantRespondData(
-                        reply=direct_content,
-                        sources=sources,
-                        suggestedActions=pending_actions,
-                        proposals=direct_proposals,
-                        model=initial_gen.model or settings.GROQ_MODEL,
-                        provider=initial_gen.provider or "groq",
-                        requestId=request_id,
-                        latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                        conversationId=request.conversationId or "default",
-                    )
+                    # Progressive token chunking to deliver natural typing cadence on non-tool replies
+                    words = direct_content.split(" ") if direct_content else []
+                    if not words:
+                        full_reply_parts.append("")
+                        yield AssistantRespondData(
+                            reply="",
+                            sources=sources,
+                            suggestedActions=pending_actions,
+                            proposals=direct_proposals,
+                            model=initial_gen.model or settings.GROQ_MODEL,
+                            provider=initial_gen.provider or "groq",
+                            requestId=request_id,
+                            latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                            conversationId=request.conversationId or "default",
+                        )
+                    else:
+                        chunk_size = 3
+                        first_yield = True
+                        for i in range(0, len(words), chunk_size):
+                            slice_words = words[i:i + chunk_size]
+                            chunk_text = " ".join(slice_words)
+                            if i + chunk_size < len(words):
+                                chunk_text += " "
+                            full_reply_parts.append(chunk_text)
+                            yield AssistantRespondData(
+                                reply=chunk_text,
+                                sources=sources if first_yield else [],
+                                suggestedActions=pending_actions if first_yield else [],
+                                proposals=direct_proposals if first_yield else [],
+                                model=initial_gen.model or settings.GROQ_MODEL,
+                                provider=initial_gen.provider or "groq",
+                                requestId=request_id,
+                                latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                                conversationId=request.conversationId or "default",
+                            )
+                            first_yield = False
+                            await asyncio.sleep(0.015)
             else:
                 stream_proposals = self._detect_action_proposals(request, (), [])
                 pending_actions.extend(stream_proposals)

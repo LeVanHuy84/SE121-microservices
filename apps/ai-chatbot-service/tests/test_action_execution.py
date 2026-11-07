@@ -214,8 +214,38 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
             "/reactions",
             json_body={
                 "targetId": "p-100",
-                "targetType": "post",
-                "reactionType": "love",
+                "targetType": "POST",
+                "reactionType": "LOVE",
             },
+            auth_token="jwt-tok",
+        )
+
+        # 5. join_group
+        req_join = ActionExecutionRequest(
+            actionId="act-join",
+            actionName="join_group",
+            params={"group_id": "g-123"},
+            idempotencyKey=f"idem-join-{uuid4()}",
+        )
+        res = await executor.execute(req_join, auth_token="jwt-tok")
+        self.assertTrue(res.success)
+        mock_http.post.assert_called_with(
+            "/groups/g-123/join-requests",
+            json_body={},
+            auth_token="jwt-tok",
+        )
+
+        # 6. leave_group
+        req_leave = ActionExecutionRequest(
+            actionId="act-leave",
+            actionName="leave_group",
+            params={"group_id": "g-123"},
+            idempotencyKey=f"idem-leave-{uuid4()}",
+        )
+        res = await executor.execute(req_leave, auth_token="jwt-tok")
+        self.assertTrue(res.success)
+        mock_http.post.assert_called_with(
+            "/groups/g-123/members/leave",
+            json_body={},
             auth_token="jwt-tok",
         )

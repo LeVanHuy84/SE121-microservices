@@ -168,7 +168,7 @@ class ActionExecutorService:
                 return ActionExecutionResponse(
                     success=False, actionName=action_name, message="Thiếu mã nhóm (group_id).", error="MISSING_PARAM"
                 )
-            res = await self.http_client.post("/group-join-request", json_body={"groupId": group_id}, auth_token=auth_token)
+            res = await self.http_client.post(f"/groups/{group_id}/join-requests", json_body={}, auth_token=auth_token)
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
                     success=False, actionName=action_name, message=res.get("message", "Không thể tham gia nhóm."), error=res.get("error")
@@ -183,7 +183,7 @@ class ActionExecutorService:
                 return ActionExecutionResponse(
                     success=False, actionName=action_name, message="Thiếu mã nhóm (group_id).", error="MISSING_PARAM"
                 )
-            res = await self.http_client.post("/group-member/leave", json_body={"groupId": group_id}, auth_token=auth_token)
+            res = await self.http_client.post(f"/groups/{group_id}/members/leave", json_body={}, auth_token=auth_token)
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
                     success=False, actionName=action_name, message=res.get("message", "Không thể rời nhóm."), error=res.get("error")
@@ -243,12 +243,14 @@ class ActionExecutorService:
                 return ActionExecutionResponse(
                     success=False, actionName=action_name, message="Thiếu mã bài viết (post_id).", error="MISSING_PARAM"
                 )
-            reaction_type = params.get("reaction_type") or params.get("reactionType") or "like"
+            raw_reaction = str(params.get("reaction_type") or params.get("reactionType") or "LIKE").upper()
+            valid_reactions = {"LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY"}
+            reaction_type = raw_reaction if raw_reaction in valid_reactions else "LIKE"
             res = await self.http_client.post(
                 "/reactions",
                 json_body={
                     "targetId": post_id,
-                    "targetType": "post",
+                    "targetType": "POST",
                     "reactionType": reaction_type,
                 },
                 auth_token=auth_token,
@@ -258,7 +260,7 @@ class ActionExecutorService:
                     success=False, actionName=action_name, message=res.get("message", "Không thể thả cảm xúc."), error=res.get("error")
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message=f"Đã thả cảm xúc '{reaction_type}' cho bài viết!", data=res if isinstance(res, dict) else {}
+                success=True, actionName=action_name, message=f"Đã thả cảm xúc '{reaction_type.lower()}' cho bài viết!", data=res if isinstance(res, dict) else {}
             )
 
         elif action_name == "mark_all_notifications_read":
