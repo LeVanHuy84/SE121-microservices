@@ -10,6 +10,7 @@ import {
   UpdatedAnalysisEventPayload,
   UserActivityLogPayload,
 } from "@repo/dtos";
+import { injectTraceContext } from "@repo/common";
 import { OutboxEvent } from "src/entities/outbox.entity";
 
 @Injectable()
@@ -49,7 +50,7 @@ export class OutboxService {
       topic: EventTopic.ANALYSIS,
       destination: EventDestination.KAFKA,
       eventType: AnalysisEventType.CREATED,
-      payload,
+      payload: injectTraceContext(payload),
     });
 
     return await manager.save(outbox);
@@ -75,7 +76,7 @@ export class OutboxService {
       topic: EventTopic.ANALYSIS,
       destination: EventDestination.KAFKA,
       eventType: AnalysisEventType.UPDATED,
-      payload,
+      payload: injectTraceContext(payload),
     });
 
     return await manager.save(outbox);
@@ -90,7 +91,7 @@ export class OutboxService {
       topic: EventTopic.USER_ACTIVITY_LOG,
       destination: EventDestination.KAFKA,
       eventType: activityType,
-      payload,
+      payload: injectTraceContext(payload),
     });
     return await manager.save(outbox);
   }

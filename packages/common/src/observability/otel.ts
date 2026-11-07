@@ -7,9 +7,31 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { context, propagation, Context } from '@opentelemetry/api';
 
 // Load environmental variables from .env file before reading process.env
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+/**
+ * Tiêm W3C Trace Context (traceparent) hiện tại vào payload gửi qua NestJS TCP
+ */
+export function injectTraceContext<T = any>(data: T): T {
+  if (typeof data !== 'object' || data === null) return data;
+  try {
+    const carrier: Record<string, string> = {};
+    propagation.inject(context.active(), carrier);
+    return { ...data, _traceContext: carrier };
+  } catch {
+    return data;
+  }
+}
+
+/**
+ * Trích xuất W3C Trace Context từ carrier
+ */
+export function extractTraceContext(carrier?: Record<string, string>): Context {
+  return propagation.extract(context.active(), carrier || {});
+}
 
 
 export interface OTelOptions {

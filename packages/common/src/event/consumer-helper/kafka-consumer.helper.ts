@@ -10,10 +10,17 @@ import { retryWithBackoff, RetryOptions } from '../retry/retry.util';
 import { KafkaContext } from '@nestjs/microservices';
 import { ClientSession, Connection } from 'mongoose';
 import { DataSource, EntityManager } from 'typeorm';
+import {
+  context as contextApi,
+  propagation,
+  trace,
+  SpanStatusCode,
+} from '@opentelemetry/api';
 
 @Injectable()
 export class KafkaConsumerHelper {
   private readonly logger = new Logger(KafkaConsumerHelper.name);
+  private _supportsTransactionsCache: boolean | null = null;
 
   constructor(
     private readonly dlq: KafkaDLQService,
@@ -26,6 +33,41 @@ export class KafkaConsumerHelper {
     @Optional() private readonly idempotency?: IdempotencyService,
   ) {}
 
+  private supportsTransactions(): boolean {
+    if (this._supportsTransactionsCache !== null) {
+      return this._supportsTransactionsCache;
+    }
+    const client = (this.connection as any)?.getClient?.();
+    const topologyType = client?.topology?.description?.type;
+    if (topologyType && topologyType !== 'Unknown') {
+      this._supportsTransactionsCache = topologyType !== 'Single';
+      return this._supportsTransactionsCache;
+    }
+    return false;
+  }
+
+  private extractCarrier(raw: any, message: any): Record<string, string> {
+    const carrier: Record<string, string> = {};
+    if (raw?.headers) {
+      for (const [k, v] of Object.entries(raw.headers)) {
+        if (v !== undefined && v !== null) {
+          carrier[k] = Buffer.isBuffer(v) ? v.toString('utf-8') : String(v);
+        }
+      }
+    }
+    if (
+      message?.payload?._traceContext &&
+      typeof message.payload._traceContext === 'object'
+    ) {
+      for (const [k, v] of Object.entries(message.payload._traceContext)) {
+        if (v !== undefined && v !== null) {
+          carrier[k] = String(v);
+        }
+      }
+    }
+    return carrier;
+  }
+
   // =====================================================
   // MONGODB TRANSACTION HANDLER (MAIN)
   // =====================================================
@@ -33,7 +75,7 @@ export class KafkaConsumerHelper {
     topic: string;
     eventId: string;
     message: any;
-    handler: (session: ClientSession) => Promise<void>;
+    handler: (session?: ClientSession) => Promise<void>;
     context: KafkaContext;
     retryOptions?: RetryOptions;
     metadata?: Record<string, any>;
@@ -66,33 +108,76 @@ export class KafkaConsumerHelper {
     const partition = context.getPartition();
     const nextOffset = (Number(raw.offset) + 1).toString();
 
-    const session = await this.connection.startSession();
+    const carrier = this.extractCarrier(raw, message);
+    const parentCtx = propagation.extract(contextApi.active(), carrier);
+    const tracer = trace.getTracer('kafka-consumer');
 
-    this.logger.log(
-      `[CONSUME] topic=${topic} partition=${partition} offset=${raw.offset} eventId=${eventId}`,
-    );
+    return await contextApi.with(parentCtx, async () => {
+      return await tracer.startActiveSpan(
+        `kafka:${topic} consume`,
+        async (span) => {
+          span.setAttribute('messaging.system', 'kafka');
+          span.setAttribute('messaging.destination', topic);
+          span.setAttribute('messaging.operation', 'process');
+          span.setAttribute('messaging.kafka.event_id', eventId);
+          span.setAttribute('messaging.kafka.partition', partition);
+          span.setAttribute('messaging.kafka.offset', raw.offset);
 
-    try {
-      // =========================
-      // TRANSACTION
-      // =========================
-      await session.withTransaction(
-        async () => {
-          await this.idempotency!.execute({
-            eventId,
-            session,
-            handler: async ({ session: txSession }) => {
-              await retryWithBackoff(
-                () => handler(txSession ?? session),
-                retryOptions,
-              );
-            },
-          });
-        },
-        {
-          maxCommitTimeMS: 5000,
-        },
-      );
+          let session: ClientSession | undefined;
+          const supportsTx = this.supportsTransactions();
+
+          if (supportsTx) {
+            try {
+              session = await this.connection!.startSession();
+            } catch (err) {
+              this.logger.warn(`Failed to start Mongo session: ${err}`);
+            }
+          }
+
+          this.logger.log(
+            `[CONSUME] topic=${topic} partition=${partition} offset=${raw.offset} eventId=${eventId}`,
+          );
+
+          try {
+            // =========================
+            // TRANSACTION (With Standalone Mongo Fallback)
+            // =========================
+            const runHandler = async (txSession?: ClientSession) => {
+              await this.idempotency!.execute({
+                eventId,
+                session: txSession,
+                handler: async ({ session: subSession }) => {
+                  await retryWithBackoff(
+                    () => handler(subSession ?? txSession),
+                    retryOptions,
+                  );
+                },
+              });
+            };
+
+            if (supportsTx && session) {
+              const activeSession = session;
+              try {
+                await activeSession.withTransaction(
+                  async () => runHandler(activeSession),
+                  {
+                    maxCommitTimeMS: 5000,
+                  },
+                );
+              } catch (txErr: any) {
+                if (
+                  txErr?.message?.includes('replica set member or mongos') ||
+                  txErr?.message?.includes('Transactions are not supported')
+                ) {
+                  this._supportsTransactionsCache = false;
+                  await runHandler();
+                } else {
+                  throw txErr;
+                }
+              }
+            } else {
+              await runHandler();
+            }
 
       // =========================
       // COMMIT OFFSET
@@ -184,8 +269,16 @@ export class KafkaConsumerHelper {
 
       this.logger.warn(`[DLQ_COMMIT] eventId=${eventId} offset=${nextOffset}`);
     } finally {
-      await session.endSession();
+      if (session) {
+        try {
+          await session.endSession();
+        } catch {}
+      }
+      span.end();
     }
+        },
+      );
+    });
   }
 
   // =====================================================
@@ -223,48 +316,77 @@ export class KafkaConsumerHelper {
     const partition = context.getPartition();
     const nextOffset = (Number(raw.offset) + 1).toString();
 
-    const queryRunner = this.dataSource.createQueryRunner();
+    const carrier = this.extractCarrier(raw, message);
+    const parentCtx = propagation.extract(contextApi.active(), carrier);
+    const tracer = trace.getTracer('kafka-consumer');
 
-    try {
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
+    return await contextApi.with(parentCtx, async () => {
+      return await tracer.startActiveSpan(
+        `kafka:${topic} consume`,
+        async (span) => {
+          span.setAttribute('messaging.system', 'kafka');
+          span.setAttribute('messaging.destination', topic);
+          span.setAttribute('messaging.operation', 'process');
+          span.setAttribute('messaging.kafka.event_id', eventId);
+          span.setAttribute('messaging.kafka.partition', partition);
+          span.setAttribute('messaging.kafka.offset', raw.offset);
 
-      await this.idempotency.execute({
-        eventId,
-        manager: queryRunner.manager,
-        handler: async ({ manager }) => {
-          await retryWithBackoff(
-            () => handler(manager ?? queryRunner.manager),
-            retryOptions,
-          );
+          const queryRunner = this.dataSource!.createQueryRunner();
+
+          try {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+
+            await this.idempotency!.execute({
+              eventId,
+              manager: queryRunner.manager,
+              handler: async ({ manager }) => {
+                await retryWithBackoff(
+                  () => handler(manager ?? queryRunner.manager),
+                  retryOptions,
+                );
+              },
+            });
+
+            await queryRunner.commitTransaction();
+
+            await consumer.commitOffsets([
+              { topic, partition, offset: nextOffset },
+            ]);
+
+            if (metadata?.crashAfterCommit) {
+              process.exit(1);
+            }
+          } catch (error) {
+            span.recordException(error as Error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: (error as Error)?.message,
+            });
+
+            try {
+              await queryRunner.rollbackTransaction();
+            } catch {}
+
+            if (error instanceof IdempotencyBusyError) {
+              throw error;
+            }
+
+            await this.dlq.send(topic, message, error, {
+              eventId,
+              ...metadata,
+            });
+
+            await consumer.commitOffsets([
+              { topic, partition, offset: nextOffset },
+            ]);
+          } finally {
+            await queryRunner.release();
+            span.end();
+          }
         },
-      });
-
-      await queryRunner.commitTransaction();
-
-      await consumer.commitOffsets([{ topic, partition, offset: nextOffset }]);
-
-      if (metadata?.crashAfterCommit) {
-        process.exit(1);
-      }
-    } catch (error) {
-      try {
-        await queryRunner.rollbackTransaction();
-      } catch {}
-
-      if (error instanceof IdempotencyBusyError) {
-        throw error;
-      }
-
-      await this.dlq.send(topic, message, error, {
-        eventId,
-        ...metadata,
-      });
-
-      await consumer.commitOffsets([{ topic, partition, offset: nextOffset }]);
-    } finally {
-      await queryRunner.release();
-    }
+      );
+    });
   }
 
   // =====================================================

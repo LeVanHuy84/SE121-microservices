@@ -26,7 +26,7 @@ class KafkaConsumerService:
             bootstrap_servers=self.brokers,
             group_id=self.group_id,
             enable_auto_commit=False,
-            auto_offset_reset="latest",
+            auto_offset_reset="earliest",
             session_timeout_ms=45000,
             heartbeat_interval_ms=15000,
             max_poll_interval_ms=300000,
@@ -76,13 +76,44 @@ class KafkaConsumerService:
                 )
 
                 messages = []
+                extracted_ctx = None
                 for tp, msgs in records.items():
                     for msg in msgs:
                         messages.append(msg.value)
+                        if extracted_ctx is None:
+                            carrier = {}
+                            if msg.headers:
+                                for k, v in msg.headers:
+                                    if isinstance(k, bytes):
+                                        k = k.decode("utf-8", errors="ignore")
+                                    if isinstance(v, bytes):
+                                        v = v.decode("utf-8", errors="ignore")
+                                    carrier[str(k)] = str(v)
+                            payload_ctx = msg.value.get("payload", {}).get("_traceContext") if isinstance(msg.value, dict) else None
+                            if payload_ctx and isinstance(payload_ctx, dict):
+                                for k, v in payload_ctx.items():
+                                    if k not in carrier:
+                                        carrier[str(k)] = str(v)
+                            if "traceparent" in carrier:
+                                try:
+                                    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+                                    extracted_ctx = TraceContextTextMapPropagator().extract(carrier=carrier)
+                                except Exception:
+                                    pass
 
                 if messages:
                     try:
-                        await self.batch_handler(messages)
+                        if extracted_ctx:
+                            from opentelemetry import trace
+                            tracer = trace.get_tracer("ai-chatbot-service")
+                            with tracer.start_as_current_span(
+                                f"{self.topic} consume",
+                                context=extracted_ctx,
+                                attributes={"messaging.system": "kafka", "messaging.destination": self.topic}
+                            ):
+                                await self.batch_handler(messages)
+                        else:
+                            await self.batch_handler(messages)
                     except Exception as e:
                         logger.error("[KafkaConsumer] Batch handler error: %s", e)
                     try:
@@ -101,7 +132,38 @@ class KafkaConsumerService:
                 break
             try:
                 if self.handler:
-                    await self.handler(msg.value)
+                    extracted_ctx = None
+                    carrier = {}
+                    if msg.headers:
+                        for k, v in msg.headers:
+                            if isinstance(k, bytes):
+                                k = k.decode("utf-8", errors="ignore")
+                            if isinstance(v, bytes):
+                                v = v.decode("utf-8", errors="ignore")
+                            carrier[str(k)] = str(v)
+                    payload_ctx = msg.value.get("payload", {}).get("_traceContext") if isinstance(msg.value, dict) else None
+                    if payload_ctx and isinstance(payload_ctx, dict):
+                        for k, v in payload_ctx.items():
+                            if k not in carrier:
+                                carrier[str(k)] = str(v)
+                    if "traceparent" in carrier:
+                        try:
+                            from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+                            extracted_ctx = TraceContextTextMapPropagator().extract(carrier=carrier)
+                        except Exception:
+                            pass
+
+                    if extracted_ctx:
+                        from opentelemetry import trace
+                        tracer = trace.get_tracer("ai-chatbot-service")
+                        with tracer.start_as_current_span(
+                            f"{self.topic} consume",
+                            context=extracted_ctx,
+                            attributes={"messaging.system": "kafka", "messaging.destination": self.topic}
+                        ):
+                            await self.handler(msg.value)
+                    else:
+                        await self.handler(msg.value)
             except Exception as e:
                 logger.error("[KafkaConsumer] Single handler error: %s", e)
             try:

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
+import { context, propagation } from '@opentelemetry/api';
 
 @Injectable()
 export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
@@ -28,15 +29,47 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     await this.producer.disconnect();
   }
 
-  async sendMessage(topic: string, message: any, aggregateId?: string) {
+  async sendMessage(
+    topic: string,
+    message: any,
+    aggregateId?: string,
+    headers?: Record<string, any>
+  ) {
+    const kafkaHeaders: Record<string, string> = {};
+
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) {
+        if (v !== undefined && v !== null) {
+          kafkaHeaders[k] = String(v);
+        }
+      }
+    }
+
+    if (
+      message?.payload?._traceContext &&
+      typeof message.payload._traceContext === 'object'
+    ) {
+      for (const [k, v] of Object.entries(message.payload._traceContext)) {
+        if (v !== undefined && v !== null) {
+          kafkaHeaders[k] = String(v);
+        }
+      }
+    }
+
+    try {
+      propagation.inject(context.active(), kafkaHeaders);
+    } catch {}
+
     await this.producer.send({
       topic,
       messages: [
         {
           key: aggregateId || null,
           value: JSON.stringify(message),
+          headers: Object.keys(kafkaHeaders).length > 0 ? kafkaHeaders : undefined,
         },
       ],
     });
   }
 }
+

@@ -59,6 +59,7 @@ describe("UserEventController (Idempotency Guard & Event Handling)", () => {
     it("should ignore post count increments when post belongs to a community group", async () => {
       const message: PostEventMessage = {
         type: PostEventType.CREATED,
+        topic: EventTopic.POST,
         payload: {
           postId: "p-1",
           userId: "u-1",
@@ -78,6 +79,7 @@ describe("UserEventController (Idempotency Guard & Event Handling)", () => {
     it("should route CREATED post event through handleStateless and increment postCount", async () => {
       const message: PostEventMessage = {
         type: PostEventType.CREATED,
+        topic: EventTopic.POST,
         payload: {
           postId: "p-1",
           userId: "u-1",
@@ -101,6 +103,7 @@ describe("UserEventController (Idempotency Guard & Event Handling)", () => {
     it("should route REMOVED post event through handleStateless and decrement postCount", async () => {
       const message: PostEventMessage = {
         type: PostEventType.REMOVED,
+        topic: EventTopic.POST,
         payload: {
           postId: "p-1",
           userId: "u-1",
@@ -165,4 +168,3 @@ describe("UserEventController (Idempotency Guard & Event Handling)", () => {
     });
   });
 });
-

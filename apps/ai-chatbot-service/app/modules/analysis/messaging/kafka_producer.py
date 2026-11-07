@@ -47,7 +47,7 @@ class KafkaProducerService:
         if self.producer:
             await self.producer.stop()
 
-    async def send(self, topic: str, message: dict):
+    async def send(self, topic: str, message: dict, headers: list = None):
         if not self.producer:
             raise RuntimeError("Kafka producer is not started")
-        await self.producer.send_and_wait(topic, message)
+        await self.producer.send_and_wait(topic, message, headers=headers)

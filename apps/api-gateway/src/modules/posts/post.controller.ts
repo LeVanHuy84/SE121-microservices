@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { CreatePostDTO, GetPostQueryDTO } from "@repo/dtos";
+import { injectTraceContext } from "@repo/common";
 import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 
@@ -26,7 +27,10 @@ export class PostController {
     @Body() createPostDTO: CreatePostDTO,
     @CurrentUserId() userId: string,
   ) {
-    return this.client.send("create_post", { userId, createPostDTO });
+    return this.client.send(
+      "create_post",
+      injectTraceContext({ userId, createPostDTO }),
+    );
   }
 
   @Get("user/:id")

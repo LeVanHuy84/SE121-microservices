@@ -81,14 +81,23 @@ class OutboxBatchProcessor:
 
         async def send_one(outbox):
             async with semaphore:
+                payload = outbox.get("payload", {})
+                trace_carrier = payload.get("_traceContext", {})
+                headers = []
+                if "traceparent" in trace_carrier:
+                    headers.append(("traceparent", str(trace_carrier["traceparent"]).encode("utf-8")))
+                if "tracestate" in trace_carrier and trace_carrier["tracestate"]:
+                    headers.append(("tracestate", str(trace_carrier["tracestate"]).encode("utf-8")))
+
                 kafka_message = {
                     "type": outbox.get("eventType"),
-                    "payload": outbox.get("payload", {})
+                    "payload": payload
                 }
 
                 await self.kafka.send(
                     topic=outbox.get("topic"),
-                    message=kafka_message
+                    message=kafka_message,
+                    headers=headers if headers else None
                 )
                 return outbox["_id"]
 

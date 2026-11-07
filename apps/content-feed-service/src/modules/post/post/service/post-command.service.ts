@@ -29,6 +29,7 @@ import {
 import { PostCacheService } from "./post-cache.service";
 import { PostShortenMapper } from "../post-shorten.mapper";
 import { OutboxService } from "src/modules/event/outbox.service";
+import { injectTraceContext } from "@repo/common";
 
 @Injectable()
 export class PostCommandService {
@@ -85,7 +86,7 @@ export class PostCommandService {
           topic: EventTopic.POST,
           destination: EventDestination.KAFKA,
           eventType: PostEventType.CREATED,
-          payload: {
+          payload: injectTraceContext({
             postId: entity.id,
             userId: entity.userId,
             groupId: entity.groupId ?? undefined,
@@ -94,7 +95,7 @@ export class PostCommandService {
             mediaPreviews: post.media?.slice(0, 4),
             mediaRemaining: Math.max(0, (post.media?.length ?? 0) - 4),
             createdAt: entity.createdAt,
-          },
+          }),
         });
         await manager.save(outbox);
       }
