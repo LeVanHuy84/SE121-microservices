@@ -15,9 +15,12 @@ export const DRIZZLE = Symbol("drizzle-connection");
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const databaseUrl = configService.get<string>("DATABASE_URL");
+        const hasSsl =
+          databaseUrl?.includes("sslmode=require") ||
+          configService.get<string>("DATABASE_SSL") === "true";
         const pool = new Pool({
           connectionString: databaseUrl,
-          ssl: true,
+          ssl: hasSsl ? { rejectUnauthorized: false } : false,
         });
         pool.setMaxListeners(0);
         const db = drizzle(pool, { schema }) as NodePgDatabase<typeof schema>;

@@ -4,6 +4,8 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
+    "test:integration": "jest --config tests/jest.config.js",
+    "test:smoke:live": "ts-node tests/live/smoke-live-tracing.ts",
     "dev": "turbo run dev",
     "start:dev": "turbo run start:dev --parallel --concurrency=7",
     "dev:test": "turbo run start:prod --parallel --concurrency=7",

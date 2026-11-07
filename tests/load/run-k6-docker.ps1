@@ -48,10 +48,10 @@ $monitorJob = Start-Job -ScriptBlock $monitorScript -ArgumentList $STATS_FILE
 
 try {
   if ($Compose) {
-    Write-Host "`n[*] Executing K6 via Docker Compose override..." -ForegroundColor Yellow
+    Write-Host "`n[*] Executing K6 via unified test compose (docker-compose.test.yml)..." -ForegroundColor Yellow
     $env:SMOKE_TEST = $SMOKE_ENV
     $env:TARGET_URL = "http://api-gateway:4000"
-    docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up --abort-on-container-exit --exit-code-from k6 k6
+    docker compose -f docker-compose.test.yml --profile loadtest up --abort-on-container-exit --exit-code-from k6 k6
   } else {
     Write-Host "`n[*] Executing Grafana K6 Docker container..." -ForegroundColor Yellow
     docker run --rm -i `
