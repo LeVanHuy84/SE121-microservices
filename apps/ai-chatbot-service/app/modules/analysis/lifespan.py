@@ -78,14 +78,13 @@ async def handle_batch_analysis_events(messages: list):
     await consumer_helper.handle_batch(messages, dispatcher.dispatch, topic="analysis-events")
 
 
-# QUAN TRỌNG: phải register consumer với batch_handler và group_id chuyên biệt cho topic
+# Single Message Consumer)
 register_consumer(
     KafkaConsumerService(
         brokers=settings.KAFKA_BROKERS,
         topic="analysis-events",
         group_id=f"{settings.KAFKA_CLIENT_ID}-analysis-events",
         handler=handle_analysis_event,
-        batch_handler=handle_batch_analysis_events,
     )
 )
 

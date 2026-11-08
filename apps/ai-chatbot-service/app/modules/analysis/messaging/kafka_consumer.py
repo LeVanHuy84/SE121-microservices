@@ -164,12 +164,13 @@ class KafkaConsumerService:
                             await self.handler(msg.value)
                     else:
                         await self.handler(msg.value)
+
+                try:
+                    await self.consumer.commit()
+                except Exception as commit_err:
+                    logger.warning("[KafkaConsumer] Offset commit warning (single): %s", commit_err)
             except Exception as e:
                 logger.error("[KafkaConsumer] Single handler error: %s", e)
-            try:
-                await self.consumer.commit()
-            except Exception as commit_err:
-                logger.warning("[KafkaConsumer] Offset commit warning (single): %s", commit_err)
             await asyncio.sleep(0)
 
     async def stop(self):
