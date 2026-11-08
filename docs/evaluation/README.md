@@ -6,14 +6,14 @@ Tài liệu này được biên soạn với mục tiêu giúp toàn bộ thành
 
 ---
 
-## 🏗️ 1. Bản Đồ 3 Phân Hệ Mô Hình AI Cốt Lõi
+## 🏗️ 1. Bản Đồ 4 Phân Hệ Mô Hình AI Cốt Lõi
 
-Hệ thống AI bao gồm 3 trụ cột mô hình phục vụ các nghiệp vụ đặc thù:
+Hệ thống AI bao gồm 4 trụ cột mô hình phục vụ các nghiệp vụ đặc thù:
 
 ```mermaid
 flowchart TD
     subgraph ClientAndGateway ["Tương tác Người dùng & API Gateway"]
-        U["Người dùng đăng bài / Bình luận / Nghe nhạc"] --> GW["API Gateway (Port 4000)"]
+        U["Người dùng đăng bài / Bình luận / Nghe nhạc / Chat"] --> GW["API Gateway (Port 4000)"]
     end
 
     subgraph ModerationModule ["Phân hệ 1: Kiểm duyệt Ngữ cảnh (Text Moderation)"]
@@ -38,9 +38,16 @@ flowchart TD
         DB_MUSIC -.->|"Gợi ý bài hát cân bằng tâm trạng"| U
     end
 
+    subgraph ChatbotModule ["Phân hệ 4: Trợ lý AI & RAG Tâm lý (Sentimeta Assistant)"]
+        GW -->|"Hội thoại & Tâm sự"| CB["FastAPI AI Chatbot Service (Port 4006)"]
+        CB -->|"RAG & PFA Companion"| LLM["Llama-3.3-70b-versatile"]
+        CB -->|"Thẩm định định lượng"| JUDGE["LLM-as-a-Judge Evaluation Pipeline"]
+    end
+
     style MOD fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000000
     style EMO fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000
     style MERT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000000
+    style CB fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000000
 ```
 
 ---
@@ -54,6 +61,7 @@ Bảng dưới đây tổng hợp tiến trình nâng cấp và kết quả th�
 | **Phân hệ 1: Text Emotion** | `vinai/phobert-base-v2` (135M RoBERTa) | UIT-VSMEC (6,927) + GoEmotions Pure Augmented (4,292) = **11,192 mẫu** | Mất cân bằng nhãn nặng (Anger 6.9%, Fear 5.7%). F1 Anger tụt xuống <0.50 do lẫn `annoyance`. | Lọc 100% Pure Anger, dịch bằng Google Chrome Gemini Backend, Stratified 70/15/15. | **Accuracy: 64.03%**<br>**Macro F1: 63.72%**<br>(Sadness F1: 64.85%, Surprise: 71.14%) | [Xem `01_emotion_recognition.md`](/docs/evaluation/01_emotion_recognition.md) |
 | **Phân hệ 2: Text Moderation** | `vinai/phobert-base-v2` (135M RoBERTa) | ViHSD (cắt giảm CLEAN) + Self-Harm (`ourafla/Mental-Health_Text-Classification_Dataset`) = **16,275 mẫu** | ViHSD gốc không có nhãn tự hại/khủng hoảng; nhãn CLEAN chiếm >80% gây thiên kiến. | Bổ sung 2,500 mẫu Self-Harm dịch bằng Playwright Stealth; Undersampling CLEAN; Loss cân bằng. | **Accuracy: 81.36%**<br>**Macro F1: 78.16%**<br>**(Crisis F1: 98.00%, Recall: 97.87%)** | [Xem `02_text_moderation.md`](/docs/evaluation/02_text_moderation.md) |
 | **Phân hệ 3: Music Emotion** | `m-a-p/MERT-v1-95M` + Temporal Attention Pooling | Dataset Fusion: DEAM (1,802) + PMEmo (767) = **2,569 tracks** | Baseline `librosa` + Random Forest sai số lớn ($R^2 < 0.50$), `np.mean` triệt tiêu cao trào/thời gian. | Music Foundation Transformer MERT-95M + Attention Pooling + Combined CCC-MSE Loss + ONNX INT8. | **Valence CCC: 0.7358**<br>**Arousal CCC: 0.8204**<br>(Inference CPU: ~2.3s, Model 91MB) | [Xem `03_music_emotion_recognition.md`](/docs/evaluation/03_music_emotion_recognition.md) |
+| **Phân hệ 4: AI Chatbot (RAG & PFA)** | `llama-3.3-70b-versatile` + Groq API | Golden Benchmark Dataset: 100 kịch bản phân tầng (35 PFA, 20 Crisis, 30 App RAG, 15 Adversarial) | Kiểm thử truyền thống chỉ bắt format HTTP và Regex, không đo được ảo giác, độ thấu cảm tâm lý và ranh giới an toàn y khoa. | Phương pháp **LLM-as-a-Judge** với CoT Rubrics 4 trục (Faithfulness, Relevance, Empathy, Safety) + Semantic Ground Truth Checklist. | **Đang thiết lập Benchmark**<br>(Mục tiêu: Pass Rate $\ge 95\%$, $\kappa \ge 0.70$) | [Xem `04_chatbot_llm_as_a_judge.md`](/docs/evaluation/04_chatbot_llm_as_a_judge.md) |
 
 ---
 
@@ -64,9 +72,10 @@ Mỗi tài liệu trong thư mục này được xây dựng độc lập và ch
 2. **Kỹ thuật Xử lý Dữ liệu (Data Engineering)**: Vì sao phải thêm data, thêm như thế nào, cơ sở khoa học chứng minh cách thêm đúng.
 3. **Quy trình Huấn luyện & Bảng Siêu tham số**: Cơ sở chọn lựa kiến trúc, bảng siêu tham số kèm lý do chi tiết từng thông số.
 4. **Kết quả Thực nghiệm Đạt được**: Bảng số liệu chi tiết trên tập Test độc lập, so sánh Before vs After.
-5. **Giải thích Chuyên sâu các Tiêu chí Đánh giá**: Bản chất toán học, ý nghĩa thực tế của từng metric (Macro F1, Precision, Recall, MAE, $R^2$, CCC) và lý do bắt buộc phải dùng chúng thay vì các độ đo thông thường.
+5. **Giải thích Chuyên sâu các Tiêu chí Đánh giá**: Bản chất toán học, ý nghĩa thực tế của từng metric (Macro F1, Precision, Recall, MAE, $R^2$, CCC, LLM-as-a-Judge Likert Rubrics) và lý do bắt buộc phải dùng chúng thay vì các độ đo thông thường.
 
 Vui lòng tham khảo từng tài liệu tương ứng:
 - [Tài liệu 01: Phân loại Cảm xúc Tiếng Việt (`01_emotion_recognition.md`)](/docs/evaluation/01_emotion_recognition.md)
 - [Tài liệu 02: Kiểm duyệt Nội dung Ngữ cảnh & Phát hiện Khủng hoảng (`02_text_moderation.md`)](/docs/evaluation/02_text_moderation.md)
 - [Tài liệu 03: Nhận diện Cảm xúc Âm nhạc 2D Valence - Arousal (`03_music_emotion_recognition.md`)](/docs/evaluation/03_music_emotion_recognition.md)
+- [Tài liệu 04: Thẩm định Trợ lý AI bằng LLM-as-a-Judge (`04_chatbot_llm_as_a_judge.md`)](/docs/evaluation/04_chatbot_llm_as_a_judge.md)

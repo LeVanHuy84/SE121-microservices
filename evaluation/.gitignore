@@ -38,6 +38,11 @@ image-experiment/data/**
 !image-experiment/data/vlm_dataset_review_quach_vinh_co.json
 !image-experiment/data/cohen_kappa_report.md
 
+# Chatbot evaluation
+!chatbot/data/
+chatbot/data/**
+!chatbot/data/golden_benchmark_cases.json
+
 # Log files
 *.log
 logs/
