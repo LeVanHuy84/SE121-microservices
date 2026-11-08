@@ -1,5 +1,6 @@
 import {
   HttpException,
+  Inject,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -8,7 +9,8 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
-import { firstValueFrom, Observable } from "rxjs";
+import { ClientProxy } from "@nestjs/microservices";
+import { firstValueFrom, Observable, timeout } from "rxjs";
 import { AxiosError } from "axios";
 
 import {
@@ -19,6 +21,7 @@ import {
   ChatbotClearHistoryResponseDto,
   ChatbotHistoryResponseDto,
 } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { AssistantContextService } from "./assistant-context.service";
 
 type RespondCacheEntry = {
@@ -43,21 +46,43 @@ export class ChatbotService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly contextService: AssistantContextService,
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
+    private readonly userClient: ClientProxy,
   ) {}
+
+  async resolveUserAiPolicy(userId: string, fallbackPolicy?: string): Promise<string> {
+    try {
+      const user = await firstValueFrom(
+        this.userClient
+          .send<any>("findOneUser", { userId, targetId: userId })
+          .pipe(timeout(1000)),
+      );
+      const policy = user?.privacySettings?.aiPolicy;
+      if (policy) return policy;
+    } catch (err) {
+      this.logger.debug(
+        `Could not resolve user policy from user-service for ${userId}: ${err}`,
+      );
+    }
+    return fallbackPolicy || "FULL";
+  }
 
   async respond(userId: string, dto: AssistantMessageDto, authHeader?: string) {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
 
     try {
-      const contexts = await this.resolveContextsWithinBudget(
-        userId,
-        dto.message,
-        this.configService.get<number>(
-          "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-          1200,
+      const [contexts, effectivePolicy] = await Promise.all([
+        this.resolveContextsWithinBudget(
+          userId,
+          dto.message,
+          this.configService.get<number>(
+            "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+            1200,
+          ),
         ),
-      );
+        this.resolveUserAiPolicy(userId, dto.aiPolicy),
+      ]);
 
       const headers: Record<string, string> = {
         "x-internal-key": internalKey,
@@ -75,6 +100,8 @@ export class ChatbotService {
             clientMessageId: dto.clientMessageId,
             contexts,
             surface: dto.surface,
+            conversationId: dto.conversationId,
+            aiPolicy: effectivePolicy,
           },
           {
             headers,
@@ -101,14 +128,17 @@ export class ChatbotService {
 
       const run = async () => {
         try {
-          const contexts = await this.resolveContextsWithinBudget(
-            userId,
-            dto.message,
-            this.configService.get<number>(
-              "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-              1200,
+          const [contexts, effectivePolicy] = await Promise.all([
+            this.resolveContextsWithinBudget(
+              userId,
+              dto.message,
+              this.configService.get<number>(
+                "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+                1200,
+              ),
             ),
-          );
+            this.resolveUserAiPolicy(userId, dto.aiPolicy),
+          ]);
 
           if (isCancelled) return;
 
@@ -129,6 +159,8 @@ export class ChatbotService {
                 clientMessageId: dto.clientMessageId,
                 contexts,
                 surface: dto.surface,
+                conversationId: dto.conversationId,
+                aiPolicy: effectivePolicy,
               },
               {
                 headers,
@@ -203,6 +235,7 @@ export class ChatbotService {
     pageSize?: number,
     beforeCreatedAt?: string,
     beforeId?: string,
+    conversationId?: string,
   ) {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
@@ -211,6 +244,7 @@ export class ChatbotService {
     if (pageSize) params.page_size = pageSize;
     if (beforeCreatedAt) params.before_created_at = beforeCreatedAt;
     if (beforeId) params.before_id = beforeId;
+    if (conversationId) params.conversation_id = conversationId;
 
     try {
       const res = await firstValueFrom(
@@ -233,6 +267,95 @@ export class ChatbotService {
         userId,
         startedAt,
         "assistant.history.get",
+      );
+    }
+  }
+
+  async getConversations(userId: string, limit?: number) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    const params: Record<string, string | number> = {};
+    if (limit) params.limit = limit;
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.get(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}`,
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            params,
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.get",
+      );
+    }
+  }
+
+  async createConversation(userId: string, title?: string) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}`,
+          { title },
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.create",
+      );
+    }
+  }
+
+  async deleteConversation(userId: string, conversationId: string) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.delete(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}/${encodeURIComponent(conversationId)}`,
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.delete",
       );
     }
   }
@@ -512,6 +635,7 @@ export class ChatbotService {
       actionName: string;
       params?: Record<string, unknown>;
       idempotencyKey: string;
+      aiPolicy?: string;
     },
   ) {
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
@@ -524,12 +648,14 @@ export class ChatbotService {
     }
 
     try {
+      const effectivePolicy = await this.resolveUserAiPolicy(userId, body.aiPolicy);
       const res = await firstValueFrom(
         this.httpService.post(
           `${baseUrl}/assistant/actions/execute`,
           {
             ...body,
             userId,
+            aiPolicy: effectivePolicy,
           },
           {
             headers,

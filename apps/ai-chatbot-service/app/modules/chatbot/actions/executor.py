@@ -54,6 +54,15 @@ class ActionExecutorService:
         effective_token = auth_token or request.authToken
         effective_user_id = user_id or request.userId
 
+        # 0. Privacy Policy Gate verification (Defense-in-depth)
+        if request.aiPolicy and str(request.aiPolicy).upper() == "RESTRICTED":
+            return ActionExecutionResponse(
+                success=False,
+                actionName=request.actionName,
+                message="Tài khoản của bạn đang bật chế độ bảo mật nghiêm ngặt. Trợ lý AI không được phép thực hiện thao tác tài khoản.",
+                error="AI_POLICY_RESTRICTED",
+            )
+
         # 1. Allowlist verification
         if not is_action_allowed(request.actionName):
             return ActionExecutionResponse(

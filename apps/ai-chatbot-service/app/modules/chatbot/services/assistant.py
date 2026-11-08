@@ -216,7 +216,7 @@ class RespondCommand:
 
         prompt_limits = resolve_prompt_limits(working_request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
-        has_tools = bool(self.tool_router.get_openai_tools(working_request.surface))
+        has_tools = bool(self.tool_router.get_openai_tools(working_request.surface, ai_policy=getattr(working_request, "aiPolicy", "FULL")))
 
         if (
             not final_contexts
@@ -345,8 +345,8 @@ class RespondCommand:
         )
         prompt = self._prepend_turn_policy(prompt)
 
-        # Check if active tools are available for surface
-        active_tools = self.tool_router.get_openai_tools(resolved_request.surface)
+        # Check if active tools are available for surface (guarded by aiPolicy)
+        active_tools = self.tool_router.get_openai_tools(resolved_request.surface, ai_policy=getattr(resolved_request, "aiPolicy", "FULL"))
         supports_tools = self._supports_tools(active_tools)
 
         llm_timeout_ms = settings.CHATBOT_LLM_TIMEOUT_MS
@@ -395,8 +395,10 @@ class RespondCommand:
             except Exception:
                 logger.exception("Assistant tool synthesis generation failed")
 
-        # Synthesize write action proposals (Zero Silent Mutation)
-        cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(generation.content)
+        # Synthesize write action proposals (Zero Silent Mutation, guarded by aiPolicy)
+        cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(
+            generation.content, ai_policy=getattr(resolved_request, "aiPolicy", "FULL")
+        )
         if not reply_proposals:
             reply_proposals = self._detect_action_proposals(request, tool_calls_tuple, tool_results_list)
 
@@ -425,12 +427,14 @@ class RespondCommand:
             sources=sources,
             intent=resolved_intent,
         )
+        is_blocked = self._is_policy_blocked(request, reply_content, generation.content)
         persisted = await self.persist_history.execute(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
             intent=resolved_intent,
             actions=pending_actions,
+            policy_blocked=is_blocked,
         )
 
         return AssistantRespondData(
@@ -446,6 +450,7 @@ class RespondCommand:
             latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
             persisted=persisted,
             conversationId=request.conversationId or "default",
+            policyBlocked=is_blocked,
         )
 
     def _supports_tools(self, active_tools: list[dict[str, Any]]) -> bool:
@@ -633,9 +638,13 @@ class RespondCommand:
     def _extract_proposals_from_llm_reply(
         self,
         reply: str,
+        ai_policy: str = "FULL",
     ) -> tuple[str, list[ProposeAction]]:
         """Extract structured ```action { ... } ``` proposals from the LLM reply and sanitize."""
         pattern = re.compile(r"```(?:action|json:action)\s*(\{.*?\})\s*```", re.DOTALL)
+        if ai_policy and str(ai_policy).upper() == "RESTRICTED":
+            cleaned_reply = pattern.sub("", reply).strip()
+            return cleaned_reply, []
         proposals: list[ProposeAction] = []
 
         for m in pattern.finditer(reply):
@@ -682,6 +691,9 @@ class RespondCommand:
         tool_results: list[Any],
     ) -> list[ProposeAction]:
         """Synthesize write action proposals based on user intent, surface context, and tool results."""
+        if getattr(request, "aiPolicy", "FULL") and str(request.aiPolicy).upper() == "RESTRICTED":
+            return []
+
         proposals: list[ProposeAction] = []
         msg = (request.message or "").lower()
 
@@ -1441,9 +1453,15 @@ class RespondCommand:
         pending_actions = guard.pending_actions
         
         if guard_data:
-            yield self._finalize_stream_data(guard_data, request_id, started_at, request)
+            final_data = self._finalize_stream_data(guard_data, request_id, started_at, request)
+            yield final_data
             await self._after_generation(
-                request, guard_data.reply, [], guard_intent, actions=guard_data.suggestedActions
+                request,
+                guard_data.reply,
+                [],
+                guard_intent,
+                actions=guard_data.suggestedActions,
+                policy_blocked=bool(final_data.policyBlocked),
             )
             return
 
@@ -1482,8 +1500,8 @@ class RespondCommand:
             for item in final_contexts
         ]
 
-        # Check if active tools are available for surface
-        active_tools = self.tool_router.get_openai_tools(resolved_request.surface)
+        # Check if active tools are available for surface (guarded by aiPolicy)
+        active_tools = self.tool_router.get_openai_tools(resolved_request.surface, ai_policy=getattr(resolved_request, "aiPolicy", "FULL"))
         supports_tools = self._supports_tools(active_tools)
 
         full_reply_parts = []
@@ -1521,7 +1539,9 @@ class RespondCommand:
                                 conversationId=request.conversationId or "default",
                             )
                 else:
-                    direct_content, direct_proposals = self._extract_proposals_from_llm_reply(initial_gen.content)
+                    direct_content, direct_proposals = self._extract_proposals_from_llm_reply(
+                        initial_gen.content, ai_policy=getattr(resolved_request, "aiPolicy", "FULL")
+                    )
                     if not direct_proposals:
                         direct_proposals = self._detect_action_proposals(request, (), [])
                     direct_content = self._sanitize_assistant_reply(direct_content)
@@ -1611,13 +1631,27 @@ class RespondCommand:
             return
 
         full_reply = "".join(full_reply_parts)
+        is_blocked = self._is_policy_blocked(request, full_reply)
         resolved_intent = request.intent or self._infer_intent(
             final_contexts,
             fallback_domains=scope_decision.matched_domains,
         )
         await self._after_generation(
-            request, full_reply, sources, resolved_intent, actions=pending_actions
+            request, full_reply, sources, resolved_intent, actions=pending_actions, policy_blocked=is_blocked
         )
+        if is_blocked:
+            yield AssistantRespondData(
+                type="answer",
+                reply="",
+                sources=[],
+                suggestedActions=[],
+                model=settings.GROQ_MODEL,
+                provider="chatbot-service",
+                requestId=request_id,
+                latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                conversationId=request.conversationId or "default",
+                policyBlocked=True,
+            )
 
     def _finalize_stream_data(
         self, 
@@ -1626,13 +1660,28 @@ class RespondCommand:
         started_at: float, 
         request: AssistantRespondRequest
     ) -> AssistantRespondData:
+        is_blocked = self._is_policy_blocked(request, data.reply or "")
         return data.model_copy(
             update={
                 "requestId": request_id,
                 "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
                 "conversationId": request.conversationId or "default",
+                "policyBlocked": is_blocked or (data.policyBlocked is True),
             }
         )
+
+    def _is_policy_blocked(self, request: AssistantRespondRequest, reply_content: str, raw_llm_reply: str = "") -> bool:
+        if not (request.aiPolicy and str(request.aiPolicy).upper() == "RESTRICTED"):
+            return False
+        if "```action" in raw_llm_reply or "```json:action" in raw_llm_reply:
+            return True
+        msg_lower = (request.message or "").lower()
+        if any(kw in msg_lower for kw in ("kết bạn", "thêm bạn", "vào nhóm", "tham gia nhóm", "rời nhóm", "đăng bài", "tạo bài viết", "thông báo của tôi", "bạn bè của tôi", "nhóm của tôi", "hồ sơ của tôi")):
+            return True
+        lower_reply = reply_content.lower()
+        if any(kw in lower_reply for kw in ("riêng tư tối đa", "không thể truy cập thông tin cá nhân", "không thể thực hiện thao tác", "chế độ bảo mật")):
+            return True
+        return False
 
     async def _after_generation(
         self, 
@@ -1641,6 +1690,7 @@ class RespondCommand:
         sources: list[AssistantSource], 
         intent: str | None,
         actions: list[Any] | None = None,
+        policy_blocked: bool = False,
     ):
         reply_content = self._sanitize_assistant_reply(reply)
         await self._persist_session_memory(
@@ -1655,6 +1705,7 @@ class RespondCommand:
             sources=sources,
             intent=intent,
             actions=actions,
+            policy_blocked=policy_blocked,
         )
 
 

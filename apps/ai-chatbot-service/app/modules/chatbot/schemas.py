@@ -65,6 +65,7 @@ class AssistantRespondRequest(BaseModel):
     intent: Optional[str] = None
     surface: Optional[SurfaceContext] = None
     authToken: Optional[str] = None
+    aiPolicy: Optional[str] = "FULL"
 
 
 class AssistantSource(BaseModel):
@@ -144,6 +145,7 @@ class AssistantRespondData(BaseModel):
     persisted: Optional[bool] = None
     conversationId: Optional[str] = None
     crisis: Optional[CrisisInfo] = None
+    policyBlocked: Optional[bool] = None
 
     @model_validator(mode="after")
     def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
@@ -159,6 +161,7 @@ class ActionExecutionRequest(BaseModel):
     idempotencyKey: str
     authToken: Optional[str] = None
     userId: Optional[str] = None
+    aiPolicy: Optional[str] = "FULL"
 
 
 class ActionExecutionResponse(BaseModel):
@@ -167,6 +170,41 @@ class ActionExecutionResponse(BaseModel):
     message: str
     data: Optional[dict[str, Any]] = None
     error: Optional[str] = None
+
+
+class AssistantConversation(BaseModel):
+    id: str
+    user_id: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: Optional[datetime] = None
+    message_count: Optional[int] = None
+
+
+class AssistantConversationListData(BaseModel):
+    items: list[AssistantConversation]
+    total: int
+    max_limit: int = 20
+
+
+class AssistantConversationListResponse(BaseModel):
+    success: bool = True
+    data: AssistantConversationListData
+
+
+class AssistantConversationResponse(BaseModel):
+    success: bool = True
+    data: AssistantConversation
+
+
+class AssistantCreateConversationRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class AssistantDeleteConversationResponse(BaseModel):
+    success: bool = True
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssistantRespondResponse(BaseModel):

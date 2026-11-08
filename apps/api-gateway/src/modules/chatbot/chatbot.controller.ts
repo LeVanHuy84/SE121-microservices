@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Headers,
+  Param,
   Post,
   Query,
   Sse,
@@ -70,6 +71,8 @@ export class ChatbotController {
     @Query("message") message: string,
     @Query("clientMessageId") clientMessageId: string | undefined,
     @Query("surface") surfaceJson: string | undefined,
+    @Query("conversationId") conversationId: string | undefined,
+    @Query("aiPolicy") aiPolicy: string | undefined,
     @Res() res: any,
     @Headers("authorization") authHeader?: string,
   ) {
@@ -90,6 +93,8 @@ export class ChatbotController {
       message,
       clientMessageId,
       surface,
+      conversationId,
+      aiPolicy,
     };
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -126,6 +131,7 @@ export class ChatbotController {
     @Query("page_size") pageSize?: string,
     @Query("before_created_at") beforeCreatedAt?: string,
     @Query("before_id") beforeId?: string,
+    @Query("conversation_id") conversationId?: string,
   ) {
     const resolvedPageSize = this.parsePageSize(pageSize);
     return this.chatbotService.getHistory(
@@ -133,7 +139,33 @@ export class ChatbotController {
       resolvedPageSize,
       beforeCreatedAt,
       beforeId,
+      conversationId,
     );
+  }
+
+  @Get("conversations/me")
+  getConversations(
+    @CurrentUserId() userId: string,
+    @Query("limit") limit?: string,
+  ) {
+    const resolvedLimit = limit ? Number(limit) : undefined;
+    return this.chatbotService.getConversations(userId, resolvedLimit);
+  }
+
+  @Post("conversations/me")
+  createConversation(
+    @CurrentUserId() userId: string,
+    @Body() body: { title?: string },
+  ) {
+    return this.chatbotService.createConversation(userId, body?.title);
+  }
+
+  @Delete("conversations/me/:conversationId")
+  deleteConversation(
+    @CurrentUserId() userId: string,
+    @Param("conversationId") conversationId: string,
+  ) {
+    return this.chatbotService.deleteConversation(userId, conversationId);
   }
 
   @Delete("chat-history/me")
@@ -159,6 +191,7 @@ export class ChatbotController {
       actionName: string;
       params?: Record<string, unknown>;
       idempotencyKey: string;
+      aiPolicy?: string;
     },
   ) {
     return this.chatbotService.executeAction(userId, authHeader, body);

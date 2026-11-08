@@ -70,6 +70,24 @@ import { ChatbotService } from "./chatbot.service";
           },
         }),
       },
+      {
+        name: MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE,
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host:
+              config.get<string>("USER_SOCIAL_SERVICE_HOST") ||
+              config.get<string>("USER_SERVICE_HOST") ||
+              "127.0.0.1",
+            port:
+              config.get<number>("USER_SOCIAL_SERVICE_PORT") ||
+              config.get<number>("USER_SERVICE_PORT") ||
+              3002,
+          },
+        }),
+      },
     ]),
   ],
   controllers: [ChatbotController],

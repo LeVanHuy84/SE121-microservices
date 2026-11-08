@@ -44,7 +44,10 @@ class ToolRouter:
     def __init__(self, max_tools: int = MAX_ACTIVE_TOOLS):
         self.max_tools = max_tools
 
-    def route(self, surface: SurfaceContext | None) -> list[ToolDefinition]:
+    def route(self, surface: SurfaceContext | None, ai_policy: str = "FULL") -> list[ToolDefinition]:
+        if ai_policy and str(ai_policy).upper() == "RESTRICTED":
+            return []
+
         if surface is None or not surface.screen:
             return DEFAULT_ESSENTIAL_TOOLS[: self.max_tools]
 
@@ -88,8 +91,8 @@ class ToolRouter:
         domain_tools = DOMAIN_TOOLS.get(domain_name, [])
         return list(domain_tools) + list(GLOBAL_TOOLS)
 
-    def get_openai_tools(self, surface: SurfaceContext | None) -> list[dict[str, Any]]:
-        tools = self.route(surface)
+    def get_openai_tools(self, surface: SurfaceContext | None, ai_policy: str = "FULL") -> list[dict[str, Any]]:
+        tools = self.route(surface, ai_policy=ai_policy)
         return [tool.to_openai_tool() for tool in tools]
 
 

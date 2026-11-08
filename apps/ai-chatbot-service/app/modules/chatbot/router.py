@@ -8,11 +8,22 @@ from pydantic import BaseModel, Field
 
 from app.modules.chatbot.services.assistant import RespondCommand
 from app.core.security import verify_internal_key
-from app.modules.chatbot.repositories.chat_history import ClearHistoryCommand
-from app.modules.chatbot.repositories.chat_history import GetHistoryQuery
+from app.modules.chatbot.repositories.chat_history import (
+    ClearHistoryCommand,
+    CreateConversationCommand,
+    DeleteConversationCommand,
+    GetHistoryQuery,
+    ListConversationsQuery,
+)
 from app.modules.chatbot.schemas import (
     ActionExecutionRequest,
     ActionExecutionResponse,
+    AssistantConversation,
+    AssistantConversationListData,
+    AssistantConversationListResponse,
+    AssistantConversationResponse,
+    AssistantCreateConversationRequest,
+    AssistantDeleteConversationResponse,
     AssistantHistoryClearData,
     AssistantHistoryClearResponse,
     AssistantHistoryPageResponse,
@@ -25,6 +36,9 @@ logger = logging.getLogger("uvicorn.error")
 respond_command = RespondCommand()
 get_history_query = GetHistoryQuery()
 clear_history_command = ClearHistoryCommand()
+list_conversations_query = ListConversationsQuery()
+create_conversation_command = CreateConversationCommand()
+delete_conversation_command = DeleteConversationCommand()
 
 
 def _stable_client_error(
@@ -113,6 +127,7 @@ async def get_history_by_user(
     page_size: int | None = Query(default=None, ge=1),
     before_created_at: datetime | None = None,
     before_id: str | None = None,
+    conversation_id: str | None = None,
 ):
     try:
         data = await get_history_query.execute(
@@ -120,6 +135,7 @@ async def get_history_by_user(
             page_size=page_size,
             before_created_at=before_created_at,
             before_id=before_id,
+            conversation_id=conversation_id,
         )
         return AssistantHistoryPageResponse(success=True, data=data)
     except ValueError as exc:
@@ -181,6 +197,98 @@ async def clear_history_by_user(user_id: str):
                 "ASSISTANT_HISTORY_CLEAR_FAILED",
                 "Assistant history could not be cleared.",
             ),
+        ) from exc
+
+
+@assistant_router.get(
+    "/conversations/{user_id}",
+    dependencies=[Depends(verify_internal_key)],
+    response_model=AssistantConversationListResponse,
+)
+async def list_conversations_by_user(
+    user_id: str,
+    limit: int = Query(default=20, ge=1, le=20),
+):
+    try:
+        raw_items = await list_conversations_query.execute(user_id, limit=limit)
+        items = [
+            AssistantConversation(
+                id=c["id"],
+                user_id=c["user_id"],
+                title=c.get("title") or "Đoạn chat mới",
+                created_at=c["created_at"],
+                updated_at=c.get("updated_at") or c["created_at"],
+                last_message_at=c.get("last_message_at"),
+            )
+            for c in raw_items
+        ]
+        return AssistantConversationListResponse(
+            success=True,
+            data=AssistantConversationListData(
+                items=items,
+                total=len(items),
+                max_limit=20,
+            ),
+        )
+    except Exception as exc:
+        logger.exception("Assistant list conversations failed: userId=%s", user_id)
+        raise HTTPException(
+            status_code=502,
+            detail=_stable_client_error(502, "ASSISTANT_CONVERSATIONS_FAILED", str(exc)),
+        ) from exc
+
+
+@assistant_router.post(
+    "/conversations/{user_id}",
+    dependencies=[Depends(verify_internal_key)],
+    response_model=AssistantConversationResponse,
+)
+async def create_conversation_by_user(
+    user_id: str,
+    body: AssistantCreateConversationRequest | None = None,
+):
+    try:
+        title = body.title if body else None
+        c = await create_conversation_command.execute(user_id, title=title)
+        return AssistantConversationResponse(
+            success=True,
+            data=AssistantConversation(
+                id=c["id"],
+                user_id=c["user_id"],
+                title=c.get("title") or "Đoạn chat mới",
+                created_at=c["created_at"],
+                updated_at=c.get("updated_at") or c["created_at"],
+                last_message_at=c.get("last_message_at"),
+            ),
+        )
+    except Exception as exc:
+        logger.exception("Assistant create conversation failed: userId=%s", user_id)
+        raise HTTPException(
+            status_code=502,
+            detail=_stable_client_error(502, "ASSISTANT_CREATE_CONVERSATION_FAILED", str(exc)),
+        ) from exc
+
+
+@assistant_router.delete(
+    "/conversations/{user_id}/{conversation_id}",
+    dependencies=[Depends(verify_internal_key)],
+    response_model=AssistantDeleteConversationResponse,
+)
+async def delete_conversation_by_user(
+    user_id: str,
+    conversation_id: str,
+):
+    try:
+        deleted = await delete_conversation_command.execute(user_id, conversation_id)
+        return AssistantDeleteConversationResponse(
+            success=True,
+            data={"deleted": deleted, "id": conversation_id},
+        )
+    except Exception as exc:
+        logger.exception("Assistant delete conversation failed: userId=%s convId=%s", user_id, conversation_id)
+        raise HTTPException(
+            status_code=502,
+            detail=_stable_client_error(502, "ASSISTANT_DELETE_CONVERSATION_FAILED", str(exc)),
         ) from exc
 
 

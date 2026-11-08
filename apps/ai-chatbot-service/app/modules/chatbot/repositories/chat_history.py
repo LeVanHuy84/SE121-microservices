@@ -19,9 +19,14 @@ from app.modules.chatbot.schemas import (
 from app.modules.chatbot.services.memory import SessionMemory, session_memory
 
 
+MAX_SESSIONS_PER_USER = 20
+SESSION_TTL_SECONDS = 90 * 24 * 3600  # 90 days
+
+
 class ChatHistoryRepository:
     def __init__(self, db: AsyncIOMotorDatabase | None = None):
         self._db = db
+        self._indexes_ensured = False
 
     @property
     def db(self) -> AsyncIOMotorDatabase:
@@ -29,20 +34,85 @@ class ChatHistoryRepository:
             self._db = get_database()
         return self._db
 
-    async def get_or_create_conversation_by_user(self, user_id: str) -> dict[str, Any]:
+    async def ensure_indexes(self):
+        if self._indexes_ensured:
+            return
+        try:
+            await self.db["chat_conversations"].create_index(
+                [("last_message_at", 1)],
+                expireAfterSeconds=SESSION_TTL_SECONDS,
+                name="chat_conv_ttl_idx"
+            )
+            await self.db["chat_conversations"].create_index(
+                [("user_id", 1), ("last_message_at", -1)],
+                name="chat_conv_user_idx"
+            )
+            await self.db["chat_messages"].create_index(
+                [("conversation_id", 1), ("created_at", -1), ("id", -1)],
+                name="chat_msg_conv_idx"
+            )
+            await self.db["chat_messages"].create_index(
+                [("created_at", 1)],
+                expireAfterSeconds=SESSION_TTL_SECONDS,
+                name="chat_msg_ttl_idx"
+            )
+            self._indexes_ensured = True
+        except Exception as exc:
+            logging.getLogger("uvicorn.error").warning("Chat index creation warning: %s", exc)
+
+    async def get_or_create_conversation_by_user(
+        self,
+        user_id: str,
+        conversation_id: str | None = None,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        await self.ensure_indexes()
         conv_col = self.db["chat_conversations"]
-        conversation = await conv_col.find_one({"user_id": user_id})
-        if conversation:
-            return conversation
+        now = datetime.now(timezone.utc)
+        from datetime import timedelta
+        cutoff = now - timedelta(seconds=SESSION_TTL_SECONDS)
+
+        # 1. If explicit conversation_id is requested, find it
+        if conversation_id and conversation_id != "default":
+            conversation = await conv_col.find_one({"id": conversation_id, "user_id": user_id})
+            if conversation:
+                return conversation
+
+        # 2. Otherwise find the most recent active (non-expired) conversation
+        latest = await conv_col.find_one(
+            {
+                "user_id": user_id,
+                "$or": [
+                    {"last_message_at": {"$gte": cutoff}},
+                    {"last_message_at": None, "created_at": {"$gte": cutoff}},
+                ],
+            },
+            sort=[("last_message_at", -1), ("created_at", -1)],
+        )
+        if latest and not conversation_id:
+            return latest
+
+        # 3. Enforce maximum 20 sessions per user limit (evict oldest if >= 20)
+        count = await conv_col.count_documents({"user_id": user_id})
+        if count >= MAX_SESSIONS_PER_USER:
+            evict_count = count - MAX_SESSIONS_PER_USER + 1
+            oldest_cursor = conv_col.find({"user_id": user_id}).sort(
+                [("last_message_at", 1), ("created_at", 1)]
+            ).limit(evict_count)
+            oldest_list = await oldest_cursor.to_list(length=evict_count)
+            if oldest_list:
+                oldest_ids = [c["id"] for c in oldest_list]
+                await conv_col.delete_many({"id": {"$in": oldest_ids}})
+                await self.db["chat_messages"].delete_many({"conversation_id": {"$in": oldest_ids}})
 
         doc = {
-            "id": str(uuid.uuid4()),
+            "id": conversation_id if (conversation_id and conversation_id != "default") else str(uuid.uuid4()),
             "user_id": user_id,
-            "title": None,
+            "title": title or "Đoạn chat mới",
             "is_archived": False,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
-            "last_message_at": None
+            "created_at": now,
+            "updated_at": now,
+            "last_message_at": now,
         }
         await conv_col.insert_one(doc)
         return doc
@@ -88,13 +158,17 @@ class ChatHistoryRepository:
         sources: list[dict[str, Any]] | None = None,
         client_message_id: str | None = None,
         actions: list[dict[str, Any]] | None = None,
+        conversation_id: str | None = None,
+        policy_blocked: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         if client_message_id:
             existing = await self.get_exchange_by_client_message_id(user_id, client_message_id)
             if existing:
                 return existing
 
-        conversation = await self.get_or_create_conversation_by_user(user_id)
+        conversation = await self.get_or_create_conversation_by_user(
+            user_id, conversation_id=conversation_id
+        )
         from datetime import timedelta
         user_now = datetime.now(timezone.utc)
         assistant_now = user_now + timedelta(milliseconds=10)
@@ -115,6 +189,8 @@ class ChatHistoryRepository:
         assistant_meta: dict[str, Any] = {"message_kind": "assistant"}
         if actions:
             assistant_meta["actions"] = actions
+        if policy_blocked:
+            assistant_meta["policyBlocked"] = True
 
         assistant_msg = {
             "id": str(uuid.uuid4()),
@@ -130,11 +206,68 @@ class ChatHistoryRepository:
         }
         
         await self.db["chat_messages"].insert_many([user_msg, assistant_msg])
+
+        # Auto-titling: If conversation has default title, set from first user message
+        update_fields: dict[str, Any] = {
+            "last_message_at": assistant_now,
+            "updated_at": assistant_now,
+        }
+        current_title = conversation.get("title")
+        if not current_title or current_title in ("Đoạn chat mới", "Cuộc trò chuyện mới"):
+            raw_text = user_message.strip().replace("\n", " ")
+            trimmed_title = (raw_text[:35] + "...") if len(raw_text) > 35 else raw_text
+            if trimmed_title:
+                update_fields["title"] = trimmed_title
+
         await self.db["chat_conversations"].update_one(
             {"id": conversation["id"]},
-            {"$set": {"last_message_at": assistant_now, "updated_at": assistant_now}}
+            {"$set": update_fields}
         )
         return user_msg, assistant_msg
+
+    async def list_conversations_by_user(
+        self,
+        user_id: str,
+        limit: int = MAX_SESSIONS_PER_USER,
+    ) -> list[dict[str, Any]]:
+        await self.ensure_indexes()
+        conv_col = self.db["chat_conversations"]
+        now = datetime.now(timezone.utc)
+        from datetime import timedelta
+        cutoff = now - timedelta(seconds=SESSION_TTL_SECONDS)
+
+        cursor = conv_col.find({
+            "user_id": user_id,
+            "$or": [
+                {"last_message_at": {"$gte": cutoff}},
+                {"last_message_at": None, "created_at": {"$gte": cutoff}},
+            ],
+        }).sort([("last_message_at", -1), ("created_at", -1)]).limit(limit)
+
+        return await cursor.to_list(length=limit)
+
+    async def create_conversation(
+        self,
+        user_id: str,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        return await self.get_or_create_conversation_by_user(
+            user_id=user_id,
+            conversation_id=str(uuid.uuid4()),
+            title=title or "Đoạn chat mới",
+        )
+
+    async def delete_conversation_by_id(
+        self,
+        user_id: str,
+        conversation_id: str,
+    ) -> bool:
+        conv_col = self.db["chat_conversations"]
+        res = await conv_col.delete_one({"id": conversation_id, "user_id": user_id})
+        if res.deleted_count > 0:
+            await self.db["chat_messages"].delete_many({"conversation_id": conversation_id})
+            return True
+        return False
 
     async def get_exchange_by_client_message_id(
         self,
@@ -166,8 +299,12 @@ class ChatHistoryRepository:
         page_size: int,
         before_created_at: datetime | None = None,
         before_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], bool]:
-        conversation = await self.db["chat_conversations"].find_one({"user_id": user_id})
+        if conversation_id and conversation_id != "default":
+            conversation = await self.db["chat_conversations"].find_one({"id": conversation_id, "user_id": user_id})
+        else:
+            conversation = await self.get_or_create_conversation_by_user(user_id)
         if not conversation:
             return [], False
 
@@ -191,15 +328,16 @@ class ChatHistoryRepository:
         return rows, has_more
 
     async def clear_history_by_user(self, user_id: str) -> int:
-        conversation = await self.db["chat_conversations"].find_one({"user_id": user_id})
-        if not conversation:
-            return 0
+        conv_cursor = self.db["chat_conversations"].find({"user_id": user_id})
+        convs = await conv_cursor.to_list(length=100)
+        conv_ids = [c["id"] for c in convs if "id" in c]
 
-        res = await self.db["chat_messages"].delete_many({"conversation_id": conversation["id"]})
-        await self.db["chat_conversations"].update_one(
-            {"id": conversation["id"]},
-            {"$set": {"last_message_at": None, "updated_at": datetime.now(timezone.utc)}}
-        )
+        delete_filter: dict[str, Any] = {"user_id": user_id}
+        if conv_ids:
+            delete_filter = {"$or": [{"user_id": user_id}, {"conversation_id": {"$in": conv_ids}}]}
+
+        res = await self.db["chat_messages"].delete_many(delete_filter)
+        await self.db["chat_conversations"].delete_many({"user_id": user_id})
         return res.deleted_count
 
 
@@ -251,6 +389,8 @@ class HistoryStore:
         sources: list[AssistantSource],
         client_message_id: str | None = None,
         actions: list[Any] | None = None,
+        conversation_id: str | None = None,
+        policy_blocked: bool = False,
     ) -> bool:
         if not self.is_enabled():
             return False
@@ -271,6 +411,8 @@ class HistoryStore:
             "sources": [item.model_dump() for item in sources],
             "client_message_id": client_message_id,
             "actions": serialized_actions,
+            "conversation_id": conversation_id,
+            "policy_blocked": policy_blocked,
         }
         try:
             await asyncio.wait_for(self._write_queue.put(payload), timeout=1.5)
@@ -287,6 +429,8 @@ class HistoryStore:
                         sources=payload["sources"],
                         client_message_id=client_message_id,
                         actions=serialized_actions,
+                        conversation_id=conversation_id,
+                        policy_blocked=policy_blocked,
                     ),
                     timeout=2.0,
                 )
@@ -302,6 +446,7 @@ class HistoryStore:
         page_size: int | None = None,
         before_created_at: datetime | None = None,
         before_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> AssistantHistoryPageData:
         self._ensure_enabled()
 
@@ -309,7 +454,7 @@ class HistoryStore:
             raise ValueError("before_created_at and before_id must be provided together")
 
         resolved_page_size = self._resolve_page_size(page_size)
-        if before_created_at is None and before_id is None:
+        if before_created_at is None and before_id is None and not conversation_id:
             cached = self._get_cached_first_page(user_id, resolved_page_size)
             if cached is not None:
                 return cached
@@ -319,6 +464,7 @@ class HistoryStore:
             page_size=resolved_page_size,
             before_created_at=before_created_at,
             before_id=before_id,
+            conversation_id=conversation_id,
         )
 
         items = [self._to_history_message(item) for item in messages]
@@ -362,6 +508,8 @@ class HistoryStore:
                     sources=payload["sources"],
                     client_message_id=payload["client_message_id"],
                     actions=payload.get("actions"),
+                    conversation_id=payload.get("conversation_id"),
+                    policy_blocked=payload.get("policy_blocked", False),
                 )
                 self.invalidate_user_cache(payload["user_id"])
             except Exception:
@@ -371,6 +519,20 @@ class HistoryStore:
                 )
             finally:
                 self._write_queue.task_done()
+
+    async def list_conversations_by_user(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        self._ensure_enabled()
+        return await self._repository.list_conversations_by_user(user_id=user_id, limit=limit)
+
+    async def create_conversation(self, user_id: str, title: str | None = None) -> dict[str, Any]:
+        self._ensure_enabled()
+        return await self._repository.create_conversation(user_id=user_id, title=title)
+
+    async def delete_conversation(self, user_id: str, conversation_id: str) -> bool:
+        self._ensure_enabled()
+        deleted = await self._repository.delete_conversation_by_id(user_id=user_id, conversation_id=conversation_id)
+        self.invalidate_user_cache(user_id)
+        return deleted
 
     def _resolve_page_size(self, requested_page_size: int | None) -> int:
         value = requested_page_size or settings.CHATBOT_HISTORY_PAGE_SIZE_DEFAULT
@@ -451,14 +613,39 @@ class GetHistoryQuery:
         page_size: int | None = None,
         before_created_at: datetime | None = None,
         before_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> AssistantHistoryPageData:
         return await self.store.get_messages_page_by_user(
             user_id=user_id,
             page_size=page_size,
             before_created_at=before_created_at,
             before_id=before_id,
+            conversation_id=conversation_id,
         )
 
+
+class ListConversationsQuery:
+    def __init__(self, store: HistoryStore | None = None):
+        self.store = store or history_store
+
+    async def execute(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        return await self.store.list_conversations_by_user(user_id=user_id, limit=limit)
+
+
+class CreateConversationCommand:
+    def __init__(self, store: HistoryStore | None = None):
+        self.store = store or history_store
+
+    async def execute(self, user_id: str, title: str | None = None) -> dict[str, Any]:
+        return await self.store.create_conversation(user_id=user_id, title=title)
+
+
+class DeleteConversationCommand:
+    def __init__(self, store: HistoryStore | None = None):
+        self.store = store or history_store
+
+    async def execute(self, user_id: str, conversation_id: str) -> bool:
+        return await self.store.delete_conversation(user_id=user_id, conversation_id=conversation_id)
 
 
 class PersistHistoryCommand:
@@ -472,6 +659,7 @@ class PersistHistoryCommand:
         sources: list[AssistantSource],
         intent: str | None,
         actions: list[Any] | None = None,
+        policy_blocked: bool = False,
     ) -> bool:
         if not self.store.is_enabled():
             return False
@@ -484,6 +672,8 @@ class PersistHistoryCommand:
             sources=sources,
             client_message_id=request.clientMessageId,
             actions=actions,
+            conversation_id=request.conversationId,
+            policy_blocked=policy_blocked,
         )
 
 history_store = HistoryStore()

@@ -88,6 +88,7 @@ export class AssistantRespondDataDto {
   latencyMs?: number;
   persisted?: boolean;
   conversationId?: string;
+  policyBlocked?: boolean;
 }
 
 export class AssistantRespondResponseDto {

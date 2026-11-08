@@ -57,6 +57,14 @@ export class AssistantMessageDto {
   clientMessageId?: string;
 
   @IsOptional()
+  @IsString()
+  conversationId?: string;
+
+  @IsOptional()
+  @IsString()
+  aiPolicy?: string;
+
+  @IsOptional()
   @IsObject()
   surface?: SurfaceContextDto;
 }
