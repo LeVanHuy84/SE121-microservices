@@ -68,8 +68,9 @@ async function bootstrap() {
         clientId: process.env.KAFKA_CLIENT_ID || 'emotion-intelligence-service',
       },
       consumer: {
-        groupId:
-          process.env.KAFKA_GROUP_ID || 'emotion-intelligence-service-group',
+        groupId: process.env.KAFKA_GROUP_ID
+          ? `${process.env.KAFKA_GROUP_ID}-emotion`
+          : 'emotion-intelligence-service-group',
       },
       subscribe: {
         fromBeginning: kafkaFromBeginning,

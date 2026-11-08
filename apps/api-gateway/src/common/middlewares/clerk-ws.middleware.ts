@@ -30,6 +30,14 @@ export const clerkWsMiddleware = async (socket, next) => {
     }
 
     socket.user = { id: session.sub };
+    socket.data = socket.data || {};
+    socket.data.lastVerifiedAt = Date.now();
+    socket.data.connectedAt = Date.now();
+    socket.data.tokenExp = session.exp
+      ? typeof session.exp === "number" && session.exp < 1e11
+        ? session.exp * 1000
+        : session.exp
+      : Date.now() + 60 * 60 * 1000;
     logger.log(`✅ Authenticated user ${session.sub}`);
     next();
   } catch (err) {

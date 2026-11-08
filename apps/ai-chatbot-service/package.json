@@ -18,6 +18,6 @@
     "loadtest:assistant": "node run-venv.js python tools\\loadtest_assistant.py",
     "lint": "node run-venv.js python -m ruff check app tests",
     "format": "node run-venv.js python -m ruff format app tests",
-    "test": "node run-venv.js python -m unittest discover -s tests -p \"test_*.py\""
+    "test": "cross-env UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true node run-venv.js python -m unittest discover -s tests -p \"test_*.py\""
   }
 }

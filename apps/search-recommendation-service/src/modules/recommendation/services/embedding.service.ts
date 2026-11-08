@@ -33,7 +33,7 @@ export class EmbeddingService implements OnModuleInit {
 
   async generateEmbedding(text: string): Promise<number[]> {
     let attempts = 0;
-    const maxAttempts = 60; // 30 seconds
+    const maxAttempts = process.env.NODE_ENV === 'test' ? 1 : 60;
     while (!this.isModelReady || !this.extractor) {
       if (attempts >= maxAttempts) {
         throw new Error('Embedding model not initialized after 30 seconds');

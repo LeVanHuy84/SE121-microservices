@@ -2,6 +2,8 @@ import { InjectRedis } from "@nestjs-modules/ioredis";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import {
+  AnalysisEventType,
+  AnalysisResultEvent,
   AnalysisResultEventPayload,
   Emotion,
   InteractionEventPayload,
@@ -47,6 +49,30 @@ export class ConsumerService {
     private readonly affinityService: AffinityService,
     private readonly cacheLayer: CacheLayerService,
   ) {}
+
+  /**
+   * Phương thức điều phối phân tích cảm xúc thống nhất (Unified Consumer)
+   */
+  async handleAnalysisResult(message: AnalysisResultEvent): Promise<void> {
+    const { type, payload } = message;
+    this.logger.debug(
+      `Unified Consumer: Processing analysis event ${type} for target ${payload.targetId}`,
+    );
+
+    switch (type) {
+      case AnalysisEventType.CREATED:
+        await this.handleCreated(payload);
+        break;
+
+      case AnalysisEventType.UPDATED:
+        await this.handleUpdated(payload);
+        break;
+
+      default:
+        this.logger.warn(`Unknown analysis event type: ${type}`);
+        break;
+    }
+  }
 
   async handleCreated(payload: AnalysisResultEventPayload) {
     if (payload.targetType !== TargetType.POST) return;

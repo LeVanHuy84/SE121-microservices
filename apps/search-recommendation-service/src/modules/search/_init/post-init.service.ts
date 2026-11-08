@@ -10,7 +10,7 @@ export class PostInitService extends BaseInitService implements OnModuleInit {
     super(esClient);
   }
 
-  onModuleInit() {
-    this.ensureIndex(PostMapping);
+  async onModuleInit() {
+    await this.ensureIndex(PostMapping);
   }
 }

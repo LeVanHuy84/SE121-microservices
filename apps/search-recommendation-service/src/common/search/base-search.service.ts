@@ -23,8 +23,16 @@ export abstract class BaseSearchService {
     };
 
     if (cursor) {
-      const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString());
-      params.search_after = decoded;
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(cursor, 'base64').toString('utf-8'),
+        );
+        if (Array.isArray(decoded)) {
+          params.search_after = decoded;
+        }
+      } catch {
+        // Fallback safely if cursor is invalid or malformed
+      }
     }
 
     return params;

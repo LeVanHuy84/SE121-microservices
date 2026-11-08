@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SearchModule } from './modules/search/search-all/search.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ElasticsearchModule } from './elastic/elastic.module';
 import { IndexerModule } from './modules/search/indexer/indexer.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -49,27 +49,35 @@ import { PostgresProcessedEvent } from '@repo/common';
     KafkaConsumerModule,
 
     // Single Postgres DB connection for both recommendation & music using DATABASE_URL
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      url:
-        process.env.DATABASE_URL ||
-        'postgresql://neondb_owner:npg_6nOGeaIYX0cs@ep-crimson-queen-anv4bjtt-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
-      entities: [
-        ProfileEmbedding,
-        RecommendationFriendship,
-        RecommendationPendingRequest,
-        RecommendationBlock,
-        RecommendationDismissal,
-        RecommendationGraphEventJournal,
-        RecommendationPairFeature,
-        RecommendationGlobalFallbackCandidate,
-        RecommendationEmotionProfile,
-        MusicFeature,
-        PostgresProcessedEvent,
-      ],
-      synchronize: true,
-      ssl: {
-        rejectUnauthorized: false,
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const url =
+          config.get<string>('DATABASE_URL') ||
+          process.env.DATABASE_URL ||
+          'postgresql://postgres:postgres@localhost:5432/social_network';
+        const hasSsl =
+          url.includes('sslmode=require') ||
+          config.get<string>('DATABASE_SSL') === 'true';
+        return {
+          type: 'postgres',
+          url,
+          entities: [
+            ProfileEmbedding,
+            RecommendationFriendship,
+            RecommendationPendingRequest,
+            RecommendationBlock,
+            RecommendationDismissal,
+            RecommendationGraphEventJournal,
+            RecommendationPairFeature,
+            RecommendationGlobalFallbackCandidate,
+            RecommendationEmotionProfile,
+            MusicFeature,
+            PostgresProcessedEvent,
+          ],
+          synchronize: config.get<string>('NODE_ENV') !== 'production',
+          ssl: hasSsl ? { rejectUnauthorized: false } : false,
+        };
       },
     }),
 

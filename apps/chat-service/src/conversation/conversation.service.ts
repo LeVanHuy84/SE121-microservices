@@ -53,12 +53,12 @@ export class ConversationService {
         await session.commitTransaction();
         await this.outboxService.flushPendingChatEvents(session);
         return result;
-      } catch (error) {
+      } catch (error: any) {
         await session.abortTransaction();
         this.outboxService.clearPendingChatEvents(session);
 
         const isWriteConflict =
-          error.message?.includes('Write conflict') || error.code === 112;
+          error?.message?.includes('Write conflict') || error?.code === 112;
         if (isWriteConflict && attempts < maxRetries - 1) {
           attempts++;
           this.logger.warn(
@@ -317,7 +317,7 @@ export class ConversationService {
 
         try {
           await this.updateConversationCache(existed);
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn('Failed to update conversation cache', error);
         }
 
@@ -348,7 +348,7 @@ export class ConversationService {
 
       try {
         await this.updateConversationCache(convDto.doc);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn('Failed to update conversation cache', error);
       }
 
@@ -398,7 +398,7 @@ export class ConversationService {
 
     try {
       await this.updateConversationCache(result.doc);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Failed to update conversation cache', error);
     }
 
@@ -1038,9 +1038,9 @@ export class ConversationService {
           conversationId,
           session,
         );
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(
-          `Failed to enqueue media delete for conversationId=${conversationId}: ${error.message}`,
+          `Failed to enqueue media delete for conversationId=${conversationId}: ${error?.message || error}`,
         );
       }
     }

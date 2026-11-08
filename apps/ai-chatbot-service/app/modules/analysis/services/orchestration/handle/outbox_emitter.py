@@ -83,6 +83,16 @@ class OutboxEmitter:
                 "mentalHealthRiskLevel": fallback_risk,
             })
 
+        carrier = {}
+        try:
+            from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+            TraceContextTextMapPropagator().inject(carrier)
+        except Exception as e:
+            logger.warning("[OutboxEmitter] Trace inject warning: %s", e)
+
+        if carrier:
+            payload["_traceContext"] = carrier
+
         outbox = Outbox(
             topic=ResultEventEnum.ANALYSIS_RESULT.value,
             eventType=action.value,

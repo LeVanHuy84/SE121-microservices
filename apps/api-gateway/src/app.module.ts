@@ -1,5 +1,5 @@
 import { Module, ValidationPipe } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { LoadTestThrottlerGuard } from "./common/guards/load-test-throttler.guard";
@@ -51,12 +51,21 @@ import { MusicModule } from "./modules/music/music.module";
       ],
     }),
     NotificationModule,
-    RabbitmqModule.register({
-      urls: ["amqp://guest:guest@localhost:5672"], // hoặc 'amqp://rabbitmq:5672' nếu docker
-      exchanges: [
-        { name: "notification", type: "topic" },
-        { name: "broadcast", type: "fanout" },
-      ],
+    RabbitmqModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        urls: [
+          configService.get<string>(
+            "RABBITMQ_URL",
+            "amqp://guest:guest@localhost:5672",
+          ),
+        ],
+        exchanges: [
+          { name: "notification", type: "topic" },
+          { name: "broadcast", type: "fanout" },
+        ],
+      }),
+      inject: [ConfigService],
     }),
     RedisModule.forRoot({
       type: "single",
@@ -75,9 +84,6 @@ import { MusicModule } from "./modules/music/music.module";
     EmotionModule,
 
     ChatbotModule,
-    LogModule,
-    AdminModule,
-
     LogModule,
     AdminModule,
     MusicModule,

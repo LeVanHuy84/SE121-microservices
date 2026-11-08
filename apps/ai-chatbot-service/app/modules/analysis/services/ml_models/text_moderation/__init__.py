@@ -7,11 +7,16 @@ from .phobert_moderator import (
 from .keyword_moderator import KeywordModerator
 from .moderation_aggregator import ModerationAggregator
 
+import os
+
 # -------------------------------------------------
 # Optional auto warmup
 # -------------------------------------------------
 
-AUTO_WARMUP = True
+AUTO_WARMUP = (
+    os.getenv("AUTO_WARMUP_MODELS", "false").lower() == "true"
+    and os.getenv("UNIT_TEST_MODE", "false").lower() != "true"
+)
 
 if AUTO_WARMUP:
     ensure_phobert_moderator_loaded()

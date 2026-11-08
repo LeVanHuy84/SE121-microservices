@@ -114,16 +114,32 @@ describe("ChatGateway", () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
-  it("publishes heartbeats to the presence events channel", () => {
+  it("publishes heartbeats to the presence events channel", async () => {
     const gateway = createGateway();
     const client = createClient();
 
-    gateway.handleHeartbeat(client);
+    await gateway.handleHeartbeat(client);
 
     expect(presenceTracker.handleHeartbeat).toHaveBeenCalledWith(
       client,
       expect.any(Function),
     );
+  });
+
+  it("disconnects and emits auth.expired when token session is expired", async () => {
+    const gateway = createGateway();
+    const client = createClient();
+    client.disconnect = jest.fn();
+    client.data.tokenExp = Date.now() - 1000; // expired
+
+    await gateway.handleHeartbeat(client);
+
+    expect(client.emit).toHaveBeenCalledWith(
+      "auth.expired",
+      expect.any(Object),
+    );
+    expect(client.disconnect).toHaveBeenCalledWith(true);
+    expect(presenceTracker.handleHeartbeat).not.toHaveBeenCalled();
   });
 
   it("publishes a disconnect event when a socket disconnects", async () => {

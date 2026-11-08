@@ -1,0 +1,19 @@
+{
+  "data": {
+    "id": "user_2test_clerk_onboarding_001",
+    "first_name": "Minh",
+    "last_name": "Tran",
+    "email_addresses": [
+      {
+        "id": "email_2test_001",
+        "email_address": "minh.tran.test@example.com",
+        "verification": { "status": "verified" }
+      }
+    ],
+    "image_url": "https://img.clerk.com/test_minh_tran.png",
+    "created_at": 1762430000000,
+    "updated_at": 1762430000000
+  },
+  "object": "event",
+  "type": "user.created"
+}
