@@ -73,7 +73,7 @@ services:
       - xpack.security.http.ssl.enabled=false
     ports:
       - '9200:9200'
-    mem_limit: 512m
+    mem_limit: 1024m
     networks:
       - app-network
     volumes:
@@ -126,7 +126,7 @@ services:
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards
     ports:
-      - '3000:3000'
+      - '3001:3000'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     mem_limit: 150m

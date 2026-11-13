@@ -1,6 +1,9 @@
-# SE121 Microservices Monorepo
+# SE121 Microservices Blueprint
 
-Enterprise microservices platform for social, recommendation, chatbot, media, and AI-assisted user experiences, consolidated into 7 core services.
+👉 **Frontend Repository:** [social-network-2.0](../social-network-2.0/README.md)
+
+## System Overview
+Enterprise microservices platform for social, recommendation, chatbot, media, and AI-assisted user experiences, consolidated into 7 core services. The system features event-driven communication via Apache Kafka, high-performance distributed caching via Redis, asynchronous task queuing via RabbitMQ, full-text and semantic discovery through Elasticsearch and PostgreSQL pgvector, and multimodal AI analysis with RAG mental health assistance via FastAPI.
 
 ```mermaid
 flowchart TB
@@ -36,6 +39,48 @@ flowchart TB
     EmotionIntel -. Kafka Events .-> SearchRec
 ```
 
+## Local Interface & Invariants
+- `fushion.puml`: High-level system architecture and event flow PlantUML diagram.
+- `docker-compose.yml`: Multi-container infrastructure orchestration definition (Kafka, Zookeeper, Redis, PostgreSQL, MongoDB, Elasticsearch, Kibana, RabbitMQ, Prometheus, Grafana).
+
+## Subdirectories & System Boundaries
+- [apps](./apps/README.md) - Core microservices and API gateway platform.
+  - [api-gateway](./apps/api-gateway/README.md): Ingress reverse proxy (`:4000`), Clerk auth, Svix webhooks, and Socket.IO chat/presence namespace.
+  - [ai-chatbot-service](./apps/ai-chatbot-service/README.md): FastAPI service (`:4006`) hosting PhoBERT/CLIP multimodal emotion, moderation, and RAG assistant.
+  - [chat-service](./apps/chat-service/README.md): NestJS TCP service (`:4004`) for 1-on-1 and group messaging, presence, and Stream video calls.
+  - [content-feed-service](./apps/content-feed-service/README.md): NestJS TCP service (`:4002`) for posts, comments, reactions, personalized Redis ZSET feed ranking, Cloudinary media, and RabbitMQ notifications.
+  - [emotion-intelligence-service](./apps/emotion-intelligence-service/README.md): NestJS TCP service (`:4005`) for longitudinal emotion profiles, wellbeing dashboards, and proactive sweeps.
+  - [search-recommendation-service](./apps/search-recommendation-service/README.md): NestJS TCP service (`:4003`) for Elasticsearch search, pgvector profile embeddings, and music recommendations.
+  - [user-social-service](./apps/user-social-service/README.md): NestJS TCP service (`:4001`) managing identities, Clerk sync, relationship graphs, and groups in PostgreSQL (Drizzle ORM).
+- [packages](./packages/README.md) - Reusable infrastructure libraries and DTO contracts.
+  - [common](./packages/common/README.md): Shared Kafka, Redis, RabbitMQ, RPC exception filter, and OpenTelemetry modules.
+  - [dtos](./packages/dtos/README.md): Centralized DTOs, request/response models, and validation enums.
+  - [eslint-config](./packages/eslint-config/README.md): Monorepo ESLint configurations.
+  - [typescript-config](./packages/typescript-config/README.md): Base TypeScript compilation options.
+- [infrastructure](./infrastructure/README.md) - Telemetry and observability stack (Grafana dashboards, Prometheus scrape configs, Promtail).
+- [evaluation](./evaluation/README.md) - Machine learning evaluation pipelines, emotion/moderation benchmarks, and MERT audio feature models.
+- [seed-data](./seed-data/README.md) - Database population scripts, Clerk mock profiles, and synthetic test datasets.
+- [tools](./tools/README.md) - Developer simulation tools and Clerk batch account creation scripts.
+
+## Global Invariants
+- External HTTP and WebSocket clients must enter exclusively via `api-gateway` (`:4000`); downstream microservices communicate via internal TCP or Kafka message channels.
+- Inter-service asynchronous communication must use transactional outbox tables to guarantee at-least-once delivery to Apache Kafka.
+- Microservice DTO contracts and enumerations must be defined in `@repo/dtos` to prevent payload drift.
+- Shared infrastructure components (Redis, Kafka producers) must be injected via `@repo/common`.
+
+## Global Side Effects
+- Reads and mutates data across MongoDB (posts, chats, emotions), PostgreSQL (users, groups, recommendations), and Elasticsearch (search indexes).
+- Emits and consumes high-throughput domain events over Apache Kafka topics.
+- Dispatches asynchronous background notifications via RabbitMQ task queues.
+- Synchronizes with external third-party services: Clerk (identity), Cloudinary (media storage), Stream (audio/video calling), and Groq (LLM inference).
+
+## System Verification
+- Run: `npm run check-types`
+- Run: `npm run lint`
+- Run: `turbo run test`
+
+---
+
 ## 📐 Architecture Documentation
 
 For a comprehensive technical overview of the system architecture, including service landscape, communication patterns, data flows, scalability considerations, and deployment architecture, see:
@@ -58,52 +103,15 @@ This document is suitable for technical interviews, portfolio presentations, and
 | Runtime                  | Node.js 18+, Python 3.10+          | Root workspace engine constraint in `package.json` and AI requirements.                                             |
 | Backend                  | NestJS 11.x                        | Primary framework for Node.js services.                                                                             |
 | AI / Python              | FastAPI / Python                   | `ai-chatbot-service` hosts AI analysis and LLM RAG chatbot assistant workloads.                                     |
-| Language                 | TypeScript 5.9.2, Python 3.10+      | Shared by the NestJS workspace packages and Python packages.                                                        |
-| Workspace                | Turborepo 2.5.6                    | Orchestrates build, lint, test, and dev tasks.                                                                      |
-| Package manager          | npm 10.9.2                         | npm workspaces are enabled at the root.                                                                             |
-| Messaging                | Kafka, RabbitMQ                    | Event streaming and async queueing. Producers: `user-social-service`, `content-feed-service`, `ai-chatbot-service`, `emotion-intelligence-service`. |
-| Cache / pub-sub          | Redis 7                            | Cache, session state, and pub/sub.                                                                                  |
-| Data stores              | PostgreSQL, MongoDB, Elasticsearch | PostgreSQL for profiles/relations/metadata, MongoDB for posts/messages/feeds, Elasticsearch for search capabilities. |
-| Infrastructure           | Docker Compose                     | Local runtime dependencies are provisioned from the root.                                                           |
-| API documentation        | OpenAPI 3.0.3                      | Present for the assistant gateway contract.                                                                         |
-| Auth / external services | Clerk, Cloudinary, Firebase        | Present in the repo and service documentation.                                                                      |
+| Database: Relational     | PostgreSQL (Drizzle ORM, pgvector) | Primary storage for users, relationships, groups, and semantic vector embeddings.                                  |
+| Database: Document       | MongoDB (Mongoose)                 | Primary storage for posts, comments, reactions, feeds, chat messages, and emotions.                                 |
+| Database: Search         | Elasticsearch                      | Full-text multi-entity search and RAG knowledge retrieval.                                                          |
+| Cache / Real-time        | Redis                              | Socket.IO state adapter, user presence, session memory, and feed ZSET ranking.                                     |
+| Event Streaming          | Apache Kafka                       | Asynchronous domain event backbone with transactional outbox publishers.                                            |
+| Task Queue               | RabbitMQ                           | Asynchronous notification dispatch and fan-out workers.                                                             |
+| Observability            | Prometheus, Grafana, Loki          | Monorepo metrics, log shipping, and dashboard visualization.                                                        |
 
-### Data stores — per-service (detailed)
-
-Below is a practical per-service mapping to the primary data stores used in this workspace.
-
-- **PostgreSQL (via Drizzle ORM)**: `user-social-service` (profiles, social relations), `search-recommendation-service` (recommendations and music catalog metadata via pgvector).
-- **MongoDB (via Mongoose)**: `content-feed-service` (posts, feeds), `chat-service` (messages, outbox), `emotion-intelligence-service` (emotion snapshots, history).
-- **Elasticsearch**: `search-recommendation-service` (full-text search indexing and assistant document indexing).
-- **Redis**: caching, pub/sub, and ZSETs used by `content-feed-service`, `chat-service`, `emotion-intelligence-service`, `search-recommendation-service`, and `api-gateway`.
-- **RabbitMQ / Kafka**: message brokers used for queues and event streams across all 7 services.
-
-## Monorepo Structure
-
-```text
-.
-├── apps/
-│   ├── ai-chatbot-service/             # FastAPI - AI Emotion analysis & RAG chatbot
-│   ├── api-gateway/                    # NestJS - HTTP/WebSocket gateway entrypoint
-│   ├── chat-service/                   # NestJS - 1-on-1 and group messaging service
-│   ├── content-feed-service/           # NestJS - Posts, comments, reactions, feed, media, notifications, logs
-│   ├── emotion-intelligence-service/   # NestJS - Emotion profile tracking, dashboard & risk advisor
-│   ├── search-recommendation-service/  # NestJS - Search, pgvector recommendations, music catalog
-│   └── user-social-service/            # NestJS - Profiles, social graph, community groups
-├── docs/
-│   ├── architecture/
-│   └── README_STANDARDS.md
-├── openapi/
-├── packages/
-│   ├── common/                         # Shared infrastructure helpers (Kafka, Redis, RabbitMQ)
-│   ├── dtos/                           # Shared DTOs and Kafka Event Contracts
-│   ├── eslint-config/                  # Shared ESLint configuration
-│   └── typescript-config/              # Shared TSConfig configuration
-├── tools/
-├── docker-compose.yml
-├── turbo.json
-└── package.json
-```
+---
 
 ## Microservice Catalog
 

@@ -1,6 +1,35 @@
 # AI Chatbot Service
 
-`ai-chatbot-service` is a FastAPI-based Python backend service. It serves as the core AI engine for the Sentimeta project, responsible for multimodal emotion analysis, content moderation, and orchestrating the Mental Health Chatbot Assistant via RAG (Retrieval-Augmented Generation) architecture.
+## Overview
+FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Responsible for multimodal emotion analysis, content moderation (PhoBERT for Vietnamese text, CLIP/FER for image sentiment and facial expressions), and orchestrating the Mental Health Chatbot Assistant via a RAG (Retrieval-Augmented Generation) pipeline over Elasticsearch with Groq LLM inference.
+
+## Interface
+- **HTTP Endpoints** (`app/main.py`):
+  - `POST /api/v1/chatbot/chat`: Standard chat completion endpoint returning assistant recommendations.
+  - `POST /api/v1/chatbot/chat/stream`: Server-Sent Events (SSE) streaming endpoint for low-latency typewriter responses.
+  - `POST /api/v1/chatbot/feedback`: Records user satisfaction and helpfulness feedback on AI responses.
+  - `POST /api/v1/analysis/emotion`: Multimodal text and image sentiment analysis.
+  - `POST /api/v1/analysis/moderation`: Toxicity, profanity, and self-harm safety classification.
+- **Background Tasks & CLI Tools** (`app/tools`):
+  - `app.tools.index_assistant_docs`: Indexes psychological guidelines and support documentation into Elasticsearch vector store.
+- **Message Streams**: Kafka consumer for post/comment moderation and publisher for crisis alerts (`crisis-alerts` topic).
+
+## Invariants
+- `INTERNAL_SERVICE_KEY` header must accompany incoming internal gateway requests.
+- Crisis Guard safety filter must intercept explicit self-harm or severe crisis signals and emit urgent Kafka alerts immediately without calling external LLM APIs.
+- Out-of-scope queries (e.g. general coding, inappropriate prompts) must trigger Community Guard deflection messages.
+- Short-term session memory in Redis must expire based on configured TTL to prevent stale conversational drift.
+
+## Side Effects
+- Reads and persists conversation history in MongoDB (`chat_history` collection).
+- Performs vector similarity queries against Elasticsearch for document retrieval.
+- Caches short-term user session context in Redis.
+- Emits real-time emergency events to Apache Kafka.
+- Makes outbound HTTPS requests to Groq Cloud API for Llama-3 model completions.
+
+## Verification
+- Run: `node run-venv.js python -m unittest discover -s tests -p "test_*.py"`
+- Or: `pytest tests/test_public_api_v1.py`
 
 ---
 
@@ -100,25 +129,25 @@ The `tests/` directory contains Unit tests (which load heavy AI models like PhoB
 
 Please run the test suites separately to allow memory to be garbage-collected:
 
-#### 5.1. Unit Test & API Contract (Fast & Lightweight)
+#### 6.1. Unit Test & API Contract (Fast & Lightweight)
 Tests API schemas, HTTP codes (500, 422), and Guardrails using a Mocked LLM:
 ```bash
 # Requires inline env vars to pass pydantic validation
 env PYTHONPATH=. INTERNAL_SERVICE_KEY=x GROQ_API_KEY=x .venv/bin/python -m pytest tests/test_public_api_v1.py -v
 ```
 
-#### 5.2. Integration Test Database & RAG (Requires Docker Daemon)
+#### 6.2. Integration Test Database & RAG (Requires Docker Daemon)
 Automatically spins up Elasticsearch (memory-limited to 256MB), MongoDB, and Redis via Testcontainers to test real read/write operations:
 ```bash
 env PYTHONPATH=. INTERNAL_SERVICE_KEY=x GROQ_API_KEY=x CHATBOT_DB_ENABLED=true .venv/bin/python -m pytest tests/test_integration.py -v
 ```
 
-#### 5.3. Core AI Model Tests
+#### 6.3. Core AI Model Tests
 ```bash
 env PYTHONPATH=. INTERNAL_SERVICE_KEY=x GROQ_API_KEY=x .venv/bin/python -m pytest tests/test_emotion_aware.py tests/test_crisis_guard.py -v
 ```
 
-#### 5.4. Viewing Coverage Reports
+#### 6.4. Viewing Coverage Reports
 Append the `--cov=app` flag to any of the above commands. Requirement: Core business logic coverage >= 80%.
 ```bash
 env PYTHONPATH=. INTERNAL_SERVICE_KEY=x GROQ_API_KEY=x .venv/bin/python -m pytest --cov=app tests/test_public_api_v1.py

@@ -1,8 +1,40 @@
 # content-feed-service
 
-The content-feed-service is the core content publisher and personalization processor. It controls post creation, engagement metrics (likes, reactions, comments), personalized feed ranking, image/video uploads, notification queues, and administrative logs.
+## Overview
+Core content publishing, social engagement, and personalized feed generation engine for Sentimeta. Manages post lifecycles, comments, multi-type reactions, shares, personalized newsfeed ranking using Redis sorted sets (ZSET), media metadata verification with Cloudinary, notification fan-out via RabbitMQ, and central administrative audit logging.
 
-## Responsibilities
+## Interface
+- **TCP Microservice Patterns** (Listening on TCP port `4002`):
+  - `post.create`, `post.update`, `post.delete`, `post.find_by_id`: Post CRUD operations.
+  - `comment.create`, `comment.list`, `comment.delete`: Threaded post comments.
+  - `reaction.toggle`, `reaction.count`: Like/love/reaction management.
+  - `feed.get_personal_feed`: Returns ranked personalized newsfeed for authenticated users.
+  - `feed.get_trending_feed`: Returns globally trending posts based on engagement velocity.
+  - `media.upload_signature`, `media.verify`: Cloudinary upload token generation and asset validation.
+  - `notification.send`, `notification.list`: Dispatches and retrieves user notification records.
+  - `log.ingest`: Ingests operational and security audit logs.
+- **Shared Dependencies**: `[common](../../packages/common/README.md)` and `[dtos](../../packages/dtos/README.md)`.
+
+## Invariants
+- Deleted posts cascade soft-deletion to associated comments and reactions.
+- Feed rank score combines recency decay, user affinity, comment/reaction velocity, and baseline emotional valence.
+- Uploaded media assets must be validated against Cloudinary signatures before public exposure.
+- Notifications are published reliably via RabbitMQ topic exchanges.
+
+## Side Effects
+- Mutates posts, comments, reactions, media records, and audit logs in MongoDB.
+- Maintains and ranks personalized user feed buffers in Redis Sorted Sets (`feed:{userId}`).
+- Publishes content events (`post-created`, `post-reacted`) to Apache Kafka for emotion analysis and recommendations.
+- Emits notification delivery jobs to RabbitMQ queues (`notification-queue`).
+
+## Verification
+- Run: `npm test` (`jest --passWithNoTests`)
+
+---
+
+## Responsibilities & Operational Details
+
+### Responsibilities
 
 - **Post Lifecycle**: Create, edit, delete, react to, and comment on posts.
 - **Feed Personalization**: Score and rank feeds using a multi-factor algorithm (recency, engagement, and emotional alignment baseline).
@@ -10,7 +42,7 @@ The content-feed-service is the core content publisher and personalization proce
 - **Notifications**: Fan out notification events to RabbitMQ queues (push, email, SMS).
 - **Logging Ingestion**: Handle structured audit/admin logs.
 
-## Runtime Profile
+### Runtime Profile
 
 | Item | Value |
 | --- | --- |
@@ -21,7 +53,7 @@ The content-feed-service is the core content publisher and personalization proce
 | Cache / Buffer | Redis |
 | Shared packages | `@repo/common`, `@repo/dtos` |
 
-## Key Modules
+### Key Modules
 
 - **Post**: Operations for posts, comments, reactions, and shares.
 - **Feed**: Personalized ranking ZSET buffers.
@@ -29,7 +61,7 @@ The content-feed-service is the core content publisher and personalization proce
 - **Notification**: RabbitMQ publishers for notifications.
 - **Logging**: central service auditing.
 
-## Environment Variables
+### Environment Variables
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
@@ -41,7 +73,7 @@ The content-feed-service is the core content publisher and personalization proce
 | `CLOUDINARY_URL` | Cloudinary integration endpoint | — |
 | `RABBITMQ_URL` | RabbitMQ queue broker URI | `amqp://guest:guest@localhost:5672` |
 
-## Development
+### Development
 
 ```bash
 npm install
