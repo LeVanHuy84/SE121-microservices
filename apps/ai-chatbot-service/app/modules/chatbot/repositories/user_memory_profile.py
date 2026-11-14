@@ -11,16 +11,18 @@ from app.core.settings import settings
 
 logger = logging.getLogger("uvicorn.error")
 
-CANONICAL_FACT_KEYS: frozenset[str] = frozenset({
-    "name",
-    "occupation",
-    "work_mode",
-    "sleep_health",
-    "diet_exercise",
-    "interests",
-    "current_goal",
-    "tone_preference",
-})
+CANONICAL_FACT_KEYS: frozenset[str] = frozenset(
+    {
+        "name",
+        "occupation",
+        "work_mode",
+        "sleep_health",
+        "diet_exercise",
+        "interests",
+        "current_goal",
+        "tone_preference",
+    }
+)
 
 MAX_FACT_VALUE_CHARS: int = 100
 
@@ -36,7 +38,10 @@ class UserMemoryProfileRepository:
             try:
                 self._db = get_database()
             except Exception as exc:
-                logger.warning("Failed to obtain MongoDB instance for UserMemoryProfileRepository: %s", exc)
+                logger.warning(
+                    "Failed to obtain MongoDB instance for UserMemoryProfileRepository: %s",
+                    exc,
+                )
                 self._db = None
         return self._db
 
@@ -69,7 +74,9 @@ class UserMemoryProfileRepository:
                 if k in CANONICAL_FACT_KEYS and isinstance(v, str) and v.strip()
             }
         except Exception as exc:
-            logger.warning("Error fetching memory facts for userId=%s: %s", user_id, exc)
+            logger.warning(
+                "Error fetching memory facts for userId=%s: %s", user_id, exc
+            )
             profile = self._in_memory_profiles.get(user_id)
             if profile:
                 facts = profile.get("facts", {})
@@ -97,7 +104,7 @@ class UserMemoryProfileRepository:
                     clean_set[k] = normalized
 
         clean_unset: set[str] = set()
-        for k in (to_unset or []):
+        for k in to_unset or []:
             if k in CANONICAL_FACT_KEYS and k not in clean_set:
                 clean_unset.add(k)
 
@@ -165,7 +172,9 @@ class UserMemoryProfileRepository:
             self._in_memory_profiles.pop(user_id, None)
             return bool(res.deleted_count > 0)
         except Exception as exc:
-            logger.warning("Failed to delete memory profile for userId=%s: %s", user_id, exc)
+            logger.warning(
+                "Failed to delete memory profile for userId=%s: %s", user_id, exc
+            )
             existed = user_id in self._in_memory_profiles
             self._in_memory_profiles.pop(user_id, None)
             return existed

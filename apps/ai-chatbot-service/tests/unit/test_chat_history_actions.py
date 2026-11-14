@@ -2,12 +2,14 @@ import asyncio
 import os
 import unittest
 from datetime import datetime, timezone
-from typing import Any
 
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 
-from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository, HistoryStore
+from app.modules.chatbot.repositories.chat_history import (
+    ChatHistoryRepository,
+    HistoryStore,
+)
 from app.modules.chatbot.schemas import NavigateAction, NavigatePayload
 
 
@@ -19,7 +21,10 @@ class FakeCursor:
         for key, direction in reversed(sort_keys):
             reverse = direction == -1
             self._docs.sort(
-                key=lambda d: (d.get(key) is not None, d.get(key) if d.get(key) is not None else ""),
+                key=lambda d: (
+                    d.get(key) is not None,
+                    d.get(key) if d.get(key) is not None else "",
+                ),
                 reverse=reverse,
             )
         return self
@@ -91,12 +96,18 @@ class FakeCollection:
         for doc in self.docs:
             if self._matches(doc, query):
                 self._apply_update(doc, update)
-                return type("UpdateResult", (), {"modified_count": 1, "matched_count": 1})()
+                return type(
+                    "UpdateResult", (), {"modified_count": 1, "matched_count": 1}
+                )()
         if kwargs.get("upsert"):
             new_doc = dict(query)
             self._apply_update(new_doc, update)
             self.docs.append(new_doc)
-            return type("UpdateResult", (), {"modified_count": 0, "upserted_id": new_doc.get("_id")})()
+            return type(
+                "UpdateResult",
+                (),
+                {"modified_count": 0, "upserted_id": new_doc.get("_id")},
+            )()
         return type("UpdateResult", (), {"modified_count": 0, "matched_count": 0})()
 
     async def update_many(self, query, update, *args, **kwargs):
@@ -105,7 +116,9 @@ class FakeCollection:
             if self._matches(doc, query):
                 self._apply_update(doc, update)
                 count += 1
-        return type("UpdateResult", (), {"modified_count": count, "matched_count": count})()
+        return type(
+            "UpdateResult", (), {"modified_count": count, "matched_count": count}
+        )()
 
     def _apply_update(self, doc: dict, update: dict):
         if "$set" in update:
@@ -164,7 +177,9 @@ class FakeDb:
         return self.collections.setdefault(name, FakeCollection())
 
 
-ACTION = NavigateAction(label="Quyền riêng tư", payload=NavigatePayload(destinationId="settings.privacy"))
+ACTION = NavigateAction(
+    label="Quyền riêng tư", payload=NavigatePayload(destinationId="settings.privacy")
+)
 
 
 class ChatHistoryActionsTest(unittest.TestCase):
@@ -175,7 +190,9 @@ class ChatHistoryActionsTest(unittest.TestCase):
     def test_append_exchange_persists_actions_on_assistant_message_only(self):
         serialized = [ACTION.model_dump()]
         user_msg, assistant_msg, _, _ = asyncio.run(
-            self.repo.append_exchange("u1", "mở quyền riêng tư", "Đây nhé", actions=serialized)
+            self.repo.append_exchange(
+                "u1", "mở quyền riêng tư", "Đây nhé", actions=serialized
+            )
         )
 
         self.assertNotIn("actions", user_msg["meta"])
@@ -183,7 +200,9 @@ class ChatHistoryActionsTest(unittest.TestCase):
         self.assertEqual(assistant_msg["meta"]["message_kind"], "assistant")
 
     def test_append_exchange_without_actions_omits_key(self):
-        user_msg, assistant_msg, _, _ = asyncio.run(self.repo.append_exchange("u1", "hello", "hi"))
+        user_msg, assistant_msg, _, _ = asyncio.run(
+            self.repo.append_exchange("u1", "hello", "hi")
+        )
         self.assertNotIn("actions", assistant_msg["meta"])
 
     def test_history_message_exposes_actions_in_metadata(self):
@@ -202,7 +221,10 @@ class ChatHistoryActionsTest(unittest.TestCase):
 
         message = store._to_history_message(row)
 
-        self.assertEqual(message.metadata["actions"][0]["payload"]["destinationId"], "settings.privacy")
+        self.assertEqual(
+            message.metadata["actions"][0]["payload"]["destinationId"],
+            "settings.privacy",
+        )
         self.assertEqual(message.metadata["actions"][0]["type"], "navigate")
 
 

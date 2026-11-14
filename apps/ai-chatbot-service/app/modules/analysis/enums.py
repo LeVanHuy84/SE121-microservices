@@ -2,58 +2,68 @@ from enum import Enum
 
 
 class AnalysisStatusEnum(str, Enum):
-    SUCCESS = 'SUCCESS'
-    FAILED = 'FAILED'
-    PERMANENT_FAILED = 'PERMANENT_FAILED'
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PERMANENT_FAILED = "PERMANENT_FAILED"
+
 
 class EmotionEnum(str, Enum):
-    JOY = 'joy'
-    SADNESS = 'sadness'
-    ANGER = 'anger'
-    FEAR = 'fear'
-    DISGUST = 'disgust'
-    SURPRISE = 'surprise'
-    NEUTRAL = 'neutral'
+    JOY = "joy"
+    SADNESS = "sadness"
+    ANGER = "anger"
+    FEAR = "fear"
+    DISGUST = "disgust"
+    SURPRISE = "surprise"
+    NEUTRAL = "neutral"
+
 
 class IntensityLevelEnum(str, Enum):
-    MILD = 'mild'
-    MODERATE = 'moderate'
-    SEVERE = 'severe'
+    MILD = "mild"
+    MODERATE = "moderate"
+    SEVERE = "severe"
+
 
 class EmotionTimeWindowEnum(str, Enum):
-    LAST_7_DAYS = '7d'
-    LAST_30_DAYS = '30d'
+    LAST_7_DAYS = "7d"
+    LAST_30_DAYS = "30d"
+
 
 class RiskHintLevelEnum(str, Enum):
-    NONE = 'none'
-    WEAK = 'weak'
-    MEDIUM = 'medium'
-    HIGH = 'high'
+    NONE = "none"
+    WEAK = "weak"
+    MEDIUM = "medium"
+    HIGH = "high"
+
 
 class MentalHealthRiskLevelEnum(str, Enum):
-    NONE = 'none'
-    MILD = 'mild'
-    MODERATE = 'moderate'
-    HIGH = 'high'
-    CRITICAL = 'critical'
+    NONE = "none"
+    MILD = "mild"
+    MODERATE = "moderate"
+    HIGH = "high"
+    CRITICAL = "critical"
+
 
 class EventTypeEnum(str, Enum):
     ANALYSIS_CREATED = "analysis_created"
     ANALYSIS_UPDATED = "analysis_updated"
+
 
 class TargetTypeEnum(str, Enum):
     POST = "POST"
     COMMENT = "COMMENT"
     SHARE = "SHARE"
 
+
 class ResultEventEnum(str, Enum):
-    ANALYSIS_RESULT = 'analysis-result-events'
+    ANALYSIS_RESULT = "analysis-result-events"
+
 
 class ModerationActionEnum(str, Enum):
     ALLOW = "ALLOW"
     ALLOW_WITH_WARNING = "ALLOW_WITH_WARNING"
     ALLOW_WITH_SUPPORT = "ALLOW_WITH_SUPPORT"
     HARD_BLOCK = "HARD_BLOCK"
+
 
 class ModerationLabelEnum(str, Enum):
     CLEAN = "CLEAN"
@@ -64,6 +74,7 @@ class ModerationLabelEnum(str, Enum):
     ILLEGAL_PORN = "ILLEGAL_PORN"
     GRAPHIC_VIOLENCE = "GRAPHIC_VIOLENCE"
     WEAPON_THREAT = "WEAPON_THREAT"
+
 
 class ViolationCategoryEnum(str, Enum):
     TOXIC = "TOXIC"

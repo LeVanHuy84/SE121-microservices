@@ -1,4 +1,5 @@
 """Unit tests for CrisisGuard (Story 1 - Mental Health Safety Guard)."""
+
 from __future__ import annotations
 
 import unittest

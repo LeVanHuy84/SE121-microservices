@@ -6,8 +6,8 @@ from .music_flow_service import MusicFlowService, music_flow_service
 
 
 __all__ = [
-    'analysis_flow_service',
-    'HandleEventService',
+    "analysis_flow_service",
+    "HandleEventService",
     "MusicFlowService",
     "music_flow_service",
 ]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Optional, Protocol
+from typing import Any, AsyncIterator, Optional, Protocol, Sequence
 
 from app.modules.chatbot.schemas import AssistantRespondRequest
 
@@ -26,20 +26,24 @@ class LlmChunk:
     content: str
     model: Optional[str] = None
     provider: Optional[str] = None
+    tool_calls: tuple[ToolCallInfo, ...] = ()
 
 
 class LlmProvider(Protocol):
     async def generate(
         self,
-        prompt: str,
+        prompt: str | Sequence[Any],
         request: AssistantRespondRequest,
         tools: Optional[list[dict[str, Any]]] = None,
-    ) -> LlmGeneration:
-        ...
+        model: Optional[str] = None,
+        json_mode: bool = False,
+    ) -> LlmGeneration: ...
 
     def stream(
         self,
-        prompt: str,
+        prompt: str | Sequence[Any],
         request: AssistantRespondRequest,
-    ) -> AsyncIterator[LlmChunk]:
-        ...
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+        json_mode: bool = False,
+    ) -> AsyncIterator[LlmChunk]: ...

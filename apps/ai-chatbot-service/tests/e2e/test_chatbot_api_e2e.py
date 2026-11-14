@@ -26,7 +26,13 @@ from app.modules.chatbot.schemas import (
 
 KEY = core_settings.INTERNAL_SERVICE_KEY
 HEADERS = {"X-Internal-Key": KEY, "X-User-Id": "user-1"}
-INTERNAL_ONLY_FIELDS = {"model", "provider", "latencyMs", "persisted", "suggestedActions"}
+INTERNAL_ONLY_FIELDS = {
+    "model",
+    "provider",
+    "latencyMs",
+    "persisted",
+    "suggestedActions",
+}
 SECRET = "super-secret-internal-detail"
 
 
@@ -71,7 +77,9 @@ class FakeRespond:
             if self.stream_error_after is not None and index == self.stream_error_after:
                 raise RuntimeError(SECRET)
             yield chunk
-        if self.stream_error_after is not None and self.stream_error_after >= len(self.chunks):
+        if self.stream_error_after is not None and self.stream_error_after >= len(
+            self.chunks
+        ):
             raise RuntimeError(SECRET)
 
 
@@ -100,12 +108,21 @@ class AuthAndValidationTest(unittest.TestCase):
         self.client = _app()
 
     def test_missing_or_wrong_internal_key_is_403_envelope(self):
-        for headers in ({}, {"X-User-Id": "u"}, {"X-Internal-Key": "bad", "X-User-Id": "u"}):
-            res = self.client.post("/v1/assistant/respond", json={"message": "hi"}, headers=headers)
+        for headers in (
+            {},
+            {"X-User-Id": "u"},
+            {"X-Internal-Key": "bad", "X-User-Id": "u"},
+        ):
+            res = self.client.post(
+                "/v1/assistant/respond", json={"message": "hi"}, headers=headers
+            )
             self.assertEqual(res.status_code, 403)
             self.assertEqual(
                 res.json(),
-                {"success": False, "error": {"code": "FORBIDDEN", "message": "Access denied."}},
+                {
+                    "success": False,
+                    "error": {"code": "FORBIDDEN", "message": "Access denied."},
+                },
             )
 
     def test_missing_user_id_is_401(self):
@@ -129,7 +146,11 @@ class AuthAndValidationTest(unittest.TestCase):
             self.assertFalse(res.json()["success"])
 
     def test_blank_or_too_long_message_is_400_envelope(self):
-        for body in ({"message": "   "}, {"message": "x" * (pr.MAX_MESSAGE_CHARS + 1)}, {}):
+        for body in (
+            {"message": "   "},
+            {"message": "x" * (pr.MAX_MESSAGE_CHARS + 1)},
+            {},
+        ):
             res = self.client.post("/v1/assistant/respond", json=body, headers=HEADERS)
             self.assertEqual(res.status_code, 400)
             self.assertEqual(res.json()["error"]["code"], "INVALID_REQUEST")
@@ -143,7 +164,9 @@ class RespondTest(unittest.TestCase):
         fake = FakeRespond(
             result=_data(
                 type="answer",
-                sources=[AssistantSource(type="help_doc", id="d1", title="T", score=0.9)],
+                sources=[
+                    AssistantSource(type="help_doc", id="d1", title="T", score=0.9)
+                ],
             )
         )
         with patch.object(pr, "respond_command", fake):
@@ -223,7 +246,9 @@ class StreamTest(unittest.TestCase):
             )
         )
         self.assertEqual([e for e, _ in events], ["chunk", "chunk", "done"])
-        self.assertEqual("".join(p["delta"] for e, p in events if e == "chunk"), "Xin chao")
+        self.assertEqual(
+            "".join(p["delta"] for e, p in events if e == "chunk"), "Xin chao"
+        )
         done = events[-1][1]
         self.assertEqual(done["type"], "answer")
         self.assertEqual(done["sources"][0]["id"], "d1")
@@ -237,7 +262,9 @@ class StreamTest(unittest.TestCase):
             notificationSent=False,
         )
         events = self._stream(
-            FakeRespond(chunks=[_data(type="crisis", reply="Minh o day", crisis=crisis)])
+            FakeRespond(
+                chunks=[_data(type="crisis", reply="Minh o day", crisis=crisis)]
+            )
         )
         self.assertEqual([e for e, _ in events], ["chunk", "done"])
         self.assertEqual(events[-1][1]["type"], "crisis")
@@ -245,13 +272,17 @@ class StreamTest(unittest.TestCase):
 
     def test_error_guard_chunk_becomes_error_event_only(self):
         events = self._stream(
-            FakeRespond(chunks=[_data(type="fallback", reply="loi", model="error-guard")])
+            FakeRespond(
+                chunks=[_data(type="fallback", reply="loi", model="error-guard")]
+            )
         )
         self.assertEqual([e for e, _ in events], ["error"])
         self.assertEqual(events[0][1]["code"], "ASSISTANT_STREAM_FAILED")
 
     def test_exception_mid_stream_emits_error_without_detail(self):
-        fake = FakeRespond(chunks=[_data(reply="a"), _data(reply="b")], stream_error_after=1)
+        fake = FakeRespond(
+            chunks=[_data(reply="a"), _data(reply="b")], stream_error_after=1
+        )
         with patch.object(pr, "respond_command", fake):
             res = self.client.post(
                 "/v1/assistant/respond-stream", json={"message": "x"}, headers=HEADERS
@@ -261,7 +292,9 @@ class StreamTest(unittest.TestCase):
         self.assertNotIn(SECRET, res.text)
 
     def test_empty_stream_emits_error(self):
-        self.assertEqual([e for e, _ in self._stream(FakeRespond(chunks=[]))], ["error"])
+        self.assertEqual(
+            [e for e, _ in self._stream(FakeRespond(chunks=[]))], ["error"]
+        )
 
 
 class FakeHistory:
@@ -325,21 +358,35 @@ class HistoryTest(unittest.TestCase):
         data = body["data"]
         self.assertEqual(fake.calls[0]["user_id"], "user-1")
         self.assertEqual(fake.calls[0]["page_size"], 5)
-        self.assertEqual(set(data["items"][0]),
-                         {"id", "conversationId", "role", "content", "intent", "sources", "createdAt"})
+        self.assertEqual(
+            set(data["items"][0]),
+            {
+                "id",
+                "conversationId",
+                "role",
+                "content",
+                "intent",
+                "sources",
+                "createdAt",
+            },
+        )
         self.assertEqual(data["nextCursor"]["id"], "m1")
         self.assertTrue(data["hasMore"])
         snake = [k for k in _all_keys(body) if re.search(r"_", k)]
         self.assertEqual(snake, [])
 
     def test_invalid_cursor_400_and_disabled_503(self):
-        with patch.object(pr, "get_history_query", FakeHistory(error=ValueError(SECRET))):
+        with patch.object(
+            pr, "get_history_query", FakeHistory(error=ValueError(SECRET))
+        ):
             res = self.client.get("/v1/assistant/history/me", headers=HEADERS)
         self.assertEqual(res.status_code, 400)
         self.assertEqual(res.json()["error"]["code"], "INVALID_HISTORY_CURSOR")
         self.assertNotIn(SECRET, res.text)
 
-        with patch.object(pr, "get_history_query", FakeHistory(error=RuntimeError(SECRET))):
+        with patch.object(
+            pr, "get_history_query", FakeHistory(error=RuntimeError(SECRET))
+        ):
             res = self.client.get("/v1/assistant/history/me", headers=HEADERS)
         self.assertEqual(res.status_code, 503)
         self.assertEqual(res.json()["error"]["code"], "CHAT_HISTORY_DISABLED")
@@ -355,10 +402,14 @@ class HistoryTest(unittest.TestCase):
             res = self.client.delete("/v1/assistant/history/me", headers=HEADERS)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(fake.users, ["user-1"])
-        self.assertEqual(res.json()["data"], {"deletedCount": 3, "sessionCleared": True})
+        self.assertEqual(
+            res.json()["data"], {"deletedCount": 3, "sessionCleared": True}
+        )
 
     def test_delete_failure_is_502_without_detail(self):
-        with patch.object(pr, "clear_history_command", FakeClear(error=Exception(SECRET))):
+        with patch.object(
+            pr, "clear_history_command", FakeClear(error=Exception(SECRET))
+        ):
             res = self.client.delete("/v1/assistant/history/me", headers=HEADERS)
         self.assertEqual(res.status_code, 502)
         self.assertNotIn(SECRET, res.text)

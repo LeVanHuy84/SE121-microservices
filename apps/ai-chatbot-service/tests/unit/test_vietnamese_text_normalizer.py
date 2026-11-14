@@ -9,7 +9,9 @@ class TestNormalizeForGuard(unittest.TestCase):
         self.assertEqual(normalize_for_guard("nhảy cầu"), "nhay cau")
 
     def test_teencode_mapping(self):
-        self.assertEqual(normalize_for_guard("tui k muon song nua"), "toi khong muon song nua")
+        self.assertEqual(
+            normalize_for_guard("tui k muon song nua"), "toi khong muon song nua"
+        )
         self.assertEqual(normalize_for_guard("mik ko thich"), "minh khong thich")
         self.assertEqual(normalize_for_guard("cai do ntn"), "cai do nhu the nao")
 
@@ -22,6 +24,7 @@ class TestNormalizeForGuard(unittest.TestCase):
 
     def test_mixed_case(self):
         self.assertEqual(normalize_for_guard("TỰ SÁT"), "tu sat")
+
 
 if __name__ == "__main__":
     unittest.main()

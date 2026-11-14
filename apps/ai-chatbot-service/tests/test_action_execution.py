@@ -48,7 +48,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_idempotent_replay_returns_cached(self):
         mock_http = AsyncMock()
         mock_http.post.return_value = {"status": "ok"}
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
 
         req = ActionExecutionRequest(
             actionId="act-2",
@@ -71,7 +73,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_required_param_rejected(self):
         mock_http = AsyncMock()
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
         req = ActionExecutionRequest(
             actionId="act-3",
             actionName="join_group",
@@ -86,7 +90,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_rapid_concurrent_double_click_idempotency(self):
         mock_http = AsyncMock()
         mock_http.patch.return_value = {"id": "notif-read-ok"}
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
         req = ActionExecutionRequest(
             actionId="act-4",
             actionName="mark_all_notifications_read",
@@ -95,6 +101,7 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
         )
         # Simulate rapid double click
         import asyncio
+
         results = await asyncio.gather(
             executor.execute(req, auth_token="jwt"),
             executor.execute(req, auth_token="jwt"),
@@ -112,7 +119,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
             {"_error": "internal_error", "message": "Downstream timed out"},
             {"status": "ok"},
         ]
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
         idem_key = f"idem-retry-{uuid4()}"
         req = ActionExecutionRequest(
             actionId="act-5",
@@ -133,7 +142,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_header_precedence_over_body(self):
         mock_http = AsyncMock()
         mock_http.post.return_value = {"status": "ok"}
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
         req = ActionExecutionRequest(
             actionId="act-6",
             actionName="send_friend_request",
@@ -142,7 +153,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
             authToken="untrusted-body-token",
             userId="untrusted-body-user",
         )
-        res = await executor.execute(req, auth_token="trusted-header-token", user_id="trusted-header-user")
+        res = await executor.execute(
+            req, auth_token="trusted-header-token", user_id="trusted-header-user"
+        )
         self.assertTrue(res.success)
         # Verify the trusted header token was forwarded, not the body token
         mock_http.post.assert_called_once_with(
@@ -154,7 +167,9 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_execute_new_expanded_actions(self):
         mock_http = AsyncMock()
         mock_http.post.return_value = {"status": "ok"}
-        executor = ActionExecutorService(mock_http, redis_client=False, enable_mock=False)
+        executor = ActionExecutorService(
+            mock_http, redis_client=False, enable_mock=False
+        )
 
         # 1. decline_friend_request
         req_decline = ActionExecutionRequest(

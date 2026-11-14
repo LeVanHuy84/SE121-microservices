@@ -135,7 +135,9 @@ class AssistantRespondData(BaseModel):
     type: AssistantResponseType = "answer"
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
-    suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list, max_length=3)
+    suggestedActions: list[AssistantSuggestedAction] = Field(
+        default_factory=list, max_length=3
+    )
     cards: list[ShowCardAction] = Field(default_factory=list, max_length=3)
     proposals: list[ProposeAction] = Field(default_factory=list, max_length=3)
     model: str
@@ -149,8 +151,12 @@ class AssistantRespondData(BaseModel):
 
     @model_validator(mode="after")
     def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
-        if self.type == "crisis" and (self.suggestedActions or self.cards or self.proposals):
-            raise ValueError("Crisis response must not contain suggestedActions, cards, or proposals")
+        if self.type == "crisis" and (
+            self.suggestedActions or self.cards or self.proposals
+        ):
+            raise ValueError(
+                "Crisis response must not contain suggestedActions, cards, or proposals"
+            )
         return self
 
 

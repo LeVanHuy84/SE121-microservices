@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantContextItem
@@ -30,7 +33,6 @@ def _trim_memory():
         ctypes.CDLL("libc.so.6").malloc_trim(0)
     except Exception:
         pass
-
 
 
 @dataclass(frozen=True)
@@ -61,12 +63,14 @@ class RagDocumentService:
         if not chunks:
             return {"documents": 0, "chunks": 0}
 
-        if not force_reindex and await self._is_index_signature_unchanged(manifest_signature):
+        if not force_reindex and await self._is_index_signature_unchanged(
+            manifest_signature
+        ):
             logger.info("RAG index skipped: assistant docs signature unchanged")
             return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": 0}
 
         # Probe embedding dimension using sample query
-        sample_emb = embedding_service.encode_query("dimension_probe")
+        sample_emb = await embedding_service.encode_query_async("dimension_probe")
         if not sample_emb:
             return {"documents": 0, "chunks": 0}
         await self._ensure_index(len(sample_emb))
@@ -74,10 +78,13 @@ class RagDocumentService:
         batch_size = 512
         total_chunks = len(chunks)
         indexed_count = 0
+        all_batches_clean = True
 
         for i in range(0, total_chunks, batch_size):
             chunk_batch = chunks[i : i + batch_size]
-            batch_embeddings = embedding_service.encode_documents([c.text for c in chunk_batch])
+            batch_embeddings = await embedding_service.encode_documents_async(
+                [c.text for c in chunk_batch]
+            )
             if not batch_embeddings:
                 continue
 
@@ -100,26 +107,47 @@ class RagDocumentService:
                         "text": chunk.text,
                         "sourcePath": chunk.source_path,
                         "topic": chunk.topic,
+                        "manifestSignature": manifest_signature,
                         "embedding": embedding,
                     }
                 )
 
-            await self.es.bulk(operations=operations, refresh=False)
+            bulk_resp = await self.es.bulk(operations=operations, refresh=False)
+            if bulk_resp.get("errors"):
+                all_batches_clean = False
             indexed_count += len(chunk_batch)
             del operations
             del batch_embeddings
 
+        if all_batches_clean and indexed_count > 0:
+            await self.es.delete_by_query(
+                index=settings.RAG_INDEX_NAME,
+                query={
+                    "bool": {
+                        "must_not": [
+                            {"term": {"manifestSignature": manifest_signature}}
+                        ]
+                    }
+                },
+                conflicts="proceed",
+            )
+
         await self.es.indices.refresh(index=settings.RAG_INDEX_NAME)
         self._write_index_signature(manifest_signature)
         _trim_memory()
-        return {"documents": len({chunk.doc_id for chunk in chunks}), "chunks": indexed_count}
+        return {
+            "documents": len({chunk.doc_id for chunk in chunks}),
+            "chunks": indexed_count,
+        }
 
-    async def search_assistant_docs(self, query: str, top_k: int | None = None) -> list[AssistantContextItem]:
+    async def search_assistant_docs(
+        self, query: str, top_k: int | None = None
+    ) -> list[AssistantContextItem]:
         normalized_query = normalize_query_text(query)
         if not normalized_query or not await self._index_exists_cached():
             return []
 
-        query_embedding = embedding_service.encode_query(normalized_query)
+        query_embedding = await embedding_service.encode_query_async(normalized_query)
         if not query_embedding:
             return []
 
@@ -130,8 +158,12 @@ class RagDocumentService:
         )
         visibility = settings.RAG_DOC_SEARCH_VISIBILITY
 
-        vector_hits = await self._search_vector(normalized_query, query_embedding, candidate_size, visibility)
-        bm25_hits = await self._search_bm25(normalized_query, candidate_size, visibility)
+        vector_hits, bm25_hits = await asyncio.gather(
+            self._search_vector(
+                normalized_query, query_embedding, candidate_size, visibility
+            ),
+            self._search_bm25(normalized_query, candidate_size, visibility),
+        )
         hybrid_candidates = self._rrf_merge([vector_hits, bm25_hits])
 
         per_doc_limit = settings.RAG_DOC_MAX_CHUNKS_PER_DOC
@@ -184,7 +216,7 @@ class RagDocumentService:
             await self.index_assistant_docs(force_reindex=False)
 
             await self._index_exists_cached(force_refresh=True)
-            embedding_service.encode_query("Tro ly Sentimeta")
+            await embedding_service.encode_query_async("Tro ly Sentimeta")
             logger.info("Assistant docs RAG warmup completed")
         except Exception as exc:
             logger.warning("Assistant docs RAG warmup skipped: %s", exc)
@@ -211,6 +243,16 @@ class RagDocumentService:
 
     async def _ensure_index(self, dimensions: int):
         if await self._index_exists_cached():
+            try:
+                await self.es.indices.put_mapping(
+                    index=settings.RAG_INDEX_NAME,
+                    properties={"manifestSignature": {"type": "keyword"}},
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to put manifestSignature mapping on existing RAG index: %s",
+                    exc,
+                )
             return
         await self.es.indices.create(
             index=settings.RAG_INDEX_NAME,
@@ -228,6 +270,7 @@ class RagDocumentService:
                     "text": {"type": "text"},
                     "sourcePath": {"type": "keyword"},
                     "topic": {"type": "keyword"},
+                    "manifestSignature": {"type": "keyword"},
                     "embedding": {
                         "type": "dense_vector",
                         "dims": dimensions,
@@ -271,12 +314,13 @@ class RagDocumentService:
                 "text",
                 "sourcePath",
                 "topic",
-                "embedding",
             ],
         )
         return result.get("hits", {}).get("hits", [])
 
-    async def _search_bm25(self, normalized_query: str, candidate_size: int, visibility: str) -> list[dict[str, Any]]:
+    async def _search_bm25(
+        self, normalized_query: str, candidate_size: int, visibility: str
+    ) -> list[dict[str, Any]]:
         result = await self.es.search(
             index=settings.RAG_INDEX_NAME,
             size=candidate_size,
@@ -307,15 +351,21 @@ class RagDocumentService:
                 "text",
                 "sourcePath",
                 "topic",
-                "embedding",
             ],
         )
         return result.get("hits", {}).get("hits", [])
 
-    def _rrf_merge(self, ranked_lists: list[list[dict[str, Any]]], k: int = 60) -> list[dict[str, Any]]:
+    def _rrf_merge(
+        self, ranked_lists: list[list[dict[str, Any]]], k: int = 60
+    ) -> list[dict[str, Any]]:
+        active_lists = [r for r in ranked_lists if r]
+        if not active_lists:
+            return []
+
+        max_possible = max(1, len(ranked_lists)) / (k + 1.0)
         scores: dict[str, float] = {}
         hit_map: dict[str, dict[str, Any]] = {}
-        for ranked in ranked_lists:
+        for ranked in active_lists:
             for rank, hit in enumerate(ranked, start=1):
                 doc_id = str(hit.get("_id") or "")
                 if not doc_id:
@@ -323,9 +373,11 @@ class RagDocumentService:
                 scores[doc_id] = scores.get(doc_id, 0.0) + (1.0 / (k + rank))
                 hit_map[doc_id] = hit
         merged = []
-        for doc_id, score in sorted(scores.items(), key=lambda item: item[1], reverse=True):
+        for doc_id, score in sorted(
+            scores.items(), key=lambda item: item[1], reverse=True
+        ):
             hit = hit_map[doc_id]
-            hit["_hybrid_score"] = score
+            hit["_hybrid_score"] = score / max_possible
             merged.append(hit)
         return merged
 
@@ -350,7 +402,9 @@ class RagDocumentService:
         self._index_exists_cache_expires_at = now + 20
         return self._index_exists_cache
 
-    def _load_markdown_chunks_with_signature(self) -> tuple[list[RagDocumentChunk], str]:
+    def _load_markdown_chunks_with_signature(
+        self,
+    ) -> tuple[list[RagDocumentChunk], str]:
         docs_dir = self._resolve_docs_dir()
         if not docs_dir.exists():
             return [], ""
@@ -370,7 +424,9 @@ class RagDocumentService:
             topic = metadata.get("topic")
             updated_at = str(metadata.get("updated_at") or "")
             if not updated_at:
-                updated_at = time.strftime("%Y-%m-%d", time.gmtime(path.stat().st_mtime))
+                updated_at = time.strftime(
+                    "%Y-%m-%d", time.gmtime(path.stat().st_mtime)
+                )
 
             headers_to_split_on = [
                 ("#", "Header 1"),
@@ -400,7 +456,9 @@ class RagDocumentService:
                         header_parts.append(doc_split.metadata[h])
                 section_title = " > ".join(header_parts) if header_parts else title
 
-                chunk_id = hashlib.sha256(f"{doc_id}:{chunk_cursor}:{text}".encode()).hexdigest()
+                chunk_id = hashlib.sha256(
+                    f"{doc_id}:{chunk_cursor}:{text}".encode()
+                ).hexdigest()
                 chunks.append(
                     RagDocumentChunk(
                         id=chunk_id,
@@ -420,9 +478,13 @@ class RagDocumentService:
                 )
                 chunk_cursor += 1
 
-            manifest_parts.append(f"{path}:{hashlib.sha256(raw_text.encode('utf-8')).hexdigest()}")
+            manifest_parts.append(
+                f"{path}:{hashlib.sha256(raw_text.encode('utf-8')).hexdigest()}"
+            )
 
-        signature = hashlib.sha256("\n".join(manifest_parts).encode("utf-8")).hexdigest()
+        signature = hashlib.sha256(
+            "\n".join(manifest_parts).encode("utf-8")
+        ).hexdigest()
         return chunks, signature
 
     def _resolve_docs_dir(self) -> Path:
@@ -451,8 +513,10 @@ class RagDocumentService:
         path = Path(settings.RAG_REINDEX_MANIFEST_PATH)
         if path.is_absolute():
             return path
-        service_root = Path(__file__).resolve().parents[2]
-        return (service_root / path).resolve()
+        service_root = Path(__file__).resolve().parents[4]
+        return (
+            service_root / "docs" / "assistant" / ".rag-index-manifest.json"
+        ).resolve()
 
     async def _is_index_signature_unchanged(self, signature: str) -> bool:
         manifest_path = self._manifest_path()

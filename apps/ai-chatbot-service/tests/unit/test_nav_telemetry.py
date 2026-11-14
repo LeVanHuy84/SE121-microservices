@@ -7,14 +7,19 @@ from unittest.mock import patch
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 
-from app.modules.chatbot.navigation.telemetry import IntentTelemetryService, hash_user_id
+from app.modules.chatbot.navigation.telemetry import (
+    IntentTelemetryService,
+    hash_user_id,
+)
 from app.modules.chatbot.schemas import NavigateAction, NavigatePayload
 
 DB_PATCH = "app.modules.chatbot.navigation.telemetry.get_database"
 
 
 def _action(destination_id: str) -> NavigateAction:
-    return NavigateAction(label=destination_id, payload=NavigatePayload(destinationId=destination_id))
+    return NavigateAction(
+        label=destination_id, payload=NavigatePayload(destinationId=destination_id)
+    )
 
 
 class FakeEvents:
@@ -89,19 +94,25 @@ class IntentTelemetryTest(unittest.TestCase):
         self._offer("user-1", [first])
         self._offer("user-1", [second])
 
-        recorded = asyncio.run(self.service.record_action_click("user-1", second.id, "settings.privacy"))
+        recorded = asyncio.run(
+            self.service.record_action_click("user-1", second.id, "settings.privacy")
+        )
 
         self.assertTrue(recorded)
         by_action = {doc["action_ids"][0]: doc for doc in self.db.events.docs}
         self.assertTrue(by_action[second.id]["clicked"])
         self.assertFalse(by_action[first.id]["clicked"])
-        self.assertEqual(by_action[second.id]["clicked_destination_id"], "settings.privacy")
+        self.assertEqual(
+            by_action[second.id]["clicked_destination_id"], "settings.privacy"
+        )
 
     def test_click_from_other_user_is_ignored(self):
         action = _action("settings.privacy")
         self._offer("user-1", [action])
 
-        recorded = asyncio.run(self.service.record_action_click("user-2", action.id, "settings.privacy"))
+        recorded = asyncio.run(
+            self.service.record_action_click("user-2", action.id, "settings.privacy")
+        )
 
         self.assertFalse(recorded)
         self.assertFalse(self.db.events.docs[0]["clicked"])
@@ -110,7 +121,9 @@ class IntentTelemetryTest(unittest.TestCase):
         action = _action("settings.privacy")
         self._offer("user-1", [action])
 
-        recorded = asyncio.run(self.service.record_action_click("user-1", action.id, "admin.dashboard"))
+        recorded = asyncio.run(
+            self.service.record_action_click("user-1", action.id, "admin.dashboard")
+        )
 
         self.assertFalse(recorded)
         self.assertFalse(self.db.events.docs[0]["clicked"])
@@ -119,8 +132,12 @@ class IntentTelemetryTest(unittest.TestCase):
         action = _action("settings.privacy")
         self._offer("user-1", [action])
 
-        first = asyncio.run(self.service.record_action_click("user-1", action.id, "settings.privacy"))
-        second = asyncio.run(self.service.record_action_click("user-1", action.id, "settings.privacy"))
+        first = asyncio.run(
+            self.service.record_action_click("user-1", action.id, "settings.privacy")
+        )
+        second = asyncio.run(
+            self.service.record_action_click("user-1", action.id, "settings.privacy")
+        )
 
         self.assertTrue(first)
         self.assertFalse(second)
@@ -128,7 +145,9 @@ class IntentTelemetryTest(unittest.TestCase):
     def test_db_failure_never_raises(self):
         with patch(DB_PATCH, side_effect=RuntimeError("db down")):
             self._offer("user-1", [_action("settings.privacy")])
-            recorded = asyncio.run(self.service.record_action_click("user-1", "x", "settings.privacy"))
+            recorded = asyncio.run(
+                self.service.record_action_click("user-1", "x", "settings.privacy")
+            )
         self.assertFalse(recorded)
 
     def test_track_offer_outside_event_loop_is_a_noop(self):

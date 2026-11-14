@@ -6,6 +6,7 @@ Design:
 - Implements a 500ms asyncio timeout and fallbacks to a neutral snapshot to prevent blocking the chat flow.
 - Uses lazy imports for the analysis module to avoid circular dependencies.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,17 +19,27 @@ logger = logging.getLogger("uvicorn.error")
 
 _NEGATIVE_EMOTIONS = frozenset({"sadness", "fear", "anger", "disgust"})
 _HIGH_RISK_LEVELS = frozenset({"medium", "high"})
-_CHECKIN_ACTIONS = frozenset({"TRIGGER_PROACTIVE_CHECKIN", "PLAYLIST_AND_TIPS", "MEDICAL_DOCUMENT", "CRISIS_HOTLINE", "CHATBOT_COMPANION"})
+_CHECKIN_ACTIONS = frozenset(
+    {
+        "TRIGGER_PROACTIVE_CHECKIN",
+        "PLAYLIST_AND_TIPS",
+        "MEDICAL_DOCUMENT",
+        "CRISIS_HOTLINE",
+        "CHATBOT_COMPANION",
+    }
+)
 
 
 @dataclass
 class EmotionSnapshot:
-    primary_emotion: str = "neutral"    # sadness | joy | fear | anger | neutral | ...
-    risk_level: str = "none"            # none | weak | medium | high
-    suggested_action: str = "NO_ACTION" # NO_ACTION | MONITOR | TRIGGER_PROACTIVE_CHECKIN
+    primary_emotion: str = "neutral"  # sadness | joy | fear | anger | neutral | ...
+    risk_level: str = "none"  # none | weak | medium | high
+    suggested_action: str = (
+        "NO_ACTION"  # NO_ACTION | MONITOR | TRIGGER_PROACTIVE_CHECKIN
+    )
     chatbot_prompt_context: str | None = None
     persistent_distress: bool = False
-    recent_trend: str = "stable"        # stable | deteriorating | recovering
+    recent_trend: str = "stable"  # stable | deteriorating | recovering
 
     @property
     def needs_empathetic_tone(self) -> bool:
@@ -41,7 +52,9 @@ class EmotionSnapshot:
     @property
     def needs_proactive_checkin(self) -> bool:
         """The system should proactively check in on the user."""
-        return self.suggested_action in _CHECKIN_ACTIONS or bool(self.chatbot_prompt_context)
+        return self.suggested_action in _CHECKIN_ACTIONS or bool(
+            self.chatbot_prompt_context
+        )
 
 
 _DEFAULT_SNAPSHOT = EmotionSnapshot()
@@ -68,7 +81,9 @@ class EmotionContextService:
     def _get_redis(self):
         current_loop = self._get_current_loop()
         if self._redis is not None and self._redis is not False:
-            if self._loop is not current_loop or (self._loop and self._loop.is_closed()):
+            if self._loop is not current_loop or (
+                self._loop and self._loop.is_closed()
+            ):
                 self._redis = None
                 self._loop = None
 
@@ -98,15 +113,18 @@ class EmotionContextService:
 
     def _disable_redis(self, exc: Exception):
         from app.core.settings import settings
+
         logger.warning("[EmotionCtx] Disabling Redis temporarily due to error: %s", exc)
         self._redis = False
-        self._redis_disabled_until = time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
+        self._redis_disabled_until = (
+            time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
+        )
 
     async def update_cache(self, user_id: str, snapshot: EmotionSnapshot):
         redis = self._get_redis()
         if not redis:
             return
-        
+
         data = {
             "primary_emotion": snapshot.primary_emotion,
             "risk_level": snapshot.risk_level,
@@ -116,7 +134,7 @@ class EmotionContextService:
         }
         if snapshot.chatbot_prompt_context:
             data["chatbot_prompt_context"] = snapshot.chatbot_prompt_context
-            
+
         try:
             key = f"chatbot:emotion:{user_id}"
             await redis.setex(key, int(self._CACHE_TTL_SECONDS), json.dumps(data))
@@ -154,7 +172,9 @@ class EmotionContextService:
                         risk_level=data.get("risk_level", "none"),
                         suggested_action=data.get("suggested_action", "NO_ACTION"),
                         chatbot_prompt_context=data.get("chatbot_prompt_context"),
-                        persistent_distress=bool(data.get("persistent_distress", False)),
+                        persistent_distress=bool(
+                            data.get("persistent_distress", False)
+                        ),
                         recent_trend=data.get("recent_trend", "stable"),
                     )
             except Exception as exc:
@@ -182,6 +202,7 @@ class EmotionContextService:
         if repo is None:
             try:
                 import sys
+
                 if "app.modules.analysis.lifespan" in sys.modules:
                     mod = sys.modules["app.modules.analysis.lifespan"]
                     repo = getattr(mod, "emotion_aggregate_repo", None)
@@ -189,6 +210,7 @@ class EmotionContextService:
                 pass
             if repo is None:
                 from app.core.messaging import get_emotion_aggregate_repo
+
                 repo = get_emotion_aggregate_repo()
             if repo is None:
                 return _DEFAULT_SNAPSHOT
@@ -200,9 +222,7 @@ class EmotionContextService:
         latest = docs[0]
         # The Emotion aggregate stores either primaryEmotion or finalEmotion (due to 2 different pipelines)
         primary = (
-            latest.get("primaryEmotion")
-            or latest.get("finalEmotion")
-            or "neutral"
+            latest.get("primaryEmotion") or latest.get("finalEmotion") or "neutral"
         ).lower()
         risk = (latest.get("mentalHealthRiskLevel") or "none").lower()
         action = latest.get("suggestedAction") or "NO_ACTION"
@@ -210,7 +230,9 @@ class EmotionContextService:
         # Calculate persistent distress & trend across recent history
         negative_count = 0
         for doc in docs:
-            emo = (doc.get("primaryEmotion") or doc.get("finalEmotion") or "neutral").lower()
+            emo = (
+                doc.get("primaryEmotion") or doc.get("finalEmotion") or "neutral"
+            ).lower()
             if emo in _NEGATIVE_EMOTIONS:
                 negative_count += 1
 

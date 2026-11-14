@@ -41,11 +41,15 @@ class TestSurfaceContext(unittest.TestCase):
             request=request,
             history=[
                 AssistantHistoryItem(role="user", content="Chào bạn"),
-                AssistantHistoryItem(role="assistant", content="Chào bạn, mình có thể giúp gì?"),
+                AssistantHistoryItem(
+                    role="assistant", content="Chào bạn, mình có thể giúp gì?"
+                ),
             ],
         )
 
-        self.assertIn("SURFACE_CONTEXT (Ngữ cảnh màn hình hiện tại của người dùng):", prompt)
+        self.assertIn(
+            "SURFACE_CONTEXT (Ngữ cảnh màn hình hiện tại của người dùng):", prompt
+        )
         self.assertIn("- Màn hình đang mở: groups.explore", prompt)
         self.assertIn("- Thực thể đang xem: group-ai-enthusiasts", prompt)
         self.assertIn("category=technology", prompt)

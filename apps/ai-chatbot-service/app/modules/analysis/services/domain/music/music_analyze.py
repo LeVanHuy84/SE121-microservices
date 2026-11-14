@@ -8,7 +8,9 @@ Domain Service: Music Analyze
 import logging
 import os
 
-from app.modules.analysis.services.ml_models.music.music_emotion_analyzer import MusicEmotionAnalyzer
+from app.modules.analysis.services.ml_models.music.music_emotion_analyzer import (
+    MusicEmotionAnalyzer,
+)
 
 logger = logging.getLogger(__name__)
 

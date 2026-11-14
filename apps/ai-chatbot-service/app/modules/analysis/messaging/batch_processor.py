@@ -10,7 +10,7 @@ class OutboxBatchProcessor:
     def __init__(self, outbox_repo, kafka_producer):
         self.outbox_repo = outbox_repo
         self.kafka = kafka_producer
-        self.instance_id = str(uuid.uuid4())   # mỗi pod / service instance có id riêng
+        self.instance_id = str(uuid.uuid4())  # mỗi pod / service instance có id riêng
 
     # --------------------------------------------------
     # 1. Attempt lock
@@ -21,12 +21,9 @@ class OutboxBatchProcessor:
         return True nếu lock thành công
         """
         return await redis_client.set(
-            self.LOCK_KEY,
-            self.instance_id,
-            ex=self.LOCK_TTL,
-            nx=True
+            self.LOCK_KEY, self.instance_id, ex=self.LOCK_TTL, nx=True
         )
-    
+
     def stop(self):
         self._running = False
 
@@ -85,28 +82,30 @@ class OutboxBatchProcessor:
                 trace_carrier = payload.get("_traceContext", {})
                 headers = []
                 if "traceparent" in trace_carrier:
-                    headers.append(("traceparent", str(trace_carrier["traceparent"]).encode("utf-8")))
+                    headers.append(
+                        (
+                            "traceparent",
+                            str(trace_carrier["traceparent"]).encode("utf-8"),
+                        )
+                    )
                 if "tracestate" in trace_carrier and trace_carrier["tracestate"]:
-                    headers.append(("tracestate", str(trace_carrier["tracestate"]).encode("utf-8")))
+                    headers.append(
+                        ("tracestate", str(trace_carrier["tracestate"]).encode("utf-8"))
+                    )
 
-                kafka_message = {
-                    "type": outbox.get("eventType"),
-                    "payload": payload
-                }
+                kafka_message = {"type": outbox.get("eventType"), "payload": payload}
 
                 await self.kafka.send(
                     topic=outbox.get("topic"),
                     message=kafka_message,
-                    headers=headers if headers else None
+                    headers=headers if headers else None,
                 )
                 return outbox["_id"]
 
         tasks = [send_one(o) for o in outboxes]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        processed_ids = [
-            r for r in results if not isinstance(r, Exception)
-        ]
+        processed_ids = [r for r in results if not isinstance(r, Exception)]
 
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)

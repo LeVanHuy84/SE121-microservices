@@ -24,7 +24,7 @@ async def main():
     print("  SE121 ANALYSIS SERVICE - INTERACTIVE CLI TEST RUNNER")
     print("  (Pipeline thử nghiệm 100% In-Memory: Không ghi DB / Không phát Kafka)")
     print("======================================================================")
-    
+
     print("\n[1/2] Đang khởi tạo các Mô hình AI (PhoBERT + VLM Analyzer)...")
     try:
         model_loader.initialize()
@@ -49,8 +49,10 @@ async def main():
                 print("Đã thoát chương trình kiểm thử CLI.")
                 break
 
-            images_str = input(">> Nhập URL hoặc Đường dẫn Ảnh (cách nhau dấu phẩy, nhấn ENTER nếu không có ảnh): ").strip()
-            
+            images_str = input(
+                ">> Nhập URL hoặc Đường dẫn Ảnh (cách nhau dấu phẩy, nhấn ENTER nếu không có ảnh): "
+            ).strip()
+
             image_urls = []
             if images_str:
                 image_urls = [x.strip() for x in images_str.split(",") if x.strip()]
@@ -60,31 +62,37 @@ async def main():
                 continue
 
             print("\n... Đang chạy Pipeline Phân tích (Moderation + Emotion) ...")
-            
+
             # Chạy thử nghiệm qua Orchestrator (chỉ tính toán, không ghi DB)
             result = await orchestrator.analyze_content(
-                text=text,
-                image_urls=image_urls,
-                target_type=TargetTypeEnum.POST
+                text=text, image_urls=image_urls, target_type=TargetTypeEnum.POST
             )
 
             print("\n======================= KẾT QUẢ PHÂN TÍCH =======================")
-            
-            moderation = result.get('moderation', {})
-            emotion = result.get('emotion', {})
-            should_block = result.get('shouldBlock', False)
+
+            moderation = result.get("moderation", {})
+            emotion = result.get("emotion", {})
+            should_block = result.get("shouldBlock", False)
 
             # 1. KIỂM DUYỆT (MODERATION)
             print("🛡️ [KIỂM DUYỆT AN TOÀN - MODERATION]")
-            print(f"  - Kết luận:               {'🚫 VI PHẠM (CHẶN BÀI)' if should_block else '✅ AN TOÀN'}")
-            print(f"  - Nguồn xử lý (Pipeline): {moderation.get('pipelineSource', 'PHOBERT_TEXT')}")
+            print(
+                f"  - Kết luận:               {'🚫 VI PHẠM (CHẶN BÀI)' if should_block else '✅ AN TOÀN'}"
+            )
+            print(
+                f"  - Nguồn xử lý (Pipeline): {moderation.get('pipelineSource', 'PHOBERT_TEXT')}"
+            )
             print(f"  - Hành động (Action):     {moderation.get('action')}")
             print(f"  - Nhãn (Label):           {moderation.get('label')}")
             print(f"  - Vi phạm (isViolation):  {moderation.get('isViolation')}")
-            print(f"  - Hỗ trợ tâm lý:          {moderation.get('mentalHealthSupport')}")
-            if moderation.get('flaggedCategories'):
-                print(f"  - Danh mục vi phạm:       {moderation.get('flaggedCategories')}")
-            if moderation.get('reason'):
+            print(
+                f"  - Hỗ trợ tâm lý:          {moderation.get('mentalHealthSupport')}"
+            )
+            if moderation.get("flaggedCategories"):
+                print(
+                    f"  - Danh mục vi phạm:       {moderation.get('flaggedCategories')}"
+                )
+            if moderation.get("reason"):
                 print(f"  - Lý do chi tiết:         {moderation.get('reason')}")
 
             # 2. CẢM XÚC (EMOTION)
@@ -92,18 +100,26 @@ async def main():
                 print("\n🎭 [PHÂN TÍCH CẢM XÚC - EMOTION]")
                 print(f"  - Modality xử lý:         {emotion.get('dominantModality')}")
                 print(f"  - Cảm xúc chính (Primary): {emotion.get('primaryEmotion')}")
-                print(f"  - Cảm xúc phụ (Secondary): {emotion.get('secondaryEmotions')}")
-                print(f"  - Độ tin cậy (Confidence): {emotion.get('finalConfidence'):.4f}" if emotion.get('finalConfidence') is not None else "  - Độ tin cậy: N/A")
+                print(
+                    f"  - Cảm xúc phụ (Secondary): {emotion.get('secondaryEmotions')}"
+                )
+                print(
+                    f"  - Độ tin cậy (Confidence): {emotion.get('finalConfidence'):.4f}"
+                    if emotion.get("finalConfidence") is not None
+                    else "  - Độ tin cậy: N/A"
+                )
                 print(f"  - Cường độ (Intensity):    {emotion.get('intensity')}")
-                
+
                 # Sarcasm / Conflict
-                if emotion.get('isSarcasmOrConflict'):
+                if emotion.get("isSarcasmOrConflict"):
                     print("\n⚠️ [PHÁT HIỆN MÂU THUẪN / MỈA MAI (SARCASM)]")
                     print("  - Có mâu thuẫn:           True")
-                    print(f"  - Giải thích:             {emotion.get('conflictExplanation')}")
+                    print(
+                        f"  - Giải thích:             {emotion.get('conflictExplanation')}"
+                    )
 
                 # Emotion scores 7 nhãn
-                scores = emotion.get('finalScores', {})
+                scores = emotion.get("finalScores", {})
                 if scores:
                     print("\n📊 [BẢNG ĐIỂM 7 NHÃN CẢM XÚC (TỔNG = 1.0)]")
                     for k, v in scores.items():

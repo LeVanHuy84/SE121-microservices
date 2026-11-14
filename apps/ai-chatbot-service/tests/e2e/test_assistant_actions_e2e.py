@@ -19,7 +19,9 @@ KEY = core_settings.INTERNAL_SERVICE_KEY
 INTERNAL = {"X-Internal-Key": KEY}
 PUBLIC = {"X-Internal-Key": KEY, "X-User-Id": "user-1"}
 CLICK_BODY = {"actionId": "act-1", "destinationId": "settings.privacy"}
-TELEMETRY_CLICK = "app.modules.chatbot.navigation.telemetry.intent_telemetry.record_action_click"
+TELEMETRY_CLICK = (
+    "app.modules.chatbot.navigation.telemetry.intent_telemetry.record_action_click"
+)
 
 
 def _client() -> TestClient:
@@ -45,15 +47,23 @@ class InternalActionClickTest(unittest.TestCase):
     def test_records_click(self):
         with patch(TELEMETRY_CLICK, new=AsyncMock(return_value=True)) as mocked:
             res = self.client.post(
-                "/assistant/actions/click", json={"userId": "u1", **CLICK_BODY}, headers=INTERNAL
+                "/assistant/actions/click",
+                json={"userId": "u1", **CLICK_BODY},
+                headers=INTERNAL,
             )
 
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"success": True, "recorded": True})
-        mocked.assert_awaited_once_with(user_id="u1", action_id="act-1", destination_id="settings.privacy")
+        mocked.assert_awaited_once_with(
+            user_id="u1", action_id="act-1", destination_id="settings.privacy"
+        )
 
     def test_rejects_oversized_ids(self):
-        body = {"userId": "u1", "actionId": "x" * 129, "destinationId": "settings.privacy"}
+        body = {
+            "userId": "u1",
+            "actionId": "x" * 129,
+            "destinationId": "settings.privacy",
+        }
         res = self.client.post("/assistant/actions/click", json=body, headers=INTERNAL)
         self.assertEqual(res.status_code, 422)
 
@@ -67,16 +77,22 @@ class PublicActionClickTest(unittest.TestCase):
         self.assertEqual(res.status_code, 403)
 
     def test_requires_user_id(self):
-        res = self.client.post("/v1/assistant/actions/click", json=CLICK_BODY, headers=INTERNAL)
+        res = self.client.post(
+            "/v1/assistant/actions/click", json=CLICK_BODY, headers=INTERNAL
+        )
         self.assertEqual(res.status_code, 401)
 
     def test_records_click_for_gateway_user(self):
         with patch(TELEMETRY_CLICK, new=AsyncMock(return_value=True)) as mocked:
-            res = self.client.post("/v1/assistant/actions/click", json=CLICK_BODY, headers=PUBLIC)
+            res = self.client.post(
+                "/v1/assistant/actions/click", json=CLICK_BODY, headers=PUBLIC
+            )
 
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"success": True, "data": {"recorded": True}})
-        mocked.assert_awaited_once_with(user_id="user-1", action_id="act-1", destination_id="settings.privacy")
+        mocked.assert_awaited_once_with(
+            user_id="user-1", action_id="act-1", destination_id="settings.privacy"
+        )
 
 
 class RagReindexEndpointTest(unittest.TestCase):
@@ -84,12 +100,18 @@ class RagReindexEndpointTest(unittest.TestCase):
         self.client = _client()
 
     def test_requires_internal_key(self):
-        res = self.client.post("/assistant/admin/rag/reindex", headers={"X-Internal-Key": "wrong"})
+        res = self.client.post(
+            "/assistant/admin/rag/reindex", headers={"X-Internal-Key": "wrong"}
+        )
         self.assertIn(res.status_code, (401, 403))
 
     def test_accepts_and_runs_reindex_in_background(self):
-        with patch.object(rag_indexer_service, "trigger_reindex", new=AsyncMock()) as mocked:
-            res = self.client.post("/assistant/admin/rag/reindex?force=true", headers=INTERNAL)
+        with patch.object(
+            rag_indexer_service, "trigger_reindex", new=AsyncMock()
+        ) as mocked:
+            res = self.client.post(
+                "/assistant/admin/rag/reindex?force=true", headers=INTERNAL
+            )
 
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "accepted")
@@ -98,7 +120,9 @@ class RagReindexEndpointTest(unittest.TestCase):
     def test_reports_in_progress_without_scheduling(self):
         with patch.object(
             type(rag_indexer_service), "is_indexing", new=property(lambda self: True)
-        ), patch.object(rag_indexer_service, "trigger_reindex", new=AsyncMock()) as mocked:
+        ), patch.object(
+            rag_indexer_service, "trigger_reindex", new=AsyncMock()
+        ) as mocked:
             res = self.client.post("/assistant/admin/rag/reindex", headers=INTERNAL)
 
         self.assertEqual(res.json()["status"], "in_progress")
@@ -110,12 +134,17 @@ class TelemetryStatsEndpointTest(unittest.TestCase):
         self.client = _client()
 
     def test_requires_internal_key(self):
-        res = self.client.get("/assistant/admin/telemetry/stats", headers={"X-Internal-Key": "wrong"})
+        res = self.client.get(
+            "/assistant/admin/telemetry/stats", headers={"X-Internal-Key": "wrong"}
+        )
         self.assertIn(res.status_code, (401, 403))
 
     def test_returns_stats_payload(self):
         sample_stats = {"total_offers": 10, "total_clicks": 3, "ctr_percentage": 30.0}
-        with patch("app.modules.chatbot.navigation.telemetry.intent_telemetry.get_stats", new=AsyncMock(return_value=sample_stats)):
+        with patch(
+            "app.modules.chatbot.navigation.telemetry.intent_telemetry.get_stats",
+            new=AsyncMock(return_value=sample_stats),
+        ):
             res = self.client.get("/assistant/admin/telemetry/stats", headers=INTERNAL)
 
         self.assertEqual(res.status_code, 200)
@@ -125,6 +154,7 @@ class TelemetryStatsEndpointTest(unittest.TestCase):
 class ReadinessProbeTest(unittest.TestCase):
     def test_ready_reports_navigator_catalog(self):
         from app.main import app as main_app
+
         client = TestClient(main_app)
         res = client.get("/ready")
         self.assertEqual(res.status_code, 200)

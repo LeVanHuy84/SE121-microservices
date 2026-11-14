@@ -15,11 +15,13 @@ from app.modules.analysis.messaging.kafka_producer import KafkaProducerService
 
 logger = logging.getLogger(__name__)
 
+
 @pytest.fixture(scope="module")
 def kafka_container():
     """Spin up a real Kafka container for integration testing."""
     with KafkaContainer("confluentinc/cp-kafka:7.4.0") as container:
         yield container
+
 
 @pytest.mark.asyncio
 async def test_kafka_producer_consumer_integration(kafka_container: KafkaContainer):
@@ -30,18 +32,18 @@ async def test_kafka_producer_consumer_integration(kafka_container: KafkaContain
     brokers = kafka_container.get_bootstrap_server()
     topic = "test_crisis_alert"
     group_id = "test_chatbot_group"
-    
+
     # Init Producer
     producer = KafkaProducerService(brokers)
     await producer.start()
-    
+
     # Init Consumer
     received_messages = []
 
     async def mock_handler(messages):
         for msg in messages:
             received_messages.append(msg)
-            
+
     consumer = KafkaConsumerService(
         brokers=brokers,
         topic=topic,
@@ -60,7 +62,7 @@ async def test_kafka_producer_consumer_integration(kafka_container: KafkaContain
         "userId": "user-123",
         "type": "crisis",
         "content": "Tôi muốn chết",
-        "timestamp": "2026-10-04T12:00:00Z"
+        "timestamp": "2026-10-04T12:00:00Z",
     }
     await producer.send(topic, test_message)
 
@@ -69,12 +71,12 @@ async def test_kafka_producer_consumer_integration(kafka_container: KafkaContain
         if len(received_messages) > 0:
             break
         await asyncio.sleep(0.5)
-        
+
     # Stop services
     await consumer.stop()
     await consumer_task
     await producer.stop()
-    
+
     # Assertions
     assert len(received_messages) == 1, "Should have received exactly 1 message"
     received_data = received_messages[0]

@@ -80,7 +80,9 @@ class GatewayHttpClient:
             response.raise_for_status()
             return self._unwrap_data(response)
         except httpx.TimeoutException:
-            logger.warning("Gateway call to %s timed out after %.2fs", path, self.timeout)
+            logger.warning(
+                "Gateway call to %s timed out after %.2fs", path, self.timeout
+            )
             return {
                 "_error": "timeout",
                 "message": "Dịch vụ phản hồi quá thời gian quy định.",
@@ -132,7 +134,9 @@ class GatewayHttpClient:
             response.raise_for_status()
             return self._unwrap_data(response)
         except httpx.TimeoutException:
-            logger.warning("Gateway POST to %s timed out after %.2fs", path, self.timeout)
+            logger.warning(
+                "Gateway POST to %s timed out after %.2fs", path, self.timeout
+            )
             return {
                 "_error": "timeout",
                 "message": "Thao tác quá thời gian chờ xử lý.",
@@ -184,7 +188,9 @@ class GatewayHttpClient:
             response.raise_for_status()
             return self._unwrap_data(response)
         except httpx.TimeoutException:
-            logger.warning("Gateway PATCH to %s timed out after %.2fs", path, self.timeout)
+            logger.warning(
+                "Gateway PATCH to %s timed out after %.2fs", path, self.timeout
+            )
             return {
                 "_error": "timeout",
                 "message": "Thao tác quá thời gian chờ xử lý.",

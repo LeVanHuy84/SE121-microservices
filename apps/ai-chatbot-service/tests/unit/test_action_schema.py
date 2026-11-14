@@ -6,11 +6,19 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 
 from pydantic import ValidationError
 
-from app.modules.chatbot.schemas import AssistantRespondData, NavigateAction, NavigatePayload
+from app.modules.chatbot.schemas import (
+    AssistantRespondData,
+    NavigateAction,
+    NavigatePayload,
+)
 
 
-def _action(destination_id="settings.privacy", label="Quyền riêng tư") -> NavigateAction:
-    return NavigateAction(label=label, payload=NavigatePayload(destinationId=destination_id))
+def _action(
+    destination_id="settings.privacy", label="Quyền riêng tư"
+) -> NavigateAction:
+    return NavigateAction(
+        label=label, payload=NavigatePayload(destinationId=destination_id)
+    )
 
 
 def _data(**kwargs) -> AssistantRespondData:
@@ -30,7 +38,14 @@ class NavigateActionSchemaTest(unittest.TestCase):
             _action(label="x" * 41)
 
     def test_invalid_destination_ids_rejected(self):
-        for bad in ("Settings.Privacy", "/settings/privacy", "https://evil.example", "a..b", "settings.", ""):
+        for bad in (
+            "Settings.Privacy",
+            "/settings/privacy",
+            "https://evil.example",
+            "a..b",
+            "settings.",
+            "",
+        ):
             with self.subTest(destination_id=bad), self.assertRaises(ValidationError):
                 _action(destination_id=bad)
 

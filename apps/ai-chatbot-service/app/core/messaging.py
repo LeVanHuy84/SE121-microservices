@@ -56,4 +56,3 @@ def get_emotion_aggregate_repo() -> Any | None:
         mod = sys.modules["app.modules.analysis.lifespan"]
         return getattr(mod, "emotion_aggregate_repo", None)
     return None
-

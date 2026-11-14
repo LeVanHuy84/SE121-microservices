@@ -259,10 +259,6 @@ class Settings:
         self.RAG_HYBRID_CANDIDATE_MULTIPLIER: int = int(
             os.getenv("RAG_HYBRID_CANDIDATE_MULTIPLIER", 4)
         )
-        self.RAG_SEMANTIC_MERGE_THRESHOLD: float = float(
-            os.getenv("RAG_SEMANTIC_MERGE_THRESHOLD", 0.82)
-        )
-        self.RAG_CHUNK_TOKEN_BUDGET: int = int(os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320))
         self.RAG_REINDEX_MANIFEST_PATH: str = os.getenv(
             "RAG_REINDEX_MANIFEST_PATH", ".cache/rag/.rag_index_manifest.sha256"
         ).strip()
@@ -278,8 +274,11 @@ class Settings:
         self.GROQ_MODEL: str = os.getenv(
             "GROQ_MODEL", "llama-3.3-70b-versatile"
         ).strip()
+        self.GROQ_FAST_MODEL: str = os.getenv(
+            "GROQ_FAST_MODEL", "llama-3.1-8b-instant"
+        ).strip()
         os.environ.pop("GROQ_BASE_URL", None)
-        self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 45))
+        self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 5.0))
         self.CHATBOT_LLM_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
         )
@@ -293,10 +292,14 @@ class Settings:
         )
 
         # Downstream Gateway Client Settings for Phase 2 Tools
-        self.API_GATEWAY_URL: str = os.getenv("API_GATEWAY_URL", "http://localhost:4000").rstrip("/")
-        self.TOOL_HTTP_TIMEOUT_SECONDS: float = float(os.getenv("TOOL_HTTP_TIMEOUT_SECONDS", 2.0))
+        self.API_GATEWAY_URL: str = os.getenv(
+            "API_GATEWAY_URL", "http://localhost:4000"
+        ).rstrip("/")
+        self.TOOL_HTTP_TIMEOUT_SECONDS: float = float(
+            os.getenv("TOOL_HTTP_TIMEOUT_SECONDS", 2.0)
+        )
         self.TOOL_ENABLE_MOCK_FALLBACKS: bool = os.getenv(
-            "TOOL_ENABLE_MOCK_FALLBACKS", "true"
+            "TOOL_ENABLE_MOCK_FALLBACKS", "true" if self.UNIT_TEST_MODE else "false"
         ).lower() in ("true", "1", "yes")
 
         # VLM Multimodal Settings
@@ -516,12 +519,6 @@ class Settings:
         if self.RAG_HYBRID_CANDIDATE_MULTIPLIER <= 0:
             raise RuntimeError("RAG_HYBRID_CANDIDATE_MULTIPLIER must be positive")
 
-        if not (0 <= self.RAG_SEMANTIC_MERGE_THRESHOLD <= 1):
-            raise RuntimeError("RAG_SEMANTIC_MERGE_THRESHOLD must be between 0 and 1")
-
-        if self.RAG_CHUNK_TOKEN_BUDGET <= 0:
-            raise RuntimeError("RAG_CHUNK_TOKEN_BUDGET must be positive")
-
         if not self.RAG_REINDEX_MANIFEST_PATH:
             raise RuntimeError("RAG_REINDEX_MANIFEST_PATH must not be empty")
 
@@ -533,6 +530,9 @@ class Settings:
 
         if not self.GROQ_MODEL:
             raise RuntimeError("GROQ_MODEL must not be empty")
+
+        if not self.GROQ_FAST_MODEL:
+            raise RuntimeError("GROQ_FAST_MODEL must not be empty")
 
         if self.GROQ_TIMEOUT_SECONDS <= 0:
             raise RuntimeError("GROQ_TIMEOUT_SECONDS must be positive")

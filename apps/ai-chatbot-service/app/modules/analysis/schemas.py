@@ -12,6 +12,7 @@ from app.modules.analysis.enums import (
     ModerationLabelEnum,
 )
 
+
 class CreateAnalyzeRequest(BaseModel):
     userId: str
     targetId: str
@@ -19,10 +20,12 @@ class CreateAnalyzeRequest(BaseModel):
     content: str
     imageUrls: Optional[List[HttpUrl]] = None
 
+
 class UpdateAnalyzeRequest(BaseModel):
     targetId: str
     targetType: str
     content: Optional[str] = None
+
 
 class EmotionQuery(BaseModel):
     userId: str
@@ -30,6 +33,7 @@ class EmotionQuery(BaseModel):
     targetType: str
     from_date: Optional[str] = None
     to_date: Optional[str] = None
+
 
 class EmotionScores(BaseModel):
     anger: float
@@ -40,15 +44,18 @@ class EmotionScores(BaseModel):
     sadness: float
     surprise: float
 
+
 class TextEmotion(BaseModel):
     dominant_emotion: str
     emotion_scores: EmotionScores
+
 
 class ImageEmotion(BaseModel):
     url: HttpUrl
     face_count: int
     dominant_emotion: str
     emotion_scores: EmotionScores
+
 
 class AnalysisResponse(BaseModel):
     userId: str
@@ -59,6 +66,7 @@ class AnalysisResponse(BaseModel):
     final_emotion: str
     final_scores: EmotionScores
 
+
 class HistoryItem(BaseModel):
     id: str
     content: str
@@ -66,12 +74,16 @@ class HistoryItem(BaseModel):
     targetType: str
     createdAt: datetime
     status: str
+
+
 # app/core/dto/image_input.py
+
 
 @dataclass
 class ImageInput:
     url: str
     bytes: bytes
+
 
 class AnalysisTask(BaseModel):
     id: Optional[str] = None
@@ -92,9 +104,11 @@ class AnalysisTask(BaseModel):
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class IntensityDetail(BaseModel):
     level: str = "moderate"  # mild | moderate | severe
     score: float = 0.5
+
 
 class EmotionAggregate(BaseModel):
     id: Optional[str] = None
@@ -125,6 +139,7 @@ class EmotionAggregate(BaseModel):
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class ModerationResult(BaseModel):
     id: Optional[str] = None
     userId: str
@@ -148,7 +163,6 @@ class ModerationResult(BaseModel):
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-
 class Outbox(BaseModel):
     id: Optional[str] = None
     topic: str
@@ -157,25 +171,31 @@ class Outbox(BaseModel):
     processed: bool = False
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class ImagesRequest(BaseModel):
     images: List[HttpUrl]
 
+
 class TextModerationRequest(BaseModel):
     text: str = Field(..., min_length=1)
+
 
 class TextModerationResponse(BaseModel):
     is_violation: bool
     confidence: float
     source: str
 
+
 class ImageModerationRequest(BaseModel):
     urls: List[str] = Field(..., min_items=1)
+
 
 class ImageModerationResponse(BaseModel):
     url: str
     is_violation: bool
     confidence: float
     source: str
+
 
 class UnsafeSceneDetails(BaseModel):
     category: str

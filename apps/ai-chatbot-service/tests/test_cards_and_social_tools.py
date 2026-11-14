@@ -5,11 +5,13 @@ from app.modules.chatbot.schemas import (
     CardPayload,
     ShowCardAction,
     AssistantRespondData,
-    AssistantRespondRequest,
     SurfaceContext,
 )
 from app.modules.chatbot.services.assistant import RespondCommand
-from app.modules.chatbot.tools.dispatcher import ToolExecutionContext, ToolExecutionResult
+from app.modules.chatbot.tools.dispatcher import (
+    ToolExecutionContext,
+    ToolExecutionResult,
+)
 from app.modules.chatbot.tools.handlers import MicroserviceToolHandlers
 
 
@@ -27,8 +29,18 @@ class CardsAndSocialToolsTest(unittest.IsolatedAsyncioTestCase):
         self.mock_http.get.return_value = {
             "total": 25,
             "data": [
-                {"id": "u-1", "name": "Vinh Co", "username": "vinhco", "avatarUrl": "https://example.com/a.jpg"},
-                {"id": "u-2", "name": "Minh Tran", "username": "minhtran", "avatarUrl": None},
+                {
+                    "id": "u-1",
+                    "name": "Vinh Co",
+                    "username": "vinhco",
+                    "avatarUrl": "https://example.com/a.jpg",
+                },
+                {
+                    "id": "u-2",
+                    "name": "Minh Tran",
+                    "username": "minhtran",
+                    "avatarUrl": None,
+                },
             ],
         }
         res = await self.handlers.get_my_friends({"limit": 5}, self.ctx)
@@ -42,7 +54,12 @@ class CardsAndSocialToolsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_search_users_handler(self):
         self.mock_http.get.return_value = [
-            {"id": "u-3", "name": "Nam Nguyen", "username": "namnguyen", "avatarUrl": None}
+            {
+                "id": "u-3",
+                "name": "Nam Nguyen",
+                "username": "namnguyen",
+                "avatarUrl": None,
+            }
         ]
         res = await self.handlers.search_users({"query": "Nam"}, self.ctx)
         self.assertEqual(res["total"], 1)
@@ -76,6 +93,7 @@ class CardsAndSocialToolsTest(unittest.IsolatedAsyncioTestCase):
 
     def test_extract_cards_logic(self):
         cmd = RespondCommand()
+
         # Mock tool call & result
         class DummyTC:
             name = "get_my_friends"
@@ -86,7 +104,12 @@ class CardsAndSocialToolsTest(unittest.IsolatedAsyncioTestCase):
             data={
                 "total": 10,
                 "friends": [
-                    {"id": "u-1", "name": "Vinh Co", "username": "vinhco", "avatarUrl": "https://img.com/1.png"}
+                    {
+                        "id": "u-1",
+                        "name": "Vinh Co",
+                        "username": "vinhco",
+                        "avatarUrl": "https://img.com/1.png",
+                    }
                 ],
             },
         )

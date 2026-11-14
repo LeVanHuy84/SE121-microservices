@@ -37,11 +37,15 @@ class DestinationCatalog:
 
         raw_items = raw_data.get("destinations") if isinstance(raw_data, dict) else None
         if not isinstance(raw_items, list):
-            raise ValueError("destinations.yaml must contain a top-level 'destinations' list")
+            raise ValueError(
+                "destinations.yaml must contain a top-level 'destinations' list"
+            )
 
         for index, item in enumerate(raw_items):
             if not isinstance(item, dict):
-                raise ValueError(f"Destination item at index {index} is not a dictionary")
+                raise ValueError(
+                    f"Destination item at index {index} is not a dictionary"
+                )
 
             dest_id = item.get("id")
             if not dest_id or not isinstance(dest_id, str):
@@ -61,7 +65,9 @@ class DestinationCatalog:
             description = item.get("description", "").strip()
             raw_synonyms = item.get("synonyms") or []
             if not isinstance(raw_synonyms, list) or not raw_synonyms:
-                raise ValueError(f"Destination '{dest_id}' must have at least one synonym")
+                raise ValueError(
+                    f"Destination '{dest_id}' must have at least one synonym"
+                )
 
             synonyms = tuple(str(s).strip() for s in raw_synonyms if str(s).strip())
             help_doc_ids = tuple(item.get("helpDocIds") or ())

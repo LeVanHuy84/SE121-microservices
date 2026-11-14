@@ -26,19 +26,26 @@ def build_violations(moderation: dict) -> List[Dict]:
     flagged = moderation.get("flaggedCategories", [])
     for c in flagged:
         c_lower = str(c).lower().replace("-", "_")
-        reason = custom_reason if custom_reason else CATEGORY_VI_MAP.get(c_lower, "Nội dung vi phạm tiêu chuẩn cộng đồng")
+        reason = (
+            custom_reason
+            if custom_reason
+            else CATEGORY_VI_MAP.get(c_lower, "Nội dung vi phạm tiêu chuẩn cộng đồng")
+        )
         categories_map[str(c).upper().replace("-", "_")] = reason
 
     # 2. Fallback if violation detected but no flagged categories listed
     if not categories_map and moderation.get("isViolation"):
         label = moderation.get("label", "VIOLATION")
         label_key = str(label).lower().replace("-", "_")
-        reason = custom_reason if custom_reason else CATEGORY_VI_MAP.get(label_key, "Nội dung vi phạm tiêu chuẩn cộng đồng")
+        reason = (
+            custom_reason
+            if custom_reason
+            else CATEGORY_VI_MAP.get(label_key, "Nội dung vi phạm tiêu chuẩn cộng đồng")
+        )
         categories_map[str(label).upper().replace("-", "_")] = reason
 
     return [
-        {"category": cat, "reason": reason}
-        for cat, reason in categories_map.items()
+        {"category": cat, "reason": reason} for cat, reason in categories_map.items()
     ]
 
 
@@ -47,7 +54,7 @@ def build_display_message(
     violations: List[Dict],
     action: str = "ALLOW",
     mental_health_support: bool = False,
-    label: str = ""
+    label: str = "",
 ) -> str:
     if action == "ALLOW" and not is_violation:
         return ""

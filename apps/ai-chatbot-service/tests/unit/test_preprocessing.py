@@ -2,11 +2,12 @@ import unittest
 
 from app.utils.teencode.teencode_normalizer import teencode_normalizer
 from app.utils.text_cleaner.social_text_cleaner import social_text_cleaner
-from app.modules.analysis.services.ml_models.text_emotion.text_preprocessor import preprocess_single_sentence
+from app.modules.analysis.services.ml_models.text_emotion.text_preprocessor import (
+    preprocess_single_sentence,
+)
 
 
 class TestPhoBERTPreprocessingPipeline(unittest.TestCase):
-
     def test_teencode_normalizer(self):
         text = "em k thik dede nay dau, wk j ma ghet vay"
         result = teencode_normalizer.normalize(text)

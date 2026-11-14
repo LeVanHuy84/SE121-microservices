@@ -41,9 +41,7 @@ class ToolDispatcherTest(unittest.TestCase):
 
     def test_unregistered_tool_returns_error(self):
         ctx = ToolExecutionContext(user_id="user-1")
-        res = asyncio.run(
-            tool_dispatcher.dispatch("unknown_hack_tool", {}, ctx)
-        )
+        res = asyncio.run(tool_dispatcher.dispatch("unknown_hack_tool", {}, ctx))
         self.assertFalse(res.success)
         self.assertIn("không tồn tại", res.error)
 
@@ -56,9 +54,7 @@ class ToolDispatcherTest(unittest.TestCase):
 
         dispatcher.register_handler("get_my_friend_requests", slow_handler)
         ctx = ToolExecutionContext(user_id="user-1")
-        res = asyncio.run(
-            dispatcher.dispatch("get_my_friend_requests", {}, ctx)
-        )
+        res = asyncio.run(dispatcher.dispatch("get_my_friend_requests", {}, ctx))
         self.assertFalse(res.success)
         self.assertIn("quá thời gian", res.error)
 
@@ -70,9 +66,7 @@ class ToolDispatcherTest(unittest.TestCase):
 
         dispatcher.register_handler("get_my_friend_requests", failing_handler)
         ctx = ToolExecutionContext(user_id="user-1")
-        res = asyncio.run(
-            dispatcher.dispatch("get_my_friend_requests", {}, ctx)
-        )
+        res = asyncio.run(dispatcher.dispatch("get_my_friend_requests", {}, ctx))
         self.assertFalse(res.success)
         self.assertIn("Downstream service connection refused", res.error)
 

@@ -21,7 +21,9 @@ class NavCatalogTest(unittest.TestCase):
 
     def test_admin_routes_not_in_catalog(self):
         for entry in destination_catalog.all_destinations():
-            self.assertFalse(entry.id.startswith("admin"), f"Admin route in catalog: {entry.id}")
+            self.assertFalse(
+                entry.id.startswith("admin"), f"Admin route in catalog: {entry.id}"
+            )
             self.assertNotIn("admin", entry.id)
 
 
@@ -79,7 +81,9 @@ class NavResolverUnitTest(unittest.TestCase):
     def test_howto_intent_resolves_as_howto(self):
         decision = self.resolver.resolve("làm sao để tắt thông báo")
         self.assertEqual(decision.path, "howto")
-        self.assertTrue(any(m.destination_id == "settings.notifications" for m in decision.matches))
+        self.assertTrue(
+            any(m.destination_id == "settings.notifications" for m in decision.matches)
+        )
 
 
 class NavResolverBenchmarkTest(unittest.TestCase):
@@ -96,7 +100,9 @@ class NavResolverBenchmarkTest(unittest.TestCase):
                 if stripped:
                     samples.append(json.loads(stripped))
 
-        self.assertGreaterEqual(len(samples), 100, "Eval set must contain at least 100 utterances")
+        self.assertGreaterEqual(
+            len(samples), 100, "Eval set must contain at least 100 utterances"
+        )
 
         nav_samples = [s for s in samples if s["expected_destination"] is not None]
         negative_samples = [s for s in samples if s["expected_destination"] is None]
@@ -139,10 +145,18 @@ class NavResolverBenchmarkTest(unittest.TestCase):
             f"FP Rate: {fp_rate:.2%}, Avg Latency: {avg_latency_ms:.3f}ms"
         )
 
-        self.assertGreaterEqual(top1_acc, 0.85, f"Top-1 accuracy {top1_acc:.2%} must be >= 85%")
-        self.assertGreaterEqual(top3_acc, 0.95, f"Top-3 accuracy {top3_acc:.2%} must be >= 95%")
-        self.assertLessEqual(fp_rate, 0.05, f"False positive rate {fp_rate:.2%} must be <= 5%")
-        self.assertLess(avg_latency_ms, 5.0, f"Average latency {avg_latency_ms:.3f}ms must be < 5ms")
+        self.assertGreaterEqual(
+            top1_acc, 0.85, f"Top-1 accuracy {top1_acc:.2%} must be >= 85%"
+        )
+        self.assertGreaterEqual(
+            top3_acc, 0.95, f"Top-3 accuracy {top3_acc:.2%} must be >= 95%"
+        )
+        self.assertLessEqual(
+            fp_rate, 0.05, f"False positive rate {fp_rate:.2%} must be <= 5%"
+        )
+        self.assertLess(
+            avg_latency_ms, 5.0, f"Average latency {avg_latency_ms:.3f}ms must be < 5ms"
+        )
 
 
 if __name__ == "__main__":

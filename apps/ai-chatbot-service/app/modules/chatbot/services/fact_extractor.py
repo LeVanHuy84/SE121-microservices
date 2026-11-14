@@ -4,8 +4,8 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any
 
+from app.core.settings import settings
 from app.modules.chatbot.repositories.chat_history import (
     NON_SUBSTANTIVE_INTENTS,
     ChatHistoryRepository,
@@ -80,7 +80,9 @@ class FactExtractorService:
         normalized = teencode_normalizer.normalize(user_message or "").lower()
 
         # Trigger A (Opening substantive turn)
-        if (turn_count == 1 or locked_anchor_this_turn) and len(normalized.split()) >= 8:
+        if (turn_count == 1 or locked_anchor_this_turn) and len(
+            normalized.split()
+        ) >= 8:
             return True, "opening"
 
         # Trigger B (Self-disclosure keywords)
@@ -158,7 +160,9 @@ class FactExtractorService:
         try:
             async with _EXTRACTION_SEMAPHORE:
                 # Ensure conversation is still active before LLM call
-                is_active_early = await self.history_repo.is_conversation_active(user_id, conversation_id)
+                is_active_early = await self.history_repo.is_conversation_active(
+                    user_id, conversation_id
+                )
                 if not is_active_early:
                     return
 
@@ -171,13 +175,17 @@ class FactExtractorService:
                         limit=5,
                     )
                     if recent_msgs:
-                        messages_text = "\n".join(f"- {m}" for m in reversed(recent_msgs))
+                        messages_text = "\n".join(
+                            f"- {m}" for m in reversed(recent_msgs)
+                        )
                     else:
                         messages_text = f"- {last_user_message}"
                 else:
                     messages_text = f"- {last_user_message}"
 
-                safe_messages_text = messages_text.replace("</user_messages>", "&lt;/user_messages&gt;")
+                safe_messages_text = messages_text.replace(
+                    "</user_messages>", "&lt;/user_messages&gt;"
+                )
                 allowed_keys_str = ", ".join(sorted(CANONICAL_FACT_KEYS))
                 prompt = (
                     "Bạn là bộ trích xuất thông tin người dùng lâu dài (Long-term Fact Extractor).\n"
@@ -213,24 +221,40 @@ class FactExtractorService:
                     message=last_user_message,
                     intent="fact_extraction",
                 )
-                generation = await self.provider.generate(prompt, request)
+                try:
+                    generation = await self.provider.generate(
+                        prompt,
+                        request,
+                        model=settings.GROQ_FAST_MODEL,
+                        json_mode=True,
+                    )
+                except TypeError:
+                    generation = await self.provider.generate(prompt, request)
                 raw_text = (generation.content or "").strip()
 
                 # Strip markdown code fences if present
-                clean_json = re.sub(r"^```(?:json)?\s*", "", raw_text, flags=re.IGNORECASE)
+                clean_json = re.sub(
+                    r"^```(?:json)?\s*", "", raw_text, flags=re.IGNORECASE
+                )
                 clean_json = re.sub(r"\s*```$", "", clean_json.strip())
 
                 try:
                     parsed = json.loads(clean_json)
                 except Exception as json_err:
-                    logger.debug("Fact extraction JSON parsing failed: %s; raw=%s", json_err, raw_text)
+                    logger.debug(
+                        "Fact extraction JSON parsing failed: %s; raw=%s",
+                        json_err,
+                        raw_text,
+                    )
                     return
 
                 if not isinstance(parsed, dict):
                     return
 
                 # Before applying diff, ensure conversation is still active (not purged or tombstoned)
-                is_active = await self.history_repo.is_conversation_active(user_id, conversation_id)
+                is_active = await self.history_repo.is_conversation_active(
+                    user_id, conversation_id
+                )
                 if not is_active:
                     logger.debug(
                         "Conversation %s is no longer active; discarding fact diff for user %s",

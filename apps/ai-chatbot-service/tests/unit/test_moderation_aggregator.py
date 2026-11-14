@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import MagicMock
 
-from app.modules.analysis.services.ml_models.text_moderation.moderation_aggregator import ModerationAggregator
+from app.modules.analysis.services.ml_models.text_moderation.moderation_aggregator import (
+    ModerationAggregator,
+)
 
 
 class TestModerationAggregatorThreshold(unittest.TestCase):
@@ -12,7 +14,7 @@ class TestModerationAggregatorThreshold(unittest.TestCase):
         self.aggregator = ModerationAggregator(
             phobert=self.mock_phobert,
             keyword=self.mock_keyword,
-            hard_block_threshold=0.80
+            hard_block_threshold=0.80,
         )
 
     def test_hate_speech_below_threshold_returns_warning(self):
@@ -25,9 +27,9 @@ class TestModerationAggregatorThreshold(unittest.TestCase):
                 "CLEAN": 0.0654,
                 "PROFANITY_VENTING": 0.4559,
                 "HATE_SPEECH": 0.5659,
-                "EMOTIONAL_CRISIS": 0.0047
+                "EMOTIONAL_CRISIS": 0.0047,
             },
-            "model": "phobert_multiclass"
+            "model": "phobert_multiclass",
         }
 
         result = self.aggregator.moderate("Dm th sv trong nhóm...")
@@ -47,9 +49,9 @@ class TestModerationAggregatorThreshold(unittest.TestCase):
                 "CLEAN": 0.01,
                 "PROFANITY_VENTING": 0.11,
                 "HATE_SPEECH": 0.88,
-                "EMOTIONAL_CRISIS": 0.0
+                "EMOTIONAL_CRISIS": 0.0,
             },
-            "model": "phobert_multiclass"
+            "model": "phobert_multiclass",
         }
 
         result = self.aggregator.moderate("Thằng này ngu ngốc...")

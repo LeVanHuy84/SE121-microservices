@@ -4,16 +4,13 @@ from typing import Any
 
 from app.modules.chatbot.schemas import SurfaceContext
 from app.modules.chatbot.tools.catalog import (
-    ALL_TOOLS,
     DOMAIN_TOOLS,
-    GET_FRIEND_RECOMMENDATIONS,
     GET_MY_EMOTION_SUMMARY,
     GET_MY_FRIENDS,
     GET_MY_FRIEND_REQUESTS,
     GET_MY_GROUPS,
     GET_MY_UNREAD_NOTIFICATIONS,
     GET_TRENDING_POSTS,
-    SEARCH_USERS,
     ToolDefinition,
 )
 
@@ -44,7 +41,9 @@ class ToolRouter:
     def __init__(self, max_tools: int = MAX_ACTIVE_TOOLS):
         self.max_tools = max_tools
 
-    def route(self, surface: SurfaceContext | None, ai_policy: str = "FULL") -> list[ToolDefinition]:
+    def route(
+        self, surface: SurfaceContext | None, ai_policy: str = "FULL"
+    ) -> list[ToolDefinition]:
         if ai_policy and str(ai_policy).upper() == "RESTRICTED":
             return []
 
@@ -91,7 +90,9 @@ class ToolRouter:
         domain_tools = DOMAIN_TOOLS.get(domain_name, [])
         return list(domain_tools) + list(GLOBAL_TOOLS)
 
-    def get_openai_tools(self, surface: SurfaceContext | None, ai_policy: str = "FULL") -> list[dict[str, Any]]:
+    def get_openai_tools(
+        self, surface: SurfaceContext | None, ai_policy: str = "FULL"
+    ) -> list[dict[str, Any]]:
         tools = self.route(surface, ai_policy=ai_policy)
         return [tool.to_openai_tool() for tool in tools]
 

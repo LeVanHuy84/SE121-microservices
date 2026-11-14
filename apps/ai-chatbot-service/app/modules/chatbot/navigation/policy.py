@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.modules.chatbot.navigation.resolver import NavDecision, NavMatch
-from app.modules.chatbot.schemas import AssistantRespondData, NavigateAction, NavigatePayload
+from app.modules.chatbot.schemas import (
+    AssistantRespondData,
+    NavigateAction,
+    NavigatePayload,
+)
 
 _HOWTO_MAX_ACTIONS = 2
 _CLARIFY_MAX_ACTIONS = 3
@@ -35,11 +39,15 @@ class NavOutcome:
 def to_action(match: NavMatch) -> NavigateAction:
     return NavigateAction(
         label=match.label_vi,
-        payload=NavigatePayload(destinationId=match.destination_id, params=match.params),
+        payload=NavigatePayload(
+            destinationId=match.destination_id, params=match.params
+        ),
     )
 
 
-def _direct_response(response_type: str, reply: str, actions: list[NavigateAction]) -> AssistantRespondData:
+def _direct_response(
+    response_type: str, reply: str, actions: list[NavigateAction]
+) -> AssistantRespondData:
     return AssistantRespondData(
         type=response_type,
         reply=reply,

@@ -110,7 +110,7 @@ async def respond_stream(
             logger.exception("Assistant stream failed")
             error_data = {
                 "success": False,
-                "error": _stable_client_error(502, "ASSISTANT_STREAM_FAILED", str(exc))
+                "error": _stable_client_error(502, "ASSISTANT_STREAM_FAILED", str(exc)),
             }
             yield f"data: {json.dumps(error_data)}\n\n"
 
@@ -236,7 +236,9 @@ async def list_conversations_by_user(
         logger.exception("Assistant list conversations failed: userId=%s", user_id)
         raise HTTPException(
             status_code=502,
-            detail=_stable_client_error(502, "ASSISTANT_CONVERSATIONS_FAILED", str(exc)),
+            detail=_stable_client_error(
+                502, "ASSISTANT_CONVERSATIONS_FAILED", str(exc)
+            ),
         ) from exc
 
 
@@ -269,7 +271,9 @@ async def create_conversation_by_user(
         logger.exception("Assistant create conversation failed: userId=%s", user_id)
         raise HTTPException(
             status_code=502,
-            detail=_stable_client_error(502, "ASSISTANT_CREATE_CONVERSATION_FAILED", str(exc)),
+            detail=_stable_client_error(
+                502, "ASSISTANT_CREATE_CONVERSATION_FAILED", str(exc)
+            ),
         ) from exc
 
 
@@ -289,10 +293,16 @@ async def delete_conversation_by_user(
             data={"deleted": deleted, "id": conversation_id},
         )
     except Exception as exc:
-        logger.exception("Assistant delete conversation failed: userId=%s convId=%s", user_id, conversation_id)
+        logger.exception(
+            "Assistant delete conversation failed: userId=%s convId=%s",
+            user_id,
+            conversation_id,
+        )
         raise HTTPException(
             status_code=502,
-            detail=_stable_client_error(502, "ASSISTANT_DELETE_CONVERSATION_FAILED", str(exc)),
+            detail=_stable_client_error(
+                502, "ASSISTANT_DELETE_CONVERSATION_FAILED", str(exc)
+            ),
         ) from exc
 
 
@@ -353,7 +363,10 @@ async def admin_reindex_rag_docs(
     from app.modules.chatbot.services.rag_indexer import rag_indexer_service
 
     if rag_indexer_service.is_indexing:
-        return {"status": "in_progress", "message": "Reindexing is already running in background"}
+        return {
+            "status": "in_progress",
+            "message": "Reindexing is already running in background",
+        }
 
     background_tasks.add_task(rag_indexer_service.trigger_reindex, force=force)
     return {"status": "accepted", "message": "Reindex triggered in background"}

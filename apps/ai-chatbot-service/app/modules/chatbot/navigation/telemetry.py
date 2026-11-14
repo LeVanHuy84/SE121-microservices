@@ -46,7 +46,9 @@ class IntentTelemetryService:
             "id": str(uuid.uuid4()),
             "user_id_hash": hash_user_id(user_id),
             "action_ids": [action.id for action in actions],
-            "destination_ids_offered": [action.payload.destinationId for action in actions],
+            "destination_ids_offered": [
+                action.payload.destinationId for action in actions
+            ],
             "resolver_path": resolver_path,
             "clicked": False,
             "clicked_action_id": None,

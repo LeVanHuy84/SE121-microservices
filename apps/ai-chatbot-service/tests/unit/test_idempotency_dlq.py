@@ -4,7 +4,6 @@ from app.modules.analysis.messaging.consumer_helper import KafkaConsumerHelper
 
 
 class TestKafkaIntegrity(unittest.IsolatedAsyncioTestCase):
-
     async def test_idempotency_filtering(self):
         # Mock IdempotencyRepository & DLQ
         mock_idempotency = AsyncMock()
@@ -19,7 +18,7 @@ class TestKafkaIntegrity(unittest.IsolatedAsyncioTestCase):
 
         batch_messages = [
             {"eventId": "event_1", "content": "Bài viết đã xử lý trước đó"},
-            {"eventId": "event_2", "content": "Bài viết mới chưa xử lý"}
+            {"eventId": "event_2", "content": "Bài viết mới chưa xử lý"},
         ]
 
         await helper.handle_batch(batch_messages, mock_handler, topic="test-events")
@@ -33,8 +32,10 @@ class TestKafkaIntegrity(unittest.IsolatedAsyncioTestCase):
         mock_dlq = AsyncMock()
         mock_idempotency.try_acquire.return_value = True
 
-        helper = KafkaConsumerHelper(mock_idempotency, mock_dlq, max_retries=2, initial_backoff_sec=0.01)
-        
+        helper = KafkaConsumerHelper(
+            mock_idempotency, mock_dlq, max_retries=2, initial_backoff_sec=0.01
+        )
+
         # Handler luôn quăng lỗi exception
         mock_handler = AsyncMock(side_effect=RuntimeError("Groq VLM API Down"))
 
@@ -44,7 +45,7 @@ class TestKafkaIntegrity(unittest.IsolatedAsyncioTestCase):
 
         # Confirm đã retry đúng 2 lần
         self.assertEqual(mock_handler.call_count, 2)
-        
+
         # Confirm đã mark_failed và gửi sang DLQ
         mock_idempotency.mark_failed.assert_called_once()
         mock_dlq.send_to_dlq.assert_called_once()

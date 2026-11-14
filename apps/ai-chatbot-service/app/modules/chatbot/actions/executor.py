@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from app.core.settings import settings
-from app.modules.chatbot.actions.registry import ALLOWLISTED_ACTIONS, is_action_allowed
+from app.modules.chatbot.actions.registry import is_action_allowed
 from app.modules.chatbot.schemas import ActionExecutionRequest, ActionExecutionResponse
 from app.modules.chatbot.tools.http_client import GatewayHttpClient, gateway_http_client
 
@@ -79,7 +79,9 @@ class ActionExecutorService:
         if lock:
             try:
                 async with lock:
-                    return await self._execute_internal(request, effective_token, effective_user_id)
+                    return await self._execute_internal(
+                        request, effective_token, effective_user_id
+                    )
             finally:
                 self._inflight_locks.pop(key, None)
         return await self._execute_internal(request, effective_token, effective_user_id)
@@ -93,7 +95,9 @@ class ActionExecutorService:
         # Idempotency check
         cached_result = await self._get_idempotent_result(request.idempotencyKey)
         if cached_result is not None:
-            logger.info("Idempotent replay detected for key: %s", request.idempotencyKey)
+            logger.info(
+                "Idempotent replay detected for key: %s", request.idempotencyKey
+            )
             return cached_result
 
         # Parameter extraction and normalization
@@ -101,7 +105,9 @@ class ActionExecutorService:
         action_name = request.actionName
 
         try:
-            result = await self._dispatch_mutation(action_name, params, effective_token, effective_user_id)
+            result = await self._dispatch_mutation(
+                action_name, params, effective_token, effective_user_id
+            )
             # Only cache successful executions in idempotency store so transient errors can be retried
             if result.success:
                 await self._set_idempotent_result(request.idempotencyKey, result)
@@ -127,132 +133,255 @@ class ActionExecutorService:
             return self._build_mock_success(action_name, params)
 
         if action_name == "send_friend_request":
-            target_id = params.get("target_user_id") or params.get("targetUserId") or params.get("id")
+            target_id = (
+                params.get("target_user_id")
+                or params.get("targetUserId")
+                or params.get("id")
+            )
             if not target_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã người dùng (target_user_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã người dùng (target_user_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/request/{target_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/request/{target_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể gửi lời mời kết bạn."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể gửi lời mời kết bạn."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã gửi lời mời kết bạn thành công!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã gửi lời mời kết bạn thành công!",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "accept_friend_request":
-            requester_id = params.get("requester_id") or params.get("requesterId") or params.get("id")
+            requester_id = (
+                params.get("requester_id")
+                or params.get("requesterId")
+                or params.get("id")
+            )
             if not requester_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã người yêu cầu (requester_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã người yêu cầu (requester_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/accept/{requester_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/accept/{requester_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể chấp nhận kết bạn."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể chấp nhận kết bạn."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã chấp nhận lời mời kết bạn thành công!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã chấp nhận lời mời kết bạn thành công!",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "cancel_friend_request":
-            target_id = params.get("target_user_id") or params.get("targetUserId") or params.get("id")
+            target_id = (
+                params.get("target_user_id")
+                or params.get("targetUserId")
+                or params.get("id")
+            )
             if not target_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã người dùng (target_user_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã người dùng (target_user_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/cancel/{target_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/cancel/{target_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể thu hồi lời mời."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể thu hồi lời mời."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã thu hồi lời mời kết bạn thành công!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã thu hồi lời mời kết bạn thành công!",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "join_group":
             group_id = params.get("group_id") or params.get("groupId")
             if not group_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã nhóm (group_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã nhóm (group_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/groups/{group_id}/join-requests", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/groups/{group_id}/join-requests", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể tham gia nhóm."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể tham gia nhóm."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã gửi yêu cầu tham gia nhóm thành công!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã gửi yêu cầu tham gia nhóm thành công!",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "leave_group":
             group_id = params.get("group_id") or params.get("groupId")
             if not group_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã nhóm (group_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã nhóm (group_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/groups/{group_id}/members/leave", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/groups/{group_id}/members/leave", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể rời nhóm."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể rời nhóm."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã rời khỏi nhóm thành công.", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã rời khỏi nhóm thành công.",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "decline_friend_request":
-            requester_id = params.get("requester_id") or params.get("requesterId") or params.get("id")
+            requester_id = (
+                params.get("requester_id")
+                or params.get("requesterId")
+                or params.get("id")
+            )
             if not requester_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã người yêu cầu (requester_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã người yêu cầu (requester_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/decline/{requester_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/decline/{requester_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể từ chối lời mời kết bạn."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể từ chối lời mời kết bạn."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã từ chối lời mời kết bạn.", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã từ chối lời mời kết bạn.",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "unfriend_user":
-            target_id = params.get("target_user_id") or params.get("targetUserId") or params.get("friendId") or params.get("id")
+            target_id = (
+                params.get("target_user_id")
+                or params.get("targetUserId")
+                or params.get("friendId")
+                or params.get("id")
+            )
             if not target_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã bạn bè (target_user_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã bạn bè (target_user_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/remove/{target_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/remove/{target_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể hủy kết bạn."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể hủy kết bạn."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã hủy kết bạn thành công.", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã hủy kết bạn thành công.",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "block_user":
-            target_id = params.get("target_user_id") or params.get("targetUserId") or params.get("id")
+            target_id = (
+                params.get("target_user_id")
+                or params.get("targetUserId")
+                or params.get("id")
+            )
             if not target_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã người dùng (target_user_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã người dùng (target_user_id).",
+                    error="MISSING_PARAM",
                 )
-            res = await self.http_client.post(f"/social/block/{target_id}", json_body={}, auth_token=auth_token)
+            res = await self.http_client.post(
+                f"/social/block/{target_id}", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể chặn người dùng."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể chặn người dùng."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã chặn người dùng thành công.", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã chặn người dùng thành công.",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "react_post":
-            post_id = params.get("post_id") or params.get("postId") or params.get("targetId") or params.get("id")
+            post_id = (
+                params.get("post_id")
+                or params.get("postId")
+                or params.get("targetId")
+                or params.get("id")
+            )
             if not post_id:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message="Thiếu mã bài viết (post_id).", error="MISSING_PARAM"
+                    success=False,
+                    actionName=action_name,
+                    message="Thiếu mã bài viết (post_id).",
+                    error="MISSING_PARAM",
                 )
-            raw_reaction = str(params.get("reaction_type") or params.get("reactionType") or "LIKE").upper()
+            raw_reaction = str(
+                params.get("reaction_type") or params.get("reactionType") or "LIKE"
+            ).upper()
             valid_reactions = {"LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY"}
             reaction_type = raw_reaction if raw_reaction in valid_reactions else "LIKE"
             res = await self.http_client.post(
@@ -266,27 +395,46 @@ class ActionExecutorService:
             )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể thả cảm xúc."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể thả cảm xúc."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message=f"Đã thả cảm xúc '{reaction_type.lower()}' cho bài viết!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message=f"Đã thả cảm xúc '{reaction_type.lower()}' cho bài viết!",
+                data=res if isinstance(res, dict) else {},
             )
 
         elif action_name == "mark_all_notifications_read":
-            res = await self.http_client.patch("/notifications/read-all", json_body={}, auth_token=auth_token)
+            res = await self.http_client.patch(
+                "/notifications/read-all", json_body={}, auth_token=auth_token
+            )
             if isinstance(res, dict) and "_error" in res:
                 return ActionExecutionResponse(
-                    success=False, actionName=action_name, message=res.get("message", "Không thể cập nhật thông báo."), error=res.get("error")
+                    success=False,
+                    actionName=action_name,
+                    message=res.get("message", "Không thể cập nhật thông báo."),
+                    error=res.get("error"),
                 )
             return ActionExecutionResponse(
-                success=True, actionName=action_name, message="Đã đánh dấu tất cả thông báo là đã đọc!", data=res if isinstance(res, dict) else {}
+                success=True,
+                actionName=action_name,
+                message="Đã đánh dấu tất cả thông báo là đã đọc!",
+                data=res if isinstance(res, dict) else {},
             )
 
         return ActionExecutionResponse(
-            success=False, actionName=action_name, message="Hành động chưa được cấu hình xử lý.", error="UNIMPLEMENTED"
+            success=False,
+            actionName=action_name,
+            message="Hành động chưa được cấu hình xử lý.",
+            error="UNIMPLEMENTED",
         )
 
-    def _build_mock_success(self, action_name: str, params: dict[str, Any]) -> ActionExecutionResponse:
+    def _build_mock_success(
+        self, action_name: str, params: dict[str, Any]
+    ) -> ActionExecutionResponse:
         messages = {
             "send_friend_request": "Đã gửi lời mời kết bạn thành công (Chế độ mô phỏng).",
             "accept_friend_request": "Đã chấp nhận lời mời kết bạn (Chế độ mô phỏng).",
@@ -329,7 +477,9 @@ class ActionExecutorService:
                 self._disable_redis(exc)
         return None
 
-    async def _set_idempotent_result(self, key: str, result: ActionExecutionResponse) -> None:
+    async def _set_idempotent_result(
+        self, key: str, result: ActionExecutionResponse
+    ) -> None:
         if not key:
             return
 
@@ -338,7 +488,9 @@ class ActionExecutorService:
 
         # Cleanup old local items if exceeding 200 items
         if len(self._local_cache) > 200:
-            expired_keys = [k for k, (exp, _) in self._local_cache.items() if now >= exp]
+            expired_keys = [
+                k for k, (exp, _) in self._local_cache.items() if now >= exp
+            ]
             for k in expired_keys:
                 del self._local_cache[k]
 
@@ -376,9 +528,14 @@ class ActionExecutorService:
 
     def _disable_redis(self, exc: Exception):
         self._redis = False
-        self._redis_disabled_until = time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
+        self._redis_disabled_until = (
+            time.time() + settings.CHATBOT_REDIS_RECONNECT_BACKOFF_SECONDS
+        )
         if not self._redis_unavailable_logged:
-            logger.warning("[ActionExecutor] Redis unavailable for idempotency, falling back to in-memory: %s", exc)
+            logger.warning(
+                "[ActionExecutor] Redis unavailable for idempotency, falling back to in-memory: %s",
+                exc,
+            )
             self._redis_unavailable_logged = True
 
 

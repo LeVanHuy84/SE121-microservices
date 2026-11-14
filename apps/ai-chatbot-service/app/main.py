@@ -6,7 +6,10 @@ from app.core.otel import init_otel
 from app.core.settings import settings
 from app.modules.analysis.router import health_router, music_router, test_router
 from app.modules.chatbot.router import assistant_router
-from app.modules.chatbot.public_router import public_router, register_public_error_handlers
+from app.modules.chatbot.public_router import (
+    public_router,
+    register_public_error_handlers,
+)
 
 
 app = FastAPI(title="AI Chatbot Service")

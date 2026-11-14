@@ -8,7 +8,9 @@ from app.modules.chatbot.repositories.chat_history import HistoryStore, history_
 logger = logging.getLogger("uvicorn.error")
 
 
-async def handle_user_event(msg: dict[str, Any], store: HistoryStore | None = None) -> None:
+async def handle_user_event(
+    msg: dict[str, Any], store: HistoryStore | None = None
+) -> None:
     if not isinstance(msg, dict):
         return
 
@@ -25,7 +27,9 @@ async def handle_user_event(msg: dict[str, Any], store: HistoryStore | None = No
     if event_type == "user.removed":
         user_id = payload_dict.get("userId") or msg.get("userId")
         if user_id:
-            logger.info("[UserConsumer] Processing user.removed event for userId=%s", user_id)
+            logger.info(
+                "[UserConsumer] Processing user.removed event for userId=%s", user_id
+            )
             active_store = store or history_store
             try:
                 deleted_count = await active_store.purge_user_data(
@@ -38,4 +42,8 @@ async def handle_user_event(msg: dict[str, Any], store: HistoryStore | None = No
                     deleted_count,
                 )
             except Exception as exc:
-                logger.exception("[UserConsumer] Failed to purge chatbot data for userId=%s: %s", user_id, exc)
+                logger.exception(
+                    "[UserConsumer] Failed to purge chatbot data for userId=%s: %s",
+                    user_id,
+                    exc,
+                )

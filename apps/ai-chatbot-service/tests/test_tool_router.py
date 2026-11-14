@@ -3,10 +3,7 @@ import unittest
 from app.modules.chatbot.schemas import SurfaceContext
 from app.modules.chatbot.tools.catalog import ALL_TOOLS, DOMAIN_TOOLS, get_tool_by_name
 from app.modules.chatbot.tools.router import (
-    DEFAULT_ESSENTIAL_TOOLS,
-    GLOBAL_TOOLS,
     MAX_ACTIVE_TOOLS,
-    ToolRouter,
     tool_router,
 )
 

@@ -29,6 +29,7 @@ TEENCODE_MAP = {
     "tui": "toi",
 }
 
+
 def normalize_for_guard(value: str) -> str:
     normalized = unicodedata.normalize("NFD", value or "")
     normalized = "".join(
@@ -39,4 +40,3 @@ def normalize_for_guard(value: str) -> str:
     normalized = re.sub(r"\s+", " ", normalized).strip()
     tokens = [TEENCODE_MAP.get(token, token) for token in normalized.split()]
     return " ".join(tokens)
-

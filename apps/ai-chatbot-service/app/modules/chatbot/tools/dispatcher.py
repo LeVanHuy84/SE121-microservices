@@ -151,25 +151,45 @@ class ToolDispatcher:
 
     def _register_default_handlers(self) -> None:
         """Register safe baseline stubs for all 18 tools (overridden by live clients in Slice 2.3)."""
+
         async def stub_friend_requests(args, ctx):
             return {
                 "total": 1,
                 "requests": [
-                    {"id": "req-1", "senderName": "Nguyễn Văn A", "mutualFriends": 3, "createdAt": "2026-10-30"}
+                    {
+                        "id": "req-1",
+                        "senderName": "Nguyễn Văn A",
+                        "mutualFriends": 3,
+                        "createdAt": "2026-10-30",
+                    }
                 ],
             }
 
         async def stub_friend_recommendations(args, ctx):
             return {
                 "recommendations": [
-                    {"id": "user-2", "name": "Trần Thị B", "mutualFriends": 5, "commonInterest": "Âm nhạc"},
-                    {"id": "user-3", "name": "Lê Hoàng C", "mutualFriends": 2, "commonInterest": "Công nghệ"},
+                    {
+                        "id": "user-2",
+                        "name": "Trần Thị B",
+                        "mutualFriends": 5,
+                        "commonInterest": "Âm nhạc",
+                    },
+                    {
+                        "id": "user-3",
+                        "name": "Lê Hoàng C",
+                        "mutualFriends": 2,
+                        "commonInterest": "Công nghệ",
+                    },
                 ]
             }
 
         async def stub_user_relationship(args, ctx):
             target_id = args.get("target_user_id", "")
-            return {"targetUserId": target_id, "status": "friends", "since": "2025-01-15"}
+            return {
+                "targetUserId": target_id,
+                "status": "friends",
+                "since": "2025-01-15",
+            }
 
         async def stub_blocked_list(args, ctx):
             return {"total": 0, "blockedUsers": []}
@@ -181,15 +201,29 @@ class ToolDispatcher:
                 "name": "Cộng đồng Chia sẻ Cảm xúc Sentimeta",
                 "membersCount": 1250,
                 "userRole": "member",
-                "rules": ["Tôn trọng lẫn nhau", "Không công kích cá nhân", "Lắng nghe chân thành"],
+                "rules": [
+                    "Tôn trọng lẫn nhau",
+                    "Không công kích cá nhân",
+                    "Lắng nghe chân thành",
+                ],
             }
 
         async def stub_my_groups(args, ctx):
             return {
                 "total": 2,
                 "groups": [
-                    {"id": "grp-1", "name": "Cộng đồng Chia sẻ Cảm xúc", "role": "member", "unreadCount": 3},
-                    {"id": "grp-2", "name": "Góc Thư Giãn & Âm Nhạc", "role": "admin", "unreadCount": 0},
+                    {
+                        "id": "grp-1",
+                        "name": "Cộng đồng Chia sẻ Cảm xúc",
+                        "role": "member",
+                        "unreadCount": 3,
+                    },
+                    {
+                        "id": "grp-2",
+                        "name": "Góc Thư Giãn & Âm Nhạc",
+                        "role": "admin",
+                        "unreadCount": 0,
+                    },
                 ],
             }
 
@@ -199,7 +233,12 @@ class ToolDispatcher:
         async def stub_group_recommendations(args, ctx):
             return {
                 "recommendations": [
-                    {"id": "grp-rec-1", "name": "Sống Tích Cực Mỗi Ngày", "members": 3400, "topic": "Tâm lý & Lối sống"}
+                    {
+                        "id": "grp-rec-1",
+                        "name": "Sống Tích Cực Mỗi Ngày",
+                        "members": 3400,
+                        "topic": "Tâm lý & Lối sống",
+                    }
                 ]
             }
 
@@ -217,7 +256,10 @@ class ToolDispatcher:
             return {
                 "period": period,
                 "trend": "improving",
-                "insights": ["Cảm xúc tích cực tăng dần về cuối tuần", "Âm nhạc giúp cải thiện tâm trạng nhanh chóng"],
+                "insights": [
+                    "Cảm xúc tích cực tăng dần về cuối tuần",
+                    "Âm nhạc giúp cải thiện tâm trạng nhanh chóng",
+                ],
             }
 
         async def stub_recommended_music(args, ctx):
@@ -225,8 +267,16 @@ class ToolDispatcher:
             return {
                 "mood": mood,
                 "tracks": [
-                    {"title": "Gió Nhẹ Mùa Thu", "artist": "Sentimeta Chill", "duration": "3:45"},
-                    {"title": "Bình Yên Nơi Đây", "artist": "Acoustic Vibes", "duration": "4:12"},
+                    {
+                        "title": "Gió Nhẹ Mùa Thu",
+                        "artist": "Sentimeta Chill",
+                        "duration": "3:45",
+                    },
+                    {
+                        "title": "Bình Yên Nơi Đây",
+                        "artist": "Acoustic Vibes",
+                        "duration": "4:12",
+                    },
                 ],
             }
 
@@ -247,7 +297,11 @@ class ToolDispatcher:
         async def stub_my_posts_overview(args, ctx):
             return {
                 "totalPosts": 8,
-                "recentPost": {"title": "Một ngày thảnh thơi tại quán cà phê", "reactions": 24, "comments": 5},
+                "recentPost": {
+                    "title": "Một ngày thảnh thơi tại quán cà phê",
+                    "reactions": 24,
+                    "comments": 5,
+                },
             }
 
         async def stub_post_comments_summary(args, ctx):
@@ -263,7 +317,11 @@ class ToolDispatcher:
             return {
                 "total": 3,
                 "savedPosts": [
-                    {"id": "post-saved-1", "title": "5 thói quen chăm sóc sức khỏe tinh thần", "author": "Dr. Minh"}
+                    {
+                        "id": "post-saved-1",
+                        "title": "5 thói quen chăm sóc sức khỏe tinh thần",
+                        "author": "Dr. Minh",
+                    }
                 ],
             }
 
@@ -271,8 +329,16 @@ class ToolDispatcher:
             return {
                 "unreadCount": 2,
                 "latest": [
-                    {"id": "notif-1", "title": "Lời mời kết bạn mới từ Nguyễn Văn A", "time": "15 phút trước"},
-                    {"id": "notif-2", "title": "Bài viết của bạn nhận được 10 lượt thích", "time": "1 giờ trước"},
+                    {
+                        "id": "notif-1",
+                        "title": "Lời mời kết bạn mới từ Nguyễn Văn A",
+                        "time": "15 phút trước",
+                    },
+                    {
+                        "id": "notif-2",
+                        "title": "Bài viết của bạn nhận được 10 lượt thích",
+                        "time": "1 giờ trước",
+                    },
                 ],
             }
 
@@ -312,5 +378,6 @@ class ToolDispatcher:
 
 tool_dispatcher = ToolDispatcher()
 
-from app.modules.chatbot.tools.handlers import register_production_handlers
+from app.modules.chatbot.tools.handlers import register_production_handlers  # noqa: E402
+
 register_production_handlers(tool_dispatcher)

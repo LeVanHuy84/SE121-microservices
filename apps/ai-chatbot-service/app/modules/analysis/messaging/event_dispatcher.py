@@ -1,9 +1,10 @@
 from app.modules.analysis.enums import EventTypeEnum
-from app.modules.analysis.services.orchestration.handle_event_service import HandleEventService
+from app.modules.analysis.services.orchestration.handle_event_service import (
+    HandleEventService,
+)
 
 
 class EventDispatcher:
-
     def __init__(self, handler_service: HandleEventService):
         self.handler_service = handler_service
 
@@ -33,7 +34,7 @@ class EventDispatcher:
             if not handler:
                 print(f"[DISPATCHER] No handler registered for: {event_type}")
                 return None
-            
+
             result = await handler(payload)
 
             if not result:

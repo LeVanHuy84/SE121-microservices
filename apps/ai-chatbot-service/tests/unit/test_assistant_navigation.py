@@ -1,4 +1,5 @@
 """Integration tests: NavResolver wired into RespondCommand (crisis precedence, short-circuit, how-to)."""
+
 import asyncio
 import os
 import unittest
@@ -9,8 +10,13 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
 os.environ["CHATBOT_DB_ENABLED"] = "false"
 
-from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository, HistoryStore
-from app.modules.chatbot.repositories.user_memory_profile import UserMemoryProfileRepository
+from app.modules.chatbot.repositories.chat_history import (
+    ChatHistoryRepository,
+    HistoryStore,
+)
+from app.modules.chatbot.repositories.user_memory_profile import (
+    UserMemoryProfileRepository,
+)
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import RespondCommand
 from app.providers.base import LlmGeneration
@@ -71,7 +77,9 @@ def _command(provider: FakeProvider) -> RespondCommand:
 
 
 def _request(user: str, message: str, contexts=None) -> AssistantRespondRequest:
-    return AssistantRespondRequest(userId=user, message=message, contexts=contexts or [])
+    return AssistantRespondRequest(
+        userId=user, message=message, contexts=contexts or []
+    )
 
 
 def _execute(cmd: RespondCommand, req: AssistantRespondRequest):
@@ -99,7 +107,9 @@ class CrisisPrecedenceTest(_TelemetryPatched):
     def test_crisis_with_navigation_keywords_has_no_actions(self):
         provider = FakeProvider()
         cmd = _command(provider)
-        res = _execute(cmd, _request("nav-crisis-1", "tôi muốn chết, mở cài đặt quyền riêng tư"))
+        res = _execute(
+            cmd, _request("nav-crisis-1", "tôi muốn chết, mở cài đặt quyền riêng tư")
+        )
 
         self.assertEqual(res.type, "crisis")
         self.assertEqual(res.suggestedActions, [])
@@ -108,7 +118,9 @@ class CrisisPrecedenceTest(_TelemetryPatched):
 
     def test_crisis_stream_has_no_actions(self):
         cmd = _command(FakeProvider())
-        chunks = _stream(cmd, _request("nav-crisis-2", "tôi muốn chết, mở cài đặt quyền riêng tư"))
+        chunks = _stream(
+            cmd, _request("nav-crisis-2", "tôi muốn chết, mở cài đặt quyền riêng tư")
+        )
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].type, "crisis")
@@ -118,7 +130,9 @@ class CrisisPrecedenceTest(_TelemetryPatched):
 class PureNavigationTest(_TelemetryPatched):
     def test_command_short_circuits_llm(self):
         provider = FakeProvider()
-        res = _execute(_command(provider), _request("nav-cmd-1", "mở cài đặt quyền riêng tư"))
+        res = _execute(
+            _command(provider), _request("nav-cmd-1", "mở cài đặt quyền riêng tư")
+        )
 
         self.assertEqual(res.type, "navigation")
         self.assertEqual(provider.calls, 0)
@@ -141,7 +155,10 @@ class PureNavigationTest(_TelemetryPatched):
         self.assertIn("yoga", payload.params.get("q", ""))
 
     def test_feature_question_gets_no_actions(self):
-        res = _execute(_command(FakeProvider()), _request("nav-cmd-3", "Chat hiện tại có chức năng video call không?"))
+        res = _execute(
+            _command(FakeProvider()),
+            _request("nav-cmd-3", "Chat hiện tại có chức năng video call không?"),
+        )
 
         self.assertEqual(res.suggestedActions, [])
         self.telemetry.assert_not_called()
@@ -152,7 +169,9 @@ class HowToNavigationTest(_TelemetryPatched):
         provider = FakeProvider()
         res = _execute(
             _command(provider),
-            _request("nav-howto-1", "Làm sao để đổi quyền riêng tư hồ sơ?", [PRIVACY_CONTEXT]),
+            _request(
+                "nav-howto-1", "Làm sao để đổi quyền riêng tư hồ sơ?", [PRIVACY_CONTEXT]
+            ),
         )
 
         self.assertEqual(provider.calls, 1)
@@ -165,7 +184,9 @@ class HowToNavigationTest(_TelemetryPatched):
         provider = FakeProvider()
         chunks = _stream(
             _command(provider),
-            _request("nav-howto-2", "Làm sao để đổi quyền riêng tư hồ sơ?", [PRIVACY_CONTEXT]),
+            _request(
+                "nav-howto-2", "Làm sao để đổi quyền riêng tư hồ sơ?", [PRIVACY_CONTEXT]
+            ),
         )
 
         self.assertEqual(provider.calls, 1)

@@ -28,7 +28,9 @@ class RagIndexerService:
         async with self._lock:
             self._is_indexing = True
             try:
-                result = await rag_document_service.index_assistant_docs(force_reindex=force)
+                result = await rag_document_service.index_assistant_docs(
+                    force_reindex=force
+                )
                 logger.info("[RAG Indexer] Reindex completed: %s", result)
                 return {
                     "status": "completed",

@@ -31,6 +31,7 @@ VALID_EMOTIONS = ["joy", "sadness", "anger", "fear", "disgust", "surprise", "neu
 # 1. SCHEMAS
 # ============================================================================
 
+
 class EmotionScores(BaseModel):
     joy: float = Field(default=0.0, ge=0.0, le=1.0)
     sadness: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -74,6 +75,7 @@ class VLMBatchRawOutput(BaseModel):
 # ============================================================================
 # 2. VLM ANALYZER CLASS (ASYNC & HIGH-PERFORMANCE)
 # ============================================================================
+
 
 class VLMAnalyzer:
     """
@@ -172,14 +174,16 @@ CẤU TRÚC JSON:
         self.base_url = settings.VLM_BASE_URL
         self.model_name = settings.VLM_MODEL_NAME
         self._async_client: Optional[httpx.AsyncClient] = None
-        logger.info(f"[VLMAnalyzer] Initialized with Base URL: {self.base_url}, Model: {self.model_name}")
+        logger.info(
+            f"[VLMAnalyzer] Initialized with Base URL: {self.base_url}, Model: {self.model_name}"
+        )
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get or create singleton AsyncClient."""
         if self._async_client is None or self._async_client.is_closed:
             self._async_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(60.0, connect=10.0),
-                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
             )
         return self._async_client
 
@@ -194,7 +198,9 @@ CẤU TRÚC JSON:
         self.base_url = settings.VLM_BASE_URL
         self.model_name = settings.VLM_MODEL_NAME
         if self.api_key:
-            logger.info(f"[VLMAnalyzer] Dynamic reload successful! Base URL: {self.base_url}, Model: {self.model_name}")
+            logger.info(
+                f"[VLMAnalyzer] Dynamic reload successful! Base URL: {self.base_url}, Model: {self.model_name}"
+            )
 
     # ========================================================================
     # IMAGE PROCESSING (CPU-bound in Threadpool + Zero Double-download)
@@ -217,7 +223,7 @@ CẤU TRÚC JSON:
         image_source: Any,
         client: httpx.AsyncClient,
         max_size: Optional[int] = None,
-        quality: Optional[int] = None
+        quality: Optional[int] = None,
     ) -> str:
         """
         Compress image asynchronously without blocking event loop.
@@ -249,16 +255,22 @@ CẤU TRÚC JSON:
                     with open(image_source, "rb") as f:
                         raw_bytes = f.read()
                 except Exception as e:
-                    logger.warning(f"[VLMAnalyzer] Failed to read local image path: {e}")
+                    logger.warning(
+                        f"[VLMAnalyzer] Failed to read local image path: {e}"
+                    )
                     return image_source
             # Case 4: Remote HTTP/HTTPS URL (fallback for direct API callers)
-            elif image_source.startswith("http://") or image_source.startswith("https://"):
+            elif image_source.startswith("http://") or image_source.startswith(
+                "https://"
+            ):
                 try:
                     resp = await client.get(image_source, timeout=10.0)
                     if resp.status_code == 200:
                         raw_bytes = resp.content
                     else:
-                        logger.warning(f"[VLMAnalyzer] Fetch image URL failed (status={resp.status_code}): {image_source}")
+                        logger.warning(
+                            f"[VLMAnalyzer] Fetch image URL failed (status={resp.status_code}): {image_source}"
+                        )
                         return image_source
                 except Exception as e:
                     logger.warning(f"[VLMAnalyzer] Async image download failed: {e}")
@@ -267,7 +279,9 @@ CẤU TRÚC JSON:
                 return str(image_source)
         elif hasattr(image_source, "url") and image_source.url:
             # Object has url only
-            return await self._compress_and_encode_image_async(image_source.url, client, max_size, quality)
+            return await self._compress_and_encode_image_async(
+                image_source.url, client, max_size, quality
+            )
         else:
             return str(image_source)
 
@@ -275,9 +289,13 @@ CẤU TRÚC JSON:
             return str(image_source)
 
         try:
-            return await asyncio.to_thread(self._resize_and_compress_sync, raw_bytes, max_size, quality)
+            return await asyncio.to_thread(
+                self._resize_and_compress_sync, raw_bytes, max_size, quality
+            )
         except Exception as e:
-            logger.warning(f"[VLMAnalyzer] Image compression failed: {e}. Falling back to raw source.")
+            logger.warning(
+                f"[VLMAnalyzer] Image compression failed: {e}. Falling back to raw source."
+            )
             return str(image_source)
 
     # ========================================================================
@@ -287,21 +305,25 @@ CẤU TRÚC JSON:
     def _normalize_raw_output(self, raw_output: VLMRawOutput) -> Dict[str, Any]:
         """Normalize VLM emotion scores and dynamic secondary thresholding."""
         scores_dict = raw_output.emotion_scores.model_dump()
-        raw_arr = np.array([max(0.0, float(scores_dict.get(k, 0.0))) for k in VALID_EMOTIONS])
+        raw_arr = np.array(
+            [max(0.0, float(scores_dict.get(k, 0.0))) for k in VALID_EMOTIONS]
+        )
         sum_scores = np.sum(raw_arr)
-        
+
         if sum_scores > 0:
             norm_arr = raw_arr / sum_scores
         else:
             norm_arr = np.ones(7) / 7.0
 
-        normalized_scores = {k: round(float(v), 4) for k, v in zip(VALID_EMOTIONS, norm_arr)}
-        
+        normalized_scores = {
+            k: round(float(v), 4) for k, v in zip(VALID_EMOTIONS, norm_arr)
+        }
+
         sorted_indices = np.argsort(norm_arr)[::-1]
         primary_idx = sorted_indices[0]
         primary_emotion = VALID_EMOTIONS[primary_idx]
         primary_prob = float(norm_arr[primary_idx])
-        
+
         # Chuẩn Đơn nhãn (Single-label): Tự động map secondaryEmotions thành [] để tương thích schema DTO hệ thống
         secondary_emotions: List[str] = []
 
@@ -318,7 +340,7 @@ CẤU TRÚC JSON:
             "contentModeration": raw_output.content_moderation.model_dump(),
             "mentalHealthRiskLevel": raw_output.mental_health_risk_level,
             "suggestedAction": raw_output.suggested_action,
-            "modelUsed": self.model_name
+            "modelUsed": self.model_name,
         }
 
     # ========================================================================
@@ -330,12 +352,12 @@ CẤU TRÚC JSON:
         client: httpx.AsyncClient,
         payload: Dict[str, Any],
         timeout: float = 40.0,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> Dict[str, Any]:
         """Call VLM API with exponential backoff for Rate Limits (429) and Server Errors (503)."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
 
@@ -343,11 +365,13 @@ CẤU TRÚC JSON:
 
         for attempt in range(1, max_retries + 1):
             try:
-                resp = await client.post(endpoint, headers=headers, json=payload, timeout=timeout)
-                
+                resp = await client.post(
+                    endpoint, headers=headers, json=payload, timeout=timeout
+                )
+
                 if resp.status_code == 200:
                     return resp.json()
-                
+
                 # Retryable status codes
                 if resp.status_code in (429, 500, 502, 503, 504):
                     backoff = (2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.4)
@@ -355,16 +379,22 @@ CẤU TRÚC JSON:
                         f"[VLMAnalyzer] API status={resp.status_code} (attempt {attempt}/{max_retries}). "
                         f"Backing off for {backoff:.2f}s... Response: {resp.text[:150]}"
                     )
-                    last_error = RuntimeError(f"VLM API Error {resp.status_code}: {resp.text}")
+                    last_error = RuntimeError(
+                        f"VLM API Error {resp.status_code}: {resp.text}"
+                    )
                     if attempt < max_retries:
                         await asyncio.sleep(backoff)
                         continue
                 else:
-                    raise RuntimeError(f"VLM API Non-retryable Error {resp.status_code}: {resp.text}")
+                    raise RuntimeError(
+                        f"VLM API Non-retryable Error {resp.status_code}: {resp.text}"
+                    )
 
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 backoff = (2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.4)
-                logger.warning(f"[VLMAnalyzer] Network error ({type(e).__name__}) on attempt {attempt}/{max_retries}. Backoff {backoff:.2f}s...")
+                logger.warning(
+                    f"[VLMAnalyzer] Network error ({type(e).__name__}) on attempt {attempt}/{max_retries}. Backoff {backoff:.2f}s..."
+                )
                 last_error = e
                 if attempt < max_retries:
                     await asyncio.sleep(backoff)
@@ -376,15 +406,19 @@ CẤU TRÚC JSON:
     # PUBLIC ASYNC METHODS
     # ========================================================================
 
-    async def analyze_post(self, text_content: str, image_inputs: List[Any]) -> Dict[str, Any]:
+    async def analyze_post(
+        self, text_content: str, image_inputs: List[Any]
+    ) -> Dict[str, Any]:
         """
         Analyze single multimodal post (text + image_inputs) asynchronously.
         """
         if not self.api_key:
             self.reload_env()
-            
+
         if not self.api_key:
-            raise RuntimeError("API Key not found for VLM. Please set VLM_API_KEY in .env")
+            raise RuntimeError(
+                "API Key not found for VLM. Please set VLM_API_KEY in .env"
+            )
 
         start_time = time.time()
         client = await self.get_client()
@@ -392,11 +426,17 @@ CẤU TRÚC JSON:
         # Parallel image compression
         selected_images = image_inputs[:4]
         compressed_urls = await asyncio.gather(
-            *[self._compress_and_encode_image_async(img, client) for img in selected_images]
+            *[
+                self._compress_and_encode_image_async(img, client)
+                for img in selected_images
+            ]
         )
 
         user_content: List[Dict[str, Any]] = [
-            {"type": "text", "text": f"Bài viết: \"{text_content}\"\nSố lượng hình ảnh đính kèm: {len(compressed_urls)}"}
+            {
+                "type": "text",
+                "text": f'Bài viết: "{text_content}"\nSố lượng hình ảnh đính kèm: {len(compressed_urls)}',
+            }
         ]
 
         for comp_url in compressed_urls:
@@ -406,14 +446,18 @@ CẤU TRÚC JSON:
             "model": self.model_name,
             "messages": [
                 {"role": "system", "content": self.SYSTEM_PROMPT},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content},
             ],
             "temperature": 0.2,
-            "response_format": {"type": "json_object"}
+            "response_format": {"type": "json_object"},
         }
 
-        logger.info(f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post (images={len(compressed_urls)})...")
-        res_json = await self._call_vlm_api_with_retry(client, payload, timeout=60.0, max_retries=4)
+        logger.info(
+            f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post (images={len(compressed_urls)})..."
+        )
+        res_json = await self._call_vlm_api_with_retry(
+            client, payload, timeout=60.0, max_retries=4
+        )
 
         raw_content = res_json["choices"][0]["message"]["content"]
         parsed_data = json.loads(raw_content)
@@ -424,7 +468,9 @@ CẤU TRÚC JSON:
 
         return normalized
 
-    async def analyze_batch_posts(self, posts: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    async def analyze_batch_posts(
+        self, posts: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Analyze a batch of multimodal posts in a SINGLE VLM API Request.
         posts format: [{"id": "post_1", "text": "...", "images": [...]}, ...]
@@ -435,17 +481,21 @@ CẤU TRÚC JSON:
 
         if not self.api_key:
             self.reload_env()
-            
+
         if not self.api_key:
-            raise RuntimeError("API Key not found for VLM. Please set VLM_API_KEY in .env")
+            raise RuntimeError(
+                "API Key not found for VLM. Please set VLM_API_KEY in .env"
+            )
 
         start_time = time.time()
         client = await self.get_client()
 
-        user_content: List[Dict[str, Any]] = [{
-            "type": "text",
-            "text": f"Danh sách {len(posts)} bài viết cần phân tích trong batch này:\n"
-        }]
+        user_content: List[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": f"Danh sách {len(posts)} bài viết cần phân tích trong batch này:\n",
+            }
+        ]
 
         for p in posts:
             p_id = str(p.get("id"))
@@ -453,28 +503,37 @@ CẤU TRÚC JSON:
             p_images = p.get("images", [])[:4]
 
             compressed_urls = await asyncio.gather(
-                *[self._compress_and_encode_image_async(img, client) for img in p_images]
+                *[
+                    self._compress_and_encode_image_async(img, client)
+                    for img in p_images
+                ]
             )
 
-            user_content.append({
-                "type": "text",
-                "text": f"\n--- BÀI VIẾT ID: {p_id} ---\nStatus: \"{p_text}\"\nĐính kèm {len(compressed_urls)} ảnh dưới đây:"
-            })
+            user_content.append(
+                {
+                    "type": "text",
+                    "text": f'\n--- BÀI VIẾT ID: {p_id} ---\nStatus: "{p_text}"\nĐính kèm {len(compressed_urls)} ảnh dưới đây:',
+                }
+            )
 
             for comp_url in compressed_urls:
-                user_content.append({"type": "image_url", "image_url": {"url": comp_url}})
+                user_content.append(
+                    {"type": "image_url", "image_url": {"url": comp_url}}
+                )
 
         payload = {
             "model": self.model_name,
             "messages": [
                 {"role": "system", "content": self.BATCH_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content},
             ],
             "temperature": 0.2,
-            "response_format": {"type": "json_object"}
+            "response_format": {"type": "json_object"},
         }
 
-        logger.info(f"[VLMAnalyzer] Calling VLM API Batch ({self.model_name}) for {len(posts)} posts in 1 request...")
+        logger.info(
+            f"[VLMAnalyzer] Calling VLM API Batch ({self.model_name}) for {len(posts)} posts in 1 request..."
+        )
         res_json = await self._call_vlm_api_with_retry(client, payload, timeout=60.0)
 
         raw_content = res_json["choices"][0]["message"]["content"]

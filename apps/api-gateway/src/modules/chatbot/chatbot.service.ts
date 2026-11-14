@@ -50,7 +50,10 @@ export class ChatbotService {
     private readonly userClient: ClientProxy,
   ) {}
 
-  async resolveUserAiPolicy(userId: string, fallbackPolicy?: string): Promise<string> {
+  async resolveUserAiPolicy(
+    userId: string,
+    fallbackPolicy?: string,
+  ): Promise<string> {
     try {
       const user = await firstValueFrom(
         this.userClient
@@ -648,7 +651,10 @@ export class ChatbotService {
     }
 
     try {
-      const effectivePolicy = await this.resolveUserAiPolicy(userId, body.aiPolicy);
+      const effectivePolicy = await this.resolveUserAiPolicy(
+        userId,
+        body.aiPolicy,
+      );
       const res = await firstValueFrom(
         this.httpService.post(
           `${baseUrl}/assistant/actions/execute`,
@@ -666,7 +672,12 @@ export class ChatbotService {
       return res.data;
     } catch (error) {
       this.logger.warn(`Failed to execute action for ${userId}: ${error}`);
-      throw this.mapGatewayError(error, userId, Date.now(), "assistant.actions.execute");
+      throw this.mapGatewayError(
+        error,
+        userId,
+        Date.now(),
+        "assistant.actions.execute",
+      );
     }
   }
 }

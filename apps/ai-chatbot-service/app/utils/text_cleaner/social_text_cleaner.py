@@ -17,7 +17,13 @@ class SocialTextCleaner:
     HASHTAG_PATTERN = re.compile(r"#(\w+)", re.IGNORECASE)
     WHITESPACE_PATTERN = re.compile(r"\s+")
 
-    def clean(self, text: str, remove_url: bool = True, remove_mention: bool = True, expand_hashtag: bool = True) -> str:
+    def clean(
+        self,
+        text: str,
+        remove_url: bool = True,
+        remove_mention: bool = True,
+        expand_hashtag: bool = True,
+    ) -> str:
         if not text:
             return ""
 

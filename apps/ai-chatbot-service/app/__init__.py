@@ -12,11 +12,12 @@ REDIRECT_MAP = {
     "app.core.dto": "app.modules.analysis.core.dto",
 }
 
+
 class ServiceModuleRedirector:
     def find_spec(self, fullname, path, target=None):
         for prefix, replacement in REDIRECT_MAP.items():
             if fullname == prefix or fullname.startswith(prefix + "."):
-                real_name = replacement + fullname[len(prefix):]
+                real_name = replacement + fullname[len(prefix) :]
                 try:
                     # Force-import the real module
                     __import__(real_name)
@@ -26,5 +27,6 @@ class ServiceModuleRedirector:
                 except ImportError:
                     return None
         return None
+
 
 sys.meta_path.insert(0, ServiceModuleRedirector())

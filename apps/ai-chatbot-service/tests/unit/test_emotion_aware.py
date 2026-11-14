@@ -1,17 +1,22 @@
 """Unit tests for Emotion-Aware Chatbot (Story 1.8)."""
+
 from __future__ import annotations
 
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.modules.chatbot.schemas import AssistantRespondRequest
-from app.modules.chatbot.services.emotion_context import EmotionContextService, EmotionSnapshot
+from app.modules.chatbot.services.emotion_context import (
+    EmotionContextService,
+    EmotionSnapshot,
+)
 from app.modules.chatbot.services.prompt_builder import PromptBuilder
 
 
 # ---------------------------------------------------------------------------
 # EmotionSnapshot property tests
 # ---------------------------------------------------------------------------
+
 
 class TestEmotionSnapshot(unittest.TestCase):
     def test_needs_empathetic_tone_true(self) -> None:
@@ -48,6 +53,7 @@ class TestEmotionSnapshot(unittest.TestCase):
 # EmotionContextService tests
 # ---------------------------------------------------------------------------
 
+
 class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.service = EmotionContextService()
@@ -74,8 +80,13 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         mock_lifespan.emotion_aggregate_repo = mock_repo
         self.service._repo = mock_repo
 
-        with patch("app.modules.chatbot.services.emotion_context.asyncio.timeout", return_value=MagicMock(__aenter__=AsyncMock(), __aexit__=AsyncMock())):
-            with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
+        with patch(
+            "app.modules.chatbot.services.emotion_context.asyncio.timeout",
+            return_value=MagicMock(__aenter__=AsyncMock(), __aexit__=AsyncMock()),
+        ):
+            with patch.dict(
+                "sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}
+            ):
                 with patch.object(self.service, "_get_redis", return_value=None):
                     snapshot = await self.service._fetch("user123")
 
@@ -91,7 +102,9 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         mock_lifespan.emotion_aggregate_repo = mock_repo
         self.service._repo = mock_repo
 
-        with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
+        with patch.dict(
+            "sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}
+        ):
             with patch.object(self.service, "_get_redis", return_value=None):
                 snapshot = await self.service._fetch("user123")
 
@@ -99,7 +112,9 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 
     async def test_fallback_on_exception(self) -> None:
         with patch.object(self.service, "_get_redis", return_value=None):
-            with patch.object(self.service, "_fetch", side_effect=RuntimeError("DB down")):
+            with patch.object(
+                self.service, "_fetch", side_effect=RuntimeError("DB down")
+            ):
                 snapshot = await self.service.get_snapshot("user123")
         self.assertEqual(snapshot.primary_emotion, "neutral")
         self.assertEqual(snapshot.risk_level, "none")
@@ -117,7 +132,9 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         mock_lifespan.emotion_aggregate_repo = mock_repo
         self.service._repo = mock_repo
 
-        with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
+        with patch.dict(
+            "sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}
+        ):
             with patch.object(self.service, "_get_redis", return_value=None):
                 snapshot = await self.service._fetch("user_distressed")
 
@@ -125,7 +142,9 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.persistent_distress)
         self.assertEqual(snapshot.recent_trend, "deteriorating")
 
-    async def test_positive_emotions_with_risk_level_are_not_persistent_distress(self) -> None:
+    async def test_positive_emotions_with_risk_level_are_not_persistent_distress(
+        self,
+    ) -> None:
         mock_docs = [
             {"primaryEmotion": "joy", "mentalHealthRiskLevel": "medium"},
             {"primaryEmotion": "neutral", "mentalHealthRiskLevel": "high"},
@@ -158,6 +177,7 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 # PromptBuilder tone directive tests
 # ---------------------------------------------------------------------------
 
+
 class TestPromptBuilderToneDirective(unittest.TestCase):
     def setUp(self) -> None:
         self.builder = PromptBuilder()
@@ -189,7 +209,9 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
         self.assertIn("SOCRATES", directive)
         self.assertIn("câu hỏi mở", directive)
 
-    def test_persistent_distress_with_joy_primary_does_not_mislabel_emotion(self) -> None:
+    def test_persistent_distress_with_joy_primary_does_not_mislabel_emotion(
+        self,
+    ) -> None:
         snapshot = EmotionSnapshot(
             primary_emotion="joy",
             risk_level="weak",
@@ -214,6 +236,7 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # System Prompt directive tests (Story 2.2)
 # ---------------------------------------------------------------------------
+
 
 class TestSystemPromptDirectives(unittest.TestCase):
     def setUp(self) -> None:
@@ -282,4 +305,83 @@ class TestProactiveCheckin(unittest.TestCase):
             is_proactive_checkin=True,
         )
         self.assertIn("Hãy khuyên người dùng nghe bản nhạc thư giãn A.", prompt)
-        self.assertNotIn("Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu", prompt)
+        self.assertNotIn(
+            "Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu", prompt
+        )
+
+
+class TestSteppedCareAndPromptLimits(unittest.TestCase):
+    def setUp(self) -> None:
+        self.builder = PromptBuilder()
+
+    def test_system_prompt_has_no_inline_action_json(self) -> None:
+        sys_prompt = self.builder._build_system_prompt()
+        self.assertNotIn("```action", sys_prompt)
+        self.assertNotIn("```json:action", sys_prompt)
+
+    def test_tier2_acute_pfa_mode_directive(self) -> None:
+        snapshot = EmotionSnapshot(
+            primary_emotion="fear",
+            risk_level="high",
+            persistent_distress=True,
+        )
+        directive = self.builder._build_emotion_tone_directive(snapshot)
+        self.assertIn(
+            "CẢNH BÁO: Người dùng đang có dấu hiệu căng thẳng/buồn bã kéo dài",
+            directive,
+        )
+        self.assertIn("thở 4-7-8", directive)
+        self.assertIn("SƠ CỨU TÂM LÝ (PFA)", directive)
+
+    def test_tier3_in_chat_distress_without_snapshot(self) -> None:
+        directive = self.builder._build_emotion_tone_directive(
+            None,
+            in_chat_distress=True,
+            is_system_turn=False,
+        )
+        self.assertIn("PHƯƠNG PHÁP SOCRATES & CBT NHẸ NHÀNG", directive)
+        self.assertIn("câu hỏi mở", directive)
+
+    def test_system_turn_suppresses_emotion_directive(self) -> None:
+        snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot,
+            in_chat_distress=False,
+            is_system_turn=True,
+        )
+        self.assertEqual(directive, "")
+
+    def test_build_messages_structure_and_limits(self) -> None:
+        from app.modules.chatbot.schemas import AssistantHistoryItem
+
+        req = AssistantRespondRequest(
+            userId="user1", message="Làm sao giải tỏa căng thẳng?"
+        )
+        hist = [
+            AssistantHistoryItem(role="user", content="Turn 1" * 100),
+            AssistantHistoryItem(role="assistant", content="Reply 1" * 100),
+            AssistantHistoryItem(role="user", content="Turn 2" * 100),
+            AssistantHistoryItem(role="assistant", content="Reply 2" * 100),
+        ]
+        msgs = self.builder.build_messages(
+            req,
+            hist,
+            max_history_items=2,
+            history_item_char_limit=50,
+            in_chat_distress=True,
+        )
+        # Should have SystemMessage, 2 history messages, HumanMessage
+        self.assertEqual(len(msgs), 4)
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+
+        self.assertIsInstance(msgs[0], SystemMessage)
+        self.assertIsInstance(msgs[1], HumanMessage)
+        self.assertIsInstance(msgs[2], AIMessage)
+        self.assertIsInstance(msgs[3], HumanMessage)
+
+        # Truncation check (50 + "...")
+        self.assertTrue(msgs[1].content.endswith("..."))
+        self.assertLessEqual(len(msgs[1].content), 53)
+        self.assertTrue(msgs[2].content.endswith("..."))
+        self.assertLessEqual(len(msgs[2].content), 53)
+        self.assertIn("Làm sao giải tỏa căng thẳng?", msgs[3].content)

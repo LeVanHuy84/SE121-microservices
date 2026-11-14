@@ -28,6 +28,7 @@ class SessionMemory:
     Superseded by MongoDB-centric v2 memory architecture (ChatHistoryRepository and
     UserMemoryProfileRepository). Retained only for backwards compatibility with legacy tests.
     """
+
     def __init__(self):
         self._sessions: dict[str, SessionEntry] = {}
         self._redis = None
@@ -44,8 +45,12 @@ class SessionMemory:
     async def get_recent(self, key: str, limit: int) -> list[AssistantHistoryItem]:
         if await self._can_use_redis():
             try:
-                items = await self._redis.lrange(self._redis_key(key, "history"), -limit, -1)
-                return [AssistantHistoryItem.model_validate_json(item) for item in items]
+                items = await self._redis.lrange(
+                    self._redis_key(key, "history"), -limit, -1
+                )
+                return [
+                    AssistantHistoryItem.model_validate_json(item) for item in items
+                ]
             except Exception as exc:
                 self._disable_redis(exc)
 
@@ -97,7 +102,9 @@ class SessionMemory:
             AssistantHistoryItem(role="assistant", content=assistant_reply),
         ]
         normalized_summary = " ".join(str(summary or "").split())
-        normalized_facts = {str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()}
+        normalized_facts = {
+            str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()
+        }
 
         if await self._can_use_redis():
             try:
@@ -134,7 +141,13 @@ class SessionMemory:
                     json.dumps(normalized_facts),
                 )
 
-                for memory_field in ("history", "summary", "last_intent", "last_sources", "facts"):
+                for memory_field in (
+                    "history",
+                    "summary",
+                    "last_intent",
+                    "last_sources",
+                    "facts",
+                ):
                     pipeline.expire(
                         self._redis_key(key, memory_field),
                         settings.CHATBOT_SESSION_TTL_SECONDS,
@@ -218,8 +231,7 @@ class SessionMemory:
                 if not raw:
                     return []
                 return [
-                    AssistantSource.model_validate(item)
-                    for item in json.loads(raw)
+                    AssistantSource.model_validate(item) for item in json.loads(raw)
                 ]
             except Exception as exc:
                 self._disable_redis(exc)
@@ -280,7 +292,9 @@ class SessionMemory:
     async def _can_use_redis(self) -> bool:
         current_loop = self._get_current_loop()
         if self._redis is not None and self._redis is not False:
-            if self._loop is not current_loop or (self._loop and self._loop.is_closed()):
+            if self._loop is not current_loop or (
+                self._loop and self._loop.is_closed()
+            ):
                 self._redis = None
                 self._loop = None
 
@@ -326,7 +340,13 @@ class SessionMemory:
         return f"{settings.CHATBOT_MEMORY_KEY_PREFIX}:{session_key}:{field}"
 
     async def _expire_session_keys(self, session_key: str):
-        for memory_field in ("history", "summary", "last_intent", "last_sources", "facts"):
+        for memory_field in (
+            "history",
+            "summary",
+            "last_intent",
+            "last_sources",
+            "facts",
+        ):
             await self._redis.expire(
                 self._redis_key(session_key, memory_field),
                 settings.CHATBOT_SESSION_TTL_SECONDS,
@@ -350,7 +370,9 @@ class SessionMemory:
         return dict(entry.facts) if entry else {}
 
     async def set_facts(self, key: str, facts: dict[str, str]):
-        normalized = {str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()}
+        normalized = {
+            str(k): str(v) for k, v in (facts or {}).items() if str(k).strip()
+        }
         if await self._can_use_redis():
             try:
                 await self._redis.setex(

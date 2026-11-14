@@ -5,8 +5,25 @@ import logging
 from app.core.settings import settings
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot
+from app.modules.chatbot.services.guardrails import has_in_chat_emotional_distress
+from app.utils.text_normalizer import normalize_for_guard
 
 logger = logging.getLogger("uvicorn.error")
+
+SYSTEM_FEATURE_DOMAINS: frozenset[str] = frozenset(
+    {
+        "post",
+        "group",
+        "chat",
+        "user_social",
+        "privacy",
+        "notification",
+        "settings_support",
+        "search",
+        "call",
+        "auth",
+    }
+)
 
 
 class AssistantContextResolver:
@@ -14,6 +31,7 @@ class AssistantContextResolver:
         self,
         request: AssistantRespondRequest,
         emotion_snapshot: EmotionSnapshot | None = None,
+        matched_domains: tuple[str, ...] = (),
     ) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
@@ -28,8 +46,16 @@ class AssistantContextResolver:
         try:
             from app.modules.chatbot.services.rag_engine import rag_document_service
 
+            search_query = request.message
+            if self._is_mental_health_turn(
+                request.message, matched_domains, emotion_snapshot
+            ):
+                search_query = self._expand_mental_health_query(
+                    request.message, emotion_snapshot
+                )
+
             doc_contexts = await rag_document_service.search_assistant_docs(
-                request.message,
+                search_query,
                 rag_top_k,
             )
         except Exception as exc:
@@ -37,8 +63,128 @@ class AssistantContextResolver:
             return self._dedupe(contexts)[:candidate_limit]
 
         merged = self._merge_contexts(contexts, doc_contexts)
-        ranked = self._rank_contexts(request.message, merged, emotion_snapshot)
+        ranked = self._rank_contexts(
+            request.message,
+            merged,
+            emotion_snapshot,
+            matched_domains=matched_domains,
+        )
         return ranked[:candidate_limit]
+
+    def _is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:
+        return bool(set(matched_domains) & SYSTEM_FEATURE_DOMAINS)
+
+    def _is_mental_health_turn(
+        self,
+        query: str,
+        matched_domains: tuple[str, ...],
+        emotion_snapshot: EmotionSnapshot | None,
+    ) -> bool:
+        if has_in_chat_emotional_distress(query):
+            return True
+        if bool(set(matched_domains) & {"mental_health", "emotion"}):
+            return True
+        if not self._is_system_turn(matched_domains) and emotion_snapshot is not None:
+            if emotion_snapshot.risk_level in {"high", "medium"}:
+                return True
+            if (
+                emotion_snapshot.persistent_distress
+                or emotion_snapshot.needs_proactive_checkin
+            ):
+                return True
+            if (emotion_snapshot.primary_emotion or "").lower() in {
+                "sadness",
+                "fear",
+                "anger",
+                "disgust",
+            }:
+                return True
+        return False
+
+    def _expand_mental_health_query(
+        self,
+        query: str,
+        emotion_snapshot: EmotionSnapshot | None,
+    ) -> str:
+        query_norm = normalize_for_guard(query)
+        expansions: list[str] = []
+
+        is_acute = (
+            emotion_snapshot is not None
+            and (
+                emotion_snapshot.risk_level in {"high", "medium"}
+                or emotion_snapshot.persistent_distress
+            )
+        ) or any(
+            w in query_norm
+            for w in ["kho tho", "hoang loan", "panic", "so cuu", "khung hoang"]
+        )
+        if is_acute:
+            expansions.append(
+                "sơ cứu tâm lý PFA psychological first aid breathing grounding active cycle of breathing ACBT relaxation"
+            )
+
+        is_tension = any(
+            w in query_norm
+            for w in [
+                "mat ngu",
+                "khong ngu duoc",
+                "cang cung",
+                "cang thang",
+                "met moi",
+                "kiet suc",
+                "burnout",
+            ]
+        )
+        if is_tension:
+            expansions.append(
+                "progressive muscle relaxation PMR thư giãn cơ bắp giấc ngủ thở sâu self care"
+            )
+
+        is_sad = (
+            emotion_snapshot is not None
+            and (emotion_snapshot.primary_emotion or "").lower() in {"sadness", "buon"}
+        ) or any(
+            w in query_norm
+            for w in [
+                "buon",
+                "chan nan",
+                "co don",
+                "tu ti",
+                "kem coi",
+                "vo dung",
+                "tri hoan",
+            ]
+        )
+        if is_sad:
+            expansions.append(
+                "behavioral activation kích hoạt hành vi CBT vượt qua trì hoãn chăm sóc bản thân"
+            )
+
+        is_overthinking = any(
+            w in query_norm
+            for w in [
+                "overthinking",
+                "suy nghi nhieu",
+                "ap luc",
+                "stress",
+                "lo au",
+                "bat an",
+                "tu ti",
+                "kem coi",
+            ]
+        )
+        if is_overthinking:
+            expansions.append(
+                "CBT socratic questioning câu hỏi socratic cognitive reframing tự chăm sóc sức khỏe tinh thần"
+            )
+
+        if not expansions:
+            expansions.append(
+                "CBT socratic questioning câu hỏi socratic cognitive reframing tự chăm sóc sức khỏe tinh thần"
+            )
+
+        return f"{query} {' '.join(expansions)}".strip()
 
     def _merge_contexts(
         self,
@@ -78,27 +224,78 @@ class AssistantContextResolver:
         query: str,
         contexts: list[AssistantContextItem],
         emotion_snapshot: EmotionSnapshot | None = None,
+        matched_domains: tuple[str, ...] = (),
     ) -> list[AssistantContextItem]:
         normalized_query = self._normalize(query)
         if not normalized_query or not contexts:
             return self._dedupe(contexts)
 
+        is_sys = self._is_system_turn(matched_domains)
+        is_mh = self._is_mental_health_turn(query, matched_domains, emotion_snapshot)
+
         ranked = []
         for item in self._dedupe(contexts):
             base_score = float(item.score or 0)
             lexical_score = self._compute_lexical_score(normalized_query, item)
-            
+            topic = (item.metadata or {}).get("topic") if item.metadata else None
+
+            topic_boost = 1.0
             emotion_boost = 1.0
-            if emotion_snapshot and item.metadata:
-                topic = item.metadata.get("topic")
-                if topic == "pfa" and emotion_snapshot.risk_level in {"high", "medium"}:
-                    emotion_boost = 1.5
-                elif topic == "phuong-phap-chua-tri" and emotion_snapshot.primary_emotion in {"sadness", "fear", "anger"}:
-                    emotion_boost = 1.3
+
+            # Case A: Pure System Feature Turn
+            if is_sys and not is_mh:
+                topic_boost = 1.4 if topic == "huong-dan" else 1.0
+                emotion_boost = 1.0
+
+            # Case C: Mixed Turn (Safety Action + Emotional Distress)
+            elif is_sys and is_mh:
+                if topic == "huong-dan":
+                    topic_boost = 1.4
+                elif topic == "pfa":
+                    topic_boost = 1.35
+                elif topic == "phuong-phap-chua-tri":
+                    topic_boost = 1.2
                 elif topic == "giao-trinh-chuyen-nganh":
-                    emotion_boost = 0.8
-                    
-            final_score = (base_score + lexical_score) * emotion_boost
+                    topic_boost = 0.75
+                else:
+                    topic_boost = 1.0
+                emotion_boost = 1.0
+
+            # Case B: Mental Health Care Turn
+            elif is_mh and not is_sys:
+                if emotion_snapshot and (
+                    emotion_snapshot.risk_level in {"high", "medium"}
+                    or emotion_snapshot.persistent_distress
+                ):
+                    if topic == "pfa":
+                        topic_boost = 1.5
+                    elif topic == "phuong-phap-chua-tri":
+                        topic_boost = 1.2
+                    elif topic == "giao-trinh-chuyen-nganh":
+                        topic_boost = 0.75
+                    else:
+                        topic_boost = 1.0
+                else:
+                    # Low / none risk or emotion_snapshot is None
+                    if topic in {"phuong-phap-chua-tri", "example-case"}:
+                        topic_boost = 1.35
+                    elif topic == "pfa":
+                        topic_boost = 1.15
+                    elif topic == "giao-trinh-chuyen-nganh":
+                        topic_boost = 0.75
+                    else:
+                        topic_boost = 1.0
+                emotion_boost = 1.0
+
+            else:
+                # Default / unclassified
+                if topic == "giao-trinh-chuyen-nganh":
+                    topic_boost = 0.8
+                else:
+                    topic_boost = 1.0
+                emotion_boost = 1.0
+
+            final_score = (base_score + lexical_score) * topic_boost * emotion_boost
 
             ranked.append(
                 item.model_copy(
@@ -129,7 +326,8 @@ class AssistantContextResolver:
 
         tokens = list({token for token in normalized_query.split() if len(token) >= 2})
         if not tokens:
-            return 1.2 if normalized_query in doc else 0.0
+            raw_score = 1.2 if normalized_query in doc else 0.0
+            return min(0.30, raw_score * 0.08)
 
         token_hits = 0
         score = 0.0
@@ -143,7 +341,7 @@ class AssistantContextResolver:
             score += 1.0
 
         score += (token_hits / len(tokens)) * 0.9
-        return score
+        return min(0.30, score * 0.08)
 
     def _normalize(self, value: str) -> str:
         normalized = " ".join(str(value or "").split()).lower()

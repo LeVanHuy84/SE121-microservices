@@ -42,11 +42,7 @@ class ImageDownloader:
     # CORE API
     # ==================================================
 
-    async def download(
-        self,
-        urls: List[str],
-        timeout: int = 10
-    ) -> List[ImageInput]:
+    async def download(self, urls: List[str], timeout: int = 10) -> List[ImageInput]:
         """
         Download multiple images concurrently.
 
@@ -66,45 +62,32 @@ class ImageDownloader:
         async def fetch(url: str) -> Optional[ImageInput]:
             try:
                 async with session.get(
-                    url,
-                    timeout=aiohttp.ClientTimeout(total=timeout)
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)
                 ) as res:
                     if res.status == 200:
                         data = await res.read()
-                        return ImageInput(
-                            url=url,
-                            bytes=data
-                        )
+                        return ImageInput(url=url, bytes=data)
 
                     logger.warning(
-                        "[ImageDownloader] status=%s url=%s",
-                        res.status,
-                        url
+                        "[ImageDownloader] status=%s url=%s", res.status, url
                     )
 
             except asyncio.TimeoutError:
                 logger.warning("[ImageDownloader] timeout url=%s", url)
             except Exception as e:
-                logger.exception(
-                    "[ImageDownloader] failed url=%s error=%s",
-                    url,
-                    e
-                )
+                logger.exception("[ImageDownloader] failed url=%s error=%s", url, e)
 
             return None
 
         results = await asyncio.gather(
-            *[fetch(url) for url in urls],
-            return_exceptions=False
+            *[fetch(url) for url in urls], return_exceptions=False
         )
 
         # filter None
         images = [img for img in results if img]
 
         logger.debug(
-            "[ImageDownloader] downloaded %s/%s images",
-            len(images),
-            len(urls)
+            "[ImageDownloader] downloaded %s/%s images", len(images), len(urls)
         )
 
         return images

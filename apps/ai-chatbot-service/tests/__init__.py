@@ -8,4 +8,3 @@ os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
 os.environ.setdefault("CHATBOT_DB_ENABLED", "false")
-

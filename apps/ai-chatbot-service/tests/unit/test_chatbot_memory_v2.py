@@ -11,26 +11,18 @@ os.environ["CHATBOT_DB_ENABLED"] = "true"
 
 from app.modules.chatbot.repositories.chat_history import (
     GAP_MARKER_TEXT,
-    MAX_SESSIONS_PER_USER,
-    NON_SUBSTANTIVE_INTENTS,
-    SESSION_TTL_SECONDS,
     ChatHistoryRepository,
     ClearHistoryCommand,
     GetHistoryQuery,
     HistoryStore,
-    ListConversationsQuery,
-    estimate_tokens,
-    is_substantive_anchor_turn,
 )
 from app.modules.chatbot.repositories.user_memory_profile import (
-    CANONICAL_FACT_KEYS,
     UserMemoryProfileRepository,
 )
 from app.modules.chatbot.schemas import AssistantHistoryItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import AssistantService
 from app.modules.chatbot.services.fact_extractor import (
     FactExtractorService,
-    SELF_DISCLOSURE_PATTERNS,
 )
 from app.modules.chatbot.services.prompt_builder import PromptBuilder
 from app.modules.chatbot.services.user_event_consumer import handle_user_event
@@ -64,10 +56,14 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         self.db = FakeDb()
         self.profile_repo = UserMemoryProfileRepository(db=self.db)
         self.repo = ChatHistoryRepository(db=self.db, profile_repo=self.profile_repo)
-        self.history_store = HistoryStore(repository=self.repo, profile_repo=self.profile_repo)
+        self.history_store = HistoryStore(
+            repository=self.repo, profile_repo=self.profile_repo
+        )
         self.context_resolver = FakeContextResolver()
         self.extractor = FactExtractorService(
-            provider=FakeProvider('{"set": {"occupation": "Kỹ sư phần mềm"}, "unset": []}'),
+            provider=FakeProvider(
+                '{"set": {"occupation": "Kỹ sư phần mềm"}, "unset": []}'
+            ),
             profile_repo=self.profile_repo,
             history_repo=self.repo,
         )
@@ -86,7 +82,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         )
 
         # User starts conversation A
-        conv_a = asyncio.run(self.history_store.create_conversation("user-1", title="Conv A"))
+        conv_a = asyncio.run(
+            self.history_store.create_conversation("user-1", title="Conv A")
+        )
         conv_a_id = conv_a["id"]
         req_a = AssistantRespondRequest(
             userId="user-1",
@@ -98,7 +96,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         uuid.UUID(res_a.conversationId)
 
         # User starts conversation B
-        conv_b = asyncio.run(self.history_store.create_conversation("user-1", title="Conv B"))
+        conv_b = asyncio.run(
+            self.history_store.create_conversation("user-1", title="Conv B")
+        )
         conv_b_id = conv_b["id"]
         req_b = AssistantRespondRequest(
             userId="user-1",
@@ -111,8 +111,16 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         uuid.UUID(res_b.conversationId)
 
         # Inspect history for Conv A and Conv B
-        page_a = asyncio.run(self.history_store.get_messages_page_by_user("user-1", conversation_id=conv_a_id))
-        page_b = asyncio.run(self.history_store.get_messages_page_by_user("user-1", conversation_id=conv_b_id))
+        page_a = asyncio.run(
+            self.history_store.get_messages_page_by_user(
+                "user-1", conversation_id=conv_a_id
+            )
+        )
+        page_b = asyncio.run(
+            self.history_store.get_messages_page_by_user(
+                "user-1", conversation_id=conv_b_id
+            )
+        )
 
         self.assertEqual(len(page_a.items), 2)
         self.assertEqual(len(page_b.items), 2)
@@ -129,7 +137,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
     # --------------------------------------------------------------------------
     def test_token_budget_full_history_under_1500_tokens(self):
         # Create conversation and populate 5 turns (10 messages) with short content
-        conv = asyncio.run(self.repo.create_conversation("user-token", title="Short chat"))
+        conv = asyncio.run(
+            self.repo.create_conversation("user-token", title="Short chat")
+        )
         conv_id = conv["id"]
 
         for i in range(1, 6):
@@ -142,7 +152,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
                 )
             )
 
-        items, last_intent, conv_meta = asyncio.run(self.repo.load_context_window("user-token", conv_id))
+        items, last_intent, conv_meta = asyncio.run(
+            self.repo.load_context_window("user-token", conv_id)
+        )
         self.assertEqual(len(items), 10)
         # No gap marker present
         self.assertFalse(any(it.role == "system" for it in items))
@@ -150,7 +162,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         self.assertEqual(items[-1].content, "Câu trả lời số 5 đầy đủ")
 
     def test_anchor_skips_greeting_and_locks_substantive_turn(self):
-        conv = asyncio.run(self.repo.create_conversation("user-anchor", title="Anchor chat"))
+        conv = asyncio.run(
+            self.repo.create_conversation("user-anchor", title="Anchor chat")
+        )
         conv_id = conv["id"]
 
         # Turn 1: Trivial greeting
@@ -186,13 +200,19 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         self.assertIn("mất ngủ", doc["anchor_exchange"][0]["content"])
 
     def test_long_conversation_anchor_gap_marker_and_recent_window(self):
-        conv = asyncio.run(self.repo.create_conversation("user-long", title="Long chat"))
+        conv = asyncio.run(
+            self.repo.create_conversation("user-long", title="Long chat")
+        )
         conv_id = conv["id"]
 
         # Turn 1: greeting (skipped)
         asyncio.run(
             self.repo.append_exchange(
-                "user-long", "Xin chào bạn", "Chào bạn!", intent="greeting", conversation_id=conv_id
+                "user-long",
+                "Xin chào bạn",
+                "Chào bạn!",
+                intent="greeting",
+                conversation_id=conv_id,
             )
         )
         # Turn 2: substantive anchor (> 4 words)
@@ -217,7 +237,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
                 )
             )
 
-        items, last_intent, conv_meta = asyncio.run(self.repo.load_context_window("user-long", conv_id))
+        items, last_intent, conv_meta = asyncio.run(
+            self.repo.load_context_window("user-long", conv_id)
+        )
 
         # Check structure: Anchor items (2) + Gap marker (1) + Recent items (up to 6)
         self.assertTrue(len(items) >= 3)
@@ -234,19 +256,42 @@ class ChatbotMemoryV2Test(unittest.TestCase):
 
     def test_no_gap_marker_when_recent_turns_immediately_follow_anchor(self):
         # Anchor on Turn 2, turn_count = 5, recent turns 3-5 -> 5 - 3 = 2 == anchor_turn -> NO gap marker!
-        conv = asyncio.run(self.repo.create_conversation("user-nogap", title="No gap chat"))
+        conv = asyncio.run(
+            self.repo.create_conversation("user-nogap", title="No gap chat")
+        )
         conv_id = conv["id"]
 
         # Turn 1: greeting
-        asyncio.run(self.repo.append_exchange("user-nogap", "hello", "hi", intent="greeting", conversation_id=conv_id))
+        asyncio.run(
+            self.repo.append_exchange(
+                "user-nogap", "hello", "hi", intent="greeting", conversation_id=conv_id
+            )
+        )
         # Turn 2: anchor (~80 tokens)
-        asyncio.run(self.repo.append_exchange("user-nogap", "mình bị đau dạ dày thường xuyên", "bạn đã đi khám bác sĩ chưa", conversation_id=conv_id))
+        asyncio.run(
+            self.repo.append_exchange(
+                "user-nogap",
+                "mình bị đau dạ dày thường xuyên",
+                "bạn đã đi khám bác sĩ chưa",
+                conversation_id=conv_id,
+            )
+        )
         # Turns 3, 4, 5: each message has ~810 chars (~270 tokens), so 540 tokens/turn.
         # Total turns 3-5 = 1620 tokens (> 1500 threshold, but total anchor+recent = 1640 <= 2000).
         # Therefore, none of turns 3-5 are dropped, and since 5 - 3 = 2 == anchor_turn, no gap marker is injected.
-        medium_text = "Nội dung câu chuyện chi tiết về bệnh đau dạ dày và phương pháp ăn uống hàng ngày. " * 10
+        medium_text = (
+            "Nội dung câu chuyện chi tiết về bệnh đau dạ dày và phương pháp ăn uống hàng ngày. "
+            * 10
+        )
         for i in range(3, 6):
-            asyncio.run(self.repo.append_exchange("user-nogap", f"Turn {i}: {medium_text}", f"Reply {i}: {medium_text}", conversation_id=conv_id))
+            asyncio.run(
+                self.repo.append_exchange(
+                    "user-nogap",
+                    f"Turn {i}: {medium_text}",
+                    f"Reply {i}: {medium_text}",
+                    conversation_id=conv_id,
+                )
+            )
 
         items, _, _ = asyncio.run(self.repo.load_context_window("user-nogap", conv_id))
         # All 3 recent turns (6 messages) fit within 2000 tokens, so turn_count(5) - recent(3) == anchor_turn(2)
@@ -263,7 +308,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         # Create 20 conversations with distinct last_message_at
         created_ids = []
         for i in range(20):
-            conv = asyncio.run(self.repo.create_conversation(user_id, title=f"Chat {i}"))
+            conv = asyncio.run(
+                self.repo.create_conversation(user_id, title=f"Chat {i}")
+            )
             created_ids.append(conv["id"])
             # Set staggered timestamps
             t = now - timedelta(days=25 - i)
@@ -274,7 +321,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
                 )
             )
 
-        active_convs = asyncio.run(self.repo.list_conversations_by_user(user_id, limit=30))
+        active_convs = asyncio.run(
+            self.repo.list_conversations_by_user(user_id, limit=30)
+        )
         self.assertEqual(len(active_convs), 20)
 
         # Create 21st conversation
@@ -282,11 +331,15 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         self.assertIsNotNone(conv_21["id"])
 
         # Oldest conversation (Chat 0) must be tombstoned or purged
-        oldest_doc = asyncio.run(self.db["chat_conversations"].find_one({"id": created_ids[0]}))
+        oldest_doc = asyncio.run(
+            self.db["chat_conversations"].find_one({"id": created_ids[0]})
+        )
         self.assertTrue(oldest_doc is None or oldest_doc.get("status") == "tombstoned")
 
         # Active conversations count must remain <= 20
-        active_after = asyncio.run(self.repo.list_conversations_by_user(user_id, limit=30))
+        active_after = asyncio.run(
+            self.repo.list_conversations_by_user(user_id, limit=30)
+        )
         self.assertEqual(len(active_after), 20)
         self.assertNotIn(created_ids[0], [c["id"] for c in active_after])
 
@@ -296,31 +349,55 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         old_time = now - timedelta(days=95)
 
         # Conv 1: tombstoned
-        c1 = asyncio.run(self.repo.create_conversation(user_id, title="Tombstoned conv"))
-        asyncio.run(self.db["chat_conversations"].update_one({"id": c1["id"]}, {"$set": {"status": "tombstoned"}}))
-        asyncio.run(self.repo.append_exchange(user_id, "hi", "hello", conversation_id=c1["id"]))
+        c1 = asyncio.run(
+            self.repo.create_conversation(user_id, title="Tombstoned conv")
+        )
+        asyncio.run(
+            self.db["chat_conversations"].update_one(
+                {"id": c1["id"]}, {"$set": {"status": "tombstoned"}}
+            )
+        )
+        asyncio.run(
+            self.repo.append_exchange(user_id, "hi", "hello", conversation_id=c1["id"])
+        )
 
         # Conv 2: >90 days inactive
-        c2 = asyncio.run(self.repo.create_conversation(user_id, title="Old inactive conv"))
+        c2 = asyncio.run(
+            self.repo.create_conversation(user_id, title="Old inactive conv")
+        )
         asyncio.run(
             self.db["chat_conversations"].update_one(
                 {"id": c2["id"]},
                 {"$set": {"last_message_at": old_time, "created_at": old_time}},
             )
         )
-        asyncio.run(self.repo.append_exchange(user_id, "question", "answer", conversation_id=c2["id"]))
+        asyncio.run(
+            self.repo.append_exchange(
+                user_id, "question", "answer", conversation_id=c2["id"]
+            )
+        )
 
         # Conv 3: active recent
         c3 = asyncio.run(self.repo.create_conversation(user_id, title="Active conv"))
-        asyncio.run(self.repo.append_exchange(user_id, "active q", "active a", conversation_id=c3["id"]))
+        asyncio.run(
+            self.repo.append_exchange(
+                user_id, "active q", "active a", conversation_id=c3["id"]
+            )
+        )
 
         swept = asyncio.run(self.repo.sweep_expired_and_tombstoned(batch_size=10))
         self.assertEqual(swept, 2)
 
         # Messages for c1 and c2 are cascaded
-        msg1 = asyncio.run(self.db["chat_messages"].find({"conversation_id": c1["id"]}).to_list())
-        msg2 = asyncio.run(self.db["chat_messages"].find({"conversation_id": c2["id"]}).to_list())
-        msg3 = asyncio.run(self.db["chat_messages"].find({"conversation_id": c3["id"]}).to_list())
+        msg1 = asyncio.run(
+            self.db["chat_messages"].find({"conversation_id": c1["id"]}).to_list()
+        )
+        msg2 = asyncio.run(
+            self.db["chat_messages"].find({"conversation_id": c2["id"]}).to_list()
+        )
+        msg3 = asyncio.run(
+            self.db["chat_messages"].find({"conversation_id": c3["id"]}).to_list()
+        )
 
         self.assertEqual(len(msg1), 0)
         self.assertEqual(len(msg2), 0)
@@ -331,19 +408,27 @@ class ChatbotMemoryV2Test(unittest.TestCase):
     # --------------------------------------------------------------------------
     def test_fact_extractor_skips_guard_blocked_and_non_substantive(self):
         # Crisis intent
-        eligible, _ = self.extractor.should_extract("Tôi muốn chết", turn_count=1, intent="mental_health_crisis")
+        eligible, _ = self.extractor.should_extract(
+            "Tôi muốn chết", turn_count=1, intent="mental_health_crisis"
+        )
         self.assertFalse(eligible)
 
         # Community violation
-        eligible, _ = self.extractor.should_extract("bad word", turn_count=1, intent="community_guard")
+        eligible, _ = self.extractor.should_extract(
+            "bad word", turn_count=1, intent="community_guard"
+        )
         self.assertFalse(eligible)
 
         # Policy blocked
-        eligible, _ = self.extractor.should_extract("mình là kỹ sư phần mềm", turn_count=1, policy_blocked=True)
+        eligible, _ = self.extractor.should_extract(
+            "mình là kỹ sư phần mềm", turn_count=1, policy_blocked=True
+        )
         self.assertFalse(eligible)
 
         # Greeting intent
-        eligible, _ = self.extractor.should_extract("xin chào bạn", turn_count=1, intent="greeting")
+        eligible, _ = self.extractor.should_extract(
+            "xin chào bạn", turn_count=1, intent="greeting"
+        )
         self.assertFalse(eligible)
 
     def test_fact_extractor_hybrid_triggers(self):
@@ -381,7 +466,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
             "invalid_key": "some value",  # Must be dropped
             "transient_mood": "buồn bã",  # Must be dropped
         }
-        res = asyncio.run(self.profile_repo.apply_fact_diff(user_id, to_set=to_set, to_unset=[]))
+        res = asyncio.run(
+            self.profile_repo.apply_fact_diff(user_id, to_set=to_set, to_unset=[])
+        )
 
         self.assertIn("name", res)
         self.assertIn("occupation", res)
@@ -393,14 +480,21 @@ class ChatbotMemoryV2Test(unittest.TestCase):
             self.profile_repo.apply_fact_diff(
                 user_id,
                 to_set={"occupation": "Kỹ sư AI"},
-                to_unset=["occupation", "work_mode"],  # occupation in both -> dropped from unset!
+                to_unset=[
+                    "occupation",
+                    "work_mode",
+                ],  # occupation in both -> dropped from unset!
             )
         )
         self.assertEqual(res2["occupation"], "Kỹ sư AI")
 
         # 3. Value bound to 100 characters
         long_val = "A" * 150
-        res3 = asyncio.run(self.profile_repo.apply_fact_diff(user_id, to_set={"interests": long_val}, to_unset=[]))
+        res3 = asyncio.run(
+            self.profile_repo.apply_fact_diff(
+                user_id, to_set={"interests": long_val}, to_unset=[]
+            )
+        )
         self.assertEqual(len(res3["interests"]), 100)
 
     # --------------------------------------------------------------------------
@@ -414,7 +508,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         # Create conversation
         conv = asyncio.run(self.repo.create_conversation(user_id, title="Test"))
         conv_id = conv["id"]
-        asyncio.run(self.repo.append_exchange(user_id, "hi", "hello", conversation_id=conv_id))
+        asyncio.run(
+            self.repo.append_exchange(user_id, "hi", "hello", conversation_id=conv_id)
+        )
 
         # Delete single conversation
         deleted = asyncio.run(self.history_store.delete_conversation(user_id, conv_id))
@@ -427,11 +523,19 @@ class ChatbotMemoryV2Test(unittest.TestCase):
     def test_clear_history_command_purges_conversations_and_profile(self):
         user_id = "user-clear-all"
         # Seed facts
-        asyncio.run(self.profile_repo.apply_fact_diff(user_id, {"name": "Tuan", "occupation": "Designer"}, []))
+        asyncio.run(
+            self.profile_repo.apply_fact_diff(
+                user_id, {"name": "Tuan", "occupation": "Designer"}, []
+            )
+        )
 
         # Create conversation
         conv = asyncio.run(self.repo.create_conversation(user_id, title="Test"))
-        asyncio.run(self.repo.append_exchange(user_id, "hi", "hello", conversation_id=conv["id"]))
+        asyncio.run(
+            self.repo.append_exchange(
+                user_id, "hi", "hello", conversation_id=conv["id"]
+            )
+        )
 
         cmd = ClearHistoryCommand(store=self.history_store)
         deleted = asyncio.run(cmd.execute(user_id))
@@ -447,7 +551,11 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         user_id = "user-kafka-purge"
         asyncio.run(self.profile_repo.apply_fact_diff(user_id, {"name": "Bao"}, []))
         conv = asyncio.run(self.repo.create_conversation(user_id))
-        asyncio.run(self.repo.append_exchange(user_id, "câu hỏi", "câu trả lời", conversation_id=conv["id"]))
+        asyncio.run(
+            self.repo.append_exchange(
+                user_id, "câu hỏi", "câu trả lời", conversation_id=conv["id"]
+            )
+        )
 
         kafka_msg = {
             "type": "user.removed",
@@ -470,30 +578,66 @@ class ChatbotMemoryV2Test(unittest.TestCase):
 
         # Insert pre-v2 doc (lacks turn_count, total_tokens_est, anchor_exchange)
         asyncio.run(
-            self.db["chat_conversations"].insert_one({
-                "id": conv_id,
-                "user_id": user_id,
-                "title": "Legacy chat",
-                "created_at": now,
-                "last_message_at": now,
-            })
+            self.db["chat_conversations"].insert_one(
+                {
+                    "id": conv_id,
+                    "user_id": user_id,
+                    "title": "Legacy chat",
+                    "created_at": now,
+                    "last_message_at": now,
+                }
+            )
         )
 
         # Insert 4 messages (2 turns), where Turn 1 is greeting, Turn 2 is substantive
         messages = [
-            {"id": "m1", "conversation_id": conv_id, "user_id": user_id, "role": "user", "content": "hello", "intent": "greeting", "created_at": now + timedelta(seconds=1)},
-            {"id": "m2", "conversation_id": conv_id, "user_id": user_id, "role": "assistant", "content": "hi", "created_at": now + timedelta(seconds=2)},
-            {"id": "m3", "conversation_id": conv_id, "user_id": user_id, "role": "user", "content": "tôi bị mất ngủ nghiêm trọng trước kỳ thi", "intent": None, "created_at": now + timedelta(seconds=3)},
-            {"id": "m4", "conversation_id": conv_id, "user_id": user_id, "role": "assistant", "content": "mình hiểu, đây là lời khuyên", "created_at": now + timedelta(seconds=4)},
+            {
+                "id": "m1",
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "role": "user",
+                "content": "hello",
+                "intent": "greeting",
+                "created_at": now + timedelta(seconds=1),
+            },
+            {
+                "id": "m2",
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "role": "assistant",
+                "content": "hi",
+                "created_at": now + timedelta(seconds=2),
+            },
+            {
+                "id": "m3",
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "role": "user",
+                "content": "tôi bị mất ngủ nghiêm trọng trước kỳ thi",
+                "intent": None,
+                "created_at": now + timedelta(seconds=3),
+            },
+            {
+                "id": "m4",
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "role": "assistant",
+                "content": "mình hiểu, đây là lời khuyên",
+                "created_at": now + timedelta(seconds=4),
+            },
         ]
         asyncio.run(self.db["chat_messages"].insert_many(messages))
 
         # Load context window should trigger backfill
-        items, last_intent, meta = asyncio.run(self.repo.load_context_window(user_id, conv_id))
+        items, last_intent, meta = asyncio.run(
+            self.repo.load_context_window(user_id, conv_id)
+        )
         self.assertEqual(len(items), 4)
 
         # Verify DB document was backfilled
-        updated_doc = asyncio.run(self.db["chat_conversations"].find_one({"id": conv_id}))
+        updated_doc = asyncio.run(
+            self.db["chat_conversations"].find_one({"id": conv_id})
+        )
         self.assertEqual(updated_doc["turn_count"], 2)
         self.assertGreater(updated_doc["total_tokens_est"], 0)
         self.assertEqual(len(updated_doc["anchor_exchange"]), 2)
@@ -506,18 +650,24 @@ class ChatbotMemoryV2Test(unittest.TestCase):
 
         # Existing tombstoned document
         asyncio.run(
-            self.db["chat_conversations"].insert_one({
-                "id": old_conv_id,
-                "user_id": user_id,
-                "title": "Dead chat",
-                "status": "tombstoned",
-                "created_at": now,
-                "last_message_at": now,
-            })
+            self.db["chat_conversations"].insert_one(
+                {
+                    "id": old_conv_id,
+                    "user_id": user_id,
+                    "title": "Dead chat",
+                    "status": "tombstoned",
+                    "created_at": now,
+                    "last_message_at": now,
+                }
+            )
         )
 
         # Client requests explicit old_conv_id
-        resolved = asyncio.run(self.repo.get_or_create_conversation_by_user(user_id, conversation_id=old_conv_id))
+        resolved = asyncio.run(
+            self.repo.get_or_create_conversation_by_user(
+                user_id, conversation_id=old_conv_id
+            )
+        )
         self.assertNotEqual(resolved["id"], old_conv_id)
         self.assertEqual(resolved["status"], "active")
         uuid.UUID(resolved["id"])
@@ -550,17 +700,46 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         int_pos = prompt.find("- interests: Đọc sách, nghe nhạc")
         self.assertTrue(name_pos < occ_pos < int_pos)
 
-    def test_context_window_does_not_invert_chronology_when_greeting_precedes_anchor(self):
+    def test_context_window_does_not_invert_chronology_when_greeting_precedes_anchor(
+        self,
+    ):
         # Turn 1: Greeting (not anchor)
         # Turn 2: Anchor
         # Turn 3: Recent turn
-        conv = asyncio.run(self.repo.create_conversation("user-chrono", title="Chrono Test"))
+        conv = asyncio.run(
+            self.repo.create_conversation("user-chrono", title="Chrono Test")
+        )
         conv_id = conv["id"]
-        asyncio.run(self.repo.append_exchange("user-chrono", "Xin chào bạn", "Chào bạn nhé!", intent="greeting", conversation_id=conv_id))
-        asyncio.run(self.repo.append_exchange("user-chrono", "Tôi bị mất ngủ nhiều ngày nay", "Bạn thử đi dạo xem", conversation_id=conv_id))
+        asyncio.run(
+            self.repo.append_exchange(
+                "user-chrono",
+                "Xin chào bạn",
+                "Chào bạn nhé!",
+                intent="greeting",
+                conversation_id=conv_id,
+            )
+        )
+        asyncio.run(
+            self.repo.append_exchange(
+                "user-chrono",
+                "Tôi bị mất ngủ nhiều ngày nay",
+                "Bạn thử đi dạo xem",
+                conversation_id=conv_id,
+            )
+        )
         # Long turn to push tokens > 1500 (15 words * 50 * 1.35 * 2 = ~2000 tokens)
-        long_text = "Nội dung trao đổi dài về bài tập rèn luyện thể dục thể thao mỗi sáng sớm. " * 50
-        asyncio.run(self.repo.append_exchange("user-chrono", f"Hỏi thêm: {long_text}", f"Trả lời: {long_text}", conversation_id=conv_id))
+        long_text = (
+            "Nội dung trao đổi dài về bài tập rèn luyện thể dục thể thao mỗi sáng sớm. "
+            * 50
+        )
+        asyncio.run(
+            self.repo.append_exchange(
+                "user-chrono",
+                f"Hỏi thêm: {long_text}",
+                f"Trả lời: {long_text}",
+                conversation_id=conv_id,
+            )
+        )
 
         items, _, _ = asyncio.run(self.repo.load_context_window("user-chrono", conv_id))
         # Anchor (Turn 2) must be first; Turn 1 greeting must NOT be placed after anchor!

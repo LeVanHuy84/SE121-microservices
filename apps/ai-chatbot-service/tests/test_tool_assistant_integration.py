@@ -57,7 +57,9 @@ class MockToolCallingProvider:
         request: AssistantRespondRequest,
     ) -> AsyncIterator[LlmChunk]:
         yield LlmChunk(content="Bạn hiện có ", model="test-groq-model", provider="groq")
-        yield LlmChunk(content="1 lời mời kết bạn.", model="test-groq-model", provider="groq")
+        yield LlmChunk(
+            content="1 lời mời kết bạn.", model="test-groq-model", provider="groq"
+        )
 
 
 class ToolAssistantIntegrationTest(unittest.TestCase):
@@ -90,7 +92,9 @@ class ToolAssistantIntegrationTest(unittest.TestCase):
         # First call passed routed tools
         self.assertIsNotNone(provider.generate_calls[0]["tools"])
         # Second call received prompt with injected tool output
-        self.assertIn("[KẾT QUẢ TRẢ VỀ TỪ CÔNG CỤ HỆ THỐNG]", provider.generate_calls[1]["prompt"])
+        self.assertIn(
+            "[KẾT QUẢ TRẢ VỀ TỪ CÔNG CỤ HỆ THỐNG]", provider.generate_calls[1]["prompt"]
+        )
         self.assertIn("Nguyễn Văn A", provider.generate_calls[1]["prompt"])
         self.assertIn("Bạn hiện có 1 lời mời kết bạn", res.reply)
 
@@ -144,6 +148,7 @@ class ToolAssistantIntegrationTest(unittest.TestCase):
 
     def test_execute_handles_multiple_concurrent_tools(self):
         """Validates that multiple tool calls in a single turn are executed concurrently and injected."""
+
         class MultiToolProvider(MockToolCallingProvider):
             async def generate(self, prompt, request, tools=None):
                 self.generate_calls.append({"prompt": prompt, "tools": tools})
@@ -153,8 +158,16 @@ class ToolAssistantIntegrationTest(unittest.TestCase):
                         model="test-groq-model",
                         provider="groq",
                         tool_calls=(
-                            ToolCallInfo(id="call_1", name="get_my_friend_requests", args={"limit": 5}),
-                            ToolCallInfo(id="call_2", name="get_my_unread_notifications", args={"limit": 3}),
+                            ToolCallInfo(
+                                id="call_1",
+                                name="get_my_friend_requests",
+                                args={"limit": 5},
+                            ),
+                            ToolCallInfo(
+                                id="call_2",
+                                name="get_my_unread_notifications",
+                                args={"limit": 3},
+                            ),
                         ),
                     )
                 return LlmGeneration(

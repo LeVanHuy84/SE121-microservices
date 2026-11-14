@@ -23,10 +23,12 @@ class KafkaDLQService:
         topic: str,
         message: Dict[str, Any],
         error: Exception,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         if not self.kafka_producer:
-            logger.warning("[KafkaDLQ] Kafka producer not initialized. Cannot send to DLQ.")
+            logger.warning(
+                "[KafkaDLQ] Kafka producer not initialized. Cannot send to DLQ."
+            )
             return
 
         dlq_topic = f"{topic}.DLQ"
@@ -43,6 +45,10 @@ class KafkaDLQService:
 
         try:
             await self.kafka_producer.send(dlq_topic, payload)
-            logger.warn(f"☠️ [KafkaDLQ] Sent failed event to DLQ [{dlq_topic}] - Reason: {str(error)}")
+            logger.warn(
+                f"☠️ [KafkaDLQ] Sent failed event to DLQ [{dlq_topic}] - Reason: {str(error)}"
+            )
         except Exception as e:
-            logger.error(f"[KafkaDLQ] Error sending message to DLQ topic [{dlq_topic}]: {e}")
+            logger.error(
+                f"[KafkaDLQ] Error sending message to DLQ topic [{dlq_topic}]: {e}"
+            )

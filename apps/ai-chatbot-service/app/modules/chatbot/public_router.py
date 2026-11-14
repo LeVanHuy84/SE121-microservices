@@ -91,8 +91,12 @@ def register_public_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http_handler(request: Request, exc: StarletteHTTPException):
         if _is_public_path(request):
-            code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.status_code, "HTTP_ERROR")
-            return error_response(exc.status_code, code, "Request could not be processed.")
+            code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(
+                exc.status_code, "HTTP_ERROR"
+            )
+            return error_response(
+                exc.status_code, code, "Request could not be processed."
+            )
         from fastapi.exception_handlers import http_exception_handler
 
         return await http_exception_handler(request, exc)
@@ -106,7 +110,11 @@ def require_gateway_user(
     x_user_id: Optional[str] = Header(default=None),
 ) -> str:
     expected_key = core_settings.INTERNAL_SERVICE_KEY
-    if not expected_key or not x_internal_key or not secrets.compare_digest(x_internal_key, expected_key):
+    if (
+        not expected_key
+        or not x_internal_key
+        or not secrets.compare_digest(x_internal_key, expected_key)
+    ):
         raise ApiError(403, "FORBIDDEN", "Access denied.")
     user_id = (x_user_id or "").strip()
     if not user_id:
@@ -238,7 +246,9 @@ def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondReq
 # Endpoints
 # --------------------------------------------------------------------------
 @public_router.post("/respond", response_model=PublicRespondResponse)
-async def respond(req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)):
+async def respond(
+    req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)
+):
     try:
         data = await respond_command.execute(_to_internal(req, user_id))
     except Exception as exc:
@@ -304,7 +314,9 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
 
 
 @public_router.post("/respond-stream")
-async def respond_stream(req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)):
+async def respond_stream(
+    req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)
+):
     return StreamingResponse(
         _stream_events(_to_internal(req, user_id)),
         media_type="text/event-stream",
@@ -329,9 +341,13 @@ async def get_my_history(
             conversation_id=conversationId,
         )
     except ValueError as exc:
-        raise ApiError(400, "INVALID_HISTORY_CURSOR", "History cursor is invalid.") from exc
+        raise ApiError(
+            400, "INVALID_HISTORY_CURSOR", "History cursor is invalid."
+        ) from exc
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
         logger.exception("Assistant v1 history failed: userId=%s", user_id)
         raise ApiError(
@@ -369,13 +385,19 @@ async def clear_my_history(user_id: str = Depends(require_gateway_user)):
     try:
         deleted = await clear_history_command.execute(user_id)
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
         logger.exception("Assistant v1 history clear failed: userId=%s", user_id)
         raise ApiError(
-            502, "ASSISTANT_HISTORY_CLEAR_FAILED", "Assistant history could not be cleared."
+            502,
+            "ASSISTANT_HISTORY_CLEAR_FAILED",
+            "Assistant history could not be cleared.",
         ) from exc
-    return PublicClearResponse(data=PublicClearData(deletedCount=deleted, sessionCleared=True))
+    return PublicClearResponse(
+        data=PublicClearData(deletedCount=deleted, sessionCleared=True)
+    )
 
 
 @public_router.get("/conversations", response_model=PublicConversationListResponse)
@@ -383,10 +405,14 @@ async def get_my_conversations(user_id: str = Depends(require_gateway_user)):
     try:
         conversations = await list_conversations_query.execute(user_id=user_id)
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
         logger.exception("Assistant v1 conversations list failed: userId=%s", user_id)
-        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
 
     items = [
         PublicConversationItem(
@@ -419,10 +445,16 @@ async def create_new_conversation(
     try:
         conv = await create_conversation_command.execute(user_id=user_id, title=title)
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
-        logger.exception("Assistant v1 conversation creation failed: userId=%s", user_id)
-        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+        logger.exception(
+            "Assistant v1 conversation creation failed: userId=%s", user_id
+        )
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
 
     return PublicConversationResponse(
         data=PublicConversationItem(
@@ -438,18 +470,30 @@ async def create_new_conversation(
     )
 
 
-@public_router.delete("/conversations/{conversation_id}", response_model=PublicDeleteConversationResponse)
+@public_router.delete(
+    "/conversations/{conversation_id}", response_model=PublicDeleteConversationResponse
+)
 async def delete_conversation(
     conversation_id: str,
     user_id: str = Depends(require_gateway_user),
 ):
     try:
-        deleted = await delete_conversation_command.execute(user_id=user_id, conversation_id=conversation_id)
+        deleted = await delete_conversation_command.execute(
+            user_id=user_id, conversation_id=conversation_id
+        )
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
-        logger.exception("Assistant v1 conversation deletion failed: userId=%s, convId=%s", user_id, conversation_id)
-        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+        logger.exception(
+            "Assistant v1 conversation deletion failed: userId=%s, convId=%s",
+            user_id,
+            conversation_id,
+        )
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
 
     return PublicDeleteConversationResponse(
         data=PublicDeleteConversationData(id=conversation_id, deleted=deleted)

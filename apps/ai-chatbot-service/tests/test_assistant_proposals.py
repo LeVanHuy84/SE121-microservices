@@ -1,11 +1,8 @@
 import unittest
-from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 from app.modules.chatbot.schemas import (
     AssistantRespondRequest,
-    CardPayload,
-    ProposeAction,
     SurfaceContext,
 )
 from app.modules.chatbot.services.assistant import RespondCommand
@@ -52,9 +49,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
 
     def test_extract_proposals_rejects_non_allowlisted_action(self):
         reply = (
-            "```action\n"
-            '{"actionName": "delete_database", "params": {}}\n'
-            "```\n"
+            "```action\n" '{"actionName": "delete_database", "params": {}}\n' "```\n"
         )
         cleaned, proposals = self.cmd._extract_proposals_from_llm_reply(reply)
         self.assertEqual(len(proposals), 0)
@@ -76,13 +71,16 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             userId="u-1",
             message="Gửi kết bạn cho Nam đi",
         )
+
         class DummyTC:
             name = "search_users"
 
         dummy_res = ToolExecutionResult(
             tool_name="search_users",
             success=True,
-            data={"users": [{"id": "u-nam-123", "name": "Nam Nguyen", "username": "namn"}]},
+            data={
+                "users": [{"id": "u-nam-123", "name": "Nam Nguyen", "username": "namn"}]
+            },
         )
         proposals = self.cmd._detect_action_proposals(req, (DummyTC(),), [dummy_res])
         self.assertEqual(len(proposals), 1)
@@ -95,6 +93,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             userId="u-1",
             message="Đồng ý kết bạn với Nam",
         )
+
         class DummyTC:
             name = "get_my_friend_requests"
 
@@ -112,7 +111,11 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
         req = AssistantRespondRequest(
             userId="u-1",
             message="Cho mình tham gia nhóm với",
-            surface=SurfaceContext(screen="groups.detail", entityId="grp-99", metadata={"groupName": "Sức Khỏe Tinh Thần"}),
+            surface=SurfaceContext(
+                screen="groups.detail",
+                entityId="grp-99",
+                metadata={"groupName": "Sức Khỏe Tinh Thần"},
+            ),
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
         self.assertEqual(len(proposals), 1)
@@ -124,7 +127,11 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
         req = AssistantRespondRequest(
             userId="u-1",
             message="Tôi không muốn kết bạn với ai cả",
-            surface=SurfaceContext(screen="social.profile", entityId="u-profile-99", metadata={"userName": "Minh"}),
+            surface=SurfaceContext(
+                screen="social.profile",
+                entityId="u-profile-99",
+                metadata={"userName": "Minh"},
+            ),
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
         self.assertEqual(len(proposals), 0)
@@ -134,6 +141,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             userId="u-1",
             message="Từ chối lời mời kết bạn của Nam",
         )
+
         class DummyTC:
             name = "get_my_friend_requests"
 
@@ -153,19 +161,29 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
         req = AssistantRespondRequest(
             userId="u-1",
             message="Hủy kết bạn với người này",
-            surface=SurfaceContext(screen="social.profile", entityId="u-bad-friend", metadata={"userName": "Huy"}),
+            surface=SurfaceContext(
+                screen="social.profile",
+                entityId="u-bad-friend",
+                metadata={"userName": "Huy"},
+            ),
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
         self.assertEqual(len(proposals), 1)
         self.assertEqual(proposals[0].payload.actionName, "unfriend_user")
-        self.assertEqual(proposals[0].payload.params, {"target_user_id": "u-bad-friend"})
+        self.assertEqual(
+            proposals[0].payload.params, {"target_user_id": "u-bad-friend"}
+        )
         self.assertTrue(proposals[0].payload.isDestructive)
 
     def test_detect_action_proposals_block_user(self):
         req = AssistantRespondRequest(
             userId="u-1",
             message="Chặn người này giúp tôi",
-            surface=SurfaceContext(screen="social.profile", entityId="u-spammer", metadata={"userName": "Spammer"}),
+            surface=SurfaceContext(
+                screen="social.profile",
+                entityId="u-spammer",
+                metadata={"userName": "Spammer"},
+            ),
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
         self.assertEqual(len(proposals), 1)
@@ -182,9 +200,48 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
         proposals = self.cmd._detect_action_proposals(req, (), [])
         self.assertEqual(len(proposals), 1)
         self.assertEqual(proposals[0].payload.actionName, "react_post")
-        self.assertEqual(proposals[0].payload.params, {"post_id": "post-xyz", "reaction_type": "love"})
+        self.assertEqual(
+            proposals[0].payload.params,
+            {"post_id": "post-xyz", "reaction_type": "love"},
+        )
         self.assertFalse(proposals[0].payload.isDestructive)
         self.assertEqual(proposals[0].payload.category, "content")
+
+    def test_action_fence_stream_filter_suppresses_action_fences(self):
+        from app.modules.chatbot.services.assistant import ActionFenceStreamFilter
+        filter_stream = ActionFenceStreamFilter()
+        chunks = [
+            "Dưới đây là hành động: ",
+            "```",
+            "action\n",
+            '{"actionName": "block_user"}\n',
+            "```\n",
+            "Bạn hãy xác nhận.",
+        ]
+        yielded = [filter_stream.process_chunk(c) for c in chunks]
+        yielded.append(filter_stream.flush())
+        filtered = "".join(yielded)
+        self.assertEqual(filtered, "Dưới đây là hành động: Bạn hãy xác nhận.")
+        self.assertNotIn("```action", filtered)
+        self.assertNotIn("block_user", filtered)
+
+    def test_action_fence_stream_filter_preserves_regular_code_blocks(self):
+        from app.modules.chatbot.services.assistant import ActionFenceStreamFilter
+        filter_stream = ActionFenceStreamFilter()
+        chunks = [
+            "Ví dụ code:\n",
+            "```python\n",
+            "print('hello world')\n",
+            "```\n",
+            "Hết code.",
+        ]
+        yielded = [filter_stream.process_chunk(c) for c in chunks]
+        yielded.append(filter_stream.flush())
+        filtered = "".join(yielded)
+        self.assertEqual(
+            filtered,
+            "Ví dụ code:\n```python\nprint('hello world')\n```\nHết code.",
+        )
 
 
 if __name__ == "__main__":

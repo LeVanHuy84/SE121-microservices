@@ -39,13 +39,25 @@ class MicroserviceToolHandlers:
             auth_token=ctx.auth_token,
         )
         if isinstance(res, dict) and "_error" in res:
-            logger.info("Using baseline fallback for get_my_friends: %s", res.get("message"))
+            logger.info(
+                "Using baseline fallback for get_my_friends: %s", res.get("message")
+            )
             if self.mock_fallbacks_enabled:
                 return {
                     "total": 3,
                     "friends": [
-                        {"id": "user-1", "name": "Nguyễn Văn A", "username": "vana", "avatarUrl": None},
-                        {"id": "user-2", "name": "Trần Thị B", "username": "thib", "avatarUrl": None},
+                        {
+                            "id": "user-1",
+                            "name": "Nguyễn Văn A",
+                            "username": "vana",
+                            "avatarUrl": None,
+                        },
+                        {
+                            "id": "user-2",
+                            "name": "Trần Thị B",
+                            "username": "thib",
+                            "avatarUrl": None,
+                        },
                     ],
                 }
             return {
@@ -74,15 +86,26 @@ class MicroserviceToolHandlers:
             auth_token=ctx.auth_token,
         )
         if isinstance(res, dict) and "_error" in res:
-            logger.info("Using baseline fallback for search_users: %s", res.get("message"))
+            logger.info(
+                "Using baseline fallback for search_users: %s", res.get("message")
+            )
             if self.mock_fallbacks_enabled:
                 return {
                     "total": 1,
                     "users": [
-                        {"id": "user-found-1", "name": query, "username": query.lower().replace(" ", ""), "avatarUrl": None}
+                        {
+                            "id": "user-found-1",
+                            "name": query,
+                            "username": query.lower().replace(" ", ""),
+                            "avatarUrl": None,
+                        }
                     ],
                 }
-            return {"total": 0, "users": [], "error": res.get("message", "Không thể tìm kiếm người dùng lúc này.")}
+            return {
+                "total": 0,
+                "users": [],
+                "error": res.get("message", "Không thể tìm kiếm người dùng lúc này."),
+            }
         if isinstance(res, dict):
             users = res.get("data") or res.get("users") or []
             return {"total": len(users), "users": users[:3]}
@@ -100,18 +123,28 @@ class MicroserviceToolHandlers:
             auth_token=ctx.auth_token,
         )
         if isinstance(res, dict) and "_error" in res:
-            logger.info("Using baseline fallback for get_my_friend_requests: %s", res.get("message"))
+            logger.info(
+                "Using baseline fallback for get_my_friend_requests: %s",
+                res.get("message"),
+            )
             if self.mock_fallbacks_enabled:
                 return {
                     "total": 1,
                     "requests": [
-                        {"id": "req-1", "senderName": "Nguyễn Văn A", "mutualFriends": 3, "createdAt": "2026-10-30"}
+                        {
+                            "id": "req-1",
+                            "senderName": "Nguyễn Văn A",
+                            "mutualFriends": 3,
+                            "createdAt": "2026-10-30",
+                        }
                     ],
                 }
             return {
                 "total": 0,
                 "requests": [],
-                "error": res.get("message", "Không thể lấy danh sách lời mời kết bạn lúc này."),
+                "error": res.get(
+                    "message", "Không thể lấy danh sách lời mời kết bạn lúc này."
+                ),
             }
         return res
 
@@ -128,11 +161,24 @@ class MicroserviceToolHandlers:
             if self.mock_fallbacks_enabled:
                 return {
                     "recommendations": [
-                        {"id": "user-2", "name": "Trần Thị B", "mutualFriends": 5, "commonInterest": "Âm nhạc"},
-                        {"id": "user-3", "name": "Lê Hoàng C", "mutualFriends": 2, "commonInterest": "Công nghệ"},
+                        {
+                            "id": "user-2",
+                            "name": "Trần Thị B",
+                            "mutualFriends": 5,
+                            "commonInterest": "Âm nhạc",
+                        },
+                        {
+                            "id": "user-3",
+                            "name": "Lê Hoàng C",
+                            "mutualFriends": 2,
+                            "commonInterest": "Công nghệ",
+                        },
                     ]
                 }
-            return {"recommendations": [], "error": res.get("message", "Không thể lấy gợi ý bạn bè lúc này.")}
+            return {
+                "recommendations": [],
+                "error": res.get("message", "Không thể lấy gợi ý bạn bè lúc này."),
+            }
         return res
 
     async def get_user_relationship(
@@ -147,8 +193,16 @@ class MicroserviceToolHandlers:
         )
         if isinstance(res, dict) and "_error" in res:
             if self.mock_fallbacks_enabled:
-                return {"targetUserId": target_id, "status": "friends", "since": "2025-01-15"}
-            return {"targetUserId": target_id, "status": "unknown", "error": res.get("message")}
+                return {
+                    "targetUserId": target_id,
+                    "status": "friends",
+                    "since": "2025-01-15",
+                }
+            return {
+                "targetUserId": target_id,
+                "status": "unknown",
+                "error": res.get("message"),
+            }
         return res
 
     async def get_my_blocked_list(
@@ -184,9 +238,16 @@ class MicroserviceToolHandlers:
                     "name": "Cộng đồng Chia sẻ Cảm xúc Sentimeta",
                     "membersCount": 1250,
                     "userRole": "member",
-                    "rules": ["Tôn trọng lẫn nhau", "Không công kích cá nhân", "Lắng nghe chân thành"],
+                    "rules": [
+                        "Tôn trọng lẫn nhau",
+                        "Không công kích cá nhân",
+                        "Lắng nghe chân thành",
+                    ],
                 }
-            return {"groupId": group_id, "error": res.get("message", "Không thể lấy thông tin nhóm lúc này.")}
+            return {
+                "groupId": group_id,
+                "error": res.get("message", "Không thể lấy thông tin nhóm lúc này."),
+            }
         return res
 
     async def get_my_groups(
@@ -203,11 +264,25 @@ class MicroserviceToolHandlers:
                 return {
                     "total": 2,
                     "groups": [
-                        {"id": "grp-1", "name": "Cộng đồng Chia sẻ Cảm xúc", "role": "member", "unreadCount": 3},
-                        {"id": "grp-2", "name": "Góc Thư Giãn & Âm Nhạc", "role": "admin", "unreadCount": 0},
+                        {
+                            "id": "grp-1",
+                            "name": "Cộng đồng Chia sẻ Cảm xúc",
+                            "role": "member",
+                            "unreadCount": 3,
+                        },
+                        {
+                            "id": "grp-2",
+                            "name": "Góc Thư Giãn & Âm Nhạc",
+                            "role": "admin",
+                            "unreadCount": 0,
+                        },
                     ],
                 }
-            return {"total": 0, "groups": [], "error": res.get("message", "Không thể lấy danh sách nhóm.")}
+            return {
+                "total": 0,
+                "groups": [],
+                "error": res.get("message", "Không thể lấy danh sách nhóm."),
+            }
         return res
 
     async def get_group_invitations(
@@ -235,7 +310,12 @@ class MicroserviceToolHandlers:
         if isinstance(res, dict) and "_error" in res:
             return {
                 "recommendations": [
-                    {"id": "grp-rec-1", "name": "Sống Tích Cực Mỗi Ngày", "members": 3400, "topic": "Tâm lý & Lối sống"}
+                    {
+                        "id": "grp-rec-1",
+                        "name": "Sống Tích Cực Mỗi Ngày",
+                        "members": 3400,
+                        "topic": "Tâm lý & Lối sống",
+                    }
                 ]
             }
         return res
@@ -274,7 +354,10 @@ class MicroserviceToolHandlers:
             return {
                 "period": period,
                 "trend": "improving",
-                "insights": ["Cảm xúc tích cực tăng dần về cuối tuần", "Âm nhạc giúp cải thiện tâm trạng nhanh chóng"],
+                "insights": [
+                    "Cảm xúc tích cực tăng dần về cuối tuần",
+                    "Âm nhạc giúp cải thiện tâm trạng nhanh chóng",
+                ],
             }
         return res
 
@@ -291,8 +374,16 @@ class MicroserviceToolHandlers:
             return {
                 "mood": mood,
                 "tracks": [
-                    {"title": "Gió Nhẹ Mùa Thu", "artist": "Sentimeta Chill", "duration": "3:45"},
-                    {"title": "Bình Yên Nơi Đây", "artist": "Acoustic Vibes", "duration": "4:12"},
+                    {
+                        "title": "Gió Nhẹ Mùa Thu",
+                        "artist": "Sentimeta Chill",
+                        "duration": "3:45",
+                    },
+                    {
+                        "title": "Bình Yên Nơi Đây",
+                        "artist": "Acoustic Vibes",
+                        "duration": "4:12",
+                    },
                 ],
             }
         return res
@@ -333,7 +424,9 @@ class MicroserviceToolHandlers:
             auth_token=ctx.auth_token,
         )
         if isinstance(res, dict) and "_error" in res:
-            logger.info("Using baseline fallback for get_trending_posts: %s", res.get("message"))
+            logger.info(
+                "Using baseline fallback for get_trending_posts: %s", res.get("message")
+            )
             if self.mock_fallbacks_enabled:
                 return {
                     "posts": [
@@ -346,22 +439,39 @@ class MicroserviceToolHandlers:
                         }
                     ]
                 }
-            return {"posts": [], "error": res.get("message", "Không thể lấy bài viết thịnh hành lúc này.")}
+            return {
+                "posts": [],
+                "error": res.get(
+                    "message", "Không thể lấy bài viết thịnh hành lúc này."
+                ),
+            }
 
         posts_data = []
-        raw_items = res.get("data") if isinstance(res, dict) else (res if isinstance(res, list) else [])
+        raw_items = (
+            res.get("data")
+            if isinstance(res, dict)
+            else (res if isinstance(res, list) else [])
+        )
         for item in raw_items[:limit]:
             if isinstance(item, dict):
                 content = str(item.get("content", ""))
                 snippet = (content[:120] + "...") if len(content) > 120 else content
                 author = item.get("author") or {}
-                posts_data.append({
-                    "id": item.get("id") or item.get("_id"),
-                    "authorName": author.get("name") or author.get("username") or "Người dùng Sentimeta",
-                    "content": snippet,
-                    "likeCount": item.get("reactionCount") or item.get("reactions") or 0,
-                    "commentCount": item.get("commentCount") or item.get("comments") or 0,
-                })
+                posts_data.append(
+                    {
+                        "id": item.get("id") or item.get("_id"),
+                        "authorName": author.get("name")
+                        or author.get("username")
+                        or "Người dùng Sentimeta",
+                        "content": snippet,
+                        "likeCount": item.get("reactionCount")
+                        or item.get("reactions")
+                        or 0,
+                        "commentCount": item.get("commentCount")
+                        or item.get("comments")
+                        or 0,
+                    }
+                )
         return {"posts": posts_data}
 
     async def get_my_posts_overview(
@@ -377,9 +487,16 @@ class MicroserviceToolHandlers:
             if self.mock_fallbacks_enabled:
                 return {
                     "totalPosts": 8,
-                    "recentPost": {"title": "Một ngày thảnh thơi tại quán cà phê", "reactions": 24, "comments": 5},
+                    "recentPost": {
+                        "title": "Một ngày thảnh thơi tại quán cà phê",
+                        "reactions": 24,
+                        "comments": 5,
+                    },
                 }
-            return {"totalPosts": 0, "error": res.get("message", "Không thể lấy thông tin bài viết.")}
+            return {
+                "totalPosts": 0,
+                "error": res.get("message", "Không thể lấy thông tin bài viết."),
+            }
         return res
 
     async def get_post_comments_summary(
@@ -418,7 +535,11 @@ class MicroserviceToolHandlers:
                 return {
                     "total": 3,
                     "savedPosts": [
-                        {"id": "post-saved-1", "title": "5 thói quen chăm sóc sức khỏe tinh thần", "author": "Dr. Minh"}
+                        {
+                            "id": "post-saved-1",
+                            "title": "5 thói quen chăm sóc sức khỏe tinh thần",
+                            "author": "Dr. Minh",
+                        }
                     ],
                 }
             return {"total": 0, "savedPosts": [], "error": res.get("message")}
@@ -441,8 +562,16 @@ class MicroserviceToolHandlers:
                 return {
                     "unreadCount": 2,
                     "latest": [
-                        {"id": "notif-1", "title": "Lời mời kết bạn mới từ Nguyễn Văn A", "time": "15 phút trước"},
-                        {"id": "notif-2", "title": "Bài viết của bạn nhận được 10 lượt thích", "time": "1 giờ trước"},
+                        {
+                            "id": "notif-1",
+                            "title": "Lời mời kết bạn mới từ Nguyễn Văn A",
+                            "time": "15 phút trước",
+                        },
+                        {
+                            "id": "notif-2",
+                            "title": "Bài viết của bạn nhận được 10 lượt thích",
+                            "time": "1 giờ trước",
+                        },
                     ],
                 }
             return {"unreadCount": 0, "latest": [], "error": res.get("message")}
@@ -462,7 +591,11 @@ class MicroserviceToolHandlers:
                     "allowFriendRequestsFrom": "everyone",
                     "showOnlineStatus": True,
                 }
-            return {"error": res.get("message", "Không thể lấy cài đặt quyền riêng tư vào lúc này.")}
+            return {
+                "error": res.get(
+                    "message", "Không thể lấy cài đặt quyền riêng tư vào lúc này."
+                )
+            }
         return res
 
     async def get_my_moderation_history(
@@ -483,26 +616,48 @@ class MicroserviceToolHandlers:
         return res
 
 
-def register_production_handlers(dispatcher, http_client: GatewayHttpClient | None = None) -> None:
+def register_production_handlers(
+    dispatcher, http_client: GatewayHttpClient | None = None
+) -> None:
     handlers = MicroserviceToolHandlers(http_client)
     dispatcher.register_handler("get_my_friends", handlers.get_my_friends)
     dispatcher.register_handler("search_users", handlers.search_users)
-    dispatcher.register_handler("get_my_friend_requests", handlers.get_my_friend_requests)
-    dispatcher.register_handler("get_friend_recommendations", handlers.get_friend_recommendations)
+    dispatcher.register_handler(
+        "get_my_friend_requests", handlers.get_my_friend_requests
+    )
+    dispatcher.register_handler(
+        "get_friend_recommendations", handlers.get_friend_recommendations
+    )
     dispatcher.register_handler("get_user_relationship", handlers.get_user_relationship)
     dispatcher.register_handler("get_my_blocked_list", handlers.get_my_blocked_list)
     dispatcher.register_handler("get_group_context", handlers.get_group_context)
     dispatcher.register_handler("get_my_groups", handlers.get_my_groups)
     dispatcher.register_handler("get_group_invitations", handlers.get_group_invitations)
-    dispatcher.register_handler("get_group_recommendations", handlers.get_group_recommendations)
-    dispatcher.register_handler("get_my_emotion_summary", handlers.get_my_emotion_summary)
+    dispatcher.register_handler(
+        "get_group_recommendations", handlers.get_group_recommendations
+    )
+    dispatcher.register_handler(
+        "get_my_emotion_summary", handlers.get_my_emotion_summary
+    )
     dispatcher.register_handler("get_my_emotion_trends", handlers.get_my_emotion_trends)
-    dispatcher.register_handler("get_recommended_music_for_mood", handlers.get_recommended_music_for_mood)
-    dispatcher.register_handler("get_mindfulness_exercises", handlers.get_mindfulness_exercises)
+    dispatcher.register_handler(
+        "get_recommended_music_for_mood", handlers.get_recommended_music_for_mood
+    )
+    dispatcher.register_handler(
+        "get_mindfulness_exercises", handlers.get_mindfulness_exercises
+    )
     dispatcher.register_handler("get_trending_posts", handlers.get_trending_posts)
     dispatcher.register_handler("get_my_posts_overview", handlers.get_my_posts_overview)
-    dispatcher.register_handler("get_post_comments_summary", handlers.get_post_comments_summary)
+    dispatcher.register_handler(
+        "get_post_comments_summary", handlers.get_post_comments_summary
+    )
     dispatcher.register_handler("get_my_saved_posts", handlers.get_my_saved_posts)
-    dispatcher.register_handler("get_my_unread_notifications", handlers.get_my_unread_notifications)
-    dispatcher.register_handler("get_my_privacy_settings", handlers.get_my_privacy_settings)
-    dispatcher.register_handler("get_my_moderation_history", handlers.get_my_moderation_history)
+    dispatcher.register_handler(
+        "get_my_unread_notifications", handlers.get_my_unread_notifications
+    )
+    dispatcher.register_handler(
+        "get_my_privacy_settings", handlers.get_my_privacy_settings
+    )
+    dispatcher.register_handler(
+        "get_my_moderation_history", handlers.get_my_moderation_history
+    )

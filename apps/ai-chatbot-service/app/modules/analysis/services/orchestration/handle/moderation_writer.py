@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ModerationWriter:
-
     def __init__(self, moderation_repo: ModerationRepository):
         self.moderation_repo = moderation_repo
 
@@ -20,9 +19,8 @@ class ModerationWriter:
         target_id: str,
         target_type: TargetTypeEnum,
         content: str,
-        moderation_data: Dict
+        moderation_data: Dict,
     ) -> dict:
-
         moderation = ModerationResult(
             userId=user_id,
             targetId=target_id,
@@ -41,30 +39,23 @@ class ModerationWriter:
             modelVersion=settings.MODERATION_MODEL_VERSION,
         )
 
-        data = moderation.model_dump(mode="json", exclude_none=False, exclude={'id'})
+        data = moderation.model_dump(mode="json", exclude_none=False, exclude={"id"})
 
         logger.info(f"Saving new moderation for target {target_id}")
 
         return await self.moderation_repo.save_moderation(data)
-
 
     async def save_updated(
         self,
         target_id: str,
         target_type: TargetTypeEnum,
         content: str,
-        moderation_data: Dict
+        moderation_data: Dict,
     ) -> dict:
-
-        existing = await self.moderation_repo.get_by_target(
-            target_id,
-            target_type
-        )
+        existing = await self.moderation_repo.get_by_target(target_id, target_type)
 
         if not existing:
-            raise ValueError(
-                f"Moderation not found for target {target_id}"
-            )
+            raise ValueError(f"Moderation not found for target {target_id}")
 
         update_data = {
             "content": content or existing.get("content", ""),
@@ -74,16 +65,27 @@ class ModerationWriter:
             ),
             "action": moderation_data.get("action", existing.get("action", "ALLOW")),
             "label": moderation_data.get("label", existing.get("label", "CLEAN")),
-            "labelCode": int(moderation_data.get("labelCode", existing.get("labelCode", 0))),
-            "confidence": moderation_data.get("confidence", existing.get("confidence", 1.0)),
-            "mentalHealthSupport": moderation_data.get("mentalHealthSupport", existing.get("mentalHealthSupport", False)),
+            "labelCode": int(
+                moderation_data.get("labelCode", existing.get("labelCode", 0))
+            ),
+            "confidence": moderation_data.get(
+                "confidence", existing.get("confidence", 1.0)
+            ),
+            "mentalHealthSupport": moderation_data.get(
+                "mentalHealthSupport", existing.get("mentalHealthSupport", False)
+            ),
             "reason": moderation_data.get("reason", existing.get("reason", "")),
-            "flaggedCategories": moderation_data.get("flaggedCategories", existing.get("flaggedCategories", [])),
-            "allScores": moderation_data.get("allScores", existing.get("allScores", {})),
-            "pipelineSource": moderation_data.get("pipelineSource", existing.get("pipelineSource", "TEXT_PHOBERT")),
+            "flaggedCategories": moderation_data.get(
+                "flaggedCategories", existing.get("flaggedCategories", [])
+            ),
+            "allScores": moderation_data.get(
+                "allScores", existing.get("allScores", {})
+            ),
+            "pipelineSource": moderation_data.get(
+                "pipelineSource", existing.get("pipelineSource", "TEXT_PHOBERT")
+            ),
             "modelVersion": settings.MODERATION_MODEL_VERSION,
         }
-
 
         return await self.moderation_repo.update_moderation(
             existing["_id"],

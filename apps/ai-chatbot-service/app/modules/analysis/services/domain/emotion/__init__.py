@@ -5,15 +5,15 @@ from .emotion_normalizer import (
     normalize_text_label,
     normalize_image_label,
     TEXT_LABEL_MAPPING,
-    IMAGE_LABEL_MAPPING
+    IMAGE_LABEL_MAPPING,
 )
 
 __all__ = [
-    'emotion_analyzer',
-    'normalize_text_label',
-    'normalize_image_label',
-    'TEXT_LABEL_MAPPING',
-    'IMAGE_LABEL_MAPPING',
-    'resolve_preset_range',
-    'validate_range',
+    "emotion_analyzer",
+    "normalize_text_label",
+    "normalize_image_label",
+    "TEXT_LABEL_MAPPING",
+    "IMAGE_LABEL_MAPPING",
+    "resolve_preset_range",
+    "validate_range",
 ]

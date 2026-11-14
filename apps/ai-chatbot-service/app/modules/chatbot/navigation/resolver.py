@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.modules.chatbot.navigation.catalog import DestinationCatalog, destination_catalog
+from app.modules.chatbot.navigation.catalog import (
+    DestinationCatalog,
+    destination_catalog,
+)
 from app.utils.text_normalizer import normalize_for_guard
 
 _COMMAND_PREFIXES = (
@@ -84,7 +87,9 @@ class NavResolver:
             return NavDecision(path="none")
 
         # Feature inquiry check: "có chức năng... không?" is an app feature question, not navigation
-        if re.search(r"\b(co|chuc nang|tinh nang|ho tro)\b.*\b(khong|chua)\b", normalized):
+        if re.search(
+            r"\b(co|chuc nang|tinh nang|ho tro)\b.*\b(khong|chua)\b", normalized
+        ):
             return NavDecision(path="none")
 
         # 1. Check for search intent with query extraction
@@ -100,7 +105,9 @@ class NavResolver:
         is_howto = any(indicator in normalized for indicator in _HOWTO_INDICATORS)
 
         # 2. Score all destinations against normalized text
-        matches = self._score_destinations(normalized, is_command=is_command, is_howto=is_howto)
+        matches = self._score_destinations(
+            normalized, is_command=is_command, is_howto=is_howto
+        )
         if not matches:
             return NavDecision(path="none")
 
@@ -155,7 +162,9 @@ class NavResolver:
 
         return NavDecision(path="none")
 
-    def _extract_search_intent(self, normalized: str, original_text: str) -> NavMatch | None:
+    def _extract_search_intent(
+        self, normalized: str, original_text: str
+    ) -> NavMatch | None:
         # If the user is asking where to find something (howto), don't treat it as a search query
         if any(h in normalized for h in _HOWTO_INDICATORS):
             return None
@@ -177,12 +186,17 @@ class NavResolver:
         clean_query = _PUNCTUATION_AND_QUOTES.sub("", clean_query).strip()
 
         # If user explicitly specified quotes in original text (e.g. 'tìm bài viết về "Sức khỏe tinh thần" nhé')
-        quoted_match = re.search(r"[\"'\u201c\u2018]([^\u201d\u2019\"']{2,100})[\"'\u201d\u2019]", original_text)
+        quoted_match = re.search(
+            r"[\"'\u201c\u2018]([^\u201d\u2019\"']{2,100})[\"'\u201d\u2019]",
+            original_text,
+        )
         if quoted_match:
             safe_query = quoted_match.group(1).strip()
         else:
             # Try to preserve exact casing from original_text if unaccented word matches
-            match_in_orig = re.search(r"\b" + re.escape(clean_query) + r"\b", original_text, re.IGNORECASE)
+            match_in_orig = re.search(
+                r"\b" + re.escape(clean_query) + r"\b", original_text, re.IGNORECASE
+            )
             if match_in_orig:
                 safe_query = match_in_orig.group(0).strip()
             else:
@@ -207,7 +221,7 @@ class NavResolver:
 
         return NavMatch(
             destination_id="search",
-            label_vi=f"{label}: \"{safe_query}\"",
+            label_vi=f'{label}: "{safe_query}"',
             score=0.95,
             params={"q": safe_query, "type": search_type},
         )

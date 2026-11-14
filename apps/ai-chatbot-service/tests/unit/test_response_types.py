@@ -11,8 +11,13 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
 os.environ["CHATBOT_DB_ENABLED"] = "false"
 
-from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository, HistoryStore
-from app.modules.chatbot.repositories.user_memory_profile import UserMemoryProfileRepository
+from app.modules.chatbot.repositories.chat_history import (
+    ChatHistoryRepository,
+    HistoryStore,
+)
+from app.modules.chatbot.repositories.user_memory_profile import (
+    UserMemoryProfileRepository,
+)
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import AssistantService
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES
@@ -28,7 +33,9 @@ class FakeFactExtractor:
         return None
 
 
-def _make_service(provider=None, kafka_producer=None, outbox_repo=None) -> AssistantService:
+def _make_service(
+    provider=None, kafka_producer=None, outbox_repo=None
+) -> AssistantService:
     db = FakeDb()
     profile_repo = UserMemoryProfileRepository(db=db)
     repo = ChatHistoryRepository(db=db, profile_repo=profile_repo)
@@ -92,7 +99,9 @@ def _with_kafka(kafka: FakeKafka, outbox_repo=None):
     fake_module.kafka_producer = kafka
     fake_module.outbox_repo = outbox_repo
     fake_module.emotion_aggregate_repo = AsyncMock()
-    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(return_value=[])
+    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(
+        return_value=[]
+    )
     return patch.dict(sys.modules, {"app.modules.analysis.lifespan": fake_module})
 
 
@@ -159,7 +168,11 @@ class CrisisAlertTest(unittest.TestCase):
         kafka = FakeKafka()
         provider = FakeProvider()
         with _with_kafka(kafka):
-            res = _run(_make_service(provider=provider, kafka_producer=kafka), CRISIS_MESSAGE, "cr-1")
+            res = _run(
+                _make_service(provider=provider, kafka_producer=kafka),
+                CRISIS_MESSAGE,
+                "cr-1",
+            )
 
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.type, "crisis")
@@ -190,7 +203,13 @@ class CrisisAlertTest(unittest.TestCase):
         outbox = FakeOutboxRepo()
         provider = FakeProvider()
         with _with_kafka(kafka, outbox_repo=outbox):
-            res = _run(_make_service(provider=provider, kafka_producer=kafka, outbox_repo=outbox), CRISIS_MESSAGE, "cr-1.5")
+            res = _run(
+                _make_service(
+                    provider=provider, kafka_producer=kafka, outbox_repo=outbox
+                ),
+                CRISIS_MESSAGE,
+                "cr-1.5",
+            )
 
         self.assertEqual(res.type, "crisis")
         self.assertTrue(res.crisis.notificationSent)
@@ -205,7 +224,15 @@ class CrisisAlertTest(unittest.TestCase):
 
         kafka = FakeKafka(fail=True)
         with _with_kafka(kafka, outbox_repo=FailingOutbox()):
-            res = _run(_make_service(provider=FakeProvider(), kafka_producer=kafka, outbox_repo=FailingOutbox()), CRISIS_MESSAGE, "cr-2")
+            res = _run(
+                _make_service(
+                    provider=FakeProvider(),
+                    kafka_producer=kafka,
+                    outbox_repo=FailingOutbox(),
+                ),
+                CRISIS_MESSAGE,
+                "cr-2",
+            )
 
         self.assertEqual(res.type, "crisis")
         self.assertFalse(res.crisis.notificationSent)
@@ -233,7 +260,9 @@ class CrisisAlertLevelTest(unittest.TestCase):
 
 class DocsLintTest(unittest.TestCase):
     def _guides(self):
-        return {p.name: p.read_text(encoding="utf-8") for p in DOCS_DIR.glob("guide-*.md")}
+        return {
+            p.name: p.read_text(encoding="utf-8") for p in DOCS_DIR.glob("guide-*.md")
+        }
 
     def test_no_false_end_to_end_encryption_claims(self):
         forbidden = (
@@ -268,11 +297,19 @@ class DocsLintTest(unittest.TestCase):
                     k, v = line.split(":", 1)
                     frontmatter[k.strip()] = v.strip()
             self.assertIn("id", frontmatter, f"{name} missing id")
-            self.assertNotIn(frontmatter["id"], seen_ids, f"{name} has duplicate id {frontmatter['id']}")
+            self.assertNotIn(
+                frontmatter["id"],
+                seen_ids,
+                f"{name} has duplicate id {frontmatter['id']}",
+            )
             seen_ids.add(frontmatter["id"])
-            self.assertEqual(frontmatter.get("topic"), "huong-dan", f"{name} invalid topic")
+            self.assertEqual(
+                frontmatter.get("topic"), "huong-dan", f"{name} invalid topic"
+            )
             self.assertEqual(frontmatter.get("lang"), "vi", f"{name} invalid lang")
-            self.assertEqual(frontmatter.get("version"), "v2", f"{name} invalid version")
+            self.assertEqual(
+                frontmatter.get("version"), "v2", f"{name} invalid version"
+            )
 
 
 if __name__ == "__main__":
