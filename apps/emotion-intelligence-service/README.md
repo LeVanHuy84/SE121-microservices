@@ -4,7 +4,7 @@
 NestJS analytics and psychological safety microservice that compiles longitudinal emotional profiles, aggregates mental health trend dashboards (joy, sadness, anger, fear, disgust), evaluates mental wellbeing risk baselines, runs proactive AI sweeps, and dispatches LLM-backed empathetic suggestions.
 
 ## Interface
-- **TCP Microservice Patterns** (Listening on TCP port `4005`):
+- **TCP Microservice Patterns** (Listening on TCP port `4005` via `@TcpMessagePattern`):
   - `emotion.profile.get`: Retrieves aggregated user emotion profile across selected timeframes.
   - `emotion.history.list`: Retrieves granular emotion detection records for posts/messages.
   - `emotion.admin.dashboard`: Aggregates platform-wide emotional distribution and anomaly metrics.

@@ -180,9 +180,16 @@ class EmotionContextService:
     async def _fetch(self, user_id: str) -> EmotionSnapshot:
         repo = self._repo
         if repo is None:
-            from app.core.messaging import get_emotion_aggregate_repo
-
-            repo = get_emotion_aggregate_repo()
+            try:
+                import sys
+                if "app.modules.analysis.lifespan" in sys.modules:
+                    mod = sys.modules["app.modules.analysis.lifespan"]
+                    repo = getattr(mod, "emotion_aggregate_repo", None)
+            except Exception:
+                pass
+            if repo is None:
+                from app.core.messaging import get_emotion_aggregate_repo
+                repo = get_emotion_aggregate_repo()
             if repo is None:
                 return _DEFAULT_SNAPSHOT
 

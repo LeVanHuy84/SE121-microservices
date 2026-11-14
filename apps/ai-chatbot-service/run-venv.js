@@ -20,7 +20,7 @@ const finalCmd = fs.existsSync(venvCmdPath) ? venvCmdPath : cmdName;
 
 const result = spawnSync(finalCmd, remainingArgs, {
   stdio: 'inherit',
-  shell: true,
+  shell: false,
   env: process.env,
 });
 process.exit(result.status ?? 0);

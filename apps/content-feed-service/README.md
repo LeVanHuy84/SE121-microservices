@@ -4,7 +4,7 @@
 Core content publishing, social engagement, and personalized feed generation engine for Sentimeta. Manages post lifecycles, comments, multi-type reactions, shares, personalized newsfeed ranking using Redis sorted sets (ZSET), media metadata verification with Cloudinary, notification fan-out via RabbitMQ, and central administrative audit logging.
 
 ## Interface
-- **TCP Microservice Patterns** (Listening on TCP port `4002`):
+- **TCP Microservice Patterns** (Listening on TCP port `4002` via `@TcpMessagePattern`):
   - `post.create`, `post.update`, `post.delete`, `post.find_by_id`: Post CRUD operations.
   - `comment.create`, `comment.list`, `comment.delete`: Threaded post comments.
   - `reaction.toggle`, `reaction.count`: Like/love/reaction management.

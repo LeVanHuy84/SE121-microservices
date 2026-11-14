@@ -50,13 +50,17 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
 - Makes outbound HTTPS requests to Groq Cloud API for LLM completions.
 
 ## Verification
-- Unit Tests:
+- Monorepo & Virtualenv Runner:
+  ```bash
+  npm test
+  ```
+- Specific Memory v2 Unit Tests:
   ```bash
   .venv/bin/python -m unittest tests/unit/test_chatbot_memory_v2.py tests/unit/test_chat_history_actions.py tests/unit/test_assistant_service.py
   ```
-- All Unit Test Suites:
+- All Unit Test Suites (via unittest discovery):
   ```bash
-  .venv/bin/python -m unittest discover -s tests/unit -p "test_*.py"
+  .venv/bin/python -m unittest discover -s tests -p "test_*.py"
   ```
 
 ---
@@ -115,6 +119,11 @@ CHATBOT_DB_ENABLED=true                         # Enable database connectivity
 MONGO_URL=mongodb://localhost:27017             # Local DB URI
 CHATBOT_REDIS_URL=redis://localhost:6379/0
 ES_NODE=http://localhost:9200
+
+# Offline test suite flags (defaults when running unit tests offline)
+UNIT_TEST_MODE=false
+CHATBOT_REDIS_ENABLED=true
+MOCK_EXTERNAL_MODELS=false
 ```
 
 ---

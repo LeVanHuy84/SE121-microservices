@@ -4,7 +4,7 @@
 NestJS microservice responsible for private 1-on-1 conversations, group chats, message history, user presence tracking, audio/video calling tokens, and transactional outbox event delivery within the Sentimeta platform.
 
 ## Interface
-- **TCP Microservice Patterns** (Listening on TCP port `4004`):
+- **TCP Microservice Patterns** (Listening on TCP port `4004` via `@TcpMessagePattern`):
   - `chat.conversation.create`: Initializes a 1-on-1 or group conversation.
   - `chat.conversation.find_by_user`: Retrieves paginated conversations for a user.
   - `chat.message.send`: Persists and broadcasts a message within a conversation.

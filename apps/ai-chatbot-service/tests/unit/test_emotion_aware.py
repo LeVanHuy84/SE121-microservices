@@ -72,6 +72,7 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 
         mock_lifespan = MagicMock()
         mock_lifespan.emotion_aggregate_repo = mock_repo
+        self.service._repo = mock_repo
 
         with patch("app.modules.chatbot.services.emotion_context.asyncio.timeout", return_value=MagicMock(__aenter__=AsyncMock(), __aexit__=AsyncMock())):
             with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
@@ -88,6 +89,7 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 
         mock_lifespan = MagicMock()
         mock_lifespan.emotion_aggregate_repo = mock_repo
+        self.service._repo = mock_repo
 
         with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
             with patch.object(self.service, "_get_redis", return_value=None):
@@ -113,6 +115,7 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 
         mock_lifespan = MagicMock()
         mock_lifespan.emotion_aggregate_repo = mock_repo
+        self.service._repo = mock_repo
 
         with patch.dict("sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}):
             with patch.object(self.service, "_get_redis", return_value=None):

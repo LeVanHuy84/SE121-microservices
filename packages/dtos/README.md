@@ -4,6 +4,7 @@
 Centralized Data Transfer Objects (DTOs), request/response interfaces, payload validation schemas, and enum definitions shared across all microservices and the API Gateway in the SE121 backend ecosystem.
 
 ## Interface
+- `common`: Event topic enumeration (`EventTopic` in `./src/common/enum/event-topic.enum.ts`) and shared cross-domain enums.
 - `chat`: Chat message, conversation, active call, and presence DTOs (`./src/chat`).
 - `social`: Posts, comments, reactions, and share event DTOs (`./src/social`).
 - `feed`: Personal feed queries, snapshot streams, and trending feeds (`./src/feed`).
@@ -27,3 +28,4 @@ Centralized Data Transfer Objects (DTOs), request/response interfaces, payload v
 
 ## Verification
 - Run: `npm run check-types`
+- Run: `npm test`

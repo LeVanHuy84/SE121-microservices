@@ -812,6 +812,8 @@ class HistoryStore:
         self._sweeper_task: asyncio.Task[None] | None = None
 
     def is_enabled(self) -> bool:
+        if self._repository is not None and getattr(self._repository, "_db", None) is not None:
+            return True
         return settings.CHATBOT_DB_ENABLED
 
     async def start(self):

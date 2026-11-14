@@ -4,13 +4,16 @@
 Identity, social relationship graph, and community group management microservice for Sentimeta. Handles user profile synchronization from Clerk webhooks, friendship/follower status graphs, block lists, community group lifecycle, member permissions, and transactional outbox event publishing to Apache Kafka using PostgreSQL with Drizzle ORM.
 
 ## Interface
-- **TCP Microservice Patterns** (Listening on TCP port `4001`):
+- **TCP Microservice Patterns** (Listening on TCP port `4001` via `@TcpMessagePattern`):
   - `user.sync`, `user.get_by_id`, `user.update_profile`: Profile synchronization and management.
   - `user.admin.list`, `user.admin.change_role`: Administrative user lifecycle workflows.
   - `social.friend_request.send`, `social.friend_request.accept`, `social.friend_request.reject`: Friendship workflows.
   - `social.follow`, `social.unfollow`, `social.block`: Relationship graph transitions.
   - `social.friends.list`, `social.followers.list`: Relationship list and mutual friendship queries.
   - `group.create`, `group.update`, `group.join`, `group.leave`, `group.members.list`: Community group management.
+- **Kafka Event Handlers** (`UserEventController` via `@KafkaEventPattern` and `KafkaConsumerHelper`):
+  - Consumes `EventTopic.POST` to maintain personal profile post counts.
+  - Consumes `EventTopic.RECOMMENDATION_GRAPH` to maintain personal friendship counters.
 - **Shared Dependencies**: `[common](../../packages/common/README.md)` and `[dtos](../../packages/dtos/README.md)`.
 
 ## Invariants

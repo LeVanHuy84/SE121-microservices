@@ -4,7 +4,7 @@
 Discovery and personalization engine for Sentimeta. Powers full-text multi-entity search across users, posts, and groups via Elasticsearch, semantic profile recommendations using pgvector Approximate Nearest Neighbor (HNSW ANN) indexing on PostgreSQL, and mood-adaptive music recommendations mapped to user valence/arousal emotional states.
 
 ## Interface
-- **TCP Microservice Patterns** (Listening on TCP port `4003`):
+- **TCP Microservice Patterns** (Listening on TCP port `4003` via `@TcpMessagePattern`):
   - `search.query`: Multi-index search across users, groups, and posts.
   - `search.users`: Dedicated fuzzy search for users.
   - `search.posts`: Full-text post search with relevance scoring.
