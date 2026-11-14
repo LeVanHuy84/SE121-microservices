@@ -12,12 +12,20 @@ describe('ConversationService', () => {
     startSession: jest.fn().mockResolvedValue(session),
   };
 
-  const conversationModel = {
-    deleteOne: jest.fn(),
-    findById: jest.fn(),
-    find: jest.fn(),
-    updateOne: jest.fn(),
-  };
+  function MockConversationModel(this: any, data: any) {
+    Object.assign(this, data);
+    this._id = 'conv-created-1';
+    this.hiddenFor = [];
+    this.participants = data.participants || [];
+    this.save = jest.fn().mockResolvedValue(this);
+    this.populate = jest.fn().mockResolvedValue(this);
+  }
+  MockConversationModel.deleteOne = jest.fn();
+  MockConversationModel.findById = jest.fn();
+  MockConversationModel.findOne = jest.fn();
+  MockConversationModel.find = jest.fn();
+  MockConversationModel.updateOne = jest.fn();
+  const conversationModel = MockConversationModel as any;
 
   const messageModel = {
     deleteMany: jest.fn(),
@@ -53,7 +61,7 @@ describe('ConversationService', () => {
 
   const createService = () =>
     new ConversationService(
-      conversationModel as any,
+      conversationModel,
       messageModel as any,
       cache as any,
       outboxService as any,
@@ -363,5 +371,55 @@ describe('ConversationService', () => {
         ],
       }),
     );
+  });
+
+  it('TC-CS-01: creates direct conversation with normalized sorted directKey', async () => {
+    const service = createService();
+    conversationModel.findOne.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(null), // no existing conversation
+    });
+    jest
+      .spyOn(service, 'updateConversationCache')
+      .mockResolvedValue({ _id: 'conv-created-1' } as any);
+
+    const result = await service.createConversation('user-b', {
+      participants: ['user-a'],
+      isGroup: false,
+    });
+
+    expect(conversationModel.findOne).toHaveBeenCalledWith({
+      directKey: 'user-a:user-b',
+    });
+    expect(result._id).toBe('conv-created-1');
+  });
+
+  it('TC-CS-02: deduplicates 1-1 conversation and returns existing conversation without creating a new document', async () => {
+    const service = createService();
+    const existingConv: any = {
+      _id: 'conv-existing-1',
+      directKey: 'user-a:user-b',
+      participants: ['user-a', 'user-b'],
+      hiddenFor: [],
+      populate: jest.fn().mockResolvedValue(this),
+    };
+
+    conversationModel.findOne.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(existingConv),
+    });
+    jest
+      .spyOn(service, 'updateConversationCache')
+      .mockResolvedValue(existingConv);
+
+    const result = await service.createConversation('user-a', {
+      participants: ['user-b'],
+      isGroup: false,
+    });
+
+    expect(conversationModel.findOne).toHaveBeenCalledWith({
+      directKey: 'user-a:user-b',
+    });
+    expect(result._id).toBe('conv-existing-1');
   });
 });

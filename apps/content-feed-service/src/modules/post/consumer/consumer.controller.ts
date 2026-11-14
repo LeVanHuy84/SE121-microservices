@@ -1,13 +1,9 @@
-import { Controller, Logger } from "@nestjs/common";
-import {
-  Ctx,
-  EventPattern,
-  KafkaContext,
-  Payload,
-} from "@nestjs/microservices";
+import { Controller, Logger, Optional } from "@nestjs/common";
+import { Ctx, KafkaContext, Payload } from "@nestjs/microservices";
 import { AnalysisResultEvent, EventTopic } from "@repo/dtos";
-import { KafkaConsumerHelper } from "@repo/common";
+import { KafkaConsumerHelper, KafkaEventPattern } from "@repo/common";
 import { ConsumerService } from "./consumer.service";
+import { ConsumerService as FeedConsumerService } from "../../feed/consumer/consumer.service";
 import { EntityManager } from "typeorm";
 
 @Controller("ingestion")
@@ -17,12 +13,13 @@ export class ConsumerController {
   constructor(
     private readonly consumerService: ConsumerService,
     private readonly consumerHelper: KafkaConsumerHelper,
+    @Optional() private readonly feedConsumerService?: FeedConsumerService,
   ) {}
 
   // ----------------------------
-  // 🧩 POST TOPIC HANDLER
+  // 🧩 POST TOPIC HANDLER (Unified Analysis Consumer)
   // ----------------------------
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @KafkaEventPattern(EventTopic.ANALYSIS_RESULT)
   async handleAnalysisEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,
@@ -39,15 +36,21 @@ export class ConsumerController {
       message,
       context,
       handler: async (manager: EntityManager) => {
+        // 1. Cập nhật nhãn cảm xúc và trạng thái kiểm duyệt bài viết trong Postgres (TypeORM)
         await this.consumerService.handleEmotionResult(
           message.payload,
           manager,
         );
+
+        // 2. Đồng bộ Feed Snapshot và dọn Trending trong Mongo/Redis (Unified Feed Consumer)
+        if (this.feedConsumerService) {
+          await this.feedConsumerService.handleAnalysisResult(message);
+        }
       },
     });
   }
 
-  @EventPattern(EventTopic.TEST_FAULT)
+  @KafkaEventPattern(EventTopic.TEST_FAULT)
   async handleTestFault(@Payload() message: any, @Ctx() context: KafkaContext) {
     const topic = context.getTopic();
     const partition = context.getPartition();

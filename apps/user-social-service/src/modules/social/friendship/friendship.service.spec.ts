@@ -160,7 +160,74 @@ describe("FriendshipService", () => {
     expect(service).toBeDefined();
   });
 
-  it("should dismiss friend recommendation with expiry", async () => {
+  // ============================================================
+  // Suite 2: Đồ thị Xã hội & Quan hệ Bạn bè (TC-FS-01 -> TC-FS-07)
+  // ============================================================
+  it("TC-FS-01: should send friend request successfully and record recent activity", async () => {
+    const result = await service.sendFriendRequest("userA", "userB");
+
+    expect(sendFriendRequest).toHaveBeenCalledWith("userA", "userB", undefined);
+    expect(addRecentActivity).toHaveBeenCalledWith({
+      actorId: "userA",
+      targetId: "userB",
+      type: "friendship_request",
+    });
+    expect(result.message).toBe("Friend request sent successfully");
+  });
+
+  it("TC-FS-02: should reject sending friend request to yourself", async () => {
+    await expect(service.sendFriendRequest("userA", "userA")).rejects.toThrow(
+      "Cannot send request to yourself",
+    );
+  });
+
+  it("TC-FS-03: should reject sending friend request when already friends", async () => {
+    getRelationshipStatus.mockResolvedValueOnce({ status: "FRIEND" });
+
+    await expect(service.sendFriendRequest("userA", "userB")).rejects.toThrow(
+      "Already friends",
+    );
+  });
+
+  it("TC-FS-04: should reject sending friend request when blocked", async () => {
+    getRelationshipStatus.mockResolvedValueOnce({ status: "BLOCKED" });
+
+    await expect(service.sendFriendRequest("userA", "userB")).rejects.toThrow(
+      "Cannot send request to a blocked user",
+    );
+  });
+
+  it("TC-FS-05: should accept friend request and record activity", async () => {
+    getRelationshipStatus.mockResolvedValueOnce({ status: "REQUESTED_IN" });
+    acceptFriendRequest.mockResolvedValueOnce({ created: true });
+
+    const result = await service.acceptFriendRequest("receiver", "requester");
+
+    expect(acceptFriendRequest).toHaveBeenCalledWith("receiver", "requester");
+    expect(clearActivity).toHaveBeenCalledWith(
+      "friendship_request",
+      "receiver",
+      "requester",
+    );
+    expect(addRecentActivity).toHaveBeenCalledWith({
+      actorId: "receiver",
+      targetId: "requester",
+      type: "friendship_accept",
+    });
+    expect(result.message).toBe("Friend request accepted");
+  });
+
+  it("TC-FS-06: should remove friend successfully", async () => {
+    getRelationshipStatus.mockResolvedValueOnce({ status: "FRIEND" });
+    removeFriend.mockResolvedValueOnce({ removed: true });
+
+    const result = await service.removeFriend("userA", "userB");
+
+    expect(removeFriend).toHaveBeenCalledWith("userA", "userB");
+    expect(result.message).toBe("Friend removed successfully");
+  });
+
+  it("TC-FS-07: should dismiss friend recommendation with expiry", async () => {
     const before = Date.now();
 
     const result = await service.dismissFriendRecommendation("self", "target", {

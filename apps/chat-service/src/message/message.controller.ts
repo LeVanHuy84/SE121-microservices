@@ -1,13 +1,14 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
 import { MessageService } from './message.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Payload } from '@nestjs/microservices';
 import { CursorPaginationDTO, SendMessageDTO } from '@repo/dtos';
 
 @Controller()
 export class MessageController {
   constructor(private readonly messageService: MessageService) {}
 
-  @MessagePattern('getMessages')
+  @TcpMessagePattern('getMessages')
   async getMessages(
     @Payload()
     data: {
@@ -23,7 +24,7 @@ export class MessageController {
     );
   }
 
-  @MessagePattern('sendMessage')
+  @TcpMessagePattern('sendMessage')
   async sendMessage(
     @Payload()
     data: {
@@ -34,7 +35,7 @@ export class MessageController {
     return this.messageService.sendMessage(data.userId, data.dto);
   }
 
-  @MessagePattern('deleteMessage')
+  @TcpMessagePattern('deleteMessage')
   async deleteMessage(
     @Payload()
     data: {
@@ -45,7 +46,7 @@ export class MessageController {
     return this.messageService.deleteMessage(data.userId, data.messageId);
   }
 
-  @MessagePattern('getMessageById')
+  @TcpMessagePattern('getMessageById')
   async getMessageById(
     @Payload()
     data: {

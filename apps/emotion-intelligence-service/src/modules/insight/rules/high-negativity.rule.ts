@@ -7,7 +7,11 @@ export class HighNegativityRule implements InsightRule {
   readonly type = InsightType.HIGH_NEGATIVITY;
 
   evaluate(context: InsightContext): Insight | null {
-    if (context.profile.decayedNegativityScore <= 0.6) {
+    const score =
+      context.profile.recentNegativityScore ??
+      context.profile.decayedNegativityScore ??
+      0;
+    if (score <= 0.6) {
       return null;
     }
 

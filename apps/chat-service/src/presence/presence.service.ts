@@ -177,7 +177,7 @@ export class PresenceService implements OnModuleInit, OnModuleDestroy {
     let evt: PresenceHeartbeatEvent | PresenceDisconnectEvent;
     try {
       evt = JSON.parse(raw);
-    } catch (e) {
+    } catch (e: any) {
       this.logger.error('Invalid presence event message', e);
       return;
     }

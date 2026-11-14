@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { ModerationService } from "./moderation.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import {
   AdminAppealQuery,
   AdminModerationQuery,
@@ -23,7 +24,7 @@ export class ModerationController {
     private readonly appealService: ModerationAppealService,
   ) {}
 
-  @MessagePattern("moderation.get-my-records")
+  @TcpMessagePattern("moderation.get-my-records")
   async getMyModerationRecords(
     @Payload() payload: { userId: string; query: GetMyModerationQuery },
   ) {
@@ -31,7 +32,7 @@ export class ModerationController {
     return this.moderationService.getMyModerationRecords(userId, query);
   }
 
-  @MessagePattern("moderation.get-record-detail")
+  @TcpMessagePattern("moderation.get-record-detail")
   async getModerationRecordDetail(
     @Payload() payload: { id: string; userId?: string; role?: SystemRole },
   ) {
@@ -39,12 +40,12 @@ export class ModerationController {
     return this.moderationService.getModerationRecordDetail(id, userId, role);
   }
 
-  @MessagePattern("moderation.admin.get-records")
+  @TcpMessagePattern("moderation.admin.get-records")
   async getModerationRecordByAdmin(@Payload() query: AdminModerationQuery) {
     return this.moderationService.getModerationRecordsByAdmin(query);
   }
 
-  @MessagePattern("moderation.create-appeal")
+  @TcpMessagePattern("moderation.create-appeal")
   async createAppeal(
     @Payload()
     payload: {
@@ -56,7 +57,7 @@ export class ModerationController {
     return this.appealService.createAppeal(userId, createAppealDTO);
   }
 
-  @MessagePattern("moderation.admin.review-appeal")
+  @TcpMessagePattern("moderation.admin.review-appeal")
   async adminReviewAppeal(
     @Payload()
     payload: {
@@ -69,12 +70,12 @@ export class ModerationController {
     return this.appealService.adminReviewAppeal(userId, appealId, reviewResult);
   }
 
-  @MessagePattern("moderation.admin.get-appeals")
+  @TcpMessagePattern("moderation.admin.get-appeals")
   async getListAppeal(@Payload() query: AdminAppealQuery) {
     return this.appealService.getListAppeal(query);
   }
 
-  @MessagePattern("moderation.admin.restore-content")
+  @TcpMessagePattern("moderation.admin.restore-content")
   async applyFinalDecision(
     @Payload()
     payload: {
@@ -92,7 +93,7 @@ export class ModerationController {
     );
   }
 
-  @MessagePattern("internal.get_target_content")
+  @TcpMessagePattern("internal.get_target_content")
   async getTargetContent(
     @Payload() payload: { targetId: string; targetType: TargetType },
   ): Promise<PostResponseDTO | CommentResponseDTO | ShareResponseDTO | null> {

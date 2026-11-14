@@ -19,7 +19,7 @@ export enum TriggerSource {
 export class InterventionLog {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true })
   userId: string;
 
   @Prop({ required: true, type: String, enum: RiskLevel })

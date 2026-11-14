@@ -25,7 +25,7 @@ try:
 except ImportError:
     HAS_PIPELINE = False
 
-MODEL_PATH = eval_root / "weights" / "phobert_emotion_final"
+MODEL_PATH = eval_root / "weights" / "phobert_emotion_v1.1"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 LABEL_NAMES = ["Enjoyment", "Sadness", "Disgust", "Anger", "Fear", "Surprise", "Other"]

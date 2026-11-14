@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { ReportService } from "../services/group-report.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import {
   AdminGroupQuery,
   CreateGroupReportDTO,
@@ -12,12 +13,12 @@ import {
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}
 
-  @MessagePattern("get_group_dashboard")
+  @TcpMessagePattern("get_group_dashboard")
   async getDashboard(@Payload() filter: DashboardQueryDTO) {
     return this.reportService.getDashboard(filter);
   }
 
-  @MessagePattern("create_group_report")
+  @TcpMessagePattern("create_group_report")
   async createGroupReport(
     @Payload()
     payload: {
@@ -33,40 +34,40 @@ export class ReportController {
     );
   }
 
-  @MessagePattern("get_group_reports")
+  @TcpMessagePattern("get_group_reports")
   async getReportsByGroup(@Payload() filter: GroupReportQuery) {
     return this.reportService.getReports(filter);
   }
 
-  @MessagePattern("get_top_reported_groups")
+  @TcpMessagePattern("get_top_reported_groups")
   async getTopReportedGroups(@Payload() data: { topN: number }) {
     const { topN } = data;
     return this.reportService.getTopReportedGroups(topN);
   }
 
-  @MessagePattern("ignore_group_report")
+  @TcpMessagePattern("ignore_group_report")
   async ignoreGroupReports(
     @Payload() data: { groupId: string; actorId: string },
   ) {
     return this.reportService.ignoreGroupReports(data.groupId, data.actorId);
   }
 
-  @MessagePattern("ban_group")
+  @TcpMessagePattern("ban_group")
   async banGroup(@Payload() data: { groupId: string; actorId: string }) {
     return this.reportService.banGroup(data.groupId, data.actorId);
   }
 
-  @MessagePattern("unban_group")
+  @TcpMessagePattern("unban_group")
   async unbanGroup(@Payload() data: { groupId: string; actorId: string }) {
     return this.reportService.unbanGroup(data.groupId, data.actorId);
   }
 
-  @MessagePattern("get_group_by_admin")
+  @TcpMessagePattern("get_group_by_admin")
   async getGroupByAdmin(@Payload() data: AdminGroupQuery) {
     return this.reportService.getGroupByAdmin(data);
   }
 
-  @MessagePattern("get_group_report_chart")
+  @TcpMessagePattern("get_group_report_chart")
   async getGroupReportChart(@Payload() filter: DashboardQueryDTO) {
     return this.reportService.getReportChart(filter);
   }

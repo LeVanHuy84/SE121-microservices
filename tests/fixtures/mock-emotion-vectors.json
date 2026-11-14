@@ -1,0 +1,37 @@
+{
+  "sadness": {
+    "primaryEmotion": "SADNESS",
+    "valence": 0.15,
+    "arousal": 0.35,
+    "confidence": 0.942,
+    "probabilities": {
+      "JOY": 0.015,
+      "SADNESS": 0.942,
+      "ANGER": 0.012,
+      "FEAR": 0.021,
+      "NEUTRAL": 0.010
+    }
+  },
+  "crisis": {
+    "primaryEmotion": "CRISIS",
+    "riskLevel": "CRISIS",
+    "confidence": 0.995,
+    "urgency": 1.0,
+    "triggerPhrase": "Tôi không muốn sống nữa, tôi muốn tự tử",
+    "emergencyHotline": "1900 6000",
+    "recommendedMoodState": "CALM"
+  },
+  "calm_target": {
+    "valence": 0.65,
+    "arousal": 0.25,
+    "targetEmotion": "CALM",
+    "category": "MEDITATION_MINDFULNESS"
+  },
+  "neutral_fallback": {
+    "primaryEmotion": "NEUTRAL",
+    "valence": 0.50,
+    "arousal": 0.50,
+    "confidence": 1.0,
+    "isFallback": true
+  }
+}

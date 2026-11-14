@@ -1,10 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
-import {
-  EventPattern,
-  Payload,
-  Ctx,
-  KafkaContext,
-} from '@nestjs/microservices';
+import { Payload, Ctx, KafkaContext } from '@nestjs/microservices';
 import {
   EventTopic,
   PostEventType,
@@ -18,7 +13,7 @@ import type {
   UserEventMessage,
   AnalysisResultEvent,
 } from '@repo/dtos';
-import { KafkaConsumerHelper } from '@repo/common';
+import { KafkaConsumerHelper, KafkaEventPattern } from '@repo/common';
 import { PostConsumerService } from './service/post-consumer.service';
 import { GroupConsumerService } from './service/group-consumer.service';
 import { UserConsumerService } from './service/user-consumer.service';
@@ -38,7 +33,7 @@ export class KafkaConsumerController {
   // ----------------------------
   // POST TOPIC HANDLER
   // ----------------------------
-  @EventPattern(EventTopic.POST)
+  @KafkaEventPattern(EventTopic.POST)
   async handlePostEvents(
     @Payload() message: PostEventMessage,
     @Ctx() context: KafkaContext,
@@ -82,7 +77,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.GROUP_CRUD)
+  @KafkaEventPattern(EventTopic.GROUP_CRUD)
   async handleGroupEvents(
     @Payload() message: GroupEventMessage,
     @Ctx() context: KafkaContext,
@@ -123,7 +118,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.USER)
+  @KafkaEventPattern(EventTopic.USER)
   async handleUserEvents(
     @Payload() message: UserEventMessage,
     @Ctx() context: KafkaContext,
@@ -164,7 +159,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.ANALYSIS_RESULT)
+  @KafkaEventPattern(EventTopic.ANALYSIS_RESULT)
   async handleEmotionResultEvents(
     @Payload() message: AnalysisResultEvent,
     @Ctx() context: KafkaContext,
@@ -194,7 +189,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.RECOMMENDATION_PROFILE)
+  @KafkaEventPattern(EventTopic.RECOMMENDATION_PROFILE)
   async handleRecommendationProfileEvents(
     @Payload() message: any,
     @Ctx() context: KafkaContext,
@@ -221,7 +216,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern(EventTopic.RECOMMENDATION_GRAPH)
+  @KafkaEventPattern(EventTopic.RECOMMENDATION_GRAPH)
   async handleRecommendationGraphEvents(
     @Payload() message: any,
     @Ctx() context: KafkaContext,
@@ -247,7 +242,7 @@ export class KafkaConsumerController {
     });
   }
 
-  @EventPattern('recommendation-emotion-events')
+  @KafkaEventPattern('recommendation-emotion-events')
   async handleRecommendationEmotionEvents(
     @Payload() message: any,
     @Ctx() context: KafkaContext,

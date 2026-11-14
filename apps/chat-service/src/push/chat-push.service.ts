@@ -65,10 +65,10 @@ export class ChatPushService {
           }),
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `Failed to dispatch chat push for conversationId=${params.conversationId}: ${error.message}`,
-        error.stack,
+        `Failed to dispatch chat push for conversationId=${params.conversationId}: ${error?.message || error}`,
+        error?.stack,
       );
     }
   }
@@ -93,10 +93,10 @@ export class ChatPushService {
           }),
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error.message}`,
-        error.stack,
+        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error?.message || error}`,
+        error?.stack,
       );
     }
   }
@@ -123,10 +123,10 @@ export class ChatPushService {
           }),
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error.message}`,
-        error.stack,
+        `Failed to dispatch call push for conversationId=${params.conversationId}: ${error?.message || error}`,
+        error?.stack,
       );
     }
   }
@@ -137,9 +137,9 @@ export class ChatPushService {
         userId,
         conversationId,
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
-        `Failed to clear chat push state for userId=${userId}, conversationId=${conversationId}: ${error.message}`,
+        `Failed to clear chat push state for userId=${userId}, conversationId=${conversationId}: ${error?.message || error}`,
       );
     }
   }

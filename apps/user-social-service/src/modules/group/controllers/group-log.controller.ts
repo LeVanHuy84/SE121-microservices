@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { GroupLogFilter, GroupPermission } from "@repo/dtos";
 import { RequireGroupPermission } from "../decorators/require-group-permission.decorator";
 import { GroupLogService } from "../services/group-log.service";
@@ -8,7 +9,7 @@ import { GroupLogService } from "../services/group-log.service";
 export class GroupLogController {
   constructor(private readonly groupLogService: GroupLogService) {}
 
-  @MessagePattern("get-group-logs")
+  @TcpMessagePattern("get-group-logs")
   @RequireGroupPermission(GroupPermission.VIEW_SETTINGS)
   async getGroupLogs(
     @Payload()

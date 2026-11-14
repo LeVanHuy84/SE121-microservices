@@ -18,17 +18,7 @@ async function ensureKafkaTopics() {
   try {
     await admin.connect();
     const existingTopics = await admin.listTopics();
-    const requiredTopics = [
-      EventTopic.ANALYSIS_RESULT,
-      EventTopic.INTERACTION,
-      EventTopic.POST,
-      EventTopic.SHARE,
-      EventTopic.STATS,
-      EventTopic.TEST_FAULT,
-      EventTopic.LOGGING,
-      EventTopic.USER_ACTIVITY_LOG,
-      EventTopic.MEDIA,
-    ];
+    const requiredTopics = [...Object.values(EventTopic)];
     const topicsToCreate = requiredTopics
       .filter((topic) => !existingTopics.includes(topic))
       .map((topic) => ({ topic }));
@@ -103,7 +93,9 @@ async function bootstrap() {
         clientId: process.env.KAFKA_CLIENT_ID || "content-feed-service",
       },
       consumer: {
-        groupId: process.env.KAFKA_GROUP_ID || "content-feed-service-group",
+        groupId: process.env.KAFKA_GROUP_ID
+          ? `${process.env.KAFKA_GROUP_ID}-content-feed`
+          : "content-feed-service-group",
         sessionTimeout: 10000,
         heartbeatInterval: 3000,
       },

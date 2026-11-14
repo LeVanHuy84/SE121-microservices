@@ -2,10 +2,13 @@ import { InjectRedis } from "@nestjs-modules/ioredis";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import {
+  AnalysisEventType,
+  AnalysisResultEvent,
   AnalysisResultEventPayload,
   Emotion,
   InteractionEventPayload,
   ModerationAction,
+  ModerationLabel,
   RiskHintLevel,
   RootType,
   TargetType,
@@ -24,6 +27,7 @@ import {
 } from "src/utils/emotion-normalizer";
 import { AffinityService } from "../affinity/affinity.service";
 import { FeedItem } from "../mongo/schema/feed-item.schema";
+import { CacheLayerService } from "../cache-layer/cache-layer.service";
 
 @Injectable()
 export class ConsumerService {
@@ -43,7 +47,32 @@ export class ConsumerService {
     private readonly redis: Redis,
 
     private readonly affinityService: AffinityService,
+    private readonly cacheLayer: CacheLayerService,
   ) {}
+
+  /**
+   * Phương thức điều phối phân tích cảm xúc thống nhất (Unified Consumer)
+   */
+  async handleAnalysisResult(message: AnalysisResultEvent): Promise<void> {
+    const { type, payload } = message;
+    this.logger.debug(
+      `Unified Consumer: Processing analysis event ${type} for target ${payload.targetId}`,
+    );
+
+    switch (type) {
+      case AnalysisEventType.CREATED:
+        await this.handleCreated(payload);
+        break;
+
+      case AnalysisEventType.UPDATED:
+        await this.handleUpdated(payload);
+        break;
+
+      default:
+        this.logger.warn(`Unknown analysis event type: ${type}`);
+        break;
+    }
+  }
 
   async handleCreated(payload: AnalysisResultEventPayload) {
     if (payload.targetType !== TargetType.POST) return;
@@ -51,6 +80,16 @@ export class ConsumerService {
     if (payload.moderation?.action === ModerationAction.HARD_BLOCK) {
       await this.deletePostFromFeed(payload.targetId);
       return;
+    }
+
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.deletePostFromTrending(payload.targetId);
     }
 
     await this.upsertEmotionFeature(payload);
@@ -62,6 +101,16 @@ export class ConsumerService {
     if (payload.moderation?.action === ModerationAction.HARD_BLOCK) {
       await this.deletePostFromFeed(payload.targetId);
       return;
+    }
+
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.deletePostFromTrending(payload.targetId);
     }
 
     await this.upsertEmotionFeature(payload);
@@ -92,11 +141,42 @@ export class ConsumerService {
       }
 
       await pipeline.exec();
+
+      // 3. Xóa khỏi Cache Layer snapshot ngay lập tức
+      await this.cacheLayer.delPost(postId);
+
       this.logger.log(
-        `Deleted post ${postId} from personal feed and trending redis due to HARD_BLOCK moderation`,
+        `Deleted post ${postId} from personal feed, trending redis and cache layer due to HARD_BLOCK moderation`,
       );
     } catch (err) {
       this.logger.error(`Error deleting post ${postId} from feed`, err);
+    }
+  }
+
+  private async deletePostFromTrending(postId: string): Promise<void> {
+    try {
+      const pipeline = this.redis.pipeline();
+      pipeline.zrem("post:score", postId);
+      pipeline.zrem("post:fresh", postId);
+      pipeline.del(`post:meta:${postId}`);
+      pipeline.del(`post:rank:${postId}`);
+      pipeline.del(`post:engagement:${postId}`);
+      pipeline.del(`emotion:post:${postId}`);
+
+      for (const emotion of Object.values(Emotion)) {
+        pipeline.zrem(`post:emotion:${emotion.toLowerCase()}:score`, postId);
+        pipeline.zrem(`post:score:emotion:${emotion.toLowerCase()}`, postId);
+      }
+
+      await pipeline.exec();
+      this.logger.log(
+        `Removed crisis/self-harm post ${postId} from trending Redis while keeping for friends feed`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Error removing post ${postId} from trending redis`,
+        err,
+      );
     }
   }
 
@@ -142,7 +222,31 @@ export class ConsumerService {
     /**
      * 3. REDIS (chỉ khi không có group)
      */
-    if (!updatedPost.groupId) {
+    const isCrisisOrSelfHarm =
+      payload.moderation?.label === ModerationLabel.SELF_HARM ||
+      payload.moderation?.label === ModerationLabel.EMOTIONAL_CRISIS ||
+      payload.moderation?.action === ModerationAction.ALLOW_WITH_SUPPORT ||
+      payload.moderation?.mentalHealthSupport;
+
+    if (isCrisisOrSelfHarm) {
+      await this.postModel.updateOne(
+        { postId: payload.targetId },
+        {
+          $set: {
+            needsMentalSupport: true,
+            hasWarning: true,
+            warningReason:
+              payload.moderation?.displayMessage ||
+              "Bài viết có thể chứa nội dung tự hại hoặc khủng hoảng tâm lý. Hãy liên hệ ngay để hỗ trợ bạn bè của bạn!",
+          },
+        },
+      );
+    }
+
+    // Invalidate post snapshot cache để phản ánh emotionFeature / warning mới
+    await this.cacheLayer.delPost(payload.targetId);
+
+    if (!updatedPost.groupId && !isCrisisOrSelfHarm) {
       const emotionKey = `emotion:post:${payload.targetId}`;
 
       await this.redis.pipeline().del(emotionKey).exec();

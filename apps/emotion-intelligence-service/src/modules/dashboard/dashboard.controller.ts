@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from '@repo/common';
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { Payload, RpcException } from '@nestjs/microservices';
 import {
   DashboardInsightsResponseDto,
   DashboardDistributionResponseDto,
@@ -17,35 +18,35 @@ import { DashboardService } from './dashboard.service';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @MessagePattern('dashboard.get_summary')
+  @TcpMessagePattern('dashboard.get_summary')
   async getSummary(
     @Payload() payload: { userId: string },
   ): Promise<DashboardSummaryResponseDto> {
     return this.dashboardService.getSummary(payload.userId);
   }
 
-  @MessagePattern('dashboard.get_trend')
+  @TcpMessagePattern('dashboard.get_trend')
   async getTrend(
     @Payload() payload: GetDashboardTrendDto,
   ): Promise<DashboardTrendResponseDto> {
     return this.dashboardService.getTrend(payload);
   }
 
-  @MessagePattern('dashboard.get_distribution')
+  @TcpMessagePattern('dashboard.get_distribution')
   async getDistribution(
     @Payload() payload: GetDashboardDistributionDto,
   ): Promise<DashboardDistributionResponseDto> {
     return this.dashboardService.getDistribution(payload);
   }
 
-  @MessagePattern('dashboard.get_insights')
+  @TcpMessagePattern('dashboard.get_insights')
   async getInsights(
     @Payload() payload: { userId: string },
   ): Promise<DashboardInsightsResponseDto> {
     return this.dashboardService.getInsights(payload.userId);
   }
 
-  @MessagePattern('dashboard.get_history')
+  @TcpMessagePattern('dashboard.get_history')
   async getHistory(
     @Payload() payload: { userId: string; query: CursorPaginationDTO },
   ): Promise<CursorPageResponse<EmotionHistoryItemDto>> {

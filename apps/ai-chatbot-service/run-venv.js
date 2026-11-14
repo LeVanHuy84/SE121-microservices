@@ -18,5 +18,9 @@ const ext = isWin && !cmdName.endsWith('.exe') ? '.exe' : '';
 const venvCmdPath = path.join(venvBinDir, cmdName + ext);
 const finalCmd = fs.existsSync(venvCmdPath) ? venvCmdPath : cmdName;
 
-const result = spawnSync(finalCmd, remainingArgs, { stdio: 'inherit', shell: true });
+const result = spawnSync(finalCmd, remainingArgs, {
+  stdio: 'inherit',
+  shell: true,
+  env: process.env,
+});
 process.exit(result.status ?? 0);

@@ -12,12 +12,14 @@ import {
   KafkaDLQService,
   KafkaProducerModule,
 } from "@repo/common";
+import { FeedConsumerModule } from "../../feed/consumer/consumer.module";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Post, Comment, Share, OutboxEvent]),
     IdempotencyModule.forPostgres(),
     KafkaProducerModule.registerAsync(),
+    FeedConsumerModule,
   ],
   controllers: [ConsumerController],
   providers: [ConsumerService, KafkaDLQService, KafkaConsumerHelper],

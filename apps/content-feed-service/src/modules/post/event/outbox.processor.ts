@@ -9,7 +9,12 @@ import {
   NotificationPayload,
   NotiOutboxPayload,
 } from "@repo/dtos";
-import { KafkaProducerService, NotificationService } from "@repo/common";
+import {
+  KafkaProducerService,
+  NotificationService,
+  extractTraceContext,
+} from "@repo/common";
+import { context } from "@opentelemetry/api";
 
 @Injectable()
 export class OutboxProcessor {
@@ -84,39 +89,45 @@ export class OutboxProcessor {
    */
   private async processEvent(event: OutboxEvent) {
     const { id, destination, topic, eventType, payload } = event;
+    const traceCarrier = payload?._traceContext;
+    const parentCtx = traceCarrier
+      ? extractTraceContext(traceCarrier)
+      : context.active();
 
-    try {
-      switch (destination) {
-        case EventDestination.KAFKA:
-          await this.kafkaProducer.sendMessage(
-            topic,
-            { type: eventType, payload },
-            id,
-          );
-          this.logger.debug(`✅ [Kafka] Sent event ${id} -> ${topic}`);
-          break;
+    await context.with(parentCtx, async () => {
+      try {
+        switch (destination) {
+          case EventDestination.KAFKA:
+            await this.kafkaProducer.sendMessage(
+              topic,
+              { type: eventType, payload },
+              id,
+            );
+            this.logger.debug(`✅ [Kafka] Sent event ${id} -> ${topic}`);
+            break;
 
-        case EventDestination.RABBITMQ:
-          const notis = this.toNotificationDtos(event);
+          case EventDestination.RABBITMQ:
+            const notis = this.toNotificationDtos(event);
 
-          await Promise.all(
-            notis.map((noti) =>
-              this.notificationService.sendNotification(noti),
-            ),
-          );
-          this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
-          break;
+            await Promise.all(
+              notis.map((noti) =>
+                this.notificationService.sendNotification(noti),
+              ),
+            );
+            this.logger.debug(`✅ [RabbitMQ] Sent event ${id} -> ${topic}`);
+            break;
 
-        default:
-          this.logger.warn(
-            `⚠️ Unknown destination "${destination}" for event ${id}`,
-          );
-          break;
+          default:
+            this.logger.warn(
+              `⚠️ Unknown destination "${destination}" for event ${id}`,
+            );
+            break;
+        }
+      } catch (err) {
+        await this.outboxRepo.update({ id }, { processed: false });
+        this.logger.error(`❌ Error sending event ${id}: ${err.message}`);
       }
-    } catch (err) {
-      await this.outboxRepo.update({ id }, { processed: false });
-      this.logger.error(`❌ Error sending event ${id}: ${err.message}`);
-    }
+    });
   }
 
   // HELPERS

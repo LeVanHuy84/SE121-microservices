@@ -10,7 +10,7 @@ export class UserInitService extends BaseInitService implements OnModuleInit {
     super(esClient);
   }
 
-  onModuleInit() {
-    this.ensureIndex(UserIndexMapping);
+  async onModuleInit() {
+    await this.ensureIndex(UserIndexMapping);
   }
 }

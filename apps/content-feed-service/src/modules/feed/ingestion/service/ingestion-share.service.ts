@@ -7,6 +7,7 @@ import {
   ShareSnapshotDocument,
 } from "../../mongo/schema/share-snapshot.schema";
 import { DistributionService } from "./distribution.service";
+import { CacheLayerService } from "../../cache-layer/cache-layer.service";
 
 @Injectable()
 export class IngestionShareService {
@@ -14,6 +15,7 @@ export class IngestionShareService {
     @InjectModel(ShareSnapshot.name)
     private shareModel: Model<ShareSnapshotDocument>,
     private readonly distributionService: DistributionService,
+    private readonly cacheLayer: CacheLayerService,
   ) {}
 
   async handleCreated(
@@ -60,6 +62,9 @@ export class IngestionShareService {
       { $set: { content: payload.content, audience: payload.audience } },
       { session },
     );
+
+    // Invalidate share snapshot cache
+    await this.cacheLayer.delShare(payload.shareId);
   }
 
   async handleRemoved(
@@ -73,6 +78,9 @@ export class IngestionShareService {
       },
       { session },
     );
+
+    // Invalidate share snapshot cache
+    await this.cacheLayer.delShare(payload.shareId);
 
     if (snapshot) {
       await this.distributionService.distributeRemoved(snapshot.id, session);

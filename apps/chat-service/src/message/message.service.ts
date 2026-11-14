@@ -4,6 +4,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   CursorPageResponse,
   CursorPaginationDTO,
+  Emotion,
   EventTopic,
   MEDIA_UPLOAD_MAX_BYTES,
   MediaType,
@@ -63,12 +64,12 @@ export class MessageService {
         await session.commitTransaction();
         await this.outboxService.flushPendingChatEvents(session);
         return result;
-      } catch (error) {
+      } catch (error: any) {
         await session.abortTransaction();
         this.outboxService.clearPendingChatEvents(session);
 
         const isWriteConflict =
-          error.message?.includes('Write conflict') || error.code === 112;
+          error?.message?.includes('Write conflict') || error?.code === 112;
         if (isWriteConflict && attempts < maxRetries - 1) {
           attempts++;
           this.logger.warn(
@@ -332,7 +333,7 @@ export class MessageService {
         messageId: dtoMsg._id,
         preview: this.buildPushPreview(dtoMsg.content, dtoMsg.attachments),
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Failed to send push notification', error);
     }
 
@@ -590,50 +591,38 @@ export class MessageService {
 
   // ============= REACTION =============
 
-  // async reactToMessage(
-  //   userId: string,
-  //   messageId: string,
-  //   emoji: string,
-  // ): Promise<MessageResponseDTO> {
-  //   const msg = await this.messageModel.findById(messageId).exec();
-  //   if (!msg) throw new RpcException('Message not found');
+  async reactToMessage(
+    userId: string,
+    messageId: string,
+    emotion: Emotion,
+  ): Promise<MessageResponseDTO> {
+    void userId;
+    return this.withTransaction(async (session) => {
+      const msg = await this.messageModel
+        .findById(messageId)
+        .session(session)
+        .exec();
+      if (!msg) throw new RpcException('Message not found');
 
-  //   const reactions = msg.reactions || [];
-  //   const index = reactions.findIndex((r) => r.userId === userId);
+      const currentStats = msg.reactionStats || {};
+      const currentCount = currentStats[emotion] || 0;
+      currentStats[emotion] = currentCount + 1;
+      msg.reactionStats = currentStats;
+      msg.markModified('reactionStats');
 
-  //   if (index >= 0) {
-  //     reactions[index].emoji = emoji;
-  //   } else {
-  //     reactions.push({ userId, emoji });
-  //   }
+      await msg.save({ session });
+      const dtoMsg = populateAndMapMessage(msg)!;
 
-  //   msg.reactions = reactions;
-  //   await msg.save();
+      await this.msgCache.setMessageDetail(dtoMsg);
 
-  //   const dtoMsg = populateAndMapMessage(msg)!;
+      await this.outboxService.enqueueChatEvent(
+        'message.reactionUpdated',
+        dtoMsg,
+        msg.conversationId.toString(),
+        session,
+      );
 
-  //   await this.msgCache.setMessageDetail(dtoMsg);
-  //   await this.msgCache.cacheMessages(msg.conversationId.toString(), [dtoMsg]);
-
-  //   return dtoMsg;
-  // }
-
-  // async removeReaction(
-  //   userId: string,
-  //   messageId: string,
-  // ): Promise<MessageResponseDTO> {
-  //   const msg = await this.messageModel.findById(messageId).exec();
-  //   if (!msg) throw new RpcException('Message not found');
-
-  //   msg.reactions = (msg.reactions || []).filter((r) => r.userId !== userId);
-
-  //   await msg.save();
-
-  //   const dtoMsg = populateAndMapMessage(msg)!;
-
-  //   await this.msgCache.setMessageDetail(dtoMsg);
-  //   await this.msgCache.cacheMessages(msg.conversationId.toString(), [dtoMsg]);
-
-  //   return dtoMsg;
-  // }
+      return dtoMsg;
+    });
+  }
 }

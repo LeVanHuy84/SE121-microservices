@@ -18,7 +18,7 @@ async function ensureKafkaTopics() {
   try {
     await admin.connect();
     const existingTopics = await admin.listTopics();
-    const requiredTopics = [EventTopic.ANALYSIS_RESULT];
+    const requiredTopics = [...Object.values(EventTopic)];
     const topicsToCreate = requiredTopics
       .filter((topic) => !existingTopics.includes(topic))
       .map((topic) => ({ topic }));
@@ -68,8 +68,9 @@ async function bootstrap() {
         clientId: process.env.KAFKA_CLIENT_ID || 'emotion-intelligence-service',
       },
       consumer: {
-        groupId:
-          process.env.KAFKA_GROUP_ID || 'emotion-intelligence-service-group',
+        groupId: process.env.KAFKA_GROUP_ID
+          ? `${process.env.KAFKA_GROUP_ID}-emotion`
+          : 'emotion-intelligence-service-group',
       },
       subscribe: {
         fromBeginning: kafkaFromBeginning,

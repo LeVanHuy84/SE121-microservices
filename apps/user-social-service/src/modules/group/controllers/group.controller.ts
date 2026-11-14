@@ -1,5 +1,6 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { GroupService } from "../services/group.service";
 import {
   CreateGroupDTO,
@@ -21,44 +22,44 @@ export class GroupController {
     private readonly groupHelperService: GroupHelperService,
   ) {}
 
-  @MessagePattern("health_check")
+  @TcpMessagePattern("health_check")
   async healthCheck() {
     return { status: "ok" };
   }
 
-  @MessagePattern("find_group_by_id")
+  @TcpMessagePattern("find_group_by_id")
   async getGroup(@Payload() data: { userId: string; groupId: string }) {
     return this.groupQueryService.findById(data.groupId, data.userId);
   }
 
-  @MessagePattern("get_my_groups")
+  @TcpMessagePattern("get_my_groups")
   async searchGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.getMyGroups(data.userId, data.query);
   }
 
-  @MessagePattern("recommend_groups")
+  @TcpMessagePattern("recommend_groups")
   async recommendGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.recommendGroups(data.userId, data.query);
   }
 
-  @MessagePattern("get_invited_groups")
+  @TcpMessagePattern("get_invited_groups")
   async getInvitedGroups(
     @Payload() data: { userId: string; query: CursorPaginationDTO },
   ) {
     return this.groupQueryService.getInvitedGroups(data.userId, data.query);
   }
 
-  @MessagePattern("create_group")
+  @TcpMessagePattern("create_group")
   async createGroup(@Payload() data: { userId: string; dto: CreateGroupDTO }) {
     return this.groupService.createGroup(data.userId, data.dto);
   }
 
   @RequireGroupPermission(GroupPermission.UPDATE_GROUP)
-  @MessagePattern("update_group")
+  @TcpMessagePattern("update_group")
   async updateGroup(
     @Payload()
     data: {
@@ -70,7 +71,7 @@ export class GroupController {
     return this.groupService.updateGroup(data.userId, data.groupId, data.dto);
   }
 
-  @MessagePattern("delete_group")
+  @TcpMessagePattern("delete_group")
   @RequireGroupRole(GroupRole.ADMIN)
   async deleteGroup(
     @Payload()
@@ -82,7 +83,7 @@ export class GroupController {
     return this.groupService.deleteGroup(data.userId, data.groupId);
   }
 
-  @MessagePattern("get_group_user_permissions")
+  @TcpMessagePattern("get_group_user_permissions")
   async getGroupUserPermissions(
     @Payload() data: { userId: string; groupId: string },
   ) {
@@ -92,7 +93,7 @@ export class GroupController {
     );
   }
 
-  @MessagePattern("get_group_info_batch")
+  @TcpMessagePattern("get_group_info_batch")
   async getGroupInfoBatch(@Payload() groupIds: string[]) {
     return this.groupHelperService.getGroupsBatchInfo(groupIds);
   }

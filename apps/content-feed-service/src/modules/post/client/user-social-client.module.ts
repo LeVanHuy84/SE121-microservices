@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { UserClientService } from "./user-client.service";
+import { GroupClientService } from "./group-client.service";
 import { MICROSERVICES_CLIENT } from "src/constant";
 
 @Module({
@@ -21,7 +22,7 @@ import { MICROSERVICES_CLIENT } from "src/constant";
       },
     ]),
   ],
-  providers: [UserClientService],
-  exports: [ClientsModule, UserClientService],
+  providers: [UserClientService, GroupClientService],
+  exports: [ClientsModule, UserClientService, GroupClientService],
 })
 export class UserSocialClientModule {}

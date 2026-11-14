@@ -1,6 +1,7 @@
+import { TcpMessagePattern } from "@repo/common";
 import { Controller } from "@nestjs/common";
 import { GroupSettingService } from "../services/group-setting.service";
-import { MessagePattern, Payload } from "@nestjs/microservices";
+import { Payload } from "@nestjs/microservices";
 import { GroupPermission, UpdateGroupSettingDTO } from "@repo/dtos";
 import { RequireGroupPermission } from "src/modules/group/decorators/require-group-permission.decorator";
 
@@ -9,7 +10,7 @@ export class GroupSettingController {
   constructor(private readonly groupSettingService: GroupSettingService) {}
 
   @RequireGroupPermission(GroupPermission.VIEW_SETTINGS)
-  @MessagePattern("get-group-setting")
+  @TcpMessagePattern("get-group-setting")
   async getGroupSetting(
     @Payload() payload: { userId: string; groupId: string },
   ) {
@@ -18,7 +19,7 @@ export class GroupSettingController {
   }
 
   @RequireGroupPermission(GroupPermission.UPDATE_GROUP_SETTINGS)
-  @MessagePattern("update-group-setting")
+  @TcpMessagePattern("update-group-setting")
   async updateGroupSetting(
     @Payload()
     payload: {

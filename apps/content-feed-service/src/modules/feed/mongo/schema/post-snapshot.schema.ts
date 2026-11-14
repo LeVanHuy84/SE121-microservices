@@ -4,7 +4,7 @@ import { HydratedDocument, Types } from "mongoose";
 
 @Schema({ _id: false })
 export class MediaPreview {
-  @Prop({ enum: MediaType, required: true })
+  @Prop({ type: String, enum: MediaType, required: true })
   type: MediaType;
 
   @Prop({ required: true })
@@ -64,7 +64,7 @@ export class PostSnapshot {
   @Prop()
   groupId?: string;
 
-  @Prop()
+  @Prop({ type: String, enum: Audience })
   audience: Audience;
 
   @Prop()
@@ -97,7 +97,7 @@ export class PostSnapshot {
   @Prop({ default: false })
   needsMentalSupport: boolean;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: Date, required: true, index: true })
   postCreatedAt: Date;
 
   @Prop({ type: StatsEmbedded, default: {} })

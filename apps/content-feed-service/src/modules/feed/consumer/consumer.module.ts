@@ -33,5 +33,6 @@ import {
   ],
   controllers: [ConsumerController],
   providers: [ConsumerService, KafkaDLQService, KafkaConsumerHelper],
+  exports: [ConsumerService],
 })
 export class FeedConsumerModule {}

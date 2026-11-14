@@ -12,6 +12,7 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { ConversationResponseDTO, MessageResponseDTO } from "@repo/dtos";
+import { verifyToken } from "@clerk/backend";
 import Redis from "ioredis";
 import { lastValueFrom } from "rxjs";
 import { Server, Socket } from "socket.io";
@@ -67,11 +68,85 @@ export class ChatGateway
   }
 
   @SubscribeMessage("heartbeat")
-  async handleHeartbeat(@ConnectedSocket() client: Socket) {
+  async handleHeartbeat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data?: { token?: string },
+  ) {
+    const isAuthValid = await this.validateHeartbeatAuth(client, data?.token);
+    if (!isAuthValid) {
+      this.logger.warn(
+        `Socket token re-authentication failed for user ${client.user?.id}`,
+      );
+      client.emit("auth.expired", {
+        message: "Token expired or invalid, please re-authenticate",
+      });
+      client.disconnect(true);
+      return;
+    }
+
     await this.presenceTracker.handleHeartbeat(
       client,
       this.refreshActiveConversation.bind(this),
     );
+  }
+
+  private async validateHeartbeatAuth(
+    client: Socket,
+    freshToken?: string,
+  ): Promise<boolean> {
+    const userId = client.user?.id;
+    if (!userId) {
+      return false;
+    }
+
+    if (
+      process.env.ENABLE_LOAD_TEST_MODE === "true" ||
+      userId.startsWith("mock_")
+    ) {
+      return true;
+    }
+
+    const now = Date.now();
+    const MAX_SESSION_AGE_MS = 60 * 60 * 1000; // 60 minutes
+
+    if (freshToken) {
+      try {
+        const session = await verifyToken(freshToken, {
+          secretKey: process.env.CLERK_SECRET_KEY,
+          clockSkewInMs: 60000,
+        });
+
+        if (!session || session.sub !== userId) {
+          return false;
+        }
+
+        client.data = client.data || {};
+        client.data.lastVerifiedAt = now;
+        client.data.tokenExp = session.exp
+          ? typeof session.exp === "number" && session.exp < 1e11
+            ? session.exp * 1000
+            : session.exp
+          : now + MAX_SESSION_AGE_MS;
+
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    client.data = client.data || {};
+    const tokenExp = client.data.tokenExp as number | undefined;
+    if (tokenExp && now > tokenExp) {
+      return false;
+    }
+
+    const lastVerifiedAt =
+      (client.data.lastVerifiedAt as number | undefined) || now;
+    if (now - lastVerifiedAt > MAX_SESSION_AGE_MS) {
+      return false;
+    }
+
+    return true;
   }
 
   // ========== Client subscribe / unsubscribe presence của người khác ==========
@@ -409,9 +484,9 @@ export class ChatGateway
       );
       authorizedConversationIds.add(conversationId);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(
-        `Rejected conversation access userId=${userId} conversationId=${conversationId}: ${error.message}`,
+        `Rejected conversation access userId=${userId} conversationId=${conversationId}: ${error?.message || error}`,
       );
       return false;
     }

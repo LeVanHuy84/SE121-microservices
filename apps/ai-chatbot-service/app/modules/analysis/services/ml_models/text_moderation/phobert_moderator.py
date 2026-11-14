@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Dict, Any, List
 import numpy as np
 import onnxruntime as ort
-from transformers import AutoTokenizer
 
 from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
@@ -73,11 +72,20 @@ class PhoBERTModerator:
                 self.tokenizer_source,
             )
 
-            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import phobert_emotion_model
-            if phobert_emotion_model.is_loaded() and phobert_emotion_model.tokenizer is not None:
+            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import (
+                phobert_emotion_model,
+            )
+            from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                safe_load_tokenizer,
+            )
+
+            if (
+                phobert_emotion_model.is_loaded()
+                and phobert_emotion_model.tokenizer is not None
+            ):
                 self.tokenizer = phobert_emotion_model.tokenizer
             else:
-                self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_source)
+                self.tokenizer = safe_load_tokenizer(self.tokenizer_source)
 
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = 2

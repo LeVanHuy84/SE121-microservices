@@ -7,16 +7,20 @@ import {
 } from '@nestjs/common';
 import { ELASTIC_CLIENT } from 'src/elastic/elastic.module';
 
+export interface BulkAction {
+  meta: any;
+  source?: any;
+}
+
 @Injectable()
 export class IndexerService implements OnApplicationShutdown {
   private readonly logger = new Logger(IndexerService.name);
 
-  private readonly buffer: Record<string, any[]> = {};
+  private readonly buffer: Record<string, BulkAction[]> = {};
   private readonly flushing: Record<string, boolean> = {};
 
   /**
-   * 1 document = 2 operations
-   * [meta, source]
+   * Bulk limit: số lượng actions để kích hoạt flush
    */
   private readonly BULK_LIMIT = 500;
 
@@ -42,13 +46,7 @@ export class IndexerService implements OnApplicationShutdown {
       this.buffer[index] = [];
     }
 
-    // Push meta
-    this.buffer[index].push(actionMeta);
-
-    // Push source nếu có
-    if (source !== undefined) {
-      this.buffer[index].push(source);
-    }
+    this.buffer[index].push({ meta: actionMeta, source });
 
     this.logger.debug(`Buffered action for index "${index}"`);
 
@@ -107,34 +105,35 @@ export class IndexerService implements OnApplicationShutdown {
    */
   private async executeBulk(
     index: string,
-    actions: any[],
+    actions: BulkAction[],
     attempt = 1,
   ): Promise<void> {
+    const operations: any[] = [];
+    for (const action of actions) {
+      operations.push(action.meta);
+      if (action.source !== undefined) {
+        operations.push(action.source);
+      }
+    }
+
     try {
       const res = await this.es.bulk({
         refresh: false,
-        operations: actions,
+        operations,
       });
 
       /**
        * Partial errors
        */
       if (res.errors) {
-        const retryActions: any[] = [];
+        const retryActions: BulkAction[] = [];
 
         res.items.forEach((item, i) => {
           const actionType = Object.keys(item)[0];
           const actionResult = item[actionType];
 
           if (actionResult.error) {
-            /**
-             * Mỗi document = 2 operations
-             */
-            retryActions.push(actions[i * 2]);
-
-            if (actions[i * 2 + 1]) {
-              retryActions.push(actions[i * 2 + 1]);
-            }
+            retryActions.push(actions[i]);
           }
         });
 
@@ -143,9 +142,7 @@ export class IndexerService implements OnApplicationShutdown {
             const delay = attempt * 200;
 
             this.logger.warn(
-              `Bulk partial errors → retrying ${
-                retryActions.length / 2
-              } docs (attempt ${attempt})`,
+              `Bulk partial errors → retrying ${retryActions.length} docs (attempt ${attempt})`,
             );
 
             await this.sleep(delay);
@@ -158,9 +155,7 @@ export class IndexerService implements OnApplicationShutdown {
            * Push vào DLQ / Kafka retry topic
            */
           this.logger.error(
-            `Bulk permanently failed → ${
-              retryActions.length / 2
-            } docs moved to DLQ`,
+            `Bulk permanently failed → ${retryActions.length} docs moved to DLQ`,
           );
         }
 
@@ -168,7 +163,7 @@ export class IndexerService implements OnApplicationShutdown {
       }
 
       this.logger.debug(
-        `Bulk OK (${actions.length / 2} docs) for index "${index}"`,
+        `Bulk OK (${actions.length} docs) for index "${index}"`,
       );
     } catch (error) {
       if (attempt <= 3) {

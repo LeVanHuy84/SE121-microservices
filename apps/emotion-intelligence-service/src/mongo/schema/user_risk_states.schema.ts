@@ -6,7 +6,7 @@ import { HydratedDocument, Types } from 'mongoose';
 export class UserRiskState {
   _id?: Types.ObjectId;
 
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ required: true, unique: true })
   userId: string;
 
   // level hiện tại
@@ -49,5 +49,3 @@ export class UserRiskState {
 export type UserRiskStateDocument = HydratedDocument<UserRiskState>;
 
 export const UserRiskStateSchema = SchemaFactory.createForClass(UserRiskState);
-
-UserRiskStateSchema.index({ userId: 1 }, { unique: true });

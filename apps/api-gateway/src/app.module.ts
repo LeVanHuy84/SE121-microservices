@@ -1,7 +1,8 @@
 import { Module, ValidationPipe } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { LoadTestThrottlerGuard } from "./common/guards/load-test-throttler.guard";
 import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { MetricsInterceptor } from "./common/interceptors/metrics.interceptor";
 
@@ -50,12 +51,21 @@ import { MusicModule } from "./modules/music/music.module";
       ],
     }),
     NotificationModule,
-    RabbitmqModule.register({
-      urls: ["amqp://guest:guest@localhost:5672"], // hoặc 'amqp://rabbitmq:5672' nếu docker
-      exchanges: [
-        { name: "notification", type: "topic" },
-        { name: "broadcast", type: "fanout" },
-      ],
+    RabbitmqModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        urls: [
+          configService.get<string>(
+            "RABBITMQ_URL",
+            "amqp://guest:guest@localhost:5672",
+          ),
+        ],
+        exchanges: [
+          { name: "notification", type: "topic" },
+          { name: "broadcast", type: "fanout" },
+        ],
+      }),
+      inject: [ConfigService],
     }),
     RedisModule.forRoot({
       type: "single",
@@ -76,9 +86,6 @@ import { MusicModule } from "./modules/music/music.module";
     ChatbotModule,
     LogModule,
     AdminModule,
-
-    LogModule,
-    AdminModule,
     MusicModule,
   ],
 
@@ -90,7 +97,7 @@ import { MusicModule } from "./modules/music/music.module";
     },
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: LoadTestThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,

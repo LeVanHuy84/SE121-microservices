@@ -7,10 +7,14 @@ export class DeterioratingTrendRule implements InsightRule {
   readonly type = InsightType.DETERIORATING_TREND;
 
   evaluate(context: InsightContext): Insight | null {
-    const { emotionMomentum, decayedNegativityScore } = context.profile;
+    const { emotionMomentum } = context.profile;
+    const negativityScore =
+      context.profile.recentNegativityScore ??
+      context.profile.decayedNegativityScore ??
+      0;
 
     // Trend is only meaningful when paired with sufficient negativity context.
-    if (!(emotionMomentum > 0 && decayedNegativityScore > 0.4)) {
+    if (!(emotionMomentum > 0 && negativityScore > 0.4)) {
       return null;
     }
 
