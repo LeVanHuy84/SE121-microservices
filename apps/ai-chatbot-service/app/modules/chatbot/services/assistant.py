@@ -15,7 +15,15 @@ from app.modules.chatbot.actions.registry import get_action_definition, is_actio
 from app.modules.chatbot.navigation.policy import NavOutcome, build_nav_outcome
 from app.modules.chatbot.navigation.resolver import NavResolver, nav_resolver
 from app.modules.chatbot.navigation.telemetry import intent_telemetry
-from app.modules.chatbot.repositories.chat_history import PersistHistoryCommand
+from app.modules.chatbot.repositories.chat_history import (
+    NON_SUBSTANTIVE_INTENTS,
+    PersistHistoryCommand,
+    history_store,
+)
+from app.modules.chatbot.repositories.user_memory_profile import (
+    UserMemoryProfileRepository,
+    user_memory_profile_repo,
+)
 from app.modules.chatbot.schemas import (
     AssistantHistoryItem,
     AssistantRespondData,
@@ -37,6 +45,10 @@ from app.modules.chatbot.services.emotion_context import (
     EmotionSnapshot,
     emotion_context_service,
 )
+from app.modules.chatbot.services.fact_extractor import (
+    FactExtractorService,
+    fact_extractor_service,
+)
 from app.modules.chatbot.services.guardrails import (
     AssistantScopeGuard,
     CommunityGuard,
@@ -45,7 +57,6 @@ from app.modules.chatbot.services.guardrails import (
     assistant_crisis_guard,
     assistant_scope_guard,
 )
-from app.modules.chatbot.services.memory import SessionMemory, session_memory
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES, PromptBuilder
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
 from app.modules.chatbot.tools import (
@@ -99,13 +110,16 @@ class RespondCommand:
         context_resolver: AssistantContextResolver | None = None,
         scope_guard: AssistantScopeGuard | None = None,
         community_guard: CommunityGuard | None = None,
-        memory: SessionMemory | None = None,
+        memory=None,
         persist_history: PersistHistoryCommand | None = None,
         kafka_producer=None,
         outbox_repo=None,
         nav_resolver_instance: NavResolver | None = None,
         tool_router_instance: ToolRouter | None = None,
         tool_dispatcher_instance: ToolDispatcher | None = None,
+        history_store_instance=None,
+        profile_repo: UserMemoryProfileRepository | None = None,
+        fact_extractor: FactExtractorService | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.provider = provider or GroqProvider()
@@ -114,8 +128,10 @@ class RespondCommand:
         self.community_guard = community_guard or assistant_community_guard
         self.crisis_guard = assistant_crisis_guard
         self.emotion_ctx = emotion_context_service
-        self.memory = memory or session_memory
-        self.persist_history = persist_history or PersistHistoryCommand()
+        self.history_store = history_store_instance or history_store
+        self.profile_repo = profile_repo or user_memory_profile_repo
+        self.fact_extractor = fact_extractor or fact_extractor_service
+        self.persist_history = persist_history or PersistHistoryCommand(store=self.history_store)
         self.nav_resolver = nav_resolver_instance or nav_resolver
         self.tool_router = tool_router_instance or tool_router
         self.dispatcher = tool_dispatcher_instance or tool_dispatcher
@@ -272,14 +288,22 @@ class RespondCommand:
     async def execute(self, request: AssistantRespondRequest) -> AssistantRespondData:
         started_at = time.perf_counter()
         request_id = str(uuid4())
-        session_key = self._session_key(request)
-        history = await self._resolve_history(request, session_key)
-        last_intent = request.intent or await self.memory.get_last_intent(session_key)
-        memory_facts = await self.memory.get_facts(session_key)
+
+        conv = await self.history_store.resolve_conversation(request.userId, request.conversationId)
+        conv_id = conv["id"]
+        request = request.model_copy(update={"conversationId": conv_id})
+
+        if request.history:
+            history = request.history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]
+            db_last_intent = None
+        else:
+            history, db_last_intent, _ = await self.history_store.load_context_window(request.userId, conv_id)
+
+        last_intent = request.intent or db_last_intent
+        user_facts = await self.profile_repo.get_facts_by_user(request.userId)
         effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
-            memory_facts,
             request,
         )
         working_request = (
@@ -299,27 +323,25 @@ class RespondCommand:
         pending_actions = guard.pending_actions
         
         if guard_data:
-            await self._persist_session_memory(request, guard_data.reply, [], guard_intent)
             persisted = await self.persist_history.execute(
                 request=request,
                 assistant_reply=guard_data.reply,
                 sources=[],
                 intent=guard_intent,
                 actions=guard_data.suggestedActions,
+                policy_blocked=bool(guard_data.policyBlocked),
             )
             return guard_data.model_copy(
                 update={
                     "requestId": request_id,
                     "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                    "persisted": persisted,
-                    "conversationId": request.conversationId or "default",
+                    "persisted": bool(persisted),
+                    "conversationId": conv_id,
                 }
             )
 
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
 
-        memory_summary = await self.memory.get_summary(session_key)
-        memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
@@ -335,10 +357,8 @@ class RespondCommand:
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
-            memory_context,
+            user_facts=user_facts,
             context_char_limit=prompt_limits.context_char_limit,
-            max_history_items=prompt_limits.max_history_items,
-            history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
             emotion_snapshot=emotion_snapshot,
             is_proactive_checkin=is_proactive_checkin,
@@ -421,12 +441,6 @@ class RespondCommand:
             final_contexts,
             fallback_domains=scope_decision.matched_domains,
         )
-        await self._persist_session_memory(
-            request=request,
-            assistant_reply=reply_content,
-            sources=sources,
-            intent=resolved_intent,
-        )
         is_blocked = self._is_policy_blocked(request, reply_content, generation.content)
         persisted = await self.persist_history.execute(
             request=request,
@@ -436,6 +450,17 @@ class RespondCommand:
             actions=pending_actions,
             policy_blocked=is_blocked,
         )
+
+        if not is_blocked and resolved_intent not in NON_SUBSTANTIVE_INTENTS:
+            self.fact_extractor.maybe_schedule_extraction(
+                user_id=request.userId,
+                conversation_id=conv_id,
+                user_message=request.message,
+                turn_count=persisted.turn_count,
+                locked_anchor_this_turn=persisted.locked_anchor_this_turn,
+                intent=resolved_intent,
+                policy_blocked=is_blocked,
+            )
 
         return AssistantRespondData(
             type="fallback" if generation.model == "timeout-guard" else "answer",
@@ -448,8 +473,8 @@ class RespondCommand:
             provider=generation.provider,
             requestId=request_id,
             latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-            persisted=persisted,
-            conversationId=request.conversationId or "default",
+            persisted=bool(persisted),
+            conversationId=conv_id,
             policyBlocked=is_blocked,
         )
 
@@ -1033,14 +1058,6 @@ class RespondCommand:
                 deduped.append(p)
         return deduped[:2]
 
-    async def _resolve_history(self, request: AssistantRespondRequest, session_key: str):
-        if request.history:
-            return request.history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]
-        return await self.memory.get_recent(session_key, settings.CHATBOT_MEMORY_RECENT_ITEMS)
-
-    def _session_key(self, request: AssistantRespondRequest) -> str:
-        return f"{request.userId}:default"
-
     async def _resolve_contexts_with_budget(
         self,
         request: AssistantRespondRequest,
@@ -1055,63 +1072,6 @@ class RespondCommand:
             )
         except Exception:
             return self._dedupe_contexts(request.contexts)
-
-    async def _persist_session_memory(
-        self,
-        request: AssistantRespondRequest,
-        assistant_reply: str,
-        sources: list[AssistantSource],
-        intent: str | None,
-    ):
-        session_key = self._session_key(request)
-        memory_summary = await self.memory.get_summary(session_key)
-        updated_summary = self._build_updated_summary(
-            memory_summary,
-            request.message,
-            assistant_reply,
-        )
-        facts = {
-            "last_intent": intent or "",
-            "last_user_message": self._truncate_text(request.message, 140),
-            "last_assistant_reply": self._truncate_text(assistant_reply, 180),
-        }
-        await self.memory.update_session_batch(
-            key=session_key,
-            user_message=request.message,
-            assistant_reply=assistant_reply,
-            summary=updated_summary,
-            intent=intent,
-            sources=sources,
-            facts=facts,
-        )
-
-    def _build_updated_summary(
-        self,
-        current_summary: str,
-        user_message: str,
-        assistant_reply: str,
-    ) -> str:
-        latest = (
-            "Lượt gần nhất: "
-            f"Người dùng hỏi '{self._truncate_text(user_message, 180)}'. "
-            f"Assistant trả lời '{self._truncate_text(assistant_reply, 260)}'."
-        )
-        combined = " ".join(part for part in [current_summary, latest] if part)
-        return self._truncate_text(combined, settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT)
-
-    def _build_memory_context(self, summary: str, facts: dict[str, str]) -> str:
-        if not facts:
-            return summary
-        fact_lines = [f"{key}: {value}" for key, value in facts.items() if value]
-        facts_block = "\n".join(fact_lines[:8])
-        payload = {
-            "summary": summary,
-            "facts": facts_block,
-        }
-        return self._truncate_text(
-            json.dumps(payload, ensure_ascii=False),
-            settings.CHATBOT_MEMORY_SUMMARY_CHAR_LIMIT,
-        )
 
     def _infer_intent(
         self,
@@ -1177,14 +1137,14 @@ class RespondCommand:
         self,
         message: str,
         history: list[AssistantHistoryItem],
-        memory_facts: dict[str, str],
         request: AssistantRespondRequest,
+        memory_facts: dict[str, str] | None = None,
     ) -> tuple[str, bool]:
         normalized = self.scope_guard._normalize(message)
         if not self._is_follow_up_reference(normalized):
             return message, False
 
-        anchor = self._pick_recent_user_anchor(history, memory_facts)
+        anchor = self._pick_recent_user_anchor(history)
         if not anchor:
             return message, False
 
@@ -1214,15 +1174,12 @@ class RespondCommand:
     def _pick_recent_user_anchor(
         self,
         history: list[AssistantHistoryItem],
-        memory_facts: dict[str, str],
     ) -> str:
         for item in reversed(history[-10:]):
             if item.role != "user":
                 continue
             content = " ".join(str(item.content or "").split())
             if not content:
-                continue
-            if content == memory_facts.get("last_user_message", ""):
                 continue
             normalized = self.scope_guard._normalize(content)
             if normalized in {"hi", "hello", "hey", "xin chao", "chao"}:
@@ -1232,8 +1189,7 @@ class RespondCommand:
             if self._is_follow_up_reference(normalized):
                 continue
             return self._truncate_text(content, 220)
-        fallback = memory_facts.get("last_user_message", "")
-        return self._truncate_text(fallback, 220) if fallback else ""
+        return ""
 
     def _is_follow_up_reference(self, normalized_message: str) -> bool:
         if not normalized_message:
@@ -1391,7 +1347,7 @@ class RespondCommand:
             timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             payload = {
                 "userId": request.userId,
-                "conversationId": request.conversationId or "default",
+                "conversationId": request.conversationId,
                 "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
                 "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
                 "timestamp": timestamp_str,
@@ -1426,14 +1382,22 @@ class RespondCommand:
     async def execute_stream(self, request: AssistantRespondRequest) -> AsyncIterator[AssistantRespondData]:
         started_at = time.perf_counter()
         request_id = str(uuid4())
-        session_key = self._session_key(request)
-        history = await self._resolve_history(request, session_key)
-        last_intent = request.intent or await self.memory.get_last_intent(session_key)
-        memory_facts = await self.memory.get_facts(session_key)
+
+        conv = await self.history_store.resolve_conversation(request.userId, request.conversationId)
+        conv_id = conv["id"]
+        request = request.model_copy(update={"conversationId": conv_id})
+
+        if request.history:
+            history = request.history[-settings.CHATBOT_MEMORY_RECENT_ITEMS :]
+            db_last_intent = None
+        else:
+            history, db_last_intent, _ = await self.history_store.load_context_window(request.userId, conv_id)
+
+        last_intent = request.intent or db_last_intent
+        user_facts = await self.profile_repo.get_facts_by_user(request.userId)
         effective_message, has_follow_up_anchor = await self._resolve_follow_up_message(
             request.message,
             history,
-            memory_facts,
             request,
         )
         working_request = (
@@ -1453,22 +1417,21 @@ class RespondCommand:
         pending_actions = guard.pending_actions
         
         if guard_data:
-            final_data = self._finalize_stream_data(guard_data, request_id, started_at, request)
-            yield final_data
             await self._after_generation(
                 request,
                 guard_data.reply,
                 [],
                 guard_intent,
                 actions=guard_data.suggestedActions,
-                policy_blocked=bool(final_data.policyBlocked),
+                policy_blocked=bool(guard_data.policyBlocked),
+                conv_id=conv_id,
             )
+            final_data = self._finalize_stream_data(guard_data, request_id, started_at, request, conv_id=conv_id)
+            yield final_data
             return
 
         working_request = working_request.model_copy(update={"contexts": candidate_contexts})
 
-        memory_summary = await self.memory.get_summary(session_key)
-        memory_context = self._build_memory_context(memory_summary, memory_facts)
         prompt_limits = resolve_prompt_limits(request.userId)
         final_contexts = candidate_contexts[: prompt_limits.max_context_items]
         resolved_request = working_request.model_copy(update={"contexts": final_contexts})
@@ -1479,10 +1442,8 @@ class RespondCommand:
         prompt = self.prompt_builder.build(
             resolved_request,
             history,
-            memory_context,
+            user_facts=user_facts,
             context_char_limit=prompt_limits.context_char_limit,
-            max_history_items=prompt_limits.max_history_items,
-            history_item_char_limit=prompt_limits.history_item_char_limit,
             context_total_char_limit=prompt_limits.context_total_char_limit,
             emotion_snapshot=emotion_snapshot,
             is_proactive_checkin=is_proactive_checkin,
@@ -1536,7 +1497,7 @@ class RespondCommand:
                                 provider=chunk.provider or "groq",
                                 requestId=request_id,
                                 latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                                conversationId=request.conversationId or "default",
+                                conversationId=conv_id,
                             )
                 else:
                     direct_content, direct_proposals = self._extract_proposals_from_llm_reply(
@@ -1560,7 +1521,7 @@ class RespondCommand:
                             provider=initial_gen.provider or "groq",
                             requestId=request_id,
                             latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                            conversationId=request.conversationId or "default",
+                            conversationId=conv_id,
                         )
                     else:
                         chunk_size = 3
@@ -1580,7 +1541,7 @@ class RespondCommand:
                                 provider=initial_gen.provider or "groq",
                                 requestId=request_id,
                                 latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                                conversationId=request.conversationId or "default",
+                                conversationId=conv_id,
                             )
                             first_yield = False
                             await asyncio.sleep(0.015)
@@ -1600,7 +1561,7 @@ class RespondCommand:
                             provider=chunk.provider or "groq",
                             requestId=request_id,
                             latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                            conversationId=request.conversationId or "default",
+                            conversationId=conv_id,
                         )
         except (asyncio.CancelledError, GeneratorExit):
             logger.debug("Assistant stream cancelled or client disconnected mid-stream")
@@ -1611,7 +1572,7 @@ class RespondCommand:
                     fallback_domains=scope_decision.matched_domains,
                 )
                 try:
-                    await self._after_generation(request, full_reply, sources, resolved_intent)
+                    await self._after_generation(request, full_reply, sources, resolved_intent, conv_id=conv_id)
                 except Exception:
                     logger.debug("Failed to persist partial stream after cancellation")
             raise
@@ -1626,7 +1587,7 @@ class RespondCommand:
                 provider="chatbot-service",
                 requestId=request_id,
                 latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                conversationId=request.conversationId or "default",
+                conversationId=conv_id,
             )
             return
 
@@ -1637,7 +1598,7 @@ class RespondCommand:
             fallback_domains=scope_decision.matched_domains,
         )
         await self._after_generation(
-            request, full_reply, sources, resolved_intent, actions=pending_actions, policy_blocked=is_blocked
+            request, full_reply, sources, resolved_intent, actions=pending_actions, policy_blocked=is_blocked, conv_id=conv_id
         )
         if is_blocked:
             yield AssistantRespondData(
@@ -1649,7 +1610,7 @@ class RespondCommand:
                 provider="chatbot-service",
                 requestId=request_id,
                 latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
-                conversationId=request.conversationId or "default",
+                conversationId=conv_id,
                 policyBlocked=True,
             )
 
@@ -1658,14 +1619,15 @@ class RespondCommand:
         data: AssistantRespondData, 
         request_id: str, 
         started_at: float, 
-        request: AssistantRespondRequest
+        request: AssistantRespondRequest,
+        conv_id: str | None = None,
     ) -> AssistantRespondData:
         is_blocked = self._is_policy_blocked(request, data.reply or "")
         return data.model_copy(
             update={
                 "requestId": request_id,
                 "latencyMs": round((time.perf_counter() - started_at) * 1000, 2),
-                "conversationId": request.conversationId or "default",
+                "conversationId": conv_id or request.conversationId or "default",
                 "policyBlocked": is_blocked or (data.policyBlocked is True),
             }
         )
@@ -1691,15 +1653,11 @@ class RespondCommand:
         intent: str | None,
         actions: list[Any] | None = None,
         policy_blocked: bool = False,
+        conv_id: str | None = None,
     ):
+        resolved_conv_id = conv_id or request.conversationId
         reply_content = self._sanitize_assistant_reply(reply)
-        await self._persist_session_memory(
-            request=request,
-            assistant_reply=reply_content,
-            sources=sources,
-            intent=intent,
-        )
-        await self.persist_history.execute(
+        persisted = await self.persist_history.execute(
             request=request,
             assistant_reply=reply_content,
             sources=sources,
@@ -1707,6 +1665,16 @@ class RespondCommand:
             actions=actions,
             policy_blocked=policy_blocked,
         )
+        if not policy_blocked and intent not in NON_SUBSTANTIVE_INTENTS and resolved_conv_id:
+            self.fact_extractor.maybe_schedule_extraction(
+                user_id=request.userId,
+                conversation_id=resolved_conv_id,
+                user_message=request.message,
+                turn_count=persisted.turn_count,
+                locked_anchor_this_turn=persisted.locked_anchor_this_turn,
+                intent=intent,
+                policy_blocked=policy_blocked,
+            )
 
 
 
@@ -1724,6 +1692,9 @@ class AssistantService:
         outbox_repo=None,
         tool_router_instance: ToolRouter | None = None,
         tool_dispatcher_instance: ToolDispatcher | None = None,
+        history_store_instance=None,
+        profile_repo: UserMemoryProfileRepository | None = None,
+        fact_extractor: FactExtractorService | None = None,
     ):
         self._respond_command = RespondCommand(
             prompt_builder=prompt_builder,
@@ -1734,6 +1705,9 @@ class AssistantService:
             outbox_repo=outbox_repo,
             tool_router_instance=tool_router_instance,
             tool_dispatcher_instance=tool_dispatcher_instance,
+            history_store_instance=history_store_instance,
+            profile_repo=profile_repo,
+            fact_extractor=fact_extractor,
         )
 
     async def respond(self, request: AssistantRespondRequest) -> AssistantRespondData:

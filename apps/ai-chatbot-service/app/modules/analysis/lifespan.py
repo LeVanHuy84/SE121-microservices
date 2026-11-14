@@ -22,6 +22,7 @@ from app.modules.analysis.repositories.idempotency import IdempotencyRepository
 from app.modules.analysis.messaging.dlq_service import KafkaDLQService
 from app.modules.analysis.messaging.consumer_helper import KafkaConsumerHelper
 from app.modules.chatbot.services.emotion_event_consumer import handle_analysis_result
+from app.modules.chatbot.services.user_event_consumer import handle_user_event
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,16 @@ register_consumer(
         topic="analysis-result-events",
         group_id=f"{settings.KAFKA_CLIENT_ID}-chatbot-emotion",
         handler=handle_analysis_result,
+    )
+)
+
+# Register consumer to handle user.removed account deletion events
+register_consumer(
+    KafkaConsumerService(
+        brokers=settings.KAFKA_BROKERS,
+        topic="user-events",
+        group_id=f"{settings.KAFKA_CLIENT_ID}-chatbot-user",
+        handler=handle_user_event,
     )
 )
 

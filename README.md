@@ -46,7 +46,7 @@ flowchart TB
 ## Subdirectories & System Boundaries
 - [apps](./apps/README.md) - Core microservices and API gateway platform.
   - [api-gateway](./apps/api-gateway/README.md): Ingress reverse proxy (`:4000`), Clerk auth, Svix webhooks, and Socket.IO chat/presence namespace.
-  - [ai-chatbot-service](./apps/ai-chatbot-service/README.md): FastAPI service (`:4006`) hosting PhoBERT/CLIP multimodal emotion, moderation, and RAG assistant.
+  - [ai-chatbot-service](./apps/ai-chatbot-service/README.md): FastAPI service (`:4006`) hosting PhoBERT/CLIP multimodal emotion, moderation, and RAG assistant with multi-session memory architecture v2.
   - [chat-service](./apps/chat-service/README.md): NestJS TCP service (`:4004`) for 1-on-1 and group messaging, presence, and Stream video calls.
   - [content-feed-service](./apps/content-feed-service/README.md): NestJS TCP service (`:4002`) for posts, comments, reactions, personalized Redis ZSET feed ranking, Cloudinary media, and RabbitMQ notifications.
   - [emotion-intelligence-service](./apps/emotion-intelligence-service/README.md): NestJS TCP service (`:4005`) for longitudinal emotion profiles, wellbeing dashboards, and proactive sweeps.

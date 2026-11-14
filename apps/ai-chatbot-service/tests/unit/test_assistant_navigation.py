@@ -9,10 +9,12 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
 os.environ["CHATBOT_DB_ENABLED"] = "false"
 
+from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository, HistoryStore
+from app.modules.chatbot.repositories.user_memory_profile import UserMemoryProfileRepository
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import RespondCommand
-from app.modules.chatbot.services.memory import session_memory
 from app.providers.base import LlmGeneration
+from tests.unit.test_chat_history_actions import FakeDb
 
 PRIVACY_CONTEXT = AssistantContextItem(
     type="help_doc",
@@ -28,11 +30,11 @@ class FakeProvider:
     def __init__(self):
         self.calls = 0
 
-    async def generate(self, prompt, request):
+    async def generate(self, prompt, request, **kwargs):
         self.calls += 1
         return LlmGeneration(content="fake reply", model="test-model", provider="fake")
 
-    async def stream(self, prompt, request):
+    async def stream(self, prompt, request, **kwargs):
         self.calls += 1
         for part in ("Bước 1. ", "Bước 2."):
             yield LlmGeneration(content=part, model="test-model", provider="fake")
@@ -48,8 +50,24 @@ class FakeOutbox:
         return data
 
 
+class FakeFactExtractor:
+    def maybe_schedule_extraction(self, *args, **kwargs):
+        return None
+
+
 def _command(provider: FakeProvider) -> RespondCommand:
-    return RespondCommand(provider=provider, kafka_producer=FakeKafka(), outbox_repo=FakeOutbox())
+    db = FakeDb()
+    profile_repo = UserMemoryProfileRepository(db=db)
+    repo = ChatHistoryRepository(db=db, profile_repo=profile_repo)
+    store = HistoryStore(repository=repo, profile_repo=profile_repo)
+    return RespondCommand(
+        provider=provider,
+        kafka_producer=FakeKafka(),
+        outbox_repo=FakeOutbox(),
+        history_store_instance=store,
+        profile_repo=profile_repo,
+        fact_extractor=FakeFactExtractor(),
+    )
 
 
 def _request(user: str, message: str, contexts=None) -> AssistantRespondRequest:
@@ -57,16 +75,11 @@ def _request(user: str, message: str, contexts=None) -> AssistantRespondRequest:
 
 
 def _execute(cmd: RespondCommand, req: AssistantRespondRequest):
-    async def _run():
-        await session_memory.clear_session(f"{req.userId}:default")
-        return await cmd.execute(req)
-
-    return asyncio.run(_run())
+    return asyncio.run(cmd.execute(req))
 
 
 def _stream(cmd: RespondCommand, req: AssistantRespondRequest):
     async def _run():
-        await session_memory.clear_session(f"{req.userId}:default")
         return [chunk async for chunk in cmd.execute_stream(req)]
 
     return asyncio.run(_run())

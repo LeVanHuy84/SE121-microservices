@@ -176,6 +176,8 @@ class AssistantConversation(BaseModel):
     id: str
     user_id: str
     title: Optional[str] = None
+    status: Optional[str] = "active"
+    turn_count: Optional[int] = 0
     created_at: datetime
     updated_at: datetime
     last_message_at: Optional[datetime] = None

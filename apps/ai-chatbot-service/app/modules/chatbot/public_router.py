@@ -22,7 +22,13 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.settings import settings as core_settings
-from app.modules.chatbot.repositories.chat_history import ClearHistoryCommand, GetHistoryQuery
+from app.modules.chatbot.repositories.chat_history import (
+    ClearHistoryCommand,
+    CreateConversationCommand,
+    DeleteConversationCommand,
+    GetHistoryQuery,
+    ListConversationsQuery,
+)
 from app.modules.chatbot.schemas import (
     AssistantRespondRequest,
     AssistantResponseType,
@@ -40,6 +46,9 @@ public_router = APIRouter(prefix=API_PREFIX, tags=["assistant-v1"])
 respond_command = RespondCommand()
 get_history_query = GetHistoryQuery()
 clear_history_command = ClearHistoryCommand()
+list_conversations_query = ListConversationsQuery()
+create_conversation_command = CreateConversationCommand()
+delete_conversation_command = DeleteConversationCommand()
 
 
 # --------------------------------------------------------------------------
@@ -173,6 +182,47 @@ class PublicClearResponse(BaseModel):
     data: PublicClearData
 
 
+class PublicConversationItem(BaseModel):
+    id: str
+    userId: str
+    title: str
+    status: Optional[str] = "active"
+    turnCount: Optional[int] = 0
+    createdAt: datetime
+    updatedAt: datetime
+    lastMessageAt: Optional[datetime] = None
+
+
+class PublicConversationListData(BaseModel):
+    items: list[PublicConversationItem] = Field(default_factory=list)
+    total: int
+    maxLimit: int = 20
+
+
+class PublicConversationListResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicConversationListData
+
+
+class PublicCreateConversationRequest(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=200)
+
+
+class PublicConversationResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicConversationItem
+
+
+class PublicDeleteConversationData(BaseModel):
+    id: str
+    deleted: bool
+
+
+class PublicDeleteConversationResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicDeleteConversationData
+
+
 def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondRequest:
     # history/contexts are always empty: the service resolves them from memory/Mongo/RAG.
     return AssistantRespondRequest(
@@ -265,6 +315,7 @@ async def respond_stream(req: PublicRespondRequest, user_id: str = Depends(requi
 @public_router.get("/history/me", response_model=PublicHistoryResponse)
 async def get_my_history(
     user_id: str = Depends(require_gateway_user),
+    conversationId: Optional[str] = Query(default=None, max_length=128),
     pageSize: Optional[int] = Query(default=None, ge=1),
     beforeCreatedAt: Optional[datetime] = None,
     beforeId: Optional[str] = None,
@@ -275,6 +326,7 @@ async def get_my_history(
             page_size=pageSize,
             before_created_at=beforeCreatedAt,
             before_id=beforeId,
+            conversation_id=conversationId,
         )
     except ValueError as exc:
         raise ApiError(400, "INVALID_HISTORY_CURSOR", "History cursor is invalid.") from exc
@@ -324,6 +376,84 @@ async def clear_my_history(user_id: str = Depends(require_gateway_user)):
             502, "ASSISTANT_HISTORY_CLEAR_FAILED", "Assistant history could not be cleared."
         ) from exc
     return PublicClearResponse(data=PublicClearData(deletedCount=deleted, sessionCleared=True))
+
+
+@public_router.get("/conversations", response_model=PublicConversationListResponse)
+async def get_my_conversations(user_id: str = Depends(require_gateway_user)):
+    try:
+        conversations = await list_conversations_query.execute(user_id=user_id)
+    except RuntimeError as exc:
+        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+    except Exception as exc:
+        logger.exception("Assistant v1 conversations list failed: userId=%s", user_id)
+        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+
+    items = [
+        PublicConversationItem(
+            id=c["id"],
+            userId=c["user_id"],
+            title=c.get("title") or "Đoạn chat mới",
+            status=c.get("status") or "active",
+            turnCount=c.get("turn_count", 0),
+            createdAt=c["created_at"],
+            updatedAt=c["updated_at"],
+            lastMessageAt=c.get("last_message_at"),
+        )
+        for c in conversations
+    ]
+    return PublicConversationListResponse(
+        data=PublicConversationListData(
+            items=items,
+            total=len(items),
+            maxLimit=20,
+        )
+    )
+
+
+@public_router.post("/conversations", response_model=PublicConversationResponse)
+async def create_new_conversation(
+    body: Optional[PublicCreateConversationRequest] = None,
+    user_id: str = Depends(require_gateway_user),
+):
+    title = body.title if body else None
+    try:
+        conv = await create_conversation_command.execute(user_id=user_id, title=title)
+    except RuntimeError as exc:
+        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+    except Exception as exc:
+        logger.exception("Assistant v1 conversation creation failed: userId=%s", user_id)
+        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+
+    return PublicConversationResponse(
+        data=PublicConversationItem(
+            id=conv["id"],
+            userId=conv["user_id"],
+            title=conv.get("title") or "Đoạn chat mới",
+            status=conv.get("status") or "active",
+            turnCount=conv.get("turn_count", 0),
+            createdAt=conv["created_at"],
+            updatedAt=conv["updated_at"],
+            lastMessageAt=conv.get("last_message_at"),
+        )
+    )
+
+
+@public_router.delete("/conversations/{conversation_id}", response_model=PublicDeleteConversationResponse)
+async def delete_conversation(
+    conversation_id: str,
+    user_id: str = Depends(require_gateway_user),
+):
+    try:
+        deleted = await delete_conversation_command.execute(user_id=user_id, conversation_id=conversation_id)
+    except RuntimeError as exc:
+        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+    except Exception as exc:
+        logger.exception("Assistant v1 conversation deletion failed: userId=%s, convId=%s", user_id, conversation_id)
+        raise ApiError(502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed.") from exc
+
+    return PublicDeleteConversationResponse(
+        data=PublicDeleteConversationData(id=conversation_id, deleted=deleted)
+    )
 
 
 class PublicActionClickRequest(BaseModel):

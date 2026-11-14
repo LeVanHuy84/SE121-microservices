@@ -23,6 +23,11 @@ class SessionEntry:
 
 
 class SessionMemory:
+    """[DEPRECATED] Legacy Redis session memory.
+
+    Superseded by MongoDB-centric v2 memory architecture (ChatHistoryRepository and
+    UserMemoryProfileRepository). Retained only for backwards compatibility with legacy tests.
+    """
     def __init__(self):
         self._sessions: dict[str, SessionEntry] = {}
         self._redis = None

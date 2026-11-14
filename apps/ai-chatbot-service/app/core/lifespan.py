@@ -29,8 +29,14 @@ async def lifespan(app: FastAPI):
         logger.warning("[Startup] ⚠ MongoDB index verification warning: %s", index_exc)
 
     # 2. Chatbot History Store
+    from app.modules.chatbot.services.fact_extractor import fact_extractor_service
+    history_store.fact_extractor = fact_extractor_service
+    await history_store.ensure_indexes()
     await history_store.start()
-    logger.info("[Startup] ✓ Chatbot history store active")
+    sweeper_task = asyncio.create_task(history_store.run_sweeper_loop(interval_seconds=3600))
+    history_store._sweeper_task = sweeper_task
+    background_tasks.append(sweeper_task)
+    logger.info("[Startup] ✓ Chatbot history store active & sweeper loop scheduled")
 
     # 3. Load AI Analysis Models (PhoBERT + VLM)
     from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded

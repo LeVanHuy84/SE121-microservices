@@ -1,23 +1,26 @@
 import asyncio
 import os
 import unittest
+import uuid
 
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
-os.environ["CHATBOT_DB_ENABLED"] = "false"
+os.environ["CHATBOT_DB_ENABLED"] = "true"
 
-from app.modules.chatbot.services.memory import session_memory
-from app.providers.base import LlmGeneration
+from app.modules.chatbot.repositories.chat_history import ChatHistoryRepository, HistoryStore
+from app.modules.chatbot.repositories.user_memory_profile import UserMemoryProfileRepository
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import AssistantService
+from app.providers.base import LlmGeneration
+from tests.unit.test_chat_history_actions import FakeDb
 
 
 class FakeProvider:
     def __init__(self):
         self.calls = 0
 
-    async def generate(self, prompt: str, request: AssistantRespondRequest):
+    async def generate(self, prompt: str, request: AssistantRespondRequest, **kwargs):
         self.calls += 1
         return LlmGeneration(
             content=f"fake reply for: {request.message}",
@@ -26,12 +29,30 @@ class FakeProvider:
         )
 
 
+class FakeContextResolver:
+    async def resolve(self, request, history, *args, **kwargs):
+        return request.contexts or []
+
+
 class AssistantServiceTest(unittest.TestCase):
+    def setUp(self):
+        self.db = FakeDb()
+        self.repo = ChatHistoryRepository(db=self.db)
+        self.history_store = HistoryStore(repository=self.repo)
+        self.profile_repo = UserMemoryProfileRepository(db=self.db)
+        self.context_resolver = FakeContextResolver()
+
     def test_provider_returns_reply_and_sources(self):
-        service = AssistantService(provider=FakeProvider())
+        service = AssistantService(
+            provider=FakeProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
+        test_conv_id = str(uuid.uuid4())
         req = AssistantRespondRequest(
             userId="user-1",
-            conversationId="conv-1",
+            conversationId=test_conv_id,
             message="How do I use the app?",
             contexts=[
                 AssistantContextItem(
@@ -50,12 +71,17 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertIn("How do I use the app?", res.reply)
         self.assertEqual(res.provider, "fake")
         self.assertEqual(len(res.sources), 1)
+        self.assertEqual(res.conversationId, test_conv_id)
+        uuid.UUID(res.conversationId)
 
     def test_out_of_scope_question_skips_provider_and_is_stored(self):
         provider = FakeProvider()
-        service = AssistantService(provider=provider)
-        session_key = "user-1:default"
-        asyncio.run(session_memory.clear_session(session_key))
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
 
         req = AssistantRespondRequest(
             userId="user-1",
@@ -63,20 +89,26 @@ class AssistantServiceTest(unittest.TestCase):
         )
 
         res = asyncio.run(service.respond(req))
-        recent = asyncio.run(session_memory.get_recent(session_key, 2))
+        page = asyncio.run(self.history_store.get_messages_page_by_user("user-1", conversation_id=res.conversationId))
 
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.model, "scope-guard")
         self.assertIn("Sentimeta", res.reply)
-        self.assertEqual(len(recent), 2)
-        self.assertEqual(recent[0].role, "user")
-        self.assertEqual(recent[1].role, "assistant")
-
-        asyncio.run(session_memory.clear_session(session_key))
+        self.assertNotEqual(res.conversationId, "default")
+        uuid.UUID(res.conversationId)
+        self.assertEqual(len(page.items), 2)
+        # page.items is newest-first from chat_messages
+        self.assertEqual(page.items[0].role, "assistant")
+        self.assertEqual(page.items[1].role, "user")
 
     def test_greeting_skips_provider_even_when_contexts_present(self):
         provider = FakeProvider()
-        service = AssistantService(provider=provider)
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
         req = AssistantRespondRequest(
             userId="user-1",
             message="hello",
@@ -97,10 +129,17 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.model, "greeting-guard")
         self.assertIn("Xin chào", res.reply)
+        self.assertNotEqual(res.conversationId, "default")
+        uuid.UUID(res.conversationId)
 
     def test_in_domain_unknown_feature_question_is_not_out_of_scope(self):
         provider = FakeProvider()
-        service = AssistantService(provider=provider)
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
         req = AssistantRespondRequest(
             userId="user-2",
             message="Chat hiện tại có chức năng video call không?",
@@ -111,12 +150,17 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.model, "scope-guard")
         self.assertIn("thuộc phạm vi", res.reply)
+        self.assertNotEqual(res.conversationId, "default")
+        uuid.UUID(res.conversationId)
 
     def test_follow_up_anchor_allows_provider_after_topic_switch(self):
         provider = FakeProvider()
-        service = AssistantService(provider=provider)
-        session_key = "user-3:default"
-        asyncio.run(session_memory.clear_session(session_key))
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
 
         first = AssistantRespondRequest(
             userId="user-3",
@@ -132,10 +176,14 @@ class AssistantServiceTest(unittest.TestCase):
                 )
             ],
         )
-        _ = asyncio.run(service.respond(first))
+        res_first = asyncio.run(service.respond(first))
+        conv_id = res_first.conversationId
+        self.assertNotEqual(conv_id, "default")
+        uuid.UUID(conv_id)
 
         second = AssistantRespondRequest(
             userId="user-3",
+            conversationId=conv_id,
             message="Ok, còn tìm nhóm thì sao?",
             contexts=[
                 AssistantContextItem(
@@ -152,6 +200,7 @@ class AssistantServiceTest(unittest.TestCase):
 
         third = AssistantRespondRequest(
             userId="user-3",
+            conversationId=conv_id,
             message="quay lại cái trước đó đi",
             contexts=[
                 AssistantContextItem(
@@ -168,7 +217,7 @@ class AssistantServiceTest(unittest.TestCase):
 
         self.assertGreaterEqual(provider.calls, 3)
         self.assertIn("fake reply for", res.reply)
-        asyncio.run(session_memory.clear_session(session_key))
+        self.assertEqual(res.conversationId, conv_id)
 
 
 if __name__ == "__main__":

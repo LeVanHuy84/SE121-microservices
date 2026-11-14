@@ -123,6 +123,15 @@ class EmotionContextService:
         except Exception as exc:
             self._disable_redis(exc)
 
+    async def delete_cache(self, user_id: str) -> None:
+        redis = self._get_redis()
+        if not redis:
+            return
+        try:
+            await redis.delete(f"chatbot:emotion:{user_id}")
+        except Exception as exc:
+            self._disable_redis(exc)
+
     async def get_snapshot(self, user_id: str | None) -> EmotionSnapshot:
         """
         Returns the latest EmotionSnapshot. Falls back to a neutral snapshot if:

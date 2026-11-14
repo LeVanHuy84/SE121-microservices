@@ -27,6 +27,7 @@ class PromptBuilder:
         request: AssistantRespondRequest,
         history: list[AssistantHistoryItem],
         memory_summary: str = "",
+        user_facts: dict[str, str] | None = None,
         context_char_limit: int | None = None,
         max_history_items: int | None = None,
         history_item_char_limit: int | None = None,
@@ -35,32 +36,26 @@ class PromptBuilder:
         is_proactive_checkin: bool = False,
     ) -> str:
         resolved_context_char_limit = context_char_limit or settings.CHATBOT_CONTEXT_CHAR_LIMIT
-        resolved_max_history_items = (
-            max_history_items or settings.CHATBOT_PROMPT_HISTORY_ITEMS_MAX
-        )
-        resolved_history_item_char_limit = (
-            history_item_char_limit or settings.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT
-        )
         resolved_context_total_char_limit = (
             context_total_char_limit or settings.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT
         )
+
+        user_facts_block = self._build_user_facts_block(user_facts)
+        if not user_facts_block and memory_summary:
+            user_facts_block = self._build_memory_summary_block(memory_summary)
 
         parts = [
             self._build_system_prompt(),
             self._build_emotion_tone_directive(emotion_snapshot),
             self._build_surface_context_directive(request.surface),
             self._build_user_profile(request),
-            self._build_memory_summary_block(memory_summary),
+            user_facts_block,
             self._build_context_block(
                 request.contexts,
                 char_limit=resolved_context_char_limit,
                 total_char_limit=resolved_context_total_char_limit,
             ),
-            self._build_history_block(
-                history,
-                max_items=resolved_max_history_items,
-                item_char_limit=resolved_history_item_char_limit,
-            ),
+            self._build_history_block(history),
         ]
         if is_proactive_checkin:
             parts.append(self._build_proactive_checkin_directive(emotion_snapshot))
@@ -164,7 +159,7 @@ class PromptBuilder:
         "BẮT BUỘC TRÍCH DẪN (CITE): Khi bạn dùng thông tin từ CONTEXT để đưa ra hướng dẫn, phương pháp hoặc kiến thức, bạn phải trích dẫn ID tài liệu ở cuối câu (ví dụ: [1], [2]). Tuy nhiên, KHÔNG ĐƯỢC chèn trích dẫn vào các câu thể hiện sự đồng cảm, an ủi hoặc trò chuyện thông thường để giữ sự tự nhiên.\n"
         "Nếu CONTEXT không đủ hoặc không có dữ liệu phù hợp, hãy nói rõ là chưa tìm thấy dữ liệu phù hợp, không tự bịa thêm thông tin.\n"
 
-        "HISTORY và MEMORY_SUMMARY chỉ dùng để hiểu mạch hội thoại, không dùng để suy đoán hoặc tạo thêm dữ kiện hệ thống.\n"
+        "HISTORY và USER_FACTS chỉ dùng để hiểu mạch hội thoại, không dùng để suy đoán hoặc tạo thêm dữ kiện hệ thống.\n"
 
         "Nếu câu hỏi mơ hồ hoặc thiếu thông tin, hãy hỏi lại ngắn gọn hoặc nêu tối đa vài khả năng phổ biến trong Sentimeta.\n"
         "Độ dài trả lời phải thích ứng theo độ phức tạp của câu hỏi: câu đơn giản trả lời ngắn gọn; câu quy trình/chính sách/sự cố cần trả lời đầy đủ theo từng bước.\n"
@@ -255,6 +250,30 @@ class PromptBuilder:
             lines.append(f"CONVERSATION_ID: {request.conversationId}")
         return "\n".join(lines)
 
+    def _build_user_facts_block(self, user_facts: dict[str, str] | None) -> str:
+        if not user_facts:
+            return ""
+        key_order = [
+            "name",
+            "occupation",
+            "work_mode",
+            "sleep_health",
+            "diet_exercise",
+            "interests",
+            "current_goal",
+            "tone_preference",
+        ]
+        lines = ["USER_FACTS (Thông tin cá nhân người dùng đã chia sẻ):"]
+        has_fact = False
+        for k in key_order:
+            val = user_facts.get(k)
+            if val and isinstance(val, str) and val.strip():
+                lines.append(f"- {k}: {val.strip()}")
+                has_fact = True
+        if not has_fact:
+            return ""
+        return "\n".join(lines)
+
     def _build_memory_summary_block(self, memory_summary: str) -> str:
         summary = self._truncate(
             memory_summary,
@@ -300,17 +319,21 @@ class PromptBuilder:
     def _build_history_block(
         self,
         history: list[AssistantHistoryItem],
-        max_items: int,
-        item_char_limit: int,
+        max_items: int | None = None,
+        item_char_limit: int | None = None,
     ) -> str:
         if not history:
             return "HISTORY:\nKhông có lịch sử hội thoại."
 
+        from app.modules.chatbot.repositories.chat_history import HISTORY_MESSAGE_CHAR_CAP
+        char_cap = item_char_limit or HISTORY_MESSAGE_CHAR_CAP
         lines = ["HISTORY:"]
-        tail_count = max(1, min(max_items, settings.CHATBOT_MEMORY_RECENT_ITEMS))
-        for item in history[-tail_count:]:
-            content = self._smart_truncate(item.content, item_char_limit)
-            lines.append(f"{item.role}: {content}")
+        for item in history:
+            if item.role == "system":
+                lines.append(str(item.content))
+            else:
+                content = self._smart_truncate(item.content, char_cap)
+                lines.append(f"{item.role}: {content}")
         return "\n".join(lines)
 
     def _build_current_message(self, message: str) -> str:

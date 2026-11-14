@@ -10,7 +10,7 @@ The API Gateway is the external ingress point and reverse proxy for the Sentimet
   - `/api/v1/search`, `/api/v1/recommendations`, `/api/v1/music`: Proxies to `search-recommendation-service` (TCP 4003)
   - `/api/v1/chat`, `/api/v1/conversations`, `/api/v1/calls`: Proxies to `chat-service` (TCP 4004)
   - `/api/v1/emotions`, `/api/v1/moderation`: Proxies to `emotion-intelligence-service` (TCP 4005)
-  - `/api/v1/chatbot`: Proxies to `ai-chatbot-service` (HTTP 4006)
+  - `/assistant`: Proxies chatbot and mental health assistant endpoints to `ai-chatbot-service` (HTTP 4006), including `/assistant/respond(-stream)`, `/assistant/messages-stream`, multi-session conversation lifecycle (`/assistant/conversations/me`), chat history (`/assistant/chat-history/me`), and action execution.
   - `/api/v1/webhooks/clerk`: Svix webhook endpoint for Clerk user lifecycle synchronization
 - **WebSocket Gateway** (`/chat`, `/presence`): Realtime Socket.IO gateway for messaging, typing indicators, active call signaling, and user presence broadcasts.
 - **Shared Dependencies**: `[common](../../packages/common/README.md)` and `[dtos](../../packages/dtos/README.md)`.
