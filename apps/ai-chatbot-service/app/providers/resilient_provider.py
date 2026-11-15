@@ -427,3 +427,13 @@ class ResilientLlmProvider:
 
 
 resilient_llm_provider = ResilientLlmProvider()
+
+
+def get_default_llm_provider() -> LlmProvider:
+    if settings.CHATBOT_LLM_STUB_MODE:
+        from app.providers.stub_provider import StubLlmProvider
+
+        return StubLlmProvider()
+    if settings.LLM_FALLBACK_ENABLED:
+        return resilient_llm_provider
+    return GroqProvider()

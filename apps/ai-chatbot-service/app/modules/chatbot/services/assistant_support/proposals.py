@@ -413,6 +413,33 @@ def extract_proposals_from_llm_reply(
     return cleaned_reply, proposals
 
 
+EXPLICIT_ACTION_PHRASES: tuple[str, ...] = (
+    "đọc hết thông báo",
+    "đánh dấu đã đọc",
+    "đánh dấu tất cả thông báo đã đọc",
+    "mark all notifications",
+    "đọc tất cả thông báo",
+    "gửi lời mời kết bạn",
+    "chấp nhận lời mời kết bạn",
+    "từ chối lời mời kết bạn",
+    "hủy kết bạn",
+    "xóa bạn",
+    "unfriend",
+    "chặn tài khoản",
+    "chặn người dùng",
+    "rời nhóm",
+    "tham gia nhóm",
+    "thả reaction",
+    "react_post",
+)
+
+
+def is_explicit_action_request(message: str) -> bool:
+    """Return True when the user explicitly asks to execute an in-app action rather than navigate."""
+    lowered = (message or "").lower()
+    return any(kw in lowered for kw in EXPLICIT_ACTION_PHRASES)
+
+
 def detect_action_proposals(
     request: AssistantRespondRequest,
     tool_calls: tuple[Any, ...],
@@ -450,6 +477,7 @@ def detect_action_proposals(
         for kw in (
             "đọc hết thông báo",
             "đánh dấu đã đọc",
+            "đánh dấu tất cả thông báo đã đọc",
             "mark all notifications",
             "đọc tất cả thông báo",
         )

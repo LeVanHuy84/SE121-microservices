@@ -93,6 +93,23 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
   ```bash
   .venv/bin/python -m unittest discover -s tests -p "test_*.py"
   ```
+- **2-Layer Live Verification (Cross-Service Integration & Groq Smoke):**
+  1. Start baseline infrastructure and verify `DATABASE_URL` (PostgreSQL) and `MONGO_URL` (MongoDB):
+     ```bash
+     docker-compose up -d redis elasticsearch kafka
+     ```
+  2. Start the required service slice:
+     - **Slice 1A (Gateway, Auth, Privacy Gate, Memory v2, Multi-Session):** `user-social-service` (`4001`), `api-gateway` (`4000`, `ENABLE_LOAD_TEST_MODE=true`), and `ai-chatbot-service` (`4006`, `CHATBOT_LLM_STUB_MODE=true`).
+     - **Slice 1B (Tools, Navigation & Actions):** Slice 1A + `content-feed-service` (`4002`), `search-recommendation-service` (`4003`), `emotion-intelligence-service` (`4005`).
+     - **Slice 1C (Kafka Proactive Intervention):** `emotion-intelligence-service` (`4005`) + `ai-chatbot-service` (`4006`).
+  3. Run Layer 1 (deterministic LLM stub, prefix-scoped `mock_user_e2e_<runId>_` teardown):
+     ```bash
+     npm --workspace=ai-chatbot-service run test:live:layer1
+     ```
+  4. Run Layer 2 (opt-in real Groq smoke suite, requires `GROQ_API_KEY`):
+     ```bash
+     npm --workspace=ai-chatbot-service run test:live:layer2
+     ```
 
 ---
 

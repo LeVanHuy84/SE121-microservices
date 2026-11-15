@@ -19,10 +19,9 @@ from app.modules.chatbot.repositories.user_memory_profile import (
 )
 from app.modules.chatbot.schemas import AssistantRespondRequest
 from app.providers.base import LlmProvider
-from app.providers.groq_provider import GroqProvider
 from app.providers.resilient_provider import (
     CircuitOpenSkippedError,
-    resilient_llm_provider,
+    get_default_llm_provider,
 )
 from app.utils.teencode.teencode_normalizer import teencode_normalizer
 
@@ -91,10 +90,8 @@ class FactExtractorService:
     ):
         if provider is not None:
             self.provider = provider
-        elif settings.LLM_FALLBACK_ENABLED:
-            self.provider = resilient_llm_provider
         else:
-            self.provider = GroqProvider()
+            self.provider = get_default_llm_provider()
         self.profile_repo = profile_repo or user_memory_profile_repo
         self.history_repo = history_repo or ChatHistoryRepository()
         self._inflight_tasks: dict[str, set[asyncio.Task]] = {}

@@ -80,6 +80,39 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertEqual(res.conversationId, test_conv_id)
         uuid.UUID(res.conversationId)
 
+    def test_empty_provider_reply_is_replaced_with_safe_fallback(self):
+        class EmptyProvider:
+            async def generate(self, prompt, request, **kwargs):
+                return LlmGeneration(content="  ", model="test-model", provider="fake")
+
+        service = AssistantService(
+            provider=EmptyProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
+        req = AssistantRespondRequest(
+            userId="user-1",
+            conversationId=str(uuid.uuid4()),
+            message="How do I use the app?",
+            aiPolicy="FULL",
+            contexts=[
+                AssistantContextItem(
+                    type="help_doc",
+                    id="feature-chat",
+                    title="Chat",
+                    content="Users can send direct messages.",
+                    score=0.9,
+                    source="docs",
+                )
+            ],
+        )
+
+        res = asyncio.run(service.respond(req))
+
+        self.assertTrue(res.reply.strip())
+        self.assertEqual(res.type, "fallback")
+
     def test_out_of_scope_question_skips_provider_and_is_stored(self):
         provider = FakeProvider()
         service = AssistantService(
@@ -429,6 +462,51 @@ class AssistantServiceTest(unittest.TestCase):
         )
         self.assertFalse(blocked.success)
         self.assertIn("riêng tư", blocked.error or "")
+
+
+    def test_execute_stream_empty_reply_yields_safe_fallback(self):
+        from app.providers.base import LlmChunk
+
+        class EmptyStreamProvider:
+            supports_chat_messages = True
+            supports_tools = False
+
+            async def generate(self, prompt, request, **kwargs):
+                raise AssertionError("generate not expected")
+
+            async def stream(self, input_data, request, **kwargs):
+                yield LlmChunk(content="")
+
+        service = AssistantService(
+            provider=EmptyStreamProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
+
+        async def _collect():
+            req = AssistantRespondRequest(
+                userId="u-stream-2",
+                conversationId=str(uuid.uuid4()),
+                message="How do I use the app?",
+                aiPolicy="FULL",
+                contexts=[
+                    AssistantContextItem(
+                        type="help_doc",
+                        id="feature-chat",
+                        title="Chat",
+                        content="Users can send direct messages.",
+                        score=0.9,
+                        source="docs",
+                    )
+                ],
+            )
+            return [c async for c in service._respond_command.execute_stream(req)]
+
+        chunks = asyncio.run(_collect())
+
+        self.assertTrue("".join(c.reply for c in chunks).strip())
+        self.assertEqual(chunks[-1].type, "fallback")
 
 
 if __name__ == "__main__":

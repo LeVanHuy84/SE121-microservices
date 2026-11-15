@@ -61,8 +61,15 @@ class PromptBuilder:
             if not user_facts_block and memory_summary:
                 user_facts_block = self._build_memory_summary_block(memory_summary)
 
+        compact_prompt = (
+            not in_chat_distress
+            and distress_level == "none"
+            and not request.contexts
+            and len((request.message or "").split()) <= 16
+        )
+
         parts = [
-            self._build_system_prompt(),
+            self._build_system_prompt(compact=compact_prompt),
             self._build_emotion_tone_directive(
                 effective_snapshot,
                 in_chat_distress=in_chat_distress,
@@ -129,8 +136,15 @@ class PromptBuilder:
             if not user_facts_block and memory_summary:
                 user_facts_block = self._build_memory_summary_block(memory_summary)
 
+        compact_prompt = (
+            not in_chat_distress
+            and distress_level == "none"
+            and not request.contexts
+            and len((request.message or "").split()) <= 16
+        )
+
         system_parts = [
-            self._build_system_prompt(),
+            self._build_system_prompt(compact=compact_prompt),
             self._build_emotion_tone_directive(
                 effective_snapshot,
                 in_chat_distress=in_chat_distress,
@@ -286,7 +300,16 @@ class PromptBuilder:
 
         return directive
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, compact: bool = False) -> str:
+        if compact:
+            return (
+                "Bạn là AI Assistant của mạng xã hội Sentimeta.\n"
+                "Trả lời tự nhiên, ngắn gọn và chính xác theo ngôn ngữ của người dùng (tiếng Việt hoặc tiếng Anh).\n"
+                "Không lặp lại lời chào nếu người dùng không chào.\n"
+                "Phạm vi hỗ trợ: (1) sử dụng Sentimeta và (2) chăm sóc sức khỏe tinh thần; từ chối nhẹ nhàng nếu ngoài phạm vi.\n"
+                "HISTORY và USER_FACTS chỉ dùng để hiểu mạch hội thoại và ghi nhớ thông tin người dùng đã chia sẻ; không tự bịa dữ kiện hệ thống.\n"
+                "Nếu CONTEXT có dữ liệu phù hợp, ưu tiên dựa vào CONTEXT và trích dẫn [1], [2]; không chèn trích dẫn vào câu trò chuyện thông thường."
+            )
         return (
             "Bạn là AI Assistant của mạng xã hội Sentimeta.\n"
             "Nhiệm vụ của bạn là hỗ trợ người dùng sử dụng Sentimeta một cách tự nhiên, ngắn gọn và chính xác.\n"

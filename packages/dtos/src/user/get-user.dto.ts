@@ -1,5 +1,5 @@
 import { Expose, Type } from 'class-transformer';
-import { PrivacyLevel, MessagePrivacy } from './enums';
+import { AiAssistantPolicy, PrivacyLevel, MessagePrivacy } from './enums';
 
 export class UserPrivacySettingsResponse {
   @Expose()
@@ -10,6 +10,12 @@ export class UserPrivacySettingsResponse {
   
   @Expose()
   friendListVisibility: PrivacyLevel;
+
+  @Expose()
+  allowProactiveIntervention?: boolean;
+
+  @Expose()
+  aiPolicy?: AiAssistantPolicy;
 }
 
 export class UserResponseDTO {

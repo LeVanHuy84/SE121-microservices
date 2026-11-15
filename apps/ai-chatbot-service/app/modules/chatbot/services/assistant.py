@@ -87,13 +87,15 @@ from app.modules.chatbot.tools import (
     tool_router,
 )
 from app.providers.base import LlmGeneration, LlmProvider, ToolCallInfo
-from app.providers.groq_provider import GroqProvider
 from app.providers.resilient_provider import (
     STREAM_TRUNCATION_NOTICE,
-    resilient_llm_provider,
+    get_default_llm_provider,
 )
 
 logger = logging.getLogger("uvicorn.error")
+EMPTY_REPLY_FALLBACK = (
+    "Mình chưa thể trả lời ngay lúc này. Bạn thử diễn đạt lại giúp mình nhé."
+)
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
 
 __all__ = [
@@ -126,9 +128,7 @@ class RespondCommand:
         fact_extractor: FactExtractorService | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
-        self.provider = provider or (
-            resilient_llm_provider if settings.LLM_FALLBACK_ENABLED else GroqProvider()
-        )
+        self.provider = provider or get_default_llm_provider()
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
         self.community_guard = community_guard or assistant_community_guard
@@ -305,6 +305,13 @@ class RespondCommand:
         pending_actions = pending_actions[:3]
 
         reply_content = self._sanitize_assistant_reply(cleaned_reply)
+        empty_reply_guarded = not reply_content.strip()
+        if empty_reply_guarded:
+            logger.warning(
+                "Assistant produced an empty reply; using safe fallback (model=%s)",
+                generation.model,
+            )
+            reply_content = EMPTY_REPLY_FALLBACK
         resolved_intent = request.intent or self._infer_intent(
             turn.final_contexts,
             fallback_domains=turn.scope_decision.matched_domains,
@@ -337,7 +344,11 @@ class RespondCommand:
             )
 
         return AssistantRespondData(
-            type="fallback" if generation.model == "timeout-guard" else "answer",
+            type=(
+                "fallback"
+                if empty_reply_guarded or generation.model == "timeout-guard"
+                else "answer"
+            ),
             reply=reply_content,
             sources=turn.sources,
             suggestedActions=pending_actions,
@@ -830,6 +841,25 @@ class RespondCommand:
 
         full_reply = "".join(full_reply_parts)
         is_blocked = self._is_policy_blocked(request, full_reply)
+        if (
+            not full_reply.strip()
+            and not is_blocked
+            and not stream_cards
+            and not stream_proposals
+        ):
+            logger.warning("Assistant stream produced an empty reply; using fallback")
+            full_reply = EMPTY_REPLY_FALLBACK
+            yield AssistantRespondData(
+                type="fallback",
+                reply=EMPTY_REPLY_FALLBACK,
+                sources=sources if first_yield else [],
+                suggestedActions=[],
+                model=settings.GROQ_MODEL,
+                provider="chatbot-service",
+                requestId=request_id,
+                latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                conversationId=turn.conv_id,
+            )
         resolved_intent = request.intent or self._infer_intent(
             turn.final_contexts,
             fallback_domains=turn.scope_decision.matched_domains,

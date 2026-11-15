@@ -37,7 +37,7 @@ def get_health_status():
 
 @app.get("/ready")
 def get_readiness_status():
-    if not settings.GROQ_API_KEY:
+    if not settings.CHATBOT_LLM_STUB_MODE and not settings.GROQ_API_KEY:
         raise HTTPException(
             status_code=503,
             detail={
@@ -64,8 +64,10 @@ def get_readiness_status():
     return {
         "status": "ready",
         "service": "ai-chatbot-service",
-        "provider": "groq",
-        "model": settings.GROQ_MODEL,
+        "provider": "stub" if settings.CHATBOT_LLM_STUB_MODE else "groq",
+        "model": "stub-deterministic"
+        if settings.CHATBOT_LLM_STUB_MODE
+        else settings.GROQ_MODEL,
         "navigator": {
             "status": "ready",
             "destinations_count": destinations_count,

@@ -28,7 +28,7 @@ from .types import (
 
 logger = logging.getLogger("uvicorn.error")
 
-IMPLICIT_CRISIS_COSINE_THRESHOLD = 0.82
+IMPLICIT_CRISIS_COSINE_THRESHOLD = 0.92
 SCOPE_PROMOTION_COSINE_THRESHOLD = 0.76
 PHOBERT_EMOTIONAL_CRISIS_THRESHOLD = 0.45
 PHOBERT_HATE_SPEECH_BLOCK_THRESHOLD = 0.50
@@ -150,8 +150,17 @@ class Stage2GuardVerifier:
         in_scope_override: bool | None = None
         matched_domains_override: tuple[str, ...] | None = None
 
-        # 1. Implicit crisis semantic check
-        if query_vec and crisis_sim >= IMPLICIT_CRISIS_COSINE_THRESHOLD:
+        emotional_crisis_score = float(phobert_scores.get("EMOTIONAL_CRISIS", 0.0))
+        profanity_venting_score = float(phobert_scores.get("PROFANITY_VENTING", 0.0))
+        hate_speech_score = float(phobert_scores.get("HATE_SPEECH", 0.0))
+
+        # 1. Implicit crisis semantic check (require margin over system_guide and PhoBERT corroboration when available)
+        if (
+            query_vec
+            and crisis_sim >= IMPLICIT_CRISIS_COSINE_THRESHOLD
+            and crisis_sim > sys_sim + 0.02
+            and (not phobert_available or emotional_crisis_score >= 0.25)
+        ):
             crisis_override = CrisisDecision(
                 is_crisis=True,
                 severity="high",
@@ -162,9 +171,6 @@ class Stage2GuardVerifier:
             distress_level = "acute_pfa"
 
         # 2. PhoBERT emotional crisis -> Tier 2 Acute PFA (when not already Tier 1 Crisis)
-        emotional_crisis_score = float(phobert_scores.get("EMOTIONAL_CRISIS", 0.0))
-        profanity_venting_score = float(phobert_scores.get("PROFANITY_VENTING", 0.0))
-        hate_speech_score = float(phobert_scores.get("HATE_SPEECH", 0.0))
 
         if (
             phobert_available

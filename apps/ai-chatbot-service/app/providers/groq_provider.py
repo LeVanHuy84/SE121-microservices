@@ -10,6 +10,8 @@ from app.providers.base import LlmChunk, LlmGeneration, ToolCallInfo
 
 logger = logging.getLogger("uvicorn.error")
 
+EMPTY_RESPONSE_ERROR = "Groq returned an empty response"
+
 
 def _is_transient_error(exc: Exception) -> bool:
     msg = str(exc).lower()
@@ -20,6 +22,7 @@ def _is_transient_error(exc: Exception) -> bool:
         "timeout",
         "connection error",
         "service unavailable",
+        EMPTY_RESPONSE_ERROR.lower(),
     )
     return any(ind in msg for ind in transient_indicators)
 
@@ -70,8 +73,11 @@ class GroqProvider:
                                         args=getattr(tc, "args", {}) or {},
                                     )
                                 )
+                    tool_content = str(getattr(ai_msg, "content", ai_msg) or "").strip()
+                    if not tool_content and not tool_calls:
+                        raise RuntimeError(EMPTY_RESPONSE_ERROR)
                     return LlmGeneration(
-                        content=str(getattr(ai_msg, "content", ai_msg) or "").strip(),
+                        content=tool_content,
                         model=resolved_model,
                         provider="groq",
                         tool_calls=tuple(tool_calls),
@@ -86,10 +92,13 @@ class GroqProvider:
                             exc,
                         )
                         fallback_msg = await llm.ainvoke(messages)
+                        fallback_content = str(
+                            getattr(fallback_msg, "content", fallback_msg) or ""
+                        ).strip()
+                        if not fallback_content:
+                            raise RuntimeError(EMPTY_RESPONSE_ERROR)
                         return LlmGeneration(
-                            content=str(
-                                getattr(fallback_msg, "content", fallback_msg) or ""
-                            ).strip(),
+                            content=fallback_content,
                             model=resolved_model,
                             provider="groq",
                             tool_calls=(),
@@ -109,7 +118,7 @@ class GroqProvider:
                 ai_msg = await llm.ainvoke(messages)
                 content = str(getattr(ai_msg, "content", ai_msg) or "").strip()
                 if not content:
-                    raise RuntimeError("Groq returned an empty response")
+                    raise RuntimeError(EMPTY_RESPONSE_ERROR)
                 return LlmGeneration(
                     content=content,
                     model=resolved_model,

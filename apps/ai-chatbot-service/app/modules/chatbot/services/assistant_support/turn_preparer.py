@@ -9,6 +9,9 @@ from app.modules.chatbot.schemas import (
     AssistantRespondRequest,
     AssistantSource,
 )
+from app.modules.chatbot.services.assistant_support.proposals import (
+    is_explicit_action_request,
+)
 from app.modules.chatbot.services.assistant_support.types import PreparedTurn
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 from app.modules.chatbot.services.guardrails import (
@@ -153,7 +156,9 @@ class TurnPreparer:
             )
 
         nav = build_nav_outcome(
-            cmd.nav_resolver.resolve(request.message, ai_policy=ai_policy),
+            None
+            if is_explicit_action_request(request.message)
+            else cmd.nav_resolver.resolve(request.message, ai_policy=ai_policy),
             ai_policy=ai_policy,
         )
         if nav.response is not None:
@@ -463,11 +468,25 @@ class TurnPreparer:
                 guard_intent=intent,
             )
 
+        normalized_msg_lower = (working_request.message or "").lower()
+        is_memory_recall_turn = (
+            bool(history)
+            and len(normalized_msg_lower.split()) <= 18
+            and distress_level == "none"
+            and not is_system_turn
+            and any(
+                cue in normalized_msg_lower
+                for cue in ("nhớ tên", "còn nhớ", "bạn nhớ", "mình tên", "mình thích")
+            )
+        )
+
         # Step 5: Cross-Lingual Hybrid RAG & Stage 2 Grounding Gate
-        candidate_contexts = (
-            cmd._dedupe_contexts(working_request.contexts)
-            if working_request.contexts
-            else await cmd._resolve_contexts_with_budget(
+        if working_request.contexts:
+            candidate_contexts = cmd._dedupe_contexts(working_request.contexts)
+        elif is_memory_recall_turn:
+            candidate_contexts = []
+        else:
+            candidate_contexts = await cmd._resolve_contexts_with_budget(
                 working_request,
                 settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
                 emotion_snapshot,
@@ -475,9 +494,15 @@ class TurnPreparer:
                 distress_level=distress_level,
                 topic_anchor=prev_topic_anchor if has_active_session_anchor else None,
             )
-        )
         prompt_limits = resolve_prompt_limits(request.userId)
-        final_contexts = candidate_contexts[: prompt_limits.max_context_items]
+        max_ctx = prompt_limits.max_context_items
+        if (
+            not working_request.contexts
+            and distress_level == "none"
+            and len(normalized_msg_lower.split()) <= 16
+        ):
+            max_ctx = min(max_ctx, 2)
+        final_contexts = candidate_contexts[:max_ctx]
         working_request = working_request.model_copy(
             update={"contexts": final_contexts}
         )
@@ -550,7 +575,7 @@ class TurnPreparer:
             effective_session_tier = "NONE"
 
         # Stage 2 Grounding Gate
-        if not final_contexts and not is_mental_health_turn:
+        if not final_contexts and not is_mental_health_turn and not is_memory_recall_turn:
             if (
                 scope_decision.state == "in_domain_unknown"
                 or not scope_decision.in_scope

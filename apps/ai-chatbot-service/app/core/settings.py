@@ -24,6 +24,9 @@ class Settings:
         self.UNIT_TEST_MODE: bool = (
             os.getenv("UNIT_TEST_MODE", "false").lower() == "true"
         )
+        self.CHATBOT_LLM_STUB_MODE: bool = (
+            os.getenv("CHATBOT_LLM_STUB_MODE", "false").lower() == "true"
+        )
         self.CHATBOT_REDIS_ENABLED: bool = (
             os.getenv("CHATBOT_REDIS_ENABLED", "true").lower() == "true"
         )
@@ -359,6 +362,14 @@ class Settings:
 
         if not self.HOST:
             raise RuntimeError("HOST must not be empty")
+
+        env_value = os.getenv("ENV", self.APP_ENV).strip().lower()
+        if self.CHATBOT_LLM_STUB_MODE and (
+            self.APP_ENV == "production" or env_value == "production"
+        ):
+            raise RuntimeError(
+                "CHATBOT_LLM_STUB_MODE must not be enabled in production"
+            )
 
         if not self.INTERNAL_SERVICE_KEY:
             if self.UNIT_TEST_MODE:

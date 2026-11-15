@@ -22,7 +22,10 @@ class GatewayHttpClient:
         timeout_seconds: float | None = None,
         client: httpx.AsyncClient | None = None,
     ):
-        self.base_url = (base_url or settings.API_GATEWAY_URL).rstrip("/")
+        raw_base_url = (base_url or settings.API_GATEWAY_URL).rstrip("/")
+        if not raw_base_url.endswith("/api/v1"):
+            raw_base_url = f"{raw_base_url}/api/v1"
+        self.base_url = raw_base_url
         self.timeout = timeout_seconds or settings.TOOL_HTTP_TIMEOUT_SECONDS
         self._external_client = client is not None
         self._client = client or httpx.AsyncClient(
