@@ -18,6 +18,7 @@ class DestinationEntry:
     synonyms: tuple[str, ...]
     help_doc_ids: tuple[str, ...]
     params: dict[str, str] = field(default_factory=dict)
+    policy_scope: str = "public"
 
 
 class DestinationCatalog:
@@ -72,6 +73,11 @@ class DestinationCatalog:
             synonyms = tuple(str(s).strip() for s in raw_synonyms if str(s).strip())
             help_doc_ids = tuple(item.get("helpDocIds") or ())
             params = item.get("params") or {}
+            policy_scope = str(item.get("policy_scope") or "public").strip().lower()
+            if policy_scope not in {"public", "personal"}:
+                raise ValueError(
+                    f"Destination '{dest_id}' policy_scope must be 'public' or 'personal', got: '{policy_scope}'"
+                )
 
             entry = DestinationEntry(
                 id=dest_id,
@@ -80,6 +86,7 @@ class DestinationCatalog:
                 synonyms=synonyms,
                 help_doc_ids=help_doc_ids,
                 params=params,
+                policy_scope=policy_scope,
             )
             self._destinations[dest_id] = entry
 

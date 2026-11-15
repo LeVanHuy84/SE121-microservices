@@ -59,6 +59,7 @@ class AssistantServiceTest(unittest.TestCase):
             userId="user-1",
             conversationId=test_conv_id,
             message="How do I use the app?",
+            aiPolicy="FULL",
             contexts=[
                 AssistantContextItem(
                     type="help_doc",
@@ -152,6 +153,7 @@ class AssistantServiceTest(unittest.TestCase):
         req = AssistantRespondRequest(
             userId="user-2",
             message="Chat hiện tại có chức năng video call không?",
+            aiPolicy="FULL",
         )
 
         res = asyncio.run(service.respond(req))
@@ -174,6 +176,7 @@ class AssistantServiceTest(unittest.TestCase):
         first = AssistantRespondRequest(
             userId="user-3",
             message="Cách bật quyền riêng tư hồ sơ?",
+            aiPolicy="FULL",
             contexts=[
                 AssistantContextItem(
                     type="help_doc",
@@ -194,6 +197,7 @@ class AssistantServiceTest(unittest.TestCase):
             userId="user-3",
             conversationId=conv_id,
             message="Ok, còn tìm nhóm thì sao?",
+            aiPolicy="FULL",
             contexts=[
                 AssistantContextItem(
                     type="help_doc",
@@ -211,6 +215,7 @@ class AssistantServiceTest(unittest.TestCase):
             userId="user-3",
             conversationId=conv_id,
             message="quay lại cái trước đó đi",
+            aiPolicy="FULL",
             contexts=[
                 AssistantContextItem(
                     type="help_doc",
@@ -227,6 +232,203 @@ class AssistantServiceTest(unittest.TestCase):
         self.assertGreaterEqual(provider.calls, 2)
         self.assertIn("fake reply for", res.reply)
         self.assertEqual(res.conversationId, conv_id)
+
+    def test_opening_message_not_replaced_by_proactive_checkin(self):
+        from unittest.mock import AsyncMock, MagicMock
+        from app.modules.chatbot.services.emotion_context import EmotionSnapshot
+
+        provider = FakeProvider()
+        fact_extractor = MagicMock()
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+            fact_extractor=fact_extractor,
+        )
+        service._respond_command.emotion_ctx = MagicMock()
+        service._respond_command.emotion_ctx.get_snapshot = AsyncMock(
+            return_value=EmotionSnapshot(
+                primary_emotion="sadness",
+                risk_level="high",
+                chatbot_prompt_context="Proactive context",
+            )
+        )
+        req = AssistantRespondRequest(
+            userId="user-proactive",
+            message="xin chào",
+            aiPolicy="FULL",
+        )
+        res = asyncio.run(service.respond(req))
+        self.assertEqual(res.model, "greeting-guard")
+        self.assertIn("Xin chào", res.reply)
+
+    def test_restricted_policy_strips_personal_data_and_skips_fact_extractor(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = FakeProvider()
+        fact_extractor = MagicMock()
+        profile_repo = MagicMock()
+        profile_repo.get_facts_by_user = AsyncMock(return_value={"name": "An"})
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=profile_repo,
+            context_resolver=self.context_resolver,
+            fact_extractor=fact_extractor,
+        )
+        service._respond_command.emotion_ctx = MagicMock()
+        service._respond_command.emotion_ctx.get_snapshot = AsyncMock()
+
+        req = AssistantRespondRequest(
+            userId="user-restricted",
+            message="Tìm bài viết thịnh hành trên Sentimeta",
+            aiPolicy="RESTRICTED",
+            contexts=[
+                AssistantContextItem(
+                    type="personal_post",
+                    id="p-1",
+                    content="Secret personal context",
+                    score=0.9,
+                )
+            ],
+        )
+        _ = asyncio.run(service.respond(req))
+        profile_repo.get_facts_by_user.assert_not_awaited()
+        service._respond_command.emotion_ctx.get_snapshot.assert_not_awaited()
+        fact_extractor.maybe_schedule_extraction.assert_not_called()
+
+        # Safety guardrails remain active under RESTRICTED
+        crisis_req = AssistantRespondRequest(
+            userId="user-restricted",
+            message="Tôi muốn tự tử",
+            aiPolicy="RESTRICTED",
+        )
+        crisis_res = asyncio.run(service.respond(crisis_req))
+        self.assertEqual(crisis_res.type, "crisis")
+
+    def test_system_turn_suppresses_tone_without_erasing_distress_continuity(self):
+        from app.modules.chatbot.services.assistant_support.turn_preparer import (
+            TurnPreparer,
+        )
+
+        provider = FakeProvider()
+        service = AssistantService(
+            provider=provider,
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
+        preparer = TurnPreparer(service._respond_command)
+        # First turn: emotional distress sets session_emotional_state
+        req1 = AssistantRespondRequest(
+            userId="user-sys-1",
+            message="Mình đang rất lo âu và hoảng loạn",
+            aiPolicy="FULL",
+        )
+        res1 = asyncio.run(service.respond(req1))
+        conv_id = res1.conversationId
+
+        # Second turn: system/product query with distress_level == "none" resets session_emotional_state
+        req2 = AssistantRespondRequest(
+            userId="user-sys-1",
+            conversationId=conv_id,
+            message="Làm sao để bật thông báo bài viết mới trên Sentimeta?",
+            aiPolicy="FULL",
+        )
+        turn2 = asyncio.run(preparer.prepare_turn(req2, 0.0, "req-2"))
+        self.assertTrue(turn2.is_system_turn)
+        self.assertEqual(turn2.session_emotional_state.get("active_tier"), "NONE")
+        self.assertEqual(turn2.session_emotional_state.get("remaining_turns_ttl"), 0)
+
+    def test_execute_stream_post_tool_extracts_signed_proposals_and_respects_policy(
+        self,
+    ):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.modules.chatbot.tools.dispatcher import (
+            ToolDispatcher,
+            ToolExecutionContext,
+        )
+        from app.providers.base import LlmChunk, ToolCallInfo
+
+        class StreamToolProvider:
+            supports_chat_messages = True
+            supports_tools = True
+
+            def __init__(self):
+                self.calls = 0
+
+            async def generate(self, prompt, request, **kwargs):
+                raise AssertionError("generate not expected")
+
+            async def stream(self, input_data, request, **kwargs):
+                self.calls += 1
+                if self.calls % 2 == 1:
+                    yield LlmChunk(
+                        content="",
+                        tool_calls=(
+                            ToolCallInfo(
+                                id="tc-1",
+                                name="search_users",
+                                args={"query": "Nam"},
+                            ),
+                        ),
+                    )
+                else:
+                    yield LlmChunk(
+                        content=(
+                            "Mình đã tìm thấy Nam.\n"
+                            "```action\n"
+                            '{"actionName":"send_friend_request","title":"Kết bạn","params":{"target_user_id":"u-nam-1"}}\n'
+                            "```\n"
+                        )
+                    )
+
+        dispatcher = ToolDispatcher()
+        dispatcher.register_handler(
+            "search_users",
+            AsyncMock(return_value={"users": [{"id": "u-nam-1", "name": "Nam"}]}),
+        )
+        service = AssistantService(
+            provider=StreamToolProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+            context_resolver=self.context_resolver,
+        )
+        service._respond_command.dispatcher = dispatcher
+        service._respond_command.nav_resolver = MagicMock()
+        service._respond_command.nav_resolver.resolve.return_value = None
+
+        async def _collect(policy: str):
+            req = AssistantRespondRequest(
+                userId="u-stream-1",
+                message="Mình muốn kết nối bạn bè với Nam",
+                aiPolicy=policy,
+            )
+            return [chunk async for chunk in service._respond_command.execute_stream(req)]
+
+        chunks_full = asyncio.run(_collect("FULL"))
+        proposals_full = [p for c in chunks_full for p in c.proposals]
+        self.assertEqual(len(proposals_full), 1)
+        self.assertEqual(proposals_full[0].payload.actionName, "send_friend_request")
+        self.assertTrue(proposals_full[0].payload.proposalToken)
+        self.assertNotIn("```action", "".join(c.reply for c in chunks_full))
+
+        chunks_restricted = asyncio.run(_collect("RESTRICTED"))
+        proposals_restricted = [p for c in chunks_restricted for p in c.proposals]
+        self.assertEqual(proposals_restricted, [])
+
+        # Defense-in-depth: personal tool blocked under RESTRICTED
+        blocked = asyncio.run(
+            dispatcher.dispatch(
+                "get_my_friends",
+                {},
+                ToolExecutionContext(user_id="u-stream-1", ai_policy="RESTRICTED"),
+            )
+        )
+        self.assertFalse(blocked.success)
+        self.assertIn("riêng tư", blocked.error or "")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ class ToolDefinition:
     description: str
     parameters: dict[str, Any]
     target_service: str
+    policy_scope: str = "personal"
 
     def to_openai_tool(self) -> dict[str, Any]:
         return {
@@ -101,6 +102,7 @@ SEARCH_USERS = ToolDefinition(
     name="search_users",
     domain="social",
     target_service="search-recommendation-service",
+    policy_scope="public",
     description="Tìm kiếm người dùng hoặc bạn bè trên mạng xã hội bằng tên hiển thị hoặc username (tối đa 3 kết quả).",
     parameters={
         "type": "object",
@@ -250,6 +252,7 @@ GET_RECOMMENDED_MUSIC_FOR_MOOD = ToolDefinition(
     name="get_recommended_music_for_mood",
     domain="emotions",
     target_service="music-service",
+    policy_scope="public",
     description="Gợi ý danh sách bài hát giúp cải thiện hoặc phù hợp với tâm trạng hiện tại của người dùng.",
     parameters={
         "type": "object",
@@ -267,6 +270,7 @@ GET_MINDFULNESS_EXERCISES = ToolDefinition(
     name="get_mindfulness_exercises",
     domain="emotions",
     target_service="emotion-intelligence-service",
+    policy_scope="public",
     description="Gợi ý các bài tập thở, thư giãn tâm trí hoặc bài tập chánh niệm phù hợp với trạng thái cảm xúc.",
     parameters={
         "type": "object",
@@ -340,6 +344,7 @@ GET_TRENDING_POSTS = ToolDefinition(
     name="get_trending_posts",
     domain="content",
     target_service="content-feed-service",
+    policy_scope="public",
     description="Lấy top 3 bài viết thịnh hành và được quan tâm nhiều nhất gần đây trên mạng xã hội Sentimeta.",
     parameters={
         "type": "object",

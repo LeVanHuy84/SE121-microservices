@@ -12,10 +12,42 @@ import {
   MessageEvent,
   Res,
 } from "@nestjs/common";
+import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 import { AssistantMessageDto } from "@repo/dtos";
 import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 import { ChatbotService } from "./chatbot.service";
 import { Observable } from "rxjs";
+
+export class ExecuteActionDto {
+  @IsNotEmpty()
+  @IsString()
+  actionId: string;
+
+  @IsNotEmpty()
+  @IsString()
+  actionName: string;
+
+  @IsOptional()
+  @IsObject()
+  params?: Record<string, unknown>;
+
+  @IsNotEmpty()
+  @IsString()
+  idempotencyKey: string;
+
+  @IsNotEmpty()
+  @IsString()
+  proposalToken: string;
+
+  @IsNotEmpty()
+  @IsString()
+  conversationId: string;
+
+  /** @deprecated Server resolves aiPolicy fail-closed; client value is ignored. */
+  @IsOptional()
+  @IsString()
+  aiPolicy?: string;
+}
 
 @Controller("assistant")
 export class ChatbotController {
@@ -72,7 +104,6 @@ export class ChatbotController {
     @Query("clientMessageId") clientMessageId: string | undefined,
     @Query("surface") surfaceJson: string | undefined,
     @Query("conversationId") conversationId: string | undefined,
-    @Query("aiPolicy") aiPolicy: string | undefined,
     @Res() res: any,
     @Headers("authorization") authHeader?: string,
   ) {
@@ -94,7 +125,6 @@ export class ChatbotController {
       clientMessageId,
       surface,
       conversationId,
-      aiPolicy,
     };
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -185,14 +215,7 @@ export class ChatbotController {
   executeAction(
     @CurrentUserId() userId: string,
     @Headers("authorization") authHeader: string | undefined,
-    @Body()
-    body: {
-      actionId: string;
-      actionName: string;
-      params?: Record<string, unknown>;
-      idempotencyKey: string;
-      aiPolicy?: string;
-    },
+    @Body() body: ExecuteActionDto,
   ) {
     return this.chatbotService.executeAction(userId, authHeader, body);
   }

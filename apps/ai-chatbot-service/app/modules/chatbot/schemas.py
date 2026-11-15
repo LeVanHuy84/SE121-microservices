@@ -65,7 +65,7 @@ class AssistantRespondRequest(BaseModel):
     intent: Optional[str] = None
     surface: Optional[SurfaceContext] = None
     authToken: Optional[str] = None
-    aiPolicy: Optional[str] = "FULL"
+    aiPolicy: Literal["FULL", "RESTRICTED"] = "RESTRICTED"
 
 
 class AssistantSource(BaseModel):
@@ -111,6 +111,7 @@ class ProposeActionPayload(BaseModel):
     description: str
     params: dict[str, Any] = Field(default_factory=dict)
     idempotencyKey: str = Field(default_factory=lambda: str(uuid4()))
+    proposalToken: str
     confirmLabel: Optional[str] = "Xác nhận"
     cancelLabel: Optional[str] = "Hủy"
     category: Optional[str] = "social"
@@ -165,9 +166,11 @@ class ActionExecutionRequest(BaseModel):
     actionName: str
     params: dict[str, Any] = Field(default_factory=dict)
     idempotencyKey: str
+    proposalToken: str
+    conversationId: str
     authToken: Optional[str] = None
     userId: Optional[str] = None
-    aiPolicy: Optional[str] = "FULL"
+    aiPolicy: Literal["FULL", "RESTRICTED"] = "RESTRICTED"
 
 
 class ActionExecutionResponse(BaseModel):

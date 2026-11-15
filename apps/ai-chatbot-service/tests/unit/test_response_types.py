@@ -76,6 +76,7 @@ def _run(service: AssistantService, message: str, user: str, contexts=None):
             userId=user,
             message=message,
             contexts=contexts or [],
+            aiPolicy="FULL",
         )
         return await service.respond(req)
 

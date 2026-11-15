@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.modules.chatbot.actions.audit import action_audit_logger
 from app.modules.chatbot.repositories.chat_history import HistoryStore, history_store
 
 logger = logging.getLogger("uvicorn.error")
@@ -36,10 +37,12 @@ async def handle_user_event(
                     user_id=str(user_id),
                     include_emotion_cache=True,
                 )
+                purged_audit = await action_audit_logger.purge_user(str(user_id))
                 logger.info(
-                    "[UserConsumer] Successfully purged chatbot data for userId=%s (deleted %d messages)",
+                    "[UserConsumer] Successfully purged chatbot data for userId=%s (deleted %d messages, %d audit logs)",
                     user_id,
                     deleted_count,
+                    purged_audit,
                 )
             except Exception as exc:
                 logger.exception(
@@ -47,3 +50,4 @@ async def handle_user_event(
                     user_id,
                     exc,
                 )
+                raise

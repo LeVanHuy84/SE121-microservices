@@ -296,7 +296,11 @@ def run_golden_evaluation(dataset_path: Path | str | None = None) -> dict[str, A
                 in_chat_distress=(distress_level != "none"),
                 is_system_turn=is_sys,
                 distress_level=distress_level,
-                session_active_tier=session_active_tier,
+                session_active_tier=(
+                    session_active_tier
+                    if session_active_tier != "NONE"
+                    else "TIER_2_PFA"
+                ),
             )
             t2_score = score_tier2_no_probing_compliance(directive, fixture_reply)
             tier2_no_probing_scores.append(t2_score)

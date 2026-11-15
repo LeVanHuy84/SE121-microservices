@@ -7,9 +7,12 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 from pydantic import ValidationError
 
 from app.modules.chatbot.schemas import (
+    ActionExecutionRequest,
     AssistantRespondData,
+    AssistantRespondRequest,
     NavigateAction,
     NavigatePayload,
+    ProposeActionPayload,
 )
 
 
@@ -63,6 +66,40 @@ class NavigateActionSchemaTest(unittest.TestCase):
 
     def test_crisis_without_actions_allowed(self):
         self.assertEqual(_data(type="crisis").suggestedActions, [])
+
+    def test_propose_action_and_execution_request_require_proposal_token_and_default_restricted(
+        self,
+    ):
+        req_default = AssistantRespondRequest(userId="u-1", message="hi")
+        self.assertEqual(req_default.aiPolicy, "RESTRICTED")
+
+        with self.assertRaises(ValidationError):
+            ProposeActionPayload(
+                actionId="a1",
+                actionName="react_post",
+                title="Like",
+                description="Like post",
+                params={"post_id": "p1"},
+                idempotencyKey="idem-1",
+            )
+
+        with self.assertRaises(ValidationError):
+            ActionExecutionRequest(
+                actionId="a1",
+                actionName="react_post",
+                params={"post_id": "p1"},
+                idempotencyKey="idem-1",
+            )
+
+        exec_req = ActionExecutionRequest(
+            actionId="a1",
+            actionName="react_post",
+            params={"post_id": "p1"},
+            idempotencyKey="idem-1",
+            proposalToken="tok-123",
+            conversationId="conv-1",
+        )
+        self.assertEqual(exec_req.aiPolicy, "RESTRICTED")
 
 
 if __name__ == "__main__":

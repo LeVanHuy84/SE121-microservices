@@ -1,3 +1,4 @@
+import { InjectRedis } from "@nestjs-modules/ioredis";
 import {
   HttpException,
   Inject,
@@ -10,6 +11,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
 import { ClientProxy } from "@nestjs/microservices";
+import Redis from "ioredis";
 import { firstValueFrom, Observable, timeout } from "rxjs";
 import { AxiosError } from "axios";
 
@@ -38,9 +40,14 @@ type LatencySummary = {
 
 @Injectable()
 export class ChatbotService {
+  private static readonly AI_POLICY_CACHE_TTL_SECONDS = 300;
+  private static readonly POLICY_CIRCUIT_BREAKER_MS = 10_000;
+  private static readonly POLICY_CIRCUIT_FAILURE_THRESHOLD = 3;
   private readonly logger = new Logger(ChatbotService.name);
   private readonly metricsLatencies = new Map<string, number[]>();
   private readonly metricsCounters = new Map<string, number>();
+  private policyCircuitOpenUntil = 0;
+  private policyConsecutiveFailures = 0;
 
   constructor(
     private readonly configService: ConfigService,
@@ -48,26 +55,60 @@ export class ChatbotService {
     private readonly contextService: AssistantContextService,
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private readonly userClient: ClientProxy,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  async resolveUserAiPolicy(
-    userId: string,
-    fallbackPolicy?: string,
-  ): Promise<string> {
+  async resolveUserAiPolicy(userId: string): Promise<"FULL" | "RESTRICTED"> {
+    if (Date.now() < this.policyCircuitOpenUntil) {
+      this.logger.warn(
+        `AI policy circuit breaker open for ${userId}; failing closed to RESTRICTED`,
+      );
+      return "RESTRICTED";
+    }
+
+    const cacheKey = `user:ai_policy:${userId}`;
     try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached === "FULL" || cached === "RESTRICTED") {
+        this.policyConsecutiveFailures = 0;
+        return cached;
+      }
+
       const user = await firstValueFrom(
         this.userClient
           .send<any>("findOneUser", { userId, targetId: userId })
           .pipe(timeout(1000)),
       );
+      this.policyConsecutiveFailures = 0;
       const policy = user?.privacySettings?.aiPolicy;
-      if (policy) return policy;
-    } catch (err) {
-      this.logger.debug(
-        `Could not resolve user policy from user-service for ${userId}: ${err}`,
+      if (policy === "FULL" || policy === "RESTRICTED") {
+        await this.redis.set(
+          cacheKey,
+          policy,
+          "EX",
+          ChatbotService.AI_POLICY_CACHE_TTL_SECONDS,
+        );
+        return policy;
+      }
+
+      this.logger.warn(
+        `Missing or invalid aiPolicy for ${userId}; failing closed to RESTRICTED`,
       );
+      return "RESTRICTED";
+    } catch (err) {
+      this.policyConsecutiveFailures += 1;
+      if (
+        this.policyConsecutiveFailures >=
+        ChatbotService.POLICY_CIRCUIT_FAILURE_THRESHOLD
+      ) {
+        this.policyCircuitOpenUntil =
+          Date.now() + ChatbotService.POLICY_CIRCUIT_BREAKER_MS;
+      }
+      this.logger.warn(
+        `Failed to resolve user aiPolicy for ${userId}, failing closed to RESTRICTED: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return "RESTRICTED";
     }
-    return fallbackPolicy || "FULL";
   }
 
   async respond(userId: string, dto: AssistantMessageDto, authHeader?: string) {
@@ -75,17 +116,18 @@ export class ChatbotService {
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
 
     try {
-      const [contexts, effectivePolicy] = await Promise.all([
-        this.resolveContextsWithinBudget(
-          userId,
-          dto.message,
-          this.configService.get<number>(
-            "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-            1200,
-          ),
-        ),
-        this.resolveUserAiPolicy(userId, dto.aiPolicy),
-      ]);
+      const effectivePolicy = await this.resolveUserAiPolicy(userId);
+      const contexts =
+        effectivePolicy === "RESTRICTED"
+          ? []
+          : await this.resolveContextsWithinBudget(
+              userId,
+              dto.message,
+              this.configService.get<number>(
+                "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+                1200,
+              ),
+            );
 
       const headers: Record<string, string> = {
         "x-internal-key": internalKey,
@@ -131,17 +173,18 @@ export class ChatbotService {
 
       const run = async () => {
         try {
-          const [contexts, effectivePolicy] = await Promise.all([
-            this.resolveContextsWithinBudget(
-              userId,
-              dto.message,
-              this.configService.get<number>(
-                "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-                1200,
-              ),
-            ),
-            this.resolveUserAiPolicy(userId, dto.aiPolicy),
-          ]);
+          const effectivePolicy = await this.resolveUserAiPolicy(userId);
+          const contexts =
+            effectivePolicy === "RESTRICTED"
+              ? []
+              : await this.resolveContextsWithinBudget(
+                  userId,
+                  dto.message,
+                  this.configService.get<number>(
+                    "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+                    1200,
+                  ),
+                );
 
           if (isCancelled) return;
 
@@ -638,6 +681,8 @@ export class ChatbotService {
       actionName: string;
       params?: Record<string, unknown>;
       idempotencyKey: string;
+      proposalToken: string;
+      conversationId: string;
       aiPolicy?: string;
     },
   ) {
@@ -651,15 +696,17 @@ export class ChatbotService {
     }
 
     try {
-      const effectivePolicy = await this.resolveUserAiPolicy(
-        userId,
-        body.aiPolicy,
-      );
+      const effectivePolicy = await this.resolveUserAiPolicy(userId);
       const res = await firstValueFrom(
         this.httpService.post(
           `${baseUrl}/assistant/actions/execute`,
           {
-            ...body,
+            actionId: body.actionId,
+            actionName: body.actionName,
+            params: body.params,
+            idempotencyKey: body.idempotencyKey,
+            proposalToken: body.proposalToken,
+            conversationId: body.conversationId,
             userId,
             aiPolicy: effectivePolicy,
           },

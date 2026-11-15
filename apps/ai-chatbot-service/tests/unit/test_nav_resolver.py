@@ -85,6 +85,24 @@ class NavResolverUnitTest(unittest.TestCase):
             any(m.destination_id == "settings.notifications" for m in decision.matches)
         )
 
+    def test_restricted_policy_filters_out_personal_destinations(self):
+        # Personal destinations like friends / emotions are blocked under RESTRICTED
+        friends_restricted = self.resolver.resolve("mở bạn bè", ai_policy="RESTRICTED")
+        self.assertEqual(friends_restricted.path, "none")
+        self.assertEqual(friends_restricted.matches, [])
+
+        # Public destinations like settings.privacy remain available under RESTRICTED
+        privacy_restricted = self.resolver.resolve(
+            "mở quyền riêng tư", ai_policy="RESTRICTED"
+        )
+        self.assertEqual(privacy_restricted.path, "command")
+        self.assertEqual(privacy_restricted.matches[0].destination_id, "settings.privacy")
+
+        # Under FULL policy, personal destinations resolve normally
+        friends_full = self.resolver.resolve("mở bạn bè", ai_policy="FULL")
+        self.assertEqual(friends_full.path, "command")
+        self.assertEqual(friends_full.matches[0].destination_id, "friends")
+
 
 class NavResolverBenchmarkTest(unittest.TestCase):
     def setUp(self):

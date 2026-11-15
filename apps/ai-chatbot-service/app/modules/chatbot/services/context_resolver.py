@@ -94,27 +94,13 @@ class AssistantContextResolver:
         emotion_snapshot: EmotionSnapshot | None,
         distress_level: str = "none",
     ) -> bool:
+        del emotion_snapshot
         if distress_level in {"mild_cbt", "acute_pfa"}:
             return True
         if has_in_chat_emotional_distress(query):
             return True
         if bool(set(matched_domains) & {"mental_health", "emotion"}):
             return True
-        if not self._is_system_turn(matched_domains) and emotion_snapshot is not None:
-            if emotion_snapshot.risk_level in {"high", "medium"}:
-                return True
-            if (
-                emotion_snapshot.persistent_distress
-                or emotion_snapshot.needs_proactive_checkin
-            ):
-                return True
-            if (emotion_snapshot.primary_emotion or "").lower() in {
-                "sadness",
-                "fear",
-                "anger",
-                "disgust",
-            }:
-                return True
         return False
 
     def _expand_mental_health_query(

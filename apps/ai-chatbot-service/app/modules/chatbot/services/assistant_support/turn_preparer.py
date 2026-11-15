@@ -78,7 +78,12 @@ class TurnPreparer:
         prev_active_tier = str(prev_emotional_state.get("active_tier") or "NONE")
         prev_ttl = int(prev_emotional_state.get("remaining_turns_ttl") or 0)
         prev_topic_anchor = str(prev_emotional_state.get("topic_anchor") or "")
-        request = request.model_copy(update={"conversationId": conv_id})
+        ai_policy = str(getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED").upper()
+        is_restricted = ai_policy == "RESTRICTED"
+        request_updates: dict[str, Any] = {"conversationId": conv_id}
+        if is_restricted and request.contexts:
+            request_updates["contexts"] = []
+        request = request.model_copy(update=request_updates)
 
         crisis_decision = cmd.crisis_guard.evaluate(request.message)
         if crisis_decision.is_crisis:
@@ -113,7 +118,6 @@ class TurnPreparer:
                 pending_actions=[],
                 howto_actions=[],
                 messages_or_prompt="",
-                is_proactive_checkin=False,
                 in_chat_distress=False,
                 is_system_turn=False,
                 guard_data=data,
@@ -142,14 +146,16 @@ class TurnPreparer:
                 pending_actions=[],
                 howto_actions=[],
                 messages_or_prompt="",
-                is_proactive_checkin=False,
                 in_chat_distress=False,
                 is_system_turn=False,
                 guard_data=data,
                 guard_intent="community_guard",
             )
 
-        nav = build_nav_outcome(cmd.nav_resolver.resolve(request.message))
+        nav = build_nav_outcome(
+            cmd.nav_resolver.resolve(request.message, ai_policy=ai_policy),
+            ai_policy=ai_policy,
+        )
         if nav.response is not None:
             cmd._track_nav_offer(request, nav)
             return PreparedTurn(
@@ -166,7 +172,6 @@ class TurnPreparer:
                 pending_actions=list(nav.offered_actions),
                 howto_actions=list(nav.howto_actions),
                 messages_or_prompt="",
-                is_proactive_checkin=False,
                 in_chat_distress=False,
                 is_system_turn=False,
                 guard_data=nav.response,
@@ -184,44 +189,43 @@ class TurnPreparer:
                 )
             return await cmd.history_store.load_context_window(request.userId, conv_id)
 
-        history_res, user_facts, emotion_snapshot = await asyncio.gather(
-            _load_history(),
-            cmd.profile_repo.get_facts_by_user(request.userId),
-            cmd.emotion_ctx.get_snapshot(request.userId),
-        )
+        if is_restricted:
+            history_res = await _load_history()
+            user_facts = {}
+            emotion_snapshot = EmotionSnapshot()
+        else:
+            history_res, user_facts, emotion_snapshot = await asyncio.gather(
+                _load_history(),
+                cmd.profile_repo.get_facts_by_user(request.userId),
+                cmd.emotion_ctx.get_snapshot(request.userId),
+            )
         history, db_last_intent, _ = history_res
         last_intent = request.intent or db_last_intent
 
-        # Greeting check: skipped if (not history and needs_proactive_checkin)
+        # Greeting check
         normalized_msg = cmd.scope_guard._normalize(request.message)
         if normalized_msg in GREETINGS:
-            if not (
-                not history
-                and emotion_snapshot
-                and emotion_snapshot.needs_proactive_checkin
-            ):
-                return PreparedTurn(
-                    working_request=request,
-                    conv_id=conv_id,
-                    history=history,
-                    user_facts=user_facts or {},
-                    emotion_snapshot=emotion_snapshot,
-                    scope_decision=ScopeDecision(
-                        True, "greeting", normalized_msg, "in_scope", 1.0, ("system",)
-                    ),
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=[],
-                    supports_tools=False,
-                    pending_actions=[],
-                    howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    is_proactive_checkin=False,
-                    in_chat_distress=False,
-                    is_system_turn=False,
-                    guard_data=cmd._greeting_response(),
-                    guard_intent="greeting",
-                )
+            return PreparedTurn(
+                working_request=request,
+                conv_id=conv_id,
+                history=history,
+                user_facts=user_facts or {},
+                emotion_snapshot=emotion_snapshot,
+                scope_decision=ScopeDecision(
+                    True, "greeting", normalized_msg, "in_scope", 1.0, ("system",)
+                ),
+                final_contexts=[],
+                sources=[],
+                active_tools=[],
+                supports_tools=False,
+                pending_actions=[],
+                howto_actions=howto_actions,
+                messages_or_prompt="",
+                in_chat_distress=False,
+                is_system_turn=False,
+                guard_data=cmd._greeting_response(),
+                guard_intent="greeting",
+            )
 
         # Step 3: Deterministic Follow-Up Anchor Resolution (< 1ms)
         effective_message, has_follow_up_anchor = await cmd._resolve_follow_up_message(
@@ -268,7 +272,6 @@ class TurnPreparer:
                     pending_actions=[],
                     howto_actions=howto_actions,
                     messages_or_prompt="",
-                    is_proactive_checkin=False,
                     in_chat_distress=False,
                     is_system_turn=False,
                     guard_data=data,
@@ -285,8 +288,10 @@ class TurnPreparer:
         is_short_followup = (
             len(working_request.message.split()) <= SHORT_FOLLOWUP_MAX_TOKENS
         )
+        is_system_turn = self._compute_is_system_turn(scope_decision.matched_domains)
         has_active_session_anchor = (
-            prev_ttl > 0
+            not is_system_turn
+            and prev_ttl > 0
             and prev_active_tier in {"TIER_2_PFA", "TIER_3_CBT"}
             and bool(prev_topic_anchor)
             and is_short_followup
@@ -360,7 +365,6 @@ class TurnPreparer:
                     pending_actions=[],
                     howto_actions=howto_actions,
                     messages_or_prompt="",
-                    is_proactive_checkin=False,
                     in_chat_distress=True,
                     is_system_turn=False,
                     guard_data=data,
@@ -390,7 +394,6 @@ class TurnPreparer:
                         pending_actions=[],
                         howto_actions=howto_actions,
                         messages_or_prompt="",
-                        is_proactive_checkin=False,
                         in_chat_distress=False,
                         is_system_turn=False,
                         guard_data=data,
@@ -415,6 +418,11 @@ class TurnPreparer:
                         matched_domains=stage2_res.matched_domains_override
                         or scope_decision.matched_domains,
                     )
+                    is_system_turn = self._compute_is_system_turn(
+                        scope_decision.matched_domains
+                    )
+                    if is_system_turn:
+                        has_active_session_anchor = False
 
         in_chat_distress = distress_level != "none"
 
@@ -449,9 +457,8 @@ class TurnPreparer:
                 pending_actions=[],
                 howto_actions=howto_actions,
                 messages_or_prompt="",
-                is_proactive_checkin=False,
                 in_chat_distress=False,
-                is_system_turn=False,
+                is_system_turn=is_system_turn,
                 guard_data=data,
                 guard_intent=intent,
             )
@@ -477,44 +484,25 @@ class TurnPreparer:
 
         active_tools = cmd.tool_router.get_openai_tools(
             working_request.surface,
-            ai_policy=getattr(working_request, "aiPolicy", "FULL"),
+            matched_domains=scope_decision.matched_domains,
+            ai_policy=ai_policy,
+            is_system_turn=is_system_turn,
         )
         has_tools = bool(active_tools)
         supports_tools = cmd._supports_tools(active_tools)
-
-        if hasattr(cmd.context_resolver, "_is_system_turn"):
-            is_system_turn = cmd.context_resolver._is_system_turn(
-                scope_decision.matched_domains
-            )
-        else:
-            is_system_turn = bool(
-                set(scope_decision.matched_domains)
-                & {
-                    "navigation",
-                    "features",
-                    "support",
-                    "settings",
-                    "profile",
-                    "account",
-                }
-            )
 
         if hasattr(cmd.context_resolver, "_is_mental_health_turn"):
             is_mental_health_turn = cmd.context_resolver._is_mental_health_turn(
                 working_request.message,
                 scope_decision.matched_domains,
-                emotion_snapshot,
+                None if is_restricted else emotion_snapshot,
+                distress_level=distress_level,
             )
         else:
             is_mental_health_turn = bool(
                 has_in_chat_emotional_distress(working_request.message)
                 or (set(scope_decision.matched_domains) & {"mental_health", "emotion"})
             )
-        is_proactive_checkin = bool(
-            emotion_snapshot
-            and emotion_snapshot.needs_proactive_checkin
-            and not history
-        )
 
         # Multi-turn emotional state transition
         if distress_level in {"acute_pfa", "mild_cbt"}:
@@ -527,6 +515,13 @@ class TurnPreparer:
                 "topic_anchor": working_request.message[:200],
             }
             effective_session_tier = active_tier
+        elif is_system_turn and distress_level == "none":
+            session_emotional_state = {
+                "active_tier": "NONE",
+                "remaining_turns_ttl": 0,
+                "topic_anchor": "",
+            }
+            effective_session_tier = "NONE"
         elif not is_system_turn and has_active_session_anchor:
             distress_level = (
                 "acute_pfa" if prev_active_tier == "TIER_2_PFA" else "mild_cbt"
@@ -547,7 +542,7 @@ class TurnPreparer:
                 }
             effective_session_tier = prev_active_tier
         else:
-            session_emotional_state = {
+            session_emotional_state = dict(prev_emotional_state) if prev_ttl > 0 else {
                 "active_tier": "NONE",
                 "remaining_turns_ttl": 0,
                 "topic_anchor": "",
@@ -555,16 +550,16 @@ class TurnPreparer:
             effective_session_tier = "NONE"
 
         # Stage 2 Grounding Gate
-        if (
-            not final_contexts
-            and not is_mental_health_turn
-            and not is_proactive_checkin
-        ):
+        if not final_contexts and not is_mental_health_turn:
             if (
                 scope_decision.state == "in_domain_unknown"
                 or not scope_decision.in_scope
             ):
-                data = cmd._in_domain_unknown_response(scope_decision.matched_domains)
+                data = (
+                    cmd._privacy_policy_response()
+                    if is_restricted
+                    else cmd._in_domain_unknown_response(scope_decision.matched_domains)
+                )
                 return PreparedTurn(
                     working_request=working_request,
                     conv_id=conv_id,
@@ -579,11 +574,10 @@ class TurnPreparer:
                     pending_actions=howto_actions,
                     howto_actions=howto_actions,
                     messages_or_prompt="",
-                    is_proactive_checkin=False,
                     in_chat_distress=in_chat_distress,
                     is_system_turn=is_system_turn,
                     guard_data=data,
-                    guard_intent="in_domain_unknown",
+                    guard_intent="privacy" if is_restricted else "in_domain_unknown",
                 )
             if (
                 scope_decision.in_scope
@@ -591,7 +585,11 @@ class TurnPreparer:
                 and not has_follow_up_anchor
                 and scope_decision.matched_domains
             ):
-                data = cmd._in_domain_unknown_response(scope_decision.matched_domains)
+                data = (
+                    cmd._privacy_policy_response()
+                    if is_restricted
+                    else cmd._in_domain_unknown_response(scope_decision.matched_domains)
+                )
                 return PreparedTurn(
                     working_request=working_request,
                     conv_id=conv_id,
@@ -606,11 +604,10 @@ class TurnPreparer:
                     pending_actions=howto_actions,
                     howto_actions=howto_actions,
                     messages_or_prompt="",
-                    is_proactive_checkin=False,
                     in_chat_distress=in_chat_distress,
                     is_system_turn=is_system_turn,
                     guard_data=data,
-                    guard_intent="in_domain_unknown",
+                    guard_intent="privacy" if is_restricted else "in_domain_unknown",
                 )
 
         sources = [
@@ -635,8 +632,7 @@ class TurnPreparer:
                 max_history_items=prompt_limits.max_history_items,
                 history_item_char_limit=prompt_limits.history_item_char_limit,
                 context_total_char_limit=prompt_limits.context_total_char_limit,
-                emotion_snapshot=emotion_snapshot,
-                is_proactive_checkin=is_proactive_checkin,
+                emotion_snapshot=None if is_restricted else emotion_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
@@ -651,8 +647,7 @@ class TurnPreparer:
                 max_history_items=prompt_limits.max_history_items,
                 history_item_char_limit=prompt_limits.history_item_char_limit,
                 context_total_char_limit=prompt_limits.context_total_char_limit,
-                emotion_snapshot=emotion_snapshot,
-                is_proactive_checkin=is_proactive_checkin,
+                emotion_snapshot=None if is_restricted else emotion_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
@@ -674,9 +669,17 @@ class TurnPreparer:
             pending_actions=howto_actions,
             howto_actions=howto_actions,
             messages_or_prompt=messages_or_prompt,
-            is_proactive_checkin=is_proactive_checkin,
             in_chat_distress=in_chat_distress,
             is_system_turn=is_system_turn,
             distress_level=distress_level,
             session_emotional_state=session_emotional_state,
         )
+
+    def _compute_is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:
+        if hasattr(self.cmd.context_resolver, "_is_system_turn"):
+            return bool(self.cmd.context_resolver._is_system_turn(matched_domains))
+        from app.modules.chatbot.services.context_resolver import (
+            SYSTEM_FEATURE_DOMAINS,
+        )
+
+        return bool(set(matched_domains) & SYSTEM_FEATURE_DOMAINS)

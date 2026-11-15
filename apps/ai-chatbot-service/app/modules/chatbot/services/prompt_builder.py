@@ -37,7 +37,6 @@ class PromptBuilder:
         history_item_char_limit: int | None = None,
         context_total_char_limit: int | None = None,
         emotion_snapshot=None,  # EmotionSnapshot | None — lazy type to avoid circular
-        is_proactive_checkin: bool = False,
         in_chat_distress: bool = False,
         is_system_turn: bool = False,
         distress_level: str = "none",
@@ -50,14 +49,22 @@ class PromptBuilder:
             context_total_char_limit or settings.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT
         )
 
-        user_facts_block = self._build_user_facts_block(user_facts)
-        if not user_facts_block and memory_summary:
-            user_facts_block = self._build_memory_summary_block(memory_summary)
+        is_restricted = (
+            str(getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED").upper()
+            == "RESTRICTED"
+        )
+        effective_snapshot = None if is_restricted else emotion_snapshot
+        if is_restricted:
+            user_facts_block = ""
+        else:
+            user_facts_block = self._build_user_facts_block(user_facts)
+            if not user_facts_block and memory_summary:
+                user_facts_block = self._build_memory_summary_block(memory_summary)
 
         parts = [
             self._build_system_prompt(),
             self._build_emotion_tone_directive(
-                emotion_snapshot,
+                effective_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
@@ -76,11 +83,8 @@ class PromptBuilder:
                 max_items=max_history_items,
                 item_char_limit=history_item_char_limit,
             ),
+            self._build_current_message(request.message),
         ]
-        if is_proactive_checkin:
-            parts.append(self._build_proactive_checkin_directive(emotion_snapshot))
-        else:
-            parts.append(self._build_current_message(request.message))
 
         return "\n\n".join(part for part in parts if part)
 
@@ -95,7 +99,6 @@ class PromptBuilder:
         history_item_char_limit: int | None = None,
         context_total_char_limit: int | None = None,
         emotion_snapshot=None,
-        is_proactive_checkin: bool = False,
         in_chat_distress: bool = False,
         is_system_turn: bool = False,
         turn_policy: bool = True,
@@ -114,14 +117,22 @@ class PromptBuilder:
             context_total_char_limit or settings.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT
         )
 
-        user_facts_block = self._build_user_facts_block(user_facts)
-        if not user_facts_block and memory_summary:
-            user_facts_block = self._build_memory_summary_block(memory_summary)
+        is_restricted = (
+            str(getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED").upper()
+            == "RESTRICTED"
+        )
+        effective_snapshot = None if is_restricted else emotion_snapshot
+        if is_restricted:
+            user_facts_block = ""
+        else:
+            user_facts_block = self._build_user_facts_block(user_facts)
+            if not user_facts_block and memory_summary:
+                user_facts_block = self._build_memory_summary_block(memory_summary)
 
         system_parts = [
             self._build_system_prompt(),
             self._build_emotion_tone_directive(
-                emotion_snapshot,
+                effective_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
@@ -159,14 +170,7 @@ class PromptBuilder:
             elif item.role == "system":
                 messages.append(SystemMessage(content=content))
 
-        if is_proactive_checkin:
-            messages.append(
-                HumanMessage(
-                    content=self._build_proactive_checkin_directive(emotion_snapshot)
-                )
-            )
-        else:
-            messages.append(HumanMessage(content=request.message.strip()))
+        messages.append(HumanMessage(content=request.message.strip()))
 
         return messages
 
@@ -191,22 +195,6 @@ class PromptBuilder:
         )
         return "\n".join(lines)
 
-    def _build_proactive_checkin_directive(self, snapshot) -> str:
-        if snapshot and getattr(snapshot, "chatbot_prompt_context", None):
-            return (
-                "USER_MESSAGE:\n"
-                f"[HỆ THỐNG]: {snapshot.chatbot_prompt_context}\n"
-                "Bạn HÃY CHỦ ĐỘNG GỬI LỜI CHÀO dựa trên thông tin trên một cách tự nhiên nhất."
-            )
-
-        emotion = snapshot.primary_emotion if snapshot else "khó khăn"
-        return (
-            "USER_MESSAGE:\n"
-            "[HỆ THỐNG]: Người dùng vừa mở cuộc trò chuyện. Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu "
-            f"cảm xúc '{emotion}'. Bạn HÃY CHỦ ĐỘNG GỬI LỜI CHÀO và hỏi thăm tình hình của họ một cách thật thấu cảm, "
-            "tự nhiên như một người bạn. Không đề cập đến việc bạn là AI giám sát cảm xúc."
-        )
-
     def _build_emotion_tone_directive(
         self,
         snapshot,
@@ -229,7 +217,7 @@ class PromptBuilder:
         ):
             return ""
 
-        if snapshot is None and not has_chat_distress:
+        if not has_chat_distress:
             return ""
 
         has_negative_emotion = snapshot is not None and (
@@ -244,17 +232,6 @@ class PromptBuilder:
             ).upper()
             if snapshot
             else "NORMAL"
-        )
-        suggested_action = (
-            str(getattr(snapshot, "suggested_action", "NO_ACTION") or "NO_ACTION")
-            if snapshot
-            else "NO_ACTION"
-        )
-        has_proactive_context = (
-            snapshot is not None
-            and not is_system_turn
-            and suggested_action != "NO_ACTION"
-            and bool(getattr(snapshot, "chatbot_prompt_context", None))
         )
 
         is_tier_2 = (distress_level == "acute_pfa") or (
@@ -274,15 +251,6 @@ class PromptBuilder:
                 )
             )
         )
-
-        if (
-            not has_negative_emotion
-            and not persistent_distress
-            and not has_chat_distress
-            and not is_tier_2
-            and not has_proactive_context
-        ):
-            return ""
 
         if is_tier_2:
             directive = (
@@ -308,10 +276,6 @@ class PromptBuilder:
             directive = "TONE_DIRECTIVE: Người dùng vừa chia sẻ trạng thái căng thẳng hoặc mệt mỏi trong cuộc trò chuyện.\n"
 
         directive += "- Bắt buộc sử dụng giọng điệu thấu cảm, nhẹ nhàng và an toàn, không phán xét.\n"
-
-        if has_proactive_context and snapshot is not None:
-            directive += f"- TIER 0 PROACTIVE CHECK-IN CONTEXT: {snapshot.chatbot_prompt_context}\n"
-
         directive += (
             "- Áp dụng PHƯƠNG PHÁP SOCRATES & CBT NHẸ NHÀNG (TIER 3):\n"
             "  1. Đồng cảm trước: Thể hiện sự thấu cảm tự nhiên bằng tiếng Việt không trích dẫn ở câu đồng cảm.\n"

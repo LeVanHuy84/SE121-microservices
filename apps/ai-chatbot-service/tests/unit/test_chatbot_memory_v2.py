@@ -684,7 +684,9 @@ class ChatbotMemoryV2Test(unittest.TestCase):
 
     def test_prompt_builder_injects_user_facts_in_canonical_order(self):
         builder = PromptBuilder()
-        req = AssistantRespondRequest(userId="u1", message="Xin chào")
+        req = AssistantRespondRequest(
+            userId="u1", message="Xin chào", aiPolicy="FULL"
+        )
         history = [AssistantHistoryItem(role="user", content="hello")]
         facts = {
             "interests": "Đọc sách, nghe nhạc",

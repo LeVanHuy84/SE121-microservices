@@ -239,6 +239,7 @@ def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondReq
         conversationId=req.conversationId,
         clientMessageId=req.clientMessageId,
         intent=req.intent,
+        aiPolicy="RESTRICTED",
     )
 
 

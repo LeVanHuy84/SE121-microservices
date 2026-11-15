@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import hashlib
+import hmac
 import json
 import logging
 import re
+import time
 from typing import Any
 from uuid import uuid4
 
+from app.core.settings import settings
 from app.modules.chatbot.actions.registry import (
     get_action_definition,
     is_action_allowed,
@@ -19,6 +24,125 @@ from app.modules.chatbot.schemas import (
 )
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def compute_params_hash(params: dict[str, Any] | None) -> str:
+    canonical_params = json.dumps(
+        params or {}, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical_params.encode("utf-8")).hexdigest()
+
+
+def sign_proposal_token(
+    *,
+    user_id: str,
+    conversation_id: str,
+    action_id: str,
+    action_name: str,
+    params: dict[str, Any] | None,
+    idempotency_key: str,
+    expires_at: int | None = None,
+) -> tuple[str, int]:
+    resolved_exp = (
+        expires_at
+        if expires_at is not None
+        else int(time.time()) + settings.PROPOSAL_TOKEN_TTL_SECONDS
+    )
+    params_hash = compute_params_hash(params)
+    canonical = (
+        f"{user_id}|{conversation_id}|{action_id}|{action_name}|"
+        f"{params_hash}|{idempotency_key}|{resolved_exp}"
+    )
+    digest = hmac.new(
+        settings.PROPOSAL_HMAC_KEY.encode("utf-8"),
+        canonical.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{resolved_exp}.{digest}", resolved_exp
+
+
+def verify_proposal_token(
+    *,
+    token: str,
+    user_id: str,
+    conversation_id: str,
+    action_id: str,
+    action_name: str,
+    params: dict[str, Any] | None,
+    idempotency_key: str,
+) -> tuple[bool, str | None]:
+    if not token or "." not in token:
+        return False, "PROPOSAL_TOKEN_INVALID"
+
+    exp_str, provided_sig = token.split(".", 1)
+    try:
+        expires_at = int(exp_str)
+    except ValueError:
+        return False, "PROPOSAL_TOKEN_INVALID"
+
+    if not provided_sig:
+        return False, "PROPOSAL_TOKEN_INVALID"
+
+    expected_token, _ = sign_proposal_token(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        action_id=action_id,
+        action_name=action_name,
+        params=params,
+        idempotency_key=idempotency_key,
+        expires_at=expires_at,
+    )
+    _, expected_sig = expected_token.split(".", 1)
+    if not hmac.compare_digest(provided_sig, expected_sig):
+        return False, "PROPOSAL_TOKEN_INVALID"
+
+    if int(time.time()) > expires_at:
+        return False, "PROPOSAL_TOKEN_EXPIRED"
+
+    return True, None
+
+
+def _build_signed_proposal(
+    *,
+    user_id: str,
+    conversation_id: str,
+    action_name: str,
+    title: str,
+    description: str,
+    params: dict[str, Any] | None = None,
+    confirm_label: str = "Xác nhận",
+    cancel_label: str = "Hủy",
+    category: str = "social",
+    is_destructive: bool = False,
+) -> ProposeAction:
+    action_id = str(uuid4())
+    idempotency_key = str(uuid4())
+    normalized_params = params if isinstance(params, dict) else {}
+    proposal_token, expires_at = sign_proposal_token(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        action_id=action_id,
+        action_name=action_name,
+        params=normalized_params,
+        idempotency_key=idempotency_key,
+    )
+    return ProposeAction(
+        id=action_id,
+        label=confirm_label,
+        payload=ProposeActionPayload(
+            actionName=action_name,
+            title=title,
+            description=description,
+            params=normalized_params,
+            idempotencyKey=idempotency_key,
+            proposalToken=proposal_token,
+            confirmLabel=confirm_label,
+            cancelLabel=cancel_label,
+            category=category,
+            isDestructive=is_destructive,
+            expiresAt=datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
+        ),
+    )
 
 
 def extract_cards(
@@ -225,11 +349,14 @@ def extract_cards(
 
 def extract_proposals_from_llm_reply(
     reply: str,
-    ai_policy: str = "FULL",
+    ai_policy: str = "RESTRICTED",
+    *,
+    user_id: str = "",
+    conversation_id: str = "",
 ) -> tuple[str, list[ProposeAction]]:
     """Extract structured ```action { ... } ``` proposals from the LLM reply and sanitize."""
     pattern = re.compile(r"```(?:action|json:action)\s*(\{.*?\})\s*```", re.DOTALL)
-    if ai_policy and str(ai_policy).upper() == "RESTRICTED":
+    if str(ai_policy or "").strip().upper() != "FULL":
         cleaned_reply = pattern.sub("", reply).strip()
         return cleaned_reply, []
     proposals: list[ProposeAction] = []
@@ -266,19 +393,17 @@ def extract_proposals_from_llm_reply(
                 )
 
                 proposals.append(
-                    ProposeAction(
-                        label=confirm_lbl,
-                        payload=ProposeActionPayload(
-                            actionName=action_name,
-                            title=title,
-                            description=desc,
-                            params=params,
-                            idempotencyKey=str(uuid4()),
-                            confirmLabel=confirm_lbl,
-                            cancelLabel=cancel_lbl,
-                            category=category,
-                            isDestructive=is_destructive,
-                        ),
+                    _build_signed_proposal(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        action_name=action_name,
+                        title=title,
+                        description=desc,
+                        params=params,
+                        confirm_label=confirm_lbl,
+                        cancel_label=cancel_lbl,
+                        category=category,
+                        is_destructive=bool(is_destructive),
                     )
                 )
         except Exception as exc:
@@ -292,14 +417,15 @@ def detect_action_proposals(
     request: AssistantRespondRequest,
     tool_calls: tuple[Any, ...],
     tool_results: list[Any],
+    *,
+    conversation_id: str | None = None,
 ) -> list[ProposeAction]:
     """Synthesize write action proposals based on user intent, surface context, and tool results."""
-    if (
-        getattr(request, "aiPolicy", "FULL")
-        and str(request.aiPolicy).upper() == "RESTRICTED"
-    ):
+    if str(getattr(request, "aiPolicy", "RESTRICTED") or "").strip().upper() != "FULL":
         return []
 
+    resolved_user_id = request.userId
+    resolved_conv_id = conversation_id or request.conversationId or ""
     proposals: list[ProposeAction] = []
     msg = (request.message or "").lower()
 
@@ -331,19 +457,17 @@ def detect_action_proposals(
         action_def = get_action_definition("mark_all_notifications_read")
         if action_def:
             proposals.append(
-                ProposeAction(
-                    label=action_def.confirm_label,
-                    payload=ProposeActionPayload(
-                        actionName="mark_all_notifications_read",
-                        title="Đánh dấu đã đọc",
-                        description="Đánh dấu toàn bộ thông báo của bạn là đã đọc",
-                        params={},
-                        idempotencyKey=str(uuid4()),
-                        confirmLabel=action_def.confirm_label,
-                        cancelLabel=action_def.cancel_label,
-                        category=action_def.category,
-                        isDestructive=action_def.is_destructive,
-                    ),
+                _build_signed_proposal(
+                    user_id=resolved_user_id,
+                    conversation_id=resolved_conv_id,
+                    action_name="mark_all_notifications_read",
+                    title="Đánh dấu đã đọc",
+                    description="Đánh dấu toàn bộ thông báo của bạn là đã đọc",
+                    params={},
+                    confirm_label=action_def.confirm_label,
+                    cancel_label=action_def.cancel_label,
+                    category=action_def.category,
+                    is_destructive=action_def.is_destructive,
                 )
             )
 
@@ -406,19 +530,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("decline_friend_request")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="decline_friend_request",
-                                title="Từ chối kết bạn",
-                                description=f"Từ chối lời mời kết bạn từ {requester_name}",
-                                params={"requester_id": requester_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="decline_friend_request",
+                            title="Từ chối kết bạn",
+                            description=f"Từ chối lời mời kết bạn từ {requester_name}",
+                            params={"requester_id": requester_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
         # Check accept
@@ -451,19 +573,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("accept_friend_request")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="accept_friend_request",
-                                title="Đồng ý kết bạn",
-                                description=f"Chấp nhận lời mời kết bạn từ {requester_name}",
-                                params={"requester_id": requester_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="accept_friend_request",
+                            title="Đồng ý kết bạn",
+                            description=f"Chấp nhận lời mời kết bạn từ {requester_name}",
+                            params={"requester_id": requester_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
         # Check unfriend
@@ -506,19 +626,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("unfriend_user")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="unfriend_user",
-                                title=f"Hủy kết bạn với {target_name}",
-                                description=f"Hủy quan hệ bạn bè với {target_name}",
-                                params={"target_user_id": target_user_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="unfriend_user",
+                            title=f"Hủy kết bạn với {target_name}",
+                            description=f"Hủy quan hệ bạn bè với {target_name}",
+                            params={"target_user_id": target_user_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
         # Check cancel friend request
@@ -532,19 +650,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("cancel_friend_request")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="cancel_friend_request",
-                                title="Thu hồi lời mời",
-                                description="Thu hồi lời mời kết bạn đã gửi",
-                                params={"target_user_id": target_user_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="cancel_friend_request",
+                            title="Thu hồi lời mời",
+                            description="Thu hồi lời mời kết bạn đã gửi",
+                            params={"target_user_id": target_user_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
         # Send friend request
@@ -586,19 +702,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("send_friend_request")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="send_friend_request",
-                                title=f"Gửi kết bạn tới {target_name}",
-                                description=f"Gửi lời mời kết bạn tới {target_name}",
-                                params={"target_user_id": target_user_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="send_friend_request",
+                            title=f"Gửi kết bạn tới {target_name}",
+                            description=f"Gửi lời mời kết bạn tới {target_name}",
+                            params={"target_user_id": target_user_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
 
@@ -637,19 +751,17 @@ def detect_action_proposals(
             action_def = get_action_definition("block_user")
             if action_def:
                 proposals.append(
-                    ProposeAction(
-                        label=action_def.confirm_label,
-                        payload=ProposeActionPayload(
-                            actionName="block_user",
-                            title=f"Chặn người dùng {target_name}",
-                            description=f"Chặn {target_name} để dừng mọi liên lạc và tương tác",
-                            params={"target_user_id": target_user_id},
-                            idempotencyKey=str(uuid4()),
-                            confirmLabel=action_def.confirm_label,
-                            cancelLabel=action_def.cancel_label,
-                            category=action_def.category,
-                            isDestructive=action_def.is_destructive,
-                        ),
+                    _build_signed_proposal(
+                        user_id=resolved_user_id,
+                        conversation_id=resolved_conv_id,
+                        action_name="block_user",
+                        title=f"Chặn người dùng {target_name}",
+                        description=f"Chặn {target_name} để dừng mọi liên lạc và tương tác",
+                        params={"target_user_id": target_user_id},
+                        confirm_label=action_def.confirm_label,
+                        cancel_label=action_def.cancel_label,
+                        category=action_def.category,
+                        is_destructive=action_def.is_destructive,
                     )
                 )
 
@@ -687,19 +799,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("join_group")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="join_group",
-                                title=f"Tham gia nhóm {group_name}",
-                                description=f"Gửi yêu cầu hoặc tham gia nhóm {group_name}",
-                                params={"group_id": group_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="join_group",
+                            title=f"Tham gia nhóm {group_name}",
+                            description=f"Gửi yêu cầu hoặc tham gia nhóm {group_name}",
+                            params={"group_id": group_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
         elif any(kw in msg for kw in ("rời", "thoát", "leave")):
@@ -717,19 +827,17 @@ def detect_action_proposals(
                 action_def = get_action_definition("leave_group")
                 if action_def:
                     proposals.append(
-                        ProposeAction(
-                            label=action_def.confirm_label,
-                            payload=ProposeActionPayload(
-                                actionName="leave_group",
-                                title=f"Rời nhóm {group_name}",
-                                description=f"Rời khỏi nhóm {group_name}",
-                                params={"group_id": group_id},
-                                idempotencyKey=str(uuid4()),
-                                confirmLabel=action_def.confirm_label,
-                                cancelLabel=action_def.cancel_label,
-                                category=action_def.category,
-                                isDestructive=action_def.is_destructive,
-                            ),
+                        _build_signed_proposal(
+                            user_id=resolved_user_id,
+                            conversation_id=resolved_conv_id,
+                            action_name="leave_group",
+                            title=f"Rời nhóm {group_name}",
+                            description=f"Rời khỏi nhóm {group_name}",
+                            params={"group_id": group_id},
+                            confirm_label=action_def.confirm_label,
+                            cancel_label=action_def.cancel_label,
+                            category=action_def.category,
+                            is_destructive=action_def.is_destructive,
                         )
                     )
 
@@ -760,19 +868,17 @@ def detect_action_proposals(
             action_def = get_action_definition("react_post")
             if action_def:
                 proposals.append(
-                    ProposeAction(
-                        label=action_def.confirm_label,
-                        payload=ProposeActionPayload(
-                            actionName="react_post",
-                            title=f"Thả cảm xúc ({rxn})",
-                            description=f"Bày tỏ cảm xúc '{rxn}' cho bài viết",
-                            params={"post_id": post_id, "reaction_type": rxn},
-                            idempotencyKey=str(uuid4()),
-                            confirmLabel=action_def.confirm_label,
-                            cancelLabel=action_def.cancel_label,
-                            category=action_def.category,
-                            isDestructive=action_def.is_destructive,
-                        ),
+                    _build_signed_proposal(
+                        user_id=resolved_user_id,
+                        conversation_id=resolved_conv_id,
+                        action_name="react_post",
+                        title=f"Thả cảm xúc ({rxn})",
+                        description=f"Bày tỏ cảm xúc '{rxn}' cho bài viết",
+                        params={"post_id": post_id, "reaction_type": rxn},
+                        confirm_label=action_def.confirm_label,
+                        cancel_label=action_def.cancel_label,
+                        category=action_def.category,
+                        is_destructive=action_def.is_destructive,
                     )
                 )
 

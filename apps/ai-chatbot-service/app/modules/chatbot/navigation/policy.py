@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.modules.chatbot.navigation.catalog import (
+    DestinationCatalog,
+    destination_catalog,
+)
 from app.modules.chatbot.navigation.resolver import NavDecision, NavMatch
 from app.modules.chatbot.schemas import (
     AssistantRespondData,
@@ -58,13 +62,29 @@ def _direct_response(
     )
 
 
-def build_nav_outcome(decision: NavDecision | None) -> NavOutcome:
+def build_nav_outcome(
+    decision: NavDecision | None,
+    ai_policy: str = "RESTRICTED",
+    catalog: DestinationCatalog | None = None,
+) -> NavOutcome:
     """Pure mapping from a NavDecision to the assistant behaviour (no I/O)."""
     if decision is None or not decision.matches:
         return NavOutcome()
 
+    resolved_catalog = catalog or destination_catalog
+    matches = list(decision.matches)
+    if str(ai_policy or "").strip().upper() != "FULL":
+        matches = [
+            m
+            for m in matches
+            if (entry := resolved_catalog.get(m.destination_id)) is None
+            or entry.policy_scope != "personal"
+        ]
+        if not matches:
+            return NavOutcome()
+
     if decision.path == "command":
-        top = decision.matches[0]
+        top = matches[0]
         reply = decision.suggested_reply or f"Chuyển tới {top.label_vi}"
         return NavOutcome(
             path="command",
@@ -73,7 +93,7 @@ def build_nav_outcome(decision: NavDecision | None) -> NavOutcome:
         )
 
     if decision.path == "clarify":
-        actions = [to_action(m) for m in decision.matches[:_CLARIFY_MAX_ACTIONS]]
+        actions = [to_action(m) for m in matches[:_CLARIFY_MAX_ACTIONS]]
         reply = decision.suggested_reply or "Bạn muốn chuyển đến màn hình nào dưới đây?"
         return NavOutcome(
             path="clarify",
@@ -84,7 +104,7 @@ def build_nav_outcome(decision: NavDecision | None) -> NavOutcome:
     if decision.path == "howto":
         return NavOutcome(
             path="howto",
-            howto_actions=[to_action(m) for m in decision.matches[:_HOWTO_MAX_ACTIONS]],
+            howto_actions=[to_action(m) for m in matches[:_HOWTO_MAX_ACTIONS]],
         )
 
     return NavOutcome()

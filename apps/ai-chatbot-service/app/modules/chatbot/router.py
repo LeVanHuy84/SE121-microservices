@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.modules.chatbot.services.assistant import RespondCommand
@@ -312,6 +312,16 @@ class InternalActionClickRequest(BaseModel):
     destinationId: str = Field(max_length=128)
 
 
+_ACTION_ERROR_HTTP_STATUS: dict[str, int] = {
+    "PROPOSAL_TOKEN_INVALID": 403,
+    "PROPOSAL_TOKEN_EXPIRED": 400,
+    "AI_POLICY_RESTRICTED": 403,
+    "ACTION_IN_PROGRESS": 409,
+    "ACTION_IDEMPOTENCY_UNAVAILABLE": 503,
+    "MOCK_FALLBACK_FORBIDDEN_IN_PROD": 500,
+}
+
+
 @assistant_router.post(
     "/actions/execute",
     dependencies=[Depends(verify_internal_key)],
@@ -330,11 +340,17 @@ async def execute_action(
         if token.lower().startswith("bearer "):
             token = token[7:].strip()
 
-    return await action_executor_service.execute(
+    result = await action_executor_service.execute(
         req,
         auth_token=token,
         user_id=x_user_id,
     )
+    if not result.success and result.error in _ACTION_ERROR_HTTP_STATUS:
+        return JSONResponse(
+            status_code=_ACTION_ERROR_HTTP_STATUS[result.error],
+            content=result.model_dump(),
+        )
+    return result
 
 
 @assistant_router.post(

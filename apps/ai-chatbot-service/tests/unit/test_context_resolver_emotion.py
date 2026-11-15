@@ -43,7 +43,12 @@ class TestContextResolverEmotion(unittest.TestCase):
 
         # 1. High risk -> pfa boosted
         high_risk_snapshot = EmotionSnapshot(primary_emotion="fear", risk_level="high")
-        ranked = resolver._rank_contexts("test query", contexts, high_risk_snapshot)
+        ranked = resolver._rank_contexts(
+            "test query",
+            contexts,
+            high_risk_snapshot,
+            matched_domains=("mental_health",),
+        )
 
         self.assertEqual(ranked[0].id, "1")  # PFA heavily boosted
         self.assertEqual(
@@ -53,7 +58,12 @@ class TestContextResolverEmotion(unittest.TestCase):
 
         # 2. Sadness but no risk -> phuong phap chua tri boosted
         sad_snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="none")
-        ranked2 = resolver._rank_contexts("test query", contexts, sad_snapshot)
+        ranked2 = resolver._rank_contexts(
+            "test query",
+            contexts,
+            sad_snapshot,
+            matched_domains=("mental_health",),
+        )
 
         self.assertEqual(ranked2[0].id, "2")  # CBT/self-care boosted
         self.assertEqual(ranked2[2].id, "3")  # Giao trinh depressed
@@ -286,3 +296,30 @@ class TestContextResolverEmotion(unittest.TestCase):
 
         # doc2 was in both lists at high ranks, so it must be top ranked
         self.assertEqual(merged[0]["_id"], "doc2")
+
+    def test_non_emotional_product_query_ignores_elevated_emotion_snapshot(self):
+        from app.modules.chatbot.services.prompt_builder import PromptBuilder
+
+        resolver = AssistantContextResolver()
+        builder = PromptBuilder()
+        elevated = EmotionSnapshot(
+            primary_emotion="sadness",
+            risk_level="high",
+            persistent_distress=True,
+        )
+        self.assertFalse(
+            resolver._is_mental_health_turn(
+                "Sentimeta có những tính năng gì?",
+                matched_domains=(),
+                emotion_snapshot=elevated,
+                distress_level="none",
+            )
+        )
+        directive = builder._build_emotion_tone_directive(
+            elevated,
+            in_chat_distress=False,
+            is_system_turn=False,
+            distress_level="none",
+            session_active_tier="NONE",
+        )
+        self.assertEqual(directive, "")

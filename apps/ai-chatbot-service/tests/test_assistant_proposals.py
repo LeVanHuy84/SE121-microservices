@@ -32,7 +32,12 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             "```\n"
             "Vui lòng nhấn nút xác nhận bên dưới nhé!"
         )
-        cleaned_reply, proposals = self.cmd._extract_proposals_from_llm_reply(reply)
+        cleaned_reply, proposals = self.cmd._extract_proposals_from_llm_reply(
+            reply,
+            user_id="u-1",
+            conversation_id="conv-1",
+            ai_policy="FULL",
+        )
 
         self.assertEqual(len(proposals), 1)
         prop = proposals[0]
@@ -58,6 +63,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_mark_notifications_read(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Đọc hết thông báo giúp tôi",
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
@@ -69,6 +76,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_send_friend_request_from_tool_results(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Gửi kết bạn cho Nam đi",
         )
 
@@ -91,6 +100,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_accept_friend_request_from_tool_results(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Đồng ý kết bạn với Nam",
         )
 
@@ -110,6 +121,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_join_group_from_surface_context(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Cho mình tham gia nhóm với",
             surface=SurfaceContext(
                 screen="groups.detail",
@@ -139,6 +152,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_decline_friend_request(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Từ chối lời mời kết bạn của Nam",
         )
 
@@ -160,6 +175,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_unfriend_user(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Hủy kết bạn với người này",
             surface=SurfaceContext(
                 screen="social.profile",
@@ -178,6 +195,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_block_user(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Chặn người này giúp tôi",
             surface=SurfaceContext(
                 screen="social.profile",
@@ -194,6 +213,8 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
     def test_detect_action_proposals_react_post(self):
         req = AssistantRespondRequest(
             userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
             message="Thả tim bài viết này giúp mình",
             surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
         )
@@ -244,6 +265,43 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             filtered,
             "Ví dụ code:\n```python\nprint('hello world')\n```\nHết code.",
         )
+
+    def test_proposal_token_signed_and_suppressed_when_restricted(self):
+        from app.modules.chatbot.services.assistant_support.proposals import (
+            verify_proposal_token,
+        )
+
+        req_full = AssistantRespondRequest(
+            userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="FULL",
+            message="Thả tim bài viết này giúp mình",
+            surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
+        )
+        proposals = self.cmd._detect_action_proposals(req_full, (), [])
+        self.assertEqual(len(proposals), 1)
+        payload = proposals[0].payload
+        self.assertTrue(payload.proposalToken)
+        ok, err = verify_proposal_token(
+            token=payload.proposalToken,
+            user_id="u-1",
+            conversation_id="conv-1",
+            action_id=proposals[0].id,
+            action_name=payload.actionName,
+            params=payload.params,
+            idempotency_key=payload.idempotencyKey,
+        )
+        self.assertTrue(ok)
+        self.assertIsNone(err)
+
+        req_restricted = AssistantRespondRequest(
+            userId="u-1",
+            conversationId="conv-1",
+            aiPolicy="RESTRICTED",
+            message="Thả tim bài viết này giúp mình",
+            surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
+        )
+        self.assertEqual(self.cmd._detect_action_proposals(req_restricted, (), []), [])
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ destinations:
   - id: "home"
     labelVi: "Trang chủ"
     description: "Bảng tin chính và các bài đăng mới nhất"
+    policy_scope: "public"
     synonyms:
       - "trang chu"
       - "bang tin"
@@ -19,6 +20,7 @@ destinations:
   - id: "friends"
     labelVi: "Bạn bè"
     description: "Danh sách bạn bè hiện tại"
+    policy_scope: "personal"
     synonyms:
       - "ban be"
       - "danh sach ban be"
@@ -33,6 +35,7 @@ destinations:
   - id: "friends.requests"
     labelVi: "Lời mời kết bạn"
     description: "Các lời mời kết bạn đang chờ phản hồi"
+    policy_scope: "personal"
     synonyms:
       - "loi moi ket ban"
       - "yeu cau ket ban"
@@ -47,6 +50,7 @@ destinations:
   - id: "friends.suggestions"
     labelVi: "Gợi ý bạn bè"
     description: "Những người bạn có thể biết và gợi ý kết bạn"
+    policy_scope: "personal"
     synonyms:
       - "goi y ban be"
       - "goi y ket ban"
@@ -60,6 +64,7 @@ destinations:
   - id: "friends.blocked"
     labelVi: "Danh sách đã chặn"
     description: "Quản lý người dùng đã bị chặn"
+    policy_scope: "personal"
     synonyms:
       - "danh sach chan"
       - "danh sach da chan"
@@ -74,6 +79,7 @@ destinations:
   - id: "groups.explore"
     labelVi: "Khám phá nhóm"
     description: "Tìm kiếm và khám phá các cộng đồng nhóm mới"
+    policy_scope: "public"
     synonyms:
       - "kham pha nhom"
       - "tim nhom"
@@ -88,6 +94,7 @@ destinations:
   - id: "groups.my_groups"
     labelVi: "Nhóm của tôi"
     description: "Các nhóm bạn đang tham gia hoặc quản trị"
+    policy_scope: "personal"
     synonyms:
       - "nhom cua toi"
       - "cac nhom da tham gia"
@@ -102,6 +109,7 @@ destinations:
   - id: "groups.invites"
     labelVi: "Lời mời vào nhóm"
     description: "Các lời mời tham gia nhóm đang chờ bạn phản hồi"
+    policy_scope: "personal"
     synonyms:
       - "loi moi vao nhom"
       - "loi moi tham gia nhom"
@@ -114,6 +122,7 @@ destinations:
   - id: "conversations"
     labelVi: "Tin nhắn"
     description: "Hộp thư trò chuyện 1-1 và nhóm chat"
+    policy_scope: "personal"
     synonyms:
       - "tin nhan"
       - "hop thu"
@@ -129,6 +138,7 @@ destinations:
   - id: "notifications"
     labelVi: "Thông báo"
     description: "Thông báo về hoạt động, tương tác và cảm xúc"
+    policy_scope: "personal"
     synonyms:
       - "thong bao"
       - "xem thong bao"
@@ -141,6 +151,7 @@ destinations:
   - id: "emotions"
     labelVi: "Theo dõi cảm xúc"
     description: "Không gian cảm xúc, biểu đồ tâm trạng và bài tập xoa dịu"
+    policy_scope: "personal"
     synonyms:
       - "cam xuc"
       - "theo doi cam xuc"
@@ -159,6 +170,7 @@ destinations:
   - id: "search"
     labelVi: "Tìm kiếm"
     description: "Tìm kiếm bài viết, người dùng hoặc nhóm"
+    policy_scope: "public"
     synonyms:
       - "tim kiem"
       - "tim bai viet"
@@ -174,6 +186,7 @@ destinations:
   - id: "profile.me"
     labelVi: "Trang cá nhân"
     description: "Trang hồ sơ cá nhân của bạn"
+    policy_scope: "personal"
     synonyms:
       - "trang ca nhan"
       - "ho so"
@@ -187,6 +200,7 @@ destinations:
   - id: "settings"
     labelVi: "Cài đặt"
     description: "Trung tâm cài đặt chung của tài khoản"
+    policy_scope: "public"
     synonyms:
       - "cai dat"
       - "thiet lap"
@@ -198,6 +212,7 @@ destinations:
   - id: "settings.privacy"
     labelVi: "Quyền riêng tư"
     description: "Cài đặt ai có thể xem bài đăng và tìm thấy bạn"
+    policy_scope: "public"
     synonyms:
       - "quyen rieng tu"
       - "cai dat quyen rieng tu"
@@ -215,6 +230,7 @@ destinations:
   - id: "settings.notifications"
     labelVi: "Cài đặt thông báo"
     description: "Bật tắt thông báo bài viết, bình luận và tin nhắn"
+    policy_scope: "public"
     synonyms:
       - "cai dat thong bao"
       - "mo cai dat thong bao"
@@ -229,6 +245,7 @@ destinations:
   - id: "settings.activity"
     labelVi: "Nhật ký hoạt động"
     description: "Lịch sử tương tác, bài viết và hoạt động của bạn"
+    policy_scope: "personal"
     synonyms:
       - "nhat ky hoat dong"
       - "lich su hoat dong"
@@ -241,6 +258,7 @@ destinations:
   - id: "settings.moderation_history"
     labelVi: "Lịch sử kiểm duyệt"
     description: "Xem các bài viết bị gắn cờ và gửi khiếu nại kiểm duyệt"
+    policy_scope: "personal"
     synonyms:
       - "lich su kiem duyet"
       - "bai viet bi an"
@@ -254,6 +272,7 @@ destinations:
   - id: "settings.support"
     labelVi: "Hỗ trợ & Trợ giúp"
     description: "Trung tâm trợ giúp, câu hỏi thường gặp và liên hệ hỗ trợ"
+    policy_scope: "public"
     synonyms:
       - "ho tro"
       - "tro giup"
@@ -268,6 +287,7 @@ destinations:
   - id: "settings.privacy_policy"
     labelVi: "Chính sách quyền riêng tư"
     description: "Chính sách bảo mật và điều khoản dịch vụ Sentimeta"
+    policy_scope: "public"
     synonyms:
       - "chinh sach quyen rieng tu"
       - "dieu khoan su dung"

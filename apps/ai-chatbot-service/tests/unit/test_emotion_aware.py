@@ -231,14 +231,18 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
 
     def test_tone_directive_injected_for_sadness_medium(self) -> None:
         snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("TONE_DIRECTIVE", directive)
         self.assertIn("SADNESS", directive)
         self.assertIn("medium", directive)
 
     def test_tone_directive_injected_for_fear_high(self) -> None:
         snapshot = EmotionSnapshot(primary_emotion="fear", risk_level="high")
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("TONE_DIRECTIVE", directive)
 
     def test_tone_directive_empty_for_joy(self) -> None:
@@ -252,7 +256,9 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
 
     def test_tone_directive_socratic_for_low_risk(self) -> None:
         snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="weak")
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("SOCRATES", directive)
         self.assertIn("câu hỏi mở", directive)
 
@@ -264,7 +270,9 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
             risk_level="weak",
             persistent_distress=True,
         )
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("TONE_DIRECTIVE", directive)
         self.assertNotIn("JOY", directive)
         self.assertIn("kéo dài", directive)
@@ -275,7 +283,9 @@ class TestPromptBuilderToneDirective(unittest.TestCase):
             risk_level="medium",
             persistent_distress=True,
         )
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("kéo dài", directive)
         self.assertIn("thở 4-7-8", directive)
 
@@ -322,39 +332,52 @@ class TestSystemPromptDirectives(unittest.TestCase):
         self.assertIn("SOCRATES", self.system_prompt)
 
 
-class TestProactiveCheckin(unittest.TestCase):
+class TestToneIsolationAndPolicy(unittest.TestCase):
     def setUp(self) -> None:
         self.builder = PromptBuilder()
 
-    def test_proactive_checkin_directive_injected(self) -> None:
-        snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
-        request = AssistantRespondRequest(userId="user1", message="")
-        prompt = self.builder.build(
-            request,
-            history=[],
-            emotion_snapshot=snapshot,
-            is_proactive_checkin=True,
+    def test_non_distress_turn_suppresses_tone_directive_even_with_snapshot(
+        self,
+    ) -> None:
+        snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="high")
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=False
         )
-        self.assertIn("HÃY CHỦ ĐỘNG GỬI LỜI CHÀO", prompt)
-        self.assertIn("sadness", prompt)
+        self.assertEqual(directive, "")
 
-    def test_proactive_checkin_directive_with_chatbot_context(self) -> None:
+    def test_system_turn_suppresses_tone_directive(self) -> None:
+        snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="high")
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot,
+            in_chat_distress=False,
+            is_system_turn=True,
+            session_active_tier="TIER_2_PFA",
+        )
+        self.assertEqual(directive, "")
+
+    def test_restricted_policy_strips_personal_memory_and_emotion(self) -> None:
         snapshot = EmotionSnapshot(
             primary_emotion="sadness",
-            risk_level="medium",
-            chatbot_prompt_context="Hãy khuyên người dùng nghe bản nhạc thư giãn A.",
+            risk_level="high",
+            chatbot_prompt_context="Secret context",
         )
-        request = AssistantRespondRequest(userId="user1", message="")
+        request = AssistantRespondRequest(
+            userId="user1",
+            message="Cài đặt riêng tư ở đâu?",
+            aiPolicy="RESTRICTED",
+        )
         prompt = self.builder.build(
             request,
             history=[],
+            user_facts=["Likes jazz"],
+            memory_summary="User talked about family",
             emotion_snapshot=snapshot,
-            is_proactive_checkin=True,
+            in_chat_distress=False,
         )
-        self.assertIn("Hãy khuyên người dùng nghe bản nhạc thư giãn A.", prompt)
-        self.assertNotIn(
-            "Gần đây hệ thống nhận thấy người dùng đang có dấu hiệu", prompt
-        )
+        self.assertNotIn("Likes jazz", prompt)
+        self.assertNotIn("User talked about family", prompt)
+        self.assertNotIn("Secret context", prompt)
+        self.assertNotIn("TONE_DIRECTIVE:", prompt)
 
 
 class TestSteppedCareAndPromptLimits(unittest.TestCase):
@@ -372,7 +395,9 @@ class TestSteppedCareAndPromptLimits(unittest.TestCase):
             risk_level="high",
             persistent_distress=True,
         )
-        directive = self.builder._build_emotion_tone_directive(snapshot)
+        directive = self.builder._build_emotion_tone_directive(
+            snapshot, in_chat_distress=True
+        )
         self.assertIn("TONE_DIRECTIVE (TIER 2 - SƠ CỨU TÂM LÝ PFA)", directive)
         self.assertIn("thở 4-7-8", directive)
         self.assertIn("TUYỆT ĐỐI KHÔNG", directive)
@@ -460,6 +485,7 @@ class TestSessionEmotionalStatePersistence(unittest.IsolatedAsyncioTestCase):
             allowed=True, reason="clean"
         )
         mock_cmd.nav_resolver.resolve.return_value = None
+        mock_cmd._emit_crisis_event = AsyncMock(return_value=False)
         mock_cmd.profile_repo.get_facts_by_user = AsyncMock(return_value={})
         mock_cmd.emotion_ctx.get_snapshot = AsyncMock(return_value=EmotionSnapshot())
         mock_cmd.scope_guard._normalize.return_value = (
@@ -485,7 +511,11 @@ class TestSessionEmotionalStatePersistence(unittest.IsolatedAsyncioTestCase):
         req = AssistantRespondRequest(
             userId="u1", message="Mình thử thở chậm rồi mà vẫn chưa đỡ"
         )
-        turn = await preparer.prepare_turn(req, started_at=0.0, request_id="req-1")
+        with patch(
+            "app.modules.chatbot.services.assistant_support.turn_preparer.stage2_guard_verifier.verify_async",
+            new=AsyncMock(return_value=None),
+        ):
+            turn = await preparer.prepare_turn(req, started_at=0.0, request_id="req-1")
 
         self.assertEqual(turn.distress_level, "acute_pfa")
         self.assertTrue(turn.in_chat_distress)

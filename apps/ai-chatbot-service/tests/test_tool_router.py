@@ -33,7 +33,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
         self.assertIsNone(get_tool_by_name("unregistered_tool_name"))
 
     def test_router_default_when_no_surface(self):
-        tools = tool_router.route(None)
+        tools = tool_router.route(None, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_my_friend_requests", tool_names)
@@ -42,7 +42,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_router_for_emotions_surface(self):
         surface = SurfaceContext(screen="emotions.summary")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_my_emotion_summary", tool_names)
@@ -54,14 +54,14 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_router_for_music_surface(self):
         surface = SurfaceContext(screen="music.discover")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         tool_names = [t.name for t in tools]
         self.assertIn("get_recommended_music_for_mood", tool_names)
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
 
     def test_router_for_groups_surface(self):
         surface = SurfaceContext(screen="groups.detail", entityId="grp-123")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_group_context", tool_names)
@@ -72,7 +72,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_router_for_friends_surface(self):
         surface = SurfaceContext(screen="friends.requests")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_my_friend_requests", tool_names)
@@ -82,7 +82,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_router_for_settings_surface(self):
         surface = SurfaceContext(screen="settings.privacy")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_my_privacy_settings", tool_names)
@@ -91,7 +91,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_router_for_posts_feed_surface(self):
         surface = SurfaceContext(screen="posts.detail", entityId="post-456")
-        tools = tool_router.route(surface)
+        tools = tool_router.route(surface, ai_policy="FULL")
         self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
         tool_names = [t.name for t in tools]
         self.assertIn("get_post_comments_summary", tool_names)
@@ -100,13 +100,37 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
 
     def test_get_openai_tools_formatting(self):
         surface = SurfaceContext(screen="friends")
-        schemas = tool_router.get_openai_tools(surface)
+        schemas = tool_router.get_openai_tools(surface, ai_policy="FULL")
         self.assertIsInstance(schemas, list)
         self.assertGreater(len(schemas), 0)
         for schema in schemas:
             self.assertEqual(schema["type"], "function")
             self.assertIn("name", schema["function"])
             self.assertIn("parameters", schema["function"])
+
+    def test_two_tier_intent_overlay_and_restricted_policy(self):
+        # Tier 1 intent overlay ("group") surfaces group tools even when user is on feed
+        surface = SurfaceContext(screen="feed.home")
+        tools = tool_router.route(
+            surface,
+            matched_domains=("group",),
+            ai_policy="FULL",
+            is_system_turn=True,
+        )
+        self.assertLessEqual(len(tools), MAX_ACTIVE_TOOLS)
+        tool_names = [t.name for t in tools]
+        self.assertIn("get_my_groups", tool_names)
+        self.assertNotIn("get_my_emotion_summary", tool_names)
+
+        # RESTRICTED returns only "public" tools (never "personal" tools)
+        restricted_tools = tool_router.route(
+            surface,
+            matched_domains=("mental_health", "post"),
+            ai_policy="RESTRICTED",
+        )
+        self.assertTrue(len(restricted_tools) > 0)
+        for tool in restricted_tools:
+            self.assertEqual(tool.policy_scope, "public")
 
 
 if __name__ == "__main__":

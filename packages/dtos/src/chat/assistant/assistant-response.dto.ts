@@ -48,6 +48,7 @@ export class AssistantProposeActionPayloadDto {
   description: string;
   params?: Record<string, unknown>;
   idempotencyKey: string;
+  proposalToken: string;
   confirmLabel?: string;
   cancelLabel?: string;
   category?: string;

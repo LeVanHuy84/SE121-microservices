@@ -77,7 +77,7 @@ class NavResolver:
     def __init__(self, catalog: DestinationCatalog | None = None) -> None:
         self._catalog = catalog or destination_catalog
 
-    def resolve(self, text: str) -> NavDecision:
+    def resolve(self, text: str, ai_policy: str = "FULL") -> NavDecision:
         normalized = normalize_for_guard(text)
         if not normalized or len(normalized) < 2:
             return NavDecision(path="none")
@@ -93,7 +93,9 @@ class NavResolver:
             return NavDecision(path="none")
 
         # 1. Check for search intent with query extraction
-        search_match = self._extract_search_intent(normalized, text)
+        search_match = self._extract_search_intent(
+            normalized, text, ai_policy=ai_policy
+        )
         if search_match:
             return NavDecision(
                 path="command",
@@ -106,7 +108,10 @@ class NavResolver:
 
         # 2. Score all destinations against normalized text
         matches = self._score_destinations(
-            normalized, is_command=is_command, is_howto=is_howto
+            normalized,
+            is_command=is_command,
+            is_howto=is_howto,
+            ai_policy=ai_policy,
         )
         if not matches:
             return NavDecision(path="none")
@@ -163,8 +168,15 @@ class NavResolver:
         return NavDecision(path="none")
 
     def _extract_search_intent(
-        self, normalized: str, original_text: str
+        self, normalized: str, original_text: str, ai_policy: str = "FULL"
     ) -> NavMatch | None:
+        search_entry = self._catalog.get("search")
+        if (
+            ai_policy == "RESTRICTED"
+            and search_entry is not None
+            and search_entry.policy_scope == "personal"
+        ):
+            return None
         # If the user is asking where to find something (howto), don't treat it as a search query
         if any(h in normalized for h in _HOWTO_INDICATORS):
             return None
@@ -231,11 +243,14 @@ class NavResolver:
         normalized: str,
         is_command: bool = False,
         is_howto: bool = False,
+        ai_policy: str = "FULL",
     ) -> list[NavMatch]:
         scored: list[NavMatch] = []
         user_tokens = set(normalized.split())
 
         for entry in self._catalog.all_destinations():
+            if ai_policy == "RESTRICTED" and entry.policy_scope == "personal":
+                continue
             best_score = 0.0
 
             for synonym in entry.synonyms:

@@ -30,7 +30,6 @@ class PreparedTurn:
     pending_actions: list[Any]
     howto_actions: list[Any]
     messages_or_prompt: Any
-    is_proactive_checkin: bool
     in_chat_distress: bool
     is_system_turn: bool
     guard_data: AssistantRespondData | None = None

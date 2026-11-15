@@ -60,6 +60,7 @@ export class AssistantMessageDto {
   @IsString()
   conversationId?: string;
 
+  /** @deprecated Server resolves aiPolicy fail-closed from user-social-service; client-supplied values are ignored. */
   @IsOptional()
   @IsString()
   aiPolicy?: string;

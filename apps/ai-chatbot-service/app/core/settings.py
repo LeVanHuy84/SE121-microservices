@@ -10,10 +10,15 @@ class Settings:
     def __init__(self):
         self.PORT: int = int(os.getenv("PORT", 4006))
         self.HOST: str = os.getenv("HOST", "0.0.0.0").strip()
+        self.APP_ENV: str = os.getenv("APP_ENV", "development").strip().lower()
         self.RELOAD: bool = os.getenv("RELOAD", "false").lower() == "true"
         self.INTERNAL_SERVICE_KEY: str = os.getenv(
             "X_INTERNAL_KEY", os.getenv("INTERNAL_SERVICE_KEY", "")
         ).strip()
+        self.PROPOSAL_HMAC_KEY: str = os.getenv("PROPOSAL_HMAC_KEY", "").strip()
+        self.PROPOSAL_TOKEN_TTL_SECONDS: int = int(
+            os.getenv("PROPOSAL_TOKEN_TTL_SECONDS", 900)
+        )
 
         # Offline unit test flags
         self.UNIT_TEST_MODE: bool = (
@@ -360,6 +365,22 @@ class Settings:
                 self.INTERNAL_SERVICE_KEY = "test-internal-key"
             else:
                 raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
+
+        if not self.PROPOSAL_HMAC_KEY:
+            if self.UNIT_TEST_MODE:
+                self.PROPOSAL_HMAC_KEY = self.INTERNAL_SERVICE_KEY
+            elif self.APP_ENV == "production":
+                raise RuntimeError("PROPOSAL_HMAC_KEY is not set")
+            else:
+                self.PROPOSAL_HMAC_KEY = self.INTERNAL_SERVICE_KEY
+
+        if self.PROPOSAL_TOKEN_TTL_SECONDS <= 0:
+            raise RuntimeError("PROPOSAL_TOKEN_TTL_SECONDS must be positive")
+
+        if self.APP_ENV == "production" and self.TOOL_ENABLE_MOCK_FALLBACKS:
+            raise RuntimeError(
+                "TOOL_ENABLE_MOCK_FALLBACKS must be false in production"
+            )
 
         if self.CHATBOT_MEMORY_RECENT_TURNS <= 0:
             raise RuntimeError("CHATBOT_MEMORY_RECENT_TURNS must be positive")

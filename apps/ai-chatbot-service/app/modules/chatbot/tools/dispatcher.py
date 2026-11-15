@@ -49,6 +49,7 @@ class ToolExecutionContext:
     user_id: str
     auth_token: str | None = None
     surface: SurfaceContext | None = None
+    ai_policy: str = "RESTRICTED"
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,23 @@ class ToolDispatcher:
                 success=False,
                 data=None,
                 error=f"Công cụ '{tool_name}' không tồn tại trong danh mục cho phép.",
+            )
+
+        tool_def = ALL_TOOLS[tool_name]
+        if (
+            tool_def.policy_scope != "public"
+            and str(context.ai_policy or "").strip().upper() != "FULL"
+        ):
+            logger.warning(
+                "Blocked personal tool '%s' under ai_policy=%s",
+                tool_name,
+                context.ai_policy,
+            )
+            return ToolExecutionResult(
+                tool_name=tool_name,
+                success=False,
+                data=None,
+                error=f"Công cụ '{tool_name}' bị hạn chế bởi chính sách quyền riêng tư.",
             )
 
         handler = self._handlers.get(tool_name)

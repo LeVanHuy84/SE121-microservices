@@ -283,13 +283,21 @@ class RespondCommand:
                 logger.exception("Assistant tool synthesis generation failed")
 
         # Synthesize write action proposals (Zero Silent Mutation, guarded by aiPolicy)
+        ai_policy = str(
+            getattr(turn.working_request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
+        ).upper()
         cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(
             generation.content,
-            ai_policy=getattr(turn.working_request, "aiPolicy", "FULL"),
+            ai_policy=ai_policy,
+            user_id=request.userId,
+            conversation_id=turn.conv_id,
         )
         if not reply_proposals:
             reply_proposals = self._detect_action_proposals(
-                request, tool_calls_tuple, tool_results_list
+                turn.working_request,
+                tool_calls_tuple,
+                tool_results_list,
+                conversation_id=turn.conv_id,
             )
 
         generated_proposals = reply_proposals[:3]
@@ -313,7 +321,8 @@ class RespondCommand:
         )
 
         if (
-            not is_blocked
+            ai_policy != "RESTRICTED"
+            and not is_blocked
             and resolved_intent not in NON_SUBSTANTIVE_INTENTS
             and turn.conv_id
         ):
@@ -364,6 +373,9 @@ class RespondCommand:
             user_id=request.userId,
             surface=request.surface,
             auth_token=request.authToken,
+            ai_policy=str(
+                getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
+            ).upper(),
         )
         # Execute tool calls concurrently for optimal latency
         tool_results = await asyncio.gather(
@@ -429,17 +441,32 @@ class RespondCommand:
     def _extract_proposals_from_llm_reply(
         self,
         reply: str,
-        ai_policy: str = "FULL",
+        ai_policy: str = "RESTRICTED",
+        *,
+        user_id: str = "",
+        conversation_id: str = "",
     ) -> tuple[str, list[ProposeAction]]:
-        return extract_proposals_from_llm_reply(reply, ai_policy)
+        return extract_proposals_from_llm_reply(
+            reply,
+            ai_policy,
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
 
     def _detect_action_proposals(
         self,
         request: AssistantRespondRequest,
         tool_calls: tuple[Any, ...],
         tool_results: list[Any],
+        *,
+        conversation_id: str | None = None,
     ) -> list[ProposeAction]:
-        return detect_action_proposals(request, tool_calls, tool_results)
+        return detect_action_proposals(
+            request,
+            tool_calls,
+            tool_results,
+            conversation_id=conversation_id,
+        )
 
     async def _resolve_contexts_with_budget(
         self,
@@ -585,7 +612,9 @@ class RespondCommand:
             yield final_data
             return
 
-        ai_policy = getattr(turn.working_request, "aiPolicy", "FULL")
+        ai_policy = str(
+            getattr(turn.working_request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
+        ).upper()
         pending_actions = list(turn.pending_actions)
         sources = turn.sources
         stream_cards: list[ShowCardAction] = []
@@ -637,6 +666,7 @@ class RespondCommand:
                             first_yield = False
 
             # If tool calls were accumulated, execute second pass synthesis
+            post_tool_metadata_emitted = False
             if collected_tool_calls:
                 (
                     followup_input,
@@ -646,28 +676,34 @@ class RespondCommand:
                     turn.messages_or_prompt, collected_tool_calls, turn.working_request
                 )
                 stream_proposals = self._detect_action_proposals(
-                    request, tuple(collected_tool_calls), stream_tool_results
+                    turn.working_request,
+                    tuple(collected_tool_calls),
+                    stream_tool_results,
+                    conversation_id=turn.conv_id,
                 )
                 pending_actions.extend(stream_cards)
                 pending_actions.extend(stream_proposals)
                 pending_actions = pending_actions[:3]
 
+                post_tool_reply_parts: list[str] = []
                 async with _LLM_SEMAPHORE:
                     async for chunk in self.provider.stream(
                         followup_input, turn.working_request
                     ):
                         if chunk.content:
                             full_reply_parts.append(chunk.content)
+                            post_tool_reply_parts.append(chunk.content)
                             filtered_text = filter_stream.process_chunk(chunk.content)
                             if filtered_text:
+                                emit_meta = first_yield or not post_tool_metadata_emitted
                                 yield AssistantRespondData(
                                     reply=filtered_text,
                                     sources=sources if first_yield else [],
                                     suggestedActions=pending_actions
-                                    if first_yield
+                                    if emit_meta
                                     else [],
-                                    cards=stream_cards if first_yield else [],
-                                    proposals=stream_proposals if first_yield else [],
+                                    cards=stream_cards if emit_meta else [],
+                                    proposals=stream_proposals if emit_meta else [],
                                     model=chunk.model or settings.GROQ_MODEL,
                                     provider=chunk.provider or "groq",
                                     requestId=request_id,
@@ -677,25 +713,79 @@ class RespondCommand:
                                     conversationId=turn.conv_id,
                                 )
                                 first_yield = False
+                                post_tool_metadata_emitted = True
+
+                if not stream_proposals and post_tool_reply_parts:
+                    _, extracted_post_proposals = self._extract_proposals_from_llm_reply(
+                        "".join(post_tool_reply_parts),
+                        ai_policy=ai_policy,
+                        user_id=request.userId,
+                        conversation_id=turn.conv_id,
+                    )
+                    if extracted_post_proposals:
+                        stream_proposals = extracted_post_proposals[:3]
+                        pending_actions.extend(stream_proposals)
+                        pending_actions = pending_actions[:3]
+                        post_tool_metadata_emitted = False
             else:
                 raw_text = "".join(full_reply_parts)
                 cleaned, proposals = self._extract_proposals_from_llm_reply(
-                    raw_text, ai_policy=ai_policy
+                    raw_text,
+                    ai_policy=ai_policy,
+                    user_id=request.userId,
+                    conversation_id=turn.conv_id,
                 )
                 if not proposals:
-                    proposals = self._detect_action_proposals(request, (), [])
+                    proposals = self._detect_action_proposals(
+                        turn.working_request,
+                        (),
+                        [],
+                        conversation_id=turn.conv_id,
+                    )
                 stream_proposals = proposals[:3]
                 pending_actions.extend(stream_proposals)
                 pending_actions = pending_actions[:3]
 
             trailing_text = filter_stream.flush()
             if trailing_text:
+                emit_meta = (
+                    first_yield
+                    or (bool(collected_tool_calls) and not post_tool_metadata_emitted)
+                    or bool(not collected_tool_calls and stream_proposals)
+                )
+                trailing_suggested = (
+                    pending_actions
+                    if (first_yield or (collected_tool_calls and not post_tool_metadata_emitted))
+                    else (stream_proposals if stream_proposals else [])
+                )
                 yield AssistantRespondData(
                     reply=trailing_text,
                     sources=sources if first_yield else [],
-                    suggestedActions=pending_actions if first_yield else [],
-                    cards=stream_cards if first_yield else [],
-                    proposals=stream_proposals if first_yield else [],
+                    suggestedActions=trailing_suggested if emit_meta else [],
+                    cards=stream_cards if emit_meta else [],
+                    proposals=stream_proposals if emit_meta else [],
+                    model=settings.GROQ_MODEL,
+                    provider="groq",
+                    requestId=request_id,
+                    latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
+                    conversationId=turn.conv_id,
+                )
+                first_yield = False
+                post_tool_metadata_emitted = True
+            elif (
+                (collected_tool_calls and not post_tool_metadata_emitted and (stream_proposals or stream_cards))
+                or (not collected_tool_calls and stream_proposals)
+            ):
+                yield AssistantRespondData(
+                    reply="",
+                    sources=sources if first_yield else [],
+                    suggestedActions=(
+                        pending_actions
+                        if (first_yield or collected_tool_calls)
+                        else stream_proposals
+                    ),
+                    cards=stream_cards,
+                    proposals=stream_proposals,
                     model=settings.GROQ_MODEL,
                     provider="groq",
                     requestId=request_id,
@@ -810,8 +900,12 @@ class RespondCommand:
             policy_blocked=policy_blocked,
             session_emotional_state=session_emotional_state,
         )
+        ai_policy = str(
+            getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
+        ).upper()
         if (
-            not is_truncated
+            ai_policy != "RESTRICTED"
+            and not is_truncated
             and not policy_blocked
             and intent not in NON_SUBSTANTIVE_INTENTS
             and resolved_conv_id

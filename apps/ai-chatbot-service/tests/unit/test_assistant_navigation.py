@@ -76,9 +76,14 @@ def _command(provider: FakeProvider) -> RespondCommand:
     )
 
 
-def _request(user: str, message: str, contexts=None) -> AssistantRespondRequest:
+def _request(
+    user: str, message: str, contexts=None, ai_policy: str = "FULL"
+) -> AssistantRespondRequest:
     return AssistantRespondRequest(
-        userId=user, message=message, contexts=contexts or []
+        userId=user,
+        message=message,
+        contexts=contexts or [],
+        aiPolicy=ai_policy,
     )
 
 
@@ -118,6 +123,25 @@ class CrisisPrecedenceTest(_TelemetryPatched):
 
     def test_crisis_stream_has_no_actions(self):
         cmd = _command(FakeProvider())
+        chunks = _stream(cmd, _request("nav-crisis-2", "tôi muốn chết"))
+        self.assertEqual(chunks[0].type, "crisis")
+
+    def test_restricted_policy_blocks_personal_navigation_but_allows_public(self):
+        cmd = _command(FakeProvider())
+        # Personal screen ("friends") is filtered out under RESTRICTED
+        res_personal = _execute(
+            cmd, _request("nav-pol-1", "mở bạn bè", ai_policy="RESTRICTED")
+        )
+        self.assertNotEqual(res_personal.type, "navigation")
+
+        # Public screen ("settings.privacy") still navigates under RESTRICTED
+        res_public = _execute(
+            cmd, _request("nav-pol-1", "mở quyền riêng tư", ai_policy="RESTRICTED")
+        )
+        self.assertEqual(res_public.type, "navigation")
+        self.assertEqual(
+            res_public.suggestedActions[0].payload.destinationId, "settings.privacy"
+        )
         chunks = _stream(
             cmd, _request("nav-crisis-2", "tôi muốn chết, mở cài đặt quyền riêng tư")
         )
