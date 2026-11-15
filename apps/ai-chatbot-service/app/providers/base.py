@@ -19,6 +19,9 @@ class LlmGeneration:
     model: str
     provider: str
     tool_calls: tuple[ToolCallInfo, ...] = ()
+    finish_reason: Optional[str] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 @dataclass(frozen=True)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any, AsyncIterator, Optional, Sequence
 
 from app.core.settings import settings
@@ -25,6 +26,42 @@ def _is_transient_error(exc: Exception) -> bool:
         EMPTY_RESPONSE_ERROR.lower(),
     )
     return any(ind in msg for ind in transient_indicators)
+
+
+def _extract_retry_after(exc: Exception, default: float = 0.5) -> float:
+    response = getattr(exc, "response", None)
+    if response is not None:
+        headers = getattr(response, "headers", None)
+        if headers and hasattr(headers, "get"):
+            retry_header = headers.get("retry-after")
+            if retry_header is not None:
+                try:
+                    return max(0.5, min(float(retry_header), 10.0))
+                except (ValueError, TypeError):
+                    pass
+    msg = str(exc)
+    match = re.search(r"try again in (\d+(?:\.\d+)?)s", msg, re.IGNORECASE)
+    if match:
+        try:
+            return max(0.5, min(float(match.group(1)), 10.0))
+        except (ValueError, TypeError):
+            pass
+    return default
+
+
+def _extract_generation_metadata(ai_msg: Any) -> tuple[Optional[str], int, int]:
+    response_meta = getattr(ai_msg, "response_metadata", {}) or {}
+    finish_reason = response_meta.get("finish_reason")
+    usage = (
+        getattr(ai_msg, "usage_metadata", {})
+        or response_meta.get("token_usage", {})
+        or {}
+    )
+    prompt_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+    completion_tokens = int(
+        usage.get("output_tokens") or usage.get("completion_tokens") or 0
+    )
+    return finish_reason, prompt_tokens, completion_tokens
 
 
 class GroqProvider:
@@ -76,11 +113,15 @@ class GroqProvider:
                     tool_content = str(getattr(ai_msg, "content", ai_msg) or "").strip()
                     if not tool_content and not tool_calls:
                         raise RuntimeError(EMPTY_RESPONSE_ERROR)
+                    finish_reason, p_toks, c_toks = _extract_generation_metadata(ai_msg)
                     return LlmGeneration(
                         content=tool_content,
                         model=resolved_model,
                         provider="groq",
                         tool_calls=tuple(tool_calls),
+                        finish_reason=finish_reason,
+                        prompt_tokens=p_toks,
+                        completion_tokens=c_toks,
                     )
                 except Exception as exc:
                     if (
@@ -97,18 +138,27 @@ class GroqProvider:
                         ).strip()
                         if not fallback_content:
                             raise RuntimeError(EMPTY_RESPONSE_ERROR)
+                        fb_reason, fb_p, fb_c = _extract_generation_metadata(
+                            fallback_msg
+                        )
                         return LlmGeneration(
                             content=fallback_content,
                             model=resolved_model,
                             provider="groq",
                             tool_calls=(),
+                            finish_reason=fb_reason,
+                            prompt_tokens=fb_p,
+                            completion_tokens=fb_c,
                         )
                     if (
                         not self._bypass_retry
                         and attempt < 1
                         and _is_transient_error(exc)
                     ):
-                        await asyncio.sleep(0.5 * (2**attempt))
+                        sleep_dur = _extract_retry_after(
+                            exc, default=0.5 * (2**attempt)
+                        )
+                        await asyncio.sleep(sleep_dur)
                         continue
                     raise
             raise RuntimeError("Groq retry limit exceeded")
@@ -119,15 +169,20 @@ class GroqProvider:
                 content = str(getattr(ai_msg, "content", ai_msg) or "").strip()
                 if not content:
                     raise RuntimeError(EMPTY_RESPONSE_ERROR)
+                finish_reason, p_toks, c_toks = _extract_generation_metadata(ai_msg)
                 return LlmGeneration(
                     content=content,
                     model=resolved_model,
                     provider="groq",
                     tool_calls=(),
+                    finish_reason=finish_reason,
+                    prompt_tokens=p_toks,
+                    completion_tokens=c_toks,
                 )
             except Exception as exc:
                 if not self._bypass_retry and attempt < 1 and _is_transient_error(exc):
-                    await asyncio.sleep(0.5 * (2**attempt))
+                    sleep_dur = _extract_retry_after(exc, default=0.5 * (2**attempt))
+                    await asyncio.sleep(sleep_dur)
                     continue
                 raise
         raise RuntimeError("Groq retry limit exceeded")
@@ -151,13 +206,21 @@ class GroqProvider:
 
         for attempt in range(2):
             first_chunk = True
+            text_yielded = False
+            has_tool_calls = False
             accumulated: Any = None
             try:
                 async for chunk in active_llm.astream(messages):
-                    first_chunk = False
-                    accumulated = chunk if accumulated is None else accumulated + chunk
+                    try:
+                        accumulated = (
+                            chunk if accumulated is None else accumulated + chunk
+                        )
+                    except (TypeError, AttributeError):
+                        accumulated = chunk
                     delta = getattr(chunk, "content", chunk)
                     if delta:
+                        first_chunk = False
+                        text_yielded = True
                         yield LlmChunk(
                             content=str(delta),
                             model=resolved_model,
@@ -167,6 +230,8 @@ class GroqProvider:
                 if tools and accumulated is not None:
                     raw_calls = getattr(accumulated, "tool_calls", None) or []
                     if raw_calls:
+                        has_tool_calls = True
+                        first_chunk = False
                         parsed_calls: list[ToolCallInfo] = []
                         for tc in raw_calls:
                             if isinstance(tc, dict):
@@ -191,6 +256,8 @@ class GroqProvider:
                             provider="groq",
                             tool_calls=tuple(parsed_calls),
                         )
+                if not text_yielded and not has_tool_calls:
+                    raise RuntimeError(EMPTY_RESPONSE_ERROR)
                 return
             except Exception as exc:
                 if (
@@ -214,7 +281,8 @@ class GroqProvider:
                     and attempt < 1
                     and _is_transient_error(exc)
                 ):
-                    await asyncio.sleep(0.5 * (2**attempt))
+                    sleep_dur = _extract_retry_after(exc, default=0.5 * (2**attempt))
+                    await asyncio.sleep(sleep_dur)
                     continue
                 raise
 

@@ -39,6 +39,27 @@ _HOWTO_INDICATORS = (
     "where",
 )
 
+_DATA_RETRIEVAL_INDICATORS = (
+    "cho toi biet",
+    "cho minh biet",
+    "cho em biet",
+    "biet danh sach",
+    "liet ke",
+    "co bao nhieu",
+    "ai dang",
+    "nhung ai",
+    "gom nhung ai",
+    "gom ai",
+    "co nhung ai",
+    "co ai dang",
+    "tell me",
+    "list my",
+    "list all",
+    "how many",
+    "who are",
+    "who is",
+)
+
 _ADMIN_KEYWORDS = (
     "admin",
     "quan tri vien",
@@ -103,8 +124,15 @@ class NavResolver:
                 suggested_reply="Mình mở trang tìm kiếm cho bạn với từ khóa này nhé:",
             )
 
-        is_command = any(normalized.startswith(prefix) for prefix in _COMMAND_PREFIXES)
+        # Data retrieval inquiry check: "cho tôi biết...", "liệt kê...", "có bao nhiêu..." are data queries, not navigation commands
         is_howto = any(indicator in normalized for indicator in _HOWTO_INDICATORS)
+        is_data_retrieval = (not is_howto) and any(
+            indicator in normalized for indicator in _DATA_RETRIEVAL_INDICATORS
+        )
+        if is_data_retrieval:
+            return NavDecision(path="none")
+
+        is_command = any(normalized.startswith(prefix) for prefix in _COMMAND_PREFIXES)
 
         # 2. Score all destinations against normalized text
         matches = self._score_destinations(

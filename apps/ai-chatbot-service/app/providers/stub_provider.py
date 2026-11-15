@@ -129,6 +129,64 @@ class StubLlmProvider:
                 tool_calls=(),
             )
 
+        combined_lower = combined.lower()
+
+        # Deterministic multi-turn memory & preference recall
+        if any(
+            k in combined_lower
+            for k in ("nhớ tên", "loại nhạc", "sở thích âm nhạc", "nhớ mình")
+        ):
+            has_name = "minh" in combined_lower
+            has_music = "lo-fi" in combined_lower or "lofi" in combined_lower
+            if has_name and has_music:
+                return LlmGeneration(
+                    content=(
+                        "Chào Minh! Mình vẫn nhớ bạn tên là Minh và bạn thích nghe nhạc "
+                        "lo-fi để thư giãn sau giờ làm việc căng thẳng."
+                    ),
+                    model=STUB_MODEL_NAME,
+                    provider=STUB_PROVIDER_NAME,
+                    tool_calls=(),
+                )
+            if has_name:
+                return LlmGeneration(
+                    content="Chào Minh! Mình vẫn nhớ bạn là Minh. Rất vui được tiếp tục trò chuyện cùng bạn.",
+                    model=STUB_MODEL_NAME,
+                    provider=STUB_PROVIDER_NAME,
+                    tool_calls=(),
+                )
+            return LlmGeneration(
+                content="Mình chưa biết tên hoặc sở thích âm nhạc của bạn. Bạn có thể chia sẻ với mình nhé!",
+                model=STUB_MODEL_NAME,
+                provider=STUB_PROVIDER_NAME,
+                tool_calls=(),
+            )
+
+        # Deterministic emotional support turns
+        if any(
+            k in combined_lower for k in ("áp lực", "khó ngủ", "deadline", "công việc")
+        ):
+            return LlmGeneration(
+                content=(
+                    "Mình hiểu bạn đang gặp nhiều áp lực vì công việc và khó ngủ vì deadline. "
+                    "Mình luôn ở đây để lắng nghe bạn chia sẻ."
+                ),
+                model=STUB_MODEL_NAME,
+                provider=STUB_PROVIDER_NAME,
+                tool_calls=(),
+            )
+
+        if any(k in combined_lower for k in ("thư giãn", "gợi ý", "nghe nhạc")):
+            return LlmGeneration(
+                content=(
+                    "Nghe nhạc lo-fi là một cách rất tốt để thư giãn tinh thần. "
+                    "Bạn có thể thử nghe một playlist lo-fi êm dịu tối nay nhé."
+                ),
+                model=STUB_MODEL_NAME,
+                provider=STUB_PROVIDER_NAME,
+                tool_calls=(),
+            )
+
         return LlmGeneration(
             content="Phản hồi từ hệ thống kiểm thử (stub).",
             model=STUB_MODEL_NAME,

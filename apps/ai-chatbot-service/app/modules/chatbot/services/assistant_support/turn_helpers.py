@@ -108,6 +108,16 @@ def llm_timeout_generation() -> LlmGeneration:
     )
 
 
+def llm_fallback_generation(
+    content: str = "Mình chưa thể trả lời ngay lúc này. Bạn thử diễn đạt lại giúp mình nhé.",
+) -> LlmGeneration:
+    return LlmGeneration(
+        content=content,
+        model="fallback-guard",
+        provider="chatbot-service",
+    )
+
+
 def sanitize_assistant_reply(value: str) -> str:
     text = str(value or "").strip()
     if not text:
@@ -119,6 +129,51 @@ def sanitize_assistant_reply(value: str) -> str:
         flags=re.IGNORECASE,
     )
     return text.strip()
+
+
+_CLOSING_PUNCTUATION = (
+    ".",
+    "!",
+    "?",
+    ":",
+    "…",
+    "...",
+    '"',
+    "'",
+    "”",
+    "’",
+    "\n",
+    ")",
+    "]",
+    "}",
+    "*",
+    "`",
+    "|",
+)
+
+
+def is_incomplete_sentence(text: str) -> bool:
+    stripped = str(text or "").strip()
+    if not stripped or len(stripped) < 15:
+        return False
+    return not stripped.endswith(_CLOSING_PUNCTUATION)
+
+
+def repair_truncated_text(text: str) -> str:
+    stripped = str(text or "").strip()
+    if not is_incomplete_sentence(stripped):
+        return stripped
+
+    last_punct_idx = -1
+    for p in (". ", "! ", "? ", ".\n", "!\n", "?\n", "…”", ".”", "\n\n"):
+        idx = stripped.rfind(p)
+        if idx > last_punct_idx:
+            last_punct_idx = idx
+
+    if last_punct_idx > 30:
+        return stripped[: last_punct_idx + 1].strip()
+
+    return f"{stripped}..."
 
 
 def prepend_turn_policy(prompt: str) -> str:

@@ -39,7 +39,9 @@ class Slice1AGatewayPolicyMemoryTests(unittest.TestCase):
         cleanup_run_namespace(cls.prefix)
         redis_client = get_redis_client()
         try:
-            leaked_keys = list(redis_client.scan_iter(match=f"*{cls.prefix}*", count=100))
+            leaked_keys = list(
+                redis_client.scan_iter(match=f"*{cls.prefix}*", count=100)
+            )
             if leaked_keys:
                 raise AssertionError(f"Leaked Redis keys after teardown: {leaked_keys}")
         finally:
@@ -223,6 +225,7 @@ class Slice1AGatewayPolicyMemoryTests(unittest.TestCase):
         mongo_db_name = os.getenv("MONGO_DB", "ai_chatbot_service")
         mongo_client = get_mongo_client()
         try:
+
             def _has_memory_facts():
                 doc = mongo_client[mongo_db_name]["user_memory_profiles"].find_one(
                     {"_id": uid}

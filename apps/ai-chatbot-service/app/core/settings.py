@@ -125,7 +125,7 @@ class Settings:
             os.getenv("CHATBOT_METRICS_LOG_EVERY_N", 50)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX: int = int(
-            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 4)
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 8)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 280)
@@ -389,9 +389,7 @@ class Settings:
             raise RuntimeError("PROPOSAL_TOKEN_TTL_SECONDS must be positive")
 
         if self.APP_ENV == "production" and self.TOOL_ENABLE_MOCK_FALLBACKS:
-            raise RuntimeError(
-                "TOOL_ENABLE_MOCK_FALLBACKS must be false in production"
-            )
+            raise RuntimeError("TOOL_ENABLE_MOCK_FALLBACKS must be false in production")
 
         if self.CHATBOT_MEMORY_RECENT_TURNS <= 0:
             raise RuntimeError("CHATBOT_MEMORY_RECENT_TURNS must be positive")

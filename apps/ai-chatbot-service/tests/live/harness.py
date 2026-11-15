@@ -32,9 +32,7 @@ DEFAULT_AI_URL = os.getenv("AI_CHATBOT_URL", "http://localhost:4006").rstrip("/"
 DEFAULT_REDIS_URL = os.getenv("CHATBOT_REDIS_URL", "redis://localhost:6379/0")
 DEFAULT_MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DEFAULT_MONGO_DB = os.getenv("MONGO_DB", "ai_chatbot_service")
-DEFAULT_EMOTION_MONGO_DB = os.getenv(
-    "EMOTION_MONGO_DB", "emotion-intelligence-service"
-)
+DEFAULT_EMOTION_MONGO_DB = os.getenv("EMOTION_MONGO_DB", "emotion-intelligence-service")
 DEFAULT_DATABASE_URL = os.getenv("DATABASE_URL", "")
 DEFAULT_ES_NODE = os.getenv("ES_NODE", "http://localhost:9200").rstrip("/")
 DEFAULT_KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "localhost:9092")
@@ -77,7 +75,9 @@ def wait_for_http_ready(
         except Exception as exc:
             last_err = str(exc)
         time.sleep(interval)
-    raise RuntimeError(f"Service at {url} did not become ready within {timeout}s ({last_err})")
+    raise RuntimeError(
+        f"Service at {url} did not become ready within {timeout}s ({last_err})"
+    )
 
 
 def ensure_slice_ready(slice_name: str) -> None:

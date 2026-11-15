@@ -121,7 +121,7 @@ class ResponseTypeTest(unittest.TestCase):
             "rt-2",
         )
         self.assertEqual(res.type, "out_of_scope")
-        self.assertEqual(provider.calls, 0)
+        self.assertEqual(provider.calls, 1)
 
     def test_app_feature_without_context_is_no_answer(self):
         provider = FakeProvider()
@@ -131,7 +131,7 @@ class ResponseTypeTest(unittest.TestCase):
             "rt-3",
         )
         self.assertEqual(res.type, "no_answer")
-        self.assertEqual(provider.calls, 0)
+        self.assertEqual(provider.calls, 1)
 
     def test_answer_type_with_context(self):
         provider = FakeProvider()

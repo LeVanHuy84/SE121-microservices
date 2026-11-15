@@ -228,7 +228,7 @@ class ResilientLlmProvider:
         failure_threshold: int | None = None,
         cooldown_seconds: float | None = None,
     ) -> None:
-        self.primary: LlmProvider = primary or GroqProvider(bypass_retry=True)
+        self.primary: LlmProvider = primary or GroqProvider(bypass_retry=False)
         self.fallback: OpenAICompatibleFallbackProvider = (
             fallback or OpenAICompatibleFallbackProvider()
         )
@@ -265,11 +265,16 @@ class ResilientLlmProvider:
         now = time.monotonic()
         if _is_rate_limit_error(exc) or self._state == "HALF_OPEN":
             self._state = "OPEN"
-            self._opened_until = now + self.cooldown_seconds
+            cooldown = (
+                min(self.cooldown_seconds, 15.0)
+                if _is_rate_limit_error(exc)
+                else self.cooldown_seconds
+            )
+            self._opened_until = now + cooldown
             self._consecutive_failures = self.failure_threshold
             logger.warning(
                 "[ResilientLLM] Circuit breaker tripped to OPEN for %.1fs (%s)",
-                self.cooldown_seconds,
+                cooldown,
                 exc,
             )
             return

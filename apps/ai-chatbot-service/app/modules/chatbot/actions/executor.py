@@ -340,7 +340,11 @@ class ActionExecutorService:
                 ai_policy=effective_policy,
                 status="succeeded"
                 if result.success
-                else ("denied" if result.error in _DETERMINISTIC_DENIAL_ERRORS else "failed"),
+                else (
+                    "denied"
+                    if result.error in _DETERMINISTIC_DENIAL_ERRORS
+                    else "failed"
+                ),
                 error_code=result.error,
                 started_at=started_at,
             )
@@ -725,7 +729,9 @@ class ActionExecutorService:
         try:
             await redis.eval(_LUA_RELEASE_LEASE, 1, idem_key, inflight_payload)
         except Exception as exc:
-            logger.warning("Failed to release in-flight lease for %s: %s", idem_key, exc)
+            logger.warning(
+                "Failed to release in-flight lease for %s: %s", idem_key, exc
+            )
 
     async def _get_redis(self):
         if self._redis is not None and self._redis is not False:

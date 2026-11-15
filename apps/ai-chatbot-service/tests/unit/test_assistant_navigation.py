@@ -17,7 +17,11 @@ from app.modules.chatbot.repositories.chat_history import (
 from app.modules.chatbot.repositories.user_memory_profile import (
     UserMemoryProfileRepository,
 )
-from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
+from app.modules.chatbot.schemas import (
+    AssistantContextItem,
+    AssistantHistoryItem,
+    AssistantRespondRequest,
+)
 from app.modules.chatbot.services.assistant import RespondCommand
 from app.providers.base import LlmGeneration
 from tests.unit.test_chat_history_actions import FakeDb
@@ -35,13 +39,16 @@ PRIVACY_CONTEXT = AssistantContextItem(
 class FakeProvider:
     def __init__(self):
         self.calls = 0
+        self.last_prompt = None
 
     async def generate(self, prompt, request, **kwargs):
         self.calls += 1
+        self.last_prompt = prompt
         return LlmGeneration(content="fake reply", model="test-model", provider="fake")
 
     async def stream(self, prompt, request, **kwargs):
         self.calls += 1
+        self.last_prompt = prompt
         for part in ("Bước 1. ", "Bước 2."):
             yield LlmGeneration(content=part, model="test-model", provider="fake")
 
@@ -186,6 +193,58 @@ class PureNavigationTest(_TelemetryPatched):
 
         self.assertEqual(res.suggestedActions, [])
         self.telemetry.assert_not_called()
+
+
+class FarewellTest(_TelemetryPatched):
+    def test_farewell_uses_conversational_guard_response(self):
+        provider = FakeProvider()
+        cmd = _command(provider)
+
+        result = _execute(cmd, _request("farewell-1", "tạm biệt"))
+
+        self.assertEqual(result.type, "farewell")
+        self.assertIn("Tạm biệt", result.reply)
+        self.assertEqual(provider.calls, 0)
+
+    def test_farewell_after_crisis_stays_in_crisis_guard(self):
+        provider = FakeProvider()
+        cmd = _command(provider)
+        request = _request("farewell-crisis-1", "tạm biệt")
+        request = request.model_copy(
+            update={
+                "history": [
+                    AssistantHistoryItem(role="user", content="tôi muốn tự tử"),
+                ]
+            }
+        )
+
+        result = _execute(cmd, request)
+
+        self.assertEqual(result.type, "crisis")
+        self.assertEqual(provider.calls, 0)
+
+    def test_soft_scope_guard_keeps_history_for_llm_context(self):
+        provider = FakeProvider()
+        cmd = _command(provider)
+        request = _request("context-1", "thời tiết hôm nay thế nào?")
+        request = request.model_copy(
+            update={
+                "history": [
+                    AssistantHistoryItem(
+                        role="user", content="Gợi ý bạn bè trên Sentimeta là gì?"
+                    ),
+                    AssistantHistoryItem(
+                        role="assistant", content="Mình có thể gợi ý bạn bè phù hợp."
+                    ),
+                ]
+            }
+        )
+
+        result = _execute(cmd, request)
+
+        self.assertEqual(result.type, "answer")
+        self.assertEqual(provider.calls, 1)
+        self.assertIn("Gợi ý bạn bè trên Sentimeta", provider.last_prompt)
 
 
 class HowToNavigationTest(_TelemetryPatched):

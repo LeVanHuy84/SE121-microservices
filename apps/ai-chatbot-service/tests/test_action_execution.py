@@ -431,9 +431,7 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
             action_name="send_friend_request",
             params={"target_user_id": "u-target"},
         )
-        with patch(
-            "app.modules.chatbot.actions.executor.settings"
-        ) as mock_settings:
+        with patch("app.modules.chatbot.actions.executor.settings") as mock_settings:
             mock_settings.APP_ENV = "production"
             res = await executor.execute(req, auth_token="jwt-tok", user_id="u-1")
         self.assertFalse(res.success)

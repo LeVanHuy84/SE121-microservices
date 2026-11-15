@@ -68,6 +68,7 @@ class Slice1CKafkaInterventionTests(unittest.TestCase):
         mongo_client = get_mongo_client()
         redis_client = get_redis_client()
         try:
+
             def _check_processed_or_acute():
                 processed = mongo_client[mongo_db_name]["processed_events"].find_one(
                     {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from app.core.settings import settings
@@ -15,6 +16,7 @@ from app.modules.chatbot.services.assistant_support.proposals import (
 from app.modules.chatbot.services.assistant_support.types import PreparedTurn
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 from app.modules.chatbot.services.guardrails import (
+    FAREWELLS,
     GREETINGS,
     ScopeDecision,
     classify_in_chat_distress_level,
@@ -58,6 +60,9 @@ def _is_positive_recovery_cue(text: str) -> bool:
     return False
 
 
+logger = logging.getLogger(__name__)
+
+
 class TurnPreparer:
     """Encapsulates the pre-LLM turn safety, loading, navigation, and context-resolution pipeline."""
 
@@ -72,24 +77,20 @@ class TurnPreparer:
     ) -> PreparedTurn:
         cmd = self.cmd
 
-        # Step 1: Pre-State Safety & Navigation Guards (< 50ms)
-        conv = await cmd.history_store.resolve_conversation(
-            request.userId, request.conversationId
-        )
-        conv_id = conv["id"]
-        prev_emotional_state = dict(conv.get("session_emotional_state") or {})
-        prev_active_tier = str(prev_emotional_state.get("active_tier") or "NONE")
-        prev_ttl = int(prev_emotional_state.get("remaining_turns_ttl") or 0)
-        prev_topic_anchor = str(prev_emotional_state.get("topic_anchor") or "")
-        ai_policy = str(getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED").upper()
-        is_restricted = ai_policy == "RESTRICTED"
-        request_updates: dict[str, Any] = {"conversationId": conv_id}
-        if is_restricted and request.contexts:
-            request_updates["contexts"] = []
-        request = request.model_copy(update=request_updates)
-
+        # Step 0: Immediate Crisis Evaluation (< 5ms, Zero I/O dependency)
         crisis_decision = cmd.crisis_guard.evaluate(request.message)
         if crisis_decision.is_crisis:
+            conv_id = request.conversationId or f"crisis-{request.userId}"
+            try:
+                conv = await cmd.history_store.resolve_conversation(
+                    request.userId, request.conversationId
+                )
+                conv_id = conv.get("id") or conv_id
+            except Exception as exc:
+                logger.warning(
+                    "Failed to resolve conversation during crisis turn: %s", exc
+                )
+
             notification_sent = await cmd._emit_crisis_event(
                 request,
                 crisis_decision.severity,
@@ -106,7 +107,7 @@ class TurnPreparer:
                 notification_sent,
             )
             return PreparedTurn(
-                working_request=request,
+                working_request=request.model_copy(update={"conversationId": conv_id}),
                 conv_id=conv_id,
                 history=[],
                 user_facts={},
@@ -126,6 +127,24 @@ class TurnPreparer:
                 guard_data=data,
                 guard_intent="mental_health_crisis",
             )
+
+        # Step 1: Pre-State Safety & Navigation Guards (< 50ms)
+        conv = await cmd.history_store.resolve_conversation(
+            request.userId, request.conversationId
+        )
+        conv_id = conv["id"]
+        prev_emotional_state = dict(conv.get("session_emotional_state") or {})
+        prev_active_tier = str(prev_emotional_state.get("active_tier") or "NONE")
+        prev_ttl = int(prev_emotional_state.get("remaining_turns_ttl") or 0)
+        prev_topic_anchor = str(prev_emotional_state.get("topic_anchor") or "")
+        ai_policy = str(
+            getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
+        ).upper()
+        is_restricted = ai_policy == "RESTRICTED"
+        request_updates: dict[str, Any] = {"conversationId": conv_id}
+        if is_restricted and request.contexts:
+            request_updates["contexts"] = []
+        request = request.model_copy(update=request_updates)
 
         community_decision = cmd.community_guard.evaluate(request.message)
         if (
@@ -209,7 +228,59 @@ class TurnPreparer:
 
         # Greeting check
         normalized_msg = cmd.scope_guard._normalize(request.message)
-        if normalized_msg in GREETINGS:
+        if normalized_msg in FAREWELLS:
+            last_user_message = next(
+                (
+                    item.content
+                    for item in reversed(history[-4:])
+                    if item.role == "user"
+                ),
+                "",
+            )
+            recent_crisis = (
+                cmd.crisis_guard.evaluate(last_user_message)
+                if last_user_message
+                else None
+            )
+            if recent_crisis is not None and recent_crisis.is_crisis:
+                notification_sent = await cmd._emit_crisis_event(
+                    request,
+                    recent_crisis.severity,
+                    "crisis_follow_up",
+                    conversation_id=conv_id,
+                )
+                reply = cmd.prompt_builder.build_crisis(
+                    severity=recent_crisis.severity,
+                    notification_sent=notification_sent,
+                )
+                data = cmd._build_crisis_response(
+                    reply,
+                    recent_crisis.severity,
+                    notification_sent,
+                )
+                return PreparedTurn(
+                    working_request=request,
+                    conv_id=conv_id,
+                    history=history,
+                    user_facts=user_facts or {},
+                    emotion_snapshot=emotion_snapshot,
+                    scope_decision=ScopeDecision(
+                        False, "crisis", "", "out_of_scope", 0.0, ()
+                    ),
+                    final_contexts=[],
+                    sources=[],
+                    active_tools=[],
+                    supports_tools=False,
+                    pending_actions=[],
+                    howto_actions=howto_actions,
+                    messages_or_prompt="",
+                    in_chat_distress=False,
+                    is_system_turn=False,
+                    guard_data=data,
+                    guard_intent="mental_health_crisis",
+                )
+
+        if normalized_msg in GREETINGS or normalized_msg in FAREWELLS:
             return PreparedTurn(
                 working_request=request,
                 conv_id=conv_id,
@@ -217,7 +288,12 @@ class TurnPreparer:
                 user_facts=user_facts or {},
                 emotion_snapshot=emotion_snapshot,
                 scope_decision=ScopeDecision(
-                    True, "greeting", normalized_msg, "in_scope", 1.0, ("system",)
+                    True,
+                    "greeting" if normalized_msg in GREETINGS else "farewell",
+                    normalized_msg,
+                    "in_scope",
+                    1.0,
+                    ("system",),
                 ),
                 final_contexts=[],
                 sources=[],
@@ -228,8 +304,14 @@ class TurnPreparer:
                 messages_or_prompt="",
                 in_chat_distress=False,
                 is_system_turn=False,
-                guard_data=cmd._greeting_response(),
-                guard_intent="greeting",
+                guard_data=(
+                    cmd._greeting_response()
+                    if normalized_msg in GREETINGS
+                    else cmd._farewell_response()
+                ),
+                guard_intent=(
+                    "greeting" if normalized_msg in GREETINGS else "farewell"
+                ),
             )
 
         # Step 3: Deterministic Follow-Up Anchor Resolution (< 1ms)
@@ -430,6 +512,8 @@ class TurnPreparer:
                         has_active_session_anchor = False
 
         in_chat_distress = distress_level != "none"
+        guard_annotation: str | None = None
+        guard_intent: str | None = None
 
         if (
             not scope_decision.in_scope
@@ -440,32 +524,16 @@ class TurnPreparer:
         ):
             intent = "out_of_scope"
             if "privacy" in scope_decision.matched_domains:
-                data = cmd._privacy_policy_response()
                 intent = "privacy"
             elif scope_decision.state == "ambiguous":
-                data = cmd._ambiguous_scope_response(scope_decision.matched_domains)
                 intent = "clarify"
-            else:
-                data = cmd._out_of_scope_response()
-
-            return PreparedTurn(
-                working_request=working_request,
-                conv_id=conv_id,
-                history=history,
-                user_facts=user_facts or {},
-                emotion_snapshot=emotion_snapshot,
-                scope_decision=scope_decision,
-                final_contexts=[],
-                sources=[],
-                active_tools=[],
-                supports_tools=False,
-                pending_actions=[],
-                howto_actions=howto_actions,
-                messages_or_prompt="",
-                in_chat_distress=False,
-                is_system_turn=is_system_turn,
-                guard_data=data,
-                guard_intent=intent,
+            guard_intent = intent
+            guard_annotation = (
+                "GUARD ROUTING: The current request is outside the supported "
+                "Sentimeta scope. Use the conversation history to understand "
+                "the user, but do not answer unrelated factual questions. "
+                "Politely explain the supported scope when the request cannot "
+                "be connected to Sentimeta or mental-health support."
             )
 
         normalized_msg_lower = (working_request.message or "").lower()
@@ -484,6 +552,8 @@ class TurnPreparer:
         if working_request.contexts:
             candidate_contexts = cmd._dedupe_contexts(working_request.contexts)
         elif is_memory_recall_turn:
+            candidate_contexts = []
+        elif guard_annotation is not None:
             candidate_contexts = []
         else:
             candidate_contexts = await cmd._resolve_contexts_with_budget(
@@ -567,72 +637,50 @@ class TurnPreparer:
                 }
             effective_session_tier = prev_active_tier
         else:
-            session_emotional_state = dict(prev_emotional_state) if prev_ttl > 0 else {
-                "active_tier": "NONE",
-                "remaining_turns_ttl": 0,
-                "topic_anchor": "",
-            }
+            session_emotional_state = (
+                dict(prev_emotional_state)
+                if prev_ttl > 0
+                else {
+                    "active_tier": "NONE",
+                    "remaining_turns_ttl": 0,
+                    "topic_anchor": "",
+                }
+            )
             effective_session_tier = "NONE"
 
-        # Stage 2 Grounding Gate
-        if not final_contexts and not is_mental_health_turn and not is_memory_recall_turn:
+        # Soft grounding guard: keep history and instruct the model not to
+        # invent product details when retrieval found no trusted evidence.
+        if (
+            not final_contexts
+            and not is_mental_health_turn
+            and not is_memory_recall_turn
+        ):
             if (
-                scope_decision.state == "in_domain_unknown"
-                or not scope_decision.in_scope
+                guard_intent is None
+                and (
+                    scope_decision.state == "in_domain_unknown"
+                    or not scope_decision.in_scope
+                )
             ):
-                data = (
-                    cmd._privacy_policy_response()
-                    if is_restricted
-                    else cmd._in_domain_unknown_response(scope_decision.matched_domains)
+                guard_intent = "no_answer"
+                guard_annotation = (
+                    "GROUNDING ROUTING: No trusted product context was found for "
+                    "this request. Use the conversation history if it contains "
+                    "the answer; otherwise say that you cannot verify the detail "
+                    "instead of inventing it."
                 )
-                return PreparedTurn(
-                    working_request=working_request,
-                    conv_id=conv_id,
-                    history=history,
-                    user_facts=user_facts or {},
-                    emotion_snapshot=emotion_snapshot,
-                    scope_decision=scope_decision,
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=active_tools,
-                    supports_tools=supports_tools,
-                    pending_actions=howto_actions,
-                    howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    in_chat_distress=in_chat_distress,
-                    is_system_turn=is_system_turn,
-                    guard_data=data,
-                    guard_intent="privacy" if is_restricted else "in_domain_unknown",
-                )
-            if (
-                scope_decision.in_scope
+            elif (
+                guard_intent is None
+                and scope_decision.in_scope
                 and not has_tools
                 and not has_follow_up_anchor
                 and scope_decision.matched_domains
             ):
-                data = (
-                    cmd._privacy_policy_response()
-                    if is_restricted
-                    else cmd._in_domain_unknown_response(scope_decision.matched_domains)
-                )
-                return PreparedTurn(
-                    working_request=working_request,
-                    conv_id=conv_id,
-                    history=history,
-                    user_facts=user_facts or {},
-                    emotion_snapshot=emotion_snapshot,
-                    scope_decision=scope_decision,
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=active_tools,
-                    supports_tools=supports_tools,
-                    pending_actions=howto_actions,
-                    howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    in_chat_distress=in_chat_distress,
-                    is_system_turn=is_system_turn,
-                    guard_data=data,
-                    guard_intent="privacy" if is_restricted else "in_domain_unknown",
+                guard_intent = "no_answer"
+                guard_annotation = (
+                    "GROUNDING ROUTING: The request appears related to Sentimeta, "
+                    "but no trusted context was found. Use the conversation history "
+                    "when it is relevant and do not fabricate product details."
                 )
 
         sources = [
@@ -662,6 +710,7 @@ class TurnPreparer:
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
                 session_active_tier=effective_session_tier,
+                guard_annotation=guard_annotation,
             )
         else:
             prompt_str = cmd.prompt_builder.build(
@@ -677,6 +726,7 @@ class TurnPreparer:
                 is_system_turn=is_system_turn,
                 distress_level=distress_level,
                 session_active_tier=effective_session_tier,
+                guard_annotation=guard_annotation,
             )
             messages_or_prompt = cmd._prepend_turn_policy(prompt_str)
 
@@ -696,8 +746,10 @@ class TurnPreparer:
             messages_or_prompt=messages_or_prompt,
             in_chat_distress=in_chat_distress,
             is_system_turn=is_system_turn,
+            guard_intent=guard_intent,
             distress_level=distress_level,
             session_emotional_state=session_emotional_state,
+            guard_annotation=guard_annotation,
         )
 
     def _compute_is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:

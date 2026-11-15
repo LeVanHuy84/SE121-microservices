@@ -6,6 +6,7 @@ from app.modules.chatbot.schemas import AssistantHistoryItem, AssistantRespondRe
 from app.utils.text_normalizer import normalize_for_guard
 from .keywords import (
     DOMAIN_KEYWORD_GROUPS,
+    FAREWELLS,
     FEATURE_QUERY_KEYWORDS,
     FOLLOW_UP_REFERENCE_KEYWORDS,
     GREETINGS,
@@ -31,6 +32,11 @@ class AssistantScopeGuard:
         if normalized_text in GREETINGS:
             return ScopeDecision(
                 True, "greeting", normalized_text, "in_scope", 1.0, ("system",)
+            )
+
+        if normalized_text in FAREWELLS:
+            return ScopeDecision(
+                True, "farewell", normalized_text, "in_scope", 1.0, ("system",)
             )
 
         if request.contexts:

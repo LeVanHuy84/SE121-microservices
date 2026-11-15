@@ -42,6 +42,8 @@ CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
         "khong con ly do de song",
         "song de lam gi",
         "cuoc song vo nghia",
+        "cuoc song nay vo nghia",
+        "cuoc song that vo nghia",
         "chang co gi de song",
         "met moi cuoc doi",
         "cuoc doi chan qua",
@@ -479,6 +481,14 @@ GREETINGS = {
     "hey",
     "xin chao",
     "chao",
+}
+
+FAREWELLS = {
+    "tam biet",
+    "hen gap lai",
+    "gap lai sau",
+    "bye",
+    "goodbye",
 }
 
 FEATURE_QUERY_KEYWORDS = {

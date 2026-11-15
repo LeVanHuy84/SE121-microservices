@@ -7,6 +7,12 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any
 from uuid import uuid4
 
+from app.core.metrics import (
+    record_empty_reply,
+    record_token_usage,
+    record_truncation,
+    record_turn_latency,
+)
 from app.core.settings import settings
 from app.modules.chatbot.navigation.policy import NavOutcome
 from app.modules.chatbot.navigation.resolver import NavResolver, nav_resolver
@@ -41,18 +47,22 @@ from app.modules.chatbot.services.assistant_support import (
     emit_crisis_event,
     extract_cards,
     extract_proposals_from_llm_reply,
+    farewell_response,
     finalize_stream_data,
     greeting_response,
     in_domain_unknown_response,
     infer_intent,
     is_follow_up_reference,
     is_general_knowledge_only,
+    is_incomplete_sentence,
     is_policy_blocked,
+    llm_fallback_generation,
     llm_timeout_generation,
     out_of_scope_response,
     pick_recent_user_anchor,
     prepend_turn_policy,
     privacy_policy_response,
+    repair_truncated_text,
     resolve_follow_up_message,
     sanitize_assistant_reply,
     supports_tools,
@@ -246,14 +256,15 @@ class RespondCommand:
                     )
         except asyncio.TimeoutError:
             generation = self._llm_timeout_generation()
-        except Exception:
+        except Exception as exc:
             logger.exception(
-                "Assistant generation failed: userId=%s conversationId=%s contexts=%s",
+                "Assistant generation failed: userId=%s conversationId=%s contexts=%s exc=%s",
                 request.userId,
                 request.conversationId,
                 len(turn.final_contexts),
+                exc,
             )
-            raise
+            generation = self._llm_fallback_generation()
 
         generated_cards: list[ShowCardAction] = []
         tool_results_list: list[Any] = []
@@ -279,8 +290,9 @@ class RespondCommand:
                     )
             except asyncio.TimeoutError:
                 generation = self._llm_timeout_generation()
-            except Exception:
-                logger.exception("Assistant tool synthesis generation failed")
+            except Exception as exc:
+                logger.exception("Assistant tool synthesis generation failed: %s", exc)
+                generation = self._llm_fallback_generation()
 
         # Synthesize write action proposals (Zero Silent Mutation, guarded by aiPolicy)
         ai_policy = str(
@@ -305,6 +317,23 @@ class RespondCommand:
         pending_actions = pending_actions[:3]
 
         reply_content = self._sanitize_assistant_reply(cleaned_reply)
+        finish_reason = getattr(generation, "finish_reason", None)
+        if finish_reason == "length" or (
+            finish_reason is None and is_incomplete_sentence(reply_content)
+        ):
+            active_reason = finish_reason or "length"
+            logger.warning(
+                "Assistant reply was truncated (finish_reason=%s); repairing sentence boundary.",
+                active_reason,
+            )
+            reply_content = repair_truncated_text(reply_content)
+            record_truncation(active_reason)
+
+        record_token_usage(
+            getattr(generation, "prompt_tokens", 0) or 0,
+            getattr(generation, "completion_tokens", 0) or 0,
+        )
+
         empty_reply_guarded = not reply_content.strip()
         if empty_reply_guarded:
             logger.warning(
@@ -312,6 +341,7 @@ class RespondCommand:
                 generation.model,
             )
             reply_content = EMPTY_REPLY_FALLBACK
+            record_empty_reply()
         resolved_intent = request.intent or self._infer_intent(
             turn.final_contexts,
             fallback_domains=turn.scope_decision.matched_domains,
@@ -343,17 +373,28 @@ class RespondCommand:
                 policy_blocked=is_blocked,
             )
 
+        is_fallback_turn = empty_reply_guarded or generation.model in (
+            "timeout-guard",
+            "fallback-guard",
+        )
+
+        record_turn_latency(
+            time.perf_counter() - started_at,
+            scenario="fallback" if is_fallback_turn else "answer",
+        )
+
         return AssistantRespondData(
             type=(
-                "fallback"
-                if empty_reply_guarded or generation.model == "timeout-guard"
-                else "answer"
+                turn.guard_intent
+                if not is_fallback_turn
+                and turn.guard_intent in {"clarify", "no_answer", "out_of_scope"}
+                else ("fallback" if is_fallback_turn else "answer")
             ),
             reply=reply_content,
-            sources=turn.sources,
-            suggestedActions=pending_actions,
-            cards=generated_cards,
-            proposals=generated_proposals,
+            sources=turn.sources if not is_fallback_turn else [],
+            suggestedActions=pending_actions if not is_fallback_turn else [],
+            cards=generated_cards if not is_fallback_turn else [],
+            proposals=generated_proposals if not is_fallback_turn else [],
             model=generation.model or settings.GROQ_MODEL,
             provider=generation.provider or "groq",
             intent=resolved_intent,
@@ -527,6 +568,11 @@ class RespondCommand:
     def _llm_timeout_generation(self) -> LlmGeneration:
         return llm_timeout_generation()
 
+    def _llm_fallback_generation(
+        self, content: str = EMPTY_REPLY_FALLBACK
+    ) -> LlmGeneration:
+        return llm_fallback_generation(content=content)
+
     def _sanitize_assistant_reply(self, value: str) -> str:
         return sanitize_assistant_reply(value)
 
@@ -567,6 +613,9 @@ class RespondCommand:
 
     def _greeting_response(self) -> AssistantRespondData:
         return greeting_response()
+
+    def _farewell_response(self) -> AssistantRespondData:
+        return farewell_response()
 
     def _ambiguous_scope_response(
         self, matched_domains: tuple[str, ...]
@@ -706,7 +755,9 @@ class RespondCommand:
                             post_tool_reply_parts.append(chunk.content)
                             filtered_text = filter_stream.process_chunk(chunk.content)
                             if filtered_text:
-                                emit_meta = first_yield or not post_tool_metadata_emitted
+                                emit_meta = (
+                                    first_yield or not post_tool_metadata_emitted
+                                )
                                 yield AssistantRespondData(
                                     reply=filtered_text,
                                     sources=sources if first_yield else [],
@@ -727,11 +778,13 @@ class RespondCommand:
                                 post_tool_metadata_emitted = True
 
                 if not stream_proposals and post_tool_reply_parts:
-                    _, extracted_post_proposals = self._extract_proposals_from_llm_reply(
-                        "".join(post_tool_reply_parts),
-                        ai_policy=ai_policy,
-                        user_id=request.userId,
-                        conversation_id=turn.conv_id,
+                    _, extracted_post_proposals = (
+                        self._extract_proposals_from_llm_reply(
+                            "".join(post_tool_reply_parts),
+                            ai_policy=ai_policy,
+                            user_id=request.userId,
+                            conversation_id=turn.conv_id,
+                        )
                     )
                     if extracted_post_proposals:
                         stream_proposals = extracted_post_proposals[:3]
@@ -766,7 +819,10 @@ class RespondCommand:
                 )
                 trailing_suggested = (
                     pending_actions
-                    if (first_yield or (collected_tool_calls and not post_tool_metadata_emitted))
+                    if (
+                        first_yield
+                        or (collected_tool_calls and not post_tool_metadata_emitted)
+                    )
                     else (stream_proposals if stream_proposals else [])
                 )
                 yield AssistantRespondData(
@@ -784,9 +840,10 @@ class RespondCommand:
                 first_yield = False
                 post_tool_metadata_emitted = True
             elif (
-                (collected_tool_calls and not post_tool_metadata_emitted and (stream_proposals or stream_cards))
-                or (not collected_tool_calls and stream_proposals)
-            ):
+                collected_tool_calls
+                and not post_tool_metadata_emitted
+                and (stream_proposals or stream_cards)
+            ) or (not collected_tool_calls and stream_proposals):
                 yield AssistantRespondData(
                     reply="",
                     sources=sources if first_yield else [],

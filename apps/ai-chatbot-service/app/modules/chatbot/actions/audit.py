@@ -79,6 +79,7 @@ class ActionAuditLogger:
             return
 
         try:
+
             async def _write():
                 await self._ensure_indexes(collection)
                 await collection.insert_one(doc)

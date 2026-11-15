@@ -96,7 +96,9 @@ class NavResolverUnitTest(unittest.TestCase):
             "mở quyền riêng tư", ai_policy="RESTRICTED"
         )
         self.assertEqual(privacy_restricted.path, "command")
-        self.assertEqual(privacy_restricted.matches[0].destination_id, "settings.privacy")
+        self.assertEqual(
+            privacy_restricted.matches[0].destination_id, "settings.privacy"
+        )
 
         # Under FULL policy, personal destinations resolve normally
         friends_full = self.resolver.resolve("mở bạn bè", ai_policy="FULL")

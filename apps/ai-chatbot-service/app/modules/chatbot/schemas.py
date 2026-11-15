@@ -11,6 +11,7 @@ AssistantRole = Literal["system", "user", "assistant"]
 AssistantResponseType = Literal[
     "answer",
     "greeting",
+    "farewell",
     "out_of_scope",
     "clarify",
     "no_answer",

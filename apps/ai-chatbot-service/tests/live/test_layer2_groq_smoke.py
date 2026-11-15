@@ -97,7 +97,9 @@ class Layer2GroqSmokeTests(unittest.TestCase):
         nav_actions = [
             a for a in data.get("suggestedActions", []) if a.get("type") == "navigate"
         ]
-        self.assertGreaterEqual(len(nav_actions), 1, f"Expected navigate action: {data}")
+        self.assertGreaterEqual(
+            len(nav_actions), 1, f"Expected navigate action: {data}"
+        )
         dest_id = nav_actions[0]["payload"]["destinationId"]
         self.assertIn(dest_id, self.valid_destinations)
 
@@ -172,7 +174,9 @@ class Layer2GroqSmokeTests(unittest.TestCase):
             .replace("\u2011", "-")
             .replace("\u2013", "-")
         )
-        self.assertIn("minh", reply_lower, f"Expected LLM to recall name 'Minh': {second}")
+        self.assertIn(
+            "minh", reply_lower, f"Expected LLM to recall name 'Minh': {second}"
+        )
         self.assertTrue(
             "lo-fi" in reply_lower or "lofi" in reply_lower,
             f"Expected LLM to recall 'lo-fi': {second}",

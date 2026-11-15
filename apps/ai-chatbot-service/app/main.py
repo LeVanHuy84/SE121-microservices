@@ -10,6 +10,8 @@ from app.modules.chatbot.public_router import (
     public_router,
     register_public_error_handlers,
 )
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 
 app = FastAPI(title="AI Chatbot Service")
@@ -73,6 +75,11 @@ def get_readiness_status():
             "destinations_count": destinations_count,
         },
     }
+
+
+@app.get("/metrics")
+def get_metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def start():

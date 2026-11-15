@@ -89,6 +89,20 @@ def greeting_response() -> AssistantRespondData:
     )
 
 
+def farewell_response() -> AssistantRespondData:
+    return AssistantRespondData(
+        reply=(
+            "Tạm biệt bạn nhé! Khi cần hỗ trợ về Sentimeta hoặc sức khỏe tinh thần, "
+            "mình vẫn ở đây."
+        ),
+        sources=[],
+        suggestedActions=[],
+        type="farewell",
+        model="scope-guard",
+        provider="chatbot-service",
+    )
+
+
 def ambiguous_scope_response(
     matched_domains: tuple[str, ...],
 ) -> AssistantRespondData:

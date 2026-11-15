@@ -107,8 +107,11 @@ class Slice1BToolsAndActionsTests(unittest.TestCase):
         mongo_db_name = os.getenv("MONGO_DB", "ai_chatbot_service")
         mongo_client = get_mongo_client()
         try:
+
             def _find_audit():
-                return mongo_client[mongo_db_name]["chatbot_action_audit_logs"].find_one(
+                return mongo_client[mongo_db_name][
+                    "chatbot_action_audit_logs"
+                ].find_one(
                     {
                         "userId": uid,
                         "actionName": payload["actionName"],

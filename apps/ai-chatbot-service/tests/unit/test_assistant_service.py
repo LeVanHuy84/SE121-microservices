@@ -439,7 +439,9 @@ class AssistantServiceTest(unittest.TestCase):
                 message="Mình muốn kết nối bạn bè với Nam",
                 aiPolicy=policy,
             )
-            return [chunk async for chunk in service._respond_command.execute_stream(req)]
+            return [
+                chunk async for chunk in service._respond_command.execute_stream(req)
+            ]
 
         chunks_full = asyncio.run(_collect("FULL"))
         proposals_full = [p for c in chunks_full for p in c.proposals]
@@ -462,7 +464,6 @@ class AssistantServiceTest(unittest.TestCase):
         )
         self.assertFalse(blocked.success)
         self.assertIn("riêng tư", blocked.error or "")
-
 
     def test_execute_stream_empty_reply_yields_safe_fallback(self):
         from app.providers.base import LlmChunk
