@@ -14,10 +14,45 @@ from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 from app.modules.chatbot.services.guardrails import (
     GREETINGS,
     ScopeDecision,
+    classify_in_chat_distress_level,
     has_in_chat_emotional_distress,
+    stage2_guard_verifier,
 )
 from app.modules.chatbot.services.prompt_limits import resolve_prompt_limits
-from app.providers.groq_provider import GroqProvider
+from app.utils.text_normalizer import normalize_for_guard
+
+SHORT_FOLLOWUP_MAX_TOKENS = 12
+_EXPLICIT_RECOVERY_CUES = (
+    "minh on roi",
+    "toi on roi",
+    "do hon roi",
+    "het lo roi",
+    "on hon roi",
+)
+_POLITE_THANKS_CUES = (
+    "cam on ban",
+    "cam on nhieu",
+)
+_CONTINUATION_NEGATION_TOKENS = (
+    "nhung",
+    "van",
+    "chua",
+    "hoi",
+    "met",
+    "ngop",
+    "kho",
+    "lo",
+)
+
+
+def _is_positive_recovery_cue(text: str) -> bool:
+    norm = normalize_for_guard(text)
+    if any(cue in norm for cue in _EXPLICIT_RECOVERY_CUES):
+        return True
+    tokens = norm.split()
+    if len(tokens) <= 6 and any(cue in norm for cue in _POLITE_THANKS_CUES):
+        return not any(tok in _CONTINUATION_NEGATION_TOKENS for tok in tokens)
+    return False
 
 
 class TurnPreparer:
@@ -39,6 +74,10 @@ class TurnPreparer:
             request.userId, request.conversationId
         )
         conv_id = conv["id"]
+        prev_emotional_state = dict(conv.get("session_emotional_state") or {})
+        prev_active_tier = str(prev_emotional_state.get("active_tier") or "NONE")
+        prev_ttl = int(prev_emotional_state.get("remaining_turns_ttl") or 0)
+        prev_topic_anchor = str(prev_emotional_state.get("topic_anchor") or "")
         request = request.model_copy(update={"conversationId": conv_id})
 
         crisis_decision = cmd.crisis_guard.evaluate(request.message)
@@ -82,7 +121,10 @@ class TurnPreparer:
             )
 
         community_decision = cmd.community_guard.evaluate(request.message)
-        if not community_decision.allowed:
+        if (
+            not community_decision.allowed
+            and community_decision.reason != "profanity_candidate"
+        ):
             data = cmd._community_response(community_decision.reason)
             return PreparedTurn(
                 working_request=request,
@@ -233,18 +275,154 @@ class TurnPreparer:
                     guard_intent="mental_health_crisis",
                 )
 
-        # Step 4: Stage 1 ScopeGuard (Pre-RAG)
+        # Step 4: Stage 1 ScopeGuard (Pre-RAG) & Conditional Stage 2 Hybrid Guard
         scope_decision = cmd.scope_guard.evaluate_scope(
             working_request,
             last_intent=last_intent,
             recent_history=history,
         )
-        in_chat_distress = has_in_chat_emotional_distress(working_request.message)
+        distress_level = classify_in_chat_distress_level(working_request.message)
+        is_short_followup = (
+            len(working_request.message.split()) <= SHORT_FOLLOWUP_MAX_TOKENS
+        )
+        has_active_session_anchor = (
+            prev_ttl > 0
+            and prev_active_tier in {"TIER_2_PFA", "TIER_3_CBT"}
+            and bool(prev_topic_anchor)
+            and is_short_followup
+            and not _is_positive_recovery_cue(working_request.message)
+        )
+        effective_query = (
+            f"{prev_topic_anchor} {working_request.message}".strip()
+            if has_active_session_anchor
+            else working_request.message
+        )
+
+        needs_stage2 = (
+            community_decision.reason == "profanity_candidate"
+            or (not scope_decision.in_scope and scope_decision.reason != "privacy")
+            or (0.15 < scope_decision.confidence < 0.45)
+            or distress_level != "none"
+        )
+        if needs_stage2:
+            stage2_res = None
+            try:
+                stage2_res = await asyncio.wait_for(
+                    stage2_guard_verifier.verify_async(
+                        working_request.message,
+                        stage1_scope=scope_decision,
+                        stage1_community=community_decision,
+                        stage1_crisis=crisis_decision,
+                        topic_anchor=prev_topic_anchor
+                        if has_active_session_anchor
+                        else None,
+                        effective_query=effective_query,
+                    ),
+                    timeout=0.25,
+                )
+            except TimeoutError:
+                stage2_res = None
+
+            if (
+                stage2_res is not None
+                and stage2_res.crisis_decision_override is not None
+                and stage2_res.crisis_decision_override.is_crisis
+            ):
+                c_over = stage2_res.crisis_decision_override
+                notification_sent = await cmd._emit_crisis_event(
+                    working_request,
+                    c_over.severity,
+                    c_over.reason,
+                    conversation_id=conv_id,
+                )
+                reply = cmd.prompt_builder.build_crisis(
+                    severity=c_over.severity,
+                    notification_sent=notification_sent,
+                )
+                data = cmd._build_crisis_response(
+                    reply,
+                    c_over.severity,
+                    notification_sent,
+                )
+                return PreparedTurn(
+                    working_request=working_request,
+                    conv_id=conv_id,
+                    history=history,
+                    user_facts=user_facts or {},
+                    emotion_snapshot=emotion_snapshot,
+                    scope_decision=ScopeDecision(
+                        False, "crisis", "", "out_of_scope", 0.0, ()
+                    ),
+                    final_contexts=[],
+                    sources=[],
+                    active_tools=[],
+                    supports_tools=False,
+                    pending_actions=[],
+                    howto_actions=howto_actions,
+                    messages_or_prompt="",
+                    is_proactive_checkin=False,
+                    in_chat_distress=True,
+                    is_system_turn=False,
+                    guard_data=data,
+                    guard_intent="mental_health_crisis",
+                    distress_level="acute_pfa",
+                )
+
+            if community_decision.reason == "profanity_candidate":
+                if (
+                    stage2_res is None
+                    or stage2_res.community_allowed_override is not True
+                ):
+                    data = cmd._community_response("profanity")
+                    return PreparedTurn(
+                        working_request=working_request,
+                        conv_id=conv_id,
+                        history=history,
+                        user_facts=user_facts or {},
+                        emotion_snapshot=emotion_snapshot,
+                        scope_decision=ScopeDecision(
+                            False, "community", "", "out_of_scope", 0.0, ()
+                        ),
+                        final_contexts=[],
+                        sources=[],
+                        active_tools=[],
+                        supports_tools=False,
+                        pending_actions=[],
+                        howto_actions=howto_actions,
+                        messages_or_prompt="",
+                        is_proactive_checkin=False,
+                        in_chat_distress=False,
+                        is_system_turn=False,
+                        guard_data=data,
+                        guard_intent="community_guard",
+                    )
+
+            if stage2_res is not None:
+                if stage2_res.distress_level == "acute_pfa":
+                    distress_level = "acute_pfa"
+                elif (
+                    stage2_res.distress_level == "mild_cbt" and distress_level == "none"
+                ):
+                    distress_level = "mild_cbt"
+
+                if stage2_res.in_scope_override is True:
+                    scope_decision = ScopeDecision(
+                        in_scope=True,
+                        reason="stage2_semantic",
+                        normalized_text=scope_decision.normalized_text,
+                        state="in_scope",
+                        confidence=max(scope_decision.confidence, 0.76),
+                        matched_domains=stage2_res.matched_domains_override
+                        or scope_decision.matched_domains,
+                    )
+
+        in_chat_distress = distress_level != "none"
 
         if (
             not scope_decision.in_scope
             and scope_decision.state != "in_domain_unknown"
             and not in_chat_distress
+            and not has_active_session_anchor
             and not request.contexts
         ):
             intent = "out_of_scope"
@@ -287,6 +465,8 @@ class TurnPreparer:
                 settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
                 emotion_snapshot,
                 matched_domains=scope_decision.matched_domains,
+                distress_level=distress_level,
+                topic_anchor=prev_topic_anchor if has_active_session_anchor else None,
             )
         )
         prompt_limits = resolve_prompt_limits(request.userId)
@@ -335,6 +515,44 @@ class TurnPreparer:
             and emotion_snapshot.needs_proactive_checkin
             and not history
         )
+
+        # Multi-turn emotional state transition
+        if distress_level in {"acute_pfa", "mild_cbt"}:
+            active_tier = (
+                "TIER_2_PFA" if distress_level == "acute_pfa" else "TIER_3_CBT"
+            )
+            session_emotional_state = {
+                "active_tier": active_tier,
+                "remaining_turns_ttl": 3,
+                "topic_anchor": working_request.message[:200],
+            }
+            effective_session_tier = active_tier
+        elif not is_system_turn and has_active_session_anchor:
+            distress_level = (
+                "acute_pfa" if prev_active_tier == "TIER_2_PFA" else "mild_cbt"
+            )
+            in_chat_distress = True
+            next_ttl = max(prev_ttl - 1, 0)
+            if next_ttl == 0:
+                session_emotional_state = {
+                    "active_tier": "NONE",
+                    "remaining_turns_ttl": 0,
+                    "topic_anchor": "",
+                }
+            else:
+                session_emotional_state = {
+                    "active_tier": prev_active_tier,
+                    "remaining_turns_ttl": next_ttl,
+                    "topic_anchor": prev_topic_anchor,
+                }
+            effective_session_tier = prev_active_tier
+        else:
+            session_emotional_state = {
+                "active_tier": "NONE",
+                "remaining_turns_ttl": 0,
+                "topic_anchor": "",
+            }
+            effective_session_tier = "NONE"
 
         # Stage 2 Grounding Gate
         if (
@@ -407,7 +625,7 @@ class TurnPreparer:
         ]
 
         # Step 6: Message / Prompt Construction
-        if isinstance(cmd.provider, GroqProvider):
+        if getattr(cmd.provider, "supports_chat_messages", False):
             messages_or_prompt = cmd.prompt_builder.build_messages(
                 working_request,
                 history,
@@ -421,6 +639,8 @@ class TurnPreparer:
                 is_proactive_checkin=is_proactive_checkin,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
+                distress_level=distress_level,
+                session_active_tier=effective_session_tier,
             )
         else:
             prompt_str = cmd.prompt_builder.build(
@@ -435,6 +655,8 @@ class TurnPreparer:
                 is_proactive_checkin=is_proactive_checkin,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
+                distress_level=distress_level,
+                session_active_tier=effective_session_tier,
             )
             messages_or_prompt = cmd._prepend_turn_policy(prompt_str)
 
@@ -455,4 +677,6 @@ class TurnPreparer:
             is_proactive_checkin=is_proactive_checkin,
             in_chat_distress=in_chat_distress,
             is_system_turn=is_system_turn,
+            distress_level=distress_level,
+            session_emotional_state=session_emotional_state,
         )

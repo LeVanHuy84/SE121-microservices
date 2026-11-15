@@ -40,6 +40,8 @@ class PromptBuilder:
         is_proactive_checkin: bool = False,
         in_chat_distress: bool = False,
         is_system_turn: bool = False,
+        distress_level: str = "none",
+        session_active_tier: str = "NONE",
     ) -> str:
         resolved_context_char_limit = (
             context_char_limit or settings.CHATBOT_CONTEXT_CHAR_LIMIT
@@ -58,6 +60,8 @@ class PromptBuilder:
                 emotion_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
+                distress_level=distress_level,
+                session_active_tier=session_active_tier,
             ),
             self._build_surface_context_directive(request.surface),
             self._build_user_profile(request),
@@ -95,6 +99,8 @@ class PromptBuilder:
         in_chat_distress: bool = False,
         is_system_turn: bool = False,
         turn_policy: bool = True,
+        distress_level: str = "none",
+        session_active_tier: str = "NONE",
     ) -> list[BaseMessage]:
         try:
             from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -118,6 +124,8 @@ class PromptBuilder:
                 emotion_snapshot,
                 in_chat_distress=in_chat_distress,
                 is_system_turn=is_system_turn,
+                distress_level=distress_level,
+                session_active_tier=session_active_tier,
             ),
             self._build_surface_context_directive(request.surface),
             self._build_user_profile(request),
@@ -204,12 +212,24 @@ class PromptBuilder:
         snapshot,
         in_chat_distress: bool = False,
         is_system_turn: bool = False,
+        distress_level: str = "none",
+        session_active_tier: str = "NONE",
     ) -> str:
-        """Inject TONE_DIRECTIVE to adapt the response style based on emotion and risk level."""
-        if is_system_turn and not in_chat_distress:
+        """Inject TONE_DIRECTIVE to adapt the response style based on stepped-care tier and emotion state."""
+        has_chat_distress = (
+            in_chat_distress
+            or distress_level in {"mild_cbt", "acute_pfa"}
+            or (
+                not is_system_turn
+                and session_active_tier in {"TIER_2_PFA", "TIER_3_CBT"}
+            )
+        )
+        if is_system_turn and not (
+            in_chat_distress or distress_level in {"mild_cbt", "acute_pfa"}
+        ):
             return ""
 
-        if snapshot is None and not in_chat_distress:
+        if snapshot is None and not has_chat_distress:
             return ""
 
         has_negative_emotion = snapshot is not None and (
@@ -218,13 +238,61 @@ class PromptBuilder:
         persistent_distress = (
             bool(getattr(snapshot, "persistent_distress", False)) if snapshot else False
         )
+        hysteresis_level = (
+            str(
+                getattr(snapshot, "hysteresis_risk_level", "NORMAL") or "NORMAL"
+            ).upper()
+            if snapshot
+            else "NORMAL"
+        )
+        suggested_action = (
+            str(getattr(snapshot, "suggested_action", "NO_ACTION") or "NO_ACTION")
+            if snapshot
+            else "NO_ACTION"
+        )
+        has_proactive_context = (
+            snapshot is not None
+            and not is_system_turn
+            and suggested_action != "NO_ACTION"
+            and bool(getattr(snapshot, "chatbot_prompt_context", None))
+        )
+
+        is_tier_2 = (distress_level == "acute_pfa") or (
+            not is_system_turn
+            and (
+                session_active_tier == "TIER_2_PFA"
+                or (
+                    snapshot is not None
+                    and (
+                        hysteresis_level in {"MODERATE_RISK", "HIGH_RISK", "CRISIS"}
+                        or (
+                            has_negative_emotion
+                            and getattr(snapshot, "risk_level", "none") == "high"
+                        )
+                        or persistent_distress
+                    )
+                )
+            )
+        )
 
         if (
             not has_negative_emotion
             and not persistent_distress
-            and not in_chat_distress
+            and not has_chat_distress
+            and not is_tier_2
+            and not has_proactive_context
         ):
             return ""
+
+        if is_tier_2:
+            directive = (
+                "TONE_DIRECTIVE (TIER 2 - SƠ CỨU TÂM LÝ PFA): Người dùng đang trong trạng thái căng thẳng/hoảng loạn cấp tính hoặc kéo dài.\n"
+                "- Bắt buộc sử dụng giọng điệu ấm áp, trấn an, thấu cảm và chậm rãi, không phán xét.\n"
+                "- Ưu tiên hướng dẫn ổn định cơ thể (somatic grounding) như thở 4-7-8 hoặc kỹ thuật 5-4-3-2-1 từ CONTEXT (kèm trích dẫn [1], [2] ở câu hướng dẫn, KHÔNG trích dẫn ở câu đồng cảm).\n"
+                "- TUYỆT ĐỐI KHÔNG đặt câu hỏi gợi mở Socrates, KHÔNG hỏi 'Điều gì khiến bạn...', KHÔNG hỏi 'Có góc nhìn nào khác...', và KHÔNG thách thức nhận thức hay tranh luận lúc này.\n"
+                "- Kết thúc bằng một câu quan tâm nhẹ nhàng, không áp lực (ví dụ: 'Mình vẫn đang ở đây nghe bạn')."
+            )
+            return directive
 
         if snapshot is not None and not persistent_distress:
             directive = (
@@ -234,39 +302,23 @@ class PromptBuilder:
         elif persistent_distress:
             directive = (
                 "TONE_DIRECTIVE: CẢNH BÁO: Người dùng đang có dấu hiệu căng thẳng/buồn bã kéo dài trong thời gian gần đây "
-                f"(Mức rủi ro: {getattr(snapshot, 'risk_level', 'none')}). "
-                "Hãy ưu tiên sự ấm áp, kiên nhẫn, đề xuất các bước nhỏ dễ thực hiện (micro-steps) hoặc kỹ thuật thở 4-7-8 / grounding 5-4-3-2-1 dựa trên tài liệu CONTEXT.\n"
+                f"(Mức rủi ro: {getattr(snapshot, 'risk_level', 'none')}).\n"
             )
         else:
             directive = "TONE_DIRECTIVE: Người dùng vừa chia sẻ trạng thái căng thẳng hoặc mệt mỏi trong cuộc trò chuyện.\n"
 
         directive += "- Bắt buộc sử dụng giọng điệu thấu cảm, nhẹ nhàng và an toàn, không phán xét.\n"
 
-        if persistent_distress:
-            directive += (
-                "- CHÚ Ý: Trạng thái căng thẳng đã kéo dài. Hãy đặc biệt ưu tiên sự ấm áp, chậm rãi, "
-                "và gợi ý nhẹ nhàng bài tập thở 4-7-8 hoặc kỹ thuật grounding nếu cảm thấy phù hợp.\n"
-            )
+        if has_proactive_context and snapshot is not None:
+            directive += f"- TIER 0 PROACTIVE CHECK-IN CONTEXT: {snapshot.chatbot_prompt_context}\n"
 
-        # Tier 2 vs Tier 3
-        is_tier_2 = (
-            snapshot is not None and snapshot.risk_level in {"high", "medium"}
-        ) or persistent_distress
-
-        if is_tier_2:
-            directive += (
-                "- Ưu tiên SƠ CỨU TÂM LÝ (PFA): Tập trung lắng nghe, trấn an và hướng dẫn các kỹ thuật grounding (ví dụ: hít thở). "
-                "KHÔNG cố gắng tranh luận hay thay đổi suy nghĩ của họ lúc này.\n"
-                "- Kết thúc bằng một câu quan tâm ngắn gọn (ví dụ: 'Mình vẫn đang ở đây nghe bạn')."
-            )
-        else:
-            directive += (
-                "- Áp dụng PHƯƠNG PHÁP SOCRATES & CBT NHẸ NHÀNG:\n"
-                "  1. Đồng cảm trước: Thể hiện sự thấu cảm tự nhiên bằng tiếng Việt không trích dẫn ở câu đồng cảm.\n"
-                "  2. Hướng dẫn kỹ năng thích ứng đời thường từ CONTEXT cá nhân hóa với USER_FACTS kèm trích dẫn [1], [2].\n"
-                "  3. Kết thúc bằng MỘT câu hỏi mở duy nhất để gợi mở góc nhìn, không phán xét hay dồn dập (ví dụ: 'Điều gì khiến bạn cảm thấy...', 'Có góc nhìn nào khác tích cực hơn không?').\n"
-                "- KHÔNG dồn dập hỏi cung. Chỉ hỏi một câu duy nhất để gợi mở."
-            )
+        directive += (
+            "- Áp dụng PHƯƠNG PHÁP SOCRATES & CBT NHẸ NHÀNG (TIER 3):\n"
+            "  1. Đồng cảm trước: Thể hiện sự thấu cảm tự nhiên bằng tiếng Việt không trích dẫn ở câu đồng cảm.\n"
+            "  2. Hướng dẫn kỹ năng thích ứng đời thường từ CONTEXT cá nhân hóa với USER_FACTS kèm trích dẫn [1], [2].\n"
+            "  3. Kết thúc bằng MỘT câu hỏi mở duy nhất để gợi mở góc nhìn, không phán xét hay dồn dập (ví dụ: 'Điều gì khiến bạn cảm thấy...', 'Có góc nhìn nào khác tích cực hơn không?').\n"
+            "- KHÔNG dồn dập hỏi cung. Chỉ hỏi một câu duy nhất để gợi mở."
+        )
 
         return directive
 

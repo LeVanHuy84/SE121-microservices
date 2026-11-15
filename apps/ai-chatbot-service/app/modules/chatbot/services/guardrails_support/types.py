@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
+
+DistressLevel = Literal["none", "mild_cbt", "acute_pfa"]
 
 
 @dataclass(frozen=True)
@@ -27,3 +30,13 @@ class ScopeDecision:
     state: str
     confidence: float
     matched_domains: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Stage2VerificationResult:
+    in_scope_override: bool | None = None
+    matched_domains_override: tuple[str, ...] | None = None
+    community_allowed_override: bool | None = None
+    crisis_decision_override: CrisisDecision | None = None
+    distress_level: DistressLevel = "none"
+    phobert_scores: dict[str, float] = field(default_factory=dict)

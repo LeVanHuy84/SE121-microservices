@@ -4,6 +4,7 @@ title: Hướng dẫn Tính năng Trí tuệ Nhân tạo (AI) trên Sentimeta
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Những Người Bạn AI Đặc Biệt của Sentimeta
 

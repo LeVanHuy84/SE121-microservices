@@ -69,10 +69,7 @@ def extract_cards(
                         )
                     )
                     username_or_id = (
-                        u.get("username")
-                        or u.get("id")
-                        or u.get("targetUserId")
-                        or ""
+                        u.get("username") or u.get("id") or u.get("targetUserId") or ""
                     )
                     cards.append(
                         ShowCardAction(
@@ -116,9 +113,7 @@ def extract_cards(
                     g_name = g.get("name") or "Nhóm cộng đồng"
                     m_count = g.get("memberCount") or g.get("membersCount") or 0
                     g_sub = (
-                        f"{m_count} thành viên"
-                        if m_count
-                        else "Cộng đồng Sentimeta"
+                        f"{m_count} thành viên" if m_count else "Cộng đồng Sentimeta"
                     )
                     g_id = g.get("id") or g.get("groupId") or ""
                     cards.append(
@@ -188,9 +183,7 @@ def extract_cards(
                     p_author = p.get("authorName") or "Bài viết nổi bật"
                     p_content = str(p.get("content", ""))
                     p_sub = (
-                        (p_content[:75] + "...")
-                        if len(p_content) > 75
-                        else p_content
+                        (p_content[:75] + "...") if len(p_content) > 75 else p_content
                     )
                     p_id = p.get("id") or ""
                     cards.append(
@@ -289,9 +282,7 @@ def extract_proposals_from_llm_reply(
                     )
                 )
         except Exception as exc:
-            logger.warning(
-                "Failed to parse action proposal from LLM output: %s", exc
-            )
+            logger.warning("Failed to parse action proposal from LLM output: %s", exc)
 
     cleaned_reply = pattern.sub("", reply).strip()
     return cleaned_reply, proposals
@@ -744,8 +735,7 @@ def detect_action_proposals(
 
     # 5. Post Reaction interactions
     if any(
-        kw in msg
-        for kw in ("thích", "thả tim", "like bài", "bài viết này", "react")
+        kw in msg for kw in ("thích", "thả tim", "like bài", "bài viết này", "react")
     ):
         post_id = None
         if request.surface and "post" in (request.surface.screen or ""):

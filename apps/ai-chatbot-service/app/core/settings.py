@@ -291,6 +291,31 @@ class Settings:
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
 
+        # Multi-Provider Fallback & Circuit Breaker Settings
+        self.LLM_FALLBACK_ENABLED: bool = os.getenv(
+            "LLM_FALLBACK_ENABLED", "true"
+        ).lower() in ("true", "1", "yes")
+        self.LLM_FALLBACK_PROVIDER: str = (
+            os.getenv("LLM_FALLBACK_PROVIDER", "gemini").strip().lower()
+        )
+        self.LLM_FALLBACK_API_KEY: str = os.getenv("LLM_FALLBACK_API_KEY", "").strip()
+        self.LLM_FALLBACK_BASE_URL: str = os.getenv(
+            "LLM_FALLBACK_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+        ).strip()
+        self.LLM_FALLBACK_MODEL: str = os.getenv(
+            "LLM_FALLBACK_MODEL", "gemini-2.5-flash"
+        ).strip()
+        self.LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(
+            os.getenv("LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD", 3)
+        )
+        self.LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS: float = float(
+            os.getenv("LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS", 30.0)
+        )
+        self.FACT_EXTRACTOR_RPM_LIMIT: int = int(
+            os.getenv("FACT_EXTRACTOR_RPM_LIMIT", 10)
+        )
+
         # Downstream Gateway Client Settings for Phase 2 Tools
         self.API_GATEWAY_URL: str = os.getenv(
             "API_GATEWAY_URL", "http://localhost:4000"

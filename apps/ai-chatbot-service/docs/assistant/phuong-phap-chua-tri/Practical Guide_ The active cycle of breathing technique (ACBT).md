@@ -3,8 +3,9 @@ id: practical-guide_-the-active-cycle-of-breathing-technique-(acbt)
 title: Practical Guide  The Active Cycle Of Breathing Technique (Acbt)
 topic: phuong-phap-chua-tri
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+tier: actionable_worksheet
 ---
 
 

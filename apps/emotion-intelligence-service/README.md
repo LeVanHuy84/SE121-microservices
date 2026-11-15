@@ -17,15 +17,17 @@ NestJS analytics and psychological safety microservice that compiles longitudina
 - Emotional anomaly baselines are calculated against user 14-day rolling averages.
 - Severe negative emotional clustering triggers empathetic support notifications without exposing sensitive private details.
 - Proactive AI sweeps are scheduled via cron (`PROACTIVE_SWEEP_CRON`) to flag persistent negative trends.
+- **Single-Writer Longitudinal Redis Hash (`emotion:longitudinal:{userId}`)**: `WarningService` and `ProactiveInterventionService` are the sole writers of `emotion:longitudinal:{userId}` (read-only consumed by `ai-chatbot-service`). When `WarningService.evaluateUserRisk()` transitions a user back to `RiskLevel.NORMAL`, it explicitly resets `suggested_action` to `'NO_ACTION'` and `chatbot_prompt_context` to `''`.
 
 ## Side Effects
 - Persists user emotion records, historical timelines, and moderation appeals in MongoDB.
-- Caches dashboard summary aggregates in Redis.
+- Caches dashboard summary aggregates in Redis and writes longitudinal risk/intervention fields (`hysteresis_risk_level`, `risk_score`, `stable_windows`, `consecutive_negative_days`, `persistent_distress`, `suggested_action`, `chatbot_prompt_context`, `longitudinal_updated_at`, TTL `86400s`) to `emotion:longitudinal:{userId}`.
 - Queries Groq API (`llama-3.3-70b-versatile`) to generate empathetic psychological wellbeing guidance.
 - Emits wellbeing alerts and recommendation trigger events to Kafka.
 
 ## Verification
-- Run: `npm test` (`jest --passWithNoTests`)
+- Unit tests: `npx turbo run test --filter=emotion-intelligence-service` (or `npm --workspace=emotion-intelligence-service run test`)
+- Type check & lint: `npm run check-types` and `npm run lint`
 
 ---
 

@@ -88,6 +88,10 @@ from app.modules.chatbot.tools import (
 )
 from app.providers.base import LlmGeneration, LlmProvider, ToolCallInfo
 from app.providers.groq_provider import GroqProvider
+from app.providers.resilient_provider import (
+    STREAM_TRUNCATION_NOTICE,
+    resilient_llm_provider,
+)
 
 logger = logging.getLogger("uvicorn.error")
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
@@ -122,7 +126,9 @@ class RespondCommand:
         fact_extractor: FactExtractorService | None = None,
     ):
         self.prompt_builder = prompt_builder or PromptBuilder()
-        self.provider = provider or GroqProvider()
+        self.provider = provider or (
+            resilient_llm_provider if settings.LLM_FALLBACK_ENABLED else GroqProvider()
+        )
         self.context_resolver = context_resolver or assistant_context_resolver
         self.scope_guard = scope_guard or assistant_scope_guard
         self.community_guard = community_guard or assistant_community_guard
@@ -303,6 +309,7 @@ class RespondCommand:
             intent=resolved_intent,
             actions=pending_actions,
             policy_blocked=is_blocked,
+            session_emotional_state=turn.session_emotional_state,
         )
 
         if (
@@ -440,15 +447,27 @@ class RespondCommand:
         timeout_ms: int,
         emotion_snapshot: EmotionSnapshot | None = None,
         matched_domains: tuple[str, ...] = (),
+        distress_level: str = "none",
+        topic_anchor: str | None = None,
     ):
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
-            return await asyncio.wait_for(
-                self.context_resolver.resolve(
+            try:
+                coro = self.context_resolver.resolve(
                     request,
                     emotion_snapshot,
                     matched_domains=matched_domains,
-                ),
+                    distress_level=distress_level,
+                    topic_anchor=topic_anchor,
+                )
+            except TypeError:
+                coro = self.context_resolver.resolve(
+                    request,
+                    emotion_snapshot,
+                    matched_domains=matched_domains,
+                )
+            return await asyncio.wait_for(
+                coro,
                 timeout=timeout_seconds,
             )
         except Exception:
@@ -644,7 +663,9 @@ class RespondCommand:
                                 yield AssistantRespondData(
                                     reply=filtered_text,
                                     sources=sources if first_yield else [],
-                                    suggestedActions=pending_actions if first_yield else [],
+                                    suggestedActions=pending_actions
+                                    if first_yield
+                                    else [],
                                     cards=stream_cards if first_yield else [],
                                     proposals=stream_proposals if first_yield else [],
                                     model=chunk.model or settings.GROQ_MODEL,
@@ -678,9 +699,7 @@ class RespondCommand:
                     model=settings.GROQ_MODEL,
                     provider="groq",
                     requestId=request_id,
-                    latencyMs=round(
-                        (time.perf_counter() - started_at) * 1000, 2
-                    ),
+                    latencyMs=round((time.perf_counter() - started_at) * 1000, 2),
                     conversationId=turn.conv_id,
                 )
                 first_yield = False
@@ -733,6 +752,7 @@ class RespondCommand:
             actions=pending_actions,
             policy_blocked=is_blocked,
             conv_id=turn.conv_id,
+            session_emotional_state=turn.session_emotional_state,
         )
         if is_blocked:
             yield AssistantRespondData(
@@ -775,9 +795,12 @@ class RespondCommand:
         actions: list[Any] | None = None,
         policy_blocked: bool = False,
         conv_id: str | None = None,
+        session_emotional_state: dict[str, Any] | None = None,
     ):
         resolved_conv_id = conv_id or request.conversationId
-        reply_content = self._sanitize_assistant_reply(reply)
+        is_truncated = STREAM_TRUNCATION_NOTICE.strip() in reply
+        cleaned_reply = reply.replace(STREAM_TRUNCATION_NOTICE, "").strip()
+        reply_content = self._sanitize_assistant_reply(cleaned_reply)
         persisted = await self.persist_history.execute(
             request=request,
             assistant_reply=reply_content,
@@ -785,9 +808,11 @@ class RespondCommand:
             intent=intent,
             actions=actions,
             policy_blocked=policy_blocked,
+            session_emotional_state=session_emotional_state,
         )
         if (
-            not policy_blocked
+            not is_truncated
+            and not policy_blocked
             and intent not in NON_SUBSTANTIVE_INTENTS
             and resolved_conv_id
         ):

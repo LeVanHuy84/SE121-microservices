@@ -30,7 +30,7 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
   - `POST /analysis/image-emotion`: Face and visual sentiment analysis.
 - **Message Streams (Kafka & RabbitMQ)**:
   - Consumer (`user-events` topic, group `{client_id}-chatbot-user`): Consumes `user.removed` account deletion events and executes full cascade purge (`purge_user_data(include_emotion_cache=True)`).
-  - Consumer (`analysis-result-events` topic, group `{client_id}-chatbot-emotion`): Captures analysis results and updates the 5-minute Redis emotion cache (`EmotionContextService`).
+  - Consumer (`analysis-result-events` topic, group `{client_id}-chatbot-emotion`): Captures post/media analysis results and updates the acute Redis Hash `chatbot:emotion:acute:{user_id}` (`EmotionContextService.update_acute_cache`) without overwriting `emotion:longitudinal:{user_id}`.
   - Publisher (`chatbot.crisis.alert` topic): Emits urgent psychological crisis alerts bounded to a 28ms Kafka wait with immediate local MongoDB Outbox fallback (`outbox_repo.save_outbox`).
 
 ## Invariants
@@ -38,27 +38,29 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
 - **4-Tier Stepped Mental Health Care Execution**:
   - *Tier 0 (Proactive Check-in)*: Evaluated when `not history and emotion_snapshot.needs_proactive_checkin`, bypassing static greeting responses to open with a warm, personalized lifestyle check-in.
   - *Tier 1 (Immediate Crisis Intervention)*: Triggers on explicit self-harm or severe hopelessness patterns in `< 50ms`, publishes alert to Kafka (`chatbot.crisis.alert`) with bounded 28ms timeout (and MongoDB Outbox fallback), and returns 24/7 hotlines (`1900 599 830`, `111`) without invoking LLM inference.
-  - *Tier 2 (Acute Psychological First Aid — PFA Mode)*: Activates on `risk_level in {"high", "medium"}` or `persistent_distress == True`; delivers Look - Listen - Link somatic stabilization (`4-7-8` breathing, `5-4-3-2-1` grounding, ACBT) and strictly prohibits analytical or Socratic probing questions.
-  - *Tier 3 (Empathetic Socratic / CBT Mode)*: Activates on low/none risk with negative emotion or in-chat distress; follows a 3-step response (natural validation without citations, plain-Vietnamese coping skills translated from RAG citing `[1]`, `[2]` personalized with `USER_FACTS`, and at most one gentle Socratic open-ended question). Strictly forbids medical/psychiatric diagnosis.
+  - *Tier 2 (Acute Psychological First Aid — PFA Mode)*: Activates on `distress_level == "acute_pfa"` (somatic panic/exhaustion cues or `PhoBERTModerator` `EMOTIONAL_CRISIS >= 0.45`), active `session_emotional_state.active_tier == "TIER_2_PFA"`, `hysteresis_risk_level in {"MODERATE_RISK", "HIGH_RISK", "CRISIS"}`, or `persistent_distress == True`; delivers Look - Listen - Link somatic stabilization (`4-7-8` breathing, `5-4-3-2-1` grounding, ACBT) and strictly prohibits analytical or Socratic probing questions.
+  - *Tier 3 (Empathetic Socratic / CBT Mode)*: Activates on `distress_level == "mild_cbt"` or low/none risk with negative emotion; follows a 3-step response (natural validation without citations, plain-Vietnamese coping skills translated from RAG citing `[1]`, `[2]` personalized with `USER_FACTS`, and at most one gentle Socratic open-ended question). Strictly forbids medical/psychiatric diagnosis.
+  - *Multi-Turn Session Emotional State (`session_emotional_state`)*: Persists `active_tier`, `remaining_turns_ttl=3`, and `topic_anchor` on `chat_conversations` so short follow-ups (`<= 12` tokens) retain clinical tone and RAG context until TTL expires, `is_system_turn` is `True`, or a positive-recovery closure cue is matched.
 - **Zero Silent Mutation**: Chatbot never mutates application state without user consent; write actions (`send_friend_request`, `accept_friend_request`, `join_group`, `leave_group`, `mark_notifications_read`) are emitted as `ProposeAction` cards requiring explicit user confirmation.
-- **Two-Stage Scope & Grounding Gate**:
-  - *Stage 1 (Pre-RAG)*: Filters `out_of_scope`, `privacy`, and `ambiguous` queries before RAG; allows `in_scope`, `in_domain_unknown`, and emotional distress disclosures through.
-  - *Stage 2 (Post-RAG Grounding Gate)*: Unconditionally returns `_in_domain_unknown_response` when RAG returns 0 chunks for unindexed application feature questions, preventing LLM hallucinations.
-- **Cross-Lingual RAG Normalization & Bounded Lexical Score**:
-  - Normalized RRF: Scores bounded in `(0.0, 1.0]` across concurrent vector and BM25 searches.
-  - Bounded Lexical Tie-Breaker: Scaled and capped at `[0.0, 0.30]` so Vietnamese lexical overlap cannot override high semantic similarity on English clinical worksheets.
-  - Domain-Aware Boosting: Pure system turns apply `1.4x` to `topic == "huong-dan"` and disable historical emotional boost; mental health turns boost clinical topics (`1.35x–1.5x`) and penalize textbooks (`0.75x`).
-- **Thread-Safe & Event-Loop-Safe ONNX Embedding**: Zero synchronous ONNX inference on the main asyncio event loop; model lazy-loading, query cache, and tokenizer/inference runs are serialized with `threading.Lock` and offloaded via `asyncio.to_thread`.
-- **Cached LLM Clients & Fast Fact Extraction**: `ChatGroq` clients cached by `(model, temperature, json_mode)` with 5.0s per-attempt timeout (max 2 provider attempts within 12.0s turn budget); background user fact extraction runs on `GROQ_FAST_MODEL` (`llama-3.1-8b-instant`) in native JSON mode.
+- **Two-Stage Cascading Hybrid Guard & Grounding Gate**:
+  - *Stage 1 (Lexical Gate, `<1ms`)*: Runs `CrisisGuard`, `CommunityGuard` (separating hard `unsafe_content` from `profanity_candidate`), and `AssistantScopeGuard` (`ScopeGuard`).
+  - *Stage 2 (`Stage2GuardVerifier`, `250ms` timeout budget)*: Triggered for `profanity_candidate`, non-greeting out-of-scope candidates (`confidence <= 0.15`), grey-zone queries (`0.15 < score < 0.45`), or `distress_level != "none"`. Runs ONNX E5 centroid cosine similarity (`mental_health`, `system_guide`, `implicit_crisis`) and `PhoBERTModerator` in parallel on `CHATBOT_ML_EXECUTOR`, sharing normalized queries (`normalize_query_text()`) via `EmbeddingService._query_cache`.
+  - *Post-RAG Grounding Gate*: Returns `_in_domain_unknown_response` when RAG returns 0 chunks for unindexed application feature questions, preventing LLM hallucinations.
+- **Cross-Lingual RAG Tiering & Decoupled Hybrid Queries**:
+  - Corpus Tiering (`docs/assistant/*.md`): Documents are tagged with `tier` (`actionable_worksheet`, `clinical_reference`, `background_theory`, `system_guide`); non-clinical books/meta-analyses are excluded via `visibility: archived`. Mental health turns boost `actionable_worksheet` (`1.55x` Tier 2 PFA / `1.45x` Tier 3 CBT) and `clinical_reference` (`1.15x`), while down-ranking `background_theory` (`0.55x`).
+  - Decoupled Queries: Dense vector search (`_search_vector`) uses the unexpanded `dense_query` (reusing Stage 2's `_query_cache` hit), while `_expand_mental_health_query()` keyword expansion is applied exclusively to `_search_bm25()`.
+  - Normalized RRF & Bounded Lexical Tie-Breaker: Scores bounded in `(0.0, 1.0]` with lexical tie-breaker capped at `[0.0, 0.30]`.
+- **Isolated ML Executors & Lock-Free ONNX Inference**: `CHATBOT_ML_EXECUTOR` (`max_workers=4`) isolates interactive turn embeddings and Stage 2 `PhoBERTModerator` calls from background Kafka analysis and RAG batch indexing on `ANALYSIS_ML_EXECUTOR` (`max_workers=1`). `InferenceSession.run()` runs lock-free with `intra_op_num_threads=1` and `inter_op_num_threads=1`, while `AutoTokenizer` calls use `_tokenizer_lock`.
+- **Multi-Provider Circuit Breaker & Background Quota Isolation**: `ResilientLlmProvider` wraps `GroqProvider` (primary) and `OpenAICompatibleFallbackProvider` (Gemini/OpenAI via pooled `httpx.AsyncClient`, `UVICORN_WORKERS=1` in-memory circuit breaker). Pre-first-token SSE failures fail over transparently to fallback; mid-stream drops trip the breaker, emit a truncation notice, and `RespondCommand._finalize_streamed_response()` strips the footer and skips `FactExtractorService`. Background `FactExtractorService` is gated by `_SlidingWindowRateLimiter` (`FACT_EXTRACTOR_RPM_LIMIT`, `allow_paid_fallback=False`).
 - **Zero Cross-Conversation Context Leakage**: Every conversation is strictly isolated by its resolved UUID; `"default"` is never returned or reused across distinct threads.
 - **Token-Budgeted Context Continuity**: Turns with $\le 1,500$ estimated tokens load full history; turns with $> 1,500$ tokens load the substantive anchor exchange, a system gap marker (`GAP_MARKER_TEXT`), and up to 3 recent turns within a 2,000-token hard ceiling.
 - **Multi-Session Quota & LRA Eviction**: Maximum 20 active conversations per user. Creating the 21st session synchronously marks the oldest active session as `status: "tombstoned"` and schedules an asynchronous cascade delete.
 - **90-Day Rolling Inactivity Window**: Sessions inactive for >90 days are excluded from read queries and purged in batches (200) by the periodic lifespan sweeper loop (`run_sweeper_loop`).
-- **Deprecated Redis SessionMemory**: Redis is excluded from chat history and reserved exclusively for the 5-minute rolling emotion snapshot (`chatbot:emotion:{user_id}`).
+- **Split-Field Redis Emotion Hashes**: Redis is excluded from chat history and used via a single `PIPELINE HGETALL` across `chatbot:emotion:acute:{user_id}` (written by `ai-chatbot-service`) and `emotion:longitudinal:{user_id}` (read-only, written by `emotion-intelligence-service`).
 
 ## Side Effects
-- Reads, inserts, and atomically updates MongoDB collections: `chat_conversations` (metadata, token counts, anchor exchange), `chat_messages` (user/assistant messages), `user_memory_profiles` (8 durable canonical fact keys), and `chatbot_outbox_events` (local Outbox fallback for crisis alerts).
-- Writes 5-minute emotion analysis snapshot to Redis (`chatbot:emotion:{user_id}`).
+- Reads, inserts, and atomically updates MongoDB collections: `chat_conversations` (metadata, `session_emotional_state`, token counts, anchor exchange), `chat_messages` (user/assistant messages), `user_memory_profiles` (8 durable canonical fact keys), and `chatbot_outbox_events` (local Outbox fallback for crisis alerts).
+- Writes acute post emotion snapshots to Redis (`chatbot:emotion:acute:{user_id}`, TTL `86400s`).
 - Deletes all user records across MongoDB collections (`chat_conversations`, `chat_messages`, `user_memory_profiles`) on `DELETE /history/me` and deletes Redis emotion cache on Kafka `user.removed`.
 - Executes periodic batch deletion sweeps for tombstoned and 90-day inactive conversations and messages.
 - Emits real-time emergency events to Kafka (`chatbot.crisis.alert`).
@@ -70,9 +72,13 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
   npm --workspace=ai-chatbot-service run test
   npm --workspace=ai-chatbot-service run lint
   ```
-- Specific Memory v2 & Assistant Unit Tests:
+- Specific Memory v2, Stage 2 Guard, Fallback, & Golden Eval Unit Tests:
   ```bash
-  .venv/bin/python -m unittest tests/unit/test_chatbot_memory_v2.py tests/unit/test_context_resolver_emotion.py tests/unit/test_emotion_aware.py tests/unit/test_assistant_service.py
+  .venv/bin/python -m unittest tests/unit/test_chatbot_memory_v2.py tests/unit/test_context_resolver_emotion.py tests/unit/test_emotion_aware.py tests/unit/test_stage2_hybrid_guard.py tests/unit/test_resilient_provider.py tests/unit/test_golden_eval_harness.py
+  ```
+- Offline 64-Case Golden Evaluation Harness (`evaluation/golden_eval/`):
+  ```bash
+  env PYTHONPATH=. UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true .venv/bin/python -m evaluation.golden_eval.runner
   ```
 - All Unit Test Suites (via unittest discovery):
   ```bash
@@ -97,9 +103,9 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
 | Framework | Python 3.10+ / FastAPI |
 | Default Port | `4006` (HTTP) |
 | Primary Database | MongoDB (`chat_conversations`, `chat_messages`, `user_memory_profiles`), Elasticsearch (RAG Vector Search) |
-| Cache & Memory | Redis (5-minute emotion snapshot caching only; chat history fully in MongoDB) |
+| Cache & Memory | Redis (Split-field emotion hashes: `chatbot:emotion:acute:{user_id}` & read-only `emotion:longitudinal:{user_id}`; chat history in MongoDB) |
 | Message Broker | Kafka (emits crisis alerts to `crisis-alerts`; consumes `user-events` for account deletion purge and `analysis-result-events` for emotion updates) |
-| LLM Provider | Groq (Llama-3) |
+| LLM Provider | `ResilientLlmProvider`: Groq primary (`Llama-3`) with circuit-breaker failover to Gemini/OpenAI (`OpenAICompatibleFallbackProvider`) |
 
 ---
 
@@ -124,23 +130,35 @@ pip install -r requirements.txt
 ```
 
 ### 3.2. Environment Variables (`.env`)
-Create an `.env.production.local` file based on `.env.production.example` and populate it with the following required parameters:
+Copy `.env.example` to `.env` (or `.env.local`) and configure the required parameters:
 
 ```ini
 PORT=4006
 HOST=0.0.0.0
 INTERNAL_SERVICE_KEY=chatbot-internal-secret    # Required for gateway authentication
-GROQ_API_KEY=gsk_your_real_key_here             # Groq API key (Required)
+GROQ_API_KEY=gsk_your_real_key_here             # Primary Groq API key (Required)
 CHATBOT_DB_ENABLED=true                         # Enable database connectivity
 MONGO_URL=mongodb://localhost:27017             # Local DB URI
 CHATBOT_REDIS_URL=redis://localhost:6379/0
 ES_NODE=http://localhost:9200
+
+# Multi-Provider LLM Circuit Breaker & Fallback
+LLM_FALLBACK_ENABLED=true
+LLM_FALLBACK_PROVIDER=gemini                    # "gemini" | "openai"
+LLM_FALLBACK_API_KEY=                           # Required for fallback (disabled if blank)
+LLM_FALLBACK_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+LLM_FALLBACK_MODEL=gemini-2.5-flash
+LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD=3
+LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS=30.0
+FACT_EXTRACTOR_RPM_LIMIT=10                     # Sliding-window RPM cap for background fact extraction
 
 # Offline test suite flags (defaults when running unit tests offline)
 UNIT_TEST_MODE=false
 CHATBOT_REDIS_ENABLED=true
 MOCK_EXTERNAL_MODELS=false
 ```
+
+> **Operational Constraint (`workers=1`)**: `ResilientLlmProvider` maintains an in-memory circuit breaker. Run Uvicorn with a single worker (`--workers 1` / `UVICORN_WORKERS=1`) so circuit-breaker state (`CLOSED`/`OPEN`/`HALF_OPEN`) and `_SlidingWindowRateLimiter` remain consistent across requests.
 
 ---
 
@@ -155,17 +173,21 @@ docker-compose up -d redis kafka elasticsearch api-gateway ai-chatbot-service
 ```
 
 ### Manual Execution (For Code/Debug purposes)
-If your databases are already running in the background, you can start the API server manually:
+If your databases are already running in the background, you can start the API server manually (keep single worker `--workers 1`):
 ```bash
-uvicorn app.main:app --reload --port 4006
+uvicorn app.main:app --reload --port 4006 --workers 1
 ```
 
 ---
 
 ## 5. Seeding RAG Data (Elasticsearch)
-If you are running the backend on a fresh Elasticsearch instance, the RAG database will be empty. You need to index the markdown guideline documents into Elasticsearch so the Chatbot has psychological contexts to retrieve from.
+If you are running the backend on a fresh Elasticsearch instance or after updating `docs/assistant/*.md` frontmatter (`tier`, `visibility`), re-index the markdown guideline documents into Elasticsearch.
 
-Make sure your `.env` is loaded and `elasticsearch` is running, then run:
+Make sure your `.env` is loaded and `elasticsearch` is running, then run from the monorepo root:
+```bash
+npm --workspace=ai-chatbot-service run rag:index-docs
+```
+Or directly inside `apps/ai-chatbot-service`:
 ```bash
 env PYTHONPATH=. .venv/bin/python -m app.tools.index_assistant_docs --force
 ```

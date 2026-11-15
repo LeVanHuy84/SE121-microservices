@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.core.settings import settings
 from app.core.database import init_database, close_database
+from app.core.executors import shutdown_executors
 from app.modules.chatbot.repositories.chat_history import history_store
 
 logger = logging.getLogger("uvicorn.error")
@@ -50,6 +51,12 @@ async def lifespan(app: FastAPI):
 
     await asyncio.to_thread(ensure_models_loaded)
     logger.info("[Startup] ✓ AI Analysis models loaded & ready")
+
+    # 3b. Pre-warm Stage 2 Guardrail Semantic Centroids
+    from app.modules.chatbot.services.guardrails import stage2_guard_verifier
+
+    await stage2_guard_verifier.warm_up_centroids_async()
+    logger.info("[Startup] ✓ Stage 2 semantic guard centroids ready")
 
     # 4. RAG Document Index Warmup
     if settings.RAG_WARMUP_ON_STARTUP:
@@ -118,6 +125,10 @@ async def lifespan(app: FastAPI):
         from app.modules.chatbot.tools.http_client import gateway_http_client
 
         await gateway_http_client.close()
+        from app.providers.resilient_provider import resilient_llm_provider
+
+        await resilient_llm_provider.fallback.aclose()
         await history_store.stop()
         await close_database()
+        shutdown_executors()
         logger.info("[Shutdown] Cleanup complete. Shutdown successful.")

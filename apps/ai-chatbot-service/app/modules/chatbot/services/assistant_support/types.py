@@ -35,6 +35,8 @@ class PreparedTurn:
     is_system_turn: bool
     guard_data: AssistantRespondData | None = None
     guard_intent: str | None = None
+    distress_level: str = "none"
+    session_emotional_state: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

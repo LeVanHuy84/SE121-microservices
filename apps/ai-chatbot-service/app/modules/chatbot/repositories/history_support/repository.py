@@ -215,6 +215,11 @@ class ChatHistoryRepository:
             "turn_count": 0,
             "total_tokens_est": 0,
             "anchor_exchange": [],
+            "session_emotional_state": {
+                "active_tier": "NONE",
+                "remaining_turns_ttl": 0,
+                "topic_anchor": "",
+            },
             "created_at": now,
             "updated_at": now,
             "last_message_at": now,
@@ -233,6 +238,7 @@ class ChatHistoryRepository:
         actions: list[dict[str, Any]] | None = None,
         conversation_id: str | None = None,
         policy_blocked: bool = False,
+        session_emotional_state: dict[str, Any] | None = None,
     ) -> ExchangeResult:
         if client_message_id:
             existing = await self.get_exchange_by_client_message_id(
@@ -296,6 +302,8 @@ class ChatHistoryRepository:
             "last_message_at": assistant_now,
             "updated_at": assistant_now,
         }
+        if session_emotional_state is not None:
+            update_fields["session_emotional_state"] = session_emotional_state
 
         # Auto-titling: If conversation has default title, set from first user message
         current_title = conversation.get("title")

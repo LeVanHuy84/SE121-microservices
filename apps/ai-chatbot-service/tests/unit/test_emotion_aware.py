@@ -127,20 +127,13 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         ]
         mock_repo = AsyncMock()
         mock_repo.get_user_recent_analyses.return_value = mock_docs
-
-        mock_lifespan = MagicMock()
-        mock_lifespan.emotion_aggregate_repo = mock_repo
         self.service._repo = mock_repo
 
-        with patch.dict(
-            "sys.modules", {"app.modules.analysis.lifespan": mock_lifespan}
-        ):
-            with patch.object(self.service, "_get_redis", return_value=None):
-                snapshot = await self.service._fetch("user_distressed")
+        with patch.object(self.service, "_get_redis", return_value=None):
+            snapshot = await self.service._fetch("user_distressed")
 
         self.assertEqual(snapshot.primary_emotion, "sadness")
         self.assertTrue(snapshot.persistent_distress)
-        self.assertEqual(snapshot.recent_trend, "deteriorating")
 
     async def test_positive_emotions_with_risk_level_are_not_persistent_distress(
         self,
@@ -160,17 +153,56 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(snapshot.persistent_distress)
 
     async def test_get_snapshot_from_redis(self) -> None:
-        mock_redis = AsyncMock()
-        mock_redis.get.return_value = '{"primary_emotion": "fear", "risk_level": "high", "suggested_action": "TRIGGER_PROACTIVE_CHECKIN", "persistent_distress": true, "recent_trend": "deteriorating"}'
+        mock_pipe = MagicMock()
+        mock_pipe.hgetall = MagicMock()
+        mock_pipe.execute = AsyncMock(
+            return_value=[
+                {"acute_emotion": "fear", "acute_risk_level": "medium"},
+                {
+                    "hysteresis_risk_level": "HIGH_RISK",
+                    "suggested_action": "MEDICAL_DOCUMENT",
+                    "persistent_distress": "true",
+                    "consecutive_negative_days": "4",
+                },
+            ]
+        )
+        mock_redis = MagicMock()
+        mock_redis.pipeline.return_value = mock_pipe
 
         with patch.object(self.service, "_get_redis", return_value=mock_redis):
             snapshot = await self.service.get_snapshot("user123")
 
         self.assertEqual(snapshot.primary_emotion, "fear")
+        self.assertEqual(snapshot.hysteresis_risk_level, "HIGH_RISK")
         self.assertEqual(snapshot.risk_level, "high")
         self.assertTrue(snapshot.persistent_distress)
-        self.assertEqual(snapshot.recent_trend, "deteriorating")
-        mock_redis.get.assert_called_once_with("chatbot:emotion:user123")
+        self.assertEqual(snapshot.consecutive_negative_days, 4)
+        mock_pipe.hgetall.assert_any_call("chatbot:emotion:acute:user123")
+        mock_pipe.hgetall.assert_any_call("emotion:longitudinal:user123")
+
+    async def test_update_acute_cache_handles_wrongtype(self) -> None:
+        pipe_fail = MagicMock()
+        pipe_fail.hset = MagicMock()
+        pipe_fail.expire = MagicMock()
+        pipe_fail.execute = AsyncMock(
+            side_effect=Exception(
+                "WRONGTYPE Operation against a key holding the wrong kind of value"
+            )
+        )
+        pipe_ok = MagicMock()
+        pipe_ok.hset = MagicMock()
+        pipe_ok.expire = MagicMock()
+        pipe_ok.execute = AsyncMock(return_value=[1, True])
+
+        mock_redis = MagicMock()
+        mock_redis.pipeline.side_effect = [pipe_fail, pipe_ok]
+        mock_redis.delete = AsyncMock(return_value=1)
+
+        with patch.object(self.service, "_get_redis", return_value=mock_redis):
+            await self.service.update_acute_cache("user123", "neutral", "low")
+
+        mock_redis.delete.assert_awaited_once_with("chatbot:emotion:acute:user123")
+        self.assertEqual(pipe_ok.execute.await_count, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +213,21 @@ class TestEmotionContextService(unittest.IsolatedAsyncioTestCase):
 class TestPromptBuilderToneDirective(unittest.TestCase):
     def setUp(self) -> None:
         self.builder = PromptBuilder()
+
+    def test_tier2_pfa_directive_on_acute_pfa_with_normal_baseline(self) -> None:
+        normal_snapshot = EmotionSnapshot(
+            primary_emotion="neutral",
+            risk_level="none",
+            hysteresis_risk_level="NORMAL",
+        )
+        directive = self.builder._build_emotion_tone_directive(
+            normal_snapshot,
+            in_chat_distress=True,
+            is_system_turn=False,
+            distress_level="acute_pfa",
+        )
+        self.assertIn("TIER 2", directive)
+        self.assertIn("TUYỆT ĐỐI KHÔNG", directive)
 
     def test_tone_directive_injected_for_sadness_medium(self) -> None:
         snapshot = EmotionSnapshot(primary_emotion="sadness", risk_level="medium")
@@ -326,12 +373,9 @@ class TestSteppedCareAndPromptLimits(unittest.TestCase):
             persistent_distress=True,
         )
         directive = self.builder._build_emotion_tone_directive(snapshot)
-        self.assertIn(
-            "CẢNH BÁO: Người dùng đang có dấu hiệu căng thẳng/buồn bã kéo dài",
-            directive,
-        )
+        self.assertIn("TONE_DIRECTIVE (TIER 2 - SƠ CỨU TÂM LÝ PFA)", directive)
         self.assertIn("thở 4-7-8", directive)
-        self.assertIn("SƠ CỨU TÂM LÝ (PFA)", directive)
+        self.assertIn("TUYỆT ĐỐI KHÔNG", directive)
 
     def test_tier3_in_chat_distress_without_snapshot(self) -> None:
         directive = self.builder._build_emotion_tone_directive(
@@ -385,3 +429,98 @@ class TestSteppedCareAndPromptLimits(unittest.TestCase):
         self.assertTrue(msgs[2].content.endswith("..."))
         self.assertLessEqual(len(msgs[2].content), 53)
         self.assertIn("Làm sao giải tỏa căng thẳng?", msgs[3].content)
+
+
+class TestSessionEmotionalStatePersistence(unittest.IsolatedAsyncioTestCase):
+    async def test_short_followup_inherits_tier2_pfa_and_decrements_ttl(self) -> None:
+        from app.modules.chatbot.services.assistant_support.turn_preparer import (
+            TurnPreparer,
+        )
+
+        mock_cmd = MagicMock()
+        mock_cmd.context_resolver._is_system_turn.return_value = False
+        mock_cmd.context_resolver._is_mental_health_turn.return_value = True
+        mock_cmd.provider = MagicMock(supports_chat_messages=True)
+        mock_cmd.history_store = MagicMock()
+        mock_cmd.history_store.resolve_conversation = AsyncMock(
+            return_value={
+                "id": "conv-1",
+                "session_emotional_state": {
+                    "active_tier": "TIER_2_PFA",
+                    "remaining_turns_ttl": 3,
+                    "topic_anchor": "Mình đang hoảng loạn tim đập nhanh khó thở",
+                },
+            }
+        )
+        mock_cmd.history_store.load_context_window = AsyncMock(
+            return_value=([], None, {})
+        )
+        mock_cmd.crisis_guard.evaluate.return_value = MagicMock(is_crisis=False)
+        mock_cmd.community_guard.evaluate.return_value = MagicMock(
+            allowed=True, reason="clean"
+        )
+        mock_cmd.nav_resolver.resolve.return_value = None
+        mock_cmd.profile_repo.get_facts_by_user = AsyncMock(return_value={})
+        mock_cmd.emotion_ctx.get_snapshot = AsyncMock(return_value=EmotionSnapshot())
+        mock_cmd.scope_guard._normalize.return_value = (
+            "minh thu tho cham roi ma van chua do"
+        )
+        mock_cmd.scope_guard.evaluate_scope.return_value = MagicMock(
+            in_scope=False,
+            state="out_of_scope",
+            confidence=0.10,
+            matched_domains=(),
+            normalized_text="minh thu tho cham roi ma van chua do",
+        )
+        mock_cmd._resolve_follow_up_message = AsyncMock(
+            return_value=("Mình thử thở chậm rồi mà vẫn chưa đỡ", False)
+        )
+        mock_cmd._resolve_contexts_with_budget = AsyncMock(return_value=[])
+        mock_cmd._dedupe_contexts.return_value = []
+        mock_cmd.tool_router.get_openai_tools.return_value = []
+        mock_cmd._supports_tools.return_value = False
+        mock_cmd.prompt_builder.build_messages.return_value = ["msg"]
+
+        preparer = TurnPreparer(mock_cmd)
+        req = AssistantRespondRequest(
+            userId="u1", message="Mình thử thở chậm rồi mà vẫn chưa đỡ"
+        )
+        turn = await preparer.prepare_turn(req, started_at=0.0, request_id="req-1")
+
+        self.assertEqual(turn.distress_level, "acute_pfa")
+        self.assertTrue(turn.in_chat_distress)
+        self.assertEqual(turn.session_emotional_state["active_tier"], "TIER_2_PFA")
+        self.assertEqual(turn.session_emotional_state["remaining_turns_ttl"], 2)
+        mock_cmd._resolve_contexts_with_budget.assert_awaited_once()
+        self.assertEqual(
+            mock_cmd._resolve_contexts_with_budget.call_args.kwargs.get("topic_anchor"),
+            "Mình đang hoảng loạn tim đập nhanh khó thở",
+        )
+
+    def test_positive_recovery_cue_ignores_thanks_with_continuation(self) -> None:
+        from app.modules.chatbot.services.assistant_support.turn_preparer import (
+            _is_positive_recovery_cue,
+        )
+
+        self.assertFalse(
+            _is_positive_recovery_cue("Cảm ơn bạn, nhưng mình vẫn còn hơi ngộp")
+        )
+        self.assertTrue(_is_positive_recovery_cue("Cảm ơn bạn nhiều"))
+        self.assertTrue(_is_positive_recovery_cue("Mình ổn rồi, cảm ơn bạn"))
+
+    async def test_get_snapshot_is_read_only_on_longitudinal_miss(self) -> None:
+        svc = EmotionContextService()
+        mock_pipe = MagicMock()
+        mock_pipe.hgetall = MagicMock()
+        mock_pipe.execute = AsyncMock(return_value=[{}, {}])
+        mock_redis = MagicMock()
+        mock_redis.pipeline.return_value = mock_pipe
+
+        svc._get_redis = MagicMock(return_value=mock_redis)
+        svc._fetch = AsyncMock(return_value=EmotionSnapshot())
+        svc.update_longitudinal_cache = AsyncMock()
+
+        snap = await svc.get_snapshot("user-miss-1")
+
+        self.assertEqual(snap.hysteresis_risk_level, "NORMAL")
+        svc.update_longitudinal_cache.assert_not_awaited()

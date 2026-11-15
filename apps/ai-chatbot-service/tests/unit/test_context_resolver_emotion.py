@@ -151,6 +151,88 @@ class TestContextResolverEmotion(unittest.TestCase):
         self.assertIn("2", top_ids[:2])
         self.assertEqual(ranked[-1].id, "3")
 
+    def test_tier_ranking_actionable_worksheet_dominates_background_theory(self):
+        resolver = AssistantContextResolver()
+        contexts = [
+            AssistantContextItem(
+                id="theory-1",
+                type="help_doc",
+                title="Giáo trình CBT",
+                content="Lý thuyết nhận thức hành vi",
+                score=1.0,
+                source="rag",
+                metadata={
+                    "tier": "background_theory",
+                    "topic": "giao-trinh-chuyen-nganh",
+                },
+            ),
+            AssistantContextItem(
+                id="ref-1",
+                type="help_doc",
+                title="Sổ tay lâm sàng",
+                content="Tham khảo lâm sàng",
+                score=1.0,
+                source="rag",
+                metadata={"tier": "clinical_reference", "topic": "pfa"},
+            ),
+            AssistantContextItem(
+                id="ws-1",
+                type="help_doc",
+                title="Hướng dẫn sơ cứu tâm lý",
+                content="Thở 4-7-8 grounding",
+                score=1.0,
+                source="rag",
+                metadata={"tier": "actionable_worksheet", "topic": "pfa"},
+            ),
+        ]
+        ranked = resolver._rank_contexts(
+            "mình đang hoảng loạn khó thở",
+            contexts,
+            EmotionSnapshot(),
+            matched_domains=("mental_health",),
+            distress_level="acute_pfa",
+        )
+        self.assertEqual(ranked[0].id, "ws-1")
+        self.assertEqual(ranked[1].id, "ref-1")
+        self.assertEqual(ranked[2].id, "theory-1")
+
+    def test_decoupled_dense_vs_expanded_bm25_query(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+        from app.modules.chatbot.schemas import AssistantRespondRequest
+
+        resolver = AssistantContextResolver()
+        mock_search = AsyncMock(return_value=[])
+
+        async def _run():
+            from app.core.settings import settings
+
+            with (
+                patch.object(settings, "RAG_DOCS_ENABLED", True),
+                patch(
+                    "app.modules.chatbot.services.rag_engine.rag_document_service.search_assistant_docs",
+                    mock_search,
+                ),
+            ):
+                await resolver.resolve(
+                    AssistantRespondRequest(
+                        userId="u1",
+                        message="Mình đang hoảng loạn khó thở",
+                    ),
+                    emotion_snapshot=EmotionSnapshot(),
+                    matched_domains=("mental_health",),
+                    distress_level="acute_pfa",
+                )
+
+        asyncio.run(_run())
+        mock_search.assert_awaited_once()
+        call_args = mock_search.call_args
+        dense_arg = call_args.args[0]
+        bm25_kwarg = call_args.kwargs.get("bm25_query")
+        self.assertEqual(dense_arg, "Mình đang hoảng loạn khó thở")
+        self.assertIsNotNone(bm25_kwarg)
+        self.assertIn("PFA", bm25_kwarg)
+
     def test_symptom_to_intervention_query_expansion(self):
         resolver = AssistantContextResolver()
         query = "dạo này em bị mất ngủ và lo âu quá"

@@ -85,6 +85,11 @@ class HistoryStore:
                 "turn_count": 0,
                 "total_tokens_est": 0,
                 "anchor_exchange": [],
+                "session_emotional_state": {
+                    "active_tier": "NONE",
+                    "remaining_turns_ttl": 0,
+                    "topic_anchor": "",
+                },
             }
         return await self._repository.get_or_create_conversation_by_user(
             user_id=user_id,
@@ -114,6 +119,7 @@ class HistoryStore:
         actions: list[Any] | None = None,
         conversation_id: str | None = None,
         policy_blocked: bool = False,
+        session_emotional_state: dict[str, Any] | None = None,
     ) -> PersistResult:
         if not self.is_enabled():
             return PersistResult(persisted=False)
@@ -137,6 +143,7 @@ class HistoryStore:
                     actions=serialized_actions,
                     conversation_id=conversation_id,
                     policy_blocked=policy_blocked,
+                    session_emotional_state=session_emotional_state,
                 ),
                 timeout=timeout_seconds,
             )

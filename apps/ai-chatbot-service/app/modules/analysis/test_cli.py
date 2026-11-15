@@ -16,7 +16,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from app.modules.analysis.enums import TargetTypeEnum  # noqa: E402
 from app.modules.analysis.services.ml_models.model_loader import model_loader  # noqa: E402
-from app.modules.analysis.services.orchestration.analysis_flow_service import AnalysisFlowService  # noqa: E402
+from app.modules.analysis.services.orchestration.analysis_flow_service import (  # noqa: E402
+    AnalysisFlowService,
+)
 
 
 async def main():

@@ -5,6 +5,7 @@ topic: phuong-phap-chua-tri
 type: clinical_reference
 lang: vi
 version: v1
+tier: actionable_worksheet
 ---
 # Tự Yêu Thương Bản Thân — Không Cần Phải Hoàn Hảo
 

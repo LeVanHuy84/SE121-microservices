@@ -32,6 +32,8 @@ class AssistantContextResolver:
         request: AssistantRespondRequest,
         emotion_snapshot: EmotionSnapshot | None = None,
         matched_domains: tuple[str, ...] = (),
+        distress_level: str = "none",
+        topic_anchor: str | None = None,
     ) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
@@ -43,20 +45,30 @@ class AssistantContextResolver:
         if not settings.RAG_DOCS_ENABLED:
             return self._dedupe(contexts)[:candidate_limit]
 
+        dense_query = request.message
+        if topic_anchor and len(request.message.split()) <= 12:
+            dense_query = f"{topic_anchor} {request.message}".strip()
+
         try:
             from app.modules.chatbot.services.rag_engine import rag_document_service
 
-            search_query = request.message
+            bm25_query: str | None = None
             if self._is_mental_health_turn(
-                request.message, matched_domains, emotion_snapshot
+                dense_query,
+                matched_domains,
+                emotion_snapshot,
+                distress_level=distress_level,
             ):
-                search_query = self._expand_mental_health_query(
-                    request.message, emotion_snapshot
+                bm25_query = self._expand_mental_health_query(
+                    dense_query,
+                    emotion_snapshot,
+                    distress_level=distress_level,
                 )
 
             doc_contexts = await rag_document_service.search_assistant_docs(
-                search_query,
+                dense_query,
                 rag_top_k,
+                bm25_query=bm25_query,
             )
         except Exception as exc:
             logger.warning("Assistant docs RAG skipped: %s", exc)
@@ -64,10 +76,11 @@ class AssistantContextResolver:
 
         merged = self._merge_contexts(contexts, doc_contexts)
         ranked = self._rank_contexts(
-            request.message,
+            dense_query,
             merged,
             emotion_snapshot,
             matched_domains=matched_domains,
+            distress_level=distress_level,
         )
         return ranked[:candidate_limit]
 
@@ -79,7 +92,10 @@ class AssistantContextResolver:
         query: str,
         matched_domains: tuple[str, ...],
         emotion_snapshot: EmotionSnapshot | None,
+        distress_level: str = "none",
     ) -> bool:
+        if distress_level in {"mild_cbt", "acute_pfa"}:
+            return True
         if has_in_chat_emotional_distress(query):
             return True
         if bool(set(matched_domains) & {"mental_health", "emotion"}):
@@ -105,19 +121,24 @@ class AssistantContextResolver:
         self,
         query: str,
         emotion_snapshot: EmotionSnapshot | None,
+        distress_level: str = "none",
     ) -> str:
         query_norm = normalize_for_guard(query)
         expansions: list[str] = []
 
         is_acute = (
-            emotion_snapshot is not None
-            and (
-                emotion_snapshot.risk_level in {"high", "medium"}
-                or emotion_snapshot.persistent_distress
+            distress_level == "acute_pfa"
+            or (
+                emotion_snapshot is not None
+                and (
+                    emotion_snapshot.risk_level in {"high", "medium"}
+                    or emotion_snapshot.persistent_distress
+                )
             )
-        ) or any(
-            w in query_norm
-            for w in ["kho tho", "hoang loan", "panic", "so cuu", "khung hoang"]
+            or any(
+                w in query_norm
+                for w in ["kho tho", "hoang loan", "panic", "so cuu", "khung hoang"]
+            )
         )
         if is_acute:
             expansions.append(
@@ -225,32 +246,56 @@ class AssistantContextResolver:
         contexts: list[AssistantContextItem],
         emotion_snapshot: EmotionSnapshot | None = None,
         matched_domains: tuple[str, ...] = (),
+        distress_level: str = "none",
     ) -> list[AssistantContextItem]:
         normalized_query = self._normalize(query)
         if not normalized_query or not contexts:
             return self._dedupe(contexts)
 
         is_sys = self._is_system_turn(matched_domains)
-        is_mh = self._is_mental_health_turn(query, matched_domains, emotion_snapshot)
+        is_mh = self._is_mental_health_turn(
+            query,
+            matched_domains,
+            emotion_snapshot,
+            distress_level=distress_level,
+        )
+        is_tier2_pfa = distress_level == "acute_pfa" or (
+            emotion_snapshot is not None
+            and (
+                emotion_snapshot.risk_level in {"high", "medium"}
+                or emotion_snapshot.persistent_distress
+            )
+        )
 
         ranked = []
         for item in self._dedupe(contexts):
             base_score = float(item.score or 0)
             lexical_score = self._compute_lexical_score(normalized_query, item)
-            topic = (item.metadata or {}).get("topic") if item.metadata else None
+            metadata = item.metadata or {}
+            topic = metadata.get("topic")
+            tier = metadata.get("tier")
 
             topic_boost = 1.0
             emotion_boost = 1.0
 
             # Case A: Pure System Feature Turn
             if is_sys and not is_mh:
-                topic_boost = 1.4 if topic == "huong-dan" else 1.0
+                if tier == "system_guide" or topic == "huong-dan":
+                    topic_boost = 1.4
+                else:
+                    topic_boost = 1.0
                 emotion_boost = 1.0
 
             # Case C: Mixed Turn (Safety Action + Emotional Distress)
             elif is_sys and is_mh:
-                if topic == "huong-dan":
+                if tier == "system_guide" or topic == "huong-dan":
                     topic_boost = 1.4
+                elif tier == "actionable_worksheet":
+                    topic_boost = 1.55 if is_tier2_pfa else 1.45
+                elif tier == "clinical_reference":
+                    topic_boost = 1.15
+                elif tier == "background_theory":
+                    topic_boost = 0.55
                 elif topic == "pfa":
                     topic_boost = 1.35
                 elif topic == "phuong-phap-chua-tri":
@@ -263,10 +308,13 @@ class AssistantContextResolver:
 
             # Case B: Mental Health Care Turn
             elif is_mh and not is_sys:
-                if emotion_snapshot and (
-                    emotion_snapshot.risk_level in {"high", "medium"}
-                    or emotion_snapshot.persistent_distress
-                ):
+                if tier == "actionable_worksheet":
+                    topic_boost = 1.55 if is_tier2_pfa else 1.45
+                elif tier == "clinical_reference":
+                    topic_boost = 1.15
+                elif tier == "background_theory":
+                    topic_boost = 0.55
+                elif is_tier2_pfa:
                     if topic == "pfa":
                         topic_boost = 1.5
                     elif topic == "phuong-phap-chua-tri":

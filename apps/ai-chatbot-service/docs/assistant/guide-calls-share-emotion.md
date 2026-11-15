@@ -4,6 +4,7 @@ title: Hướng dẫn Cuộc gọi, Chia sẻ Bài viết và Theo dõi Cảm x�
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Tính năng Cuộc gọi, Chia sẻ và Nhật ký Cảm xúc
 

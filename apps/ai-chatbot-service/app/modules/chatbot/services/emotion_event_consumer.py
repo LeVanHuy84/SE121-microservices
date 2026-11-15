@@ -1,9 +1,6 @@
 import logging
 
-from app.modules.chatbot.services.emotion_context import (
-    EmotionSnapshot,
-    emotion_context_service,
-)
+from app.modules.chatbot.services.emotion_context import emotion_context_service
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -30,18 +27,14 @@ async def handle_analysis_result(msg: dict):
         primary_emotion = primary_emotion.lower()
         risk_level = payload.get("mentalHealthRiskLevel", "none").lower()
 
-        # We no longer trigger proactive check-in here.
-        # The Emotion Service handles all evaluation and emits RabbitMQ events for both Real-time and Cron.
-        snapshot = EmotionSnapshot(
-            primary_emotion=primary_emotion,
-            risk_level=risk_level,
-            suggested_action="NO_ACTION",
+        # Write only acute post emotion to chatbot:emotion:acute:{user_id}
+        await emotion_context_service.update_acute_cache(
+            user_id,
+            acute_emotion=primary_emotion,
+            acute_risk_level=risk_level,
         )
-
-        # Save directly to Redis
-        await emotion_context_service.update_cache(user_id, snapshot)
         logger.debug(
-            "[EmotionEventConsumer] Updated Redis cache for userId=%s with emotion=%s",
+            "[EmotionEventConsumer] Updated acute Redis hash for userId=%s with emotion=%s",
             user_id,
             primary_emotion,
         )

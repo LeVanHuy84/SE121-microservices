@@ -4,6 +4,7 @@ title: Hướng dẫn Nhắn tin và Trò chuyện
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Kết Nối và Chia Sẻ qua Trò Chuyện
 

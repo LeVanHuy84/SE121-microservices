@@ -50,6 +50,7 @@ class RagDocumentChunk:
     text: str
     source_path: str
     topic: str | None = None
+    tier: str | None = None
 
 
 class RagDocumentService:
@@ -107,6 +108,7 @@ class RagDocumentService:
                         "text": chunk.text,
                         "sourcePath": chunk.source_path,
                         "topic": chunk.topic,
+                        "tier": chunk.tier,
                         "manifestSignature": manifest_signature,
                         "embedding": embedding,
                     }
@@ -141,15 +143,25 @@ class RagDocumentService:
         }
 
     async def search_assistant_docs(
-        self, query: str, top_k: int | None = None
+        self,
+        dense_query: str,
+        top_k: int | None = None,
+        *,
+        bm25_query: str | None = None,
     ) -> list[AssistantContextItem]:
-        normalized_query = normalize_query_text(query)
-        if not normalized_query or not await self._index_exists_cached():
+        normalized_dense_query = normalize_query_text(dense_query)
+        if not normalized_dense_query or not await self._index_exists_cached():
             return []
 
-        query_embedding = await embedding_service.encode_query_async(normalized_query)
+        query_embedding = await embedding_service.encode_query_async(
+            normalized_dense_query
+        )
         if not query_embedding:
             return []
+
+        normalized_bm25_query = (
+            normalize_query_text(bm25_query) if bm25_query else normalized_dense_query
+        ) or normalized_dense_query
 
         resolved_top_k = top_k or settings.RAG_DOC_TOP_K
         candidate_size = max(
@@ -160,9 +172,9 @@ class RagDocumentService:
 
         vector_hits, bm25_hits = await asyncio.gather(
             self._search_vector(
-                normalized_query, query_embedding, candidate_size, visibility
+                normalized_dense_query, query_embedding, candidate_size, visibility
             ),
-            self._search_bm25(normalized_query, candidate_size, visibility),
+            self._search_bm25(normalized_bm25_query, candidate_size, visibility),
         )
         hybrid_candidates = self._rrf_merge([vector_hits, bm25_hits])
 
@@ -199,6 +211,7 @@ class RagDocumentService:
                         "version": source.get("version"),
                         "sourcePath": source.get("sourcePath"),
                         "topic": source.get("topic"),
+                        "tier": source.get("tier"),
                     },
                 )
             )
@@ -246,11 +259,14 @@ class RagDocumentService:
             try:
                 await self.es.indices.put_mapping(
                     index=settings.RAG_INDEX_NAME,
-                    properties={"manifestSignature": {"type": "keyword"}},
+                    properties={
+                        "manifestSignature": {"type": "keyword"},
+                        "tier": {"type": "keyword"},
+                    },
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed to put manifestSignature mapping on existing RAG index: %s",
+                    "Failed to put manifestSignature/tier mapping on existing RAG index: %s",
                     exc,
                 )
             return
@@ -270,6 +286,7 @@ class RagDocumentService:
                     "text": {"type": "text"},
                     "sourcePath": {"type": "keyword"},
                     "topic": {"type": "keyword"},
+                    "tier": {"type": "keyword"},
                     "manifestSignature": {"type": "keyword"},
                     "embedding": {
                         "type": "dense_vector",
@@ -314,6 +331,7 @@ class RagDocumentService:
                 "text",
                 "sourcePath",
                 "topic",
+                "tier",
             ],
         )
         return result.get("hits", {}).get("hits", [])
@@ -351,6 +369,7 @@ class RagDocumentService:
                 "text",
                 "sourcePath",
                 "topic",
+                "tier",
             ],
         )
         return result.get("hits", {}).get("hits", [])
@@ -422,6 +441,7 @@ class RagDocumentService:
             lang = str(metadata.get("lang") or "vi")
             version = str(metadata.get("version") or "v1")
             topic = metadata.get("topic")
+            tier = str(metadata.get("tier")) if metadata.get("tier") else None
             updated_at = str(metadata.get("updated_at") or "")
             if not updated_at:
                 updated_at = time.strftime(
@@ -474,6 +494,7 @@ class RagDocumentService:
                         text=text,
                         source_path=str(path),
                         topic=topic,
+                        tier=tier,
                     )
                 )
                 chunk_cursor += 1
@@ -483,7 +504,7 @@ class RagDocumentService:
             )
 
         signature = hashlib.sha256(
-            "\n".join(manifest_parts).encode("utf-8")
+            ("v2-tiered\n" + "\n".join(manifest_parts)).encode("utf-8")
         ).hexdigest()
         return chunks, signature
 

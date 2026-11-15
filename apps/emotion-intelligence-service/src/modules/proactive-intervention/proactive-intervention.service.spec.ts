@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { getModelToken } from '@nestjs/mongoose';
 import {
   AnalysisResultEventPayload,
@@ -28,6 +29,12 @@ describe('ProactiveInterventionService', () => {
   let mockSelectorService: jest.Mocked<InterventionSelectorService>;
   let mockMusicClientService: jest.Mocked<MusicClientService>;
   let mockRabbitmqChannel: any;
+  let mockRedisPipeline: {
+    hset: jest.Mock<any>;
+    expire: jest.Mock<any>;
+    exec: jest.Mock<any>;
+  };
+  let mockRedis: { pipeline: jest.Mock<any> };
 
   beforeEach(async () => {
     mockRiskStateModel = {
@@ -71,6 +78,15 @@ describe('ProactiveInterventionService', () => {
       publish: jest.fn<any>().mockResolvedValue(true),
     };
 
+    mockRedisPipeline = {
+      hset: jest.fn<any>().mockReturnThis(),
+      expire: jest.fn<any>().mockReturnThis(),
+      exec: jest.fn<any>().mockResolvedValue([]),
+    };
+    mockRedis = {
+      pipeline: jest.fn<any>().mockReturnValue(mockRedisPipeline),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProactiveInterventionService,
@@ -105,6 +121,10 @@ describe('ProactiveInterventionService', () => {
         {
           provide: 'RABBITMQ_CHANNEL',
           useValue: mockRabbitmqChannel,
+        },
+        {
+          provide: getRedisConnectionToken(),
+          useValue: mockRedis,
         },
       ],
     }).compile();
@@ -156,6 +176,18 @@ describe('ProactiveInterventionService', () => {
       expect(result?.riskLevel).toBe(RiskLevel.CRISIS);
       expect(result?.triggers).toContain(TriggerFlag.SUICIDAL_IDEATION);
       expect(result?.suggestedAction).toBe('CRISIS_HOTLINE');
+      expect(mockRedis.pipeline).toHaveBeenCalled();
+      expect(mockRedisPipeline.hset).toHaveBeenCalledWith(
+        'emotion:longitudinal:user1',
+        expect.objectContaining({
+          hysteresis_risk_level: RiskLevel.CRISIS,
+          suggested_action: 'CRISIS_HOTLINE',
+        }),
+      );
+      expect(mockRedisPipeline.expire).toHaveBeenCalledWith(
+        'emotion:longitudinal:user1',
+        86400,
+      );
       expect(mockRiskStateModel.updateOne).toHaveBeenCalledWith(
         { userId: 'user1' },
         expect.objectContaining({

@@ -3,8 +3,9 @@ id: efficacy-of-progressive-muscle-relaxation-in-adults_for-stress,-anxiety,-and
 title: Efficacy Of Progressive Muscle Relaxation In Adults For Stress, Anxiety, And Depression  A Systematic Review
 topic: phuong-phap-chua-tri
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+visibility: archived
 ---
 
 

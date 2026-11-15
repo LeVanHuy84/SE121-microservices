@@ -3,8 +3,9 @@ id: psychological-first-aid_-guide-for-field-workers
 title: Psychological First Aid  Guide For Field Workers
 topic: pfa
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+tier: clinical_reference
 ---
 
 

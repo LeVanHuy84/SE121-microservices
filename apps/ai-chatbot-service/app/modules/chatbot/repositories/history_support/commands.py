@@ -127,6 +127,7 @@ class PersistHistoryCommand:
         intent: str | None,
         actions: list[Any] | None = None,
         policy_blocked: bool = False,
+        session_emotional_state: dict[str, Any] | None = None,
     ) -> PersistResult:
         if not self.store.is_enabled():
             return PersistResult(persisted=False)
@@ -142,4 +143,5 @@ class PersistHistoryCommand:
             actions=actions,
             conversation_id=request.conversationId,
             policy_blocked=policy_blocked,
+            session_emotional_state=session_emotional_state,
         )

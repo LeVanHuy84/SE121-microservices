@@ -3,8 +3,9 @@ id: a-flash-of-hope__eye-movement-desensitization_and-reprocessing-(emdr)-therap
 title: A Flash Of Hope  Eye Movement Desensitization And Reprocessing (Emdr) Therapy
 topic: phuong-phap-chua-tri
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+tier: clinical_reference
 ---
 
 

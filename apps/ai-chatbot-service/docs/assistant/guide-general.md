@@ -4,6 +4,7 @@ title: Giới thiệu chung và Cài đặt Bảo mật
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Xin chào, đây là Sentimeta!
 

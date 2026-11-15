@@ -14,14 +14,14 @@ class CommunityGuard:
         if UNSAFE_REGEX.search(normalized):
             return CommunityDecision(
                 False,
-                "community_violation",
+                "unsafe_content",
                 "high",
                 normalized,
             )
         if PROFANITY_REGEX.search(normalized):
             return CommunityDecision(
                 False,
-                "profanity",
+                "profanity_candidate",
                 "medium",
                 normalized,
             )

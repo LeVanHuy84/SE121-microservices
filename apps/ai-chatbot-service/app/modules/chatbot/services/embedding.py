@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import logging
+import os
 import threading
 from collections import OrderedDict
 from pathlib import Path
@@ -11,9 +11,12 @@ import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
+from app.core.executors import run_in_analysis_executor, run_in_chatbot_executor
 from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
 from app.utils.text_normalizer import normalize_text
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -24,7 +27,7 @@ class EmbeddingService:
         self._session: ort.InferenceSession | None = None
         self._load_lock = threading.Lock()
         self._cache_lock = threading.Lock()
-        self._encode_lock = threading.Lock()
+        self._tokenizer_lock = threading.Lock()
         self._query_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._query_cache_size = settings.EMBEDDING_QUERY_CACHE_SIZE
         self.model_name = settings.EMBEDDING_MODEL_NAME
@@ -36,25 +39,26 @@ class EmbeddingService:
         return self._encode(texts, prefix="passage")
 
     async def encode_documents_async(self, texts: Sequence[str]) -> list[list[float]]:
-        return await asyncio.to_thread(self.encode_documents, texts)
+        return await run_in_analysis_executor(self.encode_documents, texts)
 
     def encode_query(self, text: str) -> list[float]:
         normalized = self._normalize_input(text)
         if not normalized:
             return []
+        cache_key = normalized.casefold()
 
         with self._cache_lock:
-            cached = self._query_cache.get(normalized)
+            cached = self._query_cache.get(cache_key)
             if cached is not None:
-                self._query_cache.move_to_end(normalized)
+                self._query_cache.move_to_end(cache_key)
                 return cached
 
         embeddings = self._encode([normalized], prefix="query")
         result = embeddings[0] if embeddings else []
         if result:
             with self._cache_lock:
-                self._query_cache[normalized] = result
-                self._query_cache.move_to_end(normalized)
+                self._query_cache[cache_key] = result
+                self._query_cache.move_to_end(cache_key)
                 while len(self._query_cache) > self._query_cache_size:
                     self._query_cache.popitem(last=False)
         return result
@@ -63,19 +67,20 @@ class EmbeddingService:
         normalized = self._normalize_input(text)
         if not normalized:
             return []
+        cache_key = normalized.casefold()
 
         with self._cache_lock:
-            cached = self._query_cache.get(normalized)
+            cached = self._query_cache.get(cache_key)
             if cached is not None:
-                self._query_cache.move_to_end(normalized)
+                self._query_cache.move_to_end(cache_key)
                 return cached
 
-        embeddings = await asyncio.to_thread(self._encode, [normalized], "query")
+        embeddings = await run_in_chatbot_executor(self._encode, [normalized], "query")
         result = embeddings[0] if embeddings else []
         if result:
             with self._cache_lock:
-                self._query_cache[normalized] = result
-                self._query_cache.move_to_end(normalized)
+                self._query_cache[cache_key] = result
+                self._query_cache.move_to_end(cache_key)
                 while len(self._query_cache) > self._query_cache_size:
                     self._query_cache.popitem(last=False)
         return result
@@ -92,9 +97,9 @@ class EmbeddingService:
         tokenizer, session = self._load()
         embeddings: list[list[float]] = []
 
-        with self._encode_lock:
-            for start in range(0, len(normalized), settings.EMBEDDING_BATCH_SIZE):
-                batch = normalized[start : start + settings.EMBEDDING_BATCH_SIZE]
+        for start in range(0, len(normalized), settings.EMBEDDING_BATCH_SIZE):
+            batch = normalized[start : start + settings.EMBEDDING_BATCH_SIZE]
+            with self._tokenizer_lock:
                 encoded = tokenizer(
                     batch,
                     padding=True,
@@ -103,35 +108,32 @@ class EmbeddingService:
                     return_tensors="np",
                 )
 
-                input_feed = {}
-                for inp in session.get_inputs():
-                    name = inp.name
-                    if name in encoded:
-                        val = encoded[name]
-                        if inp.type == "tensor(int64)" and val.dtype != np.int64:
-                            val = val.astype(np.int64)
-                        elif inp.type == "tensor(int32)" and val.dtype != np.int32:
-                            val = val.astype(np.int32)
-                        input_feed[name] = val
-                    elif name == "token_type_ids":
-                        input_feed[name] = np.zeros_like(
-                            encoded["input_ids"], dtype=np.int64
-                        )
+            input_feed = {}
+            for inp in session.get_inputs():
+                name = inp.name
+                if name in encoded:
+                    val = encoded[name]
+                    if inp.type == "tensor(int64)" and val.dtype != np.int64:
+                        val = val.astype(np.int64)
+                    elif inp.type == "tensor(int32)" and val.dtype != np.int32:
+                        val = val.astype(np.int32)
+                    input_feed[name] = val
+                elif name == "token_type_ids":
+                    input_feed[name] = np.zeros_like(
+                        encoded["input_ids"], dtype=np.int64
+                    )
 
-                outputs = session.run(None, input_feed)
-                last_hidden_state = outputs[0]
+            outputs = session.run(None, input_feed)
+            last_hidden_state = outputs[0]
 
-                pooled = self._average_pool(
-                    last_hidden_state,
-                    encoded["attention_mask"],
-                )
-                normalized_vecs = self._normalize_l2(pooled)
-                embeddings.extend(
-                    [
-                        [float(value) for value in row]
-                        for row in normalized_vecs.tolist()
-                    ]
-                )
+            pooled = self._average_pool(
+                last_hidden_state,
+                encoded["attention_mask"],
+            )
+            normalized_vecs = self._normalize_l2(pooled)
+            embeddings.extend(
+                [[float(value) for value in row] for row in normalized_vecs.tolist()]
+            )
 
         return embeddings
 
@@ -164,7 +166,8 @@ class EmbeddingService:
                     )
 
                     opts = ort.SessionOptions()
-                    opts.intra_op_num_threads = 2
+                    opts.intra_op_num_threads = 1
+                    opts.inter_op_num_threads = 1
                     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                     opts.graph_optimization_level = (
                         ort.GraphOptimizationLevel.ORT_ENABLE_ALL

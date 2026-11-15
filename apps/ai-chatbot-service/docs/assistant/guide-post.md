@@ -4,6 +4,7 @@ title: Hướng dẫn Đăng bài và Tương tác
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Chia sẻ Cảm xúc, Kết nối Tâm hồn
 

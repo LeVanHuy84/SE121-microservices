@@ -30,6 +30,8 @@ class LlmChunk:
 
 
 class LlmProvider(Protocol):
+    supports_chat_messages: bool
+
     async def generate(
         self,
         prompt: str | Sequence[Any],
@@ -37,6 +39,7 @@ class LlmProvider(Protocol):
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
         json_mode: bool = False,
+        allow_paid_fallback: bool = True,
     ) -> LlmGeneration: ...
 
     def stream(

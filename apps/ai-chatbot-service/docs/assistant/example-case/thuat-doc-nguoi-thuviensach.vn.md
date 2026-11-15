@@ -5,6 +5,7 @@ topic: example-case
 type: clinical_reference
 lang: vi
 version: v1
+visibility: archived
 ---
 
 

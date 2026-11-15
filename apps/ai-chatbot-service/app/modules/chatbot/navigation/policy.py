@@ -58,9 +58,9 @@ def _direct_response(
     )
 
 
-def build_nav_outcome(decision: NavDecision) -> NavOutcome:
+def build_nav_outcome(decision: NavDecision | None) -> NavOutcome:
     """Pure mapping from a NavDecision to the assistant behaviour (no I/O)."""
-    if not decision.matches:
+    if decision is None or not decision.matches:
         return NavOutcome()
 
     if decision.path == "command":

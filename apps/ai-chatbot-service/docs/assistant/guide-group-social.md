@@ -4,6 +4,7 @@ title: Hướng dẫn Quản lý Nhóm và Xã hội
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Giao lưu và Gắn kết Cộng đồng
 

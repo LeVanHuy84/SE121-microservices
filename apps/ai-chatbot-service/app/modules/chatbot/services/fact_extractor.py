@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import logging
 import re
+import time
 
 from app.core.settings import settings
 from app.modules.chatbot.repositories.chat_history import (
@@ -18,11 +20,39 @@ from app.modules.chatbot.repositories.user_memory_profile import (
 from app.modules.chatbot.schemas import AssistantRespondRequest
 from app.providers.base import LlmProvider
 from app.providers.groq_provider import GroqProvider
+from app.providers.resilient_provider import (
+    CircuitOpenSkippedError,
+    resilient_llm_provider,
+)
 from app.utils.teencode.teencode_normalizer import teencode_normalizer
 
 logger = logging.getLogger("uvicorn.error")
 
 _EXTRACTION_SEMAPHORE = asyncio.Semaphore(2)
+
+
+class _SlidingWindowRateLimiter:
+    def __init__(self, max_calls_per_minute: int) -> None:
+        self.max_calls_per_minute = max_calls_per_minute
+        self._timestamps: deque[float] = deque()
+
+    def try_acquire(self) -> bool:
+        limit = max(int(self.max_calls_per_minute or 0), 0)
+        if limit <= 0:
+            return False
+        now = time.monotonic()
+        cutoff = now - 60.0
+        while self._timestamps and self._timestamps[0] < cutoff:
+            self._timestamps.popleft()
+        if len(self._timestamps) >= limit:
+            return False
+        self._timestamps.append(now)
+        return True
+
+
+_EXTRACTION_RATE_LIMITER = _SlidingWindowRateLimiter(
+    max_calls_per_minute=settings.FACT_EXTRACTOR_RPM_LIMIT
+)
 
 SELF_DISCLOSURE_PATTERNS: tuple[str, ...] = (
     "tên là",
@@ -59,7 +89,12 @@ class FactExtractorService:
         profile_repo: UserMemoryProfileRepository | None = None,
         history_repo: ChatHistoryRepository | None = None,
     ):
-        self.provider = provider or GroqProvider()
+        if provider is not None:
+            self.provider = provider
+        elif settings.LLM_FALLBACK_ENABLED:
+            self.provider = resilient_llm_provider
+        else:
+            self.provider = GroqProvider()
         self.profile_repo = profile_repo or user_memory_profile_repo
         self.history_repo = history_repo or ChatHistoryRepository()
         self._inflight_tasks: dict[str, set[asyncio.Task]] = {}
@@ -216,6 +251,13 @@ class FactExtractorService:
                     "JSON:"
                 )
 
+                if not _EXTRACTION_RATE_LIMITER.try_acquire():
+                    logger.debug(
+                        "Fact extraction skipped due to RPM rate limit for userId=%s",
+                        user_id,
+                    )
+                    return
+
                 request = AssistantRespondRequest(
                     userId=user_id,
                     message=last_user_message,
@@ -227,7 +269,14 @@ class FactExtractorService:
                         request,
                         model=settings.GROQ_FAST_MODEL,
                         json_mode=True,
+                        allow_paid_fallback=False,
                     )
+                except CircuitOpenSkippedError:
+                    logger.debug(
+                        "Fact extraction skipped because LLM circuit is open for userId=%s",
+                        user_id,
+                    )
+                    return
                 except TypeError:
                     generation = await self.provider.generate(prompt, request)
                 raw_text = (generation.content or "").strip()

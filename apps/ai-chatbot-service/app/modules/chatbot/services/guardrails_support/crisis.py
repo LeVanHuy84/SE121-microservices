@@ -2,18 +2,27 @@ from __future__ import annotations
 
 from app.utils.text_normalizer import normalize_for_guard
 from .keywords import (
+    _ACUTE_PFA_DISTRESS_REGEX,
     _CRISIS_EXPLICIT_REGEX,
     _CRISIS_SOFT_REGEX,
-    _IN_CHAT_DISTRESS_REGEX,
+    _MILD_CBT_DISTRESS_REGEX,
 )
-from .types import CrisisDecision
+from .types import CrisisDecision, DistressLevel
+
+
+def classify_in_chat_distress_level(text: str) -> DistressLevel:
+    normalized = normalize_for_guard(text)
+    if not normalized:
+        return "none"
+    if _ACUTE_PFA_DISTRESS_REGEX.search(normalized):
+        return "acute_pfa"
+    if _MILD_CBT_DISTRESS_REGEX.search(normalized):
+        return "mild_cbt"
+    return "none"
 
 
 def has_in_chat_emotional_distress(text: str) -> bool:
-    normalized = normalize_for_guard(text)
-    if not normalized:
-        return False
-    return bool(_IN_CHAT_DISTRESS_REGEX.search(normalized))
+    return classify_in_chat_distress_level(text) != "none"
 
 
 class CrisisGuard:

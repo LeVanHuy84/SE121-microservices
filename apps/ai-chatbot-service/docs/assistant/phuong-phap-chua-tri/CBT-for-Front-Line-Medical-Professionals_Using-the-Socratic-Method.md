@@ -3,8 +3,9 @@ id: cbt-for-front-line-medical-professionals_using-the-socratic-method
 title: Cbt-For-Front-Line-Medical-Professionals Using-The-Socratic-Method
 topic: phuong-phap-chua-tri
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+tier: clinical_reference
 ---
 
 

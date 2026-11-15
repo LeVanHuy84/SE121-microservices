@@ -209,6 +209,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
 
     def test_action_fence_stream_filter_suppresses_action_fences(self):
         from app.modules.chatbot.services.assistant import ActionFenceStreamFilter
+
         filter_stream = ActionFenceStreamFilter()
         chunks = [
             "Dưới đây là hành động: ",
@@ -227,6 +228,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
 
     def test_action_fence_stream_filter_preserves_regular_code_blocks(self):
         from app.modules.chatbot.services.assistant import ActionFenceStreamFilter
+
         filter_stream = ActionFenceStreamFilter()
         chunks = [
             "Ví dụ code:\n",

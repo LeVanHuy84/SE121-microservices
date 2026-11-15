@@ -4,6 +4,7 @@ title: Hướng dẫn Cài đặt Tài khoản và Trung tâm Trợ giúp
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Cài đặt Tài khoản, Bảo mật và Hỗ trợ
 

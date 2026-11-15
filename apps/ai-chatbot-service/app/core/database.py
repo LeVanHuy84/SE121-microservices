@@ -4,6 +4,7 @@ from app.core.settings import settings
 client: AsyncIOMotorClient | None = None
 db: AsyncIOMotorDatabase | None = None
 
+
 def init_database() -> AsyncIOMotorDatabase:
     global client, db
     if client is None:
@@ -11,11 +12,13 @@ def init_database() -> AsyncIOMotorDatabase:
         db = client[settings.MONGO_DB]
     return db
 
+
 def get_database() -> AsyncIOMotorDatabase:
     global db
     if db is None:
         return init_database()
     return db
+
 
 async def close_database():
     global client, db

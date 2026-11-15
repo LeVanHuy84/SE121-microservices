@@ -25,8 +25,11 @@ def _is_transient_error(exc: Exception) -> bool:
 
 
 class GroqProvider:
-    def __init__(self):
+    supports_chat_messages: bool = True
+
+    def __init__(self, bypass_retry: bool = False):
         self._llm_cache: dict[tuple[str, float, bool], Any] = {}
+        self._bypass_retry = bypass_retry
 
     async def generate(
         self,
@@ -35,7 +38,9 @@ class GroqProvider:
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
         json_mode: bool = False,
+        allow_paid_fallback: bool = True,
     ) -> LlmGeneration:
+        del allow_paid_fallback
         temperature = self._resolve_temperature(request)
         resolved_model = model or settings.GROQ_MODEL
         llm = self._get_llm(temperature, model=resolved_model, json_mode=json_mode)
@@ -89,7 +94,11 @@ class GroqProvider:
                             provider="groq",
                             tool_calls=(),
                         )
-                    if attempt < 1 and _is_transient_error(exc):
+                    if (
+                        not self._bypass_retry
+                        and attempt < 1
+                        and _is_transient_error(exc)
+                    ):
                         await asyncio.sleep(0.5 * (2**attempt))
                         continue
                     raise
@@ -108,7 +117,7 @@ class GroqProvider:
                     tool_calls=(),
                 )
             except Exception as exc:
-                if attempt < 1 and _is_transient_error(exc):
+                if not self._bypass_retry and attempt < 1 and _is_transient_error(exc):
                     await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise
@@ -190,7 +199,12 @@ class GroqProvider:
                     active_llm = llm
                     tools = None
                     continue
-                if first_chunk and attempt < 1 and _is_transient_error(exc):
+                if (
+                    not self._bypass_retry
+                    and first_chunk
+                    and attempt < 1
+                    and _is_transient_error(exc)
+                ):
                     await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise

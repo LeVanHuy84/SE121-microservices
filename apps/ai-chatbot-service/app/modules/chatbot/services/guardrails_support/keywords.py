@@ -57,7 +57,19 @@ CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
     }
 )
 
-IN_CHAT_DISTRESS_KEYWORDS: tuple[str, ...] = (
+ACUTE_PFA_DISTRESS_KEYWORDS: tuple[str, ...] = (
+    "hoang loan",
+    "kho tho",
+    "tim dap nhanh",
+    "kiet suc",
+    "khong chiu noi nua",
+    "sup do",
+    "panic attack",
+    "run ray",
+    "ngat tho",
+)
+
+MILD_CBT_DISTRESS_KEYWORDS: tuple[str, ...] = (
     "mat ngu",
     "khong ngu duoc",
     "ap luc",
@@ -68,15 +80,32 @@ IN_CHAT_DISTRESS_KEYWORDS: tuple[str, ...] = (
     "kem coi",
     "vo dung",
     "cang cung",
-    "kho tho",
     "overthinking",
     "suy nghi nhieu",
-    "kiet suc",
     "burnout",
     "buon",
-    "hoang loan",
     "lo au",
     "bat an",
+    "cang thang",
+)
+
+IN_CHAT_DISTRESS_KEYWORDS: tuple[str, ...] = (
+    *ACUTE_PFA_DISTRESS_KEYWORDS,
+    *MILD_CBT_DISTRESS_KEYWORDS,
+)
+
+_ACUTE_PFA_DISTRESS_REGEX = re.compile(
+    "|".join(
+        rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in ACUTE_PFA_DISTRESS_KEYWORDS
+    ),
+    re.IGNORECASE,
+)
+
+_MILD_CBT_DISTRESS_REGEX = re.compile(
+    "|".join(
+        rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in MILD_CBT_DISTRESS_KEYWORDS
+    ),
+    re.IGNORECASE,
 )
 
 _IN_CHAT_DISTRESS_REGEX = re.compile(
@@ -84,6 +113,28 @@ _IN_CHAT_DISTRESS_REGEX = re.compile(
         rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in IN_CHAT_DISTRESS_KEYWORDS
     ),
     re.IGNORECASE,
+)
+
+MENTAL_HEALTH_CENTROID_ANCHORS: tuple[str, ...] = (
+    "Mình đang cảm thấy áp lực, lo âu, buồn bã và muốn tìm cách thư giãn hoặc chăm sóc sức khỏe tinh thần",
+    "Làm sao để vượt qua căng thẳng, mất ngủ, suy nghĩ nhiều và giữ bình tĩnh khi hoảng loạn",
+    "Hướng dẫn bài tập thở chậm, thư giãn cơ và tự chăm sóc cảm xúc khi kiệt sức",
+)
+
+SYSTEM_GUIDE_CENTROID_ANCHORS: tuple[str, ...] = (
+    "Hướng dẫn sử dụng tính năng nhắn tin, gọi video, đăng bài viết và tham gia nhóm trên ứng dụng Sentimeta",
+    "Cách thay đổi cài đặt quyền riêng tư, bảo mật tài khoản, tìm kiếm bạn bè và xem thông báo",
+    "Làm thế nào để dùng trợ lý AI, xem phân tích cảm xúc và báo cáo nội dung vi phạm",
+)
+
+IMPLICIT_CRISIS_CENTROID_ANCHORS: tuple[str, ...] = (
+    "Mình mệt mỏi quá rồi, không còn muốn cố gắng hay tiếp tục cuộc sống này nữa, mọi thứ vô nghĩa",
+    "Giá như mình có thể biến mất mãi mãi để không còn phải chịu đựng nỗi đau này nữa",
+    "Mình đã chuẩn bị xong hết rồi, cảm ơn mọi người vì tất cả, tạm biệt",
+    "Mình muốn đăng xuất khỏi trái đất này, không còn sức để gồng thêm một ngày nào nữa",
+    "Chắc mình đi ngủ một giấc thật sâu và không tỉnh lại nữa sẽ nhẹ nhõm hơn",
+    "Mọi thứ kết thúc ở đây thôi, mình xin lỗi vì đã làm mọi người thất vọng",
+    "Mình cảm thấy như người tàng hình, biến mất lúc này chắc cũng chẳng ai để ý",
 )
 
 _CRISIS_EXPLICIT_REGEX = re.compile(
@@ -441,17 +492,28 @@ FEATURE_QUERY_KEYWORDS = {
 
 PROFANITY_KEYWORDS = {
     "dit",
+    "dit me",
     "dm",
     "dmm",
+    "dkm",
+    "dcu",
     "vl",
     "vcl",
+    "vkl",
+    "vch",
+    "vai chuong",
+    "vai lin",
+    "vai ca dai",
     "cc",
+    "cl",
+    "clm",
+    "cmn",
     "lon",
     "cac",
     "me may",
     "bo may",
     "deo",
-    "clm",
+    "toang vcl",
 }
 
 COMMUNITY_UNSAFE_KEYWORDS = {

@@ -110,7 +110,7 @@ def ambiguous_scope_response(
 
 
 def community_response(reason: str) -> AssistantRespondData:
-    if reason == "community_violation":
+    if reason in {"community_violation", "unsafe_content"}:
         message = (
             "Mình không thể hỗ trợ nội dung vi phạm tiêu chuẩn cộng đồng. "
             "Bạn hãy đổi sang câu hỏi an toàn và phù hợp hơn để mình hỗ trợ tiếp."

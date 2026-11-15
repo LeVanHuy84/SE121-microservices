@@ -4,6 +4,7 @@ title: Hướng dẫn Tìm kiếm và Thông báo
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Luôn Cập nhật với Bảng tin, Tìm kiếm và Thông báo
 
