@@ -81,13 +81,15 @@ FastAPI-based Python microservice acting as the core AI engine for Sentimeta. Re
   npm --workspace=ai-chatbot-service run test
   npm --workspace=ai-chatbot-service run lint
   ```
-- Specific Memory v2, Stage 2 Guard, Fallback, & Golden Eval Unit Tests:
+- Specific Memory v2, Stage 2 Guard, & Resilient Provider Unit Tests:
   ```bash
-  .venv/bin/python -m unittest tests/unit/test_chatbot_memory_v2.py tests/unit/test_context_resolver_emotion.py tests/unit/test_emotion_aware.py tests/unit/test_stage2_hybrid_guard.py tests/unit/test_resilient_provider.py tests/unit/test_golden_eval_harness.py
+  .venv/bin/python -m unittest tests/unit/test_chatbot_memory_v2.py tests/unit/test_context_resolver_emotion.py tests/unit/test_emotion_aware.py tests/unit/test_stage2_hybrid_guard.py tests/unit/test_resilient_provider.py
   ```
-- Offline 64-Case Golden Evaluation Harness (`evaluation/golden_eval/`):
+- LLM-as-a-Judge Evaluation Pipeline (Tham chiếu thư mục `evaluation/chatbot/` ở root):
   ```bash
-  env PYTHONPATH=. UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true .venv/bin/python -m evaluation.golden_eval.runner
+  # Xem hướng dẫn chi tiết tại evaluation/chatbot/README.md
+  python evaluation/chatbot/pipeline/run_single_turn_benchmark.py
+  python evaluation/chatbot/pipeline/judge_single_turn.py
   ```
 - All Unit Test Suites (via unittest discovery):
   ```bash

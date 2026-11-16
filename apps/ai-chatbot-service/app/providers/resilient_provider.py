@@ -66,7 +66,7 @@ def _coerce_openai_messages(
 
 
 class OpenAICompatibleFallbackProvider:
-    """HTTPX-based OpenAI-compatible fallback provider (e.g., Gemini or OpenAI)."""
+    """HTTPX-based provider for OpenAI-compatible APIs such as Gemini or Ollama."""
 
     supports_chat_messages: bool = True
 
@@ -439,6 +439,13 @@ def get_default_llm_provider() -> LlmProvider:
         from app.providers.stub_provider import StubLlmProvider
 
         return StubLlmProvider()
+    if settings.CHATBOT_LLM_PROVIDER == "ollama":
+        return OpenAICompatibleFallbackProvider(
+            api_key="ollama",
+            base_url=settings.OLLAMA_BASE_URL,
+            model=settings.OLLAMA_MODEL,
+            provider_name="ollama",
+        )
     if settings.LLM_FALLBACK_ENABLED:
         return resilient_llm_provider
     return GroqProvider()

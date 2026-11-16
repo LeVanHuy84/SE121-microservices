@@ -991,9 +991,6 @@ class RespondCommand:
             policy_blocked=policy_blocked,
             session_emotional_state=session_emotional_state,
         )
-        ai_policy = str(
-            getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
-        ).upper()
         if (
             not is_truncated
             and not policy_blocked

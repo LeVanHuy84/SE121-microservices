@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.modules.chatbot.schemas import AssistantRespondRequest
 from app.modules.chatbot.services.assistant_support.turn_preparer import TurnPreparer
@@ -13,6 +13,7 @@ from app.providers.resilient_provider import (
     CircuitOpenSkippedError,
     OpenAICompatibleFallbackProvider,
     ResilientLlmProvider,
+    get_default_llm_provider,
 )
 
 
@@ -21,6 +22,17 @@ class _RateLimitError(Exception):
 
 
 class TestResilientProvider(unittest.IsolatedAsyncioTestCase):
+    def test_ollama_is_selected_as_the_primary_provider(self) -> None:
+        from app.core.settings import settings
+
+        with patch.object(settings, "CHATBOT_LLM_PROVIDER", "ollama"):
+            provider = get_default_llm_provider()
+
+        self.assertIsInstance(provider, OpenAICompatibleFallbackProvider)
+        self.assertEqual(provider.provider_name, "ollama")
+        self.assertEqual(provider.base_url, settings.OLLAMA_BASE_URL)
+        self.assertEqual(provider.model, settings.OLLAMA_MODEL)
+
     async def test_capability_detection_uses_build_messages_for_resilient_provider(
         self,
     ) -> None:
