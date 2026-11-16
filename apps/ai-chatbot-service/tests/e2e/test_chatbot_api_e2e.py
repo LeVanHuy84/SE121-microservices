@@ -31,7 +31,6 @@ INTERNAL_ONLY_FIELDS = {
     "provider",
     "latencyMs",
     "persisted",
-    "suggestedActions",
 }
 SECRET = "super-secret-internal-detail"
 
@@ -247,13 +246,17 @@ class StreamTest(unittest.TestCase):
         )
         self.assertEqual([e for e, _ in events], ["chunk", "chunk", "done"])
         self.assertEqual(
-            "".join(p["delta"] for e, p in events if e == "chunk"), "Xin chao"
+            "".join(p["reply"] for e, p in events if e == "chunk"), "Xin chao"
         )
         done = events[-1][1]
         self.assertEqual(done["type"], "answer")
         self.assertEqual(done["sources"][0]["id"], "d1")
         self.assertIsNone(done["crisis"])
-        self.assertFalse(INTERNAL_ONLY_FIELDS & set(_all_keys(done)))
+        for event_name, payload in events:
+            self.assertFalse(
+                INTERNAL_ONLY_FIELDS & set(_all_keys(payload)),
+                f"Internal field leaked in event {event_name}",
+            )
 
     def test_guard_response_is_one_chunk_then_done_with_crisis(self):
         crisis = CrisisInfo(

@@ -1,6 +1,6 @@
 ---
 id: guide-search-notification
-title: Hướng dẫn Tìm kiếm và Thông báo
+title: Hướng dẫn Bảng tin, Tìm kiếm và Trung tâm Thông báo
 topic: huong-dan
 lang: vi
 version: v2
@@ -8,23 +8,36 @@ tier: system_guide
 ---
 # Luôn Cập nhật với Bảng tin, Tìm kiếm và Thông báo
 
-Để bạn không bỏ lỡ những điều đang xảy ra với bạn bè và cộng đồng, Sentimeta mang đến những công cụ đơn giản và thông minh.
+Sentimeta giúp bạn dễ dàng theo dõi những điều đang diễn ra trong cộng đồng, tìm kiếm thông tin nhanh chóng và không bao giờ bỏ lỡ các tương tác quan trọng.
 
-## 1. Bảng tin (News Feed)
+## 1. Bảng tin Trang chủ (News Feed - `/`)
 
-Khi bạn mở ứng dụng, bảng tin sẽ hiển thị những bài viết mới nhất từ những người bạn theo dõi và các nhóm bạn tham gia.
+Trang chủ là trung tâm kết nối nơi bạn cập nhật tin tức từ những người thân thiết và các cộng đồng bạn yêu thích:
+- **Nội dung hiển thị:** Các bài viết mới nhất từ bạn bè trong danh bạ và các nhóm bạn đã tham gia, được sắp xếp ưu tiên theo thời gian và mức độ tương tác tích cực.
+- **Khung tạo bài viết:** Nằm ngay đầu bảng tin, giúp bạn nhanh chóng chia sẻ suy nghĩ, tải ảnh hoặc gắn thẻ cảm xúc bất kỳ lúc nào.
+- **Tiện ích đề xuất (Cột bên phải trên Web):** Hiển thị danh sách gợi ý kết bạn nhanh và các nhóm cộng đồng nổi bật phù hợp với sở thích của bạn.
+- **Làm mới Bảng tin:** Để tải các bài viết mới nhất, bạn chỉ cần vuốt màn hình từ trên xuống (trên điện thoại) hoặc nhấp vào biểu tượng Trang chủ / phím F5 (trên máy tính).
 
-Đôi khi bảng tin cần vài giây để cập nhật đầy đủ. Nếu bạn thấy nội dung cũ, chỉ cần **vuốt xuống để làm mới** (refresh) là xong nhé.
+## 2. Tìm kiếm Đa năng (`/search`)
 
-## 2. Tìm kiếm
+Thanh tìm kiếm được đặt nổi bật ở vị trí trung tâm thanh điều hướng trên cùng (Header):
+- **Cách tra cứu:** Nhập từ khóa bạn cần tìm vào ô tìm kiếm — có thể là tên bạn bè, nội dung bài viết, tên nhóm cộng đồng hoặc hashtag (ví dụ: `#chualanh`, `#suckhoetinhthan`) rồi nhấn Enter.
+- **Bộ lọc kết quả trên trang `/search`:**
+  - **Tất cả:** Hiển thị tổng quan các kết quả khớp nhất trên toàn hệ thống.
+  - **Bài viết:** Danh sách các bài đăng công khai hoặc bài viết từ bạn bè có chứa từ khóa tìm kiếm.
+  - **Mọi người:** Tìm kiếm tài khoản người dùng, hiển thị ảnh đại diện và nút gửi lời mời kết bạn hoặc nhắn tin trực tiếp.
+  - **Nhóm:** Tìm kiếm các nhóm cộng đồng theo chủ đề kèm nút bấm tham gia nhóm nhanh chóng.
 
-Bạn muốn tìm một người bạn cũ, một nhóm hay một bài viết tâm đắc? Thanh tìm kiếm ở góc trên cùng màn hình luôn sẵn sàng giúp bạn.
+## 3. Trung tâm Thông báo (`/notifications`)
 
-- Gõ **tên người dùng**, **từ khóa** hoặc **hashtag** (ví dụ: `#chualanh`, `#tích_cực`).
-- Nếu không tìm thấy kết quả, hãy thử nhập từ khóa ngắn hơn hoặc kiểm tra xem bài viết đó có thể đã được đặt chế độ riêng tư bởi người đăng.
-
-## 3. Thông báo
-
-Đừng lo về việc bỏ lỡ! Bất cứ khi nào có ai bình luận vào bài của bạn, gửi lời mời kết bạn, hoặc nhắc tên bạn trong một bài viết — Sentimeta sẽ gửi một thông báo nhỏ đến bạn.
-
-Nếu bạn thấy quá nhiều thông báo gây phân tâm hay áp lực, bạn hoàn toàn có thể vào **Cài đặt → Thông báo** để tùy chỉnh — giữ cho tâm trí mình luôn được nhẹ nhàng và yên tĩnh.
+Không bao giờ bỏ lỡ các sự kiện quan trọng với hệ thống thông báo tức thì:
+- **Biểu tượng Chuông thông báo:** Nằm ở góc trên bên phải thanh điều hướng. Huy hiệu số màu đỏ trên chuông cho biết số lượng thông báo mới bạn chưa đọc.
+- **Xem nhanh thông báo:** Nhấp vào biểu tượng chuông để mở menu xem nhanh các thông báo mới nhất.
+- **Trang Thông báo toàn màn hình (`/notifications`):** Bấm nút **"Xem tất cả"** ở cuối menu để chuyển đến trang chi tiết thông báo.
+- **Các loại thông báo chính:**
+  - **Tương tác xã hội:** Ai đó đã thả biểu tượng cảm xúc (Like, Love, Haha, Wow, Sad, Angry) hoặc bình luận vào bài viết của bạn.
+  - **Mối quan hệ:** Lời mời kết bạn mới, ai đó đã chấp nhận yêu cầu kết bạn của bạn.
+  - **Nhắc tên (Mention):** Ai đó đã nhắc tên bạn trong bài viết hoặc bình luận.
+  - **Cộng đồng nhóm:** Lời mời tham gia nhóm, duyệt bài viết mới trong nhóm bạn quản lý.
+  - **Chăm sóc cảm xúc & Hệ thống:** Cảnh báo an toàn, kết quả xử lý khiếu nại kiểm duyệt và lời nhắn hỏi thăm từ Trợ lý AI khi phát hiện bạn có biểu hiện căng thẳng.
+- **Đánh dấu đã đọc:** Bấm nút **"Đánh dấu tất cả là đã đọc"** ở đầu danh sách để xóa huy hiệu chưa đọc mà không cần mở từng mục. Bạn cũng có thể nhờ Trợ lý AI thực hiện thao tác này chỉ với một câu yêu cầu.

@@ -218,7 +218,7 @@ class RespondCommand:
         turn = await self._prepare_turn(request, started_at, request_id)
         if turn.guard_data:
             persisted = await self.persist_history.execute(
-                request=request,
+                request=turn.working_request,
                 assistant_reply=turn.guard_data.reply,
                 sources=[],
                 intent=turn.guard_intent,
@@ -348,7 +348,7 @@ class RespondCommand:
         )
         is_blocked = self._is_policy_blocked(request, reply_content, generation.content)
         persisted = await self.persist_history.execute(
-            request=request,
+            request=turn.working_request,
             assistant_reply=reply_content,
             sources=turn.sources,
             intent=resolved_intent,
@@ -358,8 +358,7 @@ class RespondCommand:
         )
 
         if (
-            ai_policy != "RESTRICTED"
-            and not is_blocked
+            not is_blocked
             and resolved_intent not in NON_SUBSTANTIVE_INTENTS
             and turn.conv_id
         ):
@@ -978,8 +977,13 @@ class RespondCommand:
         is_truncated = STREAM_TRUNCATION_NOTICE.strip() in reply
         cleaned_reply = reply.replace(STREAM_TRUNCATION_NOTICE, "").strip()
         reply_content = self._sanitize_assistant_reply(cleaned_reply)
+        req_with_conv = (
+            request
+            if request.conversationId == resolved_conv_id
+            else request.model_copy(update={"conversationId": resolved_conv_id})
+        )
         persisted = await self.persist_history.execute(
-            request=request,
+            request=req_with_conv,
             assistant_reply=reply_content,
             sources=sources,
             intent=intent,
@@ -991,8 +995,7 @@ class RespondCommand:
             getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
         ).upper()
         if (
-            ai_policy != "RESTRICTED"
-            and not is_truncated
+            not is_truncated
             and not policy_blocked
             and intent not in NON_SUBSTANTIVE_INTENTS
             and resolved_conv_id

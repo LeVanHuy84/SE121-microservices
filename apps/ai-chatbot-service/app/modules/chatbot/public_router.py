@@ -283,6 +283,9 @@ _STREAM_ERROR = {
 
 async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str]:
     sources: list[AssistantSource] = []
+    suggested_actions = []
+    cards = []
+    proposals = []
     last = None
     try:
         async for data in respond_command.execute_stream(internal):
@@ -292,7 +295,34 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
             last = data
             if data.sources and not sources:
                 sources = data.sources
-            yield _sse("chunk", {"delta": data.reply})
+            if data.suggestedActions:
+                suggested_actions = data.suggestedActions
+            if data.cards:
+                cards = data.cards
+            if data.proposals:
+                proposals = data.proposals
+            yield _sse(
+                "chunk",
+                {
+                    "delta": data.reply,
+                    "reply": data.reply,
+                    "sources": [s.model_dump(mode="json") for s in data.sources],
+                    "suggestedActions": [
+                        action.model_dump(mode="json")
+                        for action in data.suggestedActions
+                    ],
+                    "cards": [
+                        card.model_dump(mode="json")
+                        for card in data.cards
+                    ],
+                    "proposals": [
+                        proposal.model_dump(mode="json")
+                        for proposal in data.proposals
+                    ],
+                    "conversationId": data.conversationId,
+                    "policyBlocked": data.policyBlocked,
+                },
+            )
     except Exception:
         logger.exception("Assistant v1 stream failed: userId=%s", internal.userId)
         yield _sse("error", _STREAM_ERROR)
@@ -305,10 +335,16 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
     yield _sse(
         "done",
         {
+            "reply": "",
             "type": last.type,
             "sources": [s.model_dump(mode="json") for s in sources],
-            "requestId": last.requestId,
+            "suggestedActions": [
+                action.model_dump(mode="json") for action in suggested_actions
+            ],
+            "cards": [card.model_dump(mode="json") for card in cards],
+            "proposals": [proposal.model_dump(mode="json") for proposal in proposals],
             "conversationId": last.conversationId,
+            "policyBlocked": last.policyBlocked,
             "crisis": last.crisis.model_dump(mode="json") if last.crisis else None,
         },
     )

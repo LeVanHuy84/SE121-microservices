@@ -327,9 +327,9 @@ class AssistantServiceTest(unittest.TestCase):
             ],
         )
         _ = asyncio.run(service.respond(req))
-        profile_repo.get_facts_by_user.assert_not_awaited()
+        profile_repo.get_facts_by_user.assert_awaited_once_with("user-restricted")
         service._respond_command.emotion_ctx.get_snapshot.assert_not_awaited()
-        fact_extractor.maybe_schedule_extraction.assert_not_called()
+        fact_extractor.maybe_schedule_extraction.assert_called_once()
 
         # Safety guardrails remain active under RESTRICTED
         crisis_req = AssistantRespondRequest(

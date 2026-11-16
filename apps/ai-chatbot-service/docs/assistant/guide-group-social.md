@@ -1,32 +1,69 @@
 ---
 id: guide-group-social
-title: Hướng dẫn Quản lý Nhóm và Xã hội
+title: Hướng dẫn Quản lý Bạn bè, Mối quan hệ Xã hội và Nhóm Cộng đồng
 topic: huong-dan
 lang: vi
 version: v2
 tier: system_guide
 ---
-# Giao lưu và Gắn kết Cộng đồng
+# Kết nối Bạn bè và Gắn kết Cộng đồng
 
-Sentimeta không chỉ là nơi của riêng bạn — mà còn là nơi để bạn tìm thấy những người hiểu mình, chia sẻ cùng chí hướng và cùng nhau bước qua những giai đoạn khó khăn.
+Sentimeta cung cấp các công cụ xã hội ấm áp, an toàn và dễ sử dụng để bạn tìm kiếm những người bạn đồng điệu và tham gia vào các không gian cộng đồng tích cực.
 
-## 1. Kết bạn và Theo dõi
+## 1. Quản lý Mạng lưới Bạn bè (`/friends`)
 
-- Bạn có thể gửi lời mời kết bạn hoặc theo dõi (Follow) những người mà bạn yêu quý.
-- **Gợi ý kết bạn:** Sentimeta sẽ đôi khi giới thiệu cho bạn những người có thể là "cạ cứng" tiềm năng — dựa trên những sở thích chung hay chủ đề mà cả hai cùng quan tâm. Biết đâu bạn sẽ tìm được một người bạn mới thật sự đồng điệu!
+Truy cập mục **"Bạn bè" (`/friends`)** trên thanh điều hướng chính để khám phá 4 khu vực chức năng:
 
-## 2. Tham gia và Tạo Nhóm
+- **Danh sách Bạn bè (`/friends`):**
+  - Hiển thị danh sách tất cả những người bạn hiện tại của bạn trên Sentimeta.
+  - Bạn có thể nhấp vào tên để xem Trang cá nhân (`/profile/[id]`), bấm nút **"Nhắn tin"** để mở khung trò chuyện, hoặc bấm menu tùy chọn để **"Hủy kết bạn" (Unfriend)** hoặc **"Chặn" (Block)** người dùng.
 
-Bạn không hề cô đơn trong hành trình của mình. Tại Sentimeta, bạn có thể:
+- **Lời mời kết bạn (`/friends/requests`):**
+  - **Lời mời nhận được:** Danh sách những người đã gửi yêu cầu kết bạn tới bạn. Nhấp nút **"Chấp nhận"** để trở thành bạn bè hoặc **"Từ chối"** để bỏ qua lời mời.
+  - **Lời mời đã gửi:** Danh sách các yêu cầu kết bạn bạn đã gửi đi đang chờ phản hồi. Bạn có thể bấm nút **"Thu hồi"** nếu muốn rút lại yêu cầu.
 
-- **Tham gia nhóm có sẵn:** Từ những nhóm hỗ trợ tâm lý, câu lạc bộ yêu đọc sách, đến những cộng đồng học tập và sáng tạo.
-- **Tự tạo nhóm riêng:** Mở ra không gian của riêng mình và mời những người bạn tin tưởng cùng tham gia.
-- **Quản lý nhóm:** Nếu bạn là Quản trị viên, bạn có quyền duyệt bài viết, thêm hoặc mời thành viên để giữ cho không gian nhóm luôn văn minh và ấm áp.
+- **Gợi ý bạn bè (`/friends/suggestions`):**
+  - Hệ thống tự động đề xuất những người bạn tiềm năng dựa trên sở thích chung, bạn chung và mức độ tương tác tích cực.
+  - Nhấp nút **"Thêm bạn bè"** để gửi ngay lời mời kết bạn hoặc bấm **"Gỡ bỏ"** để bỏ qua gợi ý.
 
-## 3. AI đồng hành cùng Cộng đồng
+- **Danh sách đã chặn (`/friends/blocked`):**
+  - Nơi quản lý các tài khoản bạn đã chặn để ngăn chặn liên lạc hoặc tương tác.
+  - Bấm nút **"Bỏ chặn" (Unblock)** khi bạn muốn khôi phục lại khả năng tìm kiếm và kết nối với người đó.
 
-Khi trong nhóm có ai đó chia sẻ những điều rất nặng nề hoặc cần hỗ trợ, AI của Sentimeta cũng có thể nhận ra và cẩn thận đưa ra những gợi ý hỗ trợ phù hợp — để không ai trong cộng đồng phải đối mặt với khó khăn một mình.
+**Thao tác kết bạn trên Trang cá nhân của người khác:**
+Khi ghé thăm trang cá nhân của một người dùng, nút quan hệ sẽ hiển thị trạng thái phù hợp:
+- **"Kết bạn":** Chưa có quan hệ bạn bè, nhấp vào để gửi lời mời.
+- **"Đã gửi lời mời":** Yêu cầu đang chờ đối phương phản hồi (bấm vào để thu hồi).
+- **"Phản hồi lời mời":** Người đó đã gửi yêu cầu cho bạn (bấm vào để chấp nhận hoặc từ chối).
+- **"Bạn bè":** Đã là bạn bè (nhấp vào để mở tùy chọn Nhắn tin, Hủy kết bạn hoặc Chặn).
 
-## 4. Nếu gặp sự cố với Nhóm?
+## 2. Khám phá và Quản lý Nhóm Cộng đồng (`/groups`)
 
-Đôi khi bạn không thấy bài đăng mới trong nhóm, hoặc không thể gửi lời mời kết bạn. Hãy thử tải lại trang hoặc chờ một lúc rồi thử lại. Nếu bạn thấy nhóm có nội dung độc hại hoặc gây tổn thương, hãy dùng tính năng **Báo cáo** để giúp cộng đồng luôn là nơi an toàn cho mọi người nhé!
+Mục **"Nhóm" (`/groups`)** là không gian giao lưu theo sở thích, học tập hoặc hỗ trợ tâm lý với 3 phân mục:
+
+- **Khám phá nhóm (`/groups/explore`):**
+  - Tìm kiếm và duyệt qua danh mục các cộng đồng nổi bật theo chủ đề (Tâm lý học, Âm nhạc, Đọc sách, Nghệ thuật, Lối sống tích cực...).
+  - Nhấp nút **"Tham gia" (Join)** đối với nhóm công khai để vào ngay nhóm, hoặc **"Yêu cầu tham gia"** đối với nhóm riêng tư để chờ ban quản trị duyệt.
+
+- **Nhóm của tôi (`/groups/my-groups`):**
+  - Hiển thị danh sách tất cả các nhóm bạn đang là thành viên hoặc quản trị viên (Admin).
+  - Nút **"Tạo nhóm mới"**: Nhấp vào để mở modal tạo cộng đồng của riêng bạn. Bạn có thể đặt Tên nhóm, Mô tả, tải Ảnh đại diện / Ảnh bìa và thiết lập Quyền riêng tư (Nhóm Công khai hoặc Nhóm Riêng tư).
+
+- **Lời mời vào nhóm (`/groups/invites`):**
+  - Danh sách lời mời tham gia nhóm được gửi đến bạn từ bạn bè. Bạn có thể chọn **"Chấp nhận"** để gia nhập nhóm hoặc **"Từ chối"** để bỏ qua.
+
+- **Trang chi tiết Nhóm (`/groups/[id]`):**
+  - **Bảng tin nhóm:** Đăng bài, bình luận và chia sẻ nội dung riêng biệt dành riêng cho các thành viên trong nhóm.
+  - **Tab Thành viên:** Xem danh sách quản trị viên, người kiểm duyệt và các thành viên.
+  - **Tùy chọn nhóm:** Rời khỏi nhóm hoặc cài đặt phê duyệt bài viết / thành viên (đối với Admin).
+
+## 3. Điều hướng và Thao tác Nhanh với Trợ lý AI
+
+Trợ lý AI Sentimeta hỗ trợ bạn quản lý quan hệ bạn bè và nhóm cực kỳ tiện lợi:
+- **Hỏi thông tin:** Bạn có thể hỏi *"Tôi có lời mời kết bạn nào không?"*, *"Gợi ý nhóm phù hợp với tôi"* — Trợ lý sẽ hiển thị thẻ tóm tắt trực quan (`Mini Cards`) và nút bấm trực tiếp đưa bạn đến trang tương ứng (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`).
+- **Thực thi hành động:** Khi bạn yêu cầu *"Gửi kết bạn cho Hoàng Nam"*, *"Tham gia nhóm Yêu Sách"*, *"Chấp nhận lời mời kết bạn"*, Trợ lý sẽ tạo **Thẻ xác nhận hành động (Action Confirmation Card)** với 2 nút `[Xác nhận]` và `[Hủy]` trước khi gửi yêu cầu lên hệ thống, đảm bảo an toàn và minh bạch tuyệt đối.
+
+## 4. Xử lý Sự cố & Báo cáo Nội dung Nhóm
+
+- Nếu bạn không thấy bài viết mới hoặc gặp lỗi khi gửi yêu cầu, hãy thử tải lại trang hoặc kiểm tra kết nối mạng.
+- Nếu phát hiện nhóm có nội dung độc hại, kích động thù địch hoặc lừa đảo, hãy bấm biểu tượng dấu 3 chấm (`...`) ở góc nhóm và chọn **"Báo cáo" (Report)** để ban quản trị tiến hành kiểm duyệt.

@@ -1,44 +1,77 @@
 ---
 id: guide-post
-title: Hướng dẫn Đăng bài và Tương tác
+title: Hướng dẫn Đăng bài, Tương tác và Quản lý Nội dung
 topic: huong-dan
 lang: vi
 version: v2
 tier: system_guide
 ---
-# Chia sẻ Cảm xúc, Kết nối Tâm hồn
+# Chia sẻ Cảm xúc và Tương tác Cộng đồng
 
-Sentimeta luôn khuyến khích bạn chia sẻ những suy nghĩ và cảm xúc thật của mình. Đây là hướng dẫn để bạn tương tác với cộng đồng một cách thoải mái và an toàn nhất.
+Sentimeta khuyến khích bạn chia sẻ chân thành những suy nghĩ, cảm xúc và khoảnh khắc trong cuộc sống. Dưới đây là hướng dẫn chi tiết các thao tác đăng bài và tương tác trên giao diện ứng dụng.
 
-## 1. Viết bài và Chia sẻ
+## 1. Viết bài và Đăng tải Nội dung
 
-**Đăng bài mới:**
-Bạn có thể chia sẻ chữ viết, hình ảnh, hoặc những kỷ niệm đặc biệt của mình. Nếu bài viết của bạn chạm đến những chủ đề nhạy cảm (như nỗi buồn, sự cô đơn hay khó khăn trong cuộc sống), Sentimeta sẽ nhẹ nhàng nhắc nhở hoặc gợi ý thêm một lớp bảo vệ — không phải để kiểm duyệt bạn, mà để giữ an toàn cho cả bạn lẫn những người đọc.
+**Tạo bài viết mới:**
+- Bạn có thể tạo bài viết từ khung soạn thảo ở đầu Bảng tin Trang chủ (`/`) hoặc trong trang chi tiết Nhóm (`/groups/[id]`).
+- Nhấp vào ô **"Bạn đang nghĩ gì?"** để mở hộp thoại tạo bài viết:
+  - **Nội dung văn bản:** Nhập những chia sẻ, câu chuyện hoặc tâm sự của bạn.
+  - **Tải ảnh lên:** Bấm biểu tượng hình ảnh để đính kèm một hoặc nhiều bức ảnh từ thiết bị.
+  - **Gắn thẻ cảm xúc/tâm trạng:** Chọn trạng thái tâm trạng phù hợp (Vui vẻ, Bình yên, Trăn trở, Buồn bã...) để làm phong phú nội dung.
+  - **Chọn quyền riêng tư (Audience):** Nhấp vào nút phạm vi hiển thị để chọn:
+    - **Công khai (Public):** Mọi thành viên trên Sentimeta đều có thể đọc bài viết.
+    - **Bạn bè (Friends):** Chỉ những người trong danh sách bạn bè mới thấy bài viết.
+    - **Chỉ mình tôi (Only Me):** Bài viết ở chế độ riêng tư, lưu giữ cho riêng bạn.
+  - Bấm nút **"Đăng"** để hoàn tất chia sẻ.
 
-**Chia sẻ bài viết:**
-Nếu bạn thấy một bài viết chạm đến lòng, bạn hoàn toàn có thể chia sẻ lại về trang cá nhân của mình để lưu giữ hoặc lan tỏa cho bạn bè.
+## 2. Thả Cảm xúc (Reactions)
 
-## 2. Thả Cảm xúc (Reaction)
+Dưới mỗi bài viết hoặc bình luận, bạn có thể bày tỏ cảm xúc bằng hệ thống 6 biểu tượng tương tác:
+- **Thích (Like)** 👍: Bày tỏ sự ủng hộ và ghi nhận.
+- **Yêu thích (Love)** ❤️: Lan tỏa sự yêu thương, ấm áp.
+- **Haha** 😂: Chia sẻ tiếng cười và sự hài hước.
+- **Wow** 😮: Thể hiện sự ngạc nhiên, trầm trồ.
+- **Buồn (Sad)** 😢: Bày tỏ sự đồng cảm và thấu hiểu nỗi buồn.
+- **Phẫn nộ (Angry)** 😡: Thể hiện sự bức xúc trước các vấn đề tiêu cực.
 
-Đôi khi những lời nói không đủ để diễn tả sự quan tâm. Bạn có thể dùng các biểu tượng cảm xúc (Yêu thích, Thương thương, Buồn, Phẫn nộ...) để bày tỏ sự đồng cảm với người đăng bài.
+*Cách thả cảm xúc:* Rê chuột vào nút Thích (trên máy tính) hoặc nhấn giữ nút Thích (trên điện thoại) để thanh biểu tượng cảm xúc xuất hiện, sau đó nhấp chọn cảm xúc bạn muốn. Để hủy cảm xúc, bấm lại vào biểu tượng cảm xúc đã chọn.
 
-> Đôi lúc do đường truyền, biểu tượng có thể mất vài giây mới hiện — bạn cứ yên tâm là Sentimeta đã ghi nhận tình cảm của bạn rồi nhé!
+## 3. Bình luận và Phản hồi (Comments & Replies)
 
-## 3. Bình luận (Comment)
+- Bấm nút **"Bình luận"** dưới bài viết để mở khung bình luận.
+- Bạn có thể nhập nhận xét của mình, gửi bình luận và đọc các chia sẻ của thành viên khác.
+- Bấm nút **"Phản hồi"** dưới một bình luận cụ thể để trò chuyện trực tiếp theo chuỗi thảo luận.
+- Bạn cũng có thể thả biểu tượng cảm xúc (Like, Love, Haha, Wow, Sad, Angry) trực tiếp cho từng bình luận.
 
-Hãy thoải mái để lại những lời động viên, chia sẻ bên dưới bài viết của mọi người. Sentimeta hướng đến một cộng đồng tích cực, nên những bình luận ân cần và đồng cảm luôn được trân trọng đặc biệt.
+## 4. Chia sẻ Bài viết (Share)
 
-## 4. Quản lý bài viết của bạn
+Bấm nút **"Chia sẻ"** ở góc dưới bên phải mỗi bài viết để chọn hình thức lan tỏa:
+- **Chia sẻ lên Trang cá nhân:** Đăng lại bài viết lên dòng thời gian của bạn kèm theo lời bình luận hoặc cảm xúc cá nhân.
+- **Gửi qua Tin nhắn:** Mở danh sách bạn bè hoặc cuộc hội thoại gần đây để gửi liên kết bài viết trực tiếp cho người bạn muốn tâm sự.
 
-- **Xóa/Sửa bài viết:** Nếu lỡ tay viết sai hoặc muốn rút lại điều gì đó, bạn luôn có quyền chỉnh sửa hoặc xóa bài viết của chính mình bất cứ lúc nào.
-- **Bài viết bị ẩn tạm thời:** Nếu bài viết của bạn không thể tương tác hoặc hiển thị khác thường, có thể Sentimeta đang xem xét nội dung để đảm bảo an toàn cho cộng đồng. Bạn không cần quá lo — hãy thử lại sau vài phút hoặc liên hệ đội hỗ trợ nếu cần.
+## 5. Quản lý Bài viết Cá nhân
 
-## 5. Khi bài viết của bạn chạm đến điều nặng nề
+- Đối với bài viết của chính bạn: Bấm vào biểu tượng dấu 3 chấm (`...`) ở góc trên bên phải bài viết:
+  - **Chỉnh sửa bài viết:** Sửa nội dung văn bản bài đăng.
+  - **Chỉnh sửa quyền riêng tư:** Chuyển đổi giữa chế độ Công khai, Bạn bè hoặc Chỉ mình tôi.
+  - **Xóa bài viết:** Gỡ bỏ bài viết vĩnh viễn khỏi hệ thống.
 
-Sentimeta quan tâm đến bạn ngay cả khi bạn viết. Nếu AI nhận ra nội dung bài viết của bạn đang chứa đựng những cảm xúc rất nặng nề — như sự tuyệt vọng hay nỗi đau quá lớn — Chatbot có thể chủ động liên hệ để hỏi thăm bạn.
+## 6. Kiểm duyệt Tự động và Gửi Khiếu nại (Moderation & Appeals)
 
-Đây không phải sự giám sát — mà là vì chúng mình thực sự muốn đảm bảo bạn ổn.
+- Để bảo đảm môi trường cộng đồng văn minh, hệ thống kiểm duyệt tự động sử dụng AI để phát hiện ngôn từ thù ghét, độc hại hoặc hình ảnh không phù hợp.
+- **Khi bài viết bị tạm ẩn hoặc gắn cờ:** Bạn sẽ nhận được thông báo giải thích trạng thái bài đăng.
+- **Xem chi tiết và gửi khiếu nại:** Truy cập vào **Cài đặt → Lịch sử kiểm duyệt (`/settings/moderation-history`)** để xem danh sách bài viết bị cảnh báo, lý do gắn cờ và bấm nút **"Gửi khiếu nại" (Appeal)** nếu bạn nhận thấy hệ thống đã nhận diện nhầm. Đội ngũ kiểm duyệt sẽ xem xét lại nội dung của bạn.
 
-## 6. Báo cáo nội dung gây khó chịu (Report)
+## 7. Báo cáo Bài viết Xấu (Report)
 
-Nếu bạn thấy bất kỳ bài viết hay bình luận nào làm bạn khó chịu hoặc không phù hợp với cộng đồng, hãy nhấn nút **"Báo cáo"**. Đội ngũ hỗ trợ sẽ xem xét cẩn thận và xử lý sớm nhất có thể.
+Nếu bạn gặp bài viết hoặc bình luận vi phạm tiêu chuẩn cộng đồng, quấy rối hoặc gây tổn thương:
+- Bấm vào biểu tượng dấu 3 chấm (`...`) trên bài viết hoặc bình luận đó.
+- Chọn **"Báo cáo" (Report)**.
+- Chọn lý do vi phạm (Spam, Ngôn từ thù ghét, Bạo lực, Nội dung không an toàn...) và gửi báo cáo để ban quản trị xử lý kịp thời.
+
+## 8. Hỗ trợ khi Phát hiện Tâm trạng Khủng hoảng
+
+Nếu bài viết của bạn chứa đựng những cảm xúc rất nặng nề, tuyệt vọng hoặc nguy cơ tự hại, hệ thống có thể gửi thông báo hỏi thăm hoặc hiển thị đề xuất hỗ trợ tâm lý. Đừng ngần ngại liên hệ các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
+- **1900 599 830** (Đường dây nóng Ngày Mai)
+- **111** (Tổng đài Quốc gia Bảo vệ Trẻ em & Tham vấn Tâm lý)
+- **115** (Cấp cứu y tế khẩn cấp)

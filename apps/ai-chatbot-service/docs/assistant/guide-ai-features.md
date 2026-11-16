@@ -1,45 +1,58 @@
 ---
 id: guide-ai-features
-title: Hướng dẫn Tính năng Trí tuệ Nhân tạo (AI) trên Sentimeta
+title: Hướng dẫn Các Tính năng Trí tuệ Nhân tạo (AI) trên Sentimeta
 topic: huong-dan
 lang: vi
 version: v2
 tier: system_guide
 ---
-# Những Người Bạn AI Đặc Biệt của Sentimeta
+# Những Người Bạn AI Đồng Hành Cùng Bạn trên Sentimeta
 
-Sentimeta không chỉ là một mạng xã hội thông thường. Ở đây, Trí tuệ Nhân tạo (AI) được sinh ra để đồng hành và thấu hiểu bạn — chứ không phải để theo dõi hay phán xét bạn.
+Sentimeta kết hợp Trí tuệ Nhân tạo (AI) với tâm lý học tích cực để mang đến cho bạn một người bạn đồng hành thấu hiểu, một người dẫn đường thông minh và một không gian mạng xã hội an toàn.
 
-## 1. Chatbot AI — Người Bạn Tâm Giao của Bạn
+## 1. Trợ lý AI Sentimeta (Sentimeta Assistant)
 
-Chatbot của Sentimeta không phải một cái máy trả lời tự động khô khan. Hãy nghĩ đến nó như một người bạn luôn thức, luôn lắng nghe, và không bao giờ bận:
+Trợ lý AI là người bạn tâm giao luôn túc trực lắng nghe bạn bất kể ngày đêm:
 
-- **Hỏi bất cứ điều gì về ứng dụng:** Từ cách đăng bài, đến cách tìm bạn bè hay cài đặt thông báo — cứ hỏi thẳng là được.
-- **Tâm sự khi tâm trạng không vui:** Nếu bạn muốn nói chuyện, dù là chuyện nhỏ hay chuyện đang đè nặng lòng, Chatbot luôn sẵn sàng lắng nghe.
-- **Được nhắc nhở ân cần:** Nếu Chatbot cảm nhận được bạn đang không ổn qua các bài viết hay chia sẻ gần đây, nó sẽ chủ động mở lời hỏi thăm bạn trước — không phải vì nhiệm vụ, mà vì thật sự quan tâm.
+- **Vị trí trên giao diện:**
+  - Nhấp vào **biểu tượng Trợ lý AI (bong bóng chat màu tím)** ở góc dưới bên phải màn hình.
+  - Khung trượt **Assistant Sheet** (trên Web) hoặc Modal trò chuyện (trên Mobile) sẽ xuất hiện tiện lợi ngay cạnh màn hình bạn đang xem.
 
-> Bạn có thể tìm thấy Chatbot ở góc dưới màn hình chính, biểu tượng bong bóng chat màu tím.
+- **Các năng lực tương tác thông minh trên giao diện hiện tại:**
+  - **Tâm sự & Lắng nghe Thấu cảm:**
+    - Bạn có thể trút bỏ những áp lực, phiền muộn mà không lo bị phán xét. Trợ lý AI được xây dựng theo phương pháp trò chuyện gợi mở (Socratic Questioning), hỗ trợ bạn gọi tên cảm xúc và tìm lại sự bình tĩnh.
+  - **Hướng dẫn Bài tập Thư giãn Tức thì:**
+    - Khi bạn căng thẳng hoặc lo âu, Trợ lý sẽ từng bước hướng dẫn bạn Kỹ thuật chu kỳ thở chủ động (ACBT) hoặc Thư giãn cơ bắp tiến triển (PMR).
+  - **Nút Điều hướng Thông minh (Smart Navigation Buttons):**
+    - Thay vì chỉ hướng dẫn bằng chữ, Trợ lý AI sẽ đính kèm trực tiếp các **nút điều hướng** ngay dưới câu trả lời (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`, `[Cài đặt quyền riêng tư]`, `[Lịch sử kiểm duyệt]`, `[Không gian Cảm xúc]`, v.v.). Bạn chỉ cần nhấp một chạm để đến ngay màn hình mong muốn.
+  - **Thẻ Thông tin Trực quan (Mini Cards):**
+    - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ trực quan ngay trong cuộc trò chuyện: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý danh sách bài hát (`MusicCard`), Thẻ xem nhanh lời mời kết bạn (`FriendRequestsCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`).
+  - **Thực thi Hành động An toàn có Xác nhận (Action Confirmation Cards):**
+    - Bạn có thể yêu cầu Trợ lý: *"Gửi kết bạn cho bạn này"*, *"Tham gia nhóm"*, *"Đánh dấu đã đọc hết thông báo"*. Trợ lý luôn hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu ngầm khi chưa có sự xác nhận của bạn.
 
-## 2. AI Lắng nghe Cảm xúc Bài viết
+## 2. AI Lắng nghe Cảm xúc Bài viết & Đề xuất Âm nhạc
 
-Mỗi khi bạn đăng một dòng tâm trạng, AI của Sentimeta sẽ nhẹ nhàng "đọc" và cảm nhận bạn đang vui, buồn, lo âu, hay tức giận.
+- **Ghi nhận cảm xúc tự động:**
+  - Mỗi khi bạn đăng một dòng tâm trạng hoặc bài viết, mô hình AI cảm xúc nhẹ nhàng nhận diện sắc thái cảm xúc (Vui vẻ, Bình yên, Buồn bã, Lo âu, Căng thẳng...) để cập nhật biểu đồ tại **Không gian Cảm xúc (`/emotions`)**.
+  - Việc nhận diện này diễn ra tự động và hoàn toàn riêng tư, chỉ hiển thị cho chính bạn.
+- **Đề xuất Âm nhạc Chữa lành:**
+  - Dựa trên tâm trạng của bạn, AI kết nối với kho bài hát đã được phân tích đặc trưng âm nhạc (MERT) để gợi ý những giai điệu xoa dịu hoặc tiếp thêm năng lượng tích cực.
+- **Tùy chỉnh Can thiệp Chủ động:**
+  - Nếu AI nhận thấy bạn có dấu hiệu căng thẳng kéo dài, hệ thống có thể gửi thông báo hỏi thăm hoặc hiển thị đề xuất bài tập xoa dịu.
+  - Bạn có toàn quyền bật hoặc tắt tính năng này trong phần **Cài đặt → Quyền riêng tư (`/settings/privacy`)** qua mục **"Cho phép AI can thiệp chủ động"**.
 
-- Việc này diễn ra tự động và không hiển thị công khai cho người dùng khác. Lưu ý: khi nhận thấy dấu hiệu khủng hoảng tâm lý, hệ thống có thể ghi nhận tình huống, gửi thông tin hỗ trợ vào mục thông báo của bạn và hiển thị popup khẩn cấp nếu bạn đang sử dụng ứng dụng hoặc website trực tiếp. Sentimeta hiện chưa có đội ngũ trực tiếp liên hệ cá nhân với người dùng.
-- Mục đích là để Chatbot có thể hiểu bạn tốt hơn, điều chỉnh cách nói chuyện cho phù hợp với tâm trạng của bạn lúc đó.
-- Nếu AI nhận thấy bạn đang trải qua giai đoạn khó khăn, nó có thể gợi ý những nội dung nhẹ nhàng, tích cực hơn — hoặc đơn giản là hỏi thăm bạn.
+## 3. AI Bảo vệ Cộng đồng & Kiểm duyệt Nội dung
 
-## 3. AI Bảo vệ Cộng đồng
+Để Sentimeta luôn là một không gian văn minh và lành mạnh:
+- **Kiểm duyệt tự động:** Mô hình xử lý ngôn ngữ tự nhiên kiểm tra văn bản và hình ảnh để kịp thời ngăn chặn các nội dung kích động bạo lực, ngôn từ thù ghét, quấy rối hoặc nội dung độc hại.
+- **Minh bạch và Khiếu nại:** Nếu bài viết của bạn vô tình bị nhận diện nhầm và bị tạm ẩn, bạn hoàn toàn có thể vào **Cài đặt → Lịch sử kiểm duyệt (`/settings/moderation-history`)** để xem lý do và bấm nút **"Gửi khiếu nại" (Appeal)** để đội ngũ hỗ trợ xem xét lại.
 
-Để giữ Sentimeta là nơi an toàn cho tất cả mọi người, AI cũng đảm nhận vai trò người gác cổng:
+## 4. Hỗ trợ Khẩn cấp & Đường dây nóng 24/7
 
-- **Lọc nội dung:** Những bài viết, bình luận mang tính xúc phạm hoặc độc hại sẽ bị phát hiện và xử lý tự động.
-- **Bảo vệ hình ảnh:** Ảnh được tải lên cũng được kiểm tra để đảm bảo không gây tổn thương cho người xem.
-- Nếu bài của bạn vô tình bị giữ lại, đừng nản lòng — AI đôi lúc cũng mắc lỗi. Bạn có thể gửi phản hồi để đội ngũ xem xét lại.
+Khi bạn hoặc người thân đang trải qua giai đoạn khủng hoảng tâm lý nghiêm trọng, bế tắc hoặc có ý nghĩ tự hại, hãy nhớ rằng bạn luôn có sự giúp đỡ:
+- Trợ lý AI được thiết lập ưu tiên cao nhất để nhận diện các tín hiệu khủng hoảng và lập tức cung cấp thông tin các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
+  - **1900 599 830** (Đường dây nóng Ngày Mai - Hỗ trợ khủng hoảng tâm lý & trầm cảm)
+  - **111** (Tổng đài Quốc gia Bảo vệ Trẻ em & Tham vấn Tâm lý)
+  - **115** (Cấp cứu y tế khẩn cấp)
 
-## 4. Khi Bạn Thực Sự Cần Giúp Đỡ
-
-Nếu bạn đang trải qua một giai đoạn rất khó khăn và cần hỗ trợ tức thì, hãy nhớ rằng:
-
-- Chatbot của Sentimeta được đào tạo để phát hiện những lúc bạn cần thêm sự hỗ trợ.
-- Trong những trường hợp đặc biệt, Chatbot sẽ cung cấp ngay thông tin về các đường dây hỗ trợ tâm lý miễn phí 24/7: **1900 599 830** (Đường dây nóng Ngày Mai) và **111** (Tổng đài Quốc gia).
-- Đây là tính năng mình tự hào nhất — vì không ai nên phải đối mặt với giai đoạn tối tăm nhất của cuộc đời một mình.
+> Bạn luôn xứng đáng được lắng nghe, thấu cảm và bảo vệ. Sentimeta luôn ở đây bên bạn!

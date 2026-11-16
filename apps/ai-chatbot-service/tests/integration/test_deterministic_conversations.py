@@ -22,6 +22,7 @@ from app.modules.chatbot.repositories.user_memory_profile import (
     UserMemoryProfileRepository,
 )
 from app.modules.chatbot.schemas import AssistantRespondData, AssistantRespondRequest
+from app.modules.chatbot.services.prompt_builder import PromptBuilder
 from app.modules.chatbot.services.assistant import AssistantService
 from app.providers.stub_provider import StubLlmProvider
 from tests.unit.test_chat_history_actions import FakeDb
@@ -134,6 +135,60 @@ class DeterministicConversationTests(unittest.TestCase):
         self.assertTrue("lo-fi" in reply or "lofi" in reply)
         self.assertEqual(final.proposals, [])
 
+    def test_long_conversation_preserves_first_turn_context(self) -> None:
+        user_id = f"mock_user_{uuid.uuid4().hex[:8]}"
+
+        first = self._post(
+            user_id,
+            "Mình tên là Minh và mình muốn được hỗ trợ sắp xếp công việc.",
+        )
+        conversation_id = first.conversationId
+
+        for message in (
+            "Hôm nay mình đã hoàn thành một việc nhỏ.",
+            "Mình đang nghỉ ngơi một chút sau giờ làm.",
+            "Mình muốn nói thêm về thói quen buổi tối.",
+            "Mình thường nghe nhạc khi cần tập trung.",
+            "Mình thấy cuộc trò chuyện này khá hữu ích.",
+        ):
+            self._post(user_id, message, conversation_id)
+
+        recalled = self._post(
+            user_id,
+            "Bạn còn nhớ tên mình đã nói ở đầu cuộc trò chuyện không?",
+            conversation_id,
+        )
+
+        self.assertIn("minh", (recalled.reply or "").lower())
+
+    def test_long_conversation_skips_greeting_when_selecting_anchor(self) -> None:
+        user_id = f"mock_user_{uuid.uuid4().hex[:8]}"
+
+        greeting = self._post(user_id, "Chào bạn!")
+        conversation_id = greeting.conversationId
+        self._post(
+            user_id,
+            "Mình tên là Minh và mình muốn được hỗ trợ sắp xếp công việc.",
+            conversation_id,
+        )
+
+        for message in (
+            "Hôm nay mình đã hoàn thành một việc nhỏ.",
+            "Mình đang nghỉ ngơi một chút sau giờ làm.",
+            "Mình muốn nói thêm về thói quen buổi tối.",
+            "Mình thường nghe nhạc khi cần tập trung.",
+            "Mình thấy cuộc trò chuyện này khá hữu ích.",
+        ):
+            self._post(user_id, message, conversation_id)
+
+        recalled = self._post(
+            user_id,
+            "Bạn còn nhớ tên mình đã nói ở đầu cuộc trò chuyện không?",
+            conversation_id,
+        )
+
+        self.assertIn("minh", (recalled.reply or "").lower())
+
     def test_crisis_escalation_reaches_guarded_terminal_response(self) -> None:
         user_id = f"mock_user_{uuid.uuid4().hex[:8]}"
 
@@ -190,6 +245,51 @@ class DeterministicConversationTests(unittest.TestCase):
         self.assertNotIn("minh", other_reply)
         self.assertNotIn("lo-fi", other_reply)
         self.assertNotIn("lofi", other_reply)
+
+    def test_restricted_policy_keeps_safe_user_facts_in_prompt(self) -> None:
+        request = AssistantRespondRequest(
+            userId="mock_user",
+            conversationId="conversation",
+            message="Bạn có thể giúp mình thư giãn không?",
+            aiPolicy="RESTRICTED",
+        )
+
+        prompt = PromptBuilder().build(
+            request,
+            history=[],
+            user_facts={"name": "Minh", "interests": "nghe nhạc lo-fi"},
+        )
+
+        self.assertIn("Minh", prompt)
+        self.assertIn("nghe nhạc lo-fi", prompt)
+
+    def test_full_policy_includes_user_facts_in_prompt(self) -> None:
+        request = AssistantRespondRequest(
+            userId="mock_user",
+            conversationId="conversation",
+            message="Bạn có thể giúp mình thư giãn không?",
+            aiPolicy="FULL",
+        )
+
+        prompt = PromptBuilder().build(
+            request,
+            history=[],
+            user_facts={"name": "Minh", "interests": "nghe nhạc lo-fi"},
+        )
+
+        self.assertIn("Minh", prompt)
+        self.assertIn("nghe nhạc lo-fi", prompt)
+
+    def test_select_history_window_two_items_boundary_condition(self) -> None:
+        from app.modules.chatbot.schemas import AssistantHistoryItem
+
+        history = [
+            AssistantHistoryItem(role="user", content=f"Message {i}")
+            for i in range(10)
+        ]
+        window = PromptBuilder._select_history_window(history, max_history_items=2)
+        self.assertEqual(len(window), 2)
+        self.assertEqual([item.content for item in window], ["Message 8", "Message 9"])
 
     def test_repeatability_ten_consecutive_runs(self) -> None:
         """Verify that multi-turn tests pass reliably without flakiness."""

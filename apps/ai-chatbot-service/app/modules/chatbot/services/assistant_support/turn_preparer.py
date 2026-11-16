@@ -213,16 +213,14 @@ class TurnPreparer:
                 )
             return await cmd.history_store.load_context_window(request.userId, conv_id)
 
+        history_res, user_facts = await asyncio.gather(
+            _load_history(),
+            cmd.profile_repo.get_facts_by_user(request.userId),
+        )
         if is_restricted:
-            history_res = await _load_history()
-            user_facts = {}
             emotion_snapshot = EmotionSnapshot()
         else:
-            history_res, user_facts, emotion_snapshot = await asyncio.gather(
-                _load_history(),
-                cmd.profile_repo.get_facts_by_user(request.userId),
-                cmd.emotion_ctx.get_snapshot(request.userId),
-            )
+            emotion_snapshot = await cmd.emotion_ctx.get_snapshot(request.userId)
         history, db_last_intent, _ = history_res
         last_intent = request.intent or db_last_intent
 

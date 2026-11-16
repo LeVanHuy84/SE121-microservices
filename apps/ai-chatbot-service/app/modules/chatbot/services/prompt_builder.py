@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.core.settings import settings
+from app.modules.chatbot.repositories.history_support.helpers import (
+    is_substantive_anchor_turn,
+)
 from app.modules.chatbot.schemas import (
     AssistantContextItem,
     AssistantHistoryItem,
@@ -55,12 +58,9 @@ class PromptBuilder:
             == "RESTRICTED"
         )
         effective_snapshot = None if is_restricted else emotion_snapshot
-        if is_restricted:
-            user_facts_block = ""
-        else:
-            user_facts_block = self._build_user_facts_block(user_facts)
-            if not user_facts_block and memory_summary:
-                user_facts_block = self._build_memory_summary_block(memory_summary)
+        user_facts_block = self._build_user_facts_block(user_facts)
+        if not user_facts_block and memory_summary:
+            user_facts_block = self._build_memory_summary_block(memory_summary)
 
         compact_prompt = (
             not in_chat_distress
@@ -132,12 +132,9 @@ class PromptBuilder:
             == "RESTRICTED"
         )
         effective_snapshot = None if is_restricted else emotion_snapshot
-        if is_restricted:
-            user_facts_block = ""
-        else:
-            user_facts_block = self._build_user_facts_block(user_facts)
-            if not user_facts_block and memory_summary:
-                user_facts_block = self._build_memory_summary_block(memory_summary)
+        user_facts_block = self._build_user_facts_block(user_facts)
+        if not user_facts_block and memory_summary:
+            user_facts_block = self._build_memory_summary_block(memory_summary)
 
         compact_prompt = (
             not in_chat_distress
@@ -175,9 +172,7 @@ class PromptBuilder:
         resolved_char_cap = (
             history_item_char_limit or settings.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT
         )
-        sliced_history = (
-            history[-resolved_max_history:] if resolved_max_history else history
-        )
+        sliced_history = self._select_history_window(history, resolved_max_history)
 
         for item in sliced_history:
             content = self._smart_truncate(item.content, resolved_char_cap)
@@ -191,6 +186,36 @@ class PromptBuilder:
         messages.append(HumanMessage(content=request.message.strip()))
 
         return messages
+
+    @staticmethod
+    def _select_history_window(
+        history: list[AssistantHistoryItem],
+        max_history_items: int,
+    ) -> list[AssistantHistoryItem]:
+        if not max_history_items or len(history) <= max_history_items:
+            return history
+        if max_history_items <= 2:
+            return history[-max_history_items:]
+
+        recent_count = max_history_items - 2
+        recent_start_idx = len(history) - recent_count
+
+        anchor_start = next(
+            (
+                index
+                for index, item in enumerate(history[:recent_start_idx])
+                if item.role in ("user", "human")
+                and history[index + 1].role in ("assistant", "ai")
+                and is_substantive_anchor_turn(item.content, None, False)
+            ),
+            None,
+        )
+
+        if anchor_start is None or anchor_start + 2 >= recent_start_idx:
+            return history[-max_history_items:]
+
+        anchor = history[anchor_start : anchor_start + 2]
+        return [*anchor, *history[recent_start_idx:]]
 
     def _build_surface_context_directive(self, surface: SurfaceContext | None) -> str:
         """Inject active application surface context (screen, entity, lightweight metadata)."""
@@ -482,9 +507,7 @@ class PromptBuilder:
             return "HISTORY:\nKhông có lịch sử hội thoại."
 
         resolved_max_items = max_items or settings.CHATBOT_PROMPT_HISTORY_ITEMS_MAX
-        sliced_history = (
-            history[-resolved_max_items:] if resolved_max_items else history
-        )
+        sliced_history = self._select_history_window(history, resolved_max_items)
 
         from app.modules.chatbot.repositories.chat_history import (
             HISTORY_MESSAGE_CHAR_CAP,
