@@ -283,10 +283,10 @@ class Settings:
             "CHATBOT_LLM_PROVIDER", "groq"
         ).strip().lower()
         self.GROQ_MODEL: str = os.getenv(
-            "GROQ_MODEL", "llama-3.3-70b-versatile"
+            "GROQ_MODEL", "qwen/qwen3.8-27b"
         ).strip()
         self.GROQ_FAST_MODEL: str = os.getenv(
-            "GROQ_FAST_MODEL", "llama-3.1-8b-instant"
+            "GROQ_FAST_MODEL", "qwen/qwen3.8-27b"
         ).strip()
         os.environ.pop("GROQ_BASE_URL", None)
         self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 5.0))
