@@ -279,12 +279,10 @@ class Settings:
         self.ES_NODE: str = os.getenv("ES_NODE", "http://localhost:9200").strip()
 
         self.GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
-        self.CHATBOT_LLM_PROVIDER: str = os.getenv(
-            "CHATBOT_LLM_PROVIDER", "groq"
-        ).strip().lower()
-        self.GROQ_MODEL: str = os.getenv(
-            "GROQ_MODEL", "qwen/qwen3.8-27b"
-        ).strip()
+        self.CHATBOT_LLM_PROVIDER: str = (
+            os.getenv("CHATBOT_LLM_PROVIDER", "groq").strip().lower()
+        )
+        self.GROQ_MODEL: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b").strip()
         self.GROQ_FAST_MODEL: str = os.getenv(
             "GROQ_FAST_MODEL", "qwen/qwen3.8-27b"
         ).strip()
@@ -301,9 +299,11 @@ class Settings:
         self.GROQ_TEMPERATURE_TASK: float = float(
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
-        self.OLLAMA_BASE_URL: str = os.getenv(
-            "OLLAMA_BASE_URL", "http://localhost:11434/v1"
-        ).strip().rstrip("/")
+        self.OLLAMA_BASE_URL: str = (
+            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+            .strip()
+            .rstrip("/")
+        )
         self.OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:8b").strip()
 
         # Multi-Provider Fallback & Circuit Breaker Settings
@@ -365,9 +365,7 @@ class Settings:
 
     def _validate(self):
         if self.CHATBOT_LLM_PROVIDER not in {"groq", "ollama"}:
-            raise RuntimeError(
-                "CHATBOT_LLM_PROVIDER must be either 'groq' or 'ollama'"
-            )
+            raise RuntimeError("CHATBOT_LLM_PROVIDER must be either 'groq' or 'ollama'")
 
         if not (1 <= self.PORT <= 65535):
             raise RuntimeError("PORT must be between 1 and 65535")

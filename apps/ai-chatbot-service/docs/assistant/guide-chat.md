@@ -35,7 +35,15 @@ Giao diện mục **"Tin nhắn" (`/conversations`)** được tối ưu hóa ch
   - **Thu hồi tin nhắn:** Bạn có thể thu hồi tin nhắn đã gửi cho cả hai phía bất kỳ lúc nào nếu lỡ gửi nhầm.
   - **Thả cảm xúc & Sao chép:** Rê chuột vào tin nhắn (hoặc chạm giữ trên điện thoại) để thả biểu tượng cảm xúc hoặc sao chép nội dung.
 
-### 3. Lưu ý về Quyền Riêng tư & Bảo mật Tin nhắn
+### 3. Tắt thông báo Cuộc trò chuyện hoặc Nhóm chat (Mute Chat)
+- Khi một cuộc trò chuyện 1-1 hoặc nhóm chat có quá nhiều tin nhắn mới liên tục gây phiền toái, bạn có thể tắt riêng thông báo của hội thoại đó mà không cần tắt toàn bộ thông báo ứng dụng:
+  1. Truy cập mục **Tin nhắn (`/conversations`)** và chọn cuộc trò chuyện hoặc nhóm chat cần tắt.
+  2. Nhấp vào tên hội thoại ở thanh tiêu đề (hoặc biểu tượng dấu ba chấm `...` ở góc trên bên phải khung chat).
+  3. Chọn mục **"Tắt thông báo" (Mute Notifications)**.
+  4. Lựa chọn khoảng thời gian tắt thông báo (1 giờ, 8 giờ, 1 tuần hoặc Cho đến khi bạn bật lại).
+  - *Lưu ý phân biệt:* Việc tắt thông báo cuộc trò chuyện chỉ áp dụng cho riêng nhóm chat đó. Bạn vẫn nhận được tin nhắn bình thường khi mở ứng dụng và các thông báo khác (kết bạn, thông báo bài viết) vẫn hoạt động nguyên vẹn.
+
+### 4. Lưu ý về Quyền Riêng tư & Bảo mật Tin nhắn
 - Tin nhắn cá nhân chỉ hiển thị cho các thành viên trong cuộc trò chuyện trong ứng dụng.
 - Lưu ý: Sentimeta **hiện chưa hỗ trợ mã hóa đầu cuối**, nên đội ngũ kỹ thuật có thể truy cập nội dung trong một số trường hợp cần thiết để vận hành hệ thống hoặc xử lý vi phạm tiêu chuẩn cộng đồng. Bạn vui lòng tránh chia sẻ mật khẩu tài khoản hoặc dữ liệu quá nhạy cảm qua tin nhắn.
 

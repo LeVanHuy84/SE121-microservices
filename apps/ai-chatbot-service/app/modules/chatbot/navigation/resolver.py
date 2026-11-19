@@ -7,6 +7,9 @@ from app.modules.chatbot.navigation.catalog import (
     DestinationCatalog,
     destination_catalog,
 )
+from app.modules.chatbot.services.guardrails_support.crisis import (
+    has_in_chat_emotional_distress,
+)
 from app.utils.text_normalizer import normalize_for_guard
 
 _COMMAND_PREFIXES = (
@@ -25,6 +28,8 @@ _COMMAND_PREFIXES = (
     "go to ",
     "show ",
     "view ",
+    "ve ",
+    "quay ve ",
 )
 
 _HOWTO_INDICATORS = (
@@ -37,6 +42,14 @@ _HOWTO_INDICATORS = (
     "nhu the nao",
     "how to",
     "where",
+)
+
+_EXPLANATION_INDICATORS = (
+    "tai sao",
+    "vi sao",
+    "sao lai",
+    "nguyen nhan",
+    "tai vi sao",
 )
 
 _DATA_RETRIEVAL_INDICATORS = (
@@ -107,9 +120,21 @@ class NavResolver:
         if any(admin_term in normalized for admin_term in _ADMIN_KEYWORDS):
             return NavDecision(path="none")
 
+        # Emotional distress check: emotional sharing must not be hijacked by UI navigation
+        if has_in_chat_emotional_distress(text):
+            return NavDecision(path="none")
+
         # Feature inquiry check: "có chức năng... không?" is an app feature question, not navigation
         if re.search(
             r"\b(co|chuc nang|tinh nang|ho tro)\b.*\b(khong|chua)\b", normalized
+        ):
+            return NavDecision(path="none")
+
+        is_howto = any(indicator in normalized for indicator in _HOWTO_INDICATORS)
+
+        # Explanation / Why inquiry check: "tại sao...", "vì sao..." are diagnostic questions
+        if (not is_howto) and any(
+            indicator in normalized for indicator in _EXPLANATION_INDICATORS
         ):
             return NavDecision(path="none")
 
@@ -125,7 +150,6 @@ class NavResolver:
             )
 
         # Data retrieval inquiry check: "cho tôi biết...", "liệt kê...", "có bao nhiêu..." are data queries, not navigation commands
-        is_howto = any(indicator in normalized for indicator in _HOWTO_INDICATORS)
         is_data_retrieval = (not is_howto) and any(
             indicator in normalized for indicator in _DATA_RETRIEVAL_INDICATORS
         )
@@ -145,6 +169,7 @@ class NavResolver:
             return NavDecision(path="none")
 
         top_match = matches[0]
+        tokens = normalized.split()
 
         # 3. Disambiguate path
         if is_command and top_match.score >= 0.70:
@@ -176,7 +201,7 @@ class NavResolver:
 
         # If 2-3 destinations match closely (score >= 0.60)
         close_matches = [m for m in matches if m.score >= 0.60][:3]
-        if len(close_matches) >= 2:
+        if (is_command or len(tokens) <= 5) and len(close_matches) >= 2:
             return NavDecision(
                 path="clarify",
                 matches=close_matches,
@@ -274,7 +299,9 @@ class NavResolver:
         ai_policy: str = "FULL",
     ) -> list[NavMatch]:
         scored: list[NavMatch] = []
-        user_tokens = set(normalized.split())
+        user_word_list = normalized.split()
+        user_tokens = set(user_word_list)
+        num_user_tokens = max(len(user_word_list), 1)
 
         for entry in self._catalog.all_destinations():
             if ai_policy == "RESTRICTED" and entry.policy_scope == "personal":
@@ -288,6 +315,7 @@ class NavResolver:
 
                 syn_tokens = norm_syn.split()
                 syn_token_set = set(syn_tokens)
+                coverage = len(syn_tokens) / num_user_tokens
 
                 # Exact synonym phrase match in text
                 if norm_syn == normalized:
@@ -295,20 +323,30 @@ class NavResolver:
                 elif f" {norm_syn} " in f" {normalized} ":
                     # Substring word-boundary match: longer matches are more specific
                     if len(syn_tokens) >= 2:
-                        score = 0.82 + (0.04 * min(len(syn_tokens), 4))
-                    elif is_command or is_howto or len(user_tokens) <= 2:
+                        # If not command and not howto, require at least 35% word coverage to avoid hijacking long sentences
+                        if is_command or is_howto or coverage >= 0.35:
+                            score = 0.82 + (0.04 * min(len(syn_tokens), 4))
+                        else:
+                            score = 0.40
+                    elif is_command or is_howto or len(user_tokens) <= 2 or coverage >= 0.45:
                         score = 0.75
                     else:
                         score = 0.40
                 elif syn_token_set.issubset(user_tokens):
                     # All synonym words present
-                    ratio = len(syn_tokens) / max(len(user_tokens), 1)
-                    score = 0.70 + (0.20 * ratio)
+                    ratio = len(syn_tokens) / num_user_tokens
+                    if is_command or is_howto or ratio >= 0.35:
+                        score = 0.70 + (0.20 * ratio)
+                    else:
+                        score = 0.40
                 else:
                     # Token overlap
                     overlap = len(syn_token_set.intersection(user_tokens))
                     if overlap >= 2:
-                        score = 0.50 + (0.15 * (overlap / len(syn_tokens)))
+                        if is_command or is_howto or (overlap / num_user_tokens) >= 0.35:
+                            score = 0.50 + (0.15 * (overlap / len(syn_tokens)))
+                        else:
+                            score = 0.40
                     elif (
                         overlap == 1
                         and len(syn_tokens) == 1

@@ -22,6 +22,7 @@ Tính năng gọi thoại và video trên Sentimeta được hỗ trợ bởi c�
   - **Bật/Tắt Camera:** Nhấp biểu tượng máy quay để tắt hoặc mở luồng video.
   - **Chuyển đổi Camera:** Trên thiết bị di động, bấm nút đổi camera để luân phiên giữa camera trước và sau.
   - **Chia sẻ màn hình:** Trên trình duyệt web, bạn có thể bấm nút chia sẻ màn hình để cùng bạn bè xem nội dung, tài liệu hay hình ảnh.
+  - **Lưu ý về tính năng cảm xúc trong cuộc gọi:** Sentimeta hiện tại **chưa hỗ trợ** tính năng chia sẻ cảm xúc, quét biểu cảm khuôn mặt hay nhận diện cảm xúc trực tiếp trong lúc đang gọi điện thoại hoặc gọi video. Cuộc gọi trên Sentimeta tập trung tối ưu vào kết nối đàm thoại và truyền tải hình ảnh/âm thanh ổn định qua nền tảng Stream Video. Nếu muốn theo dõi hoặc chia sẻ cảm xúc, bạn có thể sử dụng Không gian Cảm xúc (`/emotions`), gắn thẻ tâm trạng trong bài viết hoặc trò chuyện cùng Trợ lý AI.
   - **Kết thúc cuộc gọi:** Bấm nút màu đỏ hình điện thoại gác máy để rời phòng gọi.
 - **Cấp quyền truy cập thiết bị:** Khi thực hiện cuộc gọi lần đầu, vui lòng cho phép trình duyệt hoặc ứng dụng cấp quyền sử dụng Micro và Máy ảnh (Camera).
 

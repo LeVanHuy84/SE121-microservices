@@ -311,13 +311,9 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
                         action.model_dump(mode="json")
                         for action in data.suggestedActions
                     ],
-                    "cards": [
-                        card.model_dump(mode="json")
-                        for card in data.cards
-                    ],
+                    "cards": [card.model_dump(mode="json") for card in data.cards],
                     "proposals": [
-                        proposal.model_dump(mode="json")
-                        for proposal in data.proposals
+                        proposal.model_dump(mode="json") for proposal in data.proposals
                     ],
                     "conversationId": data.conversationId,
                     "policyBlocked": data.policyBlocked,

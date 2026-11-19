@@ -69,7 +69,14 @@ Nếu bạn gặp bài viết hoặc bình luận vi phạm tiêu chuẩn cộng
 - Chọn **"Báo cáo" (Report)**.
 - Chọn lý do vi phạm (Spam, Ngôn từ thù ghét, Bạo lực, Nội dung không an toàn...) và gửi báo cáo để ban quản trị xử lý kịp thời.
 
-## 8. Hỗ trợ khi Phát hiện Tâm trạng Khủng hoảng
+## 8. Mục đích AI Quét và Phân tích Cảm xúc Bài đăng
+- Khi bạn đăng tải một bài viết hoặc dòng tâm trạng, mô hình AI ngôn ngữ (PhoBERT) sẽ tự động phân tích sắc thái cảm xúc ẩn sau câu chữ nhằm 4 mục đích bảo vệ và hỗ trợ người dùng:
+  1. **Theo dõi dòng thời gian tâm trạng cá nhân (EMA):** Tự động tổng hợp và vẽ biểu đồ diễn biến cảm xúc tại Không gian Cảm xúc (`/emotions`), giúp bạn tự quan sát và thấu hiểu sức khỏe tinh thần của chính mình trong không gian riêng tư tuyệt đối.
+  2. **Kích hoạt Bảng tin Không gian An toàn (Safe Space Feed):** Khi AI nhận thấy bạn đang có dấu hiệu mệt mỏi, buồn bã hoặc căng thẳng kéo dài, thuật toán phân phối bảng tin sẽ tự động ưu tiên các bài viết tích cực, ấm áp, câu chuyện chữa lành từ bạn bè và nhóm, đồng thời hạn chế các nội dung gay gắt hoặc gây thêm áp lực.
+  3. **Đề xuất Âm nhạc Chữa lành (Music Recommendation):** Gợi ý những giai điệu xoa dịu hoặc nâng đỡ tâm trạng từ kho nhạc được phân tích theo mô hình MERT.
+  4. **Cảnh báo và Hỗ trợ Khẩn cấp:** Phát hiện sớm các tín hiệu trầm cảm nặng hoặc nguy cơ tự hại để kịp thời gửi thông báo hỏi thăm và cung cấp thông tin đường dây nóng hỗ trợ tâm lý chuyên môn.
+
+## 9. Hỗ trợ Khẩn cấp khi Phát hiện Tâm trạng Khủng hoảng
 
 Nếu bài viết của bạn chứa đựng những cảm xúc rất nặng nề, tuyệt vọng hoặc nguy cơ tự hại, hệ thống có thể gửi thông báo hỏi thăm hoặc hiển thị đề xuất hỗ trợ tâm lý. Đừng ngần ngại liên hệ các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
 - **1900 599 830** (Đường dây nóng Ngày Mai)

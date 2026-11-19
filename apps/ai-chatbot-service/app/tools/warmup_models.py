@@ -16,7 +16,9 @@ async def main():
     # 1. AI Analysis models (PhoBERT Emotion & Moderation)
     print("\n[*] 1/3: Checking AI Analysis Models (PhoBERT & Moderation)...")
     t0 = time.perf_counter()
-    from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded
+    from app.modules.analysis.services.ml_models.model_loader import (
+        ensure_models_loaded,
+    )
 
     await asyncio.to_thread(ensure_models_loaded)
     print(f"    ✓ AI Analysis models ready ({time.perf_counter() - t0:.2f}s)")

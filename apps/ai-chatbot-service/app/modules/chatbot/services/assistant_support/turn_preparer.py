@@ -458,7 +458,15 @@ class TurnPreparer:
                 )
 
             if community_decision.reason == "profanity_candidate":
-                if (
+                is_distressed_venting = (
+                    distress_level != "none"
+                    or has_in_chat_emotional_distress(working_request.message)
+                    or (
+                        stage2_res is not None
+                        and stage2_res.community_allowed_override is True
+                    )
+                )
+                if not is_distressed_venting and (
                     stage2_res is None
                     or stage2_res.community_allowed_override is not True
                 ):
@@ -653,12 +661,9 @@ class TurnPreparer:
             and not is_mental_health_turn
             and not is_memory_recall_turn
         ):
-            if (
-                guard_intent is None
-                and (
-                    scope_decision.state == "in_domain_unknown"
-                    or not scope_decision.in_scope
-                )
+            if guard_intent is None and (
+                scope_decision.state == "in_domain_unknown"
+                or not scope_decision.in_scope
             ):
                 guard_intent = "no_answer"
                 guard_annotation = (

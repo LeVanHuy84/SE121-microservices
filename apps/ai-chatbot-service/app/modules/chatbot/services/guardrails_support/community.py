@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.utils.text_normalizer import normalize_for_guard
-from .keywords import PROFANITY_REGEX, UNSAFE_REGEX
+from .keywords import ACCENTED_PROFANITY_REGEX, PROFANITY_REGEX, UNSAFE_REGEX
 from .types import CommunityDecision
 
 
@@ -18,7 +18,7 @@ class CommunityGuard:
                 "high",
                 normalized,
             )
-        if PROFANITY_REGEX.search(normalized):
+        if PROFANITY_REGEX.search(normalized) or ACCENTED_PROFANITY_REGEX.search(text):
             return CommunityDecision(
                 False,
                 "profanity_candidate",

@@ -28,7 +28,7 @@ from .types import (
 
 logger = logging.getLogger("uvicorn.error")
 
-IMPLICIT_CRISIS_COSINE_THRESHOLD = 0.92
+IMPLICIT_CRISIS_COSINE_THRESHOLD = 0.84
 SCOPE_PROMOTION_COSINE_THRESHOLD = 0.76
 PHOBERT_EMOTIONAL_CRISIS_THRESHOLD = 0.45
 PHOBERT_HATE_SPEECH_BLOCK_THRESHOLD = 0.50
@@ -154,11 +154,12 @@ class Stage2GuardVerifier:
         profanity_venting_score = float(phobert_scores.get("PROFANITY_VENTING", 0.0))
         hate_speech_score = float(phobert_scores.get("HATE_SPEECH", 0.0))
 
-        # 1. Implicit crisis semantic check (require margin over system_guide and PhoBERT corroboration when available)
+        # 1. Implicit crisis semantic check (require margin over system_guide, mh_sim, and PhoBERT corroboration when available)
         if (
             query_vec
             and crisis_sim >= IMPLICIT_CRISIS_COSINE_THRESHOLD
-            and crisis_sim > sys_sim + 0.02
+            and crisis_sim > sys_sim + 0.05
+            and (crisis_sim >= mh_sim - 0.02)
             and (not phobert_available or emotional_crisis_score >= 0.25)
         ):
             crisis_override = CrisisDecision(
@@ -180,13 +181,23 @@ class Stage2GuardVerifier:
             distress_level = "acute_pfa"
 
         # 3. Venting profanity vs hate speech disambiguation
-        if stage1_community.reason == "profanity_candidate" and phobert_available:
-            if hate_speech_score >= PHOBERT_HATE_SPEECH_BLOCK_THRESHOLD:
+        if stage1_community.reason == "profanity_candidate":
+            if (
+                phobert_available
+                and hate_speech_score >= PHOBERT_HATE_SPEECH_BLOCK_THRESHOLD
+            ):
                 community_override = False
             elif (
-                predicted_label in {"PROFANITY_VENTING", "EMOTIONAL_CRISIS"}
-                or profanity_venting_score >= 0.30
-                or emotional_crisis_score >= 0.30
+                (
+                    phobert_available
+                    and (
+                        predicted_label in {"PROFANITY_VENTING", "EMOTIONAL_CRISIS"}
+                        or profanity_venting_score >= 0.30
+                        or emotional_crisis_score >= 0.30
+                    )
+                )
+                or distress_level != "none"
+                or mh_sim >= 0.65
             ):
                 community_override = True
                 if distress_level == "none":

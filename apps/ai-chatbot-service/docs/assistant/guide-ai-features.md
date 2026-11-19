@@ -35,8 +35,13 @@ Trợ lý AI là người bạn tâm giao luôn túc trực lắng nghe bạn b�
 - **Ghi nhận cảm xúc tự động:**
   - Mỗi khi bạn đăng một dòng tâm trạng hoặc bài viết, mô hình AI cảm xúc nhẹ nhàng nhận diện sắc thái cảm xúc (Vui vẻ, Bình yên, Buồn bã, Lo âu, Căng thẳng...) để cập nhật biểu đồ tại **Không gian Cảm xúc (`/emotions`)**.
   - Việc nhận diện này diễn ra tự động và hoàn toàn riêng tư, chỉ hiển thị cho chính bạn.
-- **Đề xuất Âm nhạc Chữa lành:**
-  - Dựa trên tâm trạng của bạn, AI kết nối với kho bài hát đã được phân tích đặc trưng âm nhạc (MERT) để gợi ý những giai điệu xoa dịu hoặc tiếp thêm năng lượng tích cực.
+- **Đề xuất Âm nhạc Chữa lành (Music Recommendation with MERT):**
+  - Hệ thống sử dụng mô hình học sâu **MERT (Music Emotion Recognition Transformer)** để phân tích đặc trưng âm nhạc theo hai trục không gian cảm xúc: **Valence** (mức độ tích cực, tươi sáng của giai điệu) và **Arousal** (mức độ kích hoạt năng lượng, êm dịu hay sôi động).
+  - **Lợi ích cốt lõi của tính năng gợi ý nhạc:**
+    1. **Điều hòa cảm xúc (Emotion Regulation):** Áp dụng nguyên tắc trị liệu Iso-principle — hệ thống bắt đầu bằng những bài hát đồng cảm với tâm trạng hiện tại của bạn (giúp bạn cảm thấy được thấu hiểu), sau đó chuyển tiếp dần sang các bài hát tươi sáng hơn để nâng đỡ tinh thần tự nhiên.
+    2. **Xua tan căng thẳng và hỗ trợ giấc ngủ:** Gợi ý những giai điệu êm dịu, tiết tấu chậm giúp làm dịu hệ thần kinh giao cảm khi bạn bị lo âu hoặc khó ngủ.
+    3. **Tái tạo năng lượng và tăng tập trung:** Gợi ý danh sách nhạc kích thích sự hứng khởi khi bạn cần học tập, làm việc hoặc vượt qua sự uể oải.
+  - Bạn có thể nghe trực tiếp các gợi ý này tại **Không gian Cảm xúc (`/emotions`)** hoặc nhận thẻ gợi ý bài hát (`MusicCard`) khi trò chuyện cùng Trợ lý AI.
 - **Tùy chỉnh Can thiệp Chủ động:**
   - Nếu AI nhận thấy bạn có dấu hiệu căng thẳng kéo dài, hệ thống có thể gửi thông báo hỏi thăm hoặc hiển thị đề xuất bài tập xoa dịu.
   - Bạn có toàn quyền bật hoặc tắt tính năng này trong phần **Cài đặt → Quyền riêng tư (`/settings/privacy`)** qua mục **"Cho phép AI can thiệp chủ động"**.
@@ -47,12 +52,12 @@ Trợ lý AI là người bạn tâm giao luôn túc trực lắng nghe bạn b�
 - **Kiểm duyệt tự động:** Mô hình xử lý ngôn ngữ tự nhiên kiểm tra văn bản và hình ảnh để kịp thời ngăn chặn các nội dung kích động bạo lực, ngôn từ thù ghét, quấy rối hoặc nội dung độc hại.
 - **Minh bạch và Khiếu nại:** Nếu bài viết của bạn vô tình bị nhận diện nhầm và bị tạm ẩn, bạn hoàn toàn có thể vào **Cài đặt → Lịch sử kiểm duyệt (`/settings/moderation-history`)** để xem lý do và bấm nút **"Gửi khiếu nại" (Appeal)** để đội ngũ hỗ trợ xem xét lại.
 
-## 4. Hỗ trợ Khẩn cấp & Đường dây nóng 24/7
+## 4. Hỗ trợ Khẩn cấp & Đường dây nóng Tâm lý Sentimeta Liên kết
 
-Khi bạn hoặc người thân đang trải qua giai đoạn khủng hoảng tâm lý nghiêm trọng, bế tắc hoặc có ý nghĩ tự hại, hãy nhớ rằng bạn luôn có sự giúp đỡ:
-- Trợ lý AI được thiết lập ưu tiên cao nhất để nhận diện các tín hiệu khủng hoảng và lập tức cung cấp thông tin các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
-  - **1900 599 830** (Đường dây nóng Ngày Mai - Hỗ trợ khủng hoảng tâm lý & trầm cảm)
-  - **111** (Tổng đài Quốc gia Bảo vệ Trẻ em & Tham vấn Tâm lý)
-  - **115** (Cấp cứu y tế khẩn cấp)
+Khi bạn hoặc người thân đang trải qua giai đoạn khủng hoảng tâm lý nghiêm trọng, bế tắc hoặc có ý nghĩ tự hại, hãy nhớ rằng bạn luôn có sự trợ giúp kịp thời:
+- Sentimeta liên kết và khuyến nghị 3 đường dây nóng khẩn cấp hoạt động 24/7 hoàn toàn miễn phí:
+  - **1900 599 830** (Đường dây nóng Ngày Mai): Hỗ trợ chuyên sâu về khủng hoảng tâm lý, trầm cảm và ngăn ngừa tự tử từ các chuyên gia tâm lý học.
+  - **111** (Tổng đài Quốc gia Bảo vệ Trẻ em): Tư vấn tâm lý, bảo vệ trẻ em và thanh thiếu niên khỏi bạo lực gia đình và xâm hại 24/7.
+  - **115** (Cấp cứu Y tế Khẩn cấp): Can thiệp và cấp cứu y tế tức thời khi có nguy cơ tổn thương thể chất hoặc ngộ độc thuốc.
 
 > Bạn luôn xứng đáng được lắng nghe, thấu cảm và bảo vệ. Sentimeta luôn ở đây bên bạn!

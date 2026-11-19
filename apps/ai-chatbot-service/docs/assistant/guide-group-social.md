@@ -17,13 +17,18 @@ Truy cập mục **"Bạn bè" (`/friends`)** trên thanh điều hướng chín
 - **Danh sách Bạn bè (`/friends`):**
   - Hiển thị danh sách tất cả những người bạn hiện tại của bạn trên Sentimeta.
   - Bạn có thể nhấp vào tên để xem Trang cá nhân (`/profile/[id]`), bấm nút **"Nhắn tin"** để mở khung trò chuyện, hoặc bấm menu tùy chọn để **"Hủy kết bạn" (Unfriend)** hoặc **"Chặn" (Block)** người dùng.
+  - **Lưu ý về Hủy kết bạn (Unfriend):** Khi bạn bấm hủy kết bạn với một người, thao tác này diễn ra hoàn toàn âm thầm. Sentimeta **hoàn toàn KHÔNG gửi thông báo** nào cho người đó để bảo vệ sự riêng tư và tránh gây khó xử. Người đó chỉ có thể biết khi vào lại trang cá nhân của bạn và thấy nút "Kết bạn" xuất hiện lại.
 
 - **Lời mời kết bạn (`/friends/requests`):**
   - **Lời mời nhận được:** Danh sách những người đã gửi yêu cầu kết bạn tới bạn. Nhấp nút **"Chấp nhận"** để trở thành bạn bè hoặc **"Từ chối"** để bỏ qua lời mời.
   - **Lời mời đã gửi:** Danh sách các yêu cầu kết bạn bạn đã gửi đi đang chờ phản hồi. Bạn có thể bấm nút **"Thu hồi"** nếu muốn rút lại yêu cầu.
 
 - **Gợi ý bạn bè (`/friends/suggestions`):**
-  - Hệ thống tự động đề xuất những người bạn tiềm năng dựa trên sở thích chung, bạn chung và mức độ tương tác tích cực.
+  - Hệ thống gợi ý bạn bè (Friend Recommendation Engine) phân tích đề xuất những người bạn phù hợp dựa trên 4 tiêu chí cốt lõi:
+    1. **Số lượng bạn chung (Mutual Friends / Social Graph):** Đây là tiêu chí quan trọng nhất, ưu tiên những người có nhiều mối liên kết chung với bạn.
+    2. **Nhóm cộng đồng tham gia chung:** Những thành viên cùng sinh hoạt trong các nhóm bạn yêu thích.
+    3. **Sở thích và gu âm nhạc cảm xúc:** Đề xuất dựa trên điểm tương đồng về sở thích và thói quen nghe nhạc chữa lành.
+    4. **Mức độ tương tác tích cực trên bảng tin:** Những người thường xuyên tương tác cùng bài viết hoặc chủ đề chung.
   - Nhấp nút **"Thêm bạn bè"** để gửi ngay lời mời kết bạn hoặc bấm **"Gỡ bỏ"** để bỏ qua gợi ý.
 
 - **Danh sách đã chặn (`/friends/blocked`):**
@@ -56,6 +61,10 @@ Mục **"Nhóm" (`/groups`)** là không gian giao lưu theo sở thích, học 
   - **Bảng tin nhóm:** Đăng bài, bình luận và chia sẻ nội dung riêng biệt dành riêng cho các thành viên trong nhóm.
   - **Tab Thành viên:** Xem danh sách quản trị viên, người kiểm duyệt và các thành viên.
   - **Tùy chọn nhóm:** Rời khỏi nhóm hoặc cài đặt phê duyệt bài viết / thành viên (đối với Admin).
+  - **Quyền hạn của Trưởng nhóm (Group Admin) và Người kiểm duyệt:**
+    - Trưởng nhóm và Quản trị viên có **toàn quyền xóa bất kỳ bài viết hoặc bình luận nào của thành viên** trong nhóm nếu bài viết đó vi phạm quy định nhóm hoặc tiêu chuẩn cộng đồng.
+    - Quản trị viên có quyền duyệt hoặc từ chối bài viết trước khi hiển thị (nếu bật chế độ kiểm duyệt bài viết).
+    - Quản trị viên có quyền phê duyệt thành viên mới, ghim bài viết quan trọng lên đầu nhóm, hoặc xóa / cấm thành viên tái phạm khỏi nhóm để bảo vệ môi trường chung.
 
 ## 3. Điều hướng và Thao tác Nhanh với Trợ lý AI
 
