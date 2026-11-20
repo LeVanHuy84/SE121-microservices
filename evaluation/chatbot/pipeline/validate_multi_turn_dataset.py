@@ -11,7 +11,7 @@ CHATBOT_EVAL_DIR = CURRENT_DIR.parent
 if str(CHATBOT_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(CHATBOT_EVAL_DIR))
 
-from schemas import MultiTurnBenchmarkCase, BenchmarkCategory, SourceStandard
+from schemas import MultiTurnBenchmarkCase  # noqa: E402
 
 
 DATASET_PATH = CHATBOT_EVAL_DIR / "data" / "multi_turn_benchmark_cases.json"
@@ -50,7 +50,7 @@ def validate_multi_turn_dataset():
     else:
         print("[PASS] 100% of multi-turn dialogues successfully validated against Pydantic schema!")
 
-    # 2. Dialogue ID Uniqueness Check
+    # 2. Dialogue ID, User ID & Session ID Uniqueness Check (Mỗi multi_turn là 1 user_id + session)
     dlg_ids = [d.dialogue_id for d in validated_dialogues]
     duplicate_ids = [did for did, count in Counter(dlg_ids).items() if count > 1]
     if duplicate_ids:
@@ -58,6 +58,25 @@ def validate_multi_turn_dataset():
         sys.exit(1)
     else:
         print(f"[PASS] All {len(dlg_ids)} dialogue IDs are strictly unique.")
+
+    user_ids = [d.user_context.user_id for d in validated_dialogues]
+    duplicate_user_ids = [uid for uid, count in Counter(user_ids).items() if count > 1]
+    if duplicate_user_ids:
+        print(f"\n[FAIL] Duplicate User IDs detected across dialogues: {duplicate_user_ids}")
+        sys.exit(1)
+    else:
+        print(f"[PASS] All {len(user_ids)} multi-turn cases have strictly unique user_id.")
+
+    session_ids = [d.user_context.session_id for d in validated_dialogues if d.user_context.session_id]
+    duplicate_session_ids = [sid for sid, count in Counter(session_ids).items() if count > 1]
+    if duplicate_session_ids:
+        print(f"\n[FAIL] Duplicate Session IDs detected across dialogues: {duplicate_session_ids}")
+        sys.exit(1)
+    elif len(session_ids) < len(validated_dialogues):
+        print(f"\n[FAIL] Some dialogues are missing session_id ({len(session_ids)}/{len(validated_dialogues)})")
+        sys.exit(1)
+    else:
+        print(f"[PASS] All {len(session_ids)} multi-turn cases have strictly unique session_id (1 user_id + 1 session per dialogue).")
 
     # 3. Turn Sequence Continuity & Minimum Turns Check
     turn_sequence_errors = []
@@ -71,7 +90,7 @@ def validate_multi_turn_dataset():
                 )
 
     if turn_sequence_errors:
-        print(f"\n[FAIL] Turn sequence errors detected:")
+        print("\n[FAIL] Turn sequence errors detected:")
         for did, err in turn_sequence_errors:
             print(f"  - {did}: {err}")
         sys.exit(1)
@@ -81,9 +100,7 @@ def validate_multi_turn_dataset():
     # 4. Content Completeness Checklist across all Turns
     total_turns = sum(len(d.turns) for d in validated_dialogues)
     empty_queries = []
-    empty_expected = []
     empty_forbidden = []
-    empty_gists = []
     missing_retention_checks = []
 
     for d in validated_dialogues:
@@ -91,12 +108,8 @@ def validate_multi_turn_dataset():
             ref = f"{d.dialogue_id}_T{t.turn_index}"
             if not t.user_query.strip():
                 empty_queries.append(ref)
-            if len(t.expected_elements) == 0:
-                empty_expected.append(ref)
             if len(t.forbidden_behaviors) == 0:
                 empty_forbidden.append(ref)
-            if not t.reference_gist.strip():
-                empty_gists.append(ref)
             # Turns > 1 should ideally have context_retention_check
             if t.turn_index > 1 and (not t.context_retention_check or not t.context_retention_check.strip()):
                 missing_retention_checks.append(ref)
@@ -104,15 +117,13 @@ def validate_multi_turn_dataset():
     print("\n[+] Turn-Level Ground Truth Quality Checklist:")
     print(f"  - Total conversational turns: {total_turns}")
     print(f"  - Empty queries: {len(empty_queries)}")
-    print(f"  - Empty expected elements: {len(empty_expected)}")
     print(f"  - Empty forbidden behaviors: {len(empty_forbidden)}")
-    print(f"  - Empty reference gist: {len(empty_gists)}")
     print(f"  - Turns > 1 with Context Retention Spec: {total_turns - len(validated_dialogues) - len(missing_retention_checks)} / {total_turns - len(validated_dialogues)}")
 
-    if any([empty_queries, empty_expected, empty_forbidden, empty_gists]):
+    if any([empty_queries, empty_forbidden]):
         print("[FAIL] Missing content detected in conversational turns.")
         sys.exit(1)
-    print("[PASS] All ground truth elements and context retention specs across turns are complete!")
+    print("[PASS] All ground truth elements and context retention specs across turns are complete & rubric-aligned!")
 
     # 5. Dialogue Distribution & Matrix Overview
     cat_counts = Counter(d.category for d in validated_dialogues)

@@ -36,6 +36,7 @@ class EmotionType(str, Enum):
 
 class UserContext(BaseModel):
     user_id: str = Field(..., description="Unique test user identifier")
+    session_id: Optional[str] = Field(None, description="Unique test session/conversation identifier")
     current_emotion: Optional[EmotionType] = Field(
         EmotionType.NEUTRAL, description="Current detected emotion of the user"
     )
@@ -47,14 +48,14 @@ class UserContext(BaseModel):
 
 class ReferenceGroundTruth(BaseModel):
     ideal_intent: str = Field(..., description="Core communication intent of the response")
-    expected_elements: List[str] = Field(
-        ..., description="List of mandatory key facts, actions, or psychological steps"
+    expected_elements: Optional[List[str]] = Field(
+        default_factory=list, description="Optional list of key facts, actions, or psychological steps"
     )
     forbidden_behaviors: List[str] = Field(
-        ..., description="List of strictly prohibited actions, words, or hallucinations"
+        default_factory=list, description="List of strictly prohibited actions, words, or hallucinations"
     )
-    reference_gist: str = Field(
-        ..., description="Concise reference summary of an ideal 5-star response style"
+    reference_gist: Optional[str] = Field(
+        "", description="Optional concise reference summary of response style"
     )
 
 
@@ -94,8 +95,8 @@ class BenchmarkCase(BaseModel):
 class DialogueTurn(BaseModel):
     turn_index: int = Field(..., ge=1, description="Index of this conversational turn (1, 2, 3...)")
     user_query: str = Field(..., description="User query for this turn in Vietnamese")
-    expected_elements: List[str] = Field(
-        ..., description="Mandatory elements that bot must address in this turn"
+    expected_elements: Optional[List[str]] = Field(
+        default_factory=list, description="Optional key elements for this turn"
     )
     forbidden_behaviors: List[str] = Field(
         ..., description="Forbidden responses/behaviors specific to this turn"
@@ -103,7 +104,9 @@ class DialogueTurn(BaseModel):
     context_retention_check: Optional[str] = Field(
         None, description="Critical fact or emotion from earlier turns that bot must retain/not forget"
     )
-    reference_gist: str = Field(..., description="Brief summary of an ideal 5-star response style for this turn")
+    reference_gist: Optional[str] = Field(
+        "", description="Optional brief summary of an ideal response style for this turn"
+    )
 
 
 class MultiTurnBenchmarkCase(BaseModel):

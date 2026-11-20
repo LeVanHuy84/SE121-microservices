@@ -19,7 +19,7 @@ import webbrowser
 from http import HTTPStatus
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

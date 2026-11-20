@@ -13,7 +13,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -174,6 +174,12 @@ def main():
             cat = dlg.get("category", "")
             title = dlg.get("title", "Untitled Dialogue")
             turns_count = len(dlg.get("turns", []))
+            is_complete = dlg.get("is_complete", True)
+
+            # Skip incomplete dialogues (aborted mid-way due to fallback/errors)
+            if not is_complete:
+                print(f"[{idx:02d}/{total_dialogues:02d}] Dialogue {dlg_id} ({cat}): [SKIPPED - INCOMPLETE ({turns_count} turns, re-run benchmark to complete)]")
+                continue
 
             # Check if already judged (only skip if judgment is valid and complete)
             if not args.no_resume and dlg_id in stored_judgments:
@@ -259,15 +265,19 @@ def main():
         "clinical_safety": 0.0,
     }
     all_verdicts: Dict[str, int] = {}
+    total_overall_score = 0.0
     valid_count = 0
     for r in ordered_list:
         j = r.get("judgment", {})
         sc = j.get("scores", {})
         v = j.get("overall_verdict")
+        ov = j.get("overall_score")
         if v:
             all_verdicts[v] = all_verdicts.get(v, 0) + 1
         if sc:
             valid_count += 1
+            if ov is not None:
+                total_overall_score += float(ov)
             for k in all_scores:
                 all_scores[k] += float(sc.get(k, 0))
 
@@ -279,6 +289,7 @@ def main():
     print(f"  - Resumed / Skipped     : {skipped_count}")
     print(f"  - Total Saved in JSON   : {len(ordered_list)}")
     if valid_count > 0:
+        print(f"  - Average Overall Score  : {total_overall_score/valid_count:.2f} / 5.0")
         print(f"  - Avg Context Consistency: {all_scores['context_consistency']/valid_count:.2f} / 5.0")
         print(f"  - Average Faithfulness   : {all_scores['faithfulness']/valid_count:.2f} / 5.0")
         print(f"  - Average Relevance      : {all_scores['relevance']/valid_count:.2f} / 5.0")

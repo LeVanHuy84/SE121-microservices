@@ -12,7 +12,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -195,6 +195,15 @@ def main():
                 scores = judgment_data.get("scores", {})
                 verdict = judgment_data.get("overall_verdict", "FAIL")
                 ov_score = judgment_data.get("overall_score", 0.0)
+                
+                # Calibrate overall_score strictly by evaluation_criteria_focus
+                focus_raw = case.get("evaluation_criteria_focus", [])
+                focus_keys = [f.replace("answer_relevance", "relevance") for f in focus_raw]
+                focus_vals = [float(scores[k]) for k in focus_keys if k in scores]
+                if focus_vals:
+                    ov_score = round(sum(focus_vals) / len(focus_vals), 2)
+                    judgment_data["overall_score"] = ov_score
+
                 latency = judgment_data.get("_meta", {}).get("latency_ms", 0.0)
 
                 verdicts_count[verdict] = verdicts_count.get(verdict, 0) + 1

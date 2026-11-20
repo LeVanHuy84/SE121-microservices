@@ -91,9 +91,11 @@ python evaluation/chatbot/pipeline/prepare_benchmark_dataset.py
 
 Các script này sẽ gửi các câu hỏi thử nghiệm đến phân hệ Chatbot (`FastAPI port 4006`), ghi nhận toàn bộ câu trả lời thực tế, thời gian trễ (`latencyMs`), loại phản hồi (`type`), và các tài liệu RAG đã truy xuất.
 
-**Cơ chế bảo vệ dữ liệu (Checkpoint & Resume):**
+**Cơ chế bảo vệ dữ liệu & tối ưu Token (Checkpoint, Turn-Level Resume & Fallback Abort):**
 - **Lưu tức thời (Real-time Atomic Save):** Sau mỗi câu (Single-turn) hoặc mỗi đoạn hội thoại (Multi-turn), dữ liệu được ghi tức thì ra đĩa qua file tạm `.tmp` rồi atomic replace, chống hoàn toàn nguy cơ hỏng JSON khi gặp sự cố.
-- **Tự động khôi phục (Auto-Resume):** Nếu đang chạy bị ngắt (mất mạng, hết quota, hoặc nhấn `Ctrl+C`), khi chạy lại script sẽ **tự động bỏ qua các câu đã hoàn thành** và tiếp tục từ câu dở dang.
+- **Tự động ngắt khi Fallback (Immediate Fallback Abort):** Trong phiên đối thoại đa lượt, nếu 1 turn bị `FALLBACK` hoặc lỗi, script **ngắt ngay lập tức** case đó, không gọi tiếp các turn sau để tránh lãng phí token và tài nguyên vô ích.
+- **Tái sử dụng Turn đã thành công (Turn-Level Resumption):** Khi chạy lại một case bị lỗi ở turn giữa chừng (ví dụ turn 1, 2 thành công nhưng turn 3 lỗi), script **tự động tái sử dụng phản hồi của turn 1, 2** từ checkpoint và nối tiếp lịch sử hội thoại, chỉ gọi API duy nhất cho turn 3.
+- **Tự động thử lại cuối batch (Auto-Retry Passes):** Các case bị abort giữa chừng được gom lại và tự động thử lại sau lượt chạy chính (kèm thời gian cooldown để reset rate limit).
 - **Tự động thử lại khi gặp Rate Limit (HTTP 429 Retry Backoff):** Nếu API trả về `429 Too Many Requests` hoặc timeout, script tự động lùi thời gian (backoff 5s, 10s...) và thử lại tối đa 3 lần.
 
 ```bash
@@ -107,7 +109,11 @@ python evaluation/chatbot/pipeline/run_multi_turn_benchmark.py
 # --endpoint http://localhost:4006/assistant/respond  (Endpoint chỉ định)
 # --limit 5                                           (Chỉ chạy 5 mẫu đầu để kiểm tra nhanh)
 # --category crisis_self_harm                         (Chỉ chạy riêng 1 phân tầng)
-# --delay 0.5                                         (Khoảng chờ giữa các câu để né Rate Limit)
+# --turn-delay 1.0 (hoặc --delay-single)              (Khoảng chờ giữa các turn/query trong cùng 1 case session)
+# --case-delay 0.5                                    (Khoảng chờ giữa các case đối thoại khác nhau)
+# --delay 1.0                                         (Cờ delay chung nếu không chỉ định riêng turn/case)
+# --max-dialogue-retries 2                            (Số vòng tự động retry lại các case bị abort do fallback)
+# --retry-delay 5.0                                   (Thời gian nghỉ trước khi retry lại các case dở dang)
 # --no-resume                                         (Chạy lại toàn bộ từ đầu, không đọc checkpoint cũ)
 # --inject-history                                    (Chỉ dùng cho đa lượt nếu muốn client ghi đè lịch sử)
 ```

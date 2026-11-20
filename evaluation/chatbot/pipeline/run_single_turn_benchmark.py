@@ -18,7 +18,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import httpx
 from dotenv import load_dotenv
@@ -170,7 +170,7 @@ def call_chatbot_api(
             if response.status_code == 403:
                 return {
                     "type": "error",
-                    "reply": f"[HTTP 403 Forbidden] Invalid internal key. Ensure INTERNAL_SERVICE_KEY in evaluation/.env matches ai-chatbot-service",
+                    "reply": "[HTTP 403 Forbidden] Invalid internal key. Ensure INTERNAL_SERVICE_KEY in evaluation/.env matches ai-chatbot-service",
                     "model": "unknown",
                     "provider": "error",
                     "latencyMs": latency_ms,
@@ -296,7 +296,6 @@ def main():
                 if prev_record and not args.no_resume:
                     prev_resp = prev_record.get("bot_response", {})
                     prev_type = prev_resp.get("type", "")
-                    prev_provider = prev_resp.get("provider", "")
 
                     # Fallback or error responses are NOT considered completed -> will be re-run!
                     is_valid = prev_type not in ("error", "connection_error", "fallback", "")

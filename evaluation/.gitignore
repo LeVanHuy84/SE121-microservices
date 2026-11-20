@@ -42,6 +42,7 @@ image-experiment/data/**
 !chatbot/data/
 chatbot/data/**
 !chatbot/data/golden_benchmark_cases.json
+!chatbot/data/multi_turn_benchmark_cases.json
 
 # Log files
 *.log

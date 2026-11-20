@@ -11,7 +11,7 @@ CHATBOT_EVAL_DIR = CURRENT_DIR.parent
 if str(CHATBOT_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(CHATBOT_EVAL_DIR))
 
-from schemas import BenchmarkCase, BenchmarkCategory, EmotionType, SourceStandard
+from schemas import BenchmarkCase, BenchmarkCategory, SourceStandard  # noqa: E402
 
 
 DATASET_PATH = CHATBOT_EVAL_DIR / "data" / "golden_benchmark_cases.json"
@@ -100,34 +100,29 @@ def validate_dataset():
 
     # 5. Content Quality & Ground Truth Completeness
     empty_queries = [c.id for c in validated_cases if not c.query.strip()]
-    empty_expected = [c.id for c in validated_cases if len(c.reference_ground_truth.expected_elements) == 0]
+    empty_intents = [c.id for c in validated_cases if not c.reference_ground_truth.ideal_intent.strip()]
     empty_forbidden = [c.id for c in validated_cases if len(c.reference_ground_truth.forbidden_behaviors) == 0]
-    empty_gist = [c.id for c in validated_cases if not c.reference_ground_truth.reference_gist.strip()]
 
-    print("\n[+] Ground Truth Quality & Integrity Checklist:")
+    print("\n[+] Ground Truth Quality & Safety Boundaries Checklist:")
     print(f"  - Empty queries: {len(empty_queries)}")
-    print(f"  - Empty expected elements: {len(empty_expected)}")
+    print(f"  - Empty ideal intents: {len(empty_intents)}")
     print(f"  - Empty forbidden behaviors: {len(empty_forbidden)}")
-    print(f"  - Empty reference gist: {len(empty_gist)}")
 
-    if any([empty_queries, empty_expected, empty_forbidden, empty_gist]):
-        print("[FAIL] Some cases contain missing ground truth elements.")
+    if any([empty_queries, empty_intents, empty_forbidden]):
+        print("[FAIL] Some cases contain missing queries, intents, or safety guardrails.")
         sys.exit(1)
-    print("[PASS] All ground truth elements (ideal_intent, expected, forbidden, gist) are complete!")
+    print("[PASS] All ground truth elements (ideal_intent, forbidden_behaviors) are complete & aligned with rubric-based eval!")
 
     # 6. Statistical Overview
     query_lengths = [len(c.query) for c in validated_cases]
-    expected_elem_counts = [len(c.reference_ground_truth.expected_elements) for c in validated_cases]
     forbidden_elem_counts = [len(c.reference_ground_truth.forbidden_behaviors) for c in validated_cases]
     emotions = Counter(c.user_context.current_emotion.value for c in validated_cases)
 
     avg_query_len = sum(query_lengths) / len(query_lengths)
-    avg_exp_count = sum(expected_elem_counts) / len(expected_elem_counts)
     avg_forb_count = sum(forbidden_elem_counts) / len(forbidden_elem_counts)
 
     print("\n[+] Dataset Statistical Summary:")
     print(f"  - Average query length: {avg_query_len:.1f} characters (Min: {min(query_lengths)}, Max: {max(query_lengths)})")
-    print(f"  - Average expected elements per case: {avg_exp_count:.2f}")
     print(f"  - Average forbidden behaviors per case: {avg_forb_count:.2f}")
     print(f"  - Emotion distribution across test cases: {dict(emotions)}")
 

@@ -1299,6 +1299,273 @@
     }
 
     /* ==========================================================================
+       Multi-Turn Chatbot Stream (2-Sided Dialogue View)
+       ========================================================================== */
+    .chat-stream-multi {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+
+    .chat-user-notes-banner {
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: #93c5fd;
+      line-height: 1.5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .chat-user-notes-banner strong {
+      color: #bfdbfe;
+      font-weight: 700;
+    }
+
+    .chat-turn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Turn Divider */
+    .chat-turn-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 14px 0 8px 0;
+    }
+    .chat-turn-group:first-child .chat-turn-divider {
+      margin-top: 4px;
+    }
+    .chat-turn-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
+    }
+    .chat-turn-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: 0.6px;
+      background: var(--surface-card);
+      border: 1px solid var(--border-light);
+      color: #94a3b8;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .chat-turn-badge .turn-highlight {
+      color: #60a5fa;
+    }
+
+    /* Message Rows: Left vs Right */
+    .chat-msg-row {
+      display: flex;
+      width: 100%;
+    }
+    .chat-msg-user {
+      justify-content: flex-end;
+    }
+    .chat-msg-assistant {
+      justify-content: flex-start;
+    }
+
+    /* User Bubble (Right) */
+    .chat-bubble-user {
+      max-width: 80%;
+      min-width: 260px;
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      border: 1px solid #3b82f6;
+      border-radius: 18px 18px 4px 18px;
+      padding: 14px 18px;
+      box-shadow: 0 4px 16px rgba(30, 64, 175, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Assistant Bubble (Left) */
+    .chat-bubble-assistant {
+      max-width: 88%;
+      min-width: 300px;
+      background: var(--surface-card);
+      border: 1px solid var(--border-light);
+      border-left: 3px solid #10b981;
+      border-radius: 4px 18px 18px 18px;
+      padding: 16px 20px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Common Bubble Header */
+    .chat-bubble-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .chat-sender-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chat-bubble-user .chat-sender-title {
+      color: #93c5fd;
+    }
+    .chat-bubble-assistant .chat-sender-title {
+      color: #34d399;
+    }
+
+    .chat-avatar {
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .chat-msg-time {
+      font-size: 11px;
+      color: #93c5fd;
+      opacity: 0.85;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    /* Text Styles */
+    .chat-user-text {
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: #f8fafc;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .chat-assistant-text {
+      font-size: 14.5px;
+      line-height: 1.72;
+      color: #f1f5f9;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Extra Metadata Callout Boxes Inside Assistant Bubble */
+    .chat-meta-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .chat-meta-icon {
+      font-size: 13px;
+      line-height: 1.4;
+      flex-shrink: 0;
+    }
+    .chat-meta-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .chat-meta-label {
+      font-weight: 700;
+      font-size: 11.5px;
+      letter-spacing: 0.2px;
+    }
+
+    /* Specific Callout Variants */
+    .chat-meta-box.retention-box {
+      background: rgba(168, 85, 247, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      color: #d8b4fe;
+    }
+    .chat-meta-box.retention-box .chat-meta-label {
+      color: #c084fc;
+    }
+
+    .chat-meta-box.forbidden-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+    .chat-meta-box.forbidden-box .chat-meta-label {
+      color: #f87171;
+    }
+
+    .chat-meta-box.sources-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .chat-sources-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 2px;
+    }
+
+    .chat-meta-box.judge-turn-box {
+      background: rgba(59, 130, 246, 0.06);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      color: var(--text-secondary);
+    }
+    .judge-turn-tags {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .judge-mini-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+    .judge-mini-tag.tag-pass {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+    .judge-mini-tag.tag-fail {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+    .judge-turn-notes-text {
+      font-size: 12px;
+      color: #94a3b8;
+      font-style: italic;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 900px) {
+      .chat-bubble-user, .chat-bubble-assistant {
+        max-width: 96%;
+      }
+    }
+
+    /* ==========================================================================
        Semantic Ground Truth (Clear Separation: MUST vs MUST NOT)
        ========================================================================== */
     .ground-truth-container {
@@ -2648,6 +2915,8 @@
           <span class="meta-tag-item"><strong>Phân tầng:</strong> ${caseData.category}</span>
           <span class="meta-tag-item"><strong>Chuẩn học thuật:</strong> ${caseData.source_standard || 'N/A'}</span>
           ${caseData.subtopic ? `<span class="meta-tag-item"><strong>Phân nhánh:</strong> ${caseData.subtopic}</span>` : ''}
+          ${caseData.title ? `<span class="meta-tag-item"><strong>Tiêu đề:</strong> ${escapeHtml(caseData.title)}</span>` : ''}
+          ${currentMode === 'multi' && caseData.turns ? `<span class="meta-tag-item"><strong>Quy mô:</strong> ${caseData.turns.length} lượt đối thoại</span>` : ''}
         </div>
       `;
 
@@ -2695,28 +2964,143 @@
         `;
       } else {
         const turns = caseData.turns || [];
-        convoHtml = `
-          <div class="convo-section">
-            ${turns.map(t => `
-              <div class="user-card" style="margin-bottom: 2px;">
-                <div class="user-card-header">
-                  <span class="user-card-title">👤 Lượt ${t.turn_index}: Người dùng</span>
-                </div>
-                <div class="user-message-text">${escapeHtml(t.user_query)}</div>
-              </div>
+        const turnEvalsMap = {};
+        if (judgment?.turn_evaluations && Array.isArray(judgment.turn_evaluations)) {
+          judgment.turn_evaluations.forEach(te => {
+            if (te && te.turn_index) turnEvalsMap[te.turn_index] = te;
+          });
+        }
 
-              <div class="assistant-card" style="margin-bottom: 12px;">
-                <div class="assistant-card-header">
-                  <span class="assistant-card-title">🤖 Sentimeta Assistant</span>
-                  <div class="assistant-meta-pills">
-                    <span class="assistant-meta-tag">${t.bot_response?.type || 'answer'}</span>
-                    <span class="assistant-meta-tag">${Math.round(t.bot_response?.latency_ms || 0)}ms</span>
+        const uContext = caseData.user_context || {};
+        const userNotes = uContext.notes ? `
+          <div class="chat-user-notes-banner">
+            <span>💡</span>
+            <div><strong>Bối cảnh giả lập của người dùng:</strong> ${escapeHtml(uContext.notes)}</div>
+          </div>
+        ` : '';
+
+        convoHtml = `
+          <div class="chat-stream-multi">
+            ${userNotes}
+            ${turns.map(t => {
+              const turnEval = turnEvalsMap[t.turn_index];
+              const sources = t.bot_response?.sources || [];
+              const forbidden = t.forbidden_behaviors || [];
+
+              let sourcesHtml = '';
+              if (sources.length > 0) {
+                sourcesHtml = `
+                  <div class="chat-meta-box sources-box">
+                    <span class="chat-meta-icon">📄</span>
+                    <div class="chat-meta-body">
+                      <span class="chat-meta-label">Tài liệu RAG trích xuất (${sources.length}):</span>
+                      <div class="chat-sources-chips">
+                        ${sources.map(s => `<span class="rag-chip" title="${escapeHtml(s.type || '')}">${escapeHtml(s.title || s.id)}</span>`).join('')}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
+              let retentionHtml = '';
+              if (t.context_retention_check) {
+                retentionHtml = `
+                  <div class="chat-meta-box retention-box">
+                    <span class="chat-meta-icon">🧠</span>
+                    <div class="chat-meta-body">
+                      <span class="chat-meta-label">Kỳ vọng ghi nhớ ngữ cảnh:</span>
+                      <span>${escapeHtml(t.context_retention_check)}</span>
+                    </div>
+                  </div>
+                `;
+              }
+
+              let forbiddenHtml = '';
+              if (forbidden.length > 0) {
+                forbiddenHtml = `
+                  <div class="chat-meta-box forbidden-box">
+                    <span class="chat-meta-icon">⚠️</span>
+                    <div class="chat-meta-body">
+                      <span class="chat-meta-label">Điều cấm kỵ ở lượt này:</span>
+                      <span>${escapeHtml(forbidden.join('; '))}</span>
+                    </div>
+                  </div>
+                `;
+              }
+
+              let turnJudgeHtml = '';
+              if (turnEval) {
+                turnJudgeHtml = `
+                  <div class="chat-meta-box judge-turn-box">
+                    <span class="chat-meta-icon">⚖️</span>
+                    <div class="chat-meta-body">
+                      <div class="judge-turn-tags">
+                        <span class="chat-meta-label">LLM Judge Lượt ${t.turn_index}:</span>
+                        <span class="judge-mini-tag ${turnEval.forbidden_avoided ? 'tag-pass' : 'tag-fail'}">
+                          ${turnEval.forbidden_avoided ? '✓ Không vi phạm' : '✕ Vi phạm'}
+                        </span>
+                        ${turnEval.context_retained !== null && turnEval.context_retained !== undefined ? `
+                          <span class="judge-mini-tag ${turnEval.context_retained ? 'tag-pass' : 'tag-fail'}">
+                            ${turnEval.context_retained ? '✓ Nhớ ngữ cảnh' : '✕ Quên ngữ cảnh'}
+                          </span>
+                        ` : ''}
+                      </div>
+                      ${turnEval.turn_notes ? `<div class="judge-turn-notes-text">${escapeHtml(turnEval.turn_notes)}</div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }
+
+              return `
+                <div class="chat-turn-group">
+                  <div class="chat-turn-divider">
+                    <div class="chat-turn-line"></div>
+                    <div class="chat-turn-badge">
+                      <span>LƯỢT <strong class="turn-highlight">${t.turn_index}</strong> / ${turns.length}</span>
+                    </div>
+                    <div class="chat-turn-line"></div>
+                  </div>
+
+                  <!-- 1. USER MESSAGE (RIGHT ALIGNED) -->
+                  <div class="chat-msg-row chat-msg-user">
+                    <div class="chat-bubble-user">
+                      <div class="chat-bubble-header">
+                        <span class="chat-sender-title">
+                          <span class="chat-avatar">👤</span>
+                          <span>Người dùng</span>
+                        </span>
+                        <span class="chat-msg-time">Turn ${t.turn_index}</span>
+                      </div>
+                      <div class="chat-user-text">${escapeHtml(t.user_query)}</div>
+                    </div>
+                  </div>
+
+                  <!-- 2. ASSISTANT MESSAGE (LEFT ALIGNED) -->
+                  <div class="chat-msg-row chat-msg-assistant">
+                    <div class="chat-bubble-assistant">
+                      <div class="chat-bubble-header">
+                        <span class="chat-sender-title">
+                          <span class="chat-avatar">🤖</span>
+                          <span>Sentimeta Assistant</span>
+                        </span>
+                        <div class="assistant-meta-pills">
+                          <span class="assistant-meta-tag">${escapeHtml(t.bot_response?.type || 'answer')}</span>
+                          <span class="assistant-meta-tag">${escapeHtml(t.bot_response?.model || 'qwen/qwen3.8-27b')}</span>
+                          <span class="assistant-meta-tag">${Math.round(t.bot_response?.latency_ms || 0)}ms</span>
+                        </div>
+                      </div>
+
+                      <div class="chat-assistant-text">${escapeHtml(t.bot_response?.reply || '')}</div>
+
+                      ${sourcesHtml}
+                      ${retentionHtml}
+                      ${forbiddenHtml}
+                      ${turnJudgeHtml}
+                    </div>
                   </div>
                 </div>
-                <div class="assistant-response-body">${escapeHtml(t.bot_response?.reply || '')}</div>
-                ${t.context_retention_check ? `<div style="font-size: 11px; color: #a855f7; margin-top: 8px;"><strong>Kiểm tra ngữ cảnh:</strong> ${escapeHtml(t.context_retention_check)}</div>` : ''}
-              </div>
-            `).join('')}
+              `;
+            }).join('')}
           </div>
         `;
       }
