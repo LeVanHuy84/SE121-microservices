@@ -5,6 +5,7 @@ topic: pfa
 type: clinical_reference
 lang: vi
 version: v1
+tier: clinical_reference
 ---
 Hướng dẫn cho người cứu hộ
 tại hiện trường

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.core.settings import settings
 from app.core.database import init_database, close_database
+from app.core.executors import shutdown_executors
 from app.modules.chatbot.repositories.chat_history import history_store
 
 logger = logging.getLogger("uvicorn.error")
@@ -23,30 +24,57 @@ async def lifespan(app: FastAPI):
     # 1. MongoDB Database & Indexes
     db = init_database()
     try:
-        await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
+        await db["emotion_aggregates"].create_index(
+            [("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt"
+        )
         logger.info("[Startup] ✓ MongoDB connected & indexes verified")
     except Exception as index_exc:
         logger.warning("[Startup] ⚠ MongoDB index verification warning: %s", index_exc)
 
     # 2. Chatbot History Store
+    from app.modules.chatbot.services.fact_extractor import fact_extractor_service
+
+    history_store.fact_extractor = fact_extractor_service
+    await history_store.ensure_indexes()
     await history_store.start()
-    logger.info("[Startup] ✓ Chatbot history store active")
+    sweeper_task = asyncio.create_task(
+        history_store.run_sweeper_loop(interval_seconds=3600)
+    )
+    history_store._sweeper_task = sweeper_task
+    background_tasks.append(sweeper_task)
+    logger.info("[Startup] ✓ Chatbot history store active & sweeper loop scheduled")
 
     # 3. Load AI Analysis Models (PhoBERT + VLM)
-    from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded
+    from app.modules.analysis.services.ml_models.model_loader import (
+        ensure_models_loaded,
+    )
+
     await asyncio.to_thread(ensure_models_loaded)
     logger.info("[Startup] ✓ AI Analysis models loaded & ready")
+
+    # 3b. Pre-warm Stage 2 Guardrail Semantic Centroids
+    from app.modules.chatbot.services.guardrails import stage2_guard_verifier
+
+    await stage2_guard_verifier.warm_up_centroids_async()
+    logger.info("[Startup] ✓ Stage 2 semantic guard centroids ready")
 
     # 4. RAG Document Index Warmup
     if settings.RAG_WARMUP_ON_STARTUP:
         from app.modules.chatbot.services.rag_engine import rag_document_service
+
         rag_warmup_task = asyncio.create_task(rag_document_service.warm_up_async())
         logger.info("[Startup] ✓ RAG document index warmup started")
     else:
         rag_warmup_task = None
 
     # 5. Kafka & Outbox Messaging Workers
-    from app.modules.analysis.lifespan import kafka_producer, processor, retry_worker, start_kafka
+    from app.modules.analysis.lifespan import (
+        kafka_producer,
+        processor,
+        retry_worker,
+        start_kafka,
+    )
+
     await kafka_producer.start()
     background_tasks.append(asyncio.create_task(start_kafka(settings)))
     background_tasks.append(asyncio.create_task(processor.start(interval_seconds=5)))
@@ -55,9 +83,11 @@ async def lifespan(app: FastAPI):
 
     # Reclaim transient startup memory (tokenizers, raw byte buffers, init objects)
     import gc
+
     gc.collect()
     try:
         import ctypes
+
         ctypes.CDLL("libc.so.6").malloc_trim(0)
     except Exception:
         pass
@@ -74,8 +104,13 @@ async def lifespan(app: FastAPI):
         if rag_warmup_task is not None and not rag_warmup_task.done():
             rag_warmup_task.cancel()
             await asyncio.gather(rag_warmup_task, return_exceptions=True)
-            
-        from app.modules.analysis.lifespan import kafka_producer, processor, retry_worker
+
+        from app.modules.analysis.lifespan import (
+            kafka_producer,
+            processor,
+            retry_worker,
+        )
+
         processor.stop()
         retry_worker.stop()
         await kafka_producer.stop()
@@ -85,7 +120,15 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(*background_tasks, return_exceptions=True)
 
         from app.modules.chatbot.services.rag_engine import rag_document_service
+
         await rag_document_service.close()
+        from app.modules.chatbot.tools.http_client import gateway_http_client
+
+        await gateway_http_client.close()
+        from app.providers.resilient_provider import resilient_llm_provider
+
+        await resilient_llm_provider.fallback.aclose()
         await history_store.stop()
         await close_database()
+        shutdown_executors()
         logger.info("[Shutdown] Cleanup complete. Shutdown successful.")

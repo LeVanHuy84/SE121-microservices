@@ -5,6 +5,7 @@ topic: giao-trinh-chuyen-nganh
 type: clinical_reference
 lang: vi
 version: v1
+tier: background_theory
 ---
 
 

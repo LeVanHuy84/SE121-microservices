@@ -100,4 +100,3 @@ def safe_load_tokenizer(tokenizer_source: str) -> Any:
             exc,
         )
         return MockTokenizer(tokenizer_source)
-

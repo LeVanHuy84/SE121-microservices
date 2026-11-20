@@ -3,6 +3,7 @@ from bson import ObjectId
 from typing import List, Optional
 from app.modules.analysis.enums import AnalysisStatusEnum, TargetTypeEnum
 
+
 class OutboxRepository:
     def __init__(self, collection: AsyncIOMotorCollection):
         self.collection = collection
@@ -19,7 +20,7 @@ class OutboxRepository:
             obj_id = ObjectId(outbox_id)
         except Exception:
             return None
-        
+
         doc = await self.collection.find_one({"_id": obj_id})
         if doc:
             doc["_id"] = str(doc["_id"])
@@ -28,10 +29,10 @@ class OutboxRepository:
     async def get_pending_outboxes(self, limit: int = 200) -> List[dict]:
         """Get pending (unprocessed) outbox events."""
         query = {"processed": False}
-        
+
         cursor = self.collection.find(query).sort("createdAt", 1).limit(limit)
         docs = await cursor.to_list(length=limit)
-        
+
         for doc in docs:
             doc["_id"] = str(doc["_id"])
         return docs
@@ -44,8 +45,7 @@ class OutboxRepository:
             return None
 
         result = await self.collection.update_one(
-            {"_id": obj_id},
-            {"$set": {"processed": True}}
+            {"_id": obj_id}, {"$set": {"processed": True}}
         )
 
         if result.matched_count == 0:
@@ -67,16 +67,16 @@ class OutboxRepository:
                 obj_ids.append(ObjectId(id_str))
             except Exception:
                 continue
-        
+
         if not obj_ids:
             return 0
 
         result = await self.collection.update_many(
-            {"_id": {"$in": obj_ids}},
-            {"$set": {"processed": True}}
+            {"_id": {"$in": obj_ids}}, {"$set": {"processed": True}}
         )
 
         return result.modified_count
+
 
 class TaskRepository:
     """Repository for AnalysisTask persistence (only failed tasks)."""
@@ -103,26 +103,21 @@ class TaskRepository:
         return doc
 
     async def get_by_target(
-        self,
-        target_id: str,
-        target_type: TargetTypeEnum
+        self, target_id: str, target_type: TargetTypeEnum
     ) -> Optional[dict]:
         """Get analysis task by target ID and type."""
-        target_type_str = target_type.value if hasattr(target_type, 'value') else str(target_type)
-        
-        doc = await self.collection.find_one({
-            "targetId": target_id,
-            "targetType": target_type_str
-        })
+        target_type_str = (
+            target_type.value if hasattr(target_type, "value") else str(target_type)
+        )
+
+        doc = await self.collection.find_one(
+            {"targetId": target_id, "targetType": target_type_str}
+        )
         if doc:
             doc["_id"] = str(doc["_id"])
         return doc
 
-    async def update_task(
-        self,
-        task_id: str,
-        update_data: dict
-    ) -> Optional[dict]:
+    async def update_task(self, task_id: str, update_data: dict) -> Optional[dict]:
         """Update analysis task by ID."""
         try:
             obj_id = ObjectId(task_id) if isinstance(task_id, str) else task_id
@@ -130,8 +125,7 @@ class TaskRepository:
             return None
 
         result = await self.collection.update_one(
-            {"_id": obj_id},
-            {"$set": update_data}
+            {"_id": obj_id}, {"$set": update_data}
         )
 
         if result.matched_count == 0:
@@ -147,15 +141,16 @@ class TaskRepository:
         """Find all failed tasks below max retry count."""
         query = {
             "status": AnalysisStatusEnum.FAILED.value,
-            "retryCount": {"$lt": max_retry}
+            "retryCount": {"$lt": max_retry},
         }
-        
+
         cursor = self.collection.find(query)
         docs = await cursor.to_list(length=None)
-        
+
         for doc in docs:
             doc["_id"] = str(doc["_id"])
         return docs
+
 
 class ModerationRepository:
     """Repository for ModerationResult persistence."""
@@ -191,17 +186,16 @@ class ModerationRepository:
     # GET BY TARGET
     # ======================================================
     async def get_by_target(
-        self,
-        target_id: str,
-        target_type: TargetTypeEnum
+        self, target_id: str, target_type: TargetTypeEnum
     ) -> Optional[dict]:
         """Get moderation result by target ID and type."""
-        target_type_str = target_type.value if hasattr(target_type, 'value') else str(target_type)
-        
-        doc = await self.collection.find_one({
-            "targetId": target_id,
-            "targetType": target_type_str
-        })
+        target_type_str = (
+            target_type.value if hasattr(target_type, "value") else str(target_type)
+        )
+
+        doc = await self.collection.find_one(
+            {"targetId": target_id, "targetType": target_type_str}
+        )
         if doc:
             doc["_id"] = str(doc["_id"])
         return doc
@@ -210,9 +204,7 @@ class ModerationRepository:
     # UPDATE
     # ======================================================
     async def update_moderation(
-        self,
-        moderation_id: str,
-        update_data: dict
+        self, moderation_id: str, update_data: dict
     ) -> Optional[dict]:
         """Update moderation result by ID."""
         try:
@@ -225,8 +217,7 @@ class ModerationRepository:
             return None
 
         result = await self.collection.update_one(
-            {"_id": obj_id},
-            {"$set": update_data}
+            {"_id": obj_id}, {"$set": update_data}
         )
 
         if result.matched_count == 0:

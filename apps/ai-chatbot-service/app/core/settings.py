@@ -10,14 +10,22 @@ class Settings:
     def __init__(self):
         self.PORT: int = int(os.getenv("PORT", 4006))
         self.HOST: str = os.getenv("HOST", "0.0.0.0").strip()
+        self.APP_ENV: str = os.getenv("APP_ENV", "development").strip().lower()
         self.RELOAD: bool = os.getenv("RELOAD", "false").lower() == "true"
         self.INTERNAL_SERVICE_KEY: str = os.getenv(
             "X_INTERNAL_KEY", os.getenv("INTERNAL_SERVICE_KEY", "")
         ).strip()
+        self.PROPOSAL_HMAC_KEY: str = os.getenv("PROPOSAL_HMAC_KEY", "").strip()
+        self.PROPOSAL_TOKEN_TTL_SECONDS: int = int(
+            os.getenv("PROPOSAL_TOKEN_TTL_SECONDS", 900)
+        )
 
         # Offline unit test flags
         self.UNIT_TEST_MODE: bool = (
             os.getenv("UNIT_TEST_MODE", "false").lower() == "true"
+        )
+        self.CHATBOT_LLM_STUB_MODE: bool = (
+            os.getenv("CHATBOT_LLM_STUB_MODE", "false").lower() == "true"
         )
         self.CHATBOT_REDIS_ENABLED: bool = (
             os.getenv("CHATBOT_REDIS_ENABLED", "true").lower() == "true"
@@ -117,10 +125,13 @@ class Settings:
             os.getenv("CHATBOT_METRICS_LOG_EVERY_N", 50)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX: int = int(
-            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 4)
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 12)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT: int = int(
-            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 280)
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 1200)
+        )
+        self.CHATBOT_PROMPT_MAX_TOTAL_TOKENS: int = int(
+            os.getenv("CHATBOT_PROMPT_MAX_TOTAL_TOKENS", 4500)
         )
         self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT", 12000)
@@ -192,7 +203,9 @@ class Settings:
             "MONGO_URL", "mongodb://localhost:27017"
         ).strip()
         self.MONGO_DB: str = os.getenv("MONGO_DB", "ai_chatbot_service").strip()
-        self.CHATBOT_DB_ENABLED: bool = True
+        self.CHATBOT_DB_ENABLED: bool = (
+            os.getenv("CHATBOT_DB_ENABLED", "true").lower() == "true"
+        )
         self.CHATBOT_DB_ECHO: bool = False
         self.CHATBOT_DB_POOL_SIZE: int = int(os.getenv("CHATBOT_DB_POOL_SIZE", 10))
         self.CHATBOT_DB_MAX_OVERFLOW: int = int(
@@ -257,10 +270,6 @@ class Settings:
         self.RAG_HYBRID_CANDIDATE_MULTIPLIER: int = int(
             os.getenv("RAG_HYBRID_CANDIDATE_MULTIPLIER", 4)
         )
-        self.RAG_SEMANTIC_MERGE_THRESHOLD: float = float(
-            os.getenv("RAG_SEMANTIC_MERGE_THRESHOLD", 0.82)
-        )
-        self.RAG_CHUNK_TOKEN_BUDGET: int = int(os.getenv("RAG_CHUNK_TOKEN_BUDGET", 320))
         self.RAG_REINDEX_MANIFEST_PATH: str = os.getenv(
             "RAG_REINDEX_MANIFEST_PATH", ".cache/rag/.rag_index_manifest.sha256"
         ).strip()
@@ -273,11 +282,15 @@ class Settings:
         self.ES_NODE: str = os.getenv("ES_NODE", "http://localhost:9200").strip()
 
         self.GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
-        self.GROQ_MODEL: str = os.getenv(
-            "GROQ_MODEL", "llama-3.3-70b-versatile"
+        self.CHATBOT_LLM_PROVIDER: str = (
+            os.getenv("CHATBOT_LLM_PROVIDER", "groq").strip().lower()
+        )
+        self.GROQ_MODEL: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b").strip()
+        self.GROQ_FAST_MODEL: str = os.getenv(
+            "GROQ_FAST_MODEL", "qwen/qwen3.8-27b"
         ).strip()
         os.environ.pop("GROQ_BASE_URL", None)
-        self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 45))
+        self.GROQ_TIMEOUT_SECONDS: float = float(os.getenv("GROQ_TIMEOUT_SECONDS", 5.0))
         self.CHATBOT_LLM_TIMEOUT_MS: int = int(
             os.getenv("CHATBOT_LLM_TIMEOUT_MS", 12000)
         )
@@ -289,6 +302,48 @@ class Settings:
         self.GROQ_TEMPERATURE_TASK: float = float(
             os.getenv("GROQ_TEMPERATURE_TASK", 0.05)
         )
+        self.OLLAMA_BASE_URL: str = (
+            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+            .strip()
+            .rstrip("/")
+        )
+        self.OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:8b").strip()
+
+        # Multi-Provider Fallback & Circuit Breaker Settings
+        self.LLM_FALLBACK_ENABLED: bool = os.getenv(
+            "LLM_FALLBACK_ENABLED", "true"
+        ).lower() in ("true", "1", "yes")
+        self.LLM_FALLBACK_PROVIDER: str = (
+            os.getenv("LLM_FALLBACK_PROVIDER", "gemini").strip().lower()
+        )
+        self.LLM_FALLBACK_API_KEY: str = os.getenv("LLM_FALLBACK_API_KEY", "").strip()
+        self.LLM_FALLBACK_BASE_URL: str = os.getenv(
+            "LLM_FALLBACK_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+        ).strip()
+        self.LLM_FALLBACK_MODEL: str = os.getenv(
+            "LLM_FALLBACK_MODEL", "gemini-2.5-flash"
+        ).strip()
+        self.LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(
+            os.getenv("LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD", 3)
+        )
+        self.LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS: float = float(
+            os.getenv("LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS", 30.0)
+        )
+        self.FACT_EXTRACTOR_RPM_LIMIT: int = int(
+            os.getenv("FACT_EXTRACTOR_RPM_LIMIT", 10)
+        )
+
+        # Downstream Gateway Client Settings for Phase 2 Tools
+        self.API_GATEWAY_URL: str = os.getenv(
+            "API_GATEWAY_URL", "http://localhost:4000"
+        ).rstrip("/")
+        self.TOOL_HTTP_TIMEOUT_SECONDS: float = float(
+            os.getenv("TOOL_HTTP_TIMEOUT_SECONDS", 2.0)
+        )
+        self.TOOL_ENABLE_MOCK_FALLBACKS: bool = os.getenv(
+            "TOOL_ENABLE_MOCK_FALLBACKS", "true" if self.UNIT_TEST_MODE else "false"
+        ).lower() in ("true", "1", "yes")
 
         # VLM Multimodal Settings
         self.VLM_API_KEY: str = os.getenv("VLM_API_KEY", "").strip()
@@ -312,17 +367,42 @@ class Settings:
         self._validate()
 
     def _validate(self):
+        if self.CHATBOT_LLM_PROVIDER not in {"groq", "ollama"}:
+            raise RuntimeError("CHATBOT_LLM_PROVIDER must be either 'groq' or 'ollama'")
+
         if not (1 <= self.PORT <= 65535):
             raise RuntimeError("PORT must be between 1 and 65535")
 
         if not self.HOST:
             raise RuntimeError("HOST must not be empty")
 
+        env_value = os.getenv("ENV", self.APP_ENV).strip().lower()
+        if self.CHATBOT_LLM_STUB_MODE and (
+            self.APP_ENV == "production" or env_value == "production"
+        ):
+            raise RuntimeError(
+                "CHATBOT_LLM_STUB_MODE must not be enabled in production"
+            )
+
         if not self.INTERNAL_SERVICE_KEY:
             if self.UNIT_TEST_MODE:
                 self.INTERNAL_SERVICE_KEY = "test-internal-key"
             else:
                 raise RuntimeError("INTERNAL_SERVICE_KEY is not set")
+
+        if not self.PROPOSAL_HMAC_KEY:
+            if self.UNIT_TEST_MODE:
+                self.PROPOSAL_HMAC_KEY = self.INTERNAL_SERVICE_KEY
+            elif self.APP_ENV == "production":
+                raise RuntimeError("PROPOSAL_HMAC_KEY is not set")
+            else:
+                self.PROPOSAL_HMAC_KEY = self.INTERNAL_SERVICE_KEY
+
+        if self.PROPOSAL_TOKEN_TTL_SECONDS <= 0:
+            raise RuntimeError("PROPOSAL_TOKEN_TTL_SECONDS must be positive")
+
+        if self.APP_ENV == "production" and self.TOOL_ENABLE_MOCK_FALLBACKS:
+            raise RuntimeError("TOOL_ENABLE_MOCK_FALLBACKS must be false in production")
 
         if self.CHATBOT_MEMORY_RECENT_TURNS <= 0:
             raise RuntimeError("CHATBOT_MEMORY_RECENT_TURNS must be positive")
@@ -507,12 +587,6 @@ class Settings:
         if self.RAG_HYBRID_CANDIDATE_MULTIPLIER <= 0:
             raise RuntimeError("RAG_HYBRID_CANDIDATE_MULTIPLIER must be positive")
 
-        if not (0 <= self.RAG_SEMANTIC_MERGE_THRESHOLD <= 1):
-            raise RuntimeError("RAG_SEMANTIC_MERGE_THRESHOLD must be between 0 and 1")
-
-        if self.RAG_CHUNK_TOKEN_BUDGET <= 0:
-            raise RuntimeError("RAG_CHUNK_TOKEN_BUDGET must be positive")
-
         if not self.RAG_REINDEX_MANIFEST_PATH:
             raise RuntimeError("RAG_REINDEX_MANIFEST_PATH must not be empty")
 
@@ -524,6 +598,9 @@ class Settings:
 
         if not self.GROQ_MODEL:
             raise RuntimeError("GROQ_MODEL must not be empty")
+
+        if not self.GROQ_FAST_MODEL:
+            raise RuntimeError("GROQ_FAST_MODEL must not be empty")
 
         if self.GROQ_TIMEOUT_SECONDS <= 0:
             raise RuntimeError("GROQ_TIMEOUT_SECONDS must be positive")

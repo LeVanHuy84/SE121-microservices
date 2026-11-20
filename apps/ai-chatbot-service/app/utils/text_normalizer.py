@@ -18,6 +18,9 @@ def normalize_query_text(value: object) -> str:
 TEENCODE_MAP = {
     "ko": "khong",
     "k": "khong",
+    "khg": "khong",
+    "hong": "khong",
+    "hổng": "khong",
     "dc": "duoc",
     "đc": "duoc",
     "ntn": "nhu the nao",
@@ -27,7 +30,21 @@ TEENCODE_MAP = {
     "mn": "moi nguoi",
     "mik": "minh",
     "tui": "toi",
+    "mun": "muon",
+    "mún": "muon",
+    "nx": "nua",
+    "cx": "cung",
+    "thui": "thoi",
+    "r": "roi",
+    "t": "toi",
+    "v": "vay",
+    "ae": "anh em",
+    "hmu": "",
+    "dkm": "dit me",
+    "dm": "dit me",
+    "dmm": "dit me",
 }
+
 
 def normalize_for_guard(value: str) -> str:
     normalized = unicodedata.normalize("NFD", value or "")
@@ -39,4 +56,3 @@ def normalize_for_guard(value: str) -> str:
     normalized = re.sub(r"\s+", " ", normalized).strip()
     tokens = [TEENCODE_MAP.get(token, token) for token in normalized.split()]
     return " ".join(tokens)
-

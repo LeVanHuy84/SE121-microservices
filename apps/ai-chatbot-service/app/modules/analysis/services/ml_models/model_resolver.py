@@ -150,12 +150,31 @@ def resolve_onnx_model(
                         "[ModelResolver] Found local monorepo ONNX weights at: %s",
                         target,
                     )
+                    # Nếu file ONNX nằm cùng thư mục với tokenizer files của chính nó
+                    if (target.parent / "vocab.txt").is_file() or (
+                        target.parent / "tokenizer_config.json"
+                    ).is_file():
+                        return str(target.resolve()), str(target.parent.resolve())
+
                     parsed_repo, _, _ = parse_huggingface_target(model_path_or_repo)
                     return str(target.resolve()), parsed_repo
 
     # -------------------------------------------------------------
     # 4. Hugging Face Hub (Free-Style URL/Repo/Subfolder/Filename)
     # -------------------------------------------------------------
+    import os
+    from app.core.settings import settings
+
+    if (
+        getattr(settings, "MOCK_EXTERNAL_MODELS", False)
+        or getattr(settings, "UNIT_TEST_MODE", False)
+        or os.getenv("MOCK_EXTERNAL_MODELS", "").lower() == "true"
+        or os.getenv("UNIT_TEST_MODE", "").lower() == "true"
+    ):
+        raise RuntimeError(
+            f"[ModelResolver] External model download skipped in mock/test mode: {model_path_or_repo}"
+        )
+
     repo_id, subfolder, explicit_filename = parse_huggingface_target(model_path_or_repo)
 
     # 4a. If specific filename was provided in the target string

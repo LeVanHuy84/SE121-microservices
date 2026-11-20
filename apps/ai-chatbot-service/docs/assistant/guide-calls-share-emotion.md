@@ -1,27 +1,53 @@
 ---
 id: guide-calls-share-emotion
-title: Hướng dẫn Cuộc gọi, Chia sẻ Bài viết và Theo dõi Cảm xúc
+title: Hướng dẫn Cuộc gọi, Chia sẻ Bài viết và Không gian Theo dõi Cảm xúc
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
-# Tính năng Cuộc gọi, Chia sẻ và Nhật ký Cảm xúc
+# Cuộc gọi Trực tiếp, Lan tỏa Bài viết và Không gian Cảm xúc
 
-Nhằm nâng cao trải nghiệm kết nối và thấu hiểu bản thân, Sentimeta tích hợp các công cụ hỗ trợ liên lạc trực tiếp, lan tỏa bài viết và theo dõi diễn biến tâm trạng.
+Sentimeta tích hợp các công cụ giao tiếp âm thanh/hình ảnh chất lượng cao, chia sẻ nội dung đồng cảm và không gian theo dõi sức khỏe tinh thần dành riêng cho bạn.
 
-## 1. Gọi thoại và Gọi video (Audio / Video Calls)
+## 1. Gọi thoại và Gọi video Chất lượng cao (Audio / Video Calls)
 
-- **Thực hiện cuộc gọi:** Trong khung trò chuyện riêng với bạn bè (đã là bạn bè trên ứng dụng), bấm biểu tượng **Điện thoại** (gọi thoại) hoặc **Máy quay** (gọi video) ở góc trên bên phải để bắt đầu cuộc gọi.
-- **Yêu cầu quyền truy cập:** Hãy đảm bảo bạn đã cấp quyền sử dụng Micro và Camera cho ứng dụng trên trình duyệt hoặc thiết bị di động.
-- **Lưu ý chất lượng:** Cuộc gọi thoại/video phụ thuộc vào tốc độ kết nối Internet của cả hai phía. Nếu cuộc gọi bị chập chờn, hãy thử chuyển sang mạng Wi-Fi/4G ổn định hơn.
+Tính năng gọi thoại và video trên Sentimeta được hỗ trợ bởi công nghệ Stream Video mạnh mẽ và ổn định:
 
-## 2. Chia sẻ Bài viết (Share)
+- **Thực hiện cuộc gọi:**
+  - Truy cập mục **Tin nhắn (`/conversations`)** và mở cuộc trò chuyện với người bạn đã kết bạn.
+  - Trên thanh tiêu đề cuộc trò chuyện, bấm biểu tượng **Điện thoại** để bắt đầu cuộc gọi thoại (Audio Call) hoặc biểu tượng **Máy quay** để bắt đầu cuộc gọi video (Video Call).
+- **Các tính năng trong phòng gọi:**
+  - **Bật/Tắt Micro:** Nhấp biểu tượng micro để tắt tiếng hoặc bật lại âm thanh.
+  - **Bật/Tắt Camera:** Nhấp biểu tượng máy quay để tắt hoặc mở luồng video.
+  - **Chuyển đổi Camera:** Trên thiết bị di động, bấm nút đổi camera để luân phiên giữa camera trước và sau.
+  - **Chia sẻ màn hình:** Trên trình duyệt web, bạn có thể bấm nút chia sẻ màn hình để cùng bạn bè xem nội dung, tài liệu hay hình ảnh.
+  - **Lưu ý về tính năng cảm xúc trong cuộc gọi:** Sentimeta hiện tại **chưa hỗ trợ** tính năng chia sẻ cảm xúc, quét biểu cảm khuôn mặt hay nhận diện cảm xúc trực tiếp trong lúc đang gọi điện thoại hoặc gọi video. Cuộc gọi trên Sentimeta tập trung tối ưu vào kết nối đàm thoại và truyền tải hình ảnh/âm thanh ổn định qua nền tảng Stream Video. Nếu muốn theo dõi hoặc chia sẻ cảm xúc, bạn có thể sử dụng Không gian Cảm xúc (`/emotions`), gắn thẻ tâm trạng trong bài viết hoặc trò chuyện cùng Trợ lý AI.
+  - **Kết thúc cuộc gọi:** Bấm nút màu đỏ hình điện thoại gác máy để rời phòng gọi.
+- **Cấp quyền truy cập thiết bị:** Khi thực hiện cuộc gọi lần đầu, vui lòng cho phép trình duyệt hoặc ứng dụng cấp quyền sử dụng Micro và Máy ảnh (Camera).
 
-- **Chia sẻ lên Trang cá nhân / Nhóm:** Dưới mỗi bài viết của bạn bè hoặc cộng đồng, bấm nút **"Chia sẻ"** (Share) để đăng lại bài viết kèm theo lời bình luận của bạn.
-- **Chia sẻ qua Tin nhắn:** Bấm nút Chia sẻ và chọn **"Gửi qua nhắn tin"** để gửi liên kết bài viết trực tiếp cho một bạn bè cụ thể.
+## 2. Chia sẻ Bài viết và Lan tỏa Cảm xúc (Share)
 
-## 3. Nhật ký và Lịch sử Cảm xúc (Emotion Tracking)
+Dưới mỗi bài viết trên Bảng tin (`/`), trang chi tiết Nhóm (`/groups/[id]`) hoặc Trang cá nhân, nút **"Chia sẻ"** cho phép bạn:
+- **Chia sẻ lên Trang cá nhân:** Mở hộp thoại đăng lại bài viết lên dòng thời gian của chính bạn. Bạn có thể nhập thêm suy nghĩ, quan điểm cá nhân và lựa chọn phạm vi người xem (Công khai, Bạn bè hoặc Chỉ mình tôi).
+- **Gửi qua Tin nhắn:** Chọn người bạn hoặc nhóm chat bạn muốn gửi bài viết đến. Liên kết bài viết sẽ được gửi trực tiếp kèm lời nhắn riêng mà không công khai lên bảng tin.
 
-- **Xem lịch sử cảm xúc:** Vào mục **"Cảm xúc"** (Emotions) trên ứng dụng để xem biểu đồ thống kê tâm trạng qua các ngày hoặc tuần.
-- **Nhật ký AI tự động:** Mỗi bài đăng hoặc chia sẻ cảm xúc của bạn sẽ được AI nhận diện nhẹ nhàng để tổng hợp xu hướng cảm xúc chung (Vui, Buồn, Lo âu, Bình yên...).
-- **Quyền riêng tư cảm xúc:** Biểu đồ lịch sử cảm xúc cá nhân hoàn toàn riêng tư và chỉ hiển thị cho chính bạn. Chatbot AI sẽ dựa vào chỉ số này để đưa ra những lời khuyên hoặc gợi ý thư giãn phù hợp.
+## 3. Không gian Cảm xúc Cá nhân (`/emotions`)
+
+Bấm vào mục **"Cảm xúc" (`/emotions`)** trên thanh điều hướng chính để bước vào không gian chăm sóc sức khỏe tinh thần:
+
+- **Biểu đồ Diễn biến Tâm trạng (Mood Tracking & EMA):**
+  - Hệ thống tự động ghi nhận các sắc thái cảm xúc (Vui vẻ, Bình yên, Buồn bã, Lo âu, Căng thẳng...) từ hoạt động chia sẻ và nhật ký của bạn.
+  - Cung cấp biểu đồ trực quan theo ngày, tuần hoặc tháng giúp bạn nhận diện xu hướng tâm lý và chu kỳ cảm xúc cá nhân.
+- **Bài tập Xoa dịu & Thư giãn Tâm trí:**
+  - Hướng dẫn các phương pháp trị liệu tâm lý dựa trên bằng chứng:
+    - **Kỹ thuật chu kỳ thở chủ động (ACBT):** Hít thở sâu và nhịp nhàng giúp giải tỏa căng thẳng tức thì.
+    - **Thư giãn cơ bắp tiến triển (PMR):** Giãn lỏng từng nhóm cơ trên cơ thể giúp giảm bớt âu lo và mệt mỏi.
+    - **Thực hành chánh niệm (Mindfulness):** Giúp bạn tập trung vào hiện tại và nuôi dưỡng sự bình an trong tâm hồn.
+- **Đề xuất Âm nhạc Chữa lành (Music Recommendations):**
+  - Tích hợp kho bài hát được phân tích cảm xúc qua mô hình AI âm nhạc (MERT).
+  - Đề xuất danh sách bài hát phù hợp với tâm trạng hiện tại hoặc giai điệu giúp nâng cao năng lượng tích cực khi bạn cảm thấy chán nản.
+- **Quyền Riêng tư về Cảm xúc:**
+  - Toàn bộ dữ liệu nhật ký và biểu đồ cảm xúc của bạn là riêng tư, chỉ hiển thị cho chính bạn.
+  - Trợ lý AI dựa vào xu hướng cảm xúc này để đưa ra những lời khuyên và bài tập thư giãn phù hợp.
+  - Bạn có thể bật hoặc tắt quyền AI can thiệp chủ động tại bất kỳ thời điểm nào trong phần **Cài đặt → Quyền riêng tư (`/settings/privacy`)**.

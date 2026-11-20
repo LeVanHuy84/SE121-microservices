@@ -13,7 +13,7 @@ class TeencodeNormalizer:
     def __init__(self, dict_path: Path = None):
         if dict_path is None:
             dict_path = Path(__file__).parent / "dictionary.json"
-        
+
         self.dictionary: Dict[str, str] = {}
         if dict_path.exists():
             with open(dict_path, "r", encoding="utf-8") as f:

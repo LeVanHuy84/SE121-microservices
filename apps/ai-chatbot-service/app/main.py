@@ -6,7 +6,12 @@ from app.core.otel import init_otel
 from app.core.settings import settings
 from app.modules.analysis.router import health_router, music_router, test_router
 from app.modules.chatbot.router import assistant_router
-from app.modules.chatbot.public_router import public_router, register_public_error_handlers
+from app.modules.chatbot.public_router import (
+    public_router,
+    register_public_error_handlers,
+)
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 
 app = FastAPI(title="AI Chatbot Service")
@@ -34,7 +39,7 @@ def get_health_status():
 
 @app.get("/ready")
 def get_readiness_status():
-    if not settings.GROQ_API_KEY:
+    if not settings.CHATBOT_LLM_STUB_MODE and not settings.GROQ_API_KEY:
         raise HTTPException(
             status_code=503,
             detail={
@@ -45,12 +50,36 @@ def get_readiness_status():
             },
         )
 
+    from app.modules.chatbot.navigation.catalog import destination_catalog
+
+    destinations_count = len(destination_catalog)
+    if destinations_count == 0:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "service": "ai-chatbot-service",
+                "reason": "Navigation destination catalog is empty",
+            },
+        )
+
     return {
         "status": "ready",
         "service": "ai-chatbot-service",
-        "provider": "groq",
-        "model": settings.GROQ_MODEL,
+        "provider": "stub" if settings.CHATBOT_LLM_STUB_MODE else "groq",
+        "model": "stub-deterministic"
+        if settings.CHATBOT_LLM_STUB_MODE
+        else settings.GROQ_MODEL,
+        "navigator": {
+            "status": "ready",
+            "destinations_count": destinations_count,
+        },
     }
+
+
+@app.get("/metrics")
+def get_metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def start():

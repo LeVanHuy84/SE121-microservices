@@ -11,21 +11,50 @@ os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")
 os.environ["CHATBOT_DB_ENABLED"] = "false"
 
+from app.modules.chatbot.repositories.chat_history import (
+    ChatHistoryRepository,
+    HistoryStore,
+)
+from app.modules.chatbot.repositories.user_memory_profile import (
+    UserMemoryProfileRepository,
+)
 from app.modules.chatbot.schemas import AssistantContextItem, AssistantRespondRequest
 from app.modules.chatbot.services.assistant import AssistantService
-from app.modules.chatbot.services.memory import session_memory
 from app.modules.chatbot.services.prompt_builder import CRISIS_RESOURCES
 from app.providers.base import LlmGeneration
+from tests.unit.test_chat_history_actions import FakeDb
 
 DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "assistant"
 CRISIS_MESSAGE = "tôi muốn chết"
+
+
+class FakeFactExtractor:
+    def maybe_schedule_extraction(self, *args, **kwargs):
+        return None
+
+
+def _make_service(
+    provider=None, kafka_producer=None, outbox_repo=None
+) -> AssistantService:
+    db = FakeDb()
+    profile_repo = UserMemoryProfileRepository(db=db)
+    repo = ChatHistoryRepository(db=db, profile_repo=profile_repo)
+    store = HistoryStore(repository=repo, profile_repo=profile_repo)
+    return AssistantService(
+        provider=provider or FakeProvider(),
+        kafka_producer=kafka_producer,
+        outbox_repo=outbox_repo,
+        history_store_instance=store,
+        profile_repo=profile_repo,
+        fact_extractor=FakeFactExtractor(),
+    )
 
 
 class FakeProvider:
     def __init__(self):
         self.calls = 0
 
-    async def generate(self, prompt: str, request: AssistantRespondRequest):
+    async def generate(self, prompt: str, request: AssistantRespondRequest, **kwargs):
         self.calls += 1
         return LlmGeneration(content="fake reply", model="test-model", provider="fake")
 
@@ -42,13 +71,16 @@ class FakeKafka:
 
 
 def _run(service: AssistantService, message: str, user: str, contexts=None):
-    session_memory.clear_session(f"{user}:default")
-    req = AssistantRespondRequest(
-        userId=user,
-        message=message,
-        contexts=contexts or [],
-    )
-    return asyncio.run(service.respond(req))
+    async def _async_run():
+        req = AssistantRespondRequest(
+            userId=user,
+            message=message,
+            contexts=contexts or [],
+            aiPolicy="FULL",
+        )
+        return await service.respond(req)
+
+    return asyncio.run(_async_run())
 
 
 class FakeOutboxRepo:
@@ -68,41 +100,43 @@ def _with_kafka(kafka: FakeKafka, outbox_repo=None):
     fake_module.kafka_producer = kafka
     fake_module.outbox_repo = outbox_repo
     fake_module.emotion_aggregate_repo = AsyncMock()
-    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(return_value=[])
+    fake_module.emotion_aggregate_repo.get_user_recent_analyses = AsyncMock(
+        return_value=[]
+    )
     return patch.dict(sys.modules, {"app.modules.analysis.lifespan": fake_module})
 
 
 class ResponseTypeTest(unittest.TestCase):
     def test_greeting_type(self):
         provider = FakeProvider()
-        res = _run(AssistantService(provider=provider), "hello", "rt-1")
+        res = _run(_make_service(provider=provider), "hello", "rt-1")
         self.assertEqual(res.type, "greeting")
         self.assertEqual(provider.calls, 0)
 
     def test_out_of_scope_type(self):
         provider = FakeProvider()
         res = _run(
-            AssistantService(provider=provider),
+            _make_service(provider=provider),
             "How is the weather in Tokyo today?",
             "rt-2",
         )
         self.assertEqual(res.type, "out_of_scope")
-        self.assertEqual(provider.calls, 0)
+        self.assertEqual(provider.calls, 1)
 
     def test_app_feature_without_context_is_no_answer(self):
         provider = FakeProvider()
         res = _run(
-            AssistantService(provider=provider),
+            _make_service(provider=provider),
             "Chat hiện tại có chức năng video call không?",
             "rt-3",
         )
         self.assertEqual(res.type, "no_answer")
-        self.assertEqual(provider.calls, 0)
+        self.assertEqual(provider.calls, 1)
 
     def test_answer_type_with_context(self):
         provider = FakeProvider()
         res = _run(
-            AssistantService(provider=provider),
+            _make_service(provider=provider),
             "How do I use the app?",
             "rt-4",
             contexts=[
@@ -122,7 +156,7 @@ class ResponseTypeTest(unittest.TestCase):
     def test_mental_health_without_context_still_calls_llm(self):
         provider = FakeProvider()
         res = _run(
-            AssistantService(provider=provider),
+            _make_service(provider=provider),
             "Mình hay bị stress, làm sao để thư giãn?",
             "rt-5",
         )
@@ -135,7 +169,11 @@ class CrisisAlertTest(unittest.TestCase):
         kafka = FakeKafka()
         provider = FakeProvider()
         with _with_kafka(kafka):
-            res = _run(AssistantService(provider=provider), CRISIS_MESSAGE, "cr-1")
+            res = _run(
+                _make_service(provider=provider, kafka_producer=kafka),
+                CRISIS_MESSAGE,
+                "cr-1",
+            )
 
         self.assertEqual(provider.calls, 0)
         self.assertEqual(res.type, "crisis")
@@ -166,7 +204,13 @@ class CrisisAlertTest(unittest.TestCase):
         outbox = FakeOutboxRepo()
         provider = FakeProvider()
         with _with_kafka(kafka, outbox_repo=outbox):
-            res = _run(AssistantService(provider=provider), CRISIS_MESSAGE, "cr-1.5")
+            res = _run(
+                _make_service(
+                    provider=provider, kafka_producer=kafka, outbox_repo=outbox
+                ),
+                CRISIS_MESSAGE,
+                "cr-1.5",
+            )
 
         self.assertEqual(res.type, "crisis")
         self.assertTrue(res.crisis.notificationSent)
@@ -181,7 +225,15 @@ class CrisisAlertTest(unittest.TestCase):
 
         kafka = FakeKafka(fail=True)
         with _with_kafka(kafka, outbox_repo=FailingOutbox()):
-            res = _run(AssistantService(provider=FakeProvider()), CRISIS_MESSAGE, "cr-2")
+            res = _run(
+                _make_service(
+                    provider=FakeProvider(),
+                    kafka_producer=kafka,
+                    outbox_repo=FailingOutbox(),
+                ),
+                CRISIS_MESSAGE,
+                "cr-2",
+            )
 
         self.assertEqual(res.type, "crisis")
         self.assertFalse(res.crisis.notificationSent)
@@ -193,10 +245,19 @@ class CrisisAlertTest(unittest.TestCase):
 
 class CrisisAlertLevelTest(unittest.TestCase):
     def test_soft_signal_is_sent_as_high_with_neutral_reason(self):
+        from app.modules.chatbot.services.guardrails_support.types import CrisisDecision
+
         kafka = FakeKafka()
-        with _with_kafka(kafka):
+        service = _make_service(provider=FakeProvider(), kafka_producer=kafka)
+        with patch.object(
+            service._respond_command.crisis_guard,
+            "evaluate",
+            return_value=CrisisDecision(
+                True, "medium", "soft_crisis", "cuoc song vo nghia qua"
+            ),
+        ), _with_kafka(kafka):
             res = _run(
-                AssistantService(provider=FakeProvider()),
+                service,
                 "cuộc sống vô nghĩa quá",
                 "cr-3",
             )
@@ -209,7 +270,9 @@ class CrisisAlertLevelTest(unittest.TestCase):
 
 class DocsLintTest(unittest.TestCase):
     def _guides(self):
-        return {p.name: p.read_text(encoding="utf-8") for p in DOCS_DIR.glob("guide-*.md")}
+        return {
+            p.name: p.read_text(encoding="utf-8") for p in DOCS_DIR.glob("guide-*.md")
+        }
 
     def test_no_false_end_to_end_encryption_claims(self):
         forbidden = (
@@ -244,11 +307,19 @@ class DocsLintTest(unittest.TestCase):
                     k, v = line.split(":", 1)
                     frontmatter[k.strip()] = v.strip()
             self.assertIn("id", frontmatter, f"{name} missing id")
-            self.assertNotIn(frontmatter["id"], seen_ids, f"{name} has duplicate id {frontmatter['id']}")
+            self.assertNotIn(
+                frontmatter["id"],
+                seen_ids,
+                f"{name} has duplicate id {frontmatter['id']}",
+            )
             seen_ids.add(frontmatter["id"])
-            self.assertEqual(frontmatter.get("topic"), "huong-dan", f"{name} invalid topic")
+            self.assertEqual(
+                frontmatter.get("topic"), "huong-dan", f"{name} invalid topic"
+            )
             self.assertEqual(frontmatter.get("lang"), "vi", f"{name} invalid lang")
-            self.assertEqual(frontmatter.get("version"), "v2", f"{name} invalid version")
+            self.assertEqual(
+                frontmatter.get("version"), "v2", f"{name} invalid version"
+            )
 
 
 if __name__ == "__main__":

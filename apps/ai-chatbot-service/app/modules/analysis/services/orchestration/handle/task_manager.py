@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class TaskManager:
-
     def __init__(self, task_repo: TaskRepository):
         self.task_repo = task_repo
 
@@ -27,11 +26,7 @@ class TaskManager:
         content: str,
         image_urls: list[str],
     ) -> dict:
-
-        existing = await self.task_repo.get_by_target(
-            target_id,
-            target_type
-        )
+        existing = await self.task_repo.get_by_target(target_id, target_type)
 
         now = datetime.now(timezone.utc)
 
@@ -45,8 +40,8 @@ class TaskManager:
                     "action": action.value,
                     "retryCount": existing.get("retryCount", 0) + 1,
                     "error": reason,
-                    "updatedAt": now
-                }
+                    "updatedAt": now,
+                },
             )
 
         logger.info("Create new failed task")
@@ -65,15 +60,15 @@ class TaskManager:
         )
 
         # Convert to dict for persistence
-        data = task.model_dump(mode='json', exclude_none=False, exclude={'id'})
-        
+        data = task.model_dump(mode="json", exclude_none=False, exclude={"id"})
+
         # Convert enums to strings
-        if hasattr(data.get('targetType'), 'value'):
-            data['targetType'] = data['targetType'].value
-        if hasattr(data.get('action'), 'value'):
-            data['action'] = data['action'].value
-        if hasattr(data.get('status'), 'value'):
-            data['status'] = data['status'].value
+        if hasattr(data.get("targetType"), "value"):
+            data["targetType"] = data["targetType"].value
+        if hasattr(data.get("action"), "value"):
+            data["action"] = data["action"].value
+        if hasattr(data.get("status"), "value"):
+            data["status"] = data["status"].value
 
         return await self.task_repo.save_task(data)
 
@@ -81,16 +76,9 @@ class TaskManager:
     # PERMANENT FAILED
     # ======================================================
     async def mark_permanent_failed(
-        self,
-        target_id: str,
-        target_type: TargetTypeEnum,
-        reason: str
+        self, target_id: str, target_type: TargetTypeEnum, reason: str
     ):
-
-        task = await self.task_repo.get_by_target(
-            target_id,
-            target_type
-        )
+        task = await self.task_repo.get_by_target(target_id, target_type)
 
         if not task:
             return
@@ -100,6 +88,6 @@ class TaskManager:
             {
                 "status": AnalysisStatusEnum.PERMANENT_FAILED.value,
                 "error": reason,
-                "updatedAt": datetime.now(timezone.utc)
-            }
+                "updatedAt": datetime.now(timezone.utc),
+            },
         )

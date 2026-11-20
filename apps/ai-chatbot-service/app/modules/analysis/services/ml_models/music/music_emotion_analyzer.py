@@ -56,7 +56,7 @@ class MusicEmotionAnalyzer:
 
         if total_raw_samples > target_raw_samples:
             start = (total_raw_samples - target_raw_samples) // 2
-            data = data[start:start + target_raw_samples]
+            data = data[start : start + target_raw_samples]
         elif total_raw_samples < target_raw_samples:
             padding = target_raw_samples - total_raw_samples
             data = np.pad(data, (0, padding), mode="constant")

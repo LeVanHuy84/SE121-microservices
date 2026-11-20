@@ -27,11 +27,22 @@ class KafkaConsumerHelper:
         self.max_retries = max_retries
         self.initial_backoff_sec = initial_backoff_sec
 
-    async def handle_single(self, message: Dict[str, Any], handler: Callable, topic: str = "analysis-events"):
+    async def handle_single(
+        self, message: Dict[str, Any], handler: Callable, topic: str = "analysis-events"
+    ):
         """Handle single event with Idempotency, Retry, and DLQ."""
-        payload = message.get("payload") if isinstance(message, dict) and isinstance(message.get("payload"), dict) else {}
-        event_id = message.get("eventId") or message.get("id") or payload.get("eventId") or payload.get("targetId")
-        
+        payload = (
+            message.get("payload")
+            if isinstance(message, dict) and isinstance(message.get("payload"), dict)
+            else {}
+        )
+        event_id = (
+            message.get("eventId")
+            or message.get("id")
+            or payload.get("eventId")
+            or payload.get("targetId")
+        )
+
         if event_id:
             acquired = await self.idempotency_repo.try_acquire(event_id)
             if not acquired:
@@ -48,7 +59,9 @@ class KafkaConsumerHelper:
                 break
             except Exception as e:
                 last_exception = e
-                logger.warning(f"[ConsumerHelper] Retry attempt {attempt}/{self.max_retries} for event {event_id}: {e}")
+                logger.warning(
+                    f"[ConsumerHelper] Retry attempt {attempt}/{self.max_retries} for event {event_id}: {e}"
+                )
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.initial_backoff_sec * (2 ** (attempt - 1)))
 
@@ -56,12 +69,23 @@ class KafkaConsumerHelper:
             if event_id:
                 await self.idempotency_repo.mark_done(event_id)
         else:
-            logger.error(f"[ConsumerHelper] Event {event_id} failed after {self.max_retries} retries -> Sending to DLQ")
+            logger.error(
+                f"[ConsumerHelper] Event {event_id} failed after {self.max_retries} retries -> Sending to DLQ"
+            )
             if event_id:
-                await self.idempotency_repo.mark_failed(event_id, reason=str(last_exception))
-            await self.dlq_service.send_to_dlq(topic=topic, message=message, error=last_exception)
+                await self.idempotency_repo.mark_failed(
+                    event_id, reason=str(last_exception)
+                )
+            await self.dlq_service.send_to_dlq(
+                topic=topic, message=message, error=last_exception
+            )
 
-    async def handle_batch(self, messages: List[Dict[str, Any]], handler: Callable, topic: str = "analysis-events"):
+    async def handle_batch(
+        self,
+        messages: List[Dict[str, Any]],
+        handler: Callable,
+        topic: str = "analysis-events",
+    ):
         """
         Handle Batch of events with Item-level Idempotency filtering:
         1. Extract all eventIds and pre-filter unprocessed ones from Mongo.
@@ -74,23 +98,36 @@ class KafkaConsumerHelper:
         # 1. Map event_ids
         msg_map = {}
         valid_messages = []
-        
+
         for msg in messages:
-            payload = msg.get("payload") if isinstance(msg, dict) and isinstance(msg.get("payload"), dict) else {}
-            eid = msg.get("eventId") or msg.get("id") or payload.get("eventId") or payload.get("targetId")
+            payload = (
+                msg.get("payload")
+                if isinstance(msg, dict) and isinstance(msg.get("payload"), dict)
+                else {}
+            )
+            eid = (
+                msg.get("eventId")
+                or msg.get("id")
+                or payload.get("eventId")
+                or payload.get("targetId")
+            )
             if eid:
                 msg_map[eid] = msg
             valid_messages.append((eid, msg))
 
         # 2. Bulk check idempotency
         all_eids = [eid for eid in msg_map.keys() if eid]
-        unprocessed_eids = await self.idempotency_repo.filter_unprocessed_event_ids(all_eids)
+        unprocessed_eids = await self.idempotency_repo.filter_unprocessed_event_ids(
+            all_eids
+        )
 
         # 3. Process valid items concurrently with Retry and DLQ protection
         tasks = []
         for eid, msg in valid_messages:
             if eid and eid not in unprocessed_eids:
-                logger.info(f"[ConsumerHelper Batch] Skipping duplicate/already processed event: {eid}")
+                logger.info(
+                    f"[ConsumerHelper Batch] Skipping duplicate/already processed event: {eid}"
+                )
                 continue
 
             tasks.append(self.handle_single(message=msg, handler=handler, topic=topic))

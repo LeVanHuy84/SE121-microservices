@@ -30,14 +30,14 @@ LABEL_MAP_CANONICAL = {
     "Anger": "anger",
     "Fear": "fear",
     "Surprise": "surprise",
-    "Other": "neutral"
+    "Other": "neutral",
 }
 
 
 class TextEmotionClassifier:
     """
     Production-ready Emotion Classifier for Vietnamese Social Media.
-    Combines Full-Text Global View with Sentence-Level Granularity to prevent 
+    Combines Full-Text Global View with Sentence-Level Granularity to prevent
     truncation while preserving holistic context and sarcasm.
     """
 
@@ -51,7 +51,9 @@ class TextEmotionClassifier:
         # ---------------------------------------------------------------------
         lang = detect_language(text)
         if lang is not None and lang != "vi":
-            return TextEmotionClassifier._build_fallback_result(text, "non_vietnamese", lang)
+            return TextEmotionClassifier._build_fallback_result(
+                text, "non_vietnamese", lang
+            )
 
         # ---------------------------------------------------------------------
         # 2. Sentence Splitting & Word Count Check
@@ -70,7 +72,9 @@ class TextEmotionClassifier:
         session = phobert_emotion_model.get_session()
 
         if session is None:
-            return TextEmotionClassifier._build_fallback_result(text, "session_unavailable")
+            return TextEmotionClassifier._build_fallback_result(
+                text, "session_unavailable"
+            )
 
         # Helper for ONNX single inference
         def _run_single_inference(raw_chunk: str) -> np.ndarray:
@@ -78,14 +82,11 @@ class TextEmotionClassifier:
             if not prep:
                 return np.zeros(len(LABEL_NAMES))
             inputs = tokenizer(
-                prep,
-                return_tensors="np",
-                truncation=True,
-                max_length=128
+                prep, return_tensors="np", truncation=True, max_length=128
             )
             ort_inputs = {
                 "input_ids": inputs["input_ids"].astype(np.int64),
-                "attention_mask": inputs["attention_mask"].astype(np.int64)
+                "attention_mask": inputs["attention_mask"].astype(np.int64),
             }
             logits = session.run(None, ort_inputs)[0][0]
             exp_l = np.exp(logits - np.max(logits))
@@ -103,12 +104,16 @@ class TextEmotionClassifier:
             if len(meaningful_sentences) <= 1:
                 final_probs = global_probs
                 top_idx = int(np.argmax(final_probs))
-                sentence_results = [{
-                    "rawText": text,
-                    "processedText": preprocess_single_sentence(text, apply_word_tokenize=True),
-                    "dominantEmotion": LABEL_NAMES[top_idx],
-                    "confidence": float(final_probs[top_idx])
-                }]
+                sentence_results = [
+                    {
+                        "rawText": text,
+                        "processedText": preprocess_single_sentence(
+                            text, apply_word_tokenize=True
+                        ),
+                        "dominantEmotion": LABEL_NAMES[top_idx],
+                        "confidence": float(final_probs[top_idx]),
+                    }
+                ]
 
             # ROUTE 2: Multi-Sentence Discourse (Hierarchical Global-Local Fusion)
             else:
@@ -127,12 +132,16 @@ class TextEmotionClassifier:
                     sentence_weights.append(w)
 
                     sent_top_idx = int(np.argmax(probs))
-                    sentence_results.append({
-                        "rawText": sent_text,
-                        "processedText": preprocess_single_sentence(sent_text, apply_word_tokenize=True),
-                        "dominantEmotion": LABEL_NAMES[sent_top_idx],
-                        "confidence": float(probs[sent_top_idx])
-                    })
+                    sentence_results.append(
+                        {
+                            "rawText": sent_text,
+                            "processedText": preprocess_single_sentence(
+                                sent_text, apply_word_tokenize=True
+                            ),
+                            "dominantEmotion": LABEL_NAMES[sent_top_idx],
+                            "confidence": float(probs[sent_top_idx]),
+                        }
+                    )
 
                 if not sentence_probs:
                     final_probs = global_probs
@@ -140,14 +149,24 @@ class TextEmotionClassifier:
                     sentence_probs = np.array(sentence_probs)
                     sentence_weights = np.array(sentence_weights)
                     weight_sum = np.sum(sentence_weights)
-                    norm_weights = sentence_weights / weight_sum if weight_sum > 0 else np.ones(len(sentence_weights)) / len(sentence_weights)
+                    norm_weights = (
+                        sentence_weights / weight_sum
+                        if weight_sum > 0
+                        else np.ones(len(sentence_weights)) / len(sentence_weights)
+                    )
 
-                    weighted_avg_probs = np.sum(sentence_probs * norm_weights[:, np.newaxis], axis=0)
+                    weighted_avg_probs = np.sum(
+                        sentence_probs * norm_weights[:, np.newaxis], axis=0
+                    )
                     local_max_probs = np.max(sentence_probs, axis=0)
 
                     # Hierarchical Fusion:
                     # 35% Global Holistic Context + 45% Local Peak Outburst + 20% Weighted Tone
-                    fusion = 0.35 * global_probs + 0.45 * local_max_probs + 0.20 * weighted_avg_probs
+                    fusion = (
+                        0.35 * global_probs
+                        + 0.45 * local_max_probs
+                        + 0.20 * weighted_avg_probs
+                    )
                     final_probs = fusion / np.sum(fusion)
 
         except Exception as e:
@@ -179,8 +198,12 @@ class TextEmotionClassifier:
             canonical = LABEL_MAP_CANONICAL.get(label_name, label_name.lower())
             emotion_scores_canonical[canonical] = round(float(final_probs[idx]), 4)
 
-        primary_canonical = LABEL_MAP_CANONICAL.get(primary_emotion_raw, primary_emotion_raw.lower())
-        secondary_canonical = [LABEL_MAP_CANONICAL.get(e, e.lower()) for e in secondary_emotions_raw]
+        primary_canonical = LABEL_MAP_CANONICAL.get(
+            primary_emotion_raw, primary_emotion_raw.lower()
+        )
+        secondary_canonical = [
+            LABEL_MAP_CANONICAL.get(e, e.lower()) for e in secondary_emotions_raw
+        ]
 
         return {
             "dominantEmotion": primary_canonical,
@@ -192,26 +215,24 @@ class TextEmotionClassifier:
                 "language": lang or "vi",
                 "sentenceCount": len(raw_sentences),
                 "sentenceTimeline": sentence_results,
-                "dynamicThreshold": round(dynamic_threshold, 4)
+                "dynamicThreshold": round(dynamic_threshold, 4),
             },
-            "model": phobert_emotion_model.get_model_name()
+            "model": phobert_emotion_model.get_model_name(),
         }
 
     @staticmethod
     def _build_fallback_result(text: str, reason: str, lang: str = "unknown") -> dict:
-        scores = {v: (1.0 if v == "neutral" else 0.0) for v in LABEL_MAP_CANONICAL.values()}
+        scores = {
+            v: (1.0 if v == "neutral" else 0.0) for v in LABEL_MAP_CANONICAL.values()
+        }
         return {
             "dominantEmotion": "neutral",
             "primaryEmotion": "neutral",
             "secondaryEmotions": [],
             "emotionScores": scores,
             "confidence": 0.3,
-            "meta": {
-                "language": lang,
-                "skipped": True,
-                "reason": reason
-            },
-            "model": phobert_emotion_model.get_model_name()
+            "meta": {"language": lang, "skipped": True, "reason": reason},
+            "model": phobert_emotion_model.get_model_name(),
         }
 
 

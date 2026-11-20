@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
 from collections import OrderedDict
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import onnxruntime as ort
-from transformers import AutoTokenizer
 
-from app.core.config import settings
+from app.core.executors import run_in_analysis_executor, run_in_chatbot_executor
+from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
 from app.utils.text_normalizer import normalize_text
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -20,6 +24,9 @@ class EmbeddingService:
     def __init__(self):
         self._tokenizer = None
         self._session: ort.InferenceSession | None = None
+        self._load_lock = threading.Lock()
+        self._cache_lock = threading.Lock()
+        self._tokenizer_lock = threading.Lock()
         self._query_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._query_cache_size = settings.EMBEDDING_QUERY_CACHE_SIZE
         self.model_name = settings.EMBEDDING_MODEL_NAME
@@ -30,23 +37,51 @@ class EmbeddingService:
     def encode_documents(self, texts: Sequence[str]) -> list[list[float]]:
         return self._encode(texts, prefix="passage")
 
+    async def encode_documents_async(self, texts: Sequence[str]) -> list[list[float]]:
+        return await run_in_analysis_executor(self.encode_documents, texts)
+
     def encode_query(self, text: str) -> list[float]:
         normalized = self._normalize_input(text)
         if not normalized:
             return []
+        cache_key = normalized.casefold()
 
-        cached = self._query_cache.get(normalized)
-        if cached is not None:
-            self._query_cache.move_to_end(normalized)
-            return cached
+        with self._cache_lock:
+            cached = self._query_cache.get(cache_key)
+            if cached is not None:
+                self._query_cache.move_to_end(cache_key)
+                return cached
 
         embeddings = self._encode([normalized], prefix="query")
         result = embeddings[0] if embeddings else []
         if result:
-            self._query_cache[normalized] = result
-            self._query_cache.move_to_end(normalized)
-            while len(self._query_cache) > self._query_cache_size:
-                self._query_cache.popitem(last=False)
+            with self._cache_lock:
+                self._query_cache[cache_key] = result
+                self._query_cache.move_to_end(cache_key)
+                while len(self._query_cache) > self._query_cache_size:
+                    self._query_cache.popitem(last=False)
+        return result
+
+    async def encode_query_async(self, text: str) -> list[float]:
+        normalized = self._normalize_input(text)
+        if not normalized:
+            return []
+        cache_key = normalized.casefold()
+
+        with self._cache_lock:
+            cached = self._query_cache.get(cache_key)
+            if cached is not None:
+                self._query_cache.move_to_end(cache_key)
+                return cached
+
+        embeddings = await run_in_chatbot_executor(self._encode, [normalized], "query")
+        result = embeddings[0] if embeddings else []
+        if result:
+            with self._cache_lock:
+                self._query_cache[cache_key] = result
+                self._query_cache.move_to_end(cache_key)
+                while len(self._query_cache) > self._query_cache_size:
+                    self._query_cache.popitem(last=False)
         return result
 
     def _encode(self, texts: Sequence[str], prefix: str) -> list[list[float]]:
@@ -63,13 +98,14 @@ class EmbeddingService:
 
         for start in range(0, len(normalized), settings.EMBEDDING_BATCH_SIZE):
             batch = normalized[start : start + settings.EMBEDDING_BATCH_SIZE]
-            encoded = tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                max_length=settings.EMBEDDING_MAX_LENGTH,
-                return_tensors="np",
-            )
+            with self._tokenizer_lock:
+                encoded = tokenizer(
+                    batch,
+                    padding=True,
+                    truncation=True,
+                    max_length=settings.EMBEDDING_MAX_LENGTH,
+                    return_tensors="np",
+                )
 
             input_feed = {}
             for inp in session.get_inputs():
@@ -100,44 +136,84 @@ class EmbeddingService:
 
         return embeddings
 
-    def _load(self) -> tuple[AutoTokenizer, ort.InferenceSession]:
+    def _load(self) -> tuple[Any, Any]:
         if self._tokenizer is None or self._session is None:
-            candidate_dirs = [
-                Path("evaluation/embedding/weights").resolve(),
-                Path("evaluation/weights").resolve(),
-                Path("../evaluation/weights").resolve(),
-                Path("../../evaluation/weights").resolve(),
-            ]
-            self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
-                model_path_or_repo=self.model_name,
-                explicit_onnx_path=getattr(settings, "EMBEDDING_ONNX_PATH", ""),
-                precision=self.precision,
-                model_type_hint="embedding",
-                candidate_local_dirs=candidate_dirs,
-            )
+            with self._load_lock:
+                if self._tokenizer is None or self._session is None:
+                    is_test_mode = (
+                        getattr(settings, "UNIT_TEST_MODE", False)
+                        or os.getenv("UNIT_TEST_MODE", "").lower() == "true"
+                        or getattr(settings, "MOCK_EXTERNAL_MODELS", False)
+                        or os.getenv("MOCK_EXTERNAL_MODELS", "").lower() == "true"
+                    )
+                    candidate_dirs = [
+                        Path("evaluation/embedding/weights").resolve(),
+                        Path("evaluation/weights").resolve(),
+                        Path("../evaluation/weights").resolve(),
+                        Path("../../evaluation/weights").resolve(),
+                    ]
+                    try:
+                        self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
+                            model_path_or_repo=self.model_name,
+                            explicit_onnx_path=getattr(settings, "EMBEDDING_ONNX_PATH", ""),
+                            precision=self.precision,
+                            model_type_hint="embedding",
+                            candidate_local_dirs=candidate_dirs,
+                        )
+                    except Exception as exc:
+                        if is_test_mode:
+                            logger.info(
+                                "[EmbeddingService] Using mock session/tokenizer in test mode: %s",
+                                exc,
+                            )
+                            from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                                safe_load_tokenizer,
+                            )
 
-            logger.info(
-                "[EmbeddingService] Loading ONNX (%s) embedding model from: %s (Tokenizer: %s)",
-                self.precision,
-                self.onnx_model_path,
-                self.tokenizer_source,
-            )
-            self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_source)
+                            self._tokenizer = safe_load_tokenizer("embedding_mock")
 
-            opts = ort.SessionOptions()
-            opts.intra_op_num_threads = 2
-            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            opts.enable_cpu_mem_arena = False
-            opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+                            class DummySession:
+                                def get_inputs(self):
+                                    return []
 
-            self._session = ort.InferenceSession(
-                self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
-            )
-            logger.info(
-                "[EmbeddingService] ✓ ONNX (%s) Embedding model loaded successfully on CPU",
-                self.precision,
-            )
+                                def run(self, *args, **kwargs):
+                                    return [np.zeros((1, 10, 768), dtype=np.float32)]
+
+                            self._session = DummySession()
+                            return self._tokenizer, self._session
+                        raise
+
+                    logger.info(
+                        "[EmbeddingService] Loading ONNX (%s) embedding model from: %s (Tokenizer: %s)",
+                        self.precision,
+                        self.onnx_model_path,
+                        self.tokenizer_source,
+                    )
+                    from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                        safe_load_tokenizer,
+                    )
+
+                    self._tokenizer = safe_load_tokenizer(self.tokenizer_source)
+
+                    opts = ort.SessionOptions()
+                    opts.intra_op_num_threads = 1
+                    opts.inter_op_num_threads = 1
+                    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                    opts.graph_optimization_level = (
+                        ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                    )
+                    opts.enable_cpu_mem_arena = False
+                    opts.add_session_config_entry(
+                        "session.intra_op.allow_spinning", "0"
+                    )
+
+                    self._session = ort.InferenceSession(
+                        self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
+                    )
+                    logger.info(
+                        "[EmbeddingService] ✓ ONNX (%s) Embedding model loaded successfully on CPU",
+                        self.precision,
+                    )
 
         return self._tokenizer, self._session
 

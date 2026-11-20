@@ -14,6 +14,7 @@ from app.utils.teencode import teencode_normalizer
 
 try:
     from underthesea import word_tokenize, sent_tokenize
+
     HAS_UNDERTHESEA = True
 except ImportError:
     HAS_UNDERTHESEA = False
@@ -59,7 +60,8 @@ def split_sentences(text: str) -> list[str]:
     else:
         # Fallback split on punctuation
         import re
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        sentences = re.split(r"(?<=[.!?])\s+", text)
 
     cleaned_sentences = []
     for s in sentences:

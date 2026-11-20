@@ -34,6 +34,19 @@ export class AssistantContextItemDto {
   metadata?: Record<string, unknown>;
 }
 
+export class SurfaceContextDto {
+  @IsString()
+  screen: string;
+
+  @IsOptional()
+  @IsString()
+  entityId?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+}
+
 export class AssistantMessageDto {
   @IsNotEmpty()
   @IsString()
@@ -42,4 +55,17 @@ export class AssistantMessageDto {
   @IsOptional()
   @IsUUID()
   clientMessageId?: string;
+
+  @IsOptional()
+  @IsString()
+  conversationId?: string;
+
+  /** @deprecated Server resolves aiPolicy fail-closed from user-social-service; client-supplied values are ignored. */
+  @IsOptional()
+  @IsString()
+  aiPolicy?: string;
+
+  @IsOptional()
+  @IsObject()
+  surface?: SurfaceContextDto;
 }

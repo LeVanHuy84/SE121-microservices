@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 import { RiskLevel } from '@repo/dtos';
+import Redis from 'ioredis';
 import { RiskStateProjection, WarningRepository } from './warning.repository';
 import { RiskEvaluationService } from './risk-evaluation.service';
 
@@ -22,6 +24,7 @@ export class WarningService {
   constructor(
     private readonly warningRepository: WarningRepository,
     private readonly riskEvaluationService: RiskEvaluationService,
+    @Optional() @InjectRedis() private readonly redis?: Redis,
   ) {}
 
   async evaluateUserRisk(userId: string): Promise<EvaluateRiskResult> {
@@ -84,6 +87,42 @@ export class WarningService {
     };
 
     await this.warningRepository.upsertRiskState(userId, payload);
+
+    if (this.redis) {
+      const consecutiveNegativeDays = Number(
+        profile?.consecutiveNegativeDays ?? 0,
+      );
+      const persistentDistress =
+        nextLevel === RiskLevel.MODERATE_RISK ||
+        nextLevel === RiskLevel.HIGH_RISK ||
+        nextLevel === RiskLevel.CRISIS ||
+        consecutiveNegativeDays >= 3;
+      const key = `emotion:longitudinal:${userId}`;
+      const hashFields: Record<string, string> = {
+        hysteresis_risk_level: String(nextLevel),
+        risk_score: String(payload.riskScore),
+        stable_windows: String(payload.stableWindows),
+        consecutive_negative_days: String(consecutiveNegativeDays),
+        persistent_distress: persistentDistress ? 'true' : 'false',
+        longitudinal_updated_at: now.toISOString(),
+      };
+      if (nextLevel === RiskLevel.NORMAL) {
+        hashFields.suggested_action = 'NO_ACTION';
+        hashFields.chatbot_prompt_context = '';
+      }
+      try {
+        await this.redis
+          .pipeline()
+          .hset(key, hashFields)
+          .expire(key, 86400)
+          .exec();
+      } catch (err) {
+        this.logger.warn(
+          `Failed to update longitudinal Redis hash for user=${userId}`,
+          err,
+        );
+      }
+    }
 
     return {
       userId,

@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "venv": "powershell.exe -NoExit -Command .\\.venv\\Scripts\\Activate.ps1",
-    "install": "pip install -r requirements.txt",
+    "install:deps": "pip install -r requirements.txt",
     "start:dev": "node run-venv.js python -m app.main",
     "start:prod": "node run-venv.js python -m app.main",
     "db:migrate": "node run-venv.js alembic -c alembic.ini upgrade head",
@@ -15,9 +15,13 @@
     "db:history": "node run-venv.js alembic -c alembic.ini history",
     "db:revision": "node run-venv.js alembic -c alembic.ini revision --autogenerate -m",
     "rag:index-docs": "node run-venv.js python -m app.tools.index_assistant_docs --force",
+    "warmup:models": "node run-venv.js python -m app.tools.warmup_models",
+    "download:embedding": "node run-venv.js huggingface-cli download Xenova/multilingual-e5-base onnx/model_quantized.onnx",
     "loadtest:assistant": "node run-venv.js python tools\\loadtest_assistant.py",
     "lint": "node run-venv.js python -m ruff check app tests",
     "format": "node run-venv.js python -m ruff format app tests",
-    "test": "cross-env UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true node run-venv.js python -m unittest discover -s tests -p \"test_*.py\""
+    "test": "cross-env UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 node run-venv.js python -m unittest discover -s tests/unit -t . -p \"test_*.py\" && cross-env UNIT_TEST_MODE=true CHATBOT_REDIS_ENABLED=false MOCK_EXTERNAL_MODELS=true HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 node run-venv.js python -m unittest discover -s tests/e2e -t . -p \"test_*.py\"",
+    "test:live:layer1": "cross-env CHATBOT_LLM_STUB_MODE=true node run-venv.js python -m unittest discover -s tests/live -t . -p \"test_slice_*.py\"",
+    "test:live:layer2": "cross-env RUN_LLM_SMOKE=true node run-venv.js python -m unittest tests/live/test_layer2_groq_smoke.py"
   }
 }

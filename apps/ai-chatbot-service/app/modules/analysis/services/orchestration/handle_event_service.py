@@ -1,10 +1,16 @@
 import logging
 from typing import Dict, Any
 
-from app.modules.analysis.services.orchestration.handle.moderation_writer import ModerationWriter
-from app.modules.analysis.services.orchestration.handle.emotion_writer import EmotionWriter
+from app.modules.analysis.services.orchestration.handle.moderation_writer import (
+    ModerationWriter,
+)
+from app.modules.analysis.services.orchestration.handle.emotion_writer import (
+    EmotionWriter,
+)
 from app.modules.analysis.services.orchestration.handle.task_manager import TaskManager
-from app.modules.analysis.services.orchestration.handle.outbox_emitter import OutboxEmitter
+from app.modules.analysis.services.orchestration.handle.outbox_emitter import (
+    OutboxEmitter,
+)
 
 from app.modules.analysis.enums import TargetTypeEnum, EventTypeEnum
 from app.modules.analysis.utils.exceptions import RetryableException
@@ -13,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class HandleEventService:
-
     def __init__(
         self,
         analysis_flow_service,
@@ -29,12 +34,10 @@ class HandleEventService:
         self.task_manager = TaskManager(task_repo)
         self.outbox = OutboxEmitter(outbox_repo)
 
-
     # ======================================================
     # CREATED EVENT
     # ======================================================
     async def handle_created(self, event: dict) -> Dict[str, Any]:
-
         text = event.get("content", "")
         image_urls = event.get("imageUrls", [])
         user_id = event["userId"]
@@ -62,7 +65,9 @@ class HandleEventService:
             )
 
             if skip_reason or should_block or not emotion_result:
-                await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_CREATED, moderation, None)
+                await self.outbox.emit_analysis_result(
+                    EventTypeEnum.ANALYSIS_CREATED, moderation, None
+                )
                 return {
                     "moderation": moderation,
                     "emotion": None,
@@ -78,7 +83,9 @@ class HandleEventService:
                 emotion_data=emotion_result,
             )
 
-            await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_CREATED, moderation, emotion)
+            await self.outbox.emit_analysis_result(
+                EventTypeEnum.ANALYSIS_CREATED, moderation, emotion
+            )
 
             return {
                 "moderation": moderation,
@@ -87,7 +94,6 @@ class HandleEventService:
             }
 
         except RetryableException as e:
-
             await self.task_manager.upsert_failed_task(
                 user_id=user_id,
                 target_id=target_id,
@@ -99,7 +105,6 @@ class HandleEventService:
             )
 
         except Exception as e:
-
             await self.task_manager.mark_permanent_failed(
                 target_id=target_id,
                 target_type=target_type,
@@ -112,7 +117,6 @@ class HandleEventService:
     # UPDATED EVENT
     # ======================================================
     async def handle_updated(self, event: dict) -> Dict[str, Any]:
-
         new_text = event.get("content", "")
         image_urls = event.get("imageUrls")
         user_id = event.get("userId")
@@ -122,9 +126,11 @@ class HandleEventService:
         # Fallback to DB if imageUrls or userId is not provided in event
         if image_urls is None or not user_id:
             try:
-                existing_record = await self.emotion_writer.emotion_aggregate_repo.get_by_target(
-                    targetId=target_id,
-                    targetType=target_type.value,
+                existing_record = (
+                    await self.emotion_writer.emotion_aggregate_repo.get_by_target(
+                        targetId=target_id,
+                        targetType=target_type.value,
+                    )
                 )
                 if existing_record:
                     if image_urls is None:
@@ -132,7 +138,9 @@ class HandleEventService:
                     if not user_id:
                         user_id = existing_record.get("userId", "")
             except Exception as ex:
-                logger.warning(f"[HandleEvent] Fallback to DB for target {target_id} failed: {ex}")
+                logger.warning(
+                    f"[HandleEvent] Fallback to DB for target {target_id} failed: {ex}"
+                )
 
         if image_urls is None:
             image_urls = []
@@ -157,7 +165,9 @@ class HandleEventService:
             )
 
             if skip_reason or should_block or not emotion_result:
-                await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_UPDATED, moderation, None)
+                await self.outbox.emit_analysis_result(
+                    EventTypeEnum.ANALYSIS_UPDATED, moderation, None
+                )
                 return {
                     "moderation": moderation,
                     "emotion": None,
@@ -172,7 +182,9 @@ class HandleEventService:
                 emotion_data=emotion_result,
             )
 
-            await self.outbox.emit_analysis_result(EventTypeEnum.ANALYSIS_UPDATED, moderation, emotion)
+            await self.outbox.emit_analysis_result(
+                EventTypeEnum.ANALYSIS_UPDATED, moderation, emotion
+            )
 
             return {
                 "moderation": moderation,
@@ -181,7 +193,6 @@ class HandleEventService:
             }
 
         except RetryableException as e:
-
             await self.task_manager.upsert_failed_task(
                 user_id=user_id,
                 target_id=target_id,
@@ -195,7 +206,6 @@ class HandleEventService:
             raise
 
         except Exception as e:
-
             await self.task_manager.mark_permanent_failed(
                 target_id=target_id,
                 target_type=target_type,

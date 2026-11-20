@@ -5,7 +5,9 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 import type { ChannelWrapper } from 'amqp-connection-manager';
+import Redis from 'ioredis';
 import {
   RiskLevel,
   TriggerFlag,
@@ -58,6 +60,7 @@ export class ProactiveInterventionService {
     @Optional()
     @Inject('RABBITMQ_CHANNEL')
     private readonly rabbitmqChannel?: ChannelWrapper,
+    @Optional() @InjectRedis() private readonly redis?: Redis,
   ) {}
 
   /**
@@ -392,6 +395,31 @@ export class ProactiveInterventionService {
         `Failed to save InterventionLog for user=${userId}`,
         logErr,
       );
+    }
+
+    // 2.5 Cập nhật Redis Hash emotion:longitudinal:{userId}
+    if (this.redis) {
+      const key = `emotion:longitudinal:${userId}`;
+      try {
+        await this.redis
+          .pipeline()
+          .hset(key, {
+            hysteresis_risk_level: String(result.riskLevel),
+            suggested_action: String(result.suggestedAction),
+            chatbot_prompt_context: result.chatbotPromptContext ?? '',
+            longitudinal_updated_at:
+              result.timestamp instanceof Date
+                ? result.timestamp.toISOString()
+                : String(result.timestamp),
+          })
+          .expire(key, 86400)
+          .exec();
+      } catch (redisErr) {
+        this.logger.warn(
+          `Failed to update longitudinal Redis hash for user=${userId}`,
+          redisErr,
+        );
+      }
     }
 
     // 3. Bắn Notification đến RabbitMQ

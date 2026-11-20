@@ -89,15 +89,26 @@ class KafkaConsumerService:
                                     if isinstance(v, bytes):
                                         v = v.decode("utf-8", errors="ignore")
                                     carrier[str(k)] = str(v)
-                            payload_ctx = msg.value.get("payload", {}).get("_traceContext") if isinstance(msg.value, dict) else None
+                            payload_ctx = (
+                                msg.value.get("payload", {}).get("_traceContext")
+                                if isinstance(msg.value, dict)
+                                else None
+                            )
                             if payload_ctx and isinstance(payload_ctx, dict):
                                 for k, v in payload_ctx.items():
                                     if k not in carrier:
                                         carrier[str(k)] = str(v)
                             if "traceparent" in carrier:
                                 try:
-                                    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-                                    extracted_ctx = TraceContextTextMapPropagator().extract(carrier=carrier)
+                                    from opentelemetry.trace.propagation.tracecontext import (
+                                        TraceContextTextMapPropagator,
+                                    )
+
+                                    extracted_ctx = (
+                                        TraceContextTextMapPropagator().extract(
+                                            carrier=carrier
+                                        )
+                                    )
                                 except Exception:
                                     pass
 
@@ -105,11 +116,15 @@ class KafkaConsumerService:
                     try:
                         if extracted_ctx:
                             from opentelemetry import trace
+
                             tracer = trace.get_tracer("ai-chatbot-service")
                             with tracer.start_as_current_span(
                                 f"{self.topic} consume",
                                 context=extracted_ctx,
-                                attributes={"messaging.system": "kafka", "messaging.destination": self.topic}
+                                attributes={
+                                    "messaging.system": "kafka",
+                                    "messaging.destination": self.topic,
+                                },
                             ):
                                 await self.batch_handler(messages)
                         else:
@@ -119,7 +134,10 @@ class KafkaConsumerService:
                     try:
                         await self.consumer.commit()
                     except Exception as commit_err:
-                        logger.warning("[KafkaConsumer] Offset commit warning (batch): %s", commit_err)
+                        logger.warning(
+                            "[KafkaConsumer] Offset commit warning (batch): %s",
+                            commit_err,
+                        )
                 else:
                     await asyncio.sleep(0.1)
             except Exception as e:
@@ -141,25 +159,38 @@ class KafkaConsumerService:
                             if isinstance(v, bytes):
                                 v = v.decode("utf-8", errors="ignore")
                             carrier[str(k)] = str(v)
-                    payload_ctx = msg.value.get("payload", {}).get("_traceContext") if isinstance(msg.value, dict) else None
+                    payload_ctx = (
+                        msg.value.get("payload", {}).get("_traceContext")
+                        if isinstance(msg.value, dict)
+                        else None
+                    )
                     if payload_ctx and isinstance(payload_ctx, dict):
                         for k, v in payload_ctx.items():
                             if k not in carrier:
                                 carrier[str(k)] = str(v)
                     if "traceparent" in carrier:
                         try:
-                            from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-                            extracted_ctx = TraceContextTextMapPropagator().extract(carrier=carrier)
+                            from opentelemetry.trace.propagation.tracecontext import (
+                                TraceContextTextMapPropagator,
+                            )
+
+                            extracted_ctx = TraceContextTextMapPropagator().extract(
+                                carrier=carrier
+                            )
                         except Exception:
                             pass
 
                     if extracted_ctx:
                         from opentelemetry import trace
+
                         tracer = trace.get_tracer("ai-chatbot-service")
                         with tracer.start_as_current_span(
                             f"{self.topic} consume",
                             context=extracted_ctx,
-                            attributes={"messaging.system": "kafka", "messaging.destination": self.topic}
+                            attributes={
+                                "messaging.system": "kafka",
+                                "messaging.destination": self.topic,
+                            },
                         ):
                             await self.handler(msg.value)
                     else:
@@ -168,7 +199,9 @@ class KafkaConsumerService:
                 try:
                     await self.consumer.commit()
                 except Exception as commit_err:
-                    logger.warning("[KafkaConsumer] Offset commit warning (single): %s", commit_err)
+                    logger.warning(
+                        "[KafkaConsumer] Offset commit warning (single): %s", commit_err
+                    )
             except Exception as e:
                 logger.error("[KafkaConsumer] Single handler error: %s", e)
             await asyncio.sleep(0)

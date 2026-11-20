@@ -5,7 +5,9 @@ from app.modules.chatbot.services.rag_engine import rag_document_service
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Index assistant markdown documents into Elasticsearch")
+    parser = argparse.ArgumentParser(
+        description="Index assistant markdown documents into Elasticsearch"
+    )
     parser.add_argument(
         "--force",
         action="store_true",

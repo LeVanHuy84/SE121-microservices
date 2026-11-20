@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, Union
+from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 AssistantRole = Literal["system", "user", "assistant"]
@@ -10,12 +11,14 @@ AssistantRole = Literal["system", "user", "assistant"]
 AssistantResponseType = Literal[
     "answer",
     "greeting",
+    "farewell",
     "out_of_scope",
     "clarify",
     "no_answer",
     "community_blocked",
     "crisis",
     "fallback",
+    "navigation",
 ]
 
 
@@ -47,6 +50,12 @@ class AssistantContextItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SurfaceContext(BaseModel):
+    screen: str = Field(pattern=r"^[a-z]+(\.[a-z_]+)*$")
+    entityId: Optional[str] = Field(default=None, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class AssistantRespondRequest(BaseModel):
     userId: str
     conversationId: Optional[str] = None
@@ -55,6 +64,9 @@ class AssistantRespondRequest(BaseModel):
     history: list[AssistantHistoryItem] = Field(default_factory=list)
     contexts: list[AssistantContextItem] = Field(default_factory=list)
     intent: Optional[str] = None
+    surface: Optional[SurfaceContext] = None
+    authToken: Optional[str] = None
+    aiPolicy: Literal["FULL", "RESTRICTED"] = "RESTRICTED"
 
 
 class AssistantSource(BaseModel):
@@ -65,17 +77,71 @@ class AssistantSource(BaseModel):
     score: Optional[float] = None
 
 
-class AssistantSuggestedAction(BaseModel):
-    type: str
-    label: str
-    payload: dict[str, Any] = Field(default_factory=dict)
+class NavigatePayload(BaseModel):
+    destinationId: str = Field(pattern=r"^[a-z]+(\.[a-z_]+)*$")
+    params: dict[str, str] = Field(default_factory=dict)
+
+
+class NavigateAction(BaseModel):
+    type: Literal["navigate"] = "navigate"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(max_length=40)
+    payload: NavigatePayload
+
+
+class CardPayload(BaseModel):
+    cardType: Literal["profile", "group", "post", "music", "emotion"]
+    title: str
+    subtitle: Optional[str] = None
+    imageUrl: Optional[str] = None
+    actionUrl: Optional[str] = None
+    actionLabel: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ShowCardAction(BaseModel):
+    type: Literal["show_card"] = "show_card"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(default="Xem chi tiết", max_length=40)
+    payload: CardPayload
+
+
+class ProposeActionPayload(BaseModel):
+    actionName: str
+    title: str
+    description: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    idempotencyKey: str = Field(default_factory=lambda: str(uuid4()))
+    proposalToken: str
+    confirmLabel: Optional[str] = "Xác nhận"
+    cancelLabel: Optional[str] = "Hủy"
+    category: Optional[str] = "social"
+    isDestructive: Optional[bool] = False
+    expiresAt: Optional[str] = None
+
+
+class ProposeAction(BaseModel):
+    type: Literal["propose_action"] = "propose_action"
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str = Field(default="Xác nhận thao tác", max_length=40)
+    payload: ProposeActionPayload
+
+
+AssistantSuggestedAction = Annotated[
+    Union[NavigateAction, ShowCardAction, ProposeAction],
+    Field(discriminator="type"),
+]
 
 
 class AssistantRespondData(BaseModel):
     type: AssistantResponseType = "answer"
     reply: str
     sources: list[AssistantSource] = Field(default_factory=list)
-    suggestedActions: list[AssistantSuggestedAction] = Field(default_factory=list)
+    suggestedActions: list[AssistantSuggestedAction] = Field(
+        default_factory=list, max_length=3
+    )
+    cards: list[ShowCardAction] = Field(default_factory=list, max_length=3)
+    proposals: list[ProposeAction] = Field(default_factory=list, max_length=3)
     model: str
     provider: str
     requestId: Optional[str] = None
@@ -83,6 +149,74 @@ class AssistantRespondData(BaseModel):
     persisted: Optional[bool] = None
     conversationId: Optional[str] = None
     crisis: Optional[CrisisInfo] = None
+    policyBlocked: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_crisis_has_no_actions(self) -> "AssistantRespondData":
+        if self.type == "crisis" and (
+            self.suggestedActions or self.cards or self.proposals
+        ):
+            raise ValueError(
+                "Crisis response must not contain suggestedActions, cards, or proposals"
+            )
+        return self
+
+
+class ActionExecutionRequest(BaseModel):
+    actionId: str
+    actionName: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    idempotencyKey: str
+    proposalToken: str
+    conversationId: str
+    authToken: Optional[str] = None
+    userId: Optional[str] = None
+    aiPolicy: Literal["FULL", "RESTRICTED"] = "RESTRICTED"
+
+
+class ActionExecutionResponse(BaseModel):
+    success: bool
+    actionName: str
+    message: str
+    data: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class AssistantConversation(BaseModel):
+    id: str
+    user_id: str
+    title: Optional[str] = None
+    status: Optional[str] = "active"
+    turn_count: Optional[int] = 0
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: Optional[datetime] = None
+    message_count: Optional[int] = None
+
+
+class AssistantConversationListData(BaseModel):
+    items: list[AssistantConversation]
+    total: int
+    max_limit: int = 20
+
+
+class AssistantConversationListResponse(BaseModel):
+    success: bool = True
+    data: AssistantConversationListData
+
+
+class AssistantConversationResponse(BaseModel):
+    success: bool = True
+    data: AssistantConversation
+
+
+class AssistantCreateConversationRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class AssistantDeleteConversationResponse(BaseModel):
+    success: bool = True
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssistantRespondResponse(BaseModel):

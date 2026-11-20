@@ -6,8 +6,8 @@ from .outbox_emitter import OutboxEmitter
 from .task_manager import TaskManager
 
 __all__ = [
-    'EmotionWriter',
-    'ModerationWriter',
-    'OutboxEmitter',
-    'TaskManager',
+    "EmotionWriter",
+    "ModerationWriter",
+    "OutboxEmitter",
+    "TaskManager",
 ]

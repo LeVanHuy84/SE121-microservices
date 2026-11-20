@@ -1,11 +1,16 @@
 import logging
+import os
 from pathlib import Path
+import threading
 from typing import Dict, Any, List
 import numpy as np
 import onnxruntime as ort
 
+from app.core.executors import run_in_chatbot_executor
 from app.core.settings import settings
 from app.modules.analysis.services.ml_models.model_resolver import resolve_onnx_model
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +43,8 @@ class PhoBERTModerator:
         self.tokenizer = None
         self.session = None
         self.initialized = False
+        self._load_lock = threading.Lock()
+        self._tokenizer_lock = threading.Lock()
         self.model_name = settings.PHOBERT_MODERATION_MODEL_PATH
         self.precision = getattr(
             settings, "PHOBERT_MODERATION_PRECISION", "int8"
@@ -49,64 +56,70 @@ class PhoBERTModerator:
         if self.initialized:
             return
 
-        try:
-            candidate_dirs = [
-                Path(__file__).resolve().parents[7] / "evaluation" / "weights",
-                Path("evaluation/weights").resolve(),
-                Path("../evaluation/weights").resolve(),
-                Path("../../evaluation/weights").resolve(),
-            ]
+        with self._load_lock:
+            if self.initialized:
+                return
+            try:
+                candidate_dirs = [
+                    Path(__file__).resolve().parents[8] / "evaluation" / "weights",
+                    Path("evaluation/weights").resolve(),
+                    Path("../evaluation/weights").resolve(),
+                    Path("../../evaluation/weights").resolve(),
+                ]
 
-            self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
-                model_path_or_repo=self.model_name,
-                explicit_onnx_path=settings.PHOBERT_MODERATION_ONNX_PATH,
-                precision=self.precision,
-                model_type_hint="phobert_moderation",
-                candidate_local_dirs=candidate_dirs,
-            )
+                self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
+                    model_path_or_repo=self.model_name,
+                    explicit_onnx_path=settings.PHOBERT_MODERATION_ONNX_PATH,
+                    precision=self.precision,
+                    model_type_hint="phobert_moderation",
+                    candidate_local_dirs=candidate_dirs,
+                )
 
-            logger.info(
-                "[PhoBERTModerator] Loading ONNX (%s) moderation model from: %s (Tokenizer: %s)",
-                self.precision,
-                self.onnx_model_path,
-                self.tokenizer_source,
-            )
+                logger.info(
+                    "[PhoBERTModerator] Loading ONNX (%s) moderation model from: %s (Tokenizer: %s)",
+                    self.precision,
+                    self.onnx_model_path,
+                    self.tokenizer_source,
+                )
 
-            from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import (
-                phobert_emotion_model,
-            )
-            from app.modules.analysis.services.ml_models.tokenizer_adapter import (
-                safe_load_tokenizer,
-            )
+                from app.modules.analysis.services.ml_models.text_emotion.phobert_emotion_model import (
+                    phobert_emotion_model,
+                )
+                from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                    safe_load_tokenizer,
+                )
 
-            if (
-                phobert_emotion_model.is_loaded()
-                and phobert_emotion_model.tokenizer is not None
-            ):
-                self.tokenizer = phobert_emotion_model.tokenizer
-            else:
-                self.tokenizer = safe_load_tokenizer(self.tokenizer_source)
+                if (
+                    phobert_emotion_model.is_loaded()
+                    and phobert_emotion_model.tokenizer is not None
+                ):
+                    self.tokenizer = phobert_emotion_model.tokenizer
+                else:
+                    self.tokenizer = safe_load_tokenizer(self.tokenizer_source)
 
-            opts = ort.SessionOptions()
-            opts.intra_op_num_threads = 2
-            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            opts.enable_cpu_mem_arena = False
-            opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+                opts = ort.SessionOptions()
+                opts.intra_op_num_threads = 1
+                opts.inter_op_num_threads = 1
+                opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                opts.graph_optimization_level = (
+                    ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                )
+                opts.enable_cpu_mem_arena = False
+                opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
 
-            self.session = ort.InferenceSession(
-                self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
-            )
-            self.initialized = True
-            logger.info(
-                f"[PhoBERTModerator] ✓ ONNX ({self.precision}) moderation model loaded successfully on CPU"
-            )
+                self.session = ort.InferenceSession(
+                    self.onnx_model_path, opts, providers=["CPUExecutionProvider"]
+                )
+                self.initialized = True
+                logger.info(
+                    f"[PhoBERTModerator] ✓ ONNX ({self.precision}) moderation model loaded successfully on CPU"
+                )
 
-        except Exception as e:
-            logger.warning(
-                f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled."
-            )
-            self.session = None
+            except Exception as e:
+                logger.warning(
+                    f"[PhoBERTModerator] Load failed for {self.model_name}: {e}. Fallback enabled."
+                )
+                self.session = None
 
     def infer(self, text: str) -> Dict[str, Any]:
         """
@@ -167,13 +180,14 @@ class PhoBERTModerator:
             processed_sentences = [text]
 
         # Batch Tokenization & ONNX Inference
-        inputs = self.tokenizer(
-            processed_sentences,
-            return_tensors="np",
-            truncation=True,
-            max_length=256,
-            padding=True,
-        )
+        with self._tokenizer_lock:
+            inputs = self.tokenizer(
+                processed_sentences,
+                return_tensors="np",
+                truncation=True,
+                max_length=256,
+                padding=True,
+            )
 
         ort_inputs = {
             "input_ids": inputs["input_ids"].astype(np.int64),
@@ -258,6 +272,10 @@ class PhoBERTModerator:
                 "all_scores": scores_dict,
                 "model": "phobert_binary",
             }
+
+    async def infer_async(self, text: str) -> Dict[str, Any]:
+        """Run moderation inference on the dedicated interactive chatbot ML pool."""
+        return await run_in_chatbot_executor(self.infer, text)
 
 
 # ---------- Singleton + ensure ----------

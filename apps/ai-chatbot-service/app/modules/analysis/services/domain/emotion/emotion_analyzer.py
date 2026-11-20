@@ -70,7 +70,8 @@ class EmotionAnalyzer:
         w_img = img_conf / total_conf
 
         fused = {
-            e.value: w_text * txt_scores.get(e.value, 0.0) + w_img * img_scores.get(e.value, 0.0)
+            e.value: w_text * txt_scores.get(e.value, 0.0)
+            + w_img * img_scores.get(e.value, 0.0)
             for e in EmotionEnum
         }
 
@@ -99,10 +100,7 @@ class EmotionAnalyzer:
         else:
             level = IntensityLevelEnum.MILD.value
 
-        return {
-            "level": level,
-            "score": round(float(max_score), 3)
-        }
+        return {"level": level, "score": round(float(max_score), 3)}
 
     def average_image_scores(self, image_results: List[dict]) -> dict:
         """
@@ -169,9 +167,7 @@ class EmotionAnalyzer:
         dynamic_threshold = max(0.10, primary_prob * 0.45)
 
         secondary_emotions = [
-            emotion
-            for emotion, prob in sorted_items[1:]
-            if prob >= dynamic_threshold
+            emotion for emotion, prob in sorted_items[1:] if prob >= dynamic_threshold
         ]
 
         return {

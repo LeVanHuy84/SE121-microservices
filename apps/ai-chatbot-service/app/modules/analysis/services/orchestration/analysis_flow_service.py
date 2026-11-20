@@ -18,7 +18,9 @@ from app.modules.analysis.services.domain.emotion import emotion_analyzer
 
 # AI Layer
 from app.modules.analysis.services.ml_models.text_emotion import text_emotion_classifier
-from app.modules.analysis.services.ml_models.text_moderation import moderation_aggregator
+from app.modules.analysis.services.ml_models.text_moderation import (
+    moderation_aggregator,
+)
 from app.modules.analysis.services.ml_models.vlm import vlm_analyzer
 
 # Utils
@@ -34,7 +36,9 @@ def map_vlm_moderation(vlm_mod: dict) -> tuple:
     """
     is_flagged = bool(vlm_mod.get("is_flagged", False))
     raw_cats = vlm_mod.get("flagged_categories", [])
-    normalized_cats = [str(c).strip().upper().replace("-", "_") for c in raw_cats if str(c).strip()]
+    normalized_cats = [
+        str(c).strip().upper().replace("-", "_") for c in raw_cats if str(c).strip()
+    ]
 
     if not is_flagged:
         return False, "ALLOW", "CLEAN", 0, False, normalized_cats
@@ -48,15 +52,29 @@ def map_vlm_moderation(vlm_mod: dict) -> tuple:
         return False, "ALLOW_WITH_SUPPORT", "EMOTIONAL_CRISIS", 3, True, normalized_cats
 
     # 3. Chui the xa stress nhe (PROFANITY_VENTING): Cho dang kem canh bao
-    if any(c in normalized_cats for c in ["PROFANITY_VENTING", "PROFANITY", "BAD_WORDS"]):
-        return False, "ALLOW_WITH_WARNING", "PROFANITY_VENTING", 1, False, normalized_cats
+    if any(
+        c in normalized_cats for c in ["PROFANITY_VENTING", "PROFANITY", "BAD_WORDS"]
+    ):
+        return (
+            False,
+            "ALLOW_WITH_WARNING",
+            "PROFANITY_VENTING",
+            1,
+            False,
+            normalized_cats,
+        )
 
     # 4. Khieu dam / Doi truy / 18+ (ILLEGAL_PORN)
-    if any(c in normalized_cats for c in ["ILLEGAL_PORN", "NSFW_ADULT", "NSFW", "SEXUAL", "PORN"]):
+    if any(
+        c in normalized_cats
+        for c in ["ILLEGAL_PORN", "NSFW_ADULT", "NSFW", "SEXUAL", "PORN"]
+    ):
         return True, "HARD_BLOCK", "ILLEGAL_PORN", 4, False, normalized_cats
 
     # 5. Bao luc dam mau / Mau me (GRAPHIC_VIOLENCE)
-    if any(c in normalized_cats for c in ["GRAPHIC_VIOLENCE", "BLOOD", "VIOLENCE", "GORE"]):
+    if any(
+        c in normalized_cats for c in ["GRAPHIC_VIOLENCE", "BLOOD", "VIOLENCE", "GORE"]
+    ):
         return True, "HARD_BLOCK", "GRAPHIC_VIOLENCE", 6, False, normalized_cats
 
     # 6. Vu khi / De doa bao luc (WEAPON_THREAT)
@@ -83,26 +101,23 @@ class AnalysisFlowService:
     # PUBLIC API
     # ======================================================
     async def analyze_content(
-        self,
-        text: str,
-        image_urls: List[str],
-        target_type: TargetTypeEnum
+        self, text: str, image_urls: List[str], target_type: TargetTypeEnum
     ) -> Dict[str, Any]:
-
         # Download images if provided
         image_inputs: List[ImageInput] = []
         if image_urls:
             try:
                 image_inputs = await image_downloader.download(
-                    urls=image_urls,
-                    timeout=10
+                    urls=image_urls, timeout=10
                 )
             except Exception as e:
                 logger.warning(f"Image download warning: {e}")
 
         # Routing: Multimodal (VLM) vs Text-only (PhoBERT)
         if image_inputs or image_urls:
-            return await self._analyze_multimodal_vlm(text, image_inputs or image_urls, target_type)
+            return await self._analyze_multimodal_vlm(
+                text, image_inputs or image_urls, target_type
+            )
         else:
             return await self._analyze_text_only(text, target_type, is_fallback=False)
 
@@ -110,17 +125,18 @@ class AnalysisFlowService:
     # MULTIMODAL VLM FLOW (TEXT + IMAGE)
     # ======================================================
     async def _analyze_multimodal_vlm(
-        self,
-        text: str,
-        image_inputs: List[Any],
-        target_type: TargetTypeEnum
+        self, text: str, image_inputs: List[Any], target_type: TargetTypeEnum
     ) -> Dict[str, Any]:
-        logger.info(f"[AnalysisFlow] Routing to Unified VLM Pipeline for Multimodal content ({len(image_inputs)} images)...")
-        
+        logger.info(
+            f"[AnalysisFlow] Routing to Unified VLM Pipeline for Multimodal content ({len(image_inputs)} images)..."
+        )
+
         try:
             vlm_res = await vlm_analyzer.analyze_post(text, image_inputs)
         except Exception as e:
-            logger.error(f"[AnalysisFlow] VLM execution error: {e}. Fallback to text moderation.")
+            logger.error(
+                f"[AnalysisFlow] VLM execution error: {e}. Fallback to text moderation."
+            )
             return await self._analyze_text_only(text, target_type, is_fallback=True)
 
         vlm_mod = vlm_res.get("contentModeration", {})
@@ -133,7 +149,11 @@ class AnalysisFlowService:
             flagged_cats,
         ) = map_vlm_moderation(vlm_mod)
 
-        confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
+        confidence = (
+            float(vlm_mod.get("confidence", 0.95))
+            if should_block
+            else float(vlm_mod.get("confidence", 1.0))
+        )
 
         moderation_result = {
             "isViolation": should_block,
@@ -145,19 +165,21 @@ class AnalysisFlowService:
             "reason": vlm_mod.get("reason", ""),
             "flaggedCategories": flagged_cats,
             "pipelineSource": "VLM_UNIFIED",
-            "allScores": {label: confidence}
+            "allScores": {label: confidence},
         }
 
-
         if target_type == TargetTypeEnum.SHARE or should_block:
-            logger.info(f"Multimodal content processed → shouldBlock: {should_block}, action: {action}")
+            logger.info(
+                f"Multimodal content processed → shouldBlock: {should_block}, action: {action}"
+            )
             return {
                 "moderation": moderation_result,
                 "emotion": None,
                 "shouldBlock": should_block,
-                "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
+                "skipReason": "share_type"
+                if target_type == TargetTypeEnum.SHARE
+                else "blocked_content",
             }
-
 
         # Emotion DTO
         primary_emotion = vlm_res.get("primaryEmotion", "neutral")
@@ -165,7 +187,11 @@ class AnalysisFlowService:
         final_scores = vlm_res.get("emotionScores", {})
         confidence = float(vlm_res.get("finalConfidence", 0.8))
         raw_intensity = vlm_res.get("intensity", "moderate")
-        intensity_dict = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity), "score": confidence}
+        intensity_dict = (
+            raw_intensity
+            if isinstance(raw_intensity, dict)
+            else {"level": str(raw_intensity), "score": confidence}
+        )
 
         emotion_result = {
             "primaryEmotion": primary_emotion,
@@ -179,7 +205,9 @@ class AnalysisFlowService:
             "mentalHealthRiskLevel": vlm_res.get("mentalHealthRiskLevel", "none"),
             "suggestedAction": vlm_res.get("suggestedAction", "NO_ACTION"),
             "content": text,
-            "imageUrls": [img.url if hasattr(img, "url") else str(img) for img in image_inputs]
+            "imageUrls": [
+                img.url if hasattr(img, "url") else str(img) for img in image_inputs
+            ],
         }
 
         return {
@@ -189,8 +217,7 @@ class AnalysisFlowService:
         }
 
     async def analyze_batch_multimodal_vlm(
-        self,
-        batch_items: List[Dict[str, Any]]
+        self, batch_items: List[Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Analyze multiple multimodal posts in a SINGLE VLM API request.
@@ -200,26 +227,32 @@ class AnalysisFlowService:
         if not batch_items:
             return {}
 
-        logger.info(f"[AnalysisFlow] Batch processing {len(batch_items)} Multimodal posts via VLM...")
-        
+        logger.info(
+            f"[AnalysisFlow] Batch processing {len(batch_items)} Multimodal posts via VLM..."
+        )
+
         vlm_posts = []
         for item in batch_items:
-            vlm_posts.append({
-                "id": item["id"],
-                "text": item["text"],
-                "images": item.get("image_inputs") or item.get("images", [])
-            })
+            vlm_posts.append(
+                {
+                    "id": item["id"],
+                    "text": item["text"],
+                    "images": item.get("image_inputs") or item.get("images", []),
+                }
+            )
 
         try:
             batch_vlm_res = await vlm_analyzer.analyze_batch_posts(vlm_posts)
         except Exception as e:
-            logger.error(f"[AnalysisFlow] Batch VLM execution error: {e}. Falling back to item-by-item processing.")
+            logger.error(
+                f"[AnalysisFlow] Batch VLM execution error: {e}. Falling back to item-by-item processing."
+            )
             results = {}
             for item in batch_items:
                 results[item["id"]] = await self._analyze_multimodal_vlm(
                     text=item["text"],
                     image_inputs=item.get("image_inputs") or item.get("images", []),
-                    target_type=item.get("target_type", TargetTypeEnum.POST)
+                    target_type=item.get("target_type", TargetTypeEnum.POST),
                 )
             return results
 
@@ -232,7 +265,9 @@ class AnalysisFlowService:
             vlm_res = batch_vlm_res.get(p_id)
 
             if not vlm_res:
-                final_batch_results[p_id] = await self._analyze_text_only(text, target_type, is_fallback=True)
+                final_batch_results[p_id] = await self._analyze_text_only(
+                    text, target_type, is_fallback=True
+                )
                 continue
 
             vlm_mod = vlm_res.get("contentModeration", {})
@@ -245,7 +280,11 @@ class AnalysisFlowService:
                 flagged_cats,
             ) = map_vlm_moderation(vlm_mod)
 
-            confidence = float(vlm_mod.get("confidence", 0.95)) if should_block else float(vlm_mod.get("confidence", 1.0))
+            confidence = (
+                float(vlm_mod.get("confidence", 0.95))
+                if should_block
+                else float(vlm_mod.get("confidence", 1.0))
+            )
 
             moderation_result = {
                 "isViolation": should_block,
@@ -257,26 +296,30 @@ class AnalysisFlowService:
                 "reason": vlm_mod.get("reason", ""),
                 "flaggedCategories": flagged_cats,
                 "pipelineSource": "VLM_UNIFIED_BATCH",
-                "allScores": {label: confidence}
+                "allScores": {label: confidence},
             }
-
 
             if target_type == TargetTypeEnum.SHARE or should_block:
                 final_batch_results[p_id] = {
                     "moderation": moderation_result,
                     "emotion": None,
                     "shouldBlock": should_block,
-                    "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
+                    "skipReason": "share_type"
+                    if target_type == TargetTypeEnum.SHARE
+                    else "blocked_content",
                 }
                 continue
-
 
             primary_emotion = vlm_res.get("primaryEmotion", "neutral")
             secondary_emotions = vlm_res.get("secondaryEmotions", [])
             final_scores = vlm_res.get("emotionScores", {})
             confidence = float(vlm_res.get("finalConfidence", 0.8))
             raw_intensity = vlm_res.get("intensity", "moderate")
-            intensity_dict = raw_intensity if isinstance(raw_intensity, dict) else {"level": str(raw_intensity), "score": confidence}
+            intensity_dict = (
+                raw_intensity
+                if isinstance(raw_intensity, dict)
+                else {"level": str(raw_intensity), "score": confidence}
+            )
 
             emotion_result = {
                 "primaryEmotion": primary_emotion,
@@ -290,7 +333,9 @@ class AnalysisFlowService:
                 "mentalHealthRiskLevel": vlm_res.get("mentalHealthRiskLevel", "none"),
                 "suggestedAction": vlm_res.get("suggestedAction", "NO_ACTION"),
                 "content": text,
-                "imageUrls": [img.url if hasattr(img, "url") else str(img) for img in image_inputs]
+                "imageUrls": [
+                    img.url if hasattr(img, "url") else str(img) for img in image_inputs
+                ],
             }
 
             final_batch_results[p_id] = {
@@ -305,13 +350,12 @@ class AnalysisFlowService:
     # TEXT-ONLY FLOW (PHOBERT)
     # ======================================================
     async def _analyze_text_only(
-        self,
-        text: str,
-        target_type: TargetTypeEnum,
-        is_fallback: bool = False
+        self, text: str, target_type: TargetTypeEnum, is_fallback: bool = False
     ) -> Dict[str, Any]:
         source_tag = "PHOBERT_TEXT_FALLBACK" if is_fallback else "PHOBERT_TEXT_ONLY"
-        logger.info(f"[AnalysisFlow] Routing to Text-only PhoBERT Pipeline ({source_tag})...")
+        logger.info(
+            f"[AnalysisFlow] Routing to Text-only PhoBERT Pipeline ({source_tag})..."
+        )
 
         # Moderation First
         text_moderation = moderation_aggregator.moderate(text)
@@ -324,21 +368,26 @@ class AnalysisFlowService:
             "label": text_moderation.get("label", "CLEAN"),
             "labelCode": text_moderation.get("labelCode", 0),
             "confidence": float(text_moderation.get("confidence", 1.0)),
-            "mentalHealthSupport": bool(text_moderation.get("mentalHealthSupport", False)),
+            "mentalHealthSupport": bool(
+                text_moderation.get("mentalHealthSupport", False)
+            ),
             "reason": text_moderation.get("reason", ""),
             "flaggedCategories": text_moderation.get("flaggedCategories", []),
             "pipelineSource": source_tag,
-            "allScores": text_moderation.get("allScores", {})
+            "allScores": text_moderation.get("allScores", {}),
         }
 
-
         if target_type == TargetTypeEnum.SHARE or should_block:
-            logger.info(f"Text-only content processed → shouldBlock: {should_block}, action: {action}")
+            logger.info(
+                f"Text-only content processed → shouldBlock: {should_block}, action: {action}"
+            )
             return {
                 "moderation": moderation_result,
                 "emotion": None,
                 "shouldBlock": should_block,
-                "skipReason": "share_type" if target_type == TargetTypeEnum.SHARE else "blocked_content",
+                "skipReason": "share_type"
+                if target_type == TargetTypeEnum.SHARE
+                else "blocked_content",
             }
 
         # Emotion Analysis (Always runs for CLEAN, PROFANITY_VENTING, and EMOTIONAL_CRISIS)
@@ -346,7 +395,6 @@ class AnalysisFlowService:
         text_scores = text_emotion.get("emotionScores", {})
         text_confidence = float(text_emotion.get("confidence", 0.8))
         intensity_obj = emotion_analyzer.calculate_intensity(text_scores)
-
 
         # Enhance risk hint level if emotional crisis label detected
         risk_hint = "high" if action == "ALLOW_WITH_SUPPORT" else "none"
@@ -361,9 +409,11 @@ class AnalysisFlowService:
             "isSarcasmOrConflict": False,
             "conflictExplanation": "",
             "mentalHealthRiskLevel": risk_hint,
-            "suggestedAction": "SUGGEST_AI_CHATBOT" if action == "ALLOW_WITH_SUPPORT" else "NO_ACTION",
+            "suggestedAction": "SUGGEST_AI_CHATBOT"
+            if action == "ALLOW_WITH_SUPPORT"
+            else "NO_ACTION",
             "content": text,
-            "imageUrls": []
+            "imageUrls": [],
         }
 
         return {
@@ -371,7 +421,6 @@ class AnalysisFlowService:
             "emotion": emotion_result,
             "shouldBlock": should_block,
         }
-
 
 
 # Singleton Instance

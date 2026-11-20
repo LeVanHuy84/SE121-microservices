@@ -1,55 +1,78 @@
 ---
 id: guide-chat
-title: Hướng dẫn Nhắn tin và Trò chuyện
+title: Hướng dẫn Nhắn tin, Trò chuyện và Trợ lý AI Sentimeta
 topic: huong-dan
 lang: vi
 version: v2
+tier: system_guide
 ---
 # Kết Nối và Chia Sẻ qua Trò Chuyện
 
-Dù là kể chuyện với bạn bè hay tâm sự cùng Chatbot AI, Sentimeta luôn tạo ra một không gian riêng tư, an toàn và ấm áp cho bạn.
+Dù là tâm sự cùng bạn bè hay trò chuyện cùng Trợ lý AI, Sentimeta luôn mang đến cho bạn một không gian trò chuyện riêng tư, tiện lợi và an toàn.
 
-## Phần 1: Nhắn tin với Bạn bè
+## Phần 1: Nhắn tin và Gọi thoại/Video với Bạn bè (`/conversations`)
 
-### Trò chuyện cá nhân
-Bạn có thể nhắn tin trực tiếp với bạn bè theo thời gian thực. Ngoài chữ viết, bạn còn có thể:
-- **Gửi ảnh:** Chia sẻ những khoảnh khắc đáng nhớ.
-- **Ghi âm (Voice note):** Đôi khi một giọng nói ấm áp nói lên được nhiều điều hơn cả ngàn chữ.
-- **Gửi video/file:** Trao đổi tài liệu hay những thứ bạn muốn lưu giữ cùng nhau.
+Giao diện mục **"Tin nhắn" (`/conversations`)** được tối ưu hóa cho trải nghiệm liên lạc mượt mà theo thời gian thực:
 
-> Nếu file ảnh/video lớn, tin nhắn có thể mất vài giây để gửi đi — bạn cứ yên tâm chờ một chút nhé.
+### 1. Danh sách Hội thoại (Cột bên trái)
+- Hiển thị danh sách các cuộc trò chuyện cá nhân 1-1 và các nhóm chat gần nhất.
+- Chấm xanh hiển thị bên cạnh ảnh đại diện biểu thị trạng thái bạn bè đang trực tuyến (Online).
+- Thanh tìm kiếm giúp bạn nhanh chóng lọc tên bạn bè hoặc tên nhóm chat.
+- Nút tạo cuộc trò chuyện mới hoặc tạo nhóm chat riêng để trò chuyện nhiều người.
 
-### Bảo mật Tuyệt đối
-Cuộc trò chuyện của bạn với bạn bè chỉ hiển thị cho những người tham gia cuộc trò chuyện trong ứng dụng. Lưu ý: Sentimeta **hiện chưa hỗ trợ mã hóa đầu cuối**, nên đội ngũ kỹ thuật có thể truy cập nội dung khi cần thiết để vận hành hoặc xử lý vi phạm.
+### 2. Khung Trò chuyện Chi tiết (Cột bên phải)
+- **Thanh tiêu đề cuộc trò chuyện:**
+  - Hiển thị tên bạn bè/nhóm, ảnh đại diện và trạng thái hoạt động (online hoặc thời gian truy cập gần nhất).
+  - **Nút Cuộc gọi thoại (Biểu tượng Điện thoại):** Bắt đầu cuộc gọi thoại trực tiếp qua nền tảng Stream Video.
+  - **Nút Cuộc gọi video (Biểu tượng Máy quay):** Bắt đầu cuộc gọi hình ảnh sắc nét, có thể bật/tắt camera hoặc micro dễ dàng.
+- **Nội dung tin nhắn đa phương tiện:**
+  - **Tin nhắn văn bản:** Trò chuyện tin nhắn tức thì.
+  - **Gửi ảnh & Video:** Chia sẻ khoảnh khắc đẹp từ thiết bị của bạn.
+  - **Ghi âm giọng nói (Voice Note):** Bấm biểu tượng micro ở thanh soạn thảo để gửi lời nhắn ấm áp bằng giọng nói.
+  - **Tập tin đính kèm:** Gửi tài liệu học tập, công việc hoặc file hình ảnh.
+  - **Trạng thái tin nhắn:** Hiển thị rõ ràng trạng thái Đã gửi, Đã nhận và Đã xem.
+- **Quản lý tin nhắn:**
+  - **Thu hồi tin nhắn:** Bạn có thể thu hồi tin nhắn đã gửi cho cả hai phía bất kỳ lúc nào nếu lỡ gửi nhầm.
+  - **Thả cảm xúc & Sao chép:** Rê chuột vào tin nhắn (hoặc chạm giữ trên điện thoại) để thả biểu tượng cảm xúc hoặc sao chép nội dung.
 
-### Quản lý Cuộc trò chuyện
-- **Thu hồi tin nhắn:** Nhắn nhầm? Bạn có thể thu hồi tin nhắn ở cả hai phía.
-- **Trạng thái hoạt động:** Biết được bạn bè đang online hay đã xem tin của bạn chưa.
+### 3. Tắt thông báo Cuộc trò chuyện hoặc Nhóm chat (Mute Chat)
+- Khi một cuộc trò chuyện 1-1 hoặc nhóm chat có quá nhiều tin nhắn mới liên tục gây phiền toái, bạn có thể tắt riêng thông báo của hội thoại đó mà không cần tắt toàn bộ thông báo ứng dụng:
+  1. Truy cập mục **Tin nhắn (`/conversations`)** và chọn cuộc trò chuyện hoặc nhóm chat cần tắt.
+  2. Nhấp vào tên hội thoại ở thanh tiêu đề (hoặc biểu tượng dấu ba chấm `...` ở góc trên bên phải khung chat).
+  3. Chọn mục **"Tắt thông báo" (Mute Notifications)**.
+  4. Lựa chọn khoảng thời gian tắt thông báo (1 giờ, 8 giờ, 1 tuần hoặc Cho đến khi bạn bật lại).
+  - *Lưu ý phân biệt:* Việc tắt thông báo cuộc trò chuyện chỉ áp dụng cho riêng nhóm chat đó. Bạn vẫn nhận được tin nhắn bình thường khi mở ứng dụng và các thông báo khác (kết bạn, thông báo bài viết) vẫn hoạt động nguyên vẹn.
+
+### 4. Lưu ý về Quyền Riêng tư & Bảo mật Tin nhắn
+- Tin nhắn cá nhân chỉ hiển thị cho các thành viên trong cuộc trò chuyện trong ứng dụng.
+- Lưu ý: Sentimeta **hiện chưa hỗ trợ mã hóa đầu cuối**, nên đội ngũ kỹ thuật có thể truy cập nội dung trong một số trường hợp cần thiết để vận hành hệ thống hoặc xử lý vi phạm tiêu chuẩn cộng đồng. Bạn vui lòng tránh chia sẻ mật khẩu tài khoản hoặc dữ liệu quá nhạy cảm qua tin nhắn.
 
 ---
 
-## Phần 2: Trò chuyện với Chatbot AI của Sentimeta
+## Phần 2: Trò chuyện cùng Trợ lý AI Sentimeta (Sentimeta Assistant)
 
-Đây là tính năng đặc biệt nhất mà Sentimeta tự hào. Chatbot AI không chỉ trả lời câu hỏi — nó thực sự lắng nghe và quan tâm đến bạn.
+Trợ lý AI là người bạn đồng hành đặc biệt của Sentimeta, luôn lắng nghe và hỗ trợ bạn 24/7.
 
-### Bạn có thể hỏi Chatbot bất cứ điều gì về ứng dụng
-- *"Làm sao để tạo một nhóm?"*
-- *"Tôi muốn đổi ảnh đại diện thì làm thế nào?"*
-- *"Tại sao bài viết của tôi bị ẩn?"*
-- *"Cách tìm kiếm bạn bè như thế nào?"*
+### 1. Cách Mở Khung Trò chuyện với Trợ lý AI
+- Nhấp vào **biểu tượng Trợ lý AI (nút bong bóng chat)** ở góc dưới bên phải màn hình chính.
+- Khung trò chuyện dạng trượt **Assistant Sheet** (trên Web) hoặc Modal trò chuyện (trên Mobile) sẽ xuất hiện mượt mà ngay tại trang bạn đang xem mà không làm gián đoạn trải nghiệm.
 
-Chatbot biết rõ từng góc nhỏ của Sentimeta và sẽ giải thích cho bạn bằng ngôn ngữ thật dễ hiểu.
+### 2. Các Năng lực Nổi bật của Trợ lý AI trên Giao diện
+- **Lắng nghe và Hỗ trợ Tâm lý:**
+  - Khi bạn mệt mỏi hay có tâm sự nặng lòng, Trợ lý AI luôn sẵn sàng lắng nghe không phán xét, phản hồi bằng sự chân thành và hướng dẫn các bài tập hít thở (ACBT) hoặc thư giãn cơ bắp tiến triển (PMR).
+- **Giải đáp Thắc mắc về Ứng dụng:**
+  - Bạn có thể hỏi bất kỳ câu hỏi nào như: *"Làm sao để đổi ảnh đại diện?"*, *"Tại sao bài viết của tôi bị ẩn?"*, *"Cách tìm nhóm yoga?"*, Trợ lý sẽ giải thích chi tiết, ngắn gọn và dễ hiểu.
+- **Nút Điều hướng Nhanh (Smart Navigation Buttons):**
+  - Trợ lý AI tự động đính kèm các nút bấm chuyển hướng trực tiếp bên dưới câu trả lời (`[Đến trang Bạn bè]`, `[Mở Lời mời kết bạn]`, `[Khám phá nhóm]`, `[Xem Cài đặt thông báo]`, `[Không gian Cảm xúc]`, v.v.). Bấm vào nút sẽ lập tức đưa bạn đến đúng màn hình cần thao tác.
+- **Thẻ Thông tin Trực quan (Mini Cards):**
+  - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ ngay trong khung chat: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý âm nhạc (`MusicCard`), Thẻ danh sách lời mời kết bạn (`FriendRequestsCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`).
+- **Thực thi Hành động An toàn có Xác nhận (Action Confirmation Cards):**
+  - Khi bạn nhờ Trợ lý thực hiện thao tác (ví dụ: *"Gửi kết bạn cho bạn này"*, *"Tham gia nhóm"*, *"Đánh dấu đã đọc hết thông báo"*), Trợ lý luôn hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu khi chưa có sự xác nhận của bạn.
 
-### Chatbot lắng nghe khi bạn muốn tâm sự
-Đôi khi bạn không cần ai giải quyết vấn đề — bạn chỉ cần ai đó lắng nghe. Chatbot hiểu điều đó. Bạn cứ chia sẻ, dù là chuyện nhỏ hay chuyện đang nặng lòng, Chatbot sẽ không phán xét và luôn đáp lại bằng sự ân cần.
+### 3. Hỗ trợ Khẩn cấp khi Phát hiện Khủng hoảng
+Nếu bạn đang trải qua giai đoạn bế tắc cùng cực, trầm cảm nặng hoặc có ý định tự hại, Trợ lý AI sẽ ưu tiên phản hồi an toàn và cung cấp ngay các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
+- **1900 599 830** (Đường dây nóng Ngày Mai - Hỗ trợ khủng hoảng tâm lý & trầm cảm)
+- **111** (Tổng đài Quốc gia Bảo vệ Trẻ em & Tham vấn Tâm lý)
+- **115** (Cấp cứu y tế khẩn cấp)
 
-### Chatbot chủ động hỏi thăm bạn
-Nếu qua những gì bạn chia sẻ gần đây, Chatbot cảm nhận được bạn đang không ổn, nó sẽ chủ động mở đầu cuộc trò chuyện bằng một câu hỏi thăm nhẹ nhàng — không phán xét, không ép buộc, chỉ là quan tâm thật lòng.
-
-### Khi bạn chia sẻ điều nặng nề
-Nếu bạn đang trải qua giai đoạn rất khó khăn và cần hỗ trợ khẩn cấp, Chatbot sẽ:
-- Nhận ra ngay tình trạng của bạn.
-- Trả lời bằng sự ấm áp và quan tâm tuyệt đối.
-- Cung cấp thông tin về các đường dây hỗ trợ tâm lý miễn phí 24/7: **1900 599 830** (Đường dây nóng Ngày Mai) và **111** (Tổng đài Quốc gia) để bạn có thể kết nối với chuyên gia ngay lập tức.
-
-> **Nhớ nhé:** Bạn không bao giờ phải đối mặt với một mình. Chatbot luôn ở đây, bất kể mấy giờ.
+> **Ghi nhớ:** Bạn không bao giờ phải cô đơn đối mặt với khó khăn. Sentimeta luôn ở đây bên bạn!

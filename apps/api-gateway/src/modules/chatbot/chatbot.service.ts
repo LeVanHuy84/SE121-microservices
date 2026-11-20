@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
+import { InjectRedis } from "@nestjs-modules/ioredis";
 import {
   HttpException,
+  Inject,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -8,7 +11,9 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
-import { firstValueFrom, Observable } from "rxjs";
+import { ClientProxy } from "@nestjs/microservices";
+import Redis from "ioredis";
+import { firstValueFrom, Observable, timeout } from "rxjs";
 import { AxiosError } from "axios";
 
 import {
@@ -19,6 +24,7 @@ import {
   ChatbotClearHistoryResponseDto,
   ChatbotHistoryResponseDto,
 } from "@repo/dtos";
+import { MICROSERVICES_CLIENTS } from "src/common/constants";
 import { AssistantContextService } from "./assistant-context.service";
 
 type RespondCacheEntry = {
@@ -35,29 +41,104 @@ type LatencySummary = {
 
 @Injectable()
 export class ChatbotService {
+  private static readonly AI_POLICY_CACHE_TTL_SECONDS = 300;
+  private static readonly POLICY_CIRCUIT_BREAKER_MS = 10_000;
+  private static readonly POLICY_CIRCUIT_FAILURE_THRESHOLD = 3;
   private readonly logger = new Logger(ChatbotService.name);
   private readonly metricsLatencies = new Map<string, number[]>();
   private readonly metricsCounters = new Map<string, number>();
+  private policyCircuitOpenUntil = 0;
+  private policyConsecutiveFailures = 0;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly contextService: AssistantContextService,
+    @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
+    private readonly userClient: ClientProxy,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  async respond(userId: string, dto: AssistantMessageDto) {
+  async resolveUserAiPolicy(userId: string): Promise<"FULL" | "RESTRICTED"> {
+    if (Date.now() < this.policyCircuitOpenUntil) {
+      this.logger.warn(
+        `AI policy circuit breaker open for ${userId}; failing closed to RESTRICTED`,
+      );
+      return "RESTRICTED";
+    }
+
+    const cacheKey = `user:ai_policy:${userId}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached === "FULL" || cached === "RESTRICTED") {
+        this.policyConsecutiveFailures = 0;
+        return cached;
+      }
+
+      const user = await firstValueFrom(
+        this.userClient
+          .send<any>("findOneUser", { userId, targetId: userId })
+          .pipe(timeout(1000)),
+      );
+      this.policyConsecutiveFailures = 0;
+      const policy = user?.privacySettings?.aiPolicy;
+      if (policy === "FULL" || policy === "RESTRICTED") {
+        await this.redis.set(
+          cacheKey,
+          policy,
+          "EX",
+          ChatbotService.AI_POLICY_CACHE_TTL_SECONDS,
+        );
+        return policy;
+      }
+
+      this.logger.warn(
+        `Missing or invalid aiPolicy for ${userId}; failing closed to RESTRICTED`,
+      );
+      return "RESTRICTED";
+    } catch (err) {
+      this.policyConsecutiveFailures += 1;
+      if (
+        this.policyConsecutiveFailures >=
+        ChatbotService.POLICY_CIRCUIT_FAILURE_THRESHOLD
+      ) {
+        this.policyCircuitOpenUntil =
+          Date.now() + ChatbotService.POLICY_CIRCUIT_BREAKER_MS;
+      }
+      this.logger.warn(
+        `Failed to resolve user aiPolicy for ${userId}, failing closed to RESTRICTED: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return "RESTRICTED";
+    }
+  }
+
+  async respond(userId: string, dto: AssistantMessageDto, authHeader?: string) {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
 
     try {
-      const contexts = await this.resolveContextsWithinBudget(
-        userId,
-        dto.message,
-        this.configService.get<number>(
-          "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-          1200,
-        ),
-      );
+      const effectivePolicy = await this.resolveUserAiPolicy(userId);
+      const contexts =
+        effectivePolicy === "RESTRICTED"
+          ? []
+          : await this.resolveContextsWithinBudget(
+              userId,
+              dto.message,
+              this.configService.get<number>(
+                "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+                1200,
+              ),
+            );
+
+      const headers: Record<string, string> = {
+        "x-internal-key": internalKey,
+      };
+      if (authHeader) {
+        headers["authorization"] = authHeader;
+      }
+
+      const effectiveClientMessageId =
+        dto.clientMessageId?.trim() || randomUUID();
 
       const res = await firstValueFrom(
         this.httpService.post(
@@ -65,13 +146,14 @@ export class ChatbotService {
           {
             userId,
             message: dto.message,
-            clientMessageId: dto.clientMessageId,
+            clientMessageId: effectiveClientMessageId,
             contexts,
+            surface: dto.surface,
+            conversationId: dto.conversationId,
+            aiPolicy: effectivePolicy,
           },
           {
-            headers: {
-              "x-internal-key": internalKey,
-            },
+            headers,
             timeout: timeoutMs,
           },
         ),
@@ -86,6 +168,7 @@ export class ChatbotService {
   respondStream(
     userId: string,
     dto: AssistantMessageDto,
+    authHeader?: string,
   ): Observable<MessageEvent> {
     const { baseUrl, internalKey } = this.resolveClientConfig();
 
@@ -94,16 +177,31 @@ export class ChatbotService {
 
       const run = async () => {
         try {
-          const contexts = await this.resolveContextsWithinBudget(
-            userId,
-            dto.message,
-            this.configService.get<number>(
-              "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
-              1200,
-            ),
-          );
+          const effectivePolicy = await this.resolveUserAiPolicy(userId);
+          const contexts =
+            effectivePolicy === "RESTRICTED"
+              ? []
+              : await this.resolveContextsWithinBudget(
+                  userId,
+                  dto.message,
+                  this.configService.get<number>(
+                    "CHATBOT_CONTEXT_BUILD_TIMEOUT_MS",
+                    1200,
+                  ),
+                );
 
           if (isCancelled) return;
+
+          const headers: Record<string, string> = {
+            "x-internal-key": internalKey,
+            Accept: "text/event-stream",
+          };
+          if (authHeader) {
+            headers["authorization"] = authHeader;
+          }
+
+          const effectiveClientMessageId =
+            dto.clientMessageId?.trim() || randomUUID();
 
           const response = await firstValueFrom(
             this.httpService.post(
@@ -111,14 +209,14 @@ export class ChatbotService {
               {
                 userId,
                 message: dto.message,
-                clientMessageId: dto.clientMessageId,
+                clientMessageId: effectiveClientMessageId,
                 contexts,
+                surface: dto.surface,
+                conversationId: dto.conversationId,
+                aiPolicy: effectivePolicy,
               },
               {
-                headers: {
-                  "x-internal-key": internalKey,
-                  Accept: "text/event-stream",
-                },
+                headers,
                 responseType: "stream",
               },
             ),
@@ -190,6 +288,7 @@ export class ChatbotService {
     pageSize?: number,
     beforeCreatedAt?: string,
     beforeId?: string,
+    conversationId?: string,
   ) {
     const startedAt = Date.now();
     const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
@@ -198,6 +297,7 @@ export class ChatbotService {
     if (pageSize) params.page_size = pageSize;
     if (beforeCreatedAt) params.before_created_at = beforeCreatedAt;
     if (beforeId) params.before_id = beforeId;
+    if (conversationId) params.conversation_id = conversationId;
 
     try {
       const res = await firstValueFrom(
@@ -220,6 +320,95 @@ export class ChatbotService {
         userId,
         startedAt,
         "assistant.history.get",
+      );
+    }
+  }
+
+  async getConversations(userId: string, limit?: number) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    const params: Record<string, string | number> = {};
+    if (limit) params.limit = limit;
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.get(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}`,
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            params,
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.get",
+      );
+    }
+  }
+
+  async createConversation(userId: string, title?: string) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}`,
+          { title },
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.create",
+      );
+    }
+  }
+
+  async deleteConversation(userId: string, conversationId: string) {
+    const startedAt = Date.now();
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+
+    try {
+      const res = await firstValueFrom(
+        this.httpService.delete(
+          `${baseUrl}/assistant/conversations/${encodeURIComponent(userId)}/${encodeURIComponent(conversationId)}`,
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+
+      return res.data.data;
+    } catch (error) {
+      throw this.mapGatewayError(
+        error,
+        userId,
+        startedAt,
+        "assistant.conversations.delete",
       );
     }
   }
@@ -300,7 +489,7 @@ export class ChatbotService {
       this.configService.get<string>("CHATBOT_INTERNAL_KEY");
     const timeoutMs = this.configService.get<number>(
       "CHATBOT_SERVICE_TIMEOUT_MS",
-      12000,
+      15000,
     );
 
     if (!baseUrl) {
@@ -460,5 +649,89 @@ export class ChatbotService {
       return value as Record<string, unknown>;
     }
     return fallback;
+  }
+
+  async recordActionClick(
+    userId: string,
+    body: { actionId: string; destinationId: string },
+  ) {
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+    try {
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/actions/click`,
+          {
+            userId,
+            actionId: body.actionId,
+            destinationId: body.destinationId,
+          },
+          {
+            headers: {
+              "x-internal-key": internalKey,
+            },
+            timeout: timeoutMs,
+          },
+        ),
+      );
+      return res.data;
+    } catch (error) {
+      this.logger.warn(`Failed to record action click for ${userId}: ${error}`);
+      return { success: false };
+    }
+  }
+
+  async executeAction(
+    userId: string,
+    authHeader: string | undefined,
+    body: {
+      actionId: string;
+      actionName: string;
+      params?: Record<string, unknown>;
+      idempotencyKey: string;
+      proposalToken: string;
+      conversationId: string;
+      aiPolicy?: string;
+    },
+  ) {
+    const { baseUrl, internalKey, timeoutMs } = this.resolveClientConfig();
+    const headers: Record<string, string> = {
+      "x-internal-key": internalKey,
+      "x-user-id": userId,
+    };
+    if (authHeader) {
+      headers.authorization = authHeader;
+    }
+
+    try {
+      const effectivePolicy = await this.resolveUserAiPolicy(userId);
+      const res = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/assistant/actions/execute`,
+          {
+            actionId: body.actionId,
+            actionName: body.actionName,
+            params: body.params,
+            idempotencyKey: body.idempotencyKey,
+            proposalToken: body.proposalToken,
+            conversationId: body.conversationId,
+            userId,
+            aiPolicy: effectivePolicy,
+          },
+          {
+            headers,
+            timeout: timeoutMs,
+          },
+        ),
+      );
+      return res.data;
+    } catch (error) {
+      this.logger.warn(`Failed to execute action for ${userId}: ${error}`);
+      throw this.mapGatewayError(
+        error,
+        userId,
+        Date.now(),
+        "assistant.actions.execute",
+      );
+    }
   }
 }

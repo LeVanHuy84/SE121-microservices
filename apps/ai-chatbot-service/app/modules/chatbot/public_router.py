@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import datetime
 from typing import AsyncIterator, Literal, Optional
 
@@ -20,8 +21,14 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.config import settings as core_settings
-from app.modules.chatbot.repositories.chat_history import ClearHistoryCommand, GetHistoryQuery
+from app.core.settings import settings as core_settings
+from app.modules.chatbot.repositories.chat_history import (
+    ClearHistoryCommand,
+    CreateConversationCommand,
+    DeleteConversationCommand,
+    GetHistoryQuery,
+    ListConversationsQuery,
+)
 from app.modules.chatbot.schemas import (
     AssistantRespondRequest,
     AssistantResponseType,
@@ -39,6 +46,9 @@ public_router = APIRouter(prefix=API_PREFIX, tags=["assistant-v1"])
 respond_command = RespondCommand()
 get_history_query = GetHistoryQuery()
 clear_history_command = ClearHistoryCommand()
+list_conversations_query = ListConversationsQuery()
+create_conversation_command = CreateConversationCommand()
+delete_conversation_command = DeleteConversationCommand()
 
 
 # --------------------------------------------------------------------------
@@ -81,8 +91,12 @@ def register_public_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http_handler(request: Request, exc: StarletteHTTPException):
         if _is_public_path(request):
-            code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.status_code, "HTTP_ERROR")
-            return error_response(exc.status_code, code, "Request could not be processed.")
+            code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(
+                exc.status_code, "HTTP_ERROR"
+            )
+            return error_response(
+                exc.status_code, code, "Request could not be processed."
+            )
         from fastapi.exception_handlers import http_exception_handler
 
         return await http_exception_handler(request, exc)
@@ -95,7 +109,12 @@ def require_gateway_user(
     x_internal_key: Optional[str] = Header(default=None),
     x_user_id: Optional[str] = Header(default=None),
 ) -> str:
-    if not x_internal_key or x_internal_key != core_settings.INTERNAL_SERVICE_KEY:
+    expected_key = core_settings.INTERNAL_SERVICE_KEY
+    if (
+        not expected_key
+        or not x_internal_key
+        or not secrets.compare_digest(x_internal_key, expected_key)
+    ):
         raise ApiError(403, "FORBIDDEN", "Access denied.")
     user_id = (x_user_id or "").strip()
     if not user_id:
@@ -171,6 +190,47 @@ class PublicClearResponse(BaseModel):
     data: PublicClearData
 
 
+class PublicConversationItem(BaseModel):
+    id: str
+    userId: str
+    title: str
+    status: Optional[str] = "active"
+    turnCount: Optional[int] = 0
+    createdAt: datetime
+    updatedAt: datetime
+    lastMessageAt: Optional[datetime] = None
+
+
+class PublicConversationListData(BaseModel):
+    items: list[PublicConversationItem] = Field(default_factory=list)
+    total: int
+    maxLimit: int = 20
+
+
+class PublicConversationListResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicConversationListData
+
+
+class PublicCreateConversationRequest(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=200)
+
+
+class PublicConversationResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicConversationItem
+
+
+class PublicDeleteConversationData(BaseModel):
+    id: str
+    deleted: bool
+
+
+class PublicDeleteConversationResponse(BaseModel):
+    success: Literal[True] = True
+    data: PublicDeleteConversationData
+
+
 def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondRequest:
     # history/contexts are always empty: the service resolves them from memory/Mongo/RAG.
     return AssistantRespondRequest(
@@ -179,6 +239,7 @@ def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondReq
         conversationId=req.conversationId,
         clientMessageId=req.clientMessageId,
         intent=req.intent,
+        aiPolicy="RESTRICTED",
     )
 
 
@@ -186,7 +247,9 @@ def _to_internal(req: PublicRespondRequest, user_id: str) -> AssistantRespondReq
 # Endpoints
 # --------------------------------------------------------------------------
 @public_router.post("/respond", response_model=PublicRespondResponse)
-async def respond(req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)):
+async def respond(
+    req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)
+):
     try:
         data = await respond_command.execute(_to_internal(req, user_id))
     except Exception as exc:
@@ -220,6 +283,9 @@ _STREAM_ERROR = {
 
 async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str]:
     sources: list[AssistantSource] = []
+    suggested_actions = []
+    cards = []
+    proposals = []
     last = None
     try:
         async for data in respond_command.execute_stream(internal):
@@ -229,7 +295,30 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
             last = data
             if data.sources and not sources:
                 sources = data.sources
-            yield _sse("chunk", {"delta": data.reply})
+            if data.suggestedActions:
+                suggested_actions = data.suggestedActions
+            if data.cards:
+                cards = data.cards
+            if data.proposals:
+                proposals = data.proposals
+            yield _sse(
+                "chunk",
+                {
+                    "delta": data.reply,
+                    "reply": data.reply,
+                    "sources": [s.model_dump(mode="json") for s in data.sources],
+                    "suggestedActions": [
+                        action.model_dump(mode="json")
+                        for action in data.suggestedActions
+                    ],
+                    "cards": [card.model_dump(mode="json") for card in data.cards],
+                    "proposals": [
+                        proposal.model_dump(mode="json") for proposal in data.proposals
+                    ],
+                    "conversationId": data.conversationId,
+                    "policyBlocked": data.policyBlocked,
+                },
+            )
     except Exception:
         logger.exception("Assistant v1 stream failed: userId=%s", internal.userId)
         yield _sse("error", _STREAM_ERROR)
@@ -242,17 +331,25 @@ async def _stream_events(internal: AssistantRespondRequest) -> AsyncIterator[str
     yield _sse(
         "done",
         {
+            "reply": "",
             "type": last.type,
             "sources": [s.model_dump(mode="json") for s in sources],
-            "requestId": last.requestId,
+            "suggestedActions": [
+                action.model_dump(mode="json") for action in suggested_actions
+            ],
+            "cards": [card.model_dump(mode="json") for card in cards],
+            "proposals": [proposal.model_dump(mode="json") for proposal in proposals],
             "conversationId": last.conversationId,
+            "policyBlocked": last.policyBlocked,
             "crisis": last.crisis.model_dump(mode="json") if last.crisis else None,
         },
     )
 
 
 @public_router.post("/respond-stream")
-async def respond_stream(req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)):
+async def respond_stream(
+    req: PublicRespondRequest, user_id: str = Depends(require_gateway_user)
+):
     return StreamingResponse(
         _stream_events(_to_internal(req, user_id)),
         media_type="text/event-stream",
@@ -263,6 +360,7 @@ async def respond_stream(req: PublicRespondRequest, user_id: str = Depends(requi
 @public_router.get("/history/me", response_model=PublicHistoryResponse)
 async def get_my_history(
     user_id: str = Depends(require_gateway_user),
+    conversationId: Optional[str] = Query(default=None, max_length=128),
     pageSize: Optional[int] = Query(default=None, ge=1),
     beforeCreatedAt: Optional[datetime] = None,
     beforeId: Optional[str] = None,
@@ -273,11 +371,16 @@ async def get_my_history(
             page_size=pageSize,
             before_created_at=beforeCreatedAt,
             before_id=beforeId,
+            conversation_id=conversationId,
         )
     except ValueError as exc:
-        raise ApiError(400, "INVALID_HISTORY_CURSOR", "History cursor is invalid.") from exc
+        raise ApiError(
+            400, "INVALID_HISTORY_CURSOR", "History cursor is invalid."
+        ) from exc
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
         logger.exception("Assistant v1 history failed: userId=%s", user_id)
         raise ApiError(
@@ -315,10 +418,141 @@ async def clear_my_history(user_id: str = Depends(require_gateway_user)):
     try:
         deleted = await clear_history_command.execute(user_id)
     except RuntimeError as exc:
-        raise ApiError(503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable.") from exc
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
     except Exception as exc:
         logger.exception("Assistant v1 history clear failed: userId=%s", user_id)
         raise ApiError(
-            502, "ASSISTANT_HISTORY_CLEAR_FAILED", "Assistant history could not be cleared."
+            502,
+            "ASSISTANT_HISTORY_CLEAR_FAILED",
+            "Assistant history could not be cleared.",
         ) from exc
-    return PublicClearResponse(data=PublicClearData(deletedCount=deleted, sessionCleared=True))
+    return PublicClearResponse(
+        data=PublicClearData(deletedCount=deleted, sessionCleared=True)
+    )
+
+
+@public_router.get("/conversations", response_model=PublicConversationListResponse)
+async def get_my_conversations(user_id: str = Depends(require_gateway_user)):
+    try:
+        conversations = await list_conversations_query.execute(user_id=user_id)
+    except RuntimeError as exc:
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
+    except Exception as exc:
+        logger.exception("Assistant v1 conversations list failed: userId=%s", user_id)
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
+
+    items = [
+        PublicConversationItem(
+            id=c["id"],
+            userId=c["user_id"],
+            title=c.get("title") or "Đoạn chat mới",
+            status=c.get("status") or "active",
+            turnCount=c.get("turn_count", 0),
+            createdAt=c["created_at"],
+            updatedAt=c["updated_at"],
+            lastMessageAt=c.get("last_message_at"),
+        )
+        for c in conversations
+    ]
+    return PublicConversationListResponse(
+        data=PublicConversationListData(
+            items=items,
+            total=len(items),
+            maxLimit=20,
+        )
+    )
+
+
+@public_router.post("/conversations", response_model=PublicConversationResponse)
+async def create_new_conversation(
+    body: Optional[PublicCreateConversationRequest] = None,
+    user_id: str = Depends(require_gateway_user),
+):
+    title = body.title if body else None
+    try:
+        conv = await create_conversation_command.execute(user_id=user_id, title=title)
+    except RuntimeError as exc:
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Assistant v1 conversation creation failed: userId=%s", user_id
+        )
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
+
+    return PublicConversationResponse(
+        data=PublicConversationItem(
+            id=conv["id"],
+            userId=conv["user_id"],
+            title=conv.get("title") or "Đoạn chat mới",
+            status=conv.get("status") or "active",
+            turnCount=conv.get("turn_count", 0),
+            createdAt=conv["created_at"],
+            updatedAt=conv["updated_at"],
+            lastMessageAt=conv.get("last_message_at"),
+        )
+    )
+
+
+@public_router.delete(
+    "/conversations/{conversation_id}", response_model=PublicDeleteConversationResponse
+)
+async def delete_conversation(
+    conversation_id: str,
+    user_id: str = Depends(require_gateway_user),
+):
+    try:
+        deleted = await delete_conversation_command.execute(
+            user_id=user_id, conversation_id=conversation_id
+        )
+    except RuntimeError as exc:
+        raise ApiError(
+            503, "CHAT_HISTORY_DISABLED", "Chat history is unavailable."
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Assistant v1 conversation deletion failed: userId=%s, convId=%s",
+            user_id,
+            conversation_id,
+        )
+        raise ApiError(
+            502, "ASSISTANT_CONVERSATIONS_FAILED", "Conversation request failed."
+        ) from exc
+
+    return PublicDeleteConversationResponse(
+        data=PublicDeleteConversationData(id=conversation_id, deleted=deleted)
+    )
+
+
+class PublicActionClickRequest(BaseModel):
+    actionId: str = Field(max_length=128)
+    destinationId: str = Field(max_length=128)
+
+
+class PublicActionClickResponse(BaseModel):
+    success: bool
+    data: dict[str, bool]
+
+
+@public_router.post("/actions/click", response_model=PublicActionClickResponse)
+async def public_record_action_click(
+    body: PublicActionClickRequest,
+    user_id: str = Depends(require_gateway_user),
+):
+    from app.modules.chatbot.navigation.telemetry import intent_telemetry
+
+    success = await intent_telemetry.record_action_click(
+        user_id=user_id,
+        action_id=body.actionId,
+        destination_id=body.destinationId,
+    )
+    return PublicActionClickResponse(success=True, data={"recorded": success})

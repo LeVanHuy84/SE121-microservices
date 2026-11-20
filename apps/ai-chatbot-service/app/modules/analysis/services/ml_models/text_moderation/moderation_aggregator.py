@@ -47,7 +47,7 @@ class ModerationAggregator:
                 "mentalHealthSupport": False,
                 "reason": "Chứa nội dung khiêu dâm hoặc đồi trụy vi phạm tiêu chuẩn cộng đồng.",
                 "flaggedCategories": ["ILLEGAL_PORN"],
-                "allScores": {"ILLEGAL_PORN": 1.0}
+                "allScores": {"ILLEGAL_PORN": 1.0},
             }
 
         # ======================================================
@@ -73,7 +73,9 @@ class ModerationAggregator:
                     is_violation = False
                     action = "ALLOW_WITH_WARNING"
                     mental_health_support = False
-                    reason = "Phát hiện ngôn từ có dấu hiệu công kích hoặc gây tranh cãi."
+                    reason = (
+                        "Phát hiện ngôn từ có dấu hiệu công kích hoặc gây tranh cãi."
+                    )
                     flagged_cats = ["HATE_SPEECH"]
             elif pred_label == "PROFANITY_VENTING":
                 is_violation = False
@@ -106,7 +108,7 @@ class ModerationAggregator:
                 "mentalHealthSupport": mental_health_support,
                 "reason": reason,
                 "flaggedCategories": flagged_cats,
-                "allScores": all_scores
+                "allScores": all_scores,
             }
 
         # ======================================================
@@ -124,8 +126,5 @@ class ModerationAggregator:
             "mentalHealthSupport": False,
             "reason": "Nội dung an toàn.",
             "flaggedCategories": [],
-            "allScores": {"CLEAN": 1.0}
+            "allScores": {"CLEAN": 1.0},
         }
-
-
-

@@ -11,6 +11,7 @@ groq>=0.37.0,<1.0.0
 langchain-core>=0.3.0,<1.0.0
 langchain-groq>=0.3.0,<1.0.0
 langchain-text-splitters>=0.3.0,<1.0.0
+langsmith==0.14.4
 
 # Text NLP - PhoBERT & Tokenizers
 transformers==4.41.2
@@ -33,6 +34,7 @@ soxr>=0.3.7
 aiokafka==0.10.0
 motor==3.4.0
 pymongo==4.6.1
+psycopg[binary]>=3.1.18
 elasticsearch==9.1.0
 redis==5.2.1
 aio-pika==9.4.1
@@ -44,3 +46,4 @@ opentelemetry-instrumentation-fastapi==0.46b0
 opentelemetry-exporter-otlp==1.25.0
 prometheus-client==0.20.0
 ruff==0.7.2
+pyyaml>=6.0.1

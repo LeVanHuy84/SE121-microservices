@@ -40,6 +40,15 @@ class ScopeGuardRealQuestionTest(unittest.TestCase):
                 req = AssistantRespondRequest(userId="u1", message=message)
                 self.assertTrue(self.guard.is_in_scope(req))
 
+    def test_farewell_is_in_scope(self):
+        for message in ("tạm biệt", "hẹn gặp lại", "bye"):
+            with self.subTest(message=message):
+                decision = self.guard.evaluate_scope(
+                    AssistantRespondRequest(userId="u1", message=message)
+                )
+                self.assertTrue(decision.in_scope)
+                self.assertEqual(decision.reason, "farewell")
+
     def test_follow_up_question_is_in_scope_when_has_conversation_context(self):
         req = AssistantRespondRequest(
             userId="u1",

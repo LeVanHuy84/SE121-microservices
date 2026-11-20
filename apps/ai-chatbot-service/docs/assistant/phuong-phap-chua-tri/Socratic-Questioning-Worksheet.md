@@ -3,8 +3,9 @@ id: socratic-questioning-worksheet
 title: Socratic-Questioning-Worksheet
 topic: phuong-phap-chua-tri
 type: clinical_reference
-lang: vi
+lang: en
 version: v1
+tier: actionable_worksheet
 ---
 
 

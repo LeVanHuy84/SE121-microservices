@@ -3,6 +3,11 @@ import logging
 from contextlib import asynccontextmanager
 
 from app.core.settings import settings
+from app.core.messaging import (
+    set_emotion_aggregate_repo,
+    set_kafka_producer,
+    set_outbox_repo,
+)
 from app.modules.analysis.messaging.init_kafka import start_kafka, register_consumer
 from app.modules.analysis.messaging.kafka_consumer import KafkaConsumerService
 from app.modules.analysis.messaging.kafka_producer import KafkaProducerService
@@ -10,17 +15,25 @@ from app.modules.analysis.messaging.batch_processor import OutboxBatchProcessor
 from app.modules.analysis.repositories.outbox import OutboxRepository
 from app.modules.analysis.repositories.mongo import collections, db
 from app.modules.analysis.messaging.event_dispatcher import EventDispatcher
-from app.modules.analysis.services.orchestration.handle_event_service import HandleEventService
+from app.modules.analysis.services.orchestration.handle_event_service import (
+    HandleEventService,
+)
 from app.modules.analysis.repositories.outbox import ModerationRepository
 from app.modules.analysis.repositories.outbox import TaskRepository
 from app.modules.analysis.messaging.retry_worker import RetryWorker
-from app.modules.analysis.services.ml_models.model_loader import ensure_models_loaded, get_model_health  # noqa: F401
-from app.modules.analysis.services.orchestration.analysis_flow_service import AnalysisFlowService
+from app.modules.analysis.services.ml_models.model_loader import (
+    ensure_models_loaded,
+    get_model_health,  # noqa: F401
+)
+from app.modules.analysis.services.orchestration.analysis_flow_service import (
+    AnalysisFlowService,
+)
 from app.modules.analysis.repositories.emotion import EmotionAggregateRepository
 from app.modules.analysis.repositories.idempotency import IdempotencyRepository
 from app.modules.analysis.messaging.dlq_service import KafkaDLQService
 from app.modules.analysis.messaging.consumer_helper import KafkaConsumerHelper
 from app.modules.chatbot.services.emotion_event_consumer import handle_analysis_result
+from app.modules.chatbot.services.user_event_consumer import handle_user_event
 
 logger = logging.getLogger(__name__)
 
@@ -32,28 +45,25 @@ logging.basicConfig(
 # -------------------------------------------------------
 # INIT SINGLETONS - Now using Motor collections
 # -------------------------------------------------------
-outbox_repo = OutboxRepository(collections['outbox_events'])
-emotion_aggregate_repo = EmotionAggregateRepository(collections['emotion_aggregates'])
-moderation_repo = ModerationRepository(collections['moderation_results'])
-task_repo = TaskRepository(collections['analysis_tasks'])
-idempotency_repo = IdempotencyRepository(collections['processed_events'])
+outbox_repo = OutboxRepository(collections["outbox_events"])
+set_outbox_repo(outbox_repo)
+emotion_aggregate_repo = EmotionAggregateRepository(collections["emotion_aggregates"])
+set_emotion_aggregate_repo(emotion_aggregate_repo)
+moderation_repo = ModerationRepository(collections["moderation_results"])
+task_repo = TaskRepository(collections["analysis_tasks"])
+idempotency_repo = IdempotencyRepository(collections["processed_events"])
 
 # Inject repositories vào analysis_flow_service
-analysis_flow_service = AnalysisFlowService(
-    moderation_repo,
-    emotion_aggregate_repo
-)
+analysis_flow_service = AnalysisFlowService(moderation_repo, emotion_aggregate_repo)
 
 kafka_producer = KafkaProducerService(settings.KAFKA_BROKERS)
+set_kafka_producer(kafka_producer)
 dlq_service = KafkaDLQService(kafka_producer)
 consumer_helper = KafkaConsumerHelper(idempotency_repo, dlq_service)
 
 processor = OutboxBatchProcessor(outbox_repo, kafka_producer)
 retry_worker = RetryWorker(
-    emotion_aggregate_repo,
-    moderation_repo,
-    task_repo,
-    outbox_repo
+    emotion_aggregate_repo, moderation_repo, task_repo, outbox_repo
 )
 
 event_service = HandleEventService(
@@ -65,17 +75,22 @@ event_service = HandleEventService(
 )
 dispatcher = EventDispatcher(event_service)
 
+
 # -------------------------------------------------------
 # Kafka Consumer Handlers
 # -------------------------------------------------------
 async def handle_analysis_event(msg):
     logger.info("Received single message: %s", msg)
-    await consumer_helper.handle_single(msg, dispatcher.dispatch, topic="analysis-events")
+    await consumer_helper.handle_single(
+        msg, dispatcher.dispatch, topic="analysis-events"
+    )
 
 
 async def handle_batch_analysis_events(messages: list):
     logger.info("Received batch of %d messages from Kafka", len(messages))
-    await consumer_helper.handle_batch(messages, dispatcher.dispatch, topic="analysis-events")
+    await consumer_helper.handle_batch(
+        messages, dispatcher.dispatch, topic="analysis-events"
+    )
 
 
 # Single Message Consumer)
@@ -98,16 +113,32 @@ register_consumer(
     )
 )
 
+# Register consumer to handle user.removed account deletion events
+register_consumer(
+    KafkaConsumerService(
+        brokers=settings.KAFKA_BROKERS,
+        topic="user-events",
+        group_id=f"{settings.KAFKA_CLIENT_ID}-chatbot-user",
+        handler=handle_user_event,
+    )
+)
+
+
 # -------------------------------------------------------
 # DATABASE INITIALIZATION
 # -------------------------------------------------------
 async def init_database():
     try:
-        await db['emotion_aggregates'].create_index([("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt")
-        await db['processed_events'].create_index([("updatedAt", 1)], expireAfterSeconds=604800, name="idx_ttl_7days")
+        await db["emotion_aggregates"].create_index(
+            [("userId", 1), ("createdAt", 1)], name="idx_userId_createdAt"
+        )
+        await db["processed_events"].create_index(
+            [("updatedAt", 1)], expireAfterSeconds=604800, name="idx_ttl_7days"
+        )
         logger.info("[DB Init] All indexes verified (including processed_events TTL)")
     except Exception as e:
         logger.warning(f"[DB Init] Index creation warning: {e}")
+
 
 # -------------------------------------------------------
 # LIFESPAN
@@ -138,9 +169,7 @@ async def lifespan(app):
 
         # 3. Kafka Consumer loop
         logger.info("[Startup] Step 3/5: Starting Kafka Consumer...")
-        background_tasks.append(
-            asyncio.create_task(start_kafka(settings))
-        )
+        background_tasks.append(asyncio.create_task(start_kafka(settings)))
         logger.info("[Startup] Kafka Consumer started")
 
         # 4. Outbox processor
@@ -152,18 +181,8 @@ async def lifespan(app):
 
         # 5. Retry worker
         logger.info("[Startup] Step 5/5: Starting Retry Worker...")
-        background_tasks.append(
-            asyncio.create_task(retry_worker.start())
-        )
+        background_tasks.append(asyncio.create_task(retry_worker.start()))
         logger.info("[Startup] Retry Worker started")
-
-        # 6. RabbitMQ Consumer
-        logger.info("[Startup] Step 6/6: Starting RabbitMQ Consumer...")
-        from app.modules.analysis.rabbitmq import init_rabbitmq
-        background_tasks.append(
-            asyncio.create_task(init_rabbitmq())
-        )
-        logger.info("[Startup] RabbitMQ Consumer started")
 
         logger.info("=" * 70)
         logger.info("[Startup] Analysis Service V2.0 - Fully operational!")
@@ -179,13 +198,6 @@ async def lifespan(app):
         logger.info("=" * 70)
         logger.info("[Shutdown] Analysis Service - Shutting down...")
         logger.info("=" * 70)
-
-        try:
-            from app.modules.analysis.rabbitmq import close_rabbitmq
-            await asyncio.wait_for(close_rabbitmq(), timeout=3.0)
-            logger.info("[Shutdown] RabbitMQ Connection closed gracefully")
-        except Exception as e:
-            logger.warning("[Shutdown] Failed to close RabbitMQ gracefully: %s", e)
 
         processor.stop()
         retry_worker.stop()

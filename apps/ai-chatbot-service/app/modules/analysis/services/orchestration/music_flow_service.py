@@ -39,7 +39,9 @@ class MusicFlowService:
             file_path = self._downloader.download(url)
             t_dl_ms = (time.perf_counter() - t_dl_start) * 1000
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-            logger.info(f"[MusicFlowService] ✓ Downloaded {file_size_mb:.2f} MB in {t_dl_ms:.2f} ms")
+            logger.info(
+                f"[MusicFlowService] ✓ Downloaded {file_size_mb:.2f} MB in {t_dl_ms:.2f} ms"
+            )
 
             t_infer_start = time.perf_counter()
             result = self._analyze_service.analyze_music(file_path)
@@ -57,7 +59,9 @@ class MusicFlowService:
 
         except Exception as e:
             t_total_ms = (time.perf_counter() - t_total_start) * 1000
-            logger.error(f"[MusicFlowService] Analysis failed after {t_total_ms:.0f}ms: {e}")
+            logger.error(
+                f"[MusicFlowService] Analysis failed after {t_total_ms:.0f}ms: {e}"
+            )
             raise
 
         finally:

@@ -7,24 +7,51 @@ class KeywordModerator:
         # Tier 1: Hard Block (Nhãn 4: ILLEGAL_PORN - Cấm tuyệt đối, không phụ thuộc ngữ cảnh)
         self.illegal_porn_keywords: Set[str] = {
             # Sexual explicit / Pornography (Tiếng Anh & Viết tắt)
-            "sex", "porn", "xxx", "xnxx", "xvideos", "xvideo",
-            "nude", "naked", "erotic", "nsfw",
-            "jav", "hentai", "onlyfans", "stripchat",
-            "orgasm", "gangbang", "blowjob", "handjob",
-            "cumshot", "pornhub", "redtube", "youporn",
-
+            "sex",
+            "porn",
+            "xxx",
+            "xnxx",
+            "xvideos",
+            "xvideo",
+            "nude",
+            "naked",
+            "erotic",
+            "nsfw",
+            "jav",
+            "hentai",
+            "onlyfans",
+            "stripchat",
+            "orgasm",
+            "gangbang",
+            "blowjob",
+            "handjob",
+            "cumshot",
+            "pornhub",
+            "redtube",
+            "youporn",
             # Sexual explicit (Tiếng Việt)
-            "địt nhau", "chịch nhau", "đụ nhau", "phịch nhau",
-            "chịch", "đụ", "xoạc nhau", "nện nhau",
-            "phim sex", "ảnh sex",
-            "ảnh nude", "lộ clip sex", "show hàng",
-            "hiếp dâm", "cưỡng hiếp", "loạn luân", "ấu dâm",
+            "địt nhau",
+            "chịch nhau",
+            "đụ nhau",
+            "phịch nhau",
+            "chịch",
+            "đụ",
+            "xoạc nhau",
+            "nện nhau",
+            "phim sex",
+            "ảnh sex",
+            "ảnh nude",
+            "lộ clip sex",
+            "show hàng",
+            "hiếp dâm",
+            "cưỡng hiếp",
+            "loạn luân",
+            "ấu dâm",
         }
-
 
         # Substring / Exact patterns for hard block explicit terms
         self.illegal_porn_exact_patterns = [
-            re.compile(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', re.IGNORECASE)
+            re.compile(r"(?<!\w)" + re.escape(kw) + r"(?!\w)", re.IGNORECASE)
             for kw in self.illegal_porn_keywords
         ]
 
@@ -45,12 +72,14 @@ class KeywordModerator:
                 "label": "CLEAN",
                 "label_code": 0,
                 "matchedKeywords": [],
-                "flags": {}
+                "flags": {},
             }
 
         # 1. Check Hard Block (Label 4: ILLEGAL_PORN)
         matched_hard = []
-        for kw, pattern in zip(self.illegal_porn_keywords, self.illegal_porn_exact_patterns):
+        for kw, pattern in zip(
+            self.illegal_porn_keywords, self.illegal_porn_exact_patterns
+        ):
             if pattern.search(text_clean):
                 matched_hard.append(kw)
 
@@ -60,7 +89,7 @@ class KeywordModerator:
                 "label": "ILLEGAL_PORN",
                 "label_code": 4,
                 "matchedKeywords": matched_hard,
-                "flags": {}
+                "flags": {},
             }
 
         return {
@@ -68,7 +97,5 @@ class KeywordModerator:
             "label": "CLEAN",
             "label_code": 0,
             "flags": {},
-            "matchedKeywords": []
+            "matchedKeywords": [],
         }
-
-

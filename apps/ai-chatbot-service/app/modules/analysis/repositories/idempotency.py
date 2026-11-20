@@ -26,13 +26,16 @@ class IdempotencyRepository:
             return set()
 
         cursor = self.collection.find(
-            {"_id": {"$in": event_ids}},
-            {"_id": 1, "status": 1}
+            {"_id": {"$in": event_ids}}, {"_id": 1, "status": 1}
         )
         existing_docs = await cursor.to_list(length=len(event_ids))
-        
-        existing_ids = {doc["_id"] for doc in existing_docs if doc.get("status") in ("DONE", "PROCESSING")}
-        
+
+        existing_ids = {
+            doc["_id"]
+            for doc in existing_docs
+            if doc.get("status") in ("DONE", "PROCESSING")
+        }
+
         unprocessed = {eid for eid in event_ids if eid not in existing_ids}
         return unprocessed
 
@@ -47,13 +50,15 @@ class IdempotencyRepository:
         doc = {
             "_id": event_id,
             "status": "PROCESSING",
-            "updatedAt": datetime.now(timezone.utc)
+            "updatedAt": datetime.now(timezone.utc),
         }
         try:
             await self.collection.insert_one(doc)
             return True
         except DuplicateKeyError:
-            logger.info("[Idempotency] Event %s already acquired or processed -> Skip", event_id)
+            logger.info(
+                "[Idempotency] Event %s already acquired or processed -> Skip", event_id
+            )
             return False
 
     async def mark_done(self, event_id: str):
@@ -63,7 +68,7 @@ class IdempotencyRepository:
         await self.collection.update_one(
             {"_id": event_id},
             {"$set": {"status": "DONE", "updatedAt": datetime.now(timezone.utc)}},
-            upsert=True
+            upsert=True,
         )
 
     async def mark_failed(self, event_id: str, reason: str = ""):
@@ -72,6 +77,12 @@ class IdempotencyRepository:
             return
         await self.collection.update_one(
             {"_id": event_id},
-            {"$set": {"status": "FAILED", "reason": reason, "updatedAt": datetime.now(timezone.utc)}},
-            upsert=True
+            {
+                "$set": {
+                    "status": "FAILED",
+                    "reason": reason,
+                    "updatedAt": datetime.now(timezone.utc),
+                }
+            },
+            upsert=True,
         )

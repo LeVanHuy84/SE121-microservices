@@ -1,3 +1,4 @@
+import { InjectRedis } from "@nestjs-modules/ioredis";
 import type { ClerkClient } from "@clerk/backend";
 import {
   Body,
@@ -5,6 +6,7 @@ import {
   Delete,
   Get,
   Inject,
+  Logger,
   Param,
   Patch,
   Post,
@@ -12,6 +14,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
+import Redis from "ioredis";
 import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { CreateUserDTO, UpdateUserDTO, UserResponseDTO } from "@repo/dtos";
 import { lastValueFrom, Observable } from "rxjs";
@@ -20,6 +23,8 @@ import { CurrentUserId } from "src/common/decorators/current-user-id.decorator";
 import { Public } from "src/common/decorators/public.decorator";
 @Controller("users")
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(
     @Inject(MICROSERVICES_CLIENTS.USER_SOCIAL_SERVICE)
     private client: ClientProxy,
@@ -27,6 +32,7 @@ export class UsersController {
     private readonly mediaClient: ClientProxy,
     @Inject("ClerkClient")
     private readonly clerkClient: ClerkClient,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   @Public()
@@ -107,10 +113,21 @@ export class UsersController {
         publicId: uploaded.publicId,
       };
     }
-    const user = this.client.send("updateUser", {
-      id,
-      updateUserDto,
-    });
+    const user = await lastValueFrom(
+      this.client.send("updateUser", {
+        id,
+        updateUserDto,
+      }),
+    );
+    if (updateUserDto.privacySettings !== undefined) {
+      try {
+        await this.redis.del(`user:ai_policy:${id}`);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to invalidate AI policy cache for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     // Update user in Clerk
     await this.clerkClient.users.updateUser(id, {
       firstName: updateUserDto.firstName,
@@ -120,7 +137,15 @@ export class UsersController {
   }
 
   @Delete(":id")
-  remove(@Param("id") id: string) {
-    return this.client.send("removeUser", id);
+  async remove(@Param("id") id: string) {
+    const res = await lastValueFrom(this.client.send("removeUser", id));
+    try {
+      await this.redis.del(`user:ai_policy:${id}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to invalidate AI policy cache on delete for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return res;
   }
 }

@@ -37,10 +37,10 @@ IMAGE_LABEL_MAPPING = {
 def normalize_text_label(label: str) -> EmotionEnum:
     """
     Normalize text emotion label to EmotionEnum.
-    
+
     Args:
         label: Label from text emotion model (e.g., PhoBERT)
-        
+
     Returns:
         EmotionEnum value
     """
@@ -50,10 +50,10 @@ def normalize_text_label(label: str) -> EmotionEnum:
 def normalize_image_label(label: str) -> EmotionEnum:
     """
     Normalize image emotion label to EmotionEnum.
-    
+
     Args:
         label: Label from image emotion model (e.g., CLIP, FER)
-        
+
     Returns:
         EmotionEnum value
     """

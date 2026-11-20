@@ -1,6 +1,13 @@
 # Evaluation & Machine Learning Modules
 
-Thư mục `evaluation/` chứa toàn bộ quy trình nghiên cứu khoa học, tập dữ liệu huấn luyện, pipeline tiền xử lý, sổ tay notebook và thực nghiệm benchmark của các mô hình AI/ML trong hệ thống SE121-microservices.
+## Overview
+Comprehensive machine learning evaluation frameworks, training datasets, preprocessing pipelines, model benchmarks, and ONNX export routines powering the AI and recommendation capabilities of the SE121 microservices platform.
+
+## Subdirectories & Boundaries
+- [emotion](./emotion/README.md) - PhoBERT emotion recognition models (7-class sentiment classification), training logs, benchmark reports, and ONNX conversion pipelines.
+- [moderation](./moderation/pipeline/README.md) - Vietnamese toxicity and mental health crisis detection models (PhoBERT Moderation - 4 classes) with data augmentation pipelines.
+- [music](./music/README.md) - Emotion-aligned music feature extraction using MERT audio embeddings.
+- [image-experiment](./image-experiment/README.md) - Vision-Language multimodal sentiment analysis experiments, human review UI, and benchmark datasets.
 
 ---
 
@@ -35,12 +42,3 @@ evaluation/
 │
 └── weights/               # ⚖️ Thư mục lưu trữ model checkpoints & ONNX weights dùng chung cho microservices
 ```
-
----
-
-## 🚀 Hướng Dẫn Nhanh Cho Từng Phân Hệ
-
-* **PhoBERT Emotion Recognition**: Xem tài liệu chi tiết tại [`evaluation/emotion/README.md`](./emotion/README.md).
-* **PhoBERT Moderation**: Xem tài liệu chi tiết tại [`evaluation/moderation/pipeline/README.md`](./moderation/pipeline/README.md).
-* **Music Emotion Recommendation**: Xem tài liệu chi tiết tại [`evaluation/music/README.md`](./music/README.md).
-* **Image Emotion Experiment**: Xem tài liệu chi tiết tại [`evaluation/image-experiment/README.md`](./image-experiment/README.md).
