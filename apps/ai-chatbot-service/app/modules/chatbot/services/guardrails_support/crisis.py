@@ -3,9 +3,9 @@ from __future__ import annotations
 from app.utils.text_normalizer import normalize_for_guard
 from .keywords import (
     _ACUTE_PFA_DISTRESS_REGEX,
-    _CRISIS_EXPLICIT_REGEX,
     _CRISIS_SOFT_REGEX,
     _MILD_CBT_DISTRESS_REGEX,
+    evaluate_explicit_crisis,
 )
 from .types import CrisisDecision, DistressLevel
 
@@ -14,7 +14,7 @@ def classify_in_chat_distress_level(text: str) -> DistressLevel:
     normalized = normalize_for_guard(text)
     if not normalized:
         return "none"
-    if _ACUTE_PFA_DISTRESS_REGEX.search(normalized):
+    if _ACUTE_PFA_DISTRESS_REGEX.search(normalized) or _CRISIS_SOFT_REGEX.search(normalized):
         return "acute_pfa"
     if _MILD_CBT_DISTRESS_REGEX.search(normalized):
         return "mild_cbt"
@@ -33,10 +33,15 @@ class CrisisGuard:
         if not normalized:
             return CrisisDecision(False, "none", "empty", normalized)
 
-        if _CRISIS_EXPLICIT_REGEX.search(normalized):
-            return CrisisDecision(True, "high", "explicit_crisis", normalized)
+        is_explicit, reason = evaluate_explicit_crisis(normalized)
+        if is_explicit:
+            return CrisisDecision(True, "high", reason, normalized)
 
+        if reason == "negated_crisis":
+            return CrisisDecision(False, "none", "negated_crisis", normalized)
+
+        # Soft crisis keywords: không tự ngắt ở Step 0 mà để PFA / PhoBERT thẩm định ngữ cảnh
         if _CRISIS_SOFT_REGEX.search(normalized):
-            return CrisisDecision(True, "medium", "soft_crisis", normalized)
+            return CrisisDecision(False, "medium", "soft_distress", normalized)
 
         return CrisisDecision(False, "none", "clean", normalized)

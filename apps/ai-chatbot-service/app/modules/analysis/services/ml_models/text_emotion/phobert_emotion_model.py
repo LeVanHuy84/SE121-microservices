@@ -35,7 +35,7 @@ class PhoBERTEmotionModel:
 
         try:
             candidate_dirs = [
-                Path(__file__).resolve().parents[7] / "evaluation" / "weights",
+                Path(__file__).resolve().parents[8] / "evaluation" / "weights",
                 Path("evaluation/weights").resolve(),
                 Path("../evaluation/weights").resolve(),
                 Path("../../evaluation/weights").resolve(),

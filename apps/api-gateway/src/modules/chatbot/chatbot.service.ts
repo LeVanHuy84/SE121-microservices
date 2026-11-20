@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { InjectRedis } from "@nestjs-modules/ioredis";
 import {
   HttpException,
@@ -136,13 +137,16 @@ export class ChatbotService {
         headers["authorization"] = authHeader;
       }
 
+      const effectiveClientMessageId =
+        dto.clientMessageId?.trim() || randomUUID();
+
       const res = await firstValueFrom(
         this.httpService.post(
           `${baseUrl}/assistant/respond`,
           {
             userId,
             message: dto.message,
-            clientMessageId: dto.clientMessageId,
+            clientMessageId: effectiveClientMessageId,
             contexts,
             surface: dto.surface,
             conversationId: dto.conversationId,
@@ -196,13 +200,16 @@ export class ChatbotService {
             headers["authorization"] = authHeader;
           }
 
+          const effectiveClientMessageId =
+            dto.clientMessageId?.trim() || randomUUID();
+
           const response = await firstValueFrom(
             this.httpService.post(
               `${baseUrl}/assistant/respond-stream`,
               {
                 userId,
                 message: dto.message,
-                clientMessageId: dto.clientMessageId,
+                clientMessageId: effectiveClientMessageId,
                 contexts,
                 surface: dto.surface,
                 conversationId: dto.conversationId,
@@ -482,7 +489,7 @@ export class ChatbotService {
       this.configService.get<string>("CHATBOT_INTERNAL_KEY");
     const timeoutMs = this.configService.get<number>(
       "CHATBOT_SERVICE_TIMEOUT_MS",
-      12000,
+      15000,
     );
 
     if (!baseUrl) {

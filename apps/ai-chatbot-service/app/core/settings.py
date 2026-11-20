@@ -125,10 +125,13 @@ class Settings:
             os.getenv("CHATBOT_METRICS_LOG_EVERY_N", 50)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEMS_MAX: int = int(
-            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 8)
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEMS_MAX", 12)
         )
         self.CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT: int = int(
-            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 280)
+            os.getenv("CHATBOT_PROMPT_HISTORY_ITEM_CHAR_LIMIT", 1200)
+        )
+        self.CHATBOT_PROMPT_MAX_TOTAL_TOKENS: int = int(
+            os.getenv("CHATBOT_PROMPT_MAX_TOTAL_TOKENS", 4500)
         )
         self.CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT: int = int(
             os.getenv("CHATBOT_PROMPT_CONTEXT_TOTAL_CHAR_LIMIT", 12000)

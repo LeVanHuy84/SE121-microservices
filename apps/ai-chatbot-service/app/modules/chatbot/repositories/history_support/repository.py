@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo.errors import OperationFailure
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from app.core.database import get_database
 from app.modules.chatbot.repositories.history_support.helpers import (
@@ -107,6 +107,21 @@ class ChatHistoryRepository:
             )
         except Exception as exc:
             logger.warning("Chat index creation warning (chat_msg_conv_idx): %s", exc)
+
+        try:
+            await msg_col.create_index(
+                [("conversation_id", 1), ("client_message_id", 1)],
+                unique=True,
+                partialFilterExpression={
+                    "client_message_id": {"$type": "string", "$gt": ""}
+                },
+                name="chat_msg_conv_client_msg_uniq_idx",
+            )
+        except Exception as exc:
+            logger.warning(
+                "Chat index creation warning (chat_msg_conv_client_msg_uniq_idx): %s",
+                exc,
+            )
 
         self._indexes_ensured = True
 
@@ -296,7 +311,25 @@ class ChatHistoryRepository:
             "created_at": assistant_now,
         }
 
-        await self.db["chat_messages"].insert_many([user_msg, assistant_msg])
+        try:
+            await self.db["chat_messages"].insert_many([user_msg, assistant_msg])
+        except DuplicateKeyError:
+            logger.warning(
+                "DuplicateKeyError for client_message_id=%s, returning existing exchange",
+                client_message_id,
+            )
+            if client_message_id:
+                existing = await self.get_exchange_by_client_message_id(
+                    user_id, client_message_id
+                )
+                if existing:
+                    return ExchangeResult(
+                        user_message=existing[0],
+                        assistant_message=existing[1],
+                        locked_anchor_this_turn=False,
+                        turn_count=conversation.get("turn_count", 0),
+                    )
+            raise
 
         update_fields: dict[str, Any] = {
             "last_message_at": assistant_now,
@@ -511,9 +544,9 @@ class ChatHistoryRepository:
         cursor = (
             msg_col.find({"conversation_id": conversation_id})
             .sort([("created_at", -1), ("id", -1)])
-            .limit(6)
+            .limit(12)
         )
-        recent_rows = await cursor.to_list(length=6)
+        recent_rows = await cursor.to_list(length=12)
         recent_rows.reverse()
 
         # Deduplicate: drop any message already in anchor_exchange or created before/at anchor

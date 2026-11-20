@@ -18,6 +18,7 @@ from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 from app.modules.chatbot.services.guardrails import (
     FAREWELLS,
     GREETINGS,
+    CommunityDecision,
     ScopeDecision,
     classify_in_chat_distress_level,
     has_in_chat_emotional_distress,
@@ -203,7 +204,7 @@ class TurnPreparer:
             )
         howto_actions = list(nav.howto_actions)
 
-        # Step 2: Parallel State Loading (history, user_facts, emotion_snapshot)
+        # Step 2: Parallel State Loading (history, user_facts, phobert_moderation v1.1)
         async def _load_history():
             if request.history:
                 return (
@@ -213,16 +214,100 @@ class TurnPreparer:
                 )
             return await cmd.history_store.load_context_window(request.userId, conv_id)
 
-        history_res, user_facts = await asyncio.gather(
+        from app.modules.analysis.services.ml_models.text_moderation.phobert_moderator import (
+            phobert_moderator,
+        )
+
+        gather_results = await asyncio.gather(
             _load_history(),
             cmd.profile_repo.get_facts_by_user(request.userId),
+            phobert_moderator.infer_async(request.message),
+            return_exceptions=True,
         )
+
+        history_res = (
+            gather_results[0]
+            if not isinstance(gather_results[0], Exception)
+            else ([], None, {})
+        )
+        user_facts = (
+            gather_results[1]
+            if not isinstance(gather_results[1], Exception)
+            else {}
+        )
+        phobert_res = (
+            gather_results[2]
+            if isinstance(gather_results[2], dict)
+            else {}
+        )
+
         if is_restricted:
             emotion_snapshot = EmotionSnapshot()
         else:
             emotion_snapshot = await cmd.emotion_ctx.get_snapshot(request.userId)
-        history, db_last_intent, _ = history_res
+        history, db_last_intent, conv_doc = history_res
+        conv_doc = conv_doc or {}
+        conversation_summary = str(conv_doc.get("conversation_summary") or "")
+        conversation_context = dict(conv_doc.get("conversation_context") or {})
         last_intent = request.intent or db_last_intent
+
+        # PhoBERT Moderation v1.1 Deep Contextual Evaluation
+        phobert_available = bool(phobert_res.get("available", False))
+        phobert_label = str(phobert_res.get("predicted_label", "CLEAN"))
+        phobert_scores = (
+            dict(phobert_res.get("all_scores") or {}) if phobert_available else {}
+        )
+        phobert_crisis_score = float(phobert_scores.get("EMOTIONAL_CRISIS", 0.0))
+        phobert_venting_score = float(phobert_scores.get("PROFANITY_VENTING", 0.0))
+        phobert_hate_score = float(phobert_scores.get("HATE_SPEECH", 0.0))
+
+        # 1. PhoBERT Moderation Evaluation
+        # Note: Explicit suicide emergencies are caught at Step 0. Implicit crisis semantics
+        # are verified with centroid embeddings at Step 4. PhoBERT EMOTIONAL_CRISIS informs
+        # stepped-care PFA (Tier 2) rather than short-circuiting the turn.
+
+        # 2. PhoBERT Hate Speech Guard (Chỉ xét khi an toàn tính mạng đã được đảm bảo)
+        if (
+            phobert_available
+            and phobert_label == "HATE_SPEECH"
+            and phobert_hate_score >= 0.70
+        ):
+            data = cmd._community_response("hate_speech")
+            return PreparedTurn(
+                working_request=request,
+                conv_id=conv_id,
+                history=[],
+                user_facts=user_facts or {},
+                emotion_snapshot=emotion_snapshot,
+                scope_decision=ScopeDecision(
+                    False, "community", "", "out_of_scope", 0.0, ()
+                ),
+                final_contexts=[],
+                sources=[],
+                active_tools=[],
+                supports_tools=False,
+                pending_actions=[],
+                howto_actions=[],
+                messages_or_prompt="",
+                in_chat_distress=False,
+                is_system_turn=False,
+                guard_data=data,
+                guard_intent="community_guard",
+            )
+
+        # 3. PhoBERT Profanity Venting Evaluation
+        if community_decision.reason == "profanity_candidate":
+            if phobert_available and (
+                phobert_label in {"PROFANITY_VENTING", "CLEAN"}
+                or phobert_venting_score >= 0.30
+                or phobert_crisis_score >= 0.30
+            ):
+                community_decision = CommunityDecision(
+                    allowed=True,
+                    reason="profanity_venting",
+                    severity="low",
+                    normalized_text=community_decision.normalized_text,
+                )
 
         # Greeting check
         normalized_msg = cmd.scope_guard._normalize(request.message)
@@ -393,6 +478,7 @@ class TurnPreparer:
             or (not scope_decision.in_scope and scope_decision.reason != "privacy")
             or (0.15 < scope_decision.confidence < 0.45)
             or distress_level != "none"
+            or (phobert_available and phobert_crisis_score >= 0.35)
         )
         if needs_stage2:
             stage2_res = None
@@ -407,8 +493,9 @@ class TurnPreparer:
                         if has_active_session_anchor
                         else None,
                         effective_query=effective_query,
+                        cached_phobert_res=phobert_res,
                     ),
-                    timeout=0.25,
+                    timeout=0.45,
                 )
             except TimeoutError:
                 stage2_res = None
@@ -516,6 +603,25 @@ class TurnPreparer:
                     )
                     if is_system_turn:
                         has_active_session_anchor = False
+
+        # PhoBERT Moderation direct distress propagation (when distress was not already set)
+        if phobert_available and distress_level == "none":
+            if phobert_crisis_score >= 0.45:
+                distress_level = "acute_pfa"
+                if not scope_decision.in_scope:
+                    scope_decision = ScopeDecision(
+                        in_scope=True,
+                        reason="phobert_distress",
+                        normalized_text=scope_decision.normalized_text,
+                        state="in_scope",
+                        confidence=max(scope_decision.confidence, 0.8),
+                        matched_domains=("mental_health",),
+                    )
+            elif (
+                phobert_venting_score >= 0.35
+                or community_decision.reason == "profanity_venting"
+            ):
+                distress_level = "mild_cbt"
 
         in_chat_distress = distress_level != "none"
         guard_annotation: str | None = None
@@ -702,8 +808,9 @@ class TurnPreparer:
             messages_or_prompt = cmd.prompt_builder.build_messages(
                 working_request,
                 history,
-                memory_summary="",
+                memory_summary=conversation_summary,
                 user_facts=user_facts,
+                conversation_context=conversation_context,
                 context_char_limit=prompt_limits.context_char_limit,
                 max_history_items=prompt_limits.max_history_items,
                 history_item_char_limit=prompt_limits.history_item_char_limit,
@@ -719,7 +826,9 @@ class TurnPreparer:
             prompt_str = cmd.prompt_builder.build(
                 working_request,
                 history,
+                memory_summary=conversation_summary,
                 user_facts=user_facts,
+                conversation_context=conversation_context,
                 context_char_limit=prompt_limits.context_char_limit,
                 max_history_items=prompt_limits.max_history_items,
                 history_item_char_limit=prompt_limits.history_item_char_limit,

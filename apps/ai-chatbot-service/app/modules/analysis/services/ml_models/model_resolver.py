@@ -150,6 +150,12 @@ def resolve_onnx_model(
                         "[ModelResolver] Found local monorepo ONNX weights at: %s",
                         target,
                     )
+                    # Nếu file ONNX nằm cùng thư mục với tokenizer files của chính nó
+                    if (target.parent / "vocab.txt").is_file() or (
+                        target.parent / "tokenizer_config.json"
+                    ).is_file():
+                        return str(target.resolve()), str(target.parent.resolve())
+
                     parsed_repo, _, _ = parse_huggingface_target(model_path_or_repo)
                     return str(target.resolve()), parsed_repo
 

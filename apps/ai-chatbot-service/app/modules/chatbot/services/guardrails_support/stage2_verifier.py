@@ -10,7 +10,7 @@ from app.modules.analysis.services.ml_models.text_moderation.phobert_moderator i
     phobert_moderator,
 )
 from app.modules.chatbot.services.embedding import embedding_service
-from app.utils.text_normalizer import normalize_for_guard, normalize_query_text
+from app.utils.text_normalizer import normalize_query_text
 
 from .crisis import classify_in_chat_distress_level
 from .keywords import (
@@ -108,6 +108,7 @@ class Stage2GuardVerifier:
         stage1_crisis: CrisisDecision,
         topic_anchor: str | None = None,
         effective_query: str | None = None,
+        cached_phobert_res: dict[str, Any] | None = None,
     ) -> Stage2VerificationResult:
         query_for_embedding = effective_query
         if query_for_embedding is None:
@@ -124,10 +125,17 @@ class Stage2GuardVerifier:
             normalize_query_text(query_for_embedding) or query_for_embedding
         )
         vec_task = embedding_service.encode_query_async(normalized_query_for_embedding)
-        mod_task = phobert_moderator.infer_async(text)
-        vec_res, mod_res = await asyncio.gather(
-            vec_task, mod_task, return_exceptions=True
-        )
+        if cached_phobert_res and isinstance(cached_phobert_res, dict):
+            try:
+                vec_res = await vec_task
+            except Exception as exc:
+                vec_res = exc
+            mod_res = cached_phobert_res
+        else:
+            mod_task = phobert_moderator.infer_async(text)
+            vec_res, mod_res = await asyncio.gather(
+                vec_task, mod_task, return_exceptions=True
+            )
 
         query_vec: list[float] = vec_res if isinstance(vec_res, list) else []
         mod_dict: dict[str, Any] = mod_res if isinstance(mod_res, dict) else {}
@@ -153,32 +161,39 @@ class Stage2GuardVerifier:
         emotional_crisis_score = float(phobert_scores.get("EMOTIONAL_CRISIS", 0.0))
         profanity_venting_score = float(phobert_scores.get("PROFANITY_VENTING", 0.0))
         hate_speech_score = float(phobert_scores.get("HATE_SPEECH", 0.0))
+        is_negated_crisis = getattr(stage1_crisis, "reason", "") == "negated_crisis"
 
-        # 1. Implicit crisis semantic check (require margin over system_guide, mh_sim, and PhoBERT corroboration when available)
+        # 1. Implicit crisis semantic check (informs Stepped-Care Tier 2 PFA for LLM)
+        # Cosine similarity and PhoBERT measure emotional distress and psychological topics.
+        # They inform Tier 2 Acute PFA tone and hotline directives for the LLM rather than cutting off the turn.
         if (
-            query_vec
+            not is_negated_crisis
+            and query_vec
             and crisis_sim >= IMPLICIT_CRISIS_COSINE_THRESHOLD
             and crisis_sim > sys_sim + 0.05
             and (crisis_sim >= mh_sim - 0.02)
-            and (not phobert_available or emotional_crisis_score >= 0.25)
-        ):
-            crisis_override = CrisisDecision(
-                is_crisis=True,
-                severity="high",
-                reason="implicit_crisis_semantic",
-                normalized_text=stage1_crisis.normalized_text
-                or normalize_for_guard(text),
+            and (
+                not phobert_available
+                or emotional_crisis_score >= 0.60
+                or (predicted_label == "EMOTIONAL_CRISIS" and emotional_crisis_score >= 0.45)
             )
+        ):
             distress_level = "acute_pfa"
+            if not stage1_scope.in_scope:
+                in_scope_override = True
+                matched_domains_override = ("mental_health",)
 
-        # 2. PhoBERT emotional crisis -> Tier 2 Acute PFA (when not already Tier 1 Crisis)
-
+        # 2. PhoBERT Emotional Crisis -> Tier 2 Acute PFA (Stepped-Care)
+        # PhoBERT EMOTIONAL_CRISIS reflects affective distress and depressive symptoms.
+        # It informs the tone/pfa directive for LLM rather than cutting off the turn.
         if (
             phobert_available
             and emotional_crisis_score >= PHOBERT_EMOTIONAL_CRISIS_THRESHOLD
-            and crisis_override is None
         ):
             distress_level = "acute_pfa"
+            if not stage1_scope.in_scope:
+                in_scope_override = True
+                matched_domains_override = ("mental_health",)
 
         # 3. Venting profanity vs hate speech disambiguation
         if stage1_community.reason == "profanity_candidate":

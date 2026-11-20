@@ -7,8 +7,8 @@ from app.modules.chatbot.schemas import AssistantHistoryPageData
 
 MAX_SESSIONS_PER_USER: int = 20
 SESSION_TTL_SECONDS: int = 90 * 24 * 3600  # 90 days
-TOKEN_BUDGET_FULL_HISTORY: int = 1500
-TOKEN_CEILING_HARD: int = 2000
+TOKEN_BUDGET_FULL_HISTORY: int = 2500
+TOKEN_CEILING_HARD: int = 3000
 HISTORY_MESSAGE_CHAR_CAP: int = 1200
 GAP_MARKER_TEXT: str = "[... Một số lượt trao đổi trung gian đã được lược bớt ...]"
 

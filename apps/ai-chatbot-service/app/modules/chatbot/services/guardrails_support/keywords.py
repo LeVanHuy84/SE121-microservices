@@ -6,28 +6,56 @@ from dataclasses import dataclass
 
 CRISIS_EXPLICIT_KEYWORDS: frozenset[str] = frozenset(
     {
-        # Direct suicide intent
+        # Direct suicide intent & method seeking
         "tu tu",
         "tu sat",
         "ket thuc cuoc doi",
-        "ket thuc tat ca",
+        "ket thuc cuoc song",
         "khong muon song nua",
         "khong muon tiep tuc song",
         "muon chet",
         "muon tu tu",
         "muon tu sat",
-        "chon chet",
         "uong thuoc tu tu",
         "nhat dao tu tu",
         "nhay lau tu tu",
+        "cach chet",
+        "cach nao chet",
+        "chet nhe nhang",
+        "chet khong dau",
+        "huong dan chet",
+        "huong dan tu tu",
+        "huong dan tu sat",
+        "cach tu tu",
+        "cach tu sat",
+        "phuong phap tu sat",
+        "phuong phap tu tu",
+        "chet di cho xong",
+        "chet cho xong",
+        "chet di",
+        "cham dut tat ca",
+        "giai thoat duy nhat",
+        "nhay xuong dong song",
+        "nhay song",
+        "nhay cau",
+        "lan can tang",
+        "dung tren lan can",
+        "sach no tran gian",
+        "dap dau vao tuong",
         "suicide",
         "want to die",
         "kill myself",
         "end my life",
         "take my own life",
         "no reason to live",
+        "how to die",
+        "how to commit suicide",
         # Self-harm
         "cat tay",
+        "rach co tay",
+        "rach tay",
+        "tu cat tay",
+        "tu rach tay",
         "tu lam dau ban than",
         "tu hanh ha ban than",
         "self harm",
@@ -38,7 +66,7 @@ CRISIS_EXPLICIT_KEYWORDS: frozenset[str] = frozenset(
 
 CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
     {
-        # High-level hopelessness
+        # High-level hopelessness & severe existential despair
         "khong con ly do de song",
         "song de lam gi",
         "cuoc song vo nghia",
@@ -46,11 +74,6 @@ CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
         "cuoc song that vo nghia",
         "chang co gi de song",
         "met moi cuoc doi",
-        "cuoc doi chan qua",
-        "khong biet phai lam gi nua",
-        "khong con ai de noi chuyen",
-        "cam thay co don qua",
-        "cam thay tro nen vo dung",
         "life is meaningless",
         "nobody cares",
         "i give up on life",
@@ -149,6 +172,61 @@ _CRISIS_SOFT_REGEX = re.compile(
     "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in CRISIS_SOFT_KEYWORDS),
     re.IGNORECASE,
 )
+
+_CRISIS_NEGATION_PREFIX_REGEX = re.compile(
+    r"(?:^|\s)(khong\s+phai(\s+la)?|dau\s+co|dau\s+phai(\s+la)?|chang\s+phai(\s+la)?|chang\s+co|"
+    r"khong\s+he(\s+co)?|chua\s+tung(\s+co)?|chua\s+bao\s+gio|khong\s+bao\s+gio|"
+    r"khong\s+co\s+y\s+dinh|chua\s+co\s+y\s+dinh|khong\s+nghi\s+den|chua\s+nghi\s+den|"
+    r"lam\s+gi\s+co|ai\s+lai(\s+di)?|khong|chua|chang|dau|do\s+not|did\s+not|will\s+not|cannot|can\s+not|don't|dont|never)"
+    r"(?:\s+[\w]+){0,4}\s*$",
+    re.IGNORECASE,
+)
+
+_CRISIS_NEGATION_SUFFIX_REGEX = re.compile(
+    r"^\s*(dau\b|dau\s+ma\b|gi\s+dau\b|dau\s+chu\b|dau\s+nhe\b)",
+    re.IGNORECASE,
+)
+
+
+def is_crisis_match_negated(text: str, start: int, end: int, matched_str: str) -> bool:
+    """Kiểm tra xem từ khóa crisis bắt được có bị phủ định bởi ngữ cảnh trước hoặc sau không."""
+    prefix = text[max(0, start - 50) : start]
+    suffix = text[end : min(len(text), end + 25)]
+
+    # Nếu từ khóa bản thân nó đã bắt đầu bằng từ phủ định mang nghĩa khẳng định nguy cơ
+    # (ví dụ: 'khong muon song nua'), chỉ coi là phủ định khi có phủ định kép cấp cao hơn
+    # (ví dụ: 'khong phai la khong muon song')
+    if matched_str.startswith("khong"):
+        return bool(
+            re.search(
+                r"\b(khong\s+phai|dau\s+phai|chang\s+phai|dau\s+co)\b",
+                prefix,
+                re.IGNORECASE,
+            )
+        )
+
+    has_prefix_neg = bool(_CRISIS_NEGATION_PREFIX_REGEX.search(prefix))
+    has_suffix_neg = bool(_CRISIS_NEGATION_SUFFIX_REGEX.search(suffix))
+    return has_prefix_neg or has_suffix_neg
+
+
+def evaluate_explicit_crisis(normalized_text: str) -> tuple[bool, str]:
+    """
+    Quét từ khóa khủng hoảng trực tiếp và kiểm tra phủ định.
+    Trả về (True, matched_keyword) nếu có ít nhất 1 từ khóa tự hại KHÔNG bị phủ định.
+    Nếu có từ khóa nhưng tất cả đều bị phủ định, trả về (False, 'negated_crisis').
+    Nếu không có từ khóa nào, trả về (False, 'no_match').
+    """
+    matches = list(_CRISIS_EXPLICIT_REGEX.finditer(normalized_text))
+    if not matches:
+        return False, "no_match"
+
+    for m in matches:
+        matched_str = m.group(0)
+        if not is_crisis_match_negated(normalized_text, m.start(), m.end(), matched_str):
+            return True, f"explicit_crisis:{matched_str}"
+
+    return False, "negated_crisis"
 
 
 @dataclass(frozen=True)
@@ -325,6 +403,47 @@ DOMAIN_KEYWORD_GROUPS: tuple[DomainKeywordGroup, ...] = (
             "kiet suc",
             "burnout",
             "bat an",
+            "tuyet vong",
+            "be tac",
+            "ganh nang",
+            "vo nghia",
+            "ngot ngat",
+            "tan bien",
+            "bien mat",
+            "reset cuoc doi",
+            "giai thoat",
+            "khong muon ton tai",
+            # Crisis & suicide ideation
+            "chet",
+            "tu tu",
+            "tu sat",
+            "cach chet",
+            "phuong phap tu sat",
+            "nhay cau",
+            "nhay song",
+            "lan can",
+            # Clinical, medications and medical boundary terms
+            "thuoc",
+            "uong thuoc",
+            "thuoc ngu",
+            "thuoc an than",
+            "chong tram cam",
+            "panadol",
+            "paracetamol",
+            "lieu luong",
+            "ngo doc",
+            "ke don",
+            "don thuoc",
+            "bac si",
+            "kham benh",
+            "chan doan",
+            "benh ly",
+            "tam than",
+            "luong cuc",
+            "bipolar",
+            "tam than phan liet",
+            "ao thanh",
+            "hoang tuong",
         },
     ),
     DomainKeywordGroup(
@@ -507,6 +626,7 @@ FEATURE_QUERY_KEYWORDS = {
 }
 
 PROFANITY_KEYWORDS = {
+    # Chửi thề rõ ràng không dấu (tránh tuyệt đối các từ đơn lẻ "cac", "lon", "cc", "cl", "bo may" gây false-positive với tiếng Việt)
     "dit",
     "dit me",
     "dm",
@@ -517,17 +637,16 @@ PROFANITY_KEYWORDS = {
     "vcl",
     "vkl",
     "vch",
-    "vai chuong",
     "vai lin",
     "vai ca dai",
-    "cc",
-    "cl",
     "clm",
     "cmn",
-    "lon",
-    "cac",
+    "con cac",
+    "cai lon",
+    "lon me",
     "me may",
-    "bo may",
+    "thang bo may",
+    "bo may thach",
     "deo",
     "toang vcl",
 }
@@ -546,6 +665,23 @@ COMMUNITY_UNSAFE_KEYWORDS = {
 
 PROFANITY_REGEX = re.compile(
     "|".join(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])" for k in PROFANITY_KEYWORDS),
+    re.IGNORECASE,
+)
+ACCENTED_PROFANITY_KEYWORDS = {
+    "địt",
+    "đụ",
+    "lồn",
+    "cặc",
+    "đĩ",
+    "mẹ mày",
+    "bố mày",
+    "đéo",
+}
+ACCENTED_PROFANITY_REGEX = re.compile(
+    "|".join(
+        rf"(?<![\wàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđĐ]){re.escape(k)}(?![\wàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđĐ])"
+        for k in ACCENTED_PROFANITY_KEYWORDS
+    ),
     re.IGNORECASE,
 )
 UNSAFE_REGEX = re.compile(

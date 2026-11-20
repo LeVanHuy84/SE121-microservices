@@ -334,7 +334,10 @@ class GroqProvider:
         return llm
 
     def _resolve_temperature(self, request: AssistantRespondRequest) -> float:
-        # Task-oriented turns should be more deterministic.
+        # Hội thoại chia sẻ cảm xúc và sức khỏe tinh thần cần độ ấm áp, tự nhiên và thấu cảm
+        if request.intent in ("mental_health", "emotion"):
+            return settings.GROQ_TEMPERATURE
+        # Các lượt hỏi tính năng hoặc tra cứu tài liệu hệ thống cần tính chuẩn xác cao
         if request.intent or request.contexts:
             return settings.GROQ_TEMPERATURE_TASK
         return settings.GROQ_TEMPERATURE

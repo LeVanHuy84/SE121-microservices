@@ -62,27 +62,22 @@ class TestCrisisGuard_SoftCrisis(unittest.TestCase):
 
     def test_life_meaningless_en(self) -> None:
         d = self.guard.evaluate("Life is meaningless to me")
-        self.assertTrue(d.is_crisis)
+        self.assertFalse(d.is_crisis)
         self.assertEqual(d.severity, "medium")
 
     def test_nobody_cares_en(self) -> None:
         d = self.guard.evaluate("Nobody cares about me anyway")
-        self.assertTrue(d.is_crisis)
+        self.assertFalse(d.is_crisis)
         self.assertEqual(d.severity, "medium")
 
     def test_song_de_lam_gi_vi(self) -> None:
         d = self.guard.evaluate("Sống để làm gì nữa nhỉ")
-        self.assertTrue(d.is_crisis)
-        self.assertEqual(d.severity, "medium")
-
-    def test_cam_thay_co_don_vi(self) -> None:
-        d = self.guard.evaluate("Mình cảm thấy cô đơn quá")
-        self.assertTrue(d.is_crisis)
+        self.assertFalse(d.is_crisis)
         self.assertEqual(d.severity, "medium")
 
     def test_cuoc_song_vo_nghia(self) -> None:
         d = self.guard.evaluate("Cuộc sống vô nghĩa quá mình không biết tiếp tục sao")
-        self.assertTrue(d.is_crisis)
+        self.assertFalse(d.is_crisis)
         self.assertEqual(d.severity, "medium")
 
 
@@ -91,6 +86,11 @@ class TestCrisisGuard_NoCrisis(unittest.TestCase):
 
     def setUp(self) -> None:
         self.guard = CrisisGuard()
+
+    def test_cam_thay_co_don_vi(self) -> None:
+        d = self.guard.evaluate("Mình cảm thấy cô đơn quá")
+        self.assertFalse(d.is_crisis)
+        self.assertEqual(d.severity, "none")
 
     def test_normal_question(self) -> None:
         d = self.guard.evaluate("Làm sao để đăng bài trên Sentimeta?")
@@ -117,3 +117,25 @@ class TestCrisisGuard_NoCrisis(unittest.TestCase):
     def test_whitespace_only(self) -> None:
         d = self.guard.evaluate("   ")
         self.assertFalse(d.is_crisis)
+
+
+class TestCrisisGuard_NegatedCrisis(unittest.TestCase):
+    """Phủ định khủng hoảng KHÔNG được kích hoạt crisis và trả về reason=negated_crisis."""
+
+    def setUp(self) -> None:
+        self.guard = CrisisGuard()
+
+    def test_khong_muon_tu_tu_dau(self) -> None:
+        d = self.guard.evaluate("tôi không có bị trầm cảm hay muốn tự tử đâu mà gửi hotline cho tôi")
+        self.assertFalse(d.is_crisis)
+        self.assertEqual(d.reason, "negated_crisis")
+
+    def test_met_chu_khong_phai_muon_chet(self) -> None:
+        d = self.guard.evaluate("áp lực mệt mỏi chứ không phải muốn chết đâu nhé")
+        self.assertFalse(d.is_crisis)
+        self.assertEqual(d.reason, "negated_crisis")
+
+    def test_khong_co_y_dinh_tu_sat(self) -> None:
+        d = self.guard.evaluate("mình chán đời nhưng không có ý định tự tử đâu")
+        self.assertFalse(d.is_crisis)
+        self.assertEqual(d.reason, "negated_crisis")

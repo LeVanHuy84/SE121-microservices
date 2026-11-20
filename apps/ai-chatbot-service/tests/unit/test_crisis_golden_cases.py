@@ -66,9 +66,11 @@ class TestCrisisGoldenCases(unittest.TestCase):
             text = case["text"]
             with self.subTest(text=text):
                 decision = self.guard.evaluate(text)
-                self.assertTrue(
+                # Indirect distress phrases must NOT trigger immediate Step 0 hard crisis
+                # They are reserved for PhoBERT and empathetic PFA/CBT support
+                self.assertFalse(
                     decision.is_crisis,
-                    f"Indirect distress phrase failed detection: '{text}'",
+                    f"Indirect distress phrase should NOT short-circuit as hard crisis: '{text}'",
                 )
 
     def test_non_crisis_sadness_burnout_zero_high_severity_false_positives(self):

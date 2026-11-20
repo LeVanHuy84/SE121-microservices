@@ -128,6 +128,15 @@ def sanitize_assistant_reply(value: str) -> str:
         text,
         flags=re.IGNORECASE,
     )
+    # Loại bỏ ký tự tiếng Trung/chữ Hán (CJK) hoặc chuyển đổi dạng "委屈 (uất ức)" -> "uất ức"
+    text = re.sub(
+        r"(?<=[\wàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđĐ])([\u4e00-\u9fff\u3400-\u4dbf]+)",
+        r" \1",
+        text,
+    )
+    text = re.sub(r"[\u4e00-\u9fff\u3400-\u4dbf]+\s*\(([^)]+)\)", r"\1", text)
+    text = re.sub(r"[\u4e00-\u9fff\u3400-\u4dbf]+", "", text)
+    text = re.sub(r" {2,}", " ", text)
     return text.strip()
 
 
