@@ -4,6 +4,8 @@ import os
 os.environ.setdefault("UNIT_TEST_MODE", "true")
 os.environ.setdefault("CHATBOT_REDIS_ENABLED", "false")
 os.environ.setdefault("MOCK_EXTERNAL_MODELS", "true")
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("INTERNAL_SERVICE_KEY", "test-internal-key")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("RAG_DOCS_ENABLED", "false")

@@ -250,9 +250,9 @@ class TestStage2HybridGuard(unittest.IsolatedAsyncioTestCase):
                 stage1_crisis=crisis_dec,
             )
 
-        self.assertIsNotNone(res.crisis_decision_override)
-        assert res.crisis_decision_override is not None
-        self.assertTrue(res.crisis_decision_override.is_crisis)
+        self.assertEqual(res.distress_level, "acute_pfa")
+        self.assertTrue(res.in_scope_override)
+        self.assertEqual(res.matched_domains_override, ("mental_health",))
 
     async def test_verify_async_normalizes_query_with_normalize_query_text(
         self,

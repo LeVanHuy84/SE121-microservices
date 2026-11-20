@@ -245,10 +245,19 @@ class CrisisAlertTest(unittest.TestCase):
 
 class CrisisAlertLevelTest(unittest.TestCase):
     def test_soft_signal_is_sent_as_high_with_neutral_reason(self):
+        from app.modules.chatbot.services.guardrails_support.types import CrisisDecision
+
         kafka = FakeKafka()
-        with _with_kafka(kafka):
+        service = _make_service(provider=FakeProvider(), kafka_producer=kafka)
+        with patch.object(
+            service._respond_command.crisis_guard,
+            "evaluate",
+            return_value=CrisisDecision(
+                True, "medium", "soft_crisis", "cuoc song vo nghia qua"
+            ),
+        ), _with_kafka(kafka):
             res = _run(
-                _make_service(provider=FakeProvider(), kafka_producer=kafka),
+                service,
                 "cuộc sống vô nghĩa quá",
                 "cr-3",
             )

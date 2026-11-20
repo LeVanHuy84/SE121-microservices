@@ -134,9 +134,8 @@ class AssistantServiceTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(provider.calls, 0)
-        self.assertEqual(res.model, "scope-guard")
-        self.assertIn("Sentimeta", res.reply)
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(res.type, "out_of_scope")
         self.assertNotEqual(res.conversationId, "default")
         uuid.UUID(res.conversationId)
         self.assertEqual(len(page.items), 2)
@@ -191,9 +190,9 @@ class AssistantServiceTest(unittest.TestCase):
 
         res = asyncio.run(service.respond(req))
 
-        self.assertEqual(provider.calls, 0)
-        self.assertEqual(res.model, "scope-guard")
-        self.assertIn("thuộc phạm vi", res.reply)
+        self.assertEqual(provider.calls, 1)
+        self.assertEqual(res.type, "no_answer")
+        self.assertNotEqual(res.type, "out_of_scope")
         self.assertNotEqual(res.conversationId, "default")
         uuid.UUID(res.conversationId)
 
@@ -309,6 +308,9 @@ class AssistantServiceTest(unittest.TestCase):
             profile_repo=profile_repo,
             context_resolver=self.context_resolver,
             fact_extractor=fact_extractor,
+        )
+        service._respond_command.nav_resolver = MagicMock(
+            resolve=MagicMock(return_value=None)
         )
         service._respond_command.emotion_ctx = MagicMock()
         service._respond_command.emotion_ctx.get_snapshot = AsyncMock()

@@ -271,7 +271,13 @@ class ChatHistoryRepository:
             user_id, conversation_id=conversation_id
         )
         user_now = datetime.now(timezone.utc)
-        assistant_now = user_now + timedelta(milliseconds=10)
+        last_msg_at = conversation.get("last_message_at")
+        if last_msg_at:
+            if last_msg_at.tzinfo is None:
+                last_msg_at = last_msg_at.replace(tzinfo=timezone.utc)
+            if user_now <= last_msg_at:
+                user_now = last_msg_at + timedelta(milliseconds=1)
+        assistant_now = user_now + timedelta(milliseconds=1)
 
         user_tokens = estimate_tokens(user_message)
         assistant_tokens = estimate_tokens(assistant_reply)

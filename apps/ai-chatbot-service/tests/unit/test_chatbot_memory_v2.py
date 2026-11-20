@@ -448,10 +448,10 @@ class ChatbotMemoryV2Test(unittest.TestCase):
         self.assertTrue(eligible)
         self.assertEqual(reason, "keyword")
 
-        # Trigger C: Turn count multiple of 5
+        # Trigger C: Turn count multiple of 3
         eligible, reason = self.extractor.should_extract(
             "Hôm nay trời đẹp",
-            turn_count=5,
+            turn_count=3,
         )
         self.assertTrue(eligible)
         self.assertEqual(reason, "periodic")
@@ -727,10 +727,10 @@ class ChatbotMemoryV2Test(unittest.TestCase):
                 conversation_id=conv_id,
             )
         )
-        # Long turn to push tokens > 1500 (15 words * 50 * 1.35 * 2 = ~2000 tokens)
+        # Long turn to push tokens > 2500 (15 words * 80 * 1.35 * 2 = ~3200 tokens)
         long_text = (
             "Nội dung trao đổi dài về bài tập rèn luyện thể dục thể thao mỗi sáng sớm. "
-            * 50
+            * 80
         )
         asyncio.run(
             self.repo.append_exchange(

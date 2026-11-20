@@ -162,6 +162,19 @@ def resolve_onnx_model(
     # -------------------------------------------------------------
     # 4. Hugging Face Hub (Free-Style URL/Repo/Subfolder/Filename)
     # -------------------------------------------------------------
+    import os
+    from app.core.settings import settings
+
+    if (
+        getattr(settings, "MOCK_EXTERNAL_MODELS", False)
+        or getattr(settings, "UNIT_TEST_MODE", False)
+        or os.getenv("MOCK_EXTERNAL_MODELS", "").lower() == "true"
+        or os.getenv("UNIT_TEST_MODE", "").lower() == "true"
+    ):
+        raise RuntimeError(
+            f"[ModelResolver] External model download skipped in mock/test mode: {model_path_or_repo}"
+        )
+
     repo_id, subfolder, explicit_filename = parse_huggingface_target(model_path_or_repo)
 
     # 4a. If specific filename was provided in the target string

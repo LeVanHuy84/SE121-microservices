@@ -5,11 +5,10 @@ import os
 import threading
 from collections import OrderedDict
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import onnxruntime as ort
-from transformers import AutoTokenizer
 
 from app.core.executors import run_in_analysis_executor, run_in_chatbot_executor
 from app.core.settings import settings
@@ -137,23 +136,52 @@ class EmbeddingService:
 
         return embeddings
 
-    def _load(self) -> tuple[AutoTokenizer, ort.InferenceSession]:
+    def _load(self) -> tuple[Any, Any]:
         if self._tokenizer is None or self._session is None:
             with self._load_lock:
                 if self._tokenizer is None or self._session is None:
+                    is_test_mode = (
+                        getattr(settings, "UNIT_TEST_MODE", False)
+                        or os.getenv("UNIT_TEST_MODE", "").lower() == "true"
+                        or getattr(settings, "MOCK_EXTERNAL_MODELS", False)
+                        or os.getenv("MOCK_EXTERNAL_MODELS", "").lower() == "true"
+                    )
                     candidate_dirs = [
                         Path("evaluation/embedding/weights").resolve(),
                         Path("evaluation/weights").resolve(),
                         Path("../evaluation/weights").resolve(),
                         Path("../../evaluation/weights").resolve(),
                     ]
-                    self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
-                        model_path_or_repo=self.model_name,
-                        explicit_onnx_path=getattr(settings, "EMBEDDING_ONNX_PATH", ""),
-                        precision=self.precision,
-                        model_type_hint="embedding",
-                        candidate_local_dirs=candidate_dirs,
-                    )
+                    try:
+                        self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
+                            model_path_or_repo=self.model_name,
+                            explicit_onnx_path=getattr(settings, "EMBEDDING_ONNX_PATH", ""),
+                            precision=self.precision,
+                            model_type_hint="embedding",
+                            candidate_local_dirs=candidate_dirs,
+                        )
+                    except Exception as exc:
+                        if is_test_mode:
+                            logger.info(
+                                "[EmbeddingService] Using mock session/tokenizer in test mode: %s",
+                                exc,
+                            )
+                            from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                                safe_load_tokenizer,
+                            )
+
+                            self._tokenizer = safe_load_tokenizer("embedding_mock")
+
+                            class DummySession:
+                                def get_inputs(self):
+                                    return []
+
+                                def run(self, *args, **kwargs):
+                                    return [np.zeros((1, 10, 768), dtype=np.float32)]
+
+                            self._session = DummySession()
+                            return self._tokenizer, self._session
+                        raise
 
                     logger.info(
                         "[EmbeddingService] Loading ONNX (%s) embedding model from: %s (Tokenizer: %s)",
@@ -161,9 +189,11 @@ class EmbeddingService:
                         self.onnx_model_path,
                         self.tokenizer_source,
                     )
-                    self._tokenizer = AutoTokenizer.from_pretrained(
-                        self.tokenizer_source
+                    from app.modules.analysis.services.ml_models.tokenizer_adapter import (
+                        safe_load_tokenizer,
                     )
+
+                    self._tokenizer = safe_load_tokenizer(self.tokenizer_source)
 
                     opts = ort.SessionOptions()
                     opts.intra_op_num_threads = 1

@@ -186,23 +186,31 @@ async def emit_crisis_event(
 
     Returns True only if the event was sent successfully within the allowed time.
     """
-    if settings.UNIT_TEST_MODE or os.getenv("UNIT_TEST_MODE", "").lower() == "true":
-        return True
-
     try:
-        if kafka_producer is None or outbox_repo is None:
+        if kafka_producer is None and outbox_repo is None:
+            if (
+                settings.UNIT_TEST_MODE
+                or os.getenv("UNIT_TEST_MODE", "").lower() == "true"
+            ):
+                return True
             from app.core.messaging import get_kafka_producer, get_outbox_repo
 
-            kafka_producer = kafka_producer or get_kafka_producer()
-            outbox_repo = outbox_repo or get_outbox_repo()
+            kafka_producer = get_kafka_producer()
+            outbox_repo = get_outbox_repo()
 
         timestamp_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         resolved_conv_id = conversation_id or request.conversationId
+        rule_prefix = rule.split(":")[0] if rule else ""
+        reason_text = (
+            _ALERT_REASON.get(rule)
+            or _ALERT_REASON.get(rule_prefix)
+            or _ALERT_REASON_DEFAULT
+        )
         payload = {
             "userId": request.userId,
             "conversationId": resolved_conv_id,
             "riskLevel": _ALERT_RISK_LEVEL.get(severity, "crisis"),
-            "reason": _ALERT_REASON.get(rule, _ALERT_REASON_DEFAULT),
+            "reason": reason_text,
             "timestamp": timestamp_str,
         }
         kafka_msg = {

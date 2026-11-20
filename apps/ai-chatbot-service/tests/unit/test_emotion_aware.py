@@ -311,25 +311,22 @@ class TestSystemPromptDirectives(unittest.TestCase):
         self.assertGreater(empathy_pos, advice_pos)
 
     def test_breathing_exercise_directive_present(self) -> None:
-        self.assertIn("4-7-8", self.system_prompt)
-        self.assertIn("Hít vào", self.system_prompt)
-        self.assertIn("Giữ hơi", self.system_prompt)
-        self.assertIn("Thở ra", self.system_prompt)
+        self.assertIn("thở chậm", self.system_prompt)
+        self.assertIn("5-4-3-2-1", self.system_prompt)
 
     def test_breathing_exercise_seconds_correct(self) -> None:
-        self.assertIn("4 giây", self.system_prompt)
-        self.assertIn("7 giây", self.system_prompt)
-        self.assertIn("8 giây", self.system_prompt)
+        self.assertIn("HỖ TRỢ THƯ GIÃN & ĐIỀU HÒA CẢM XÚC", self.system_prompt)
+        self.assertIn("tiếp đất", self.system_prompt)
 
     def test_no_medical_diagnosis_directive_present(self) -> None:
-        self.assertIn("KHÔNG CHẨN ĐOÁN Y KHOA", self.system_prompt)
-        self.assertIn("trầm cảm", self.system_prompt)
+        self.assertIn("chẩn đoán bệnh lý", self.system_prompt)
+        self.assertIn("chống trầm cảm", self.system_prompt)
 
     def test_no_diagnosis_suggests_professional(self) -> None:
         self.assertIn("chuyên gia tâm lý", self.system_prompt)
 
     def test_empathy_requires_open_ended_question(self) -> None:
-        self.assertIn("SOCRATES", self.system_prompt)
+        self.assertIn("SOCRATIC QUESTIONING", self.system_prompt)
 
 
 class TestToneIsolationAndPolicy(unittest.TestCase):

@@ -57,10 +57,16 @@ class PromptBuilder:
             == "RESTRICTED"
         )
         effective_snapshot = None if is_restricted else emotion_snapshot
-        user_facts_block = self._build_user_facts_block(user_facts)
-        summary_block = self._build_memory_summary_block(memory_summary)
-        conv_context_block = self._build_conversation_context_block(
-            conversation_context
+        user_facts_block = (
+            "" if is_restricted else self._build_user_facts_block(user_facts)
+        )
+        summary_block = (
+            "" if is_restricted else self._build_memory_summary_block(memory_summary)
+        )
+        conv_context_block = (
+            ""
+            if is_restricted
+            else self._build_conversation_context_block(conversation_context)
         )
 
         parts = [
@@ -129,10 +135,16 @@ class PromptBuilder:
             == "RESTRICTED"
         )
         effective_snapshot = None if is_restricted else emotion_snapshot
-        user_facts_block = self._build_user_facts_block(user_facts)
-        summary_block = self._build_memory_summary_block(memory_summary)
-        conv_context_block = self._build_conversation_context_block(
-            conversation_context
+        user_facts_block = (
+            "" if is_restricted else self._build_user_facts_block(user_facts)
+        )
+        summary_block = (
+            "" if is_restricted else self._build_memory_summary_block(memory_summary)
+        )
+        conv_context_block = (
+            ""
+            if is_restricted
+            else self._build_conversation_context_block(conversation_context)
         )
 
         system_parts = [
@@ -412,29 +424,39 @@ class PromptBuilder:
             lines.append(f"CONVERSATION_ID: {request.conversationId}")
         return "\n".join(lines)
 
-    def _build_user_facts_block(self, user_facts: dict[str, str] | None) -> str:
+    def _build_user_facts_block(
+        self, user_facts: dict[str, str] | list[str] | None
+    ) -> str:
         if not user_facts:
             return ""
-        key_order = [
-            "name",
-            "occupation",
-            "work_mode",
-            "sleep_health",
-            "diet_exercise",
-            "interests",
-            "current_goal",
-            "tone_preference",
-        ]
-        lines = ["USER_FACTS (Thông tin cá nhân người dùng đã chia sẻ):"]
-        has_fact = False
-        for k in key_order:
-            val = user_facts.get(k)
-            if val and isinstance(val, str) and val.strip():
-                lines.append(f"- {k}: {val.strip()}")
-                has_fact = True
-        if not has_fact:
-            return ""
-        return "\n".join(lines)
+        if isinstance(user_facts, list):
+            lines = ["USER_FACTS (Thông tin cá nhân người dùng đã chia sẻ):"]
+            for f in user_facts:
+                if f and str(f).strip():
+                    lines.append(f"- {str(f).strip()}")
+            return "\n".join(lines) if len(lines) > 1 else ""
+        if isinstance(user_facts, dict):
+            key_order = [
+                "name",
+                "occupation",
+                "work_mode",
+                "sleep_health",
+                "diet_exercise",
+                "interests",
+                "current_goal",
+                "tone_preference",
+            ]
+            lines = ["USER_FACTS (Thông tin cá nhân người dùng đã chia sẻ):"]
+            has_fact = False
+            for k in key_order:
+                val = user_facts.get(k)
+                if val and isinstance(val, str) and val.strip():
+                    lines.append(f"- {k}: {val.strip()}")
+                    has_fact = True
+            if not has_fact:
+                return ""
+            return "\n".join(lines)
+        return ""
 
     def _build_memory_summary_block(self, memory_summary: str) -> str:
         if not memory_summary or not memory_summary.strip():
