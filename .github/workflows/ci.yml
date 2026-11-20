@@ -52,6 +52,8 @@ jobs:
 
       # 4. Install dependencies
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
         run: npm ci --legacy-peer-deps
 
       # 5. Build Applications & Packages first (Required for local ts exports to resolve)
