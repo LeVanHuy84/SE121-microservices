@@ -21,7 +21,6 @@ SURFACE_SLOT_QUOTA = 2
 INTENT_SLOT_QUOTA = 3
 GLOBAL_SLOT_QUOTA = 1
 
-_ACTIONABLE_DOMAINS: frozenset[str] = frozenset({"social", "groups", "account"})
 _MENTAL_HEALTH_TOOL_CUES: tuple[str, ...] = (
     "nhac",
     "bai hat",

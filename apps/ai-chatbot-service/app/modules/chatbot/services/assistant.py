@@ -420,8 +420,9 @@ class RespondCommand:
         self,
         tool_calls: tuple[Any, ...],
         tool_results: list[Any],
+        user_message: str = "",
     ) -> list[ShowCardAction]:
-        return extract_cards(tool_calls, tool_results)
+        return extract_cards(tool_calls, tool_results, user_message=user_message)
 
     async def _execute_tools_and_augment_prompt(
         self,
@@ -458,7 +459,9 @@ class RespondCommand:
 
         tool_results = await asyncio.gather(*(_run_tool(tc) for tc in tool_calls))
         tool_results_list = list(tool_results)
-        cards = self._extract_cards(tool_calls, tool_results_list)
+        cards = self._extract_cards(
+            tool_calls, tool_results_list, user_message=request.message
+        )
         tool_results_text = [
             f"- Công cụ `{tc.name}`: {res.to_tool_message_content()}"
             for tc, res in zip(tool_calls, tool_results)

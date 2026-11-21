@@ -20,6 +20,7 @@ from app.modules.chatbot.schemas import (
 )
 from app.modules.chatbot.services.assistant_support.proposals import (
     is_explicit_action_request,
+    is_global_proposable_action_request,
 )
 from app.modules.chatbot.services.assistant_support.types import PreparedTurn
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot
@@ -183,83 +184,11 @@ class TurnPreparer:
                 guard_intent="community_guard",
             )
 
-        # Hybrid RESTRICTED Policy Gate:
-        # Short-circuit explicit write-action requests and explicit personal data-retrieval
-        # queries with a clear explanation + link to /settings/privacy + optional manual screen link.
+        # Hybrid RESTRICTED Policy Gate
         if is_restricted:
-            norm_policy_msg = normalize_for_guard(request.message)
-            is_action_req = is_explicit_action_request(request.message)
-            is_data_query = any(
-                ind in norm_policy_msg for ind in _DATA_RETRIEVAL_INDICATORS
-            ) or any(norm_policy_msg.startswith(p) for p in _VIEW_DATA_PREFIXES)
-            matched_nav = cmd.nav_resolver.resolve(request.message, ai_policy="FULL")
-            top_dest = (
-                matched_nav.matches[0]
-                if matched_nav and matched_nav.matches
-                else None
-            )
-            is_personal_data_query = bool(
-                is_data_query
-                and top_dest is not None
-                and top_dest.destination_id in READ_TOOL_BACKED_DESTINATIONS
-            )
-            if is_action_req or is_personal_data_query:
-                privacy_action = NavigateAction(
-                    label="Cài đặt Quyền riêng tư",
-                    payload=NavigatePayload(destinationId="settings.privacy"),
-                )
-                suggested_nav_actions: list[NavigateAction] = [privacy_action]
-                if (
-                    top_dest is not None
-                    and top_dest.destination_id != "settings.privacy"
-                ):
-                    suggested_nav_actions.append(to_action(top_dest))
-
-                if is_action_req:
-                    policy_reply = (
-                        "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
-                        "không thể đề xuất hoặc thực hiện thao tác tài khoản. "
-                        "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
-                        "để sử dụng tính năng này nhé:"
-                    )
-                else:
-                    policy_reply = (
-                        "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
-                        "không có quyền đọc dữ liệu cá nhân của bạn. "
-                        "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
-                        "để trợ lý tra cứu trực tiếp, hoặc bấm nút bên dưới để tự xem thủ công nhé:"
-                    )
-
-                policy_data = AssistantRespondData(
-                    type="answer",
-                    reply=policy_reply,
-                    sources=[],
-                    suggestedActions=suggested_nav_actions,
-                    model="policy-guard",
-                    provider="chatbot-service",
-                    policyBlocked=True,
-                )
-                return PreparedTurn(
-                    working_request=request,
-                    conv_id=conv_id,
-                    history=[],
-                    user_facts={},
-                    emotion_snapshot=EmotionSnapshot(),
-                    scope_decision=ScopeDecision(
-                        True, "policy_restricted", "", "in_scope", 1.0, ("privacy",)
-                    ),
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=[],
-                    supports_tools=False,
-                    pending_actions=suggested_nav_actions,
-                    howto_actions=[],
-                    messages_or_prompt="",
-                    in_chat_distress=False,
-                    is_system_turn=True,
-                    guard_data=policy_data,
-                    guard_intent="policy_restricted",
-                )
+            policy_turn = self._evaluate_restricted_policy_gate(request, conv_id)
+            if policy_turn is not None:
+                return policy_turn
 
         nav = build_nav_outcome(
             None
@@ -811,7 +740,7 @@ class TurnPreparer:
             distress_level=distress_level,
             is_mental_health_turn=is_mental_health_turn,
             message=working_request.message,
-            include_action_proposal_tool=is_explicit_action_request(
+            include_action_proposal_tool=is_global_proposable_action_request(
                 working_request.message
             ),
         )
@@ -969,6 +898,82 @@ class TurnPreparer:
             distress_level=distress_level,
             session_emotional_state=session_emotional_state,
             guard_annotation=guard_annotation,
+        )
+
+    def _evaluate_restricted_policy_gate(
+        self, request: AssistantRespondRequest, conv_id: str
+    ) -> PreparedTurn | None:
+        """Short-circuit explicit write-action or personal data-retrieval queries under RESTRICTED."""
+        cmd = self.cmd
+        norm_policy_msg = normalize_for_guard(request.message)
+        is_action_req = is_explicit_action_request(request.message)
+        is_data_query = any(
+            ind in norm_policy_msg for ind in _DATA_RETRIEVAL_INDICATORS
+        ) or any(norm_policy_msg.startswith(p) for p in _VIEW_DATA_PREFIXES)
+        matched_nav = cmd.nav_resolver.resolve(request.message, ai_policy="FULL")
+        top_dest = (
+            matched_nav.matches[0] if matched_nav and matched_nav.matches else None
+        )
+        is_personal_data_query = bool(
+            is_data_query
+            and top_dest is not None
+            and top_dest.destination_id in READ_TOOL_BACKED_DESTINATIONS
+        )
+        if not (is_action_req or is_personal_data_query):
+            return None
+
+        privacy_action = NavigateAction(
+            label="Cài đặt Quyền riêng tư",
+            payload=NavigatePayload(destinationId="settings.privacy"),
+        )
+        suggested_nav_actions: list[NavigateAction] = [privacy_action]
+        if top_dest is not None and top_dest.destination_id != "settings.privacy":
+            suggested_nav_actions.append(to_action(top_dest))
+
+        if is_action_req:
+            policy_reply = (
+                "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
+                "không thể đề xuất hoặc thực hiện thao tác tài khoản. "
+                "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
+                "để sử dụng tính năng này nhé:"
+            )
+        else:
+            policy_reply = (
+                "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
+                "không có quyền đọc dữ liệu cá nhân của bạn. "
+                "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
+                "để trợ lý tra cứu trực tiếp, hoặc bấm nút bên dưới để tự xem thủ công nhé:"
+            )
+
+        policy_data = AssistantRespondData(
+            type="answer",
+            reply=policy_reply,
+            sources=[],
+            suggestedActions=suggested_nav_actions,
+            model="policy-guard",
+            provider="chatbot-service",
+            policyBlocked=True,
+        )
+        return PreparedTurn(
+            working_request=request,
+            conv_id=conv_id,
+            history=[],
+            user_facts={},
+            emotion_snapshot=EmotionSnapshot(),
+            scope_decision=ScopeDecision(
+                True, "policy_restricted", "", "in_scope", 1.0, ("privacy",)
+            ),
+            final_contexts=[],
+            sources=[],
+            active_tools=[],
+            supports_tools=False,
+            pending_actions=suggested_nav_actions,
+            howto_actions=[],
+            messages_or_prompt="",
+            in_chat_distress=False,
+            is_system_turn=True,
+            guard_data=policy_data,
+            guard_intent="policy_restricted",
         )
 
     def _compute_is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:

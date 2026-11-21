@@ -413,9 +413,9 @@ class AssistantServiceTest(unittest.TestCase):
                 else:
                     yield LlmChunk(
                         content=(
-                            "Mình đã tìm thấy Nam.\n"
+                            "Mình sẽ đánh dấu tất cả thông báo là đã đọc.\n"
                             "```action\n"
-                            '{"actionName":"send_friend_request","title":"Kết bạn","params":{"target_user_id":"u-nam-1"}}\n'
+                            '{"actionName":"mark_all_notifications_read","title":"Đánh dấu đã đọc","params":{}}\n'
                             "```\n"
                         )
                     )
@@ -438,7 +438,7 @@ class AssistantServiceTest(unittest.TestCase):
         async def _collect(policy: str):
             req = AssistantRespondRequest(
                 userId="u-stream-1",
-                message="Mình muốn kết nối bạn bè với Nam",
+                message="Mình muốn kiểm tra thông báo và đọc hết",
                 aiPolicy=policy,
             )
             return [
@@ -448,7 +448,9 @@ class AssistantServiceTest(unittest.TestCase):
         chunks_full = asyncio.run(_collect("FULL"))
         proposals_full = [p for c in chunks_full for p in c.proposals]
         self.assertEqual(len(proposals_full), 1)
-        self.assertEqual(proposals_full[0].payload.actionName, "send_friend_request")
+        self.assertEqual(
+            proposals_full[0].payload.actionName, "mark_all_notifications_read"
+        )
         self.assertTrue(proposals_full[0].payload.proposalToken)
         self.assertNotIn("```action", "".join(c.reply for c in chunks_full))
 

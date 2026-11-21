@@ -62,9 +62,9 @@ class _InMemoryRedis:
 class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.mock_http = AsyncMock()
-        self.mock_http.post.return_value = {
+        self.mock_http.patch.return_value = {
             "status": "ok",
-            "message": "Friend request sent",
+            "message": "Notifications marked read",
         }
         self.redis = _InMemoryRedis()
         self.executor = ActionExecutorService(
@@ -76,14 +76,14 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
     def _build_request(
         self,
         user_id: str = "user-alice",
-        action_name: str = "send_friend_request",
+        action_name: str = "mark_all_notifications_read",
         params: dict | None = None,
         ttl_offset: int = 300,
         tamper_token: bool = False,
     ) -> ActionExecutionRequest:
         action_id = f"act-{uuid4()}"
         idem_key = f"idem-{uuid4()}"
-        resolved_params = params or {"target_user_id": "user-bob"}
+        resolved_params = params if params is not None else {}
         expires_at = int(time.time()) + ttl_offset
 
         token, _ = sign_proposal_token(
@@ -118,7 +118,7 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(res.success)
-        self.assertEqual(self.mock_http.post.call_count, 1)
+        self.assertEqual(self.mock_http.patch.call_count, 1)
 
     async def test_idempotent_replay_does_not_duplicate_execution(self):
         req = self._build_request()
@@ -128,7 +128,7 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
             req, auth_token="valid-jwt-token", user_id="user-alice"
         )
         self.assertTrue(res1.success)
-        self.assertEqual(self.mock_http.post.call_count, 1)
+        self.assertEqual(self.mock_http.patch.call_count, 1)
 
         # Step 2: Replay with identical idempotencyKey
         res2 = await self.executor.execute(
@@ -137,7 +137,7 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(res2.success)
         # Downstream call count must remain 1 (never re-executed!)
         self.assertEqual(
-            self.mock_http.post.call_count,
+            self.mock_http.patch.call_count,
             1,
             "Downstream service must NOT be called a second time on replay",
         )
@@ -150,7 +150,7 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(res.success)
         self.assertEqual(res.error, "PROPOSAL_TOKEN_INVALID")
-        self.assertEqual(self.mock_http.post.call_count, 0)
+        self.assertEqual(self.mock_http.patch.call_count, 0)
 
     async def test_expired_token_rejected(self):
         # Expired 60 seconds ago
@@ -161,7 +161,7 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(res.success)
         self.assertEqual(res.error, "PROPOSAL_TOKEN_EXPIRED")
-        self.assertEqual(self.mock_http.post.call_count, 0)
+        self.assertEqual(self.mock_http.patch.call_count, 0)
 
     async def test_cross_user_execution_rejected(self):
         req = self._build_request(user_id="user-alice")
@@ -172,19 +172,19 @@ class TestActionLifecycleIdempotency(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(res.success)
         self.assertEqual(res.error, "PROPOSAL_TOKEN_INVALID")
-        self.assertEqual(self.mock_http.post.call_count, 0)
+        self.assertEqual(self.mock_http.patch.call_count, 0)
 
     async def test_parameter_tampering_rejected(self):
-        req = self._build_request(params={"target_user_id": "user-bob"})
+        req = self._build_request(params={})
         # Attacker tampers parameters after signature was generated
-        req.params = {"target_user_id": "user-mallory"}
+        req.params = {"injected": True}
 
         res = await self.executor.execute(
             req, auth_token="valid-jwt-token", user_id="user-alice"
         )
         self.assertFalse(res.success)
         self.assertEqual(res.error, "PROPOSAL_TOKEN_INVALID")
-        self.assertEqual(self.mock_http.post.call_count, 0)
+        self.assertEqual(self.mock_http.patch.call_count, 0)
 
 
 if __name__ == "__main__":
