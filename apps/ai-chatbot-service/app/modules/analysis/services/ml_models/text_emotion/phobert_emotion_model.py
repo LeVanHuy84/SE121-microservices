@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 import onnxruntime as ort
 
 from app.core.settings import settings
@@ -34,19 +33,12 @@ class PhoBERTEmotionModel:
             return
 
         try:
-            candidate_dirs = [
-                Path(__file__).resolve().parents[8] / "evaluation" / "weights",
-                Path("evaluation/weights").resolve(),
-                Path("../evaluation/weights").resolve(),
-                Path("../../evaluation/weights").resolve(),
-            ]
-
             self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
                 model_path_or_repo=self.model_name,
                 explicit_onnx_path=settings.PHOBERT_EMOTION_ONNX_PATH,
                 precision=self.precision,
                 model_type_hint="phobert_emotion",
-                candidate_local_dirs=candidate_dirs,
+                candidate_local_dirs=None,
             )
 
             # Auto-deduce precision from model path if not explicitly overridden

@@ -272,6 +272,8 @@ export class PersonalFeedService {
     ]);
 
     const distress = this.emotionService.calcDistress(emotionFeatures);
+    // 🚀 ALGORITHM OPTIMIZATION 4.1: Pre-calculate adaptive ranking weights O(1) once per session
+    const adaptiveWeights = PersonalFeedHelper.calcAdaptiveWeights(distress);
 
     const batchNow = Date.now();
     const result: { itemId: string; score: number }[] = [];
@@ -280,11 +282,14 @@ export class PersonalFeedService {
       const itemId = item._id?.toString();
       if (!itemId) continue;
 
-      const recency = PersonalFeedHelper.calcRecency(item.createdAt, batchNow);
       const post = postMap.get(item.postId);
 
       if (!post) {
         if (mainEmotion) continue;
+        const recency = PersonalFeedHelper.calcRecency(
+          item.createdAt,
+          batchNow,
+        );
         result.push({
           itemId,
           score: recency * 0.7,
@@ -292,7 +297,7 @@ export class PersonalFeedService {
         continue;
       }
 
-      // 🛡️ TIER 1 SAFETY GUARDRAIL: System-wide Hard Drop (Content Moderation HARD_BLOCK)
+      // 🛡️ ALGORITHM OPTIMIZATION 4.3: Early Exit on safety drop before mathematical feature computations
       const moderationAction = (post as any).moderationAction;
       const isDeleted = (post as any).isDeleted;
       const mentalHealthRiskLevel =
@@ -331,12 +336,20 @@ export class PersonalFeedService {
         }
       }
 
+      // Compute mathematical features only for verified clean candidates
+      const recency = PersonalFeedHelper.calcRecency(item.createdAt, batchNow);
+
+      // 🚀 ALGORITHM OPTIMIZATION 4.2: Reuse precomputed distress to eliminate 100 redundant calculations
       const emotionScore = emotionFeatures
-        ? this.emotionService.calcEmotionScore(emotionFeatures, {
-            scores: post.emotionFeature?.scores || {},
-            confidence: post.emotionFeature?.confidence,
-            mentalHealthRiskLevel: post.emotionFeature?.mentalHealthRiskLevel,
-          })
+        ? this.emotionService.calcEmotionScore(
+            emotionFeatures,
+            {
+              scores: post.emotionFeature?.scores || {},
+              confidence: post.emotionFeature?.confidence,
+              mentalHealthRiskLevel: post.emotionFeature?.mentalHealthRiskLevel,
+            },
+            distress,
+          )
         : 0;
 
       const affinityScore = this.affinityService.calcAffinityScore(affinity, {
@@ -352,14 +365,17 @@ export class PersonalFeedService {
         0.3 * (Number(postScores.fear) || 0) +
         0.2 * (Number(postScores.disgust) || 0);
 
-      const score = PersonalFeedHelper.calcAdaptiveScore({
-        recency,
-        emotion: emotionScore,
-        affinity: affinityScore,
-        engagement,
-        distress,
-        toxicity,
-      });
+      // 🚀 Fast dot-product scoring with precomputed weights
+      const score = PersonalFeedHelper.calcAdaptiveScoreWithWeights(
+        {
+          recency,
+          emotion: emotionScore,
+          affinity: affinityScore,
+          engagement,
+          toxicity,
+        },
+        adaptiveWeights,
+      );
 
       result.push({
         itemId,

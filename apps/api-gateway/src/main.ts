@@ -8,14 +8,28 @@ import { DateFormatInterceptor } from "./common/interceptors/date-format.interce
 import { RedisIoAdapter } from "./redis.adapter";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const isSilent =
+    process.env.NODE_ENV === "production" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.ENABLE_LOAD_TEST_MODE === "true";
+
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    logger: isSilent
+      ? ["error", "warn"]
+      : ["log", "error", "warn", "debug", "verbose"],
+  });
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();
 
   app.enableCors();
 
   app.useGlobalFilters(new GatewayExceptionsFilter());
-  app.useGlobalInterceptors(new DateFormatInterceptor());
+  // Performance optimization: DateFormatInterceptor causes recursive double-serialization and high CPU.
+  // Standard RESTful APIs return ISO-8601 UTC directly; clients format locally.
+  if (process.env.ENABLE_DATE_FORMAT_INTERCEPTOR === "true") {
+    app.useGlobalInterceptors(new DateFormatInterceptor());
+  }
   // set global prefix
   app.setGlobalPrefix("api/v1");
 

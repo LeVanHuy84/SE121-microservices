@@ -1,0 +1,130 @@
+[
+    {
+        "Container":  "jaeger-test",
+        "Peak CPU %":  0.03,
+        "Avg CPU %":  0.01,
+        "Peak Mem %":  3.11,
+        "Avg Mem %":  3.11,
+        "Mem Usage / Limit":  "11.93MiB / 384MiB"
+    },
+    {
+        "Container":  "api-gateway-test",
+        "Peak CPU %":  22.37,
+        "Avg CPU %":  7.39,
+        "Peak Mem %":  27.53,
+        "Avg Mem %":  26.81,
+        "Mem Usage / Limit":  "133.3MiB / 512MiB"
+    },
+    {
+        "Container":  "chat-test",
+        "Peak CPU %":  0.5,
+        "Avg CPU %":  0.25,
+        "Peak Mem %":  46.51,
+        "Avg Mem %":  46.34,
+        "Mem Usage / Limit":  "118.5MiB / 256MiB"
+    },
+    {
+        "Container":  "emotion-intelligence-test",
+        "Peak CPU %":  10.47,
+        "Avg CPU %":  4.96,
+        "Peak Mem %":  42.85,
+        "Avg Mem %":  42.31,
+        "Mem Usage / Limit":  "108.4MiB / 256MiB"
+    },
+    {
+        "Container":  "search-recommendation-test",
+        "Peak CPU %":  9.31,
+        "Avg CPU %":  5.48,
+        "Peak Mem %":  25.42,
+        "Avg Mem %":  25.1,
+        "Mem Usage / Limit":  "128.3MiB / 512MiB"
+    },
+    {
+        "Container":  "ai-chatbot-test",
+        "Peak CPU %":  104.43,
+        "Avg CPU %":  63.18,
+        "Peak Mem %":  67.58,
+        "Avg Mem %":  67.45,
+        "Mem Usage / Limit":  "1.014GiB / 1.5GiB"
+    },
+    {
+        "Container":  "content-feed-test",
+        "Peak CPU %":  5.39,
+        "Avg CPU %":  3.46,
+        "Peak Mem %":  24.3,
+        "Avg Mem %":  24.09,
+        "Mem Usage / Limit":  "123MiB / 512MiB"
+    },
+    {
+        "Container":  "user-social-test",
+        "Peak CPU %":  16.16,
+        "Avg CPU %":  3.94,
+        "Peak Mem %":  42.66,
+        "Avg Mem %":  42.43,
+        "Mem Usage / Limit":  "108.2MiB / 256MiB"
+    },
+    {
+        "Container":  "kafka-ui",
+        "Peak CPU %":  0.11,
+        "Avg CPU %":  0.08,
+        "Peak Mem %":  2.53,
+        "Avg Mem %":  2.52,
+        "Mem Usage / Limit":  "302.2MiB / 11.69GiB"
+    },
+    {
+        "Container":  "kafka-test",
+        "Peak CPU %":  9.91,
+        "Avg CPU %":  2.47,
+        "Peak Mem %":  73.07,
+        "Avg Mem %":  72.9,
+        "Mem Usage / Limit":  "374.1MiB / 512MiB"
+    },
+    {
+        "Container":  "mongodb-test",
+        "Peak CPU %":  64.74,
+        "Avg CPU %":  17.72,
+        "Peak Mem %":  41.6,
+        "Avg Mem %":  24.13,
+        "Mem Usage / Limit":  "158.4MiB / 768MiB"
+    },
+    {
+        "Container":  "redis-test",
+        "Peak CPU %":  0.67,
+        "Avg CPU %":  0.5,
+        "Peak Mem %":  6.91,
+        "Avg Mem %":  6.87,
+        "Mem Usage / Limit":  "17.68MiB / 256MiB"
+    },
+    {
+        "Container":  "postgres-test",
+        "Peak CPU %":  0.35,
+        "Avg CPU %":  0.02,
+        "Peak Mem %":  13.78,
+        "Avg Mem %":  13.78,
+        "Mem Usage / Limit":  "70.55MiB / 512MiB"
+    },
+    {
+        "Container":  "rabbitmq-test",
+        "Peak CPU %":  0.81,
+        "Avg CPU %":  0.47,
+        "Peak Mem %":  58.72,
+        "Avg Mem %":  58.65,
+        "Mem Usage / Limit":  "150.2MiB / 256MiB"
+    },
+    {
+        "Container":  "elasticsearch-test",
+        "Peak CPU %":  52.23,
+        "Avg CPU %":  31.72,
+        "Peak Mem %":  85.21,
+        "Avg Mem %":  84.62,
+        "Mem Usage / Limit":  "654.2MiB / 768MiB"
+    },
+    {
+        "Container":  "k6-test",
+        "Peak CPU %":  3.57,
+        "Avg CPU %":  2.35,
+        "Peak Mem %":  5.08,
+        "Avg Mem %":  4.57,
+        "Mem Usage / Limit":  "25.32MiB / 512MiB"
+    }
+]

@@ -1,6 +1,5 @@
 import logging
 import os
-from pathlib import Path
 import threading
 from typing import Dict, Any, List
 import numpy as np
@@ -60,19 +59,12 @@ class PhoBERTModerator:
             if self.initialized:
                 return
             try:
-                candidate_dirs = [
-                    Path(__file__).resolve().parents[8] / "evaluation" / "weights",
-                    Path("evaluation/weights").resolve(),
-                    Path("../evaluation/weights").resolve(),
-                    Path("../../evaluation/weights").resolve(),
-                ]
-
                 self.onnx_model_path, self.tokenizer_source = resolve_onnx_model(
                     model_path_or_repo=self.model_name,
                     explicit_onnx_path=settings.PHOBERT_MODERATION_ONNX_PATH,
                     precision=self.precision,
                     model_type_hint="phobert_moderation",
-                    candidate_local_dirs=candidate_dirs,
+                    candidate_local_dirs=None,
                 )
 
                 logger.info(

@@ -37,9 +37,11 @@ from app.modules.chatbot.services.user_event_consumer import handle_user_event
 
 logger = logging.getLogger(__name__)
 
+log_level = getattr(logging, settings.LOG_LEVEL, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    force=True,
 )
 
 # -------------------------------------------------------

@@ -2,45 +2,83 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
-// Custom Metrics
+// ==============================================================================
+// Custom Performance & Functional Metrics
+// ==============================================================================
 const duplicateItemsCounter = new Counter('duplicate_items_total');
 const duplicateRate = new Rate('duplicate_rate');
 const firstPageDuration = new Trend('first_page_duration_ms', true);
 const scrollPageDuration = new Trend('scroll_page_duration_ms', true);
 const sessionItemsCount = new Counter('session_feed_items_fetched');
 
+// Configuration Flags
 const isSmokeTest = __ENV.SMOKE_TEST === 'true';
+const profile = (__ENV.LOAD_PROFILE || 'full').toLowerCase(); // 'standard' (200 VUs, 3m), 'sustained' (200-250 VUs, 6m), 'full' / 'stress' (350-400 VUs, 4m), 'smoke'
+const targetVUs = __ENV.TARGET_VUS ? parseInt(__ENV.TARGET_VUS, 10) : 0;
+const sustainedVUs = targetVUs > 0 ? targetVUs : 200;
+const peakVUs = targetVUs > 0 ? targetVUs : 350;
+
+function getStages() {
+  if (isSmokeTest || profile === 'smoke') {
+    return [
+      { duration: '3s', target: 10 },
+      { duration: '10s', target: 10 },
+      { duration: '3s', target: 0 },
+    ];
+  }
+
+  if (profile === 'sustained' || profile === 'endurance' || profile === 'steady') {
+    return [
+      { duration: '30s', target: sustainedVUs }, // Warmup stage to target VUs
+      { duration: '5m', target: sustainedVUs },  // 5 minutes steady-state load
+      { duration: '30s', target: 0 },            // Graceful cooldown
+    ];
+  }
+
+  if (profile === 'standard') {
+    return [
+      { duration: '30s', target: 50 },
+      { duration: '2m', target: 200 },
+      { duration: '30s', target: 0 },
+    ];
+  }
+
+  return [
+    { duration: '30s', target: 50 },
+    { duration: '1m30s', target: 200 },
+    { duration: '1m30s', target: peakVUs },
+    { duration: '30s', target: 0 },
+  ];
+}
 
 export const options = {
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
     trending_browsing_sessions: {
       executor: 'ramping-vus',
       startVUs: 0,
-      stages: isSmokeTest
-        ? [
-            { duration: '3s', target: 10 },
-            { duration: '10s', target: 10 },
-            { duration: '3s', target: 0 },
-          ]
-        : [
-            { duration: '30s', target: 50 },  // Warmup stage
-            { duration: '2m', target: 200 },   // Normal-high load stage
-            { duration: '1m', target: 350 },   // Peak stress stage
-            { duration: '30s', target: 0 },    // Ramp-down stage
-          ],
+      stages: getStages(),
       gracefulRampDown: '15s',
     },
   },
   thresholds: {
-    http_req_failed: ['rate<0.01'],         // Error rate < 1%
-    http_req_duration: ['p(95)<300', 'p(99)<800'], // p95 < 300ms, p99 < 800ms
-    duplicate_rate: ['rate==0'],            // 0% duplicate posts in session
+    http_req_failed: ['rate<0.01'],                 // Error rate < 1% (Thesis SLO)
+    http_req_duration: ['p(95)<300', 'p(99)<800'], // p95 < 300ms, p99 < 800ms (Thesis SLO)
+    duplicate_rate: ['rate==0'],                    // 0.0000% duplicate posts in session
   },
 };
 
 const BASE_URL = __ENV.TARGET_URL || 'http://api-gateway:4000';
-const NUM_TEST_USERS = 350;
-const PAGES_PER_SESSION = 4; // 1 initial page + 3 scroll pages
+const NUM_TEST_USERS = __ENV.NUM_USERS ? parseInt(__ENV.NUM_USERS, 10) : 350;
+const PAGES_PER_SESSION = __ENV.PAGES_PER_SESSION ? parseInt(__ENV.PAGES_PER_SESSION, 10) : 8;
+
+const PACING_MODE = (__ENV.PACING_MODE || 'realistic').toLowerCase();
+const scrollThinkTime = PACING_MODE === 'fast' 
+  ? () => 0.55 + Math.random() * 0.35 // Active fast reader: 0.55s - 0.9s (Mean ~0.72s)
+  : () => 1.2 + Math.random() * 0.8; // Realistic human browsing: 1.2s - 2.0s
+const interSessionSleep = PACING_MODE === 'fast' 
+  ? () => 0.6 + Math.random() * 0.4 
+  : () => 1.5 + Math.random() * 1.0;
 
 function extractFeedData(res) {
   try {
@@ -61,7 +99,6 @@ function extractFeedData(res) {
 }
 
 export default function () {
-  // 1. Assign 1:1 dedicated User ID per Virtual User (VU 1 -> load_user_1, ..., VU 350 -> load_user_350)
   const vuId = (__VU && __VU > 0) ? __VU : 1;
   const userNum = ((vuId - 1) % NUM_TEST_USERS) + 1;
   const userId = `load_user_${userNum}`;
@@ -74,7 +111,9 @@ export default function () {
 
   const seenPostIds = new Set();
 
-  // 2. Fetch Initial Page (Page 1) - Triggers Redis ZSET scan + ISO Emotion Re-ranking + Session List Persist
+  // ----------------------------------------------------------------------------
+  // 1. Fetch Initial Trending Page — Triggers ISO Emotion Re-ranking + Session Snapshot
+  // ----------------------------------------------------------------------------
   const page1Start = Date.now();
   const page1Res = http.get(`${BASE_URL}/api/v1/feeds/trending?limit=10`, {
     headers,
@@ -110,14 +149,15 @@ export default function () {
 
   let currentCursor = page1NextCursor;
 
-  // 3. User Scrolling Sessions (Page 2, 3, 4) - Reads directly from Redis Session Snapshot
+  // ----------------------------------------------------------------------------
+  // 2. User Scrolling Pages — Reads directly from Redis Session Snapshot ZSET
+  // ----------------------------------------------------------------------------
   for (let page = 2; page <= PAGES_PER_SESSION; page++) {
     if (!currentCursor) {
       break;
     }
 
-    // Realistic user scroll think-time (0.2s - 0.5s)
-    sleep(0.2 + Math.random() * 0.3);
+    sleep(scrollThinkTime());
 
     const scrollStart = Date.now();
     const encodedCursor = encodeURIComponent(currentCursor);
@@ -155,10 +195,50 @@ export default function () {
       }
     }
     sessionItemsCount.add(scrollItems.length);
-
     currentCursor = scrollNextCursor;
   }
 
-  // Session inter-arrival pacing (1s - 2s)
-  sleep(1.0 + Math.random() * 1.0);
+  sleep(interSessionSleep());
+}
+
+export function handleSummary(data) {
+  const v = data.metrics.http_req_duration?.values || {};
+  const p50 = v.med != null ? v.med.toFixed(2) : (v['p(50)'] != null ? v['p(50)'].toFixed(2) : '0');
+  const p95 = v['p(95)'] != null ? v['p(95)'].toFixed(2) : (v['p(90)'] != null ? v['p(90)'].toFixed(2) : '0');
+  const p99 = v['p(99)'] != null ? v['p(99)'].toFixed(2) : '0';
+  const peak = v.max != null ? v.max.toFixed(2) : '0';
+  const avg = v.avg != null ? v.avg.toFixed(2) : '0';
+  const reqTotal = data.metrics.http_reqs?.values?.count ?? 0;
+  const reqRate = data.metrics.http_reqs?.values?.rate != null ? data.metrics.http_reqs.values.rate.toFixed(2) : '0';
+  const failRate = data.metrics.http_req_failed?.values?.rate != null ? (data.metrics.http_req_failed.values.rate * 100).toFixed(2) : '0';
+  const dupRate = data.metrics.duplicate_rate?.values?.rate != null ? (data.metrics.duplicate_rate.values.rate * 100).toFixed(4) : '0';
+
+  const firstP95 = data.metrics.first_page_duration_ms?.values?.['p(95)']?.toFixed(2) || 'N/A';
+  const scrollP95 = data.metrics.scroll_page_duration_ms?.values?.['p(95)']?.toFixed(2) || 'N/A';
+
+  console.log('\n================================================================');
+  console.log('        🎯 K6 TRENDING FEED BENCHMARK SUMMARY                   ');
+  console.log('================================================================');
+  console.log(`Active Profile:         ${profile.toUpperCase()} (Pages/Session: ${PAGES_PER_SESSION})`);
+  console.log(`Total HTTP Requests:    ${reqTotal}`);
+  console.log(`Throughput (RPS):       ${reqRate} req/s`);
+  console.log(`Latency Avg:            ${avg} ms`);
+  console.log(`Latency P50 (Median):   ${p50} ms`);
+  console.log(`Latency P95 (Overall):  ${p95} ms (Target < 300 ms)`);
+  console.log(`Latency P99:            ${p99} ms (Target < 800 ms)`);
+  console.log(`Latency Max (Outlier):  ${peak} ms`);
+  console.log(`- Page 1 P95 (Cold):    ${firstP95} ms (DB Query + ISO-Ranking)`);
+  console.log(`- Scroll P95 (Cache):   ${scrollP95} ms (Redis ZSET Session Snapshot)`);
+  console.log(`Failed Request Rate:    ${failRate}% (Target < 1.0%)`);
+  console.log(`Duplicate Items Rate:   ${dupRate}% (Deterministic Target: 0.0000%)`);
+  console.log('================================================================\n');
+
+  const summaryMap = {
+    'stdout': '',
+    '/scripts/results/summary.json': JSON.stringify(data, null, 2),
+    '/scripts/results/summary-trending.json': JSON.stringify(data, null, 2),
+  };
+  summaryMap[`/scripts/results/summary-trending-${profile}.json`] = JSON.stringify(data, null, 2);
+
+  return summaryMap;
 }

@@ -12,7 +12,12 @@ export default registerAs(
       path.resolve(__dirname, "..") + "/**/*.entity{.ts,.js}",
       PostgresProcessedEvent,
     ],
-
+    extra: {
+      max: process.env.POSTGRES_POOL_MAX
+        ? parseInt(process.env.POSTGRES_POOL_MAX, 10)
+        : 100,
+      connectionTimeoutMillis: 5000,
+    },
     synchronize: true,
   }),
 );

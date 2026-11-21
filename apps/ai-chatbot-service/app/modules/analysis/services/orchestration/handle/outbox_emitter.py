@@ -19,12 +19,8 @@ class OutboxEmitter:
         self, action: EventTypeEnum, moderation: dict, emotion: dict = None
     ):
         """Emit unified analysis result event containing both moderation and emotion payload"""
-        target_id = moderation.get("targetId") or (
-            emotion.get("targetId") if emotion else ""
-        )
-        print(
-            f"[OutboxEmitter] Emitting unified analysis_result event for targetId={target_id}, action={action.value}"
-        )
+        target_id = moderation.get("targetId") or (emotion.get("targetId") if emotion else "")
+        logger.debug('[OutboxEmitter] Emitting unified analysis_result event for targetId=%s, action=%s', target_id, action.value)
 
         is_violation = moderation.get("isViolation", False)
         mod_action = moderation.get("action", "ALLOW")
