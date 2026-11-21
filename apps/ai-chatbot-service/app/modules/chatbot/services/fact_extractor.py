@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from datetime import datetime, timezone
 import json
 import logging
 import re
 import time
-from typing import Any
 
 from app.core.settings import settings
 from app.modules.chatbot.repositories.chat_history import (
@@ -331,20 +329,17 @@ class FactExtractorService:
                         to_unset=to_unset if isinstance(to_unset, (list, set)) else [],
                     )
 
-                # 2. Update conversation summary and session context
+                # 2. Update conversation summary and session context (merge non-empty fields)
                 summary = str(parsed.get("summary") or "").strip()
                 session_ctx = parsed.get("session_context")
-                conv_updates: dict[str, Any] = {}
-                if summary:
-                    conv_updates["conversation_summary"] = summary
-                    conv_updates["summarized_turn"] = turn_count
-                if isinstance(session_ctx, dict) and session_ctx:
-                    conv_updates["conversation_context"] = session_ctx
-                if conv_updates:
-                    conv_updates["updated_at"] = datetime.now(timezone.utc)
-                    await self.history_repo.db["chat_conversations"].update_one(
-                        {"id": conversation_id},
-                        {"$set": conv_updates},
+                if summary or (isinstance(session_ctx, dict) and session_ctx):
+                    await self.history_repo.update_conversation_memory(
+                        conversation_id=conversation_id,
+                        summary=summary or None,
+                        summarized_turn=turn_count if summary else None,
+                        session_context=(
+                            session_ctx if isinstance(session_ctx, dict) else None
+                        ),
                     )
         except asyncio.CancelledError:
             raise

@@ -175,11 +175,14 @@ _CRISIS_SOFT_REGEX = re.compile(
 )
 
 _CRISIS_NEGATION_PREFIX_REGEX = re.compile(
-    r"(?:^|\s)(khong\s+phai(\s+la)?|dau\s+co|dau\s+phai(\s+la)?|chang\s+phai(\s+la)?|chang\s+co|"
-    r"khong\s+he(\s+co)?|chua\s+tung(\s+co)?|chua\s+bao\s+gio|khong\s+bao\s+gio|"
+    r"(?:^|\s)(?:"
+    r"(?:khong\s+phai(?:\s+la)?|dau\s+co|dau\s+phai(?:\s+la)?|chang\s+phai(?:\s+la)?|chang\s+co|"
+    r"khong\s+he(?:\s+co)?|chua\s+tung(?:\s+co)?|chua\s+bao\s+gio|khong\s+bao\s+gio|"
     r"khong\s+co\s+y\s+dinh|chua\s+co\s+y\s+dinh|khong\s+nghi\s+den|chua\s+nghi\s+den|"
-    r"lam\s+gi\s+co|ai\s+lai(\s+di)?|khong|chua|chang|dau|do\s+not|did\s+not|will\s+not|cannot|can\s+not|don't|dont|never)"
-    r"(?:\s+[\w]+){0,4}\s*$",
+    r"lam\s+gi\s+co|ai\s+lai(?:\s+di)?|do\s+not|did\s+not|will\s+not|cannot|can\s+not|don(?:'|\s+)?(?:t|toi)|never)"
+    r"(?:\s+[\w]+){0,1}"
+    r"|(?:khong|chua|chang)"
+    r")\s*$",
     re.IGNORECASE,
 )
 

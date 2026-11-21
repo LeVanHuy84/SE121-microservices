@@ -204,7 +204,7 @@ class TurnPreparer:
             )
         howto_actions = list(nav.howto_actions)
 
-        # Step 2: Parallel State Loading (history, user_facts, phobert_moderation v1.1)
+        # Step 2: Parallel State Loading (history, user_facts, phobert_moderation, emotion_snapshot)
         async def _load_history():
             if request.history:
                 return (
@@ -214,14 +214,30 @@ class TurnPreparer:
                 )
             return await cmd.history_store.load_context_window(request.userId, conv_id)
 
-        from app.modules.analysis.services.ml_models.text_moderation.phobert_moderator import (
-            phobert_moderator,
+        normalized_msg = cmd.scope_guard._normalize(request.message)
+        is_simple_social = (
+            normalized_msg in GREETINGS or normalized_msg in FAREWELLS
         )
+
+        async def _load_phobert():
+            if is_simple_social:
+                return {}
+            from app.modules.analysis.services.ml_models.text_moderation.phobert_moderator import (
+                phobert_moderator,
+            )
+
+            return await phobert_moderator.infer_async(request.message)
+
+        async def _load_emotion():
+            if is_restricted or is_simple_social:
+                return EmotionSnapshot()
+            return await cmd.emotion_ctx.get_snapshot(request.userId)
 
         gather_results = await asyncio.gather(
             _load_history(),
             cmd.profile_repo.get_facts_by_user(request.userId),
-            phobert_moderator.infer_async(request.message),
+            _load_phobert(),
+            _load_emotion(),
             return_exceptions=True,
         )
 
@@ -240,11 +256,11 @@ class TurnPreparer:
             if isinstance(gather_results[2], dict)
             else {}
         )
-
-        if is_restricted:
-            emotion_snapshot = EmotionSnapshot()
-        else:
-            emotion_snapshot = await cmd.emotion_ctx.get_snapshot(request.userId)
+        emotion_snapshot = (
+            gather_results[3]
+            if isinstance(gather_results[3], EmotionSnapshot)
+            else EmotionSnapshot()
+        )
         history, db_last_intent, conv_doc = history_res
         conv_doc = conv_doc or {}
         conversation_summary = str(conv_doc.get("conversation_summary") or "")
@@ -309,8 +325,7 @@ class TurnPreparer:
                     normalized_text=community_decision.normalized_text,
                 )
 
-        # Greeting check
-        normalized_msg = cmd.scope_guard._normalize(request.message)
+        # Greeting check (normalized_msg already computed in Step 2)
         if normalized_msg in FAREWELLS:
             last_user_message = next(
                 (
