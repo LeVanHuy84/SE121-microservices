@@ -42,6 +42,8 @@ Khi ghé thăm trang cá nhân của một người dùng, nút quan hệ sẽ h
 - **"Phản hồi lời mời":** Người đó đã gửi yêu cầu cho bạn (bấm vào để chấp nhận hoặc từ chối).
 - **"Bạn bè":** Đã là bạn bè (nhấp vào để mở tùy chọn Nhắn tin, Hủy kết bạn hoặc Chặn).
 
+---
+
 ## 2. Khám phá và Quản lý Nhóm Cộng đồng (`/groups`)
 
 Mục **"Nhóm" (`/groups`)** là không gian giao lưu theo sở thích, học tập hoặc hỗ trợ tâm lý với 3 phân mục:
@@ -57,22 +59,24 @@ Mục **"Nhóm" (`/groups`)** là không gian giao lưu theo sở thích, học 
 - **Lời mời vào nhóm (`/groups/invites`):**
   - Danh sách lời mời tham gia nhóm được gửi đến bạn từ bạn bè. Bạn có thể chọn **"Chấp nhận"** để gia nhập nhóm hoặc **"Từ chối"** để bỏ qua.
 
-- **Trang chi tiết Nhóm (`/groups/[id]`):**
+- **Trang chi tiết Nhóm (`/groups/[groupId]`):**
   - **Bảng tin nhóm:** Đăng bài, bình luận và chia sẻ nội dung riêng biệt dành riêng cho các thành viên trong nhóm.
-  - **Tab Thành viên:** Xem danh sách quản trị viên, người kiểm duyệt và các thành viên.
-  - **Tùy chọn nhóm:** Rời khỏi nhóm hoặc cài đặt phê duyệt bài viết / thành viên (đối với Admin).
-  - **Quyền hạn của Trưởng nhóm (Group Admin) và Người kiểm duyệt:**
-    - Trưởng nhóm và Quản trị viên có **toàn quyền xóa bất kỳ bài viết hoặc bình luận nào của thành viên** trong nhóm nếu bài viết đó vi phạm quy định nhóm hoặc tiêu chuẩn cộng đồng.
-    - Quản trị viên có quyền duyệt hoặc từ chối bài viết trước khi hiển thị (nếu bật chế độ kiểm duyệt bài viết).
-    - Quản trị viên có quyền phê duyệt thành viên mới, ghim bài viết quan trọng lên đầu nhóm, hoặc xóa / cấm thành viên tái phạm khỏi nhóm để bảo vệ môi trường chung.
+  - **Tab Thành viên (`/groups/[groupId]/members`):** Xem danh sách quản trị viên, người kiểm duyệt và các thành viên tham gia.
+  - **Cách Rời khỏi nhóm cộng đồng:**
+    - Truy cập trang chi tiết nhóm bạn muốn rời.
+    - Tại phần tiêu đề nhóm, nhấp vào nút trạng thái thành viên **"Đã tham gia"** $\to$ Hộp thoại xác nhận hiển thị $\to$ chọn **"Rời nhóm"** (`POST /groups/:groupId/members/leave`). Bạn sẽ không còn là thành viên và không nhận thông báo bài viết mới từ nhóm này nữa.
+  - **Báo cáo nhóm vi phạm tiêu chuẩn cộng đồng:**
+    - Nếu phát hiện nhóm có nội dung thù ghét, độc hại hoặc lừa đảo: bấm vào biểu tượng dấu 3 chấm (`...`) trên trang bìa nhóm $\to$ chọn **"Báo cáo nhóm"** $\to$ Chọn lý do và gửi khiếu nại để ban quản trị hệ thống xử lý.
+  - **Quyền hạn của Quản trị viên (Group Admin):**
+    - **Kiểm duyệt bài viết:** Trưởng nhóm có toàn quyền duyệt bài, từ chối bài hoặc xóa bất kỳ bài viết/bình luận nào của thành viên nếu vi phạm quy định nhóm.
+    - **Quản lý thành viên:** Phê duyệt yêu cầu tham gia, xóa hoặc cấm (ban) thành viên tái phạm vi phạm nội quy khỏi nhóm.
+    - **Đổi vai trò & Phân quyền:** Quản trị viên có thể thăng cấp thành viên tích cực lên làm Quản trị viên hoặc Người kiểm duyệt.
+    - **Xem Nhật ký hoạt động nhóm (Group Logs - `/groups/[groupId]/logs`):** Nơi ghi lại đầy đủ lịch sử kiểm duyệt bài viết, phê duyệt thành viên và thay đổi cài đặt nhóm của ban quản trị để đảm bảo tính minh bạch.
+
+---
 
 ## 3. Điều hướng và Thao tác Nhanh với Trợ lý AI
 
 Trợ lý AI Sentimeta hỗ trợ bạn quản lý quan hệ bạn bè và nhóm cực kỳ tiện lợi:
-- **Hỏi thông tin:** Bạn có thể hỏi *"Tôi có lời mời kết bạn nào không?"*, *"Gợi ý nhóm phù hợp với tôi"* — Trợ lý sẽ hiển thị thẻ tóm tắt trực quan (`Mini Cards`) và nút bấm trực tiếp đưa bạn đến trang tương ứng (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`).
+- **Hỏi thông tin:** Bạn có thể hỏi *"Tôi có lời mời kết bạn nào không?"*, *"Gợi ý nhóm phù hợp với tôi"*, *"Cách rời nhóm tâm lý"* — Trợ lý sẽ hiển thị thẻ tóm tắt trực quan (`Mini Cards`) và nút bấm trực tiếp đưa bạn đến trang tương ứng (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`).
 - **Thực thi hành động:** Khi bạn yêu cầu *"Gửi kết bạn cho Hoàng Nam"*, *"Tham gia nhóm Yêu Sách"*, *"Chấp nhận lời mời kết bạn"*, Trợ lý sẽ tạo **Thẻ xác nhận hành động (Action Confirmation Card)** với 2 nút `[Xác nhận]` và `[Hủy]` trước khi gửi yêu cầu lên hệ thống, đảm bảo an toàn và minh bạch tuyệt đối.
-
-## 4. Xử lý Sự cố & Báo cáo Nội dung Nhóm
-
-- Nếu bạn không thấy bài viết mới hoặc gặp lỗi khi gửi yêu cầu, hãy thử tải lại trang hoặc kiểm tra kết nối mạng.
-- Nếu phát hiện nhóm có nội dung độc hại, kích động thù địch hoặc lừa đảo, hãy bấm biểu tượng dấu 3 chấm (`...`) ở góc nhóm và chọn **"Báo cáo" (Report)** để ban quản trị tiến hành kiểm duyệt.
