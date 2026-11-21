@@ -77,6 +77,6 @@ Mục **"Nhóm" (`/groups`)** là không gian giao lưu theo sở thích, học 
 
 ## 3. Điều hướng và Thao tác Nhanh với Trợ lý AI
 
-Trợ lý AI Sentimeta hỗ trợ bạn quản lý quan hệ bạn bè và nhóm cực kỳ tiện lợi:
-- **Hỏi thông tin:** Bạn có thể hỏi *"Tôi có lời mời kết bạn nào không?"*, *"Gợi ý nhóm phù hợp với tôi"*, *"Cách rời nhóm tâm lý"* — Trợ lý sẽ hiển thị thẻ tóm tắt trực quan (`Mini Cards`) và nút bấm trực tiếp đưa bạn đến trang tương ứng (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`).
-- **Thực thi hành động:** Khi bạn yêu cầu *"Gửi kết bạn cho Hoàng Nam"*, *"Tham gia nhóm Yêu Sách"*, *"Chấp nhận lời mời kết bạn"*, Trợ lý sẽ tạo **Thẻ xác nhận hành động (Action Confirmation Card)** với 2 nút `[Xác nhận]` và `[Hủy]` trước khi gửi yêu cầu lên hệ thống, đảm bảo an toàn và minh bạch tuyệt đối.
+Trợ lý AI Sentimeta hỗ trợ bạn quản lý quan hệ bạn bè và nhóm cực kỳ tiện lợi (khi bật chế độ **Đầy đủ tính năng - `FULL`** tại `/settings/privacy`):
+- **Hỏi thông tin & Điều hướng nhanh:** Bạn có thể hỏi *"Tôi có lời mời kết bạn nào không?"*, *"Gợi ý nhóm phù hợp với tôi"*, *"Cách rời nhóm tâm lý"* — Trợ lý sẽ hiển thị thẻ tóm tắt trực quan (`Mini Cards`) và nút bấm trực tiếp đưa bạn đến trang tương ứng (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`).
+- **Thao tác trực tiếp trên Thẻ Tương tác (Interactive Mini Cards):** Khi bạn tìm kiếm người dùng, lời mời kết bạn hoặc nhóm gợi ý, Trợ lý sẽ hiển thị các thẻ có nút thao tác trực tiếp ngay trên thẻ cho những hành động an toàn (như **Kết bạn**, **Chấp nhận lời mời**, **Tham gia nhóm**). Đối với các thao tác nhạy cảm có tính hủy bỏ (như **Hủy kết bạn**, **Rời nhóm**, **Chặn người dùng**), Trợ lý không tự ý thực thi mà chỉ hiển thị thẻ xem nhanh kèm liên kết mở đúng trang để bạn tự xác nhận an toàn.

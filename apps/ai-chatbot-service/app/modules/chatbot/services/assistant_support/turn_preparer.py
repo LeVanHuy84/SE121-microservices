@@ -22,6 +22,13 @@ from app.modules.chatbot.services.assistant_support.proposals import (
     is_explicit_action_request,
     is_global_proposable_action_request,
 )
+from app.modules.chatbot.services.assistant_support.turn_mode import (
+    TurnMode,
+    TurnModeSignals,
+    mode_prompt_directive,
+    rag_tier_filter_for_mode,
+    resolve_turn_mode,
+)
 from app.modules.chatbot.services.assistant_support.types import PreparedTurn
 from app.modules.chatbot.services.emotion_context import EmotionSnapshot
 from app.modules.chatbot.services.guardrails import (
@@ -654,30 +661,6 @@ class TurnPreparer:
                 distress_level = "mild_cbt"
 
         in_chat_distress = distress_level != "none"
-        guard_annotation: str | None = None
-        guard_intent: str | None = None
-
-        if (
-            not scope_decision.in_scope
-            and scope_decision.state != "in_domain_unknown"
-            and not in_chat_distress
-            and not has_active_session_anchor
-            and not request.contexts
-        ):
-            intent = "out_of_scope"
-            if "privacy" in scope_decision.matched_domains:
-                intent = "privacy"
-            elif scope_decision.state == "ambiguous":
-                intent = "clarify"
-            guard_intent = intent
-            guard_annotation = (
-                "GUARD ROUTING: The current request is outside the supported "
-                "Sentimeta scope. Use the conversation history to understand "
-                "the user, but do not answer unrelated factual questions. "
-                "Politely explain the supported scope when the request cannot "
-                "be connected to Sentimeta or mental-health support."
-            )
-
         normalized_msg_lower = (working_request.message or "").lower()
         is_memory_recall_turn = (
             bool(history)
@@ -689,13 +672,44 @@ class TurnPreparer:
                 for cue in ("nhớ tên", "còn nhớ", "bạn nhớ", "mình tên", "mình thích")
             )
         )
+        is_global_action = is_global_proposable_action_request(working_request.message)
+
+        # Single canonical TurnMode decision (Deterministic Priority Cascade)
+        turn_mode = resolve_turn_mode(
+            TurnModeSignals(
+                message=working_request.message,
+                scope_in_scope=scope_decision.in_scope,
+                scope_state=scope_decision.state,
+                matched_domains=scope_decision.matched_domains,
+                distress_level=distress_level,
+                has_in_chat_distress=in_chat_distress
+                or has_in_chat_emotional_distress(working_request.message),
+                has_active_session_anchor=has_active_session_anchor,
+                has_howto_nav=bool(howto_actions),
+                has_explicit_contexts=bool(request.contexts),
+                is_memory_recall_turn=is_memory_recall_turn,
+                is_global_action_req=is_global_action,
+            )
+        )
+        allowed_rag_tiers = rag_tier_filter_for_mode(turn_mode)
+
+        guard_annotation: str | None = mode_prompt_directive(turn_mode)
+        guard_intent: str | None = None
+        if turn_mode == TurnMode.GENERAL_FALLBACK:
+            guard_intent = (
+                "privacy"
+                if "privacy" in scope_decision.matched_domains
+                else (
+                    "clarify"
+                    if scope_decision.state == "ambiguous"
+                    else "out_of_scope"
+                )
+            )
 
         # Step 5: Cross-Lingual Hybrid RAG & Stage 2 Grounding Gate
         if working_request.contexts:
             candidate_contexts = cmd._dedupe_contexts(working_request.contexts)
-        elif is_memory_recall_turn:
-            candidate_contexts = []
-        elif guard_annotation is not None:
+        elif is_memory_recall_turn or allowed_rag_tiers == ():
             candidate_contexts = []
         else:
             candidate_contexts = await cmd._resolve_contexts_with_budget(
@@ -705,6 +719,7 @@ class TurnPreparer:
                 matched_domains=scope_decision.matched_domains,
                 distress_level=distress_level,
                 topic_anchor=prev_topic_anchor if has_active_session_anchor else None,
+                allowed_tiers=allowed_rag_tiers,
             )
         prompt_limits = resolve_prompt_limits(request.userId)
         max_ctx = prompt_limits.max_context_items
@@ -719,18 +734,11 @@ class TurnPreparer:
             update={"contexts": final_contexts}
         )
 
-        if hasattr(cmd.context_resolver, "_is_mental_health_turn"):
-            is_mental_health_turn = cmd.context_resolver._is_mental_health_turn(
-                working_request.message,
-                scope_decision.matched_domains,
-                None if is_restricted else emotion_snapshot,
-                distress_level=distress_level,
-            )
-        else:
-            is_mental_health_turn = bool(
-                has_in_chat_emotional_distress(working_request.message)
-                or (set(scope_decision.matched_domains) & {"mental_health", "emotion"})
-            )
+        is_mental_health_turn = turn_mode in {
+            TurnMode.MENTAL_HEALTH_PFA,
+            TurnMode.MENTAL_HEALTH_CBT,
+            TurnMode.MIXED_SUPPORT_APP,
+        }
 
         active_tools = cmd.tool_router.get_openai_tools(
             working_request.surface,
@@ -740,9 +748,8 @@ class TurnPreparer:
             distress_level=distress_level,
             is_mental_health_turn=is_mental_health_turn,
             message=working_request.message,
-            include_action_proposal_tool=is_global_proposable_action_request(
-                working_request.message
-            ),
+            include_action_proposal_tool=is_global_action,
+            turn_mode=turn_mode.value,
         )
         has_tools = bool(active_tools)
         supports_tools = cmd._supports_tools(active_tools)
@@ -898,6 +905,7 @@ class TurnPreparer:
             distress_level=distress_level,
             session_emotional_state=session_emotional_state,
             guard_annotation=guard_annotation,
+            turn_mode=turn_mode.value,
         )
 
     def _evaluate_restricted_policy_gate(

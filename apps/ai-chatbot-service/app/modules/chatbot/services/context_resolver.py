@@ -34,6 +34,7 @@ class AssistantContextResolver:
         matched_domains: tuple[str, ...] = (),
         distress_level: str = "none",
         topic_anchor: str | None = None,
+        allowed_tiers: tuple[str, ...] | None = None,
     ) -> list[AssistantContextItem]:
         contexts = list(request.contexts)
         candidate_limit = settings.CHATBOT_CONTEXT_CANDIDATE_POOL_SIZE
@@ -42,7 +43,7 @@ class AssistantContextResolver:
             max(candidate_limit, settings.CHATBOT_MAX_CONTEXT_ITEMS),
         )
 
-        if not settings.RAG_DOCS_ENABLED:
+        if not settings.RAG_DOCS_ENABLED or allowed_tiers == ():
             return self._dedupe(contexts)[:candidate_limit]
 
         dense_query = request.message
@@ -74,6 +75,9 @@ class AssistantContextResolver:
             logger.warning("Assistant docs RAG skipped: %s", exc)
             return self._dedupe(contexts)[:candidate_limit]
 
+        if allowed_tiers:
+            doc_contexts = self._filter_docs_by_tiers(doc_contexts, allowed_tiers)
+
         merged = self._merge_contexts(contexts, doc_contexts)
         ranked = self._rank_contexts(
             dense_query,
@@ -83,6 +87,33 @@ class AssistantContextResolver:
             distress_level=distress_level,
         )
         return ranked[:candidate_limit]
+
+    def _filter_docs_by_tiers(
+        self,
+        docs: list[AssistantContextItem],
+        allowed_tiers: tuple[str, ...],
+    ) -> list[AssistantContextItem]:
+        """Keep only RAG docs whose tier/source belongs to allowed_tiers."""
+        allowed_set = {t.lower() for t in allowed_tiers}
+        wants_system_only = allowed_set == {"system_guide"}
+        wants_mental_only = "system_guide" not in allowed_set
+
+        filtered: list[AssistantContextItem] = []
+        for item in docs:
+            src = (item.source or "").lower()
+            item_id = (item.id or "").lower()
+            tier_hint = str(getattr(item, "tier", "") or "").lower()
+            is_system_doc = (
+                tier_hint == "system_guide"
+                or "guide-" in src
+                or "guide-" in item_id
+            )
+            if wants_system_only and not is_system_doc:
+                continue
+            if wants_mental_only and is_system_doc:
+                continue
+            filtered.append(item)
+        return filtered
 
     def _is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:
         return bool(set(matched_domains) & SYSTEM_FEATURE_DOMAINS)

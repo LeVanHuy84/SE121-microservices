@@ -24,6 +24,11 @@ from app.modules.chatbot.services.assistant_support.proposals import (
     extract_cards,
     extract_proposals_from_llm_reply,
 )
+from app.modules.chatbot.services.assistant_support.turn_mode import (
+    TurnMode,
+    TurnModeSignals,
+    resolve_turn_mode,
+)
 from app.modules.chatbot.services.assistant_support.turn_preparer import TurnPreparer
 from app.modules.chatbot.services.assistant_support.turn_helpers import (
     continue_to_llm,
@@ -49,6 +54,9 @@ from app.modules.chatbot.services.assistant_support.turn_helpers import (
 __all__ = [
     "PreparedTurn",
     "GuardResult",
+    "TurnMode",
+    "TurnModeSignals",
+    "resolve_turn_mode",
     "TurnPreparer",
     "ActionFenceStreamFilter",
     "ambiguous_scope_response",

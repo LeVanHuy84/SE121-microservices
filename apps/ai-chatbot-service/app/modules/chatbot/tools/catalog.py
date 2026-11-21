@@ -450,10 +450,10 @@ DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
         GET_MY_BLOCKED_LIST,
     ],
     "groups": [
-        GET_GROUP_CONTEXT,
         GET_MY_GROUPS,
-        GET_GROUP_INVITATIONS,
         GET_GROUP_RECOMMENDATIONS,
+        GET_GROUP_INVITATIONS,
+        GET_GROUP_CONTEXT,
     ],
     "emotions": [
         GET_MY_EMOTION_SUMMARY,

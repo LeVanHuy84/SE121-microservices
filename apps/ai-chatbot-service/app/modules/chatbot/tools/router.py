@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from app.modules.chatbot.navigation.resolver import (
+    _DATA_RETRIEVAL_INDICATORS,
+    _HOWTO_INDICATORS,
+    _VIEW_DATA_PREFIXES,
+)
 from app.modules.chatbot.schemas import SurfaceContext
 from app.modules.chatbot.tools.catalog import (
     DOMAIN_TOOLS,
@@ -93,26 +98,66 @@ class ToolRouter:
         is_mental_health_turn: bool = False,
         message: str = "",
         include_action_proposal_tool: bool = False,
+        turn_mode: str | None = None,
     ) -> list[ToolDefinition]:
         policy = str(ai_policy or "RESTRICTED").upper()
 
+        # Hard tool suppression for non-tool TurnModes (prevents DEFAULT_ESSENTIAL_TOOLS
+        # leakage on off-topic/casual/PFA/short-circuit turns).
+        if turn_mode in {
+            "general_fallback",
+            "out_of_scope",
+            "casual_chat",
+            "mental_health_pfa",
+            "crisis",
+            "policy_restricted",
+            "navigation",
+        }:
+            return []
+
         # Empathy / PFA isolation: never attach tools on acute PFA turns, and skip
         # tools on pure mental-health venting turns unless the user asks for music,
-        # exercises, or emotion analytics.
+        # exercises, emotion analytics, or is in mixed_support_app mode.
         if distress_level == "acute_pfa":
             return []
-        if is_mental_health_turn and message:
+        if is_mental_health_turn and message and turn_mode != "mixed_support_app":
             norm_msg = normalize_for_guard(message)
             if not any(cue in norm_msg for cue in _MENTAL_HEALTH_TOOL_CUES):
                 return []
 
+        # Pure APP_GUIDE how-to FAQ suppression: skip attaching tools when the user
+        # is only asking how to use a feature (e.g. "làm sao đổi ảnh đại diện?")
+        # without data-retrieval cues or global action intent. Non-howto APP_GUIDE
+        # queries (e.g. "quyền riêng tư của mình đang là gì?") keep tools normally.
+        if (
+            turn_mode == "app_guide"
+            and message
+            and not include_action_proposal_tool
+        ):
+            norm_msg = normalize_for_guard(message)
+            is_howto_faq = any(ind in norm_msg for ind in _HOWTO_INDICATORS)
+            has_data_cue = any(
+                ind in norm_msg for ind in _DATA_RETRIEVAL_INDICATORS
+            ) or any(norm_msg.startswith(p) for p in _VIEW_DATA_PREFIXES)
+            if is_howto_faq and not has_data_cue:
+                return []
+
         mapped_intent_domains: list[str] = []
-        tier1_tools: list[ToolDefinition] = []
         for domain in matched_domains or ():
             mapped_key = _INTENT_DOMAIN_MAP.get(str(domain).lower())
-            if mapped_key:
+            if mapped_key and mapped_key not in mapped_intent_domains:
                 mapped_intent_domains.append(mapped_key)
-                tier1_tools.extend(DOMAIN_TOOLS.get(mapped_key, []))
+
+        # In mixed_support_app turns (e.g. "stress quá, gợi ý nhóm thiền"), prioritize
+        # explicit app domains ahead of emotions so the requested app tools are never truncated.
+        if turn_mode == "mixed_support_app" and "emotions" in mapped_intent_domains:
+            mapped_intent_domains = [
+                d for d in mapped_intent_domains if d != "emotions"
+            ] + ["emotions"]
+
+        tier1_tools: list[ToolDefinition] = []
+        for mapped_key in mapped_intent_domains:
+            tier1_tools.extend(DOMAIN_TOOLS.get(mapped_key, []))
 
         tier2_tools: list[ToolDefinition] = []
         surface_domain = self._resolve_surface_domain(surface)
@@ -215,6 +260,7 @@ class ToolRouter:
         is_mental_health_turn: bool = False,
         message: str = "",
         include_action_proposal_tool: bool = False,
+        turn_mode: str | None = None,
     ) -> list[dict[str, Any]]:
         tools = self.route(
             surface,
@@ -225,6 +271,7 @@ class ToolRouter:
             is_mental_health_turn=is_mental_health_turn,
             message=message,
             include_action_proposal_tool=include_action_proposal_tool,
+            turn_mode=turn_mode,
         )
         return [tool.to_openai_tool() for tool in tools]
 

@@ -555,6 +555,7 @@ class RespondCommand:
         matched_domains: tuple[str, ...] = (),
         distress_level: str = "none",
         topic_anchor: str | None = None,
+        allowed_tiers: tuple[str, ...] | None = None,
     ):
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
@@ -565,6 +566,7 @@ class RespondCommand:
                     matched_domains=matched_domains,
                     distress_level=distress_level,
                     topic_anchor=topic_anchor,
+                    allowed_tiers=allowed_tiers,
                 )
             except TypeError:
                 coro = self.context_resolver.resolve(

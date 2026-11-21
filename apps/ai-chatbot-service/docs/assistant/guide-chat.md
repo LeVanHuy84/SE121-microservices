@@ -93,10 +93,10 @@ Trợ lý AI là người bạn đồng hành đặc biệt của Sentimeta, lu�
   - Bạn có thể hỏi bất kỳ câu hỏi nào như: *"Làm sao để đổi ảnh đại diện?"*, *"Làm sao để chỉ bạn bè mới được nhắn tin?"*, *"Có thu hồi tin nhắn được không?"*, *"Tại sao bài viết của tôi bị ẩn?"*, Trợ lý sẽ giải thích chi tiết, ngắn gọn và dễ hiểu theo đúng giao diện thực tế.
 - **Nút Điều hướng Nhanh (Smart Navigation Buttons):**
   - Trợ lý AI tự động đính kèm các nút bấm chuyển hướng trực tiếp bên dưới câu trả lời (`[Đến trang Bạn bè]`, `[Mở Lời mời kết bạn]`, `[Khám phá nhóm]`, `[Cài đặt Quyền riêng tư]`, `[Không gian Cảm xúc]`, v.v.). Bấm vào nút sẽ lập tức đưa bạn đến đúng màn hình cần thao tác.
-- **Thẻ Thông tin Trực quan (Mini Cards):**
-  - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ ngay trong khung chat: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý âm nhạc (`MusicCard`), Thẻ danh sách lời mời kết bạn (`FriendRequestsCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`).
-- **Thực thi Hành động An toàn có Xác nhận (Action Confirmation Cards):**
-  - Khi bạn nhờ Trợ lý thực hiện thao tác (ví dụ: *"Gửi kết bạn cho Hoàng Nam"*, *"Tham gia nhóm Yêu Sách"*, *"Đánh dấu đã đọc hết thông báo"*), Trợ lý luôn hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu khi chưa có sự xác nhận của bạn.
+- **Thẻ Thông tin & Tương tác Trực quan (Interactive Mini Cards):**
+  - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ ngay trong khung chat: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý âm nhạc (`MusicCard`), Thẻ danh sách/gợi ý kết bạn (`FriendRequestsCard`), Thẻ gợi ý nhóm (`GroupCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`). Các thao tác không gây mất dữ liệu (như **Kết bạn**, **Chấp nhận lời mời**, **Tham gia nhóm**) có thể thực hiện ngay trên nút của thẻ; còn thao tác nhạy cảm (**Hủy kết bạn**, **Rời nhóm**, **Chặn**) sẽ hiển thị liên kết mở trang để bạn tự xác nhận.
+- **Thực thi Hành động Toàn cục An toàn có Xác nhận (Action Confirmation Cards):**
+  - Khi bạn nhờ Trợ lý thực hiện thao tác toàn cục an toàn (như *"Đánh dấu đã đọc hết thông báo"*), Trợ lý luôn hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu khi chưa có sự xác nhận của bạn.
 
 ### 3. Hỗ trợ Khẩn cấp khi Phát hiện Khủng hoảng
 Nếu bạn đang trải qua giai đoạn bế tắc cùng cực, trầm cảm nặng hoặc có ý định tự hại, Trợ lý AI sẽ ưu tiên phản hồi an toàn và cung cấp ngay các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
