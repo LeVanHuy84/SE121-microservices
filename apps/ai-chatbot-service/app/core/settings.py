@@ -20,6 +20,19 @@ class Settings:
             os.getenv("PROPOSAL_TOKEN_TTL_SECONDS", 900)
         )
 
+        # Environment & Logging
+        self.NODE_ENV: str = os.getenv("NODE_ENV", "development").strip().lower()
+        self.ENABLE_LOAD_TEST_MODE: bool = (
+            os.getenv("ENABLE_LOAD_TEST_MODE", "false").lower() == "true"
+        )
+        default_log_level = (
+            "WARNING"
+            if self.NODE_ENV in ("production", "test") or self.ENABLE_LOAD_TEST_MODE
+            else "INFO"
+        )
+        self.LOG_LEVEL: str = os.getenv("LOG_LEVEL", default_log_level).strip().upper()
+        self.IS_SILENT: bool = self.LOG_LEVEL in ("WARNING", "ERROR", "CRITICAL")
+
         # Offline unit test flags
         self.UNIT_TEST_MODE: bool = (
             os.getenv("UNIT_TEST_MODE", "false").lower() == "true"

@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as http from 'http';
+import { EventEmitter } from 'events';
 import { register, collectDefaultMetrics } from 'prom-client';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
@@ -39,6 +40,9 @@ export interface OTelOptions {
 }
 
 export function initOTel(serviceName: string, options?: OTelOptions) {
+  // Prevent Node.js MaxListenersExceededWarning when OTel instruments DB connection pools
+  EventEmitter.defaultMaxListeners = 100;
+
   if (process.env.ENABLE_OTEL !== 'true') {
     return;
   }

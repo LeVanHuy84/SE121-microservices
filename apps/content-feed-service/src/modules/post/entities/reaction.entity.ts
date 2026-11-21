@@ -9,7 +9,7 @@ import {
 import { ReactionType, TargetType } from "@repo/dtos";
 
 @Entity("reactions")
-@Unique(["userId", "targetId", "targetType"])
+@Unique(["userId", "targetType", "targetId"])
 @Index(["targetId", "targetType"])
 export class Reaction {
   @PrimaryGeneratedColumn("uuid")
