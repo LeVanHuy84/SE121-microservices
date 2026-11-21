@@ -286,7 +286,10 @@ export class PersonalFeedService {
 
       if (!post) {
         if (mainEmotion) continue;
-        const recency = PersonalFeedHelper.calcRecency(item.createdAt, batchNow);
+        const recency = PersonalFeedHelper.calcRecency(
+          item.createdAt,
+          batchNow,
+        );
         result.push({
           itemId,
           score: recency * 0.7,

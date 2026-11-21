@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 import onnxruntime as ort
 
 from app.core.settings import settings

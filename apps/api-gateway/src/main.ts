@@ -15,7 +15,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
-    logger: isSilent ? ["error", "warn"] : ["log", "error", "warn", "debug", "verbose"],
+    logger: isSilent
+      ? ["error", "warn"]
+      : ["log", "error", "warn", "debug", "verbose"],
   });
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();

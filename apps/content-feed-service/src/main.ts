@@ -51,7 +51,9 @@ async function bootstrap() {
     process.env.ENABLE_LOAD_TEST_MODE === "true";
 
   const app = await NestFactory.create(AppModule, {
-    logger: isSilent ? ["error", "warn"] : ["log", "error", "warn", "debug", "verbose"],
+    logger: isSilent
+      ? ["error", "warn"]
+      : ["log", "error", "warn", "debug", "verbose"],
   });
 
   app.useGlobalFilters(new ExceptionsFilter());

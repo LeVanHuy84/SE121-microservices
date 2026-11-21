@@ -5,8 +5,7 @@ import * as path from "path";
 import * as fs from "fs";
 
 async function runMigrations() {
-  const databaseUrl =
-    process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
   if (!databaseUrl) {
     console.error(
@@ -54,7 +53,9 @@ async function runMigrations() {
     process.exit(1);
   }
 
-  console.log(`🚀 [Drizzle Migration] Running migrations from: ${migrationsFolder}`);
+  console.log(
+    `🚀 [Drizzle Migration] Running migrations from: ${migrationsFolder}`,
+  );
   try {
     await migrate(db, { migrationsFolder });
     console.log("✅ [Drizzle Migration] All migrations applied successfully!");
