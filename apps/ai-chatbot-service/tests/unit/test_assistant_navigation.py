@@ -133,15 +133,19 @@ class CrisisPrecedenceTest(_TelemetryPatched):
         chunks = _stream(cmd, _request("nav-crisis-2", "tôi muốn chết"))
         self.assertEqual(chunks[0].type, "crisis")
 
-    def test_restricted_policy_blocks_personal_navigation_but_allows_public(self):
-        cmd = _command(FakeProvider())
-        # Personal screen ("friends") is filtered out under RESTRICTED
-        res_personal = _execute(
+    def test_restricted_policy_allows_navigation_and_guides_on_blocked_requests(self):
+        provider = FakeProvider()
+        cmd = _command(provider)
+        # Non-admin UI navigation ("mở bạn bè") works under RESTRICTED (no server data read)
+        res_nav = _execute(
             cmd, _request("nav-pol-1", "mở bạn bè", ai_policy="RESTRICTED")
         )
-        self.assertNotEqual(res_personal.type, "navigation")
+        self.assertEqual(res_nav.type, "navigation")
+        self.assertEqual(
+            res_nav.suggestedActions[0].payload.destinationId, "friends"
+        )
 
-        # Public screen ("settings.privacy") still navigates under RESTRICTED
+        # Public screen ("settings.privacy") also navigates under RESTRICTED
         res_public = _execute(
             cmd, _request("nav-pol-1", "mở quyền riêng tư", ai_policy="RESTRICTED")
         )
@@ -149,6 +153,36 @@ class CrisisPrecedenceTest(_TelemetryPatched):
         self.assertEqual(
             res_public.suggestedActions[0].payload.destinationId, "settings.privacy"
         )
+
+        # Explicit write action under RESTRICTED short-circuits with explanation + privacy link
+        res_action = _execute(
+            cmd,
+            _request(
+                "nav-pol-2",
+                "đánh dấu tất cả thông báo đã đọc",
+                ai_policy="RESTRICTED",
+            ),
+        )
+        self.assertEqual(res_action.model, "policy-guard")
+        self.assertTrue(res_action.policyBlocked)
+        self.assertIn("RESTRICTED", res_action.reply)
+        self.assertIn("FULL", res_action.reply)
+        self.assertEqual(
+            res_action.suggestedActions[0].payload.destinationId, "settings.privacy"
+        )
+
+        # Explicit personal data-retrieval under RESTRICTED short-circuits with privacy + manual destination link
+        res_data = _execute(
+            cmd,
+            _request("nav-pol-3", "xem lời mời kết bạn", ai_policy="RESTRICTED"),
+        )
+        self.assertEqual(res_data.model, "policy-guard")
+        self.assertTrue(res_data.policyBlocked)
+        dest_ids = [a.payload.destinationId for a in res_data.suggestedActions]
+        self.assertIn("settings.privacy", dest_ids)
+        self.assertIn("friends.requests", dest_ids)
+        self.assertEqual(provider.calls, 0)
+
         chunks = _stream(
             cmd, _request("nav-crisis-2", "tôi muốn chết, mở cài đặt quyền riêng tư")
         )

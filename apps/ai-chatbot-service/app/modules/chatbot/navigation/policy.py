@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.modules.chatbot.navigation.catalog import (
-    DestinationCatalog,
-    destination_catalog,
-)
+from app.modules.chatbot.navigation.catalog import DestinationCatalog
 from app.modules.chatbot.navigation.resolver import NavDecision, NavMatch
 from app.modules.chatbot.schemas import (
     AssistantRespondData,
@@ -67,21 +64,16 @@ def build_nav_outcome(
     ai_policy: str = "RESTRICTED",
     catalog: DestinationCatalog | None = None,
 ) -> NavOutcome:
-    """Pure mapping from a NavDecision to the assistant behaviour (no I/O)."""
+    """Pure mapping from a NavDecision to the assistant behaviour (no I/O).
+
+    UI navigation (`NavigateAction`) only routes the client URL and never reads or
+    mutates server data, so non-admin destinations remain available under both
+    `FULL` and `RESTRICTED` policies.
+    """
     if decision is None or not decision.matches:
         return NavOutcome()
 
-    resolved_catalog = catalog or destination_catalog
     matches = list(decision.matches)
-    if str(ai_policy or "").strip().upper() != "FULL":
-        matches = [
-            m
-            for m in matches
-            if (entry := resolved_catalog.get(m.destination_id)) is None
-            or entry.policy_scope != "personal"
-        ]
-        if not matches:
-            return NavOutcome()
 
     if decision.path == "command":
         top = matches[0]

@@ -475,5 +475,47 @@ DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
 }
 
 
+PROPOSE_ACCOUNT_ACTION = ToolDefinition(
+    name="propose_account_action",
+    domain="action",
+    target_service="ai-chatbot-service",
+    policy_scope="personal",
+    description=(
+        "Đề xuất một thao tác tài khoản an toàn để người dùng xác nhận trên giao diện "
+        "(KHÔNG tự thực thi). Chỉ gọi khi người dùng yêu cầu rõ ràng một thao tác ghi "
+        "và đã có đủ mã định danh (target_user_id / requester_id / group_id) hoặc thao tác không cần tham số."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "action_name": {
+                "type": "string",
+                "enum": [
+                    "send_friend_request",
+                    "accept_friend_request",
+                    "decline_friend_request",
+                    "cancel_friend_request",
+                    "unfriend_user",
+                    "block_user",
+                    "join_group",
+                    "leave_group",
+                    "mark_all_notifications_read",
+                ],
+                "description": "Tên hành động hợp lệ trong danh mục được phép đề xuất",
+            },
+            "params": {
+                "type": "object",
+                "description": "Tham số của hành động (vd: {'target_user_id': '...'}, {'requester_id': '...'}, {'group_id': '...'} hoặc {} cho mark_all_notifications_read)",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Mô tả ngắn gọn, rõ ràng cho người dùng về thao tác sắp xác nhận (nêu rõ hậu quả nếu là hành động hủy/chặn/rời nhóm)",
+            },
+        },
+        "required": ["action_name", "params"],
+    },
+)
+
+
 def get_tool_by_name(name: str) -> ToolDefinition | None:
     return ALL_TOOLS.get(name)

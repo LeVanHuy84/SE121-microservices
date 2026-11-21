@@ -41,6 +41,7 @@ from app.modules.chatbot.services.assistant_support import (
     TurnPreparer,
     ambiguous_scope_response,
     build_crisis_response,
+    build_proposal_from_meta_tool,
     community_response,
     dedupe_contexts,
     detect_action_proposals,
@@ -92,6 +93,7 @@ from app.modules.chatbot.services.prompt_builder import PromptBuilder
 from app.modules.chatbot.tools import (
     ToolDispatcher,
     ToolExecutionContext,
+    ToolExecutionResult,
     ToolRouter,
     tool_dispatcher,
     tool_router,
@@ -298,13 +300,20 @@ class RespondCommand:
         ai_policy = str(
             getattr(turn.working_request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
         ).upper()
+        native_tool_proposals = [
+            res.proposal
+            for res in tool_results_list
+            if getattr(res, "proposal", None) is not None
+        ]
         cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(
             generation.content,
             ai_policy=ai_policy,
             user_id=request.userId,
             conversation_id=turn.conv_id,
         )
-        if not reply_proposals:
+        if native_tool_proposals:
+            reply_proposals = native_tool_proposals
+        elif not reply_proposals:
             reply_proposals = self._detect_action_proposals(
                 turn.working_request,
                 tool_calls_tuple,
@@ -428,10 +437,26 @@ class RespondCommand:
                 getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
             ).upper(),
         )
-        # Execute tool calls concurrently for optimal latency
-        tool_results = await asyncio.gather(
-            *(self.dispatcher.dispatch(tc.name, tc.args, exec_ctx) for tc in tool_calls)
-        )
+        # Execute tool calls concurrently for optimal latency.
+        # Intercept native `propose_account_action` meta-tool without mutating state.
+        async def _run_tool(tc: Any) -> ToolExecutionResult:
+            if getattr(tc, "name", "") == "propose_account_action":
+                proposal, feedback = build_proposal_from_meta_tool(
+                    getattr(tc, "args", None) or getattr(tc, "arguments", None),
+                    ai_policy=exec_ctx.ai_policy,
+                    user_id=request.userId,
+                    conversation_id=request.conversationId or "",
+                )
+                return ToolExecutionResult(
+                    tool_name="propose_account_action",
+                    success=proposal is not None,
+                    data={"proposed": proposal is not None, "message": feedback},
+                    error=None if proposal is not None else feedback,
+                    proposal=proposal,
+                )
+            return await self.dispatcher.dispatch(tc.name, tc.args, exec_ctx)
+
+        tool_results = await asyncio.gather(*(_run_tool(tc) for tc in tool_calls))
         tool_results_list = list(tool_results)
         cards = self._extract_cards(tool_calls, tool_results_list)
         tool_results_text = [
@@ -734,11 +759,20 @@ class RespondCommand:
                 ) = await self._build_tool_followup(
                     turn.messages_or_prompt, collected_tool_calls, turn.working_request
                 )
-                stream_proposals = self._detect_action_proposals(
-                    turn.working_request,
-                    tuple(collected_tool_calls),
-                    stream_tool_results,
-                    conversation_id=turn.conv_id,
+                native_stream_proposals = [
+                    res.proposal
+                    for res in stream_tool_results
+                    if getattr(res, "proposal", None) is not None
+                ]
+                stream_proposals = (
+                    native_stream_proposals
+                    if native_stream_proposals
+                    else self._detect_action_proposals(
+                        turn.working_request,
+                        tuple(collected_tool_calls),
+                        stream_tool_results,
+                        conversation_id=turn.conv_id,
+                    )
                 )
                 pending_actions.extend(stream_cards)
                 pending_actions.extend(stream_proposals)

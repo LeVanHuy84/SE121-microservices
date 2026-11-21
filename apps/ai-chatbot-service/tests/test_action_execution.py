@@ -102,17 +102,15 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(is_action_allowed("block_user"))
         self.assertTrue(is_action_allowed("join_group"))
         self.assertTrue(is_action_allowed("leave_group"))
-        self.assertTrue(is_action_allowed("react_post"))
+        self.assertFalse(is_action_allowed("react_post"))
         self.assertTrue(is_action_allowed("mark_all_notifications_read"))
 
-        self.assertEqual(len(ALLOWLISTED_ACTIONS), 10)
+        self.assertEqual(len(ALLOWLISTED_ACTIONS), 9)
 
         # Verify metadata
         self.assertTrue(ALLOWLISTED_ACTIONS["decline_friend_request"].is_destructive)
         self.assertTrue(ALLOWLISTED_ACTIONS["unfriend_user"].is_destructive)
         self.assertTrue(ALLOWLISTED_ACTIONS["block_user"].is_destructive)
-        self.assertFalse(ALLOWLISTED_ACTIONS["react_post"].is_destructive)
-        self.assertEqual(ALLOWLISTED_ACTIONS["react_post"].category, "content")
 
         self.assertFalse(is_action_allowed("delete_account"))
         self.assertFalse(is_action_allowed("transfer_funds"))
@@ -311,23 +309,15 @@ class ActionExecutionTest(unittest.IsolatedAsyncioTestCase):
             auth_token="jwt-tok",
         )
 
-        # 4. react_post
+        # 4. react_post is excluded per Capability Map and rejected as unallowlisted
         req_react = _make_signed_request(
             action_id="act-rxn",
             action_name="react_post",
             params={"post_id": "p-100", "reaction_type": "love"},
         )
         res = await executor.execute(req_react, auth_token="jwt-tok", user_id="u-1")
-        self.assertTrue(res.success)
-        mock_http.post.assert_called_with(
-            "/reactions",
-            json_body={
-                "targetId": "p-100",
-                "targetType": "POST",
-                "reactionType": "LOVE",
-            },
-            auth_token="jwt-tok",
-        )
+        self.assertFalse(res.success)
+        self.assertEqual(res.error, "ACTION_NOT_ALLOWLISTED")
 
         # 5. join_group
         req_join = _make_signed_request(

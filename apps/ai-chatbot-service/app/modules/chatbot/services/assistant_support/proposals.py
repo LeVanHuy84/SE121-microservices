@@ -429,8 +429,6 @@ EXPLICIT_ACTION_PHRASES: tuple[str, ...] = (
     "chặn người dùng",
     "rời nhóm",
     "tham gia nhóm",
-    "thả reaction",
-    "react_post",
 )
 
 
@@ -891,25 +889,6 @@ def detect_action_proposals(
                         first_p = posts[0]
                         post_id = first_p.get("id") or first_p.get("postId")
                         break
-        if post_id:
-            rxn = "love" if any(w in msg for w in ("tim", "love")) else "like"
-            action_def = get_action_definition("react_post")
-            if action_def:
-                proposals.append(
-                    _build_signed_proposal(
-                        user_id=resolved_user_id,
-                        conversation_id=resolved_conv_id,
-                        action_name="react_post",
-                        title=f"Thả cảm xúc ({rxn})",
-                        description=f"Bày tỏ cảm xúc '{rxn}' cho bài viết",
-                        params={"post_id": post_id, "reaction_type": rxn},
-                        confirm_label=action_def.confirm_label,
-                        cancel_label=action_def.cancel_label,
-                        category=action_def.category,
-                        is_destructive=action_def.is_destructive,
-                    )
-                )
-
     # Deduplicate proposals by (actionName, str(params))
     seen = set()
     deduped = []
@@ -919,3 +898,60 @@ def detect_action_proposals(
             seen.add(key)
             deduped.append(p)
     return deduped[:2]
+
+
+def build_proposal_from_meta_tool(
+    args: dict[str, Any] | None,
+    *,
+    ai_policy: str = "RESTRICTED",
+    user_id: str = "",
+    conversation_id: str = "",
+) -> tuple[ProposeAction | None, str]:
+    """Validate and sign a ProposeAction emitted via the native `propose_account_action` tool."""
+    if str(ai_policy or "").strip().upper() != "FULL":
+        return (
+            None,
+            "Tài khoản đang ở chế độ bảo mật RESTRICTED nên không thể tạo đề xuất thao tác.",
+        )
+    if not isinstance(args, dict):
+        return None, "Tham số đề xuất hành động không hợp lệ."
+
+    action_name = str(args.get("action_name") or "").strip()
+    if not is_action_allowed(action_name):
+        return None, f"Hành động '{action_name}' không nằm trong danh mục được phép."
+
+    action_def = get_action_definition(action_name)
+    if action_def is None:
+        return None, f"Không tìm thấy định nghĩa hành động '{action_name}'."
+
+    raw_params = args.get("params")
+    params = dict(raw_params) if isinstance(raw_params, dict) else {}
+    missing = [p for p in action_def.required_params if not params.get(p)]
+    if missing:
+        return (
+            None,
+            f"Thiếu tham số bắt buộc ({', '.join(missing)}) để đề xuất hành động '{action_name}'.",
+        )
+
+    reason = str(args.get("reason") or "").strip() or action_def.description
+    if action_def.is_destructive and "cảnh báo" not in reason.lower():
+        description = f"{reason} (Lưu ý: thao tác này có thể ảnh hưởng trực tiếp tới dữ liệu hoặc quan hệ xã hội của bạn.)"
+    else:
+        description = reason
+
+    proposal = _build_signed_proposal(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        action_name=action_name,
+        title=action_def.confirm_label,
+        description=description,
+        params=params,
+        confirm_label=action_def.confirm_label,
+        cancel_label=action_def.cancel_label,
+        category=action_def.category,
+        is_destructive=action_def.is_destructive,
+    )
+    return (
+        proposal,
+        f"Đã tạo thẻ xác nhận cho hành động '{action_name}'. Hãy mời người dùng bấm xác nhận trên giao diện.",
+    )

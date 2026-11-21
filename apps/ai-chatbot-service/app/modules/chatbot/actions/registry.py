@@ -103,17 +103,6 @@ LEAVE_GROUP = ActionDefinition(
     is_destructive=True,
 )
 
-REACT_POST = ActionDefinition(
-    name="react_post",
-    domain="content",
-    category="content",
-    description="Thả cảm xúc cho bài viết",
-    required_params=("post_id",),
-    confirm_label="Thả cảm xúc",
-    cancel_label="Hủy",
-    is_destructive=False,
-)
-
 MARK_ALL_NOTIFICATIONS_READ = ActionDefinition(
     name="mark_all_notifications_read",
     domain="account",
@@ -134,7 +123,6 @@ ALLOWLISTED_ACTIONS: dict[str, ActionDefinition] = {
     BLOCK_USER.name: BLOCK_USER,
     JOIN_GROUP.name: JOIN_GROUP,
     LEAVE_GROUP.name: LEAVE_GROUP,
-    REACT_POST.name: REACT_POST,
     MARK_ALL_NOTIFICATIONS_READ.name: MARK_ALL_NOTIFICATIONS_READ,
 }
 

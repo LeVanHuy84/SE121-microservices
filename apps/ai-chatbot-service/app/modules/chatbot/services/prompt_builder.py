@@ -71,6 +71,7 @@ class PromptBuilder:
 
         parts = [
             self._build_system_prompt(),
+            self._build_ai_policy_directive(is_restricted),
             self._build_emotion_tone_directive(
                 effective_snapshot,
                 in_chat_distress=in_chat_distress,
@@ -149,6 +150,7 @@ class PromptBuilder:
 
         system_parts = [
             self._build_system_prompt(),
+            self._build_ai_policy_directive(is_restricted),
             self._build_emotion_tone_directive(
                 effective_snapshot,
                 in_chat_distress=in_chat_distress,
@@ -203,6 +205,15 @@ class PromptBuilder:
         # Giữ nguyên văn các lượt gần nhất liền mạch (4-6 turns, 8-12 messages)
         # Các lượt trước đó được tóm tắt trong Rolling Summary
         return history[-max_history_items:]
+
+    def _build_ai_policy_directive(self, is_restricted: bool) -> str:
+        if not is_restricted:
+            return ""
+        return (
+            "AI_POLICY_DIRECTIVE (RESTRICTED - RIÊNG TƯ TỐI ĐA): Tài khoản người dùng hiện đang bật chế độ bảo mật nghiêm ngặt (RESTRICTED).\n"
+            "- Bạn KHÔNG có quyền đọc dữ liệu cá nhân (bạn bè, lời mời kết bạn, nhóm, thông báo, cảm xúc, bài viết riêng tư) và KHÔNG thể đề xuất hay thực thi thao tác tài khoản.\n"
+            "- Nếu người dùng hỏi dữ liệu cá nhân hoặc nhờ thực hiện thao tác tài khoản, hãy giải thích rõ tài khoản đang ở chế độ Riêng tư tối đa (RESTRICTED) và khuyên người dùng bật chế độ Đầy đủ tính năng (FULL) tại Cài đặt → Quyền riêng tư (/settings/privacy). Tuyệt đối không tự bịa dữ liệu."
+        )
 
     def _build_surface_context_directive(self, surface: SurfaceContext | None) -> str:
         """Inject active application surface context (screen, entity, lightweight metadata)."""

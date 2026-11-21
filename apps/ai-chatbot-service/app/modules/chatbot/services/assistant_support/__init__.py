@@ -19,6 +19,7 @@ from app.modules.chatbot.services.assistant_support.responses import (
     privacy_policy_response,
 )
 from app.modules.chatbot.services.assistant_support.proposals import (
+    build_proposal_from_meta_tool,
     detect_action_proposals,
     extract_cards,
     extract_proposals_from_llm_reply,
@@ -52,6 +53,7 @@ __all__ = [
     "ActionFenceStreamFilter",
     "ambiguous_scope_response",
     "build_crisis_response",
+    "build_proposal_from_meta_tool",
     "community_response",
     "emit_crisis_event",
     "greeting_response",

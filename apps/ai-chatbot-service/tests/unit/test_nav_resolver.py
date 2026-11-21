@@ -86,13 +86,13 @@ class NavResolverUnitTest(unittest.TestCase):
             any(m.destination_id == "settings.notifications" for m in decision.matches)
         )
 
-    def test_restricted_policy_filters_out_personal_destinations(self):
-        # Personal destinations like friends / emotions are blocked under RESTRICTED
+    def test_restricted_policy_allows_non_admin_navigation_and_blocks_admin(self):
+        # UI navigation only changes client URL and never reads server data,
+        # so non-admin screens remain available under RESTRICTED.
         friends_restricted = self.resolver.resolve("mở bạn bè", ai_policy="RESTRICTED")
-        self.assertEqual(friends_restricted.path, "none")
-        self.assertEqual(friends_restricted.matches, [])
+        self.assertEqual(friends_restricted.path, "command")
+        self.assertEqual(friends_restricted.matches[0].destination_id, "friends")
 
-        # Public destinations like settings.privacy remain available under RESTRICTED
         privacy_restricted = self.resolver.resolve(
             "mở quyền riêng tư", ai_policy="RESTRICTED"
         )
@@ -101,10 +101,32 @@ class NavResolverUnitTest(unittest.TestCase):
             privacy_restricted.matches[0].destination_id, "settings.privacy"
         )
 
-        # Under FULL policy, personal destinations resolve normally
+        # Admin screens stay permanently blocked under any policy
+        admin_restricted = self.resolver.resolve(
+            "mở trang admin", ai_policy="RESTRICTED"
+        )
+        self.assertEqual(admin_restricted.path, "none")
+
         friends_full = self.resolver.resolve("mở bạn bè", ai_policy="FULL")
         self.assertEqual(friends_full.path, "command")
         self.assertEqual(friends_full.matches[0].destination_id, "friends")
+
+    def test_view_prefix_downgrades_read_tool_destinations_under_full(self):
+        # Under FULL policy, "xem <read-tool destination>" yields path="howto"
+        # so Phase 2 Read Tool runs and attaches the navigation button.
+        reqs_view = self.resolver.resolve("xem lời mời kết bạn", ai_policy="FULL")
+        self.assertEqual(reqs_view.path, "howto")
+        self.assertEqual(reqs_view.matches[0].destination_id, "friends.requests")
+
+        # Pure navigation command ("mở ...") still short-circuits immediately
+        reqs_open = self.resolver.resolve("mở lời mời kết bạn", ai_policy="FULL")
+        self.assertEqual(reqs_open.path, "command")
+        self.assertEqual(reqs_open.matches[0].destination_id, "friends.requests")
+
+        # Static screen without a Read Tool still short-circuits on "xem ..."
+        home_view = self.resolver.resolve("xem trang chủ", ai_policy="FULL")
+        self.assertEqual(home_view.path, "command")
+        self.assertEqual(home_view.matches[0].destination_id, "home")
 
 
 class NavResolverBenchmarkTest(unittest.TestCase):

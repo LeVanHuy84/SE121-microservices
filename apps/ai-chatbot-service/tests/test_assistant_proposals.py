@@ -210,7 +210,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(proposals[0].payload.params, {"target_user_id": "u-spammer"})
         self.assertTrue(proposals[0].payload.isDestructive)
 
-    def test_detect_action_proposals_react_post(self):
+    def test_detect_action_proposals_excludes_react_post(self):
         req = AssistantRespondRequest(
             userId="u-1",
             conversationId="conv-1",
@@ -219,14 +219,57 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
         )
         proposals = self.cmd._detect_action_proposals(req, (), [])
-        self.assertEqual(len(proposals), 1)
-        self.assertEqual(proposals[0].payload.actionName, "react_post")
-        self.assertEqual(
-            proposals[0].payload.params,
-            {"post_id": "post-xyz", "reaction_type": "love"},
+        self.assertEqual(proposals, [])
+
+    def test_native_meta_tool_propose_account_action_signs_and_warns_tier_b(self):
+        from app.modules.chatbot.services.assistant_support.proposals import (
+            build_proposal_from_meta_tool,
+            verify_proposal_token,
         )
-        self.assertFalse(proposals[0].payload.isDestructive)
-        self.assertEqual(proposals[0].payload.category, "content")
+
+        proposal, feedback = build_proposal_from_meta_tool(
+            {
+                "action_name": "block_user",
+                "params": {"target_user_id": "u-spammer"},
+                "reason": "Chặn tài khoản làm phiền",
+            },
+            ai_policy="FULL",
+            user_id="u-1",
+            conversation_id="conv-1",
+        )
+        self.assertIsNotNone(proposal)
+        assert proposal is not None
+        self.assertEqual(proposal.payload.actionName, "block_user")
+        self.assertTrue(proposal.payload.isDestructive)
+        self.assertIn("Lưu ý", proposal.payload.description)
+        self.assertIn("thẻ xác nhận", feedback)
+        ok, err = verify_proposal_token(
+            token=proposal.payload.proposalToken,
+            user_id="u-1",
+            conversation_id="conv-1",
+            action_id=proposal.id,
+            action_name=proposal.payload.actionName,
+            params=proposal.payload.params,
+            idempotency_key=proposal.payload.idempotencyKey,
+        )
+        self.assertTrue(ok)
+        self.assertIsNone(err)
+
+        # Rejected under RESTRICTED or excluded action (react_post)
+        restricted_prop, _ = build_proposal_from_meta_tool(
+            {"action_name": "mark_all_notifications_read", "params": {}},
+            ai_policy="RESTRICTED",
+            user_id="u-1",
+            conversation_id="conv-1",
+        )
+        self.assertIsNone(restricted_prop)
+        excluded_prop, _ = build_proposal_from_meta_tool(
+            {"action_name": "react_post", "params": {"post_id": "p-1"}},
+            ai_policy="FULL",
+            user_id="u-1",
+            conversation_id="conv-1",
+        )
+        self.assertIsNone(excluded_prop)
 
     def test_action_fence_stream_filter_suppresses_action_fences(self):
         from app.modules.chatbot.services.assistant import ActionFenceStreamFilter
@@ -275,8 +318,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             userId="u-1",
             conversationId="conv-1",
             aiPolicy="FULL",
-            message="Thả tim bài viết này giúp mình",
-            surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
+            message="Đánh dấu tất cả thông báo đã đọc giúp mình",
         )
         proposals = self.cmd._detect_action_proposals(req_full, (), [])
         self.assertEqual(len(proposals), 1)
@@ -298,8 +340,7 @@ class AssistantProposalSynthesisTest(unittest.IsolatedAsyncioTestCase):
             userId="u-1",
             conversationId="conv-1",
             aiPolicy="RESTRICTED",
-            message="Thả tim bài viết này giúp mình",
-            surface=SurfaceContext(screen="feed.post", entityId="post-xyz"),
+            message="Đánh dấu tất cả thông báo đã đọc giúp mình",
         )
         self.assertEqual(self.cmd._detect_action_proposals(req_restricted, (), []), [])
 

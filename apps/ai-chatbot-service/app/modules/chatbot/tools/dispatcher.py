@@ -59,6 +59,7 @@ class ToolExecutionResult:
     data: Any
     error: str | None = None
     card_payload: dict[str, Any] | None = None
+    proposal: Any | None = None
 
     def to_tool_message_content(self) -> str:
         """Serializes safe data or error for LLM context injection."""
