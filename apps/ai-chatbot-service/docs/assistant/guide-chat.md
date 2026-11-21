@@ -18,7 +18,16 @@ Giao diện mục **"Tin nhắn" (`/conversations`)** được tối ưu hóa ch
 - Hiển thị danh sách các cuộc trò chuyện cá nhân 1-1 và các nhóm chat gần nhất.
 - Chấm xanh hiển thị bên cạnh ảnh đại diện biểu thị trạng thái bạn bè đang trực tuyến (Online).
 - Thanh tìm kiếm giúp bạn nhanh chóng lọc tên bạn bè hoặc tên nhóm chat.
-- Nút tạo cuộc trò chuyện mới hoặc tạo nhóm chat riêng để trò chuyện nhiều người.
+
+### 1.1. Cách Tạo Nhóm Chat Nhiều Người (Group Chat)
+Sentimeta **hoàn toàn hỗ trợ tính năng tạo nhóm chat nhiều người** để bạn bè cùng trao đổi, học tập hoặc tâm sự chung:
+1. **Truy cập mục Tin nhắn (`/conversations`):** Nhấp vào biểu tượng Tin nhắn trên thanh điều hướng chính.
+2. **Bấm nút Tạo nhóm chat:** Ở đầu cột danh sách trò chuyện bên trái (ngay bên cạnh tiêu đề "Trò chuyện"), nhấp vào **nút tròn có biểu tượng dấu cộng tin nhắn** (`MessageCirclePlus`, nút có chú thích *"Tạo trò chuyện nhóm"*).
+3. **Thiết lập trong hộp thoại "Tạo nhóm chat mới":**
+   - **Ảnh đại diện nhóm (Tùy chọn):** Nhấp vào khung tròn avatar để tải ảnh đại diện riêng cho nhóm từ thiết bị.
+   - **Đặt tên nhóm (Bắt buộc):** Nhập tên nhóm trò chuyện vào ô *"Tên nhóm"*.
+   - **Chọn thành viên:** Nhập tên vào ô tìm kiếm để chọn các người bạn muốn thêm vào nhóm chat (yêu cầu chọn tối thiểu 2 thành viên khác ngoài bạn).
+4. **Hoàn tất:** Nhấp nút **"Tạo nhóm"** ở cuối hộp thoại. Nhóm chat mới sẽ lập tức được khởi tạo, xuất hiện trong danh sách hội thoại và mở ra khung chat để các thành viên bắt đầu nhắn tin, gửi ảnh/video và gọi nhóm.
 
 ### 2. Khung Trò chuyện Chi tiết (Cột bên phải)
 - **Thanh tiêu đề cuộc trò chuyện:**

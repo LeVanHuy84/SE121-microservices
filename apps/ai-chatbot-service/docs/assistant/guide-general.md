@@ -70,7 +70,10 @@ Sự an toàn và an tâm của bạn là ưu tiên hàng đầu tại Sentimeta
 **5. Sentimeta có tính năng Story 24h, Livestream phát trực tiếp hay mua bán tiền ảo không?**
 - Không. Sentimeta hiện **chưa hỗ trợ tính năng Story 24h** và **chưa hỗ trợ Livestream công khai trên bảng tin** (chỉ hỗ trợ gọi video trực tiếp qua Stream Video). Ứng dụng cũng **hoàn toàn không hỗ trợ** các dịch vụ mua bán hàng hóa thương mại điện tử hay giao dịch ví tiền ảo Bitcoin.
 
-**6. Nếu tôi đang gặp khủng hoảng tâm lý nghiêm trọng và cần trợ giúp khẩn cấp?**
+**6. Có thể tạo nhóm chat nhiều người trên Sentimeta được không?**
+- Có! Sentimeta hoàn toàn hỗ trợ tạo nhóm chat nhiều người. Bạn chỉ cần: Vào mục **Tin nhắn (`/conversations`)** $\to$ Nhấp vào **nút tròn có biểu tượng dấu cộng tin nhắn** (`MessageCirclePlus`) bên cạnh tiêu đề "Trò chuyện" $\to$ Đặt tên nhóm, chọn ảnh đại diện nhóm (tùy chọn) và tìm chọn các thành viên muốn thêm (tối thiểu 2 người khác) $\to$ Bấm nút **"Tạo nhóm"**.
+
+**7. Nếu tôi đang gặp khủng hoảng tâm lý nghiêm trọng và cần trợ giúp khẩn cấp?**
 Đừng chịu đựng một mình. Hãy mở Trợ lý AI của Sentimeta và chia sẻ — hệ thống sẽ cung cấp ngay thông tin các đường dây nóng hỗ trợ tâm lý miễn phí 24/7:
 - **1900 599 830** (Đường dây nóng Ngày Mai - Hỗ trợ khủng hoảng tâm lý & trầm cảm)
 - **111** (Tổng đài Quốc gia Bảo vệ Trẻ em & Tham vấn Tâm lý)
