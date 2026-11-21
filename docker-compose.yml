@@ -156,6 +156,7 @@ services:
       - app-network
 
   api-gateway:
+    image: se121/api-gateway:latest
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
@@ -187,6 +188,7 @@ services:
       - app-network
 
   user-social-service:
+    image: se121/user-social-service:latest
     build:
       context: .
       dockerfile: apps/user-social-service/Dockerfile
@@ -218,6 +220,7 @@ services:
       - app-network
 
   content-feed-service:
+    image: se121/content-feed-service:latest
     build:
       context: .
       dockerfile: apps/content-feed-service/Dockerfile
@@ -249,6 +252,7 @@ services:
       - app-network
 
   search-recommendation-service:
+    image: se121/search-recommendation-service:latest
     build:
       context: .
       dockerfile: apps/search-recommendation-service/Dockerfile
@@ -280,6 +284,7 @@ services:
       - app-network
 
   chat-service:
+    image: se121/chat-service:latest
     build:
       context: .
       dockerfile: apps/chat-service/Dockerfile
@@ -311,6 +316,7 @@ services:
       - app-network
 
   emotion-intelligence-service:
+    image: se121/emotion-intelligence-service:latest
     build:
       context: .
       dockerfile: apps/emotion-intelligence-service/Dockerfile
@@ -342,6 +348,7 @@ services:
       - app-network
 
   ai-chatbot-service:
+    image: se121/ai-chatbot-service:latest
     build:
       context: ./apps/ai-chatbot-service
       dockerfile: Dockerfile
@@ -354,6 +361,8 @@ services:
       - .env.production.local
       - apps/ai-chatbot-service/.env.production.local
     environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=WARNING
       - METRICS_PORT=5006
       - PORT=4006
       - REDIS_HOST=redis

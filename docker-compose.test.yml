@@ -8,7 +8,15 @@
 #    - Allows test-specific overrides from .env.test and .env.test.local
 #    - Only overrides container hostnames and test-specific flags in the 'environment' section
 # 2. 100% Isolated Infrastructure: Dedicated network, isolated volumes, separate container names
-# 3. Dual Mode:
+# 3. Deterministic Resource Boundaries:
+#    - Generous Production-Realistic Profile (Optimized for 8 vCPU / 16GB RAM VPS)
+#    - Two-Tier Budget:
+#      * Application Tier (7 microservices): ~4.7 vCPU & ~5.6 GB RAM (AI: 2GB, Feed: 1.5GB/1.5CPU, Gateway: 512MB/1.0CPU)
+#      * Infrastructure Tier (7 DB/Brokers): ~2.7 vCPU & ~4.7 GB RAM (Elasticsearch: 1.5GB, Mongo: 1GB, Kafka: 512MB)
+#      * Total 14 Core Services: ~7.4 vCPU & ~10.3 GB RAM
+#      * K6 Load Runner: 1.5 vCPU & 1024MB RAM (profile loadtest)
+#    - Perfectly aligned with Thesis Proposal Target: "4 vCPU, 8–16GB RAM"
+# 4. Dual Mode:
 #    - E2E & Chaos Testing: Run default services (`docker compose -f docker-compose.test.yml up -d`)
 #    - K6 Load Testing: Add `--profile loadtest` (`docker compose -f docker-compose.test.yml --profile loadtest up k6`)
 # ==============================================================================
@@ -59,6 +67,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.6'
+          memory: 512M
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=128MB"]
 
   postgres-init:
     image: postgres:16-alpine
@@ -92,6 +106,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.6'
+          memory: 768M
 
   redis:
     image: redis:7-alpine
@@ -107,6 +126,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -130,6 +154,11 @@ services:
       KAFKA_HEAP_OPTS: '-Xmx256M -Xms128M'
     volumes:
       - kafka_test_data:/var/lib/kafka/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -144,6 +173,11 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_test_data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 256M
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.1.7
@@ -159,6 +193,11 @@ services:
       - xpack.security.http.ssl.enabled=false
     volumes:
       - elastic_test_data:/usr/share/elasticsearch/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
 
   jaeger:
     image: jaegertracing/all-in-one:1.57
@@ -171,12 +210,19 @@ services:
       - '${JAEGER_OTLP_HTTP_PORT:-4318}:4318'
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - MEMORY_MAX_TRACES=10000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
 
   # ============================================================================
   # 2. CORE BACKEND MICROSERVICES (7 SERVICES)
   # ============================================================================
 
   api-gateway:
+    image: se121/api-gateway:latest
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
@@ -187,17 +233,11 @@ services:
       - '${GATEWAY_TEST_PORT:-4000}:4000'
       - '${GATEWAY_METRICS_PORT:-5000}:5000'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/api-gateway/.env
         required: false
-      - path: apps/api-gateway/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
@@ -208,7 +248,7 @@ services:
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - KAFKA_BROKERS=kafka:9093
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - AI_CHATBOT_SERVICE_URL=http://ai-chatbot-service:4006
       - AI_CHATBOT_INTERNAL_KEY=${AI_CHATBOT_INTERNAL_KEY:-chatbot-internal-key-123}
@@ -223,13 +263,20 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_PORT=4005
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
       - SEARCH_RECOMMENDATION_SERVICE_PORT=4003
+      - ENABLE_DATE_FORMAT_INTERCEPTOR=false
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 512M
 
   user-social-service:
+    image: se121/user-social-service:latest
     build:
       context: .
       dockerfile: apps/user-social-service/Dockerfile
@@ -240,33 +287,24 @@ services:
       - '${USER_SOCIAL_TEST_PORT:-4001}:4001'
       - '${USER_SOCIAL_METRICS_PORT:-5001}:5001'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/user-social-service/.env
         required: false
-      - path: apps/user-social-service/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
       - ENABLE_LOAD_TEST_MODE=true
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-mock_clerk_secret_key_for_testing}
-      - SYSTEM_ADMIN_EMAIL=${SYSTEM_ADMIN_EMAIL:-admin@example.com}
-      - SYSTEM_ADMIN_PASSWORD=${SYSTEM_ADMIN_PASSWORD:-Admin@123456}
       - METRICS_PORT=5001
       - PORT=4001
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/user_social_service
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/user_social_service
+      - DATABASE_URL=${USER_SOCIAL_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/user_social_service}
+      - POSTGRES_URL=${USER_SOCIAL_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/user_social_service}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - KAFKA_BROKERS=kafka:9093
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
       - SEARCH_RECOMMENDATION_SERVICE_PORT=4003
@@ -279,8 +317,14 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   content-feed-service:
+    image: se121/content-feed-service:latest
     build:
       context: .
       dockerfile: apps/content-feed-service/Dockerfile
@@ -291,38 +335,34 @@ services:
       - '${CONTENT_FEED_TEST_PORT:-4002}:4002'
       - '${CONTENT_FEED_METRICS_PORT:-5002}:5002'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/content-feed-service/.env
         required: false
-      - path: apps/content-feed-service/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
       - ENABLE_LOAD_TEST_MODE=true
       - METRICS_PORT=5002
       - PORT=4002
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/content_feed_service
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/content_feed_service
-      - MONGODB_URI=mongodb://mongodb:27017/content_feed
+      - POSTGRES_URL=${CONTENT_FEED_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/content_feed_service}
+      - DATABASE_URL=${CONTENT_FEED_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/content_feed_service}
+      - POSTGRES_POOL_MAX=${POSTGRES_POOL_MAX:-100}
+      - MONGODB_URI=${CONTENT_FEED_MONGODB_URI:-mongodb://mongodb:27017/content_feed}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - POST_REDIS_HOST=redis
       - POST_REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - KAFKA_BROKERS=kafka:9093
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - USER_SOCIAL_SERVICE_HOST=user-social-service
       - USER_SOCIAL_SERVICE_PORT=4001
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - EMOTION_INTELLIGENCE_SERVICE_PORT=4005
+      - POST_SNAPSHOT_TTL=${POST_SNAPSHOT_TTL:-120}
     depends_on:
       postgres-init:
         condition: service_completed_successfully
@@ -334,8 +374,14 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 512M
 
   search-recommendation-service:
+    image: se121/search-recommendation-service:latest
     build:
       context: .
       dockerfile: apps/search-recommendation-service/Dockerfile
@@ -346,36 +392,31 @@ services:
       - '${SEARCH_REC_TEST_PORT:-4003}:4003'
       - '${SEARCH_REC_METRICS_PORT:-5003}:5003'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/search-recommendation-service/.env
         required: false
-      - path: apps/search-recommendation-service/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
       - ENABLE_LOAD_TEST_MODE=true
       - METRICS_PORT=5003
       - PORT=4003
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/search_recommendation
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/search_recommendation
+      - DATABASE_URL=${SEARCH_REC_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/search_recommendation}
+      - POSTGRES_URL=${SEARCH_REC_POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/search_recommendation}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - KAFKA_BROKERS=kafka:9093
       - ES_NODE=http://elasticsearch:9200
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - USER_SOCIAL_SERVICE_HOST=user-social-service
       - USER_SOCIAL_SERVICE_PORT=4001
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - EMOTION_INTELLIGENCE_SERVICE_PORT=4005
+      - POST_SNAPSHOT_TTL=${POST_SNAPSHOT_TTL:-120}
     depends_on:
       postgres-init:
         condition: service_completed_successfully
@@ -385,8 +426,14 @@ services:
         condition: service_started
       elasticsearch:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   chat-service:
+    image: se121/chat-service:latest
     build:
       context: .
       dockerfile: apps/chat-service/Dockerfile
@@ -397,17 +444,11 @@ services:
       - '${CHAT_TEST_PORT:-4004}:4004'
       - '${CHAT_METRICS_PORT:-5004}:5004'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/chat-service/.env
         required: false
-      - path: apps/chat-service/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
@@ -416,12 +457,12 @@ services:
       - STREAM_API_SECRET=${STREAM_API_SECRET:-mock_stream_api_secret_for_testing_purposes_123456789}
       - METRICS_PORT=5004
       - PORT=4004
-      - MONGODB_URI=mongodb://mongodb:27017/chat_service
+      - MONGODB_URI=${CHAT_MONGODB_URI:-mongodb://mongodb:27017/chat_service}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - KAFKA_BROKERS=kafka:9093
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - USER_SOCIAL_SERVICE_HOST=user-social-service
       - USER_SOCIAL_SERVICE_PORT=4001
@@ -434,8 +475,14 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   emotion-intelligence-service:
+    image: se121/emotion-intelligence-service:latest
     build:
       context: .
       dockerfile: apps/emotion-intelligence-service/Dockerfile
@@ -446,29 +493,23 @@ services:
       - '${EMOTION_TEST_PORT:-4005}:4005'
       - '${EMOTION_METRICS_PORT:-5005}:5005'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/emotion-intelligence-service/.env
         required: false
-      - path: apps/emotion-intelligence-service/.env.production.local
+      - path: .env.test
         required: false
       - path: .env.test.local
-        required: false
-      - path: .env.test
         required: false
     environment:
       - NODE_ENV=test
       - ENABLE_LOAD_TEST_MODE=true
       - METRICS_PORT=5005
       - PORT=4005
-      - MONGODB_URI=mongodb://mongodb:27017/emotion_intelligence
+      - MONGODB_URI=${EMOTION_MONGODB_URI:-mongodb://mongodb:27017/emotion_intelligence}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - KAFKA_BROKERS=kafka:9093
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
     depends_on:
       mongodb:
@@ -479,8 +520,14 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   ai-chatbot-service:
+    image: se121/ai-chatbot-service:latest
     build:
       context: ./apps/ai-chatbot-service
       dockerfile: Dockerfile
@@ -491,31 +538,32 @@ services:
       - '${AI_CHATBOT_TEST_PORT:-4006}:4006'
       - '${AI_CHATBOT_METRICS_PORT:-5006}:5006'
     env_file:
-      - path: .env
-        required: false
-      - path: .env.production.local
-        required: false
       - path: apps/ai-chatbot-service/.env
-        required: false
-      - path: apps/ai-chatbot-service/.env.production.local
-        required: false
-      - path: .env.test.local
         required: false
       - path: .env.test
         required: false
+      - path: .env.test.local
+        required: false
     environment:
+      - NODE_ENV=test
+      - ENABLE_LOAD_TEST_MODE=true
+      - CHATBOT_LLM_STUB_MODE=true
+      - LOG_LEVEL=WARNING
       - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-chatbot-internal-key-123}
       - X_INTERNAL_KEY=${X_INTERNAL_KEY:-chatbot-internal-key-123}
-      - UNIT_TEST_MODE=true
+      - UNIT_TEST_MODE=false
+      - PHOBERT_EMOTION_MODEL_PATH=huyleit/phobert-emotion-social/onnx/phobert_emotion_int8.onnx
+      - PHOBERT_MODERATION_MODEL_PATH=huyleit/phobert-vi-moderation-v1.1/onnx/phobert_moderation_int8.onnx
+      - MERT_MUSIC_MODEL_PATH=huyleit/mert-v1-95m-music-emotion-int8/mert_emotion_int8.onnx
       - METRICS_PORT=5006
       - PORT=4006
-      - MONGO_URL=mongodb://mongodb:27017
+      - MONGO_URL=${AI_CHATBOT_MONGO_URL:-mongodb://mongodb:27017/ai_chatbot}
       - REDIS_HOST=redis
       - CHATBOT_REDIS_URL=redis://redis:6379/0
       - KAFKA_BROKERS=kafka:9093
       - ES_NODE=http://elasticsearch:9200
       - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - ENABLE_OTEL=true
+      - ENABLE_OTEL=${ENABLE_OTEL:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - USER_SOCIAL_SERVICE_HOST=user-social-service
       - USER_SOCIAL_SERVICE_PORT=4001
@@ -527,6 +575,7 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_PORT=4005
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
       - SEARCH_RECOMMENDATION_SERVICE_PORT=4003
+      - RAG_WARMUP_ON_STARTUP=false
     volumes:
       - hf_test_cache:/root/.cache/huggingface
     depends_on:
@@ -538,6 +587,11 @@ services:
         condition: service_started
       elasticsearch:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1536M
 
   # ============================================================================
   # 3. K6 LOAD TESTING RUNNER (ON-DEMAND VIA PROFILE 'loadtest')
@@ -555,6 +609,12 @@ services:
     environment:
       - TARGET_URL=http://api-gateway:4000
       - SMOKE_TEST=${SMOKE_TEST:-false}
+      - LOAD_PROFILE=${LOAD_PROFILE:-standard}
+      - TARGET_VUS=${TARGET_VUS:-200}
+      - PACING_MODE=${PACING_MODE:-realistic}
+      - PAGES_PER_SESSION=${PAGES_PER_SESSION:-8}
+      - NUM_USERS=${NUM_USERS:-350}
+      - K6_TEST_SCRIPT=${K6_TEST_SCRIPT:-k6-feed-session-loadtest.js}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -562,4 +622,18 @@ services:
         limits:
           cpus: '1.5'
           memory: 512M
-    command: ["run", "/scripts/k6-feed-session-loadtest.js"]
+    command: ["run", "/scripts/${K6_TEST_SCRIPT:-k6-feed-session-loadtest.js}"]
+
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - '8080:8080'
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+    depends_on:
+      - kafka
+    networks:
+      - test-network
