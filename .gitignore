@@ -91,4 +91,10 @@ python_env/
 **/evaluation/moderation/versions/*/saved_phobert_moderation*/
 **/evaluation/moderation/versions/*/results_phobert_moderation*/
 *.zip
-*.safetensors
+*.safetensors
+
+# Load testing temporary raw metrics and volatile files
+tests/load/results/*.csv
+tests/load/results/summary.json
+tests/load/results/docker-resource-usage.json
+tests/load/results/*-smoke.json

@@ -45,7 +45,16 @@ async function bootstrap() {
   // Ensure required Kafka topics are created to avoid connection exceptions
   await ensureKafkaTopics();
 
-  const app = await NestFactory.create(AppModule);
+  const isSilent =
+    process.env.NODE_ENV === "production" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.ENABLE_LOAD_TEST_MODE === "true";
+
+  const app = await NestFactory.create(AppModule, {
+    logger: isSilent
+      ? ["error", "warn"]
+      : ["log", "error", "warn", "debug", "verbose"],
+  });
 
   app.useGlobalFilters(new ExceptionsFilter());
 

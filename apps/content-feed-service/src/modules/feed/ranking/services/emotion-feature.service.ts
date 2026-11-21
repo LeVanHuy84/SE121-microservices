@@ -65,11 +65,13 @@ export class EmotionFeatureService {
       confidence?: number;
       mentalHealthRiskLevel?: string;
     },
+    precomputedDistress?: number,
   ): number {
-    this.logger.debug(`User emotion Features: ${JSON.stringify(features)}`);
-    this.logger.debug(`Post Scores: ${JSON.stringify(post.scores)}`);
-
-    const isoScore = this.calcIsoPrincipleScore(features, post.scores || {});
+    const isoScore = this.calcIsoPrincipleScore(
+      features,
+      post.scores || {},
+      precomputedDistress,
+    );
     const riskPenalty = this.calcRiskPenalty(features, post.scores || {});
     const confidenceWeight = 0.7 + (post.confidence ?? 0) * 0.3;
 
@@ -80,8 +82,12 @@ export class EmotionFeatureService {
   calcIsoPrincipleScore(
     features: EmotionRankingFeaturesDto,
     postScores: Record<string, number>,
+    precomputedDistress?: number,
   ): number {
-    const distress = this.calcDistress(features);
+    const distress =
+      precomputedDistress !== undefined
+        ? precomputedDistress
+        : this.calcDistress(features);
 
     // 1. Chế độ Bình thường (Distress <= 0.3): Đa dạng nội dung & tích cực
     if (distress <= 0.3) {

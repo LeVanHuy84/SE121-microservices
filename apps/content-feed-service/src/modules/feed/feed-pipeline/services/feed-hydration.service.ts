@@ -41,12 +41,16 @@ export class FeedHydrationService {
       .map((id) => postMap.get(id))
       .filter((p): p is any => !!p);
 
-    const groupIds = Array.from(
-      new Set(orderedPosts.map((p) => p.groupId).filter(Boolean)),
-    );
-    const userIds = Array.from(
-      new Set(orderedPosts.map((p) => p.userId).filter(Boolean)),
-    );
+    // 🚀 ALGORITHM OPTIMIZATION 4.4: Single-Pass Extraction for userIds & groupIds
+    const groupIdsSet = new Set<string>();
+    const userIdsSet = new Set<string>();
+    for (let i = 0; i < orderedPosts.length; i++) {
+      const p = orderedPosts[i];
+      if (p.groupId) groupIdsSet.add(p.groupId);
+      if (p.userId) userIdsSet.add(p.userId);
+    }
+    const groupIds = Array.from(groupIdsSet);
+    const userIds = Array.from(userIdsSet);
 
     const [reactions, groups, users] = await Promise.all([
       userId

@@ -9,7 +9,7 @@ export class CacheLayerService {
   private readonly logger = new Logger(CacheLayerService.name);
   private readonly POST_PREFIX = "cache:post";
   private readonly SHARE_PREFIX = "cache:share";
-  private readonly TTL = 45; // 45 giây (Option B - Short TTL Snapshot Cache)
+  private readonly TTL = parseInt(process.env.POST_SNAPSHOT_TTL || "120", 10); // 120s (2 phút - Eventual Consistency cho stats & post)
 
   constructor(@InjectRedis() private readonly redis: Redis) {}
 

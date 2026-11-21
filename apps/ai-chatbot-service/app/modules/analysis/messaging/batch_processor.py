@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import uuid
 from app.modules.analysis.repositories.redis_client import redis_client
+
+logger = logging.getLogger(__name__)
 
 
 class OutboxBatchProcessor:
@@ -42,7 +45,7 @@ class OutboxBatchProcessor:
     # 2. Main loop
     # --------------------------------------------------
     async def start(self, interval_seconds=5):
-        print("[BatchProcessor] Started with instance:", self.instance_id)
+        logger.info("[BatchProcessor] Started with instance: %s", self.instance_id)
 
         while True:
             try:
@@ -60,7 +63,7 @@ class OutboxBatchProcessor:
                 await self.refresh_lock()
 
             except Exception as e:
-                print("Batch processor error:", e)
+                logger.error("Batch processor error: %s", e)
 
             await asyncio.sleep(interval_seconds)
 
@@ -72,7 +75,7 @@ class OutboxBatchProcessor:
         if not outboxes:
             return
 
-        print(f"[Batch] Processing {len(outboxes)} outboxes...")
+        logger.debug("[Batch] Processing %d outboxes...", len(outboxes))
 
         semaphore = asyncio.Semaphore(20)
 
@@ -110,4 +113,4 @@ class OutboxBatchProcessor:
         if processed_ids:
             await self.outbox_repo.mark_many_processed(processed_ids)
 
-        print(f"[Batch] Done. Processed {len(processed_ids)}/{len(outboxes)}")
+        logger.debug("[Batch] Done. Processed %d/%d", len(processed_ids), len(outboxes))

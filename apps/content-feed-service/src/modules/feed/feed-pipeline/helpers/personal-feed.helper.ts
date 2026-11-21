@@ -78,23 +78,44 @@ export class PersonalFeedHelper {
   // ==========================================
   // 🎯 DYNAMIC ADAPTIVE MULTI-OBJECTIVE RANKING
   // ==========================================
-  static calcAdaptiveScore(input: {
-    recency: number;
-    affinity: number;
-    emotion: number;
-    engagement: number;
-    distress: number;
-    toxicity?: number;
-  }): number {
-    const d = Math.max(0, Math.min(1, input.distress));
+  static calcAdaptiveWeights(distress: number): {
+    wRec: number;
+    wAff: number;
+    wEmo: number;
+    wEng: number;
+    lambda: number;
+    sum: number;
+  } {
+    const d = Math.max(0, Math.min(1, distress));
 
     const wRec = 0.4 * (1 - 0.75 * d);
     const wAff = 0.2 * (1 - 0.5 * d);
     const wEmo = 0.35 + 0.45 * d;
     const wEng = 0.05 * (1 - 0.6 * d);
     const lambda = 0.3 + 0.7 * d;
-
     const sum = wRec + wAff + wEmo + wEng;
+
+    return { wRec, wAff, wEmo, wEng, lambda, sum };
+  }
+
+  static calcAdaptiveScoreWithWeights(
+    input: {
+      recency: number;
+      affinity: number;
+      emotion: number;
+      engagement: number;
+      toxicity?: number;
+    },
+    weights: {
+      wRec: number;
+      wAff: number;
+      wEmo: number;
+      wEng: number;
+      lambda: number;
+      sum: number;
+    },
+  ): number {
+    const { wRec, wAff, wEmo, wEng, lambda, sum } = weights;
     const base =
       sum > 0
         ? (wRec * input.recency +
@@ -106,5 +127,17 @@ export class PersonalFeedHelper {
 
     const penalty = lambda * (input.toxicity ?? 0);
     return Math.max(0, Math.min(1, base - penalty));
+  }
+
+  static calcAdaptiveScore(input: {
+    recency: number;
+    affinity: number;
+    emotion: number;
+    engagement: number;
+    distress: number;
+    toxicity?: number;
+  }): number {
+    const weights = this.calcAdaptiveWeights(input.distress);
+    return this.calcAdaptiveScoreWithWeights(input, weights);
   }
 }

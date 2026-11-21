@@ -1,3 +1,4 @@
+import logging
 import uvicorn
 from fastapi import FastAPI, HTTPException
 
@@ -13,6 +14,25 @@ from app.modules.chatbot.public_router import (
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+# Configure logging according to environment (silence terminal spam during test/production)
+log_level = getattr(logging, settings.LOG_LEVEL, logging.INFO)
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    force=True,
+)
+
+if settings.IS_SILENT:
+    for noisy in [
+        "uvicorn.access",
+        "uvicorn.error",
+        "aiokafka",
+        "kafka",
+        "elasticsearch",
+        "httpx",
+        "httpcore",
+    ]:
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 app = FastAPI(title="AI Chatbot Service")
 init_otel(app, "ai-chatbot-service")
@@ -88,6 +108,8 @@ def start():
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.RELOAD,
+        log_level=settings.LOG_LEVEL.lower(),
+        access_log=not settings.IS_SILENT,
     )
 
 

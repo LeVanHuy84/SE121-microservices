@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull, Not } from 'typeorm';
 import { ProfileEmbedding } from '../entities/profile-embedding.entity';
@@ -13,6 +13,8 @@ import { RecommendationEmotionProfile } from '../entities/recommendation-emotion
 
 @Injectable()
 export class RecommendationStateRepository implements OnModuleInit {
+  private readonly logger = new Logger(RecommendationStateRepository.name);
+
   constructor(
     @InjectRepository(ProfileEmbedding)
     private readonly profileEmbeddingRepo: Repository<ProfileEmbedding>,
@@ -39,12 +41,10 @@ export class RecommendationStateRepository implements OnModuleInit {
       await this.profileEmbeddingRepo.query(
         'CREATE EXTENSION IF NOT EXISTS vector;',
       );
-      console.log(
-        '[RecommendationStateRepository] pgvector extension verified/created successfully.',
-      );
+      this.logger.log('pgvector extension verified/created successfully.');
     } catch (err: any) {
-      console.error(
-        '[RecommendationStateRepository] Failed to ensure pgvector extension is enabled:',
+      this.logger.error(
+        'Failed to ensure pgvector extension is enabled:',
         err.message || err,
       );
     }

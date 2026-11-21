@@ -8,7 +8,7 @@ import { ExceptionsFilter } from '@repo/common';
 import { Kafka } from 'kafkajs';
 import { EventTopic } from '@repo/dtos';
 
-async function ensureKafkaTopics() {
+async function ensureKafkaTopics(isSilent = false) {
   const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
   const kafka = new Kafka({
     clientId: 'search-recommendation-service-admin',
@@ -27,29 +27,42 @@ async function ensureKafkaTopics() {
       .map((topic) => ({ topic }));
 
     if (topicsToCreate.length > 0) {
-      console.log(
-        `[SearchRecommendationService] Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(', ')}`,
-      );
+      if (!isSilent) {
+        console.log(
+          `[SearchRecommendationService] Auto-creating Kafka topics: ${topicsToCreate.map((t) => t.topic).join(', ')}`,
+        );
+      }
       await admin.createTopics({
         topics: topicsToCreate,
       });
     }
   } catch (error: any) {
-    console.warn(
-      '[SearchRecommendationService] Failed to ensure Kafka topics exist:',
-      error.message || error,
-    );
+    if (!isSilent) {
+      console.warn(
+        '[SearchRecommendationService] Failed to ensure Kafka topics exist:',
+        error.message || error,
+      );
+    }
   } finally {
     await admin.disconnect().catch(() => {});
   }
 }
 
 async function bootstrap() {
+  const isSilent =
+    process.env.NODE_ENV === 'production' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.ENABLE_LOAD_TEST_MODE === 'true';
+
   // Đảm bảo các topic cần thiết tồn tại trên Kafka trước khi connect
-  await ensureKafkaTopics();
+  await ensureKafkaTopics(isSilent);
 
   // Tạo Hybrid Application để AppModule và các kết nối chỉ khởi tạo 1 lần duy nhất
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: isSilent
+      ? ['error', 'warn']
+      : ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
 
   // Đăng ký TCP Microservice
   app.connectMicroservice<MicroserviceOptions>({

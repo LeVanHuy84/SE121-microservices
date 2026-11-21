@@ -141,8 +141,11 @@ CREATE TABLE "user_blocks" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "profiles" RENAME COLUMN "stats" TO "post_count";--> statement-breakpoint
-ALTER TABLE "profiles" ADD COLUMN "friend_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profiles" RENAME COLUMN "stats" TO "post_count";
+EXCEPTION WHEN undefined_column THEN null;
+END $$;--> statement-breakpoint
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "friend_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "unique_reporter_group" ON "group_reports" USING btree ("reporter_id","group_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_friend_recommendation_dismissal_user_candidate" ON "friend_recommendation_dismissals" USING btree ("user_id","candidate_id");--> statement-breakpoint
 CREATE INDEX "idx_friend_recommendation_dismissal_user_candidate" ON "friend_recommendation_dismissals" USING btree ("user_id","candidate_id");--> statement-breakpoint

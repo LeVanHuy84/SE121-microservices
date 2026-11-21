@@ -7,29 +7,110 @@ import Redis from 'ioredis';
 import { Client as PgClient } from 'pg';
 
 const ROOT_DIR = resolve(__dirname, '../..');
-const ENV_CANDIDATES = [
-  resolve(ROOT_DIR, '.env.test.local'),
-  resolve(ROOT_DIR, '.env.test'),
-  resolve(ROOT_DIR, 'apps/content-feed-service/.env.test.local'),
-  resolve(ROOT_DIR, 'apps/content-feed-service/.env.test'),
-  resolve(ROOT_DIR, 'apps/emotion-intelligence-service/.env.test.local'),
-  resolve(ROOT_DIR, 'apps/emotion-intelligence-service/.env.test'),
-  resolve(ROOT_DIR, '.env.loadtest'),
-  resolve(ROOT_DIR, 'apps/content-feed-service/.env.loadtest'),
-  resolve(ROOT_DIR, 'apps/emotion-intelligence-service/.env.loadtest'),
-  resolve(ROOT_DIR, 'apps/content-feed-service/.env'),
-  resolve(ROOT_DIR, 'apps/content-feed-service/.env.local'),
-  resolve(ROOT_DIR, 'apps/emotion-intelligence-service/.env'),
-  resolve(ROOT_DIR, 'apps/emotion-intelligence-service/.env.local'),
-  resolve(ROOT_DIR, '.env'),
-  resolve(ROOT_DIR, '.env.local'),
-];
 
-for (const envFile of ENV_CANDIDATES) {
-  if (fs.existsSync(envFile)) {
-    dotenv.config({ path: envFile });
+// Chỉ nạp duy nhất .env.test.local hoặc .env.test để đảm bảo an toàn tuyệt đối
+// Tránh nạp nhầm .env production của các service
+const testLocalEnv = resolve(ROOT_DIR, '.env.test.local');
+const testEnv = resolve(ROOT_DIR, '.env.test');
+
+if (fs.existsSync(testLocalEnv)) {
+  console.log(`[SEED CONFIG] Loading test environment from: ${testLocalEnv}`);
+  dotenv.config({ path: testLocalEnv, override: true });
+} else if (fs.existsSync(testEnv)) {
+  console.log(`[SEED CONFIG] Loading test environment from: ${testEnv}`);
+  dotenv.config({ path: testEnv, override: true });
+} else {
+  console.warn('[SEED CONFIG] No .env.test.local found. Using localhost defaults.');
+}
+
+function sanitizeMongoBaseUri(rawUri?: string): string {
+  const uri = rawUri?.trim();
+  if (
+    !uri ||
+    uri.includes('mongodb+srv://') ||
+    uri.includes('mongodb.net') ||
+    uri.includes('cluster')
+  ) {
+    if (uri && (uri.includes('mongodb+srv://') || uri.includes('mongodb.net') || uri.includes('cluster'))) {
+      console.warn(`[SAFETY GUARD] BLOCKED remote/Atlas MongoDB URI in environment: ${uri}`);
+      console.warn(`[SAFETY GUARD] Reverting to local test MongoDB: mongodb://127.0.0.1:27017`);
+    }
+    return 'mongodb://127.0.0.1:27017';
+  }
+
+  // Convert docker host 'mongodb' to '127.0.0.1' for host runner
+  let converted = uri
+    .replace('mongodb://mongodb:', 'mongodb://127.0.0.1:')
+    .replace('@mongodb:', '@127.0.0.1:');
+
+  try {
+    const parsed = new URL(converted);
+    converted = `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    converted = converted.replace(/^(mongodb:\/\/[^/?]+).*/, '$1');
+  }
+
+  return converted;
+}
+
+function sanitizePgUrl(rawUrl?: string, defaultDb = 'user_social_service'): string {
+  const urlStr = rawUrl?.trim();
+  if (
+    !urlStr ||
+    urlStr.includes('neon.tech') ||
+    urlStr.includes('supabase.co') ||
+    urlStr.includes('render.com') ||
+    urlStr.includes('aws')
+  ) {
+    if (urlStr && (urlStr.includes('neon.tech') || urlStr.includes('supabase.co') || urlStr.includes('render.com'))) {
+      console.warn(`[SAFETY GUARD] BLOCKED remote cloud PostgreSQL URL in environment: ${urlStr}`);
+      console.warn(
+        `[SAFETY GUARD] Reverting to local PostgreSQL: postgresql://postgres:postgres@127.0.0.1:5432/${defaultDb}`,
+      );
+    }
+    return `postgresql://postgres:postgres@127.0.0.1:5432/${defaultDb}`;
+  }
+
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.hostname === 'postgres') {
+      parsed.hostname = '127.0.0.1';
+    }
+    return parsed.toString();
+  } catch {
+    return urlStr.replace(/@postgres(:|$)/, '@127.0.0.1$1');
   }
 }
+
+function sanitizeRedisConfig(rawHost?: string, rawPort?: string | number) {
+  let host = rawHost?.trim() || '127.0.0.1';
+  if (host === 'redis') host = '127.0.0.1';
+  if (host.includes('upstash') || host.includes('redislabs')) {
+    console.warn(`[SAFETY GUARD] BLOCKED remote Redis host: ${host}, using 127.0.0.1`);
+    host = '127.0.0.1';
+  }
+  const port = Number(rawPort) || 6379;
+  return { host, port };
+}
+
+function sanitizeEsUrl(rawUrl?: string): string {
+  let url = rawUrl?.trim() || 'http://127.0.0.1:9200';
+  url = url.replace('://elasticsearch:', '://127.0.0.1:');
+  return url;
+}
+
+const SEARCH_KEYWORDS = [
+  'tâm lý',
+  'chữa lành',
+  'áp lực học tập',
+  'mệt mỏi',
+  'sinh viên',
+  'âm nhạc',
+  'lo âu',
+  'thư giãn',
+  'đồ án tốt nghiệp',
+  'hạnh phúc',
+];
 
 interface PhobertSample {
   input_text: string;
@@ -59,19 +140,48 @@ const DATASET_PATH = resolve(
   'evaluation/emotion/data/phobert_finetune_merged_dataset_full_results.json',
 );
 
-const RAW_MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
-const MONGO_URI = RAW_MONGO_URI.replace('mongodb://mongodb:', 'mongodb://127.0.0.1:');
+// MongoDB Feed URI: Ưu tiên CONTENT_FEED_MONGODB_URI từ .env.test.local
+const rawFeedMongoUri =
+  process.env.CONTENT_FEED_MONGODB_URI ||
+  process.env.FEED_MONGODB_URI ||
+  process.env.TEST_MONGODB_URI ||
+  (!process.env.MONGODB_URI?.includes('+srv') && !process.env.MONGODB_URI?.includes('mongodb.net') ? process.env.MONGODB_URI : undefined);
 
-const RAW_PG_URL =
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_URL ||
-  'postgresql://postgres:postgres@127.0.0.1:5432/user_social_service';
-const PG_URL = RAW_PG_URL.replace('@postgres:', '@127.0.0.1:');
+const FEED_MONGO_BASE_URI = sanitizeMongoBaseUri(rawFeedMongoUri);
 
-const RAW_REDIS_HOST = process.env.REDIS_HOST || process.env.POST_REDIS_HOST || '127.0.0.1';
-const REDIS_HOST = RAW_REDIS_HOST === 'redis' ? '127.0.0.1' : RAW_REDIS_HOST;
-const REDIS_PORT = Number(
-  process.env.REDIS_PORT || process.env.POST_REDIS_PORT || 6379,
+// MongoDB Emotion URI: Ưu tiên EMOTION_MONGODB_URI từ .env.test.local
+const rawEmotionMongoUri =
+  process.env.EMOTION_MONGODB_URI ||
+  process.env.TEST_MONGODB_URI ||
+  (!process.env.MONGODB_URI?.includes('+srv') && !process.env.MONGODB_URI?.includes('mongodb.net') ? process.env.MONGODB_URI : undefined);
+
+const EMOTION_MONGO_BASE_URI = sanitizeMongoBaseUri(rawEmotionMongoUri);
+
+// PostgreSQL User Social URL: Ưu tiên USER_SOCIAL_DATABASE_URL từ .env.test.local
+const rawPgUrl =
+  process.env.USER_SOCIAL_DATABASE_URL ||
+  process.env.USER_SOCIAL_POSTGRES_URL ||
+  (!process.env.DATABASE_URL?.includes('neon.tech') && !process.env.DATABASE_URL?.includes('supabase.co') ? process.env.DATABASE_URL : undefined) ||
+  (!process.env.POSTGRES_URL?.includes('neon.tech') && !process.env.POSTGRES_URL?.includes('supabase.co') ? process.env.POSTGRES_URL : undefined);
+
+const PG_URL = sanitizePgUrl(rawPgUrl, 'user_social_service');
+
+// PostgreSQL Search Recommendation URL: Ưu tiên SEARCH_REC_DATABASE_URL từ .env.test.local
+const rawSearchRecPgUrl =
+  process.env.SEARCH_REC_DATABASE_URL ||
+  process.env.SEARCH_REC_POSTGRES_URL ||
+  (!process.env.DATABASE_URL?.includes('neon.tech') && !process.env.DATABASE_URL?.includes('supabase.co') ? process.env.DATABASE_URL : undefined);
+
+const SEARCH_REC_PG_URL = sanitizePgUrl(rawSearchRecPgUrl, 'search_recommendation');
+
+// Elasticsearch URL
+const ES_NODE = sanitizeEsUrl(process.env.ES_NODE || process.env.ELASTICSEARCH_NODE);
+
+const MUSIC_DATA_PATH = resolve(ROOT_DIR, 'seed-data/data/music-feature.json');
+
+const { host: REDIS_HOST, port: REDIS_PORT } = sanitizeRedisConfig(
+  process.env.REDIS_HOST || process.env.POST_REDIS_HOST,
+  process.env.REDIS_PORT || process.env.POST_REDIS_PORT,
 );
 
 const NUM_POSTS = 5000;
@@ -91,9 +201,11 @@ async function main() {
   console.log('================================================================');
   console.log('  🚀 SEED DATA CHO LOAD TESTING (NEWSFEED BENCHMARK)');
   console.log('================================================================');
-  console.log(`Source dataset: ${DATASET_PATH}`);
-  console.log(`MongoDB URI: ${MONGO_URI}`);
-  console.log(`Redis: ${REDIS_HOST}:${REDIS_PORT}`);
+  console.log(`Source dataset:      ${DATASET_PATH}`);
+  console.log(`Feed MongoDB Base:   ${FEED_MONGO_BASE_URI} (db: se121_content_feed)`);
+  console.log(`Emotion Mongo Base:  ${EMOTION_MONGO_BASE_URI} (db: emotion_intelligence_service)`);
+  console.log(`User Social PG URL:  ${PG_URL}`);
+  console.log(`Redis:               ${REDIS_HOST}:${REDIS_PORT}`);
 
   if (!fs.existsSync(DATASET_PATH)) {
     throw new Error(`Dataset file not found at: ${DATASET_PATH}`);
@@ -119,13 +231,13 @@ async function main() {
   console.log('Connected to Redis.');
 
   // 2. Connect MongoDB Feed Service
-  const feedConn = await mongoose.createConnection(MONGO_URI, {
+  const feedConn = await mongoose.createConnection(FEED_MONGO_BASE_URI, {
     dbName: 'se121_content_feed',
   }).asPromise();
   console.log('Connected to MongoDB [se121_content_feed].');
 
   // 3. Connect MongoDB Emotion Intelligence Service
-  const emotionConn = await mongoose.createConnection(MONGO_URI, {
+  const emotionConn = await mongoose.createConnection(EMOTION_MONGO_BASE_URI, {
     dbName: 'emotion_intelligence_service',
   }).asPromise();
   console.log('Connected to MongoDB [emotion_intelligence_service].');
@@ -134,6 +246,11 @@ async function main() {
   const pg = new PgClient({ connectionString: PG_URL });
   await pg.connect();
   console.log('Connected to PostgreSQL [user_social_service].');
+
+  // 5. Connect PostgreSQL Search Recommendation Service
+  const searchRecPg = new PgClient({ connectionString: SEARCH_REC_PG_URL });
+  await searchRecPg.connect();
+  console.log('Connected to PostgreSQL [search_recommendation].');
 
   try {
     const postSnapshotCol = feedConn.collection('post_snapshots');
@@ -209,6 +326,24 @@ async function main() {
         created_at timestamp DEFAULT now() NOT NULL,
         updated_at timestamp DEFAULT now() NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS friendships (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        user_id varchar(255) NOT NULL,
+        friend_id varchar(255) NOT NULL,
+        since timestamp with time zone DEFAULT now() NOT NULL,
+        sentiment_score double precision DEFAULT 0 NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_friendship_user_friend ON friendships (user_id, friend_id);
+      CREATE INDEX IF NOT EXISTS idx_friendship_user_friend ON friendships (user_id, friend_id);
+      CREATE INDEX IF NOT EXISTS idx_friendship_user_since ON friendships (user_id, since);
+
+      CREATE TABLE IF NOT EXISTS user_blocks (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        blocker_id varchar(255) NOT NULL,
+        blocked_id varchar(255) NOT NULL,
+        created_at timestamp with time zone DEFAULT now() NOT NULL
+      );
     `);
 
     // Seed Authors into Redis and PostgreSQL (500 distinct authors for 5000 posts)
@@ -274,6 +409,23 @@ async function main() {
     await redisPipeline.exec();
     console.log('Seeded authors and users into PostgreSQL [users, profiles] and Redis.');
 
+    // Seed Friendships among test users for feed fan-out
+    console.log('Seeding friendships among test users in PostgreSQL [friendships]...');
+    for (let u = 1; u <= NUM_TEST_USERS; u++) {
+      const uid = `load_user_${u}`;
+      for (let offset = 1; offset <= 5; offset++) {
+        const friendNum = ((u + offset - 1) % NUM_TEST_USERS) + 1;
+        const friendId = `load_user_${friendNum}`;
+        await pg.query(
+          `INSERT INTO friendships (user_id, friend_id, sentiment_score)
+           VALUES ($1::varchar, $2::varchar, 0.5)
+           ON CONFLICT (user_id, friend_id) DO NOTHING`,
+          [uid, friendId],
+        );
+      }
+    }
+    console.log('Seeded friendships for test users in PostgreSQL.');
+
     // 4. Build 5000 PostSnapshots
     console.log(`Generating ${NUM_POSTS} post_snapshots from PhoBERT...`);
     const now = Date.now();
@@ -314,7 +466,7 @@ async function main() {
         postId,
         userId: authorId,
         audience: 'PUBLIC',
-        content: sample.input_text,
+        content: idx < 300 ? `${sample.input_text} (${SEARCH_KEYWORDS[idx % SEARCH_KEYWORDS.length]})` : sample.input_text,
         mediaPreviews: [],
         mediaRemaining: 0,
         emotionFeature: {
@@ -579,11 +731,133 @@ async function main() {
     );
     console.log('Prewarmed emotion features and user profiles in Redis.');
 
+    // ------------------------------------------------------------------------
+    // 6. SEED MUSIC FEATURES (PostgreSQL [search_recommendation])
+    // ------------------------------------------------------------------------
+    if (fs.existsSync(MUSIC_DATA_PATH)) {
+      console.log(`\nSeeding music features from ${MUSIC_DATA_PATH}...`);
+      const rawMusicJson = fs.readFileSync(MUSIC_DATA_PATH, 'utf-8').replace(/^\uFEFF/, '');
+      const rawMusic = JSON.parse(rawMusicJson) as Array<{
+        url: string;
+        coverUrl: string;
+        title: string;
+        artist: string;
+        genre: string;
+        valence: number;
+        arousal: number;
+      }>;
+
+      await searchRecPg.query(`
+        DO $$ BEGIN
+         CREATE TYPE music_features_genre_enum AS ENUM('lofi', 'edm', 'pop', 'acoustic', 'rock', 'other');
+        EXCEPTION
+         WHEN duplicate_object THEN null;
+        END $$;
+
+        CREATE TABLE IF NOT EXISTS music_features (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          audio jsonb NOT NULL,
+          "coverImage" jsonb NOT NULL,
+          artist varchar(255),
+          title varchar(255) NOT NULL,
+          genre music_features_genre_enum,
+          valence double precision NOT NULL,
+          arousal double precision NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL
+        );
+      `);
+
+      await searchRecPg.query('DELETE FROM music_features WHERE true;');
+
+      for (let i = 0; i < rawMusic.length; i++) {
+        const m = rawMusic[i];
+        const uniqueId = `${i + 1}`.padStart(6, '0');
+        await searchRecPg.query(
+          `INSERT INTO music_features (audio, "coverImage", artist, title, genre, valence, arousal)
+           VALUES ($1::jsonb, $2::jsonb, $3::varchar, $4::varchar, $5::music_features_genre_enum, $6::float8, $7::float8)`,
+          [
+            JSON.stringify({ url: m.url, publicId: `music-features/audio-${uniqueId}` }),
+            JSON.stringify({ type: 'IMAGE', url: m.coverUrl, publicId: `music-features/cover-${uniqueId}` }),
+            m.artist,
+            m.title,
+            m.genre.toLowerCase(),
+            m.valence,
+            m.arousal,
+          ],
+        );
+      }
+      console.log(`Seeded ${rawMusic.length} music tracks into PostgreSQL [search_recommendation.music_features].`);
+    }
+
+    // ------------------------------------------------------------------------
+    // 7. SEED ELASTICSEARCH [posts] INDEX
+    // ------------------------------------------------------------------------
+    try {
+      console.log(`\nIndexing ${snapshotDocs.length} posts into Elasticsearch at ${ES_NODE}...`);
+      const checkRes = await fetch(`${ES_NODE}/posts`, { method: 'HEAD' });
+      if (checkRes.status === 404) {
+        await fetch(`${ES_NODE}/posts`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mappings: {
+              properties: {
+                id: { type: 'keyword' },
+                userId: { type: 'keyword' },
+                groupId: { type: 'keyword' },
+                content: {
+                  type: 'text',
+                  analyzer: 'standard',
+                  search_analyzer: 'standard',
+                },
+                mainEmotion: { type: 'keyword' },
+                createdAt: { type: 'date' },
+              },
+            },
+          }),
+        });
+      } else {
+        await fetch(`${ES_NODE}/posts/_delete_by_query?conflicts=proceed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: { match_all: {} } }),
+        });
+      }
+
+      for (const chunk of chunkArray(snapshotDocs, 500)) {
+        let ndjson = '';
+        for (const snap of chunk) {
+          ndjson += JSON.stringify({ index: { _index: 'posts', _id: snap.postId } }) + '\n';
+          ndjson +=
+            JSON.stringify({
+              id: snap.postId,
+              userId: snap.userId,
+              groupId: null,
+              content: snap.content,
+              mainEmotion: (snap.emotionFeature.label || 'neutral').toUpperCase(),
+              createdAt: snap.postCreatedAt,
+            }) + '\n';
+        }
+        await fetch(`${ES_NODE}/_bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-ndjson' },
+          body: ndjson,
+        });
+      }
+
+      await fetch(`${ES_NODE}/posts/_refresh`, { method: 'POST' });
+      console.log(`Successfully indexed ${snapshotDocs.length} posts into Elasticsearch [posts].`);
+    } catch (esErr: any) {
+      console.warn(`[WARN] Elasticsearch indexing skipped or failed: ${esErr?.message || esErr}`);
+    }
+
     console.log('\n================================================================');
     console.log('🎉 SEED DỮ LIỆU LOAD TEST HOÀN TẤT!');
     console.log(' - 5,000 Post Snapshots in MongoDB & Redis Trending Pools');
     console.log(` - ${NUM_TEST_USERS * FEED_ITEMS_PER_USER} Feed Items (${NUM_TEST_USERS} users x ${FEED_ITEMS_PER_USER} feed items)`);
     console.log(` - ${NUM_TEST_USERS} User Emotion Profiles (${normalLimit} normal, ${stressLimit - normalLimit} moderate, ${NUM_TEST_USERS - stressLimit} distressed)`);
+    console.log(' - 22 Music Feature tracks in PostgreSQL [search_recommendation]');
+    console.log(' - 5,000 Posts indexed in Elasticsearch for Full-text Search');
     console.log(' - Redis caches prewarmed for instant sub-millisecond ranking');
     console.log('================================================================');
   } finally {
@@ -591,6 +865,7 @@ async function main() {
     await emotionConn.close();
     await redis.quit();
     await pg.end().catch(() => {});
+    await searchRecPg.end().catch(() => {});
   }
 }
 
