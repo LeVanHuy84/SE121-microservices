@@ -1,4 +1,10 @@
 
+DO $$ BEGIN
+	CREATE TYPE "public"."privacy_level" AS ENUM('public', 'private');
+EXCEPTION
+	WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
 CREATE TABLE "roles" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(50) NOT NULL,

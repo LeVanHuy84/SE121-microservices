@@ -33,4 +33,4 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 
 EXPOSE 4001
-CMD ["node", "dist/src/main.js"]
+CMD ["sh", "-c", "node dist/src/drizzle/migrate.js && node dist/src/main.js"]
