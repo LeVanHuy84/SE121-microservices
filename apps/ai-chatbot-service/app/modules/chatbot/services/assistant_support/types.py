@@ -37,6 +37,7 @@ class PreparedTurn:
     guard_annotation: str | None = None
     distress_level: str = "none"
     session_emotional_state: dict[str, Any] = field(default_factory=dict)
+    turn_mode: str = "app_guide"
 
 
 @dataclass(slots=True)

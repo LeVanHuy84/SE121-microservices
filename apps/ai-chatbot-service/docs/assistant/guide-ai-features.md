@@ -25,10 +25,13 @@ Trợ lý AI là người bạn tâm giao luôn túc trực lắng nghe bạn b�
     - Khi bạn căng thẳng hoặc lo âu, Trợ lý sẽ từng bước hướng dẫn bạn Kỹ thuật chu kỳ thở chủ động (ACBT) hoặc Thư giãn cơ bắp tiến triển (PMR).
   - **Nút Điều hướng Thông minh (Smart Navigation Buttons):**
     - Thay vì chỉ hướng dẫn bằng chữ, Trợ lý AI sẽ đính kèm trực tiếp các **nút điều hướng** ngay dưới câu trả lời (`[Đến trang Bạn bè]`, `[Xem Lời mời kết bạn]`, `[Khám phá nhóm]`, `[Cài đặt quyền riêng tư]`, `[Lịch sử kiểm duyệt]`, `[Không gian Cảm xúc]`, v.v.). Bạn chỉ cần nhấp một chạm để đến ngay màn hình mong muốn.
-  - **Thẻ Thông tin Trực quan (Mini Cards):**
-    - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ trực quan ngay trong cuộc trò chuyện: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý danh sách bài hát (`MusicCard`), Thẻ xem nhanh lời mời kết bạn (`FriendRequestsCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`).
-  - **Thực thi Hành động An toàn có Xác nhận (Action Confirmation Cards):**
-    - Bạn có thể yêu cầu Trợ lý: *"Gửi kết bạn cho bạn này"*, *"Tham gia nhóm"*, *"Đánh dấu đã đọc hết thông báo"*. Trợ lý luôn hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu ngầm khi chưa có sự xác nhận của bạn.
+  - **Thẻ Thông tin & Tương tác Trực quan (Interactive Mini Cards):**
+    - Trợ lý có thể nhúng các thẻ dữ liệu thu nhỏ trực quan ngay trong cuộc trò chuyện: Thẻ tóm tắt cảm xúc 7 ngày qua (`EmotionSummaryCard`), Thẻ gợi ý bài hát (`MusicCard`), Thẻ gợi ý/lời mời kết bạn (`FriendRequestsCard`), Thẻ gợi ý nhóm (`GroupCard`), hoặc Thẻ xem thông báo mới (`NotificationCard`).
+    - Với các thao tác tương tác nhanh không gây mất dữ liệu (như **Kết bạn**, **Chấp nhận lời mời**, **Tham gia nhóm**), bạn có thể bấm nút thao tác trực tiếp ngay trên thẻ. Với các thao tác nhạy cảm (như **Hủy kết bạn**, **Rời nhóm**, **Chặn người dùng**), thẻ chỉ hiển thị ở chế độ xem nhanh kèm liên kết mở đúng trang để bạn tự kiểm tra và thực hiện an toàn.
+  - **Thực thi Hành động Toàn cục An toàn có Xác nhận (Action Confirmation Cards):**
+    - Với thao tác toàn cục rõ ràng như *"Đánh dấu đã đọc tất cả thông báo"*, Trợ lý sẽ hiển thị **Thẻ xác nhận hành động** với 2 nút rõ ràng: **`[Xác nhận]`** và **`[Hủy]`**. Hệ thống không bao giờ tự ý thay đổi dữ liệu ngầm khi chưa có sự xác nhận của bạn.
+  - **Tùy chỉnh Quyền riêng tư Trợ lý AI (`FULL` / `RESTRICTED`):**
+    - Tại **Cài đặt → Quyền riêng tư (`/settings/privacy`)**, bạn có thể chọn chế độ **Đầy đủ tính năng (`FULL`)** để Trợ lý AI tra cứu dữ liệu cá nhân, hiển thị thẻ tương tác và đề xuất thao tác, hoặc chế độ **Riêng tư tối đa (`RESTRICTED`)** để AI chỉ hỗ trợ tâm lý, giải đáp hướng dẫn và cung cấp nút điều hướng mà không đọc dữ liệu cá nhân của bạn.
 
 ## 2. AI Lắng nghe Cảm xúc Bài viết & Đề xuất Âm nhạc
 

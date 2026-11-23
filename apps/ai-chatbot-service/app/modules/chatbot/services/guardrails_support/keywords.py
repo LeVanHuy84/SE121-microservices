@@ -61,12 +61,19 @@ CRISIS_EXPLICIT_KEYWORDS: frozenset[str] = frozenset(
         "self harm",
         "cut myself",
         "hurt myself",
+        # Vietnamese teencode suicidal exit expressions
+        "di dau do that xa k ve",
+        "di dau do that xa khong ve",
+        "di that xa k ve",
+        "di that xa khong ve",
+        "k mun song",
+        "khong mun song",
     }
 )
 
 CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
     {
-        # High-level hopelessness & severe existential despair
+        # High-level hopelessness & severe existential despair (incl. Vietnamese teencode)
         "khong con ly do de song",
         "song de lam gi",
         "cuoc song vo nghia",
@@ -74,6 +81,14 @@ CRISIS_SOFT_KEYWORDS: frozenset[str] = frozenset(
         "cuoc song that vo nghia",
         "chang co gi de song",
         "met moi cuoc doi",
+        "chan doi",
+        "di dau do that xa",
+        "di that xa k ve",
+        "di that xa khong ve",
+        "k mun song",
+        "khong mun song",
+        "reset cuoc doi",
+        "reset server cuoc doi",
         "life is meaningless",
         "nobody cares",
         "i give up on life",
@@ -112,6 +127,20 @@ MILD_CBT_DISTRESS_KEYWORDS: tuple[str, ...] = (
     "lo au",
     "bat an",
     "cang thang",
+    "that vong",
+    "ton thuong",
+    "be tac",
+    "bat luc",
+    "so hai",
+    "dan vat",
+    "hoang mang",
+    "lac long",
+    "tui than",
+    "can rut",
+    "lo so",
+    "rot mon",
+    "khong biet nen",
+    "cai nhau",
 )
 
 IN_CHAT_DISTRESS_KEYWORDS: tuple[str, ...] = (
@@ -144,6 +173,7 @@ MENTAL_HEALTH_CENTROID_ANCHORS: tuple[str, ...] = (
     "Mình đang cảm thấy áp lực, lo âu, buồn bã và muốn tìm cách thư giãn hoặc chăm sóc sức khỏe tinh thần",
     "Làm sao để vượt qua căng thẳng, mất ngủ, suy nghĩ nhiều và giữ bình tĩnh khi hoảng loạn",
     "Hướng dẫn bài tập thở chậm, thư giãn cơ và tự chăm sóc cảm xúc khi kiệt sức",
+    "Chuyện gia đình, bố mẹ so sánh ép buộc, áp lực học tập công việc và tài chính khiến mình mệt mỏi khó xử",
 )
 
 SYSTEM_GUIDE_CENTROID_ANCHORS: tuple[str, ...] = (
@@ -175,11 +205,14 @@ _CRISIS_SOFT_REGEX = re.compile(
 )
 
 _CRISIS_NEGATION_PREFIX_REGEX = re.compile(
-    r"(?:^|\s)(khong\s+phai(\s+la)?|dau\s+co|dau\s+phai(\s+la)?|chang\s+phai(\s+la)?|chang\s+co|"
-    r"khong\s+he(\s+co)?|chua\s+tung(\s+co)?|chua\s+bao\s+gio|khong\s+bao\s+gio|"
+    r"(?:^|\s)(?:"
+    r"(?:khong\s+phai(?:\s+la)?|dau\s+co|dau\s+phai(?:\s+la)?|chang\s+phai(?:\s+la)?|chang\s+co|"
+    r"khong\s+he(?:\s+co)?|chua\s+tung(?:\s+co)?|chua\s+bao\s+gio|khong\s+bao\s+gio|"
     r"khong\s+co\s+y\s+dinh|chua\s+co\s+y\s+dinh|khong\s+nghi\s+den|chua\s+nghi\s+den|"
-    r"lam\s+gi\s+co|ai\s+lai(\s+di)?|khong|chua|chang|dau|do\s+not|did\s+not|will\s+not|cannot|can\s+not|don't|dont|never)"
-    r"(?:\s+[\w]+){0,4}\s*$",
+    r"lam\s+gi\s+co|ai\s+lai(?:\s+di)?|do\s+not|did\s+not|will\s+not|cannot|can\s+not|don(?:'|\s+)?(?:t|toi)|never)"
+    r"(?:\s+[\w]+){0,1}"
+    r"|(?:khong|chua|chang)"
+    r")\s*$",
     re.IGNORECASE,
 )
 

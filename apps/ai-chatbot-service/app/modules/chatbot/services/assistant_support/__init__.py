@@ -19,12 +19,19 @@ from app.modules.chatbot.services.assistant_support.responses import (
     privacy_policy_response,
 )
 from app.modules.chatbot.services.assistant_support.proposals import (
+    build_proposal_from_meta_tool,
     detect_action_proposals,
     extract_cards,
     extract_proposals_from_llm_reply,
 )
+from app.modules.chatbot.services.assistant_support.turn_mode import (
+    TurnMode,
+    TurnModeSignals,
+    resolve_turn_mode,
+)
 from app.modules.chatbot.services.assistant_support.turn_preparer import TurnPreparer
 from app.modules.chatbot.services.assistant_support.turn_helpers import (
+    EMPTY_REPLY_FALLBACK,
     continue_to_llm,
     dedupe_contexts,
     finalize_stream_data,
@@ -48,10 +55,14 @@ from app.modules.chatbot.services.assistant_support.turn_helpers import (
 __all__ = [
     "PreparedTurn",
     "GuardResult",
+    "TurnMode",
+    "TurnModeSignals",
+    "resolve_turn_mode",
     "TurnPreparer",
     "ActionFenceStreamFilter",
     "ambiguous_scope_response",
     "build_crisis_response",
+    "build_proposal_from_meta_tool",
     "community_response",
     "emit_crisis_event",
     "greeting_response",
@@ -62,6 +73,7 @@ __all__ = [
     "extract_cards",
     "extract_proposals_from_llm_reply",
     "farewell_response",
+    "EMPTY_REPLY_FALLBACK",
     "continue_to_llm",
     "dedupe_contexts",
     "finalize_stream_data",

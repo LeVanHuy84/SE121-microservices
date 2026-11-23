@@ -145,12 +145,29 @@ def _build_signed_proposal(
     )
 
 
+_TIER_B_DESTRUCTIVE_CUES: tuple[str, ...] = (
+    "chặn",
+    "block",
+    "hủy kết bạn",
+    "unfriend",
+    "xóa bạn",
+    "rời nhóm",
+    "thoát nhóm",
+    "leave group",
+    "từ chối",
+    "thu hồi",
+)
+
+
 def extract_cards(
     tool_calls: tuple[Any, ...],
     tool_results: list[Any],
+    user_message: str = "",
 ) -> list[ShowCardAction]:
     """Extract interactive UI cards from read tool execution results."""
     cards: list[ShowCardAction] = []
+    lowered_msg = (user_message or "").lower()
+    is_tier_b_request = any(cue in lowered_msg for cue in _TIER_B_DESTRUCTIVE_CUES)
     for tc, res in zip(tool_calls, tool_results):
         if not getattr(res, "success", False) or getattr(res, "data", None) is None:
             continue
@@ -192,8 +209,26 @@ def extract_cards(
                             else "Thành viên Sentimeta"
                         )
                     )
-                    username_or_id = (
-                        u.get("username") or u.get("id") or u.get("targetUserId") or ""
+                    canonical_user_id = (
+                        u.get("id")
+                        or u.get("userId")
+                        or u.get("requesterId")
+                        or u.get("senderId")
+                        or u.get("targetUserId")
+                    )
+                    username_or_id = u.get("username") or canonical_user_id or ""
+                    inline_action = (
+                        None
+                        if is_tier_b_request
+                        else (
+                            "accept_friend_request"
+                            if name == "get_my_friend_requests"
+                            else (
+                                "send_friend_request"
+                                if name in ("search_users", "get_friend_recommendations")
+                                else None
+                            )
+                        )
                     )
                     cards.append(
                         ShowCardAction(
@@ -208,8 +243,16 @@ def extract_cards(
                                 else "/friends",
                                 actionLabel="Xem trang cá nhân",
                                 metadata={
-                                    "userId": u.get("id"),
+                                    "userId": canonical_user_id,
                                     "username": u.get("username"),
+                                    "destinationId": "profile",
+                                    "entityId": canonical_user_id,
+                                    "interactionMode": (
+                                        "inline_tier_a"
+                                        if inline_action
+                                        else "view_only"
+                                    ),
+                                    "inlineAction": inline_action,
                                 },
                             ),
                         )
@@ -240,6 +283,16 @@ def extract_cards(
                         f"{m_count} thành viên" if m_count else "Cộng đồng Sentimeta"
                     )
                     g_id = g.get("id") or g.get("groupId") or ""
+                    group_inline_action = (
+                        None
+                        if is_tier_b_request
+                        else (
+                            "join_group"
+                            if name
+                            in ("get_group_recommendations", "get_group_invitations")
+                            else None
+                        )
+                    )
                     cards.append(
                         ShowCardAction(
                             label="Xem nhóm",
@@ -250,7 +303,17 @@ def extract_cards(
                                 imageUrl=g.get("avatarUrl") or g.get("coverUrl"),
                                 actionUrl=f"/groups/{g_id}" if g_id else "/groups",
                                 actionLabel="Xem nhóm",
-                                metadata={"groupId": g_id},
+                                metadata={
+                                    "groupId": g_id,
+                                    "destinationId": "groups.detail",
+                                    "entityId": g_id,
+                                    "interactionMode": (
+                                        "inline_tier_a"
+                                        if group_inline_action
+                                        else "view_only"
+                                    ),
+                                    "inlineAction": group_inline_action,
+                                },
                             ),
                         )
                     )
@@ -429,14 +492,46 @@ EXPLICIT_ACTION_PHRASES: tuple[str, ...] = (
     "chặn người dùng",
     "rời nhóm",
     "tham gia nhóm",
-    "thả reaction",
-    "react_post",
+)
+
+
+GLOBAL_PROPOSABLE_ACTION_PHRASES: tuple[str, ...] = (
+    "đọc hết thông báo",
+    "đánh dấu đã đọc",
+    "đánh dấu tất cả thông báo đã đọc",
+    "mark all notifications",
+    "đọc tất cả thông báo",
+)
+
+
+def is_global_proposable_action_request(message: str) -> bool:
+    """Return True when the user requests a zero-ambiguity global action allowlisted for ProposeAction."""
+    lowered = (message or "").lower()
+    return any(kw in lowered for kw in GLOBAL_PROPOSABLE_ACTION_PHRASES)
+
+
+_ACTION_FAQ_EXCLUSIONS: tuple[str, ...] = (
+    "làm sao",
+    "làm thế nào",
+    "cách ",
+    "hướng dẫn",
+    "như thế nào",
+    "ở đâu",
+    "có nhận được",
+    "có biết không",
+    "có thông báo",
+    "thì họ có",
+    "thì người đó có",
+    "thì có bị",
+    "là gì",
 )
 
 
 def is_explicit_action_request(message: str) -> bool:
-    """Return True when the user explicitly asks to execute an in-app action rather than navigate."""
+    """Return True when the user explicitly asks to execute an in-app action rather than navigate or ask FAQ."""
     lowered = (message or "").lower()
+    if any(excl in lowered for excl in _ACTION_FAQ_EXCLUSIONS):
+        return False
     return any(kw in lowered for kw in EXPLICIT_ACTION_PHRASES)
 
 
@@ -447,17 +542,20 @@ def detect_action_proposals(
     *,
     conversation_id: str | None = None,
 ) -> list[ProposeAction]:
-    """Synthesize write action proposals based on user intent, surface context, and tool results."""
+    """Synthesize zero-guesswork write action proposals for allowlisted global/account actions only.
+
+    Entity-targeted Tier A actions (add friend, accept request, join group) are handled via
+    Interactive Mini Cards with backend-bound IDs, and Tier B destructive actions are excluded
+    from chat execution.
+    """
     if str(getattr(request, "aiPolicy", "RESTRICTED") or "").strip().upper() != "FULL":
         return []
 
     resolved_user_id = request.userId
     resolved_conv_id = conversation_id or request.conversationId or ""
-    proposals: list[ProposeAction] = []
     msg = (request.message or "").lower()
 
     # Reject negative/refusal intents to avoid false-positive action proposals
-    # e.g., "Tôi không muốn kết bạn", "Đừng gửi lời mời", "Chưa muốn vào nhóm"
     if any(
         neg in msg
         for neg in (
@@ -471,20 +569,10 @@ def detect_action_proposals(
     ):
         return []
 
-    # 1. Mark all notifications as read
-    if any(
-        kw in msg
-        for kw in (
-            "đọc hết thông báo",
-            "đánh dấu đã đọc",
-            "đánh dấu tất cả thông báo đã đọc",
-            "mark all notifications",
-            "đọc tất cả thông báo",
-        )
-    ):
+    if is_global_proposable_action_request(msg):
         action_def = get_action_definition("mark_all_notifications_read")
         if action_def:
-            proposals.append(
+            return [
                 _build_signed_proposal(
                     user_id=resolved_user_id,
                     conversation_id=resolved_conv_id,
@@ -497,425 +585,63 @@ def detect_action_proposals(
                     category=action_def.category,
                     is_destructive=action_def.is_destructive,
                 )
-            )
+            ]
 
-    # 2. Friend interactions (send / accept / decline / cancel / unfriend)
-    if any(
-        kw in msg
-        for kw in (
-            "kết bạn",
-            "gửi kết bạn",
-            "add friend",
-            "lời mời kết bạn",
-            "chấp nhận",
-            "đồng ý",
-            "thu hồi",
-            "hủy",
-            "từ chối",
-            "bỏ qua",
-            "decline",
-            "unfriend",
-            "xóa bạn",
+    return []
+
+
+def build_proposal_from_meta_tool(
+    args: dict[str, Any] | None,
+    *,
+    ai_policy: str = "RESTRICTED",
+    user_id: str = "",
+    conversation_id: str = "",
+) -> tuple[ProposeAction | None, str]:
+    """Validate and sign a ProposeAction emitted via the native `propose_account_action` tool."""
+    if str(ai_policy or "").strip().upper() != "FULL":
+        return (
+            None,
+            "Tài khoản đang ở chế độ bảo mật RESTRICTED nên không thể tạo đề xuất thao tác.",
         )
-    ):
-        # Check decline friend request
-        if any(kw in msg for kw in ("từ chối", "bỏ qua", "decline", "reject")):
-            requester_id = None
-            requester_name = "người dùng"
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") == "get_my_friend_requests" and getattr(
-                    res, "success", False
-                ):
-                    reqs = (
-                        res.data.get("requests", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(reqs, list) and reqs:
-                        first_req = reqs[0]
-                        requester_id = (
-                            first_req.get("senderId")
-                            or first_req.get("requesterId")
-                            or first_req.get("id")
-                        )
-                        requester_name = (
-                            first_req.get("senderName")
-                            or first_req.get("name")
-                            or "người dùng"
-                        )
-                        break
-            if (
-                not requester_id
-                and request.surface
-                and request.surface.entityId
-                and "profile" in (request.surface.screen or "")
-            ):
-                requester_id = request.surface.entityId
-                requester_name = (request.surface.metadata or {}).get(
-                    "userName"
-                ) or "người dùng"
-            if requester_id:
-                action_def = get_action_definition("decline_friend_request")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="decline_friend_request",
-                            title="Từ chối kết bạn",
-                            description=f"Từ chối lời mời kết bạn từ {requester_name}",
-                            params={"requester_id": requester_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-        # Check accept
-        elif any(kw in msg for kw in ("đồng ý", "chấp nhận", "accept")):
-            requester_id = None
-            requester_name = "người dùng"
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") == "get_my_friend_requests" and getattr(
-                    res, "success", False
-                ):
-                    reqs = (
-                        res.data.get("requests", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(reqs, list) and reqs:
-                        first_req = reqs[0]
-                        requester_id = (
-                            first_req.get("senderId")
-                            or first_req.get("requesterId")
-                            or first_req.get("id")
-                        )
-                        requester_name = (
-                            first_req.get("senderName")
-                            or first_req.get("name")
-                            or "người dùng"
-                        )
-                        break
-            if requester_id:
-                action_def = get_action_definition("accept_friend_request")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="accept_friend_request",
-                            title="Đồng ý kết bạn",
-                            description=f"Chấp nhận lời mời kết bạn từ {requester_name}",
-                            params={"requester_id": requester_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-        # Check unfriend
-        elif any(kw in msg for kw in ("hủy kết bạn", "xóa bạn", "unfriend")):
-            target_user_id = (
-                request.surface.entityId
-                if (request.surface and "profile" in (request.surface.screen or ""))
-                else None
-            )
-            target_name = (
-                (request.surface.metadata or {}).get("userName") or "người dùng"
-                if request.surface
-                else "người dùng"
-            )
-            if not target_user_id:
-                for tc, res in zip(tool_calls, tool_results):
-                    if getattr(tc, "name", "") in (
-                        "search_users",
-                        "get_user_friends",
-                    ) and getattr(res, "success", False):
-                        users = (
-                            res.data.get("users", [])
-                            if isinstance(res.data, dict)
-                            else (
-                                res.data.get("friends", [])
-                                if isinstance(res.data, dict)
-                                else res.data
-                            )
-                        )
-                        if isinstance(users, list) and users:
-                            first_u = users[0]
-                            target_user_id = first_u.get("id") or first_u.get("userId")
-                            target_name = (
-                                first_u.get("name")
-                                or first_u.get("username")
-                                or "người dùng"
-                            )
-                            break
-            if target_user_id:
-                action_def = get_action_definition("unfriend_user")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="unfriend_user",
-                            title=f"Hủy kết bạn với {target_name}",
-                            description=f"Hủy quan hệ bạn bè với {target_name}",
-                            params={"target_user_id": target_user_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-        # Check cancel friend request
-        elif any(kw in msg for kw in ("hủy", "thu hồi", "cancel")):
-            target_user_id = (
-                request.surface.entityId
-                if (request.surface and "profile" in (request.surface.screen or ""))
-                else None
-            )
-            if target_user_id:
-                action_def = get_action_definition("cancel_friend_request")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="cancel_friend_request",
-                            title="Thu hồi lời mời",
-                            description="Thu hồi lời mời kết bạn đã gửi",
-                            params={"target_user_id": target_user_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-        # Send friend request
-        elif any(kw in msg for kw in ("kết bạn", "gửi kết bạn", "add friend")):
-            target_user_id = None
-            target_name = "người dùng"
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") in (
-                    "search_users",
-                    "get_friend_recommendations",
-                ) and getattr(res, "success", False):
-                    users = (
-                        res.data.get("users", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(users, list) and users:
-                        first_u = users[0]
-                        target_user_id = first_u.get("id") or first_u.get("userId")
-                        target_name = (
-                            first_u.get("name")
-                            or first_u.get("username")
-                            or "người dùng"
-                        )
-                        break
+    if not isinstance(args, dict):
+        return None, "Tham số đề xuất hành động không hợp lệ."
 
-            if (
-                not target_user_id
-                and request.surface
-                and request.surface.entityId
-                and "profile" in (request.surface.screen or "")
-            ):
-                target_user_id = request.surface.entityId
-                target_name = (request.surface.metadata or {}).get(
-                    "userName"
-                ) or "người dùng"
+    action_name = str(args.get("action_name") or "").strip()
+    if not is_action_allowed(action_name):
+        return None, f"Hành động '{action_name}' không nằm trong danh mục được phép."
 
-            if target_user_id:
-                action_def = get_action_definition("send_friend_request")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="send_friend_request",
-                            title=f"Gửi kết bạn tới {target_name}",
-                            description=f"Gửi lời mời kết bạn tới {target_name}",
-                            params={"target_user_id": target_user_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
+    action_def = get_action_definition(action_name)
+    if action_def is None:
+        return None, f"Không tìm thấy định nghĩa hành động '{action_name}'."
 
-    # 3. Block user
-    if any(kw in msg for kw in ("chặn", "block")):
-        target_user_id = (
-            request.surface.entityId
-            if (request.surface and "profile" in (request.surface.screen or ""))
-            else None
+    raw_params = args.get("params")
+    params = dict(raw_params) if isinstance(raw_params, dict) else {}
+    missing = [p for p in action_def.required_params if not params.get(p)]
+    if missing:
+        return (
+            None,
+            f"Thiếu tham số bắt buộc ({', '.join(missing)}) để đề xuất hành động '{action_name}'.",
         )
-        target_name = (
-            (request.surface.metadata or {}).get("userName") or "người này"
-            if request.surface
-            else "người này"
-        )
-        if not target_user_id:
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") in ("search_users",) and getattr(
-                    res, "success", False
-                ):
-                    users = (
-                        res.data.get("users", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(users, list) and users:
-                        first_u = users[0]
-                        target_user_id = first_u.get("id") or first_u.get("userId")
-                        target_name = (
-                            first_u.get("name")
-                            or first_u.get("username")
-                            or "người này"
-                        )
-                        break
-        if target_user_id:
-            action_def = get_action_definition("block_user")
-            if action_def:
-                proposals.append(
-                    _build_signed_proposal(
-                        user_id=resolved_user_id,
-                        conversation_id=resolved_conv_id,
-                        action_name="block_user",
-                        title=f"Chặn người dùng {target_name}",
-                        description=f"Chặn {target_name} để dừng mọi liên lạc và tương tác",
-                        params={"target_user_id": target_user_id},
-                        confirm_label=action_def.confirm_label,
-                        cancel_label=action_def.cancel_label,
-                        category=action_def.category,
-                        is_destructive=action_def.is_destructive,
-                    )
-                )
 
-    # 4. Community Group interactions (join / leave)
-    if any(kw in msg for kw in ("nhóm", "group")):
-        if any(kw in msg for kw in ("tham gia", "vào nhóm", "join")):
-            group_id = None
-            group_name = "nhóm"
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") == "search_groups" and getattr(
-                    res, "success", False
-                ):
-                    groups = (
-                        res.data.get("groups", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(groups, list) and groups:
-                        first_g = groups[0]
-                        group_id = first_g.get("id") or first_g.get("groupId")
-                        group_name = first_g.get("name") or "nhóm"
-                        break
-            if (
-                not group_id
-                and request.surface
-                and request.surface.entityId
-                and "group" in (request.surface.screen or "")
-            ):
-                group_id = request.surface.entityId
-                group_name = (request.surface.metadata or {}).get(
-                    "groupName"
-                ) or "nhóm này"
+    reason = str(args.get("reason") or "").strip() or action_def.description
+    if action_def.is_destructive and "cảnh báo" not in reason.lower():
+        description = f"{reason} (Lưu ý: thao tác này có thể ảnh hưởng trực tiếp tới dữ liệu hoặc quan hệ xã hội của bạn.)"
+    else:
+        description = reason
 
-            if group_id:
-                action_def = get_action_definition("join_group")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="join_group",
-                            title=f"Tham gia nhóm {group_name}",
-                            description=f"Gửi yêu cầu hoặc tham gia nhóm {group_name}",
-                            params={"group_id": group_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-        elif any(kw in msg for kw in ("rời", "thoát", "leave")):
-            group_id = (
-                request.surface.entityId
-                if (request.surface and "group" in (request.surface.screen or ""))
-                else None
-            )
-            group_name = (
-                (request.surface.metadata or {}).get("groupName", "nhóm")
-                if request.surface
-                else "nhóm"
-            )
-            if group_id:
-                action_def = get_action_definition("leave_group")
-                if action_def:
-                    proposals.append(
-                        _build_signed_proposal(
-                            user_id=resolved_user_id,
-                            conversation_id=resolved_conv_id,
-                            action_name="leave_group",
-                            title=f"Rời nhóm {group_name}",
-                            description=f"Rời khỏi nhóm {group_name}",
-                            params={"group_id": group_id},
-                            confirm_label=action_def.confirm_label,
-                            cancel_label=action_def.cancel_label,
-                            category=action_def.category,
-                            is_destructive=action_def.is_destructive,
-                        )
-                    )
-
-    # 5. Post Reaction interactions
-    if any(
-        kw in msg for kw in ("thích", "thả tim", "like bài", "bài viết này", "react")
-    ):
-        post_id = None
-        if request.surface and "post" in (request.surface.screen or ""):
-            post_id = request.surface.entityId
-        if not post_id:
-            for tc, res in zip(tool_calls, tool_results):
-                if getattr(tc, "name", "") in (
-                    "get_trending_posts",
-                    "get_my_posts_overview",
-                ) and getattr(res, "success", False):
-                    posts = (
-                        res.data.get("posts", [])
-                        if isinstance(res.data, dict)
-                        else res.data
-                    )
-                    if isinstance(posts, list) and posts:
-                        first_p = posts[0]
-                        post_id = first_p.get("id") or first_p.get("postId")
-                        break
-        if post_id:
-            rxn = "love" if any(w in msg for w in ("tim", "love")) else "like"
-            action_def = get_action_definition("react_post")
-            if action_def:
-                proposals.append(
-                    _build_signed_proposal(
-                        user_id=resolved_user_id,
-                        conversation_id=resolved_conv_id,
-                        action_name="react_post",
-                        title=f"Thả cảm xúc ({rxn})",
-                        description=f"Bày tỏ cảm xúc '{rxn}' cho bài viết",
-                        params={"post_id": post_id, "reaction_type": rxn},
-                        confirm_label=action_def.confirm_label,
-                        cancel_label=action_def.cancel_label,
-                        category=action_def.category,
-                        is_destructive=action_def.is_destructive,
-                    )
-                )
-
-    # Deduplicate proposals by (actionName, str(params))
-    seen = set()
-    deduped = []
-    for p in proposals:
-        key = (p.payload.actionName, json.dumps(p.payload.params, sort_keys=True))
-        if key not in seen:
-            seen.add(key)
-            deduped.append(p)
-    return deduped[:2]
+    proposal = _build_signed_proposal(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        action_name=action_name,
+        title=action_def.confirm_label,
+        description=description,
+        params=params,
+        confirm_label=action_def.confirm_label,
+        cancel_label=action_def.cancel_label,
+        category=action_def.category,
+        is_destructive=action_def.is_destructive,
+    )
+    return (
+        proposal,
+        f"Đã tạo thẻ xác nhận cho hành động '{action_name}'. Hãy mời người dùng bấm xác nhận trên giao diện.",
+    )

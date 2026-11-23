@@ -52,8 +52,8 @@ Tại trang **Cài đặt → Quyền riêng tư (`/settings/privacy`)**, Sentim
 - **Chỉ bạn bè (Friends):** **Chỉ những người đã kết bạn mới có thể nhắn tin cho bạn**. Khi bật tùy chọn này, người lạ hoàn toàn không thể gửi tin nhắn rác hoặc làm phiền bạn. Đây là cách tốt nhất để bảo vệ không gian trò chuyện riêng tư.
 
 #### D. Quyền riêng tư Trợ lý AI Chatbot (`aiPolicy`)
-- **Đầy đủ tính năng - Khuyên dùng (FULL):** Cho phép Trợ lý AI tra cứu bài viết, nhóm, bạn bè công khai và hỗ trợ tạo bài viết, gửi lời mời kết bạn hoặc tham gia nhóm an toàn khi bạn yêu cầu.
-- **Riêng tư tối đa (RESTRICTED):** Trợ lý AI chỉ giải đáp kiến thức tâm lý và hướng dẫn ứng dụng chung. AI hoàn toàn **không đọc dữ liệu cá nhân** của bạn và **không thể thực hiện bất kỳ thao tác tài khoản nào**.
+- **Đầy đủ tính năng - Khuyên dùng (FULL):** Cho phép Trợ lý AI tra cứu dữ liệu cá nhân của bạn trên Sentimeta (bạn bè, lời mời kết bạn, nhóm, thông báo, nhật ký cảm xúc, lịch sử kiểm duyệt), hiển thị **Thẻ tương tác trực quan (Interactive Mini Cards)** giúp thao tác nhanh (kết bạn, chấp nhận lời mời, tham gia nhóm) và đề xuất xác nhận thao tác toàn cục an toàn như *Đánh dấu đã đọc tất cả thông báo*.
+- **Riêng tư tối đa (RESTRICTED):** Trợ lý AI vẫn giải đáp kiến thức tâm lý, hướng dẫn sử dụng ứng dụng và cung cấp **nút điều hướng** đến các màn hình cần thiết (kèm lối tắt đến `/settings/privacy` khi bạn hỏi về dữ liệu cá nhân). AI hoàn toàn **không đọc dữ liệu cá nhân** của bạn và **không thực hiện bất kỳ thao tác thay đổi tài khoản nào**.
 
 #### E. Cho phép AI can thiệp chủ động (`allowProactiveIntervention`)
 - Công tắc bật/tắt tính năng Trợ lý AI chủ động hỏi thăm khi phát hiện bạn có biểu hiện căng thẳng tâm lý kéo dài qua nhật ký cảm xúc. Bạn có thể tắt bất cứ lúc nào nếu muốn giữ không gian yên tĩnh.

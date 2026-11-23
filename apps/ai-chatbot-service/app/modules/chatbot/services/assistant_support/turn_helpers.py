@@ -97,11 +97,18 @@ def dedupe_contexts(contexts: list[AssistantContextItem]) -> list[AssistantConte
     return result
 
 
+EMPTY_REPLY_FALLBACK = (
+    "Hiện tại hệ thống trợ lý AI đang tạm thời quá tải hoặc gặp gián đoạn kết nối "
+    "nên mình chưa thể xử lý yêu cầu của bạn ngay lúc này. "
+    "Bạn vui lòng đợi vài giây rồi thử gửi lại giúp mình nhé."
+)
+
+
 def llm_timeout_generation() -> LlmGeneration:
     return LlmGeneration(
         content=(
-            "Hệ thống đang chậm hơn bình thường. "
-            "Bạn thử gửi câu hỏi ngắn hơn hoặc thử lại sau vài giây."
+            "Hệ thống trợ lý AI đang phản hồi chậm hơn bình thường do quá tải. "
+            "Bạn vui lòng đợi vài giây rồi thử gửi lại (hoặc chia ngắn câu hỏi) giúp mình nhé."
         ),
         model="timeout-guard",
         provider="chatbot-service",
@@ -109,7 +116,7 @@ def llm_timeout_generation() -> LlmGeneration:
 
 
 def llm_fallback_generation(
-    content: str = "Mình chưa thể trả lời ngay lúc này. Bạn thử diễn đạt lại giúp mình nhé.",
+    content: str = EMPTY_REPLY_FALLBACK,
 ) -> LlmGeneration:
     return LlmGeneration(
         content=content,

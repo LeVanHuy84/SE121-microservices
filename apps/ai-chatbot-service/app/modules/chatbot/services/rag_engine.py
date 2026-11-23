@@ -148,6 +148,7 @@ class RagDocumentService:
         top_k: int | None = None,
         *,
         bm25_query: str | None = None,
+        allowed_tiers: tuple[str, ...] | None = None,
     ) -> list[AssistantContextItem]:
         normalized_dense_query = normalize_query_text(dense_query)
         if not normalized_dense_query or not await self._index_exists_cached():
@@ -172,13 +173,28 @@ class RagDocumentService:
 
         vector_hits, bm25_hits = await asyncio.gather(
             self._search_vector(
-                normalized_dense_query, query_embedding, candidate_size, visibility
+                normalized_dense_query,
+                query_embedding,
+                candidate_size,
+                visibility,
+                allowed_tiers=allowed_tiers,
             ),
-            self._search_bm25(normalized_bm25_query, candidate_size, visibility),
+            self._search_bm25(
+                normalized_bm25_query,
+                candidate_size,
+                visibility,
+                allowed_tiers=allowed_tiers,
+            ),
         )
         hybrid_candidates = self._rrf_merge([vector_hits, bm25_hits])
 
+        from app.modules.chatbot.services.assistant_support.turn_mode import (
+            is_system_guide_only_tiers,
+        )
+
         per_doc_limit = settings.RAG_DOC_MAX_CHUNKS_PER_DOC
+        if is_system_guide_only_tiers(allowed_tiers):
+            per_doc_limit = max(per_doc_limit, 3)
         contexts: list[AssistantContextItem] = []
         chunk_count_by_doc: dict[str, int] = {}
         for hit in hybrid_candidates:
@@ -300,14 +316,38 @@ class RagDocumentService:
         self._index_exists_cache = True
         self._index_exists_cache_expires_at = time.time() + 60
 
+    @staticmethod
+    def _build_es_filters(
+        visibility: str, allowed_tiers: tuple[str, ...] | None = None
+    ) -> list[dict[str, Any]]:
+        from app.modules.chatbot.services.assistant_support.turn_mode import (
+            is_mental_health_only_tiers,
+            is_system_guide_only_tiers,
+        )
+
+        filters: list[dict[str, Any]] = [{"term": {"visibility": visibility}}]
+        if is_system_guide_only_tiers(allowed_tiers):
+            filters.append({"term": {"tier": "system_guide"}})
+        elif is_mental_health_only_tiers(allowed_tiers):
+            filters.append(
+                {"bool": {"must_not": [{"term": {"tier": "system_guide"}}]}}
+            )
+        return filters
+
     async def _search_vector(
         self,
         normalized_query: str,
         query_embedding: list[float],
         candidate_size: int,
         visibility: str,
+        *,
+        allowed_tiers: tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]]:
         del normalized_query
+        es_filters = self._build_es_filters(visibility, allowed_tiers)
+        knn_filter: dict[str, Any] = (
+            es_filters[0] if len(es_filters) == 1 else {"bool": {"filter": es_filters}}
+        )
         result = await self.es.search(
             index=settings.RAG_INDEX_NAME,
             size=candidate_size,
@@ -316,7 +356,7 @@ class RagDocumentService:
                 "query_vector": query_embedding,
                 "k": candidate_size,
                 "num_candidates": max(50, candidate_size * 5),
-                "filter": {"term": {"visibility": visibility}},
+                "filter": knn_filter,
             },
             source=[
                 "docId",
@@ -337,8 +377,14 @@ class RagDocumentService:
         return result.get("hits", {}).get("hits", [])
 
     async def _search_bm25(
-        self, normalized_query: str, candidate_size: int, visibility: str
+        self,
+        normalized_query: str,
+        candidate_size: int,
+        visibility: str,
+        *,
+        allowed_tiers: tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]]:
+        es_filters = self._build_es_filters(visibility, allowed_tiers)
         result = await self.es.search(
             index=settings.RAG_INDEX_NAME,
             size=candidate_size,
@@ -348,12 +394,12 @@ class RagDocumentService:
                         {
                             "multi_match": {
                                 "query": normalized_query,
-                                "fields": ["title^3", "section^2", "text"],
-                                "type": "best_fields",
+                                "fields": ["title^1.5", "section^2.5", "text^2"],
+                                "type": "most_fields",
                             }
                         }
                     ],
-                    "filter": [{"term": {"visibility": visibility}}],
+                    "filter": es_filters,
                 }
             },
             source=[

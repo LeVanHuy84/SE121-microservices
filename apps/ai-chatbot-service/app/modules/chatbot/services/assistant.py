@@ -41,11 +41,13 @@ from app.modules.chatbot.services.assistant_support import (
     TurnPreparer,
     ambiguous_scope_response,
     build_crisis_response,
+    build_proposal_from_meta_tool,
     community_response,
     dedupe_contexts,
     detect_action_proposals,
     emit_crisis_event,
     extract_cards,
+    EMPTY_REPLY_FALLBACK,
     extract_proposals_from_llm_reply,
     farewell_response,
     finalize_stream_data,
@@ -92,6 +94,7 @@ from app.modules.chatbot.services.prompt_builder import PromptBuilder
 from app.modules.chatbot.tools import (
     ToolDispatcher,
     ToolExecutionContext,
+    ToolExecutionResult,
     ToolRouter,
     tool_dispatcher,
     tool_router,
@@ -103,9 +106,6 @@ from app.providers.resilient_provider import (
 )
 
 logger = logging.getLogger("uvicorn.error")
-EMPTY_REPLY_FALLBACK = (
-    "Mình chưa thể trả lời ngay lúc này. Bạn thử diễn đạt lại giúp mình nhé."
-)
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
 
 __all__ = [
@@ -298,13 +298,20 @@ class RespondCommand:
         ai_policy = str(
             getattr(turn.working_request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
         ).upper()
+        native_tool_proposals = [
+            res.proposal
+            for res in tool_results_list
+            if getattr(res, "proposal", None) is not None
+        ]
         cleaned_reply, reply_proposals = self._extract_proposals_from_llm_reply(
             generation.content,
             ai_policy=ai_policy,
             user_id=request.userId,
             conversation_id=turn.conv_id,
         )
-        if not reply_proposals:
+        if native_tool_proposals:
+            reply_proposals = native_tool_proposals
+        elif not reply_proposals:
             reply_proposals = self._detect_action_proposals(
                 turn.working_request,
                 tool_calls_tuple,
@@ -411,8 +418,9 @@ class RespondCommand:
         self,
         tool_calls: tuple[Any, ...],
         tool_results: list[Any],
+        user_message: str = "",
     ) -> list[ShowCardAction]:
-        return extract_cards(tool_calls, tool_results)
+        return extract_cards(tool_calls, tool_results, user_message=user_message)
 
     async def _execute_tools_and_augment_prompt(
         self,
@@ -428,12 +436,30 @@ class RespondCommand:
                 getattr(request, "aiPolicy", "RESTRICTED") or "RESTRICTED"
             ).upper(),
         )
-        # Execute tool calls concurrently for optimal latency
-        tool_results = await asyncio.gather(
-            *(self.dispatcher.dispatch(tc.name, tc.args, exec_ctx) for tc in tool_calls)
-        )
+        # Execute tool calls concurrently for optimal latency.
+        # Intercept native `propose_account_action` meta-tool without mutating state.
+        async def _run_tool(tc: Any) -> ToolExecutionResult:
+            if getattr(tc, "name", "") == "propose_account_action":
+                proposal, feedback = build_proposal_from_meta_tool(
+                    getattr(tc, "args", None) or getattr(tc, "arguments", None),
+                    ai_policy=exec_ctx.ai_policy,
+                    user_id=request.userId,
+                    conversation_id=request.conversationId or "",
+                )
+                return ToolExecutionResult(
+                    tool_name="propose_account_action",
+                    success=proposal is not None,
+                    data={"proposed": proposal is not None, "message": feedback},
+                    error=None if proposal is not None else feedback,
+                    proposal=proposal,
+                )
+            return await self.dispatcher.dispatch(tc.name, tc.args, exec_ctx)
+
+        tool_results = await asyncio.gather(*(_run_tool(tc) for tc in tool_calls))
         tool_results_list = list(tool_results)
-        cards = self._extract_cards(tool_calls, tool_results_list)
+        cards = self._extract_cards(
+            tool_calls, tool_results_list, user_message=request.message
+        )
         tool_results_text = [
             f"- Công cụ `{tc.name}`: {res.to_tool_message_content()}"
             for tc, res in zip(tool_calls, tool_results)
@@ -527,6 +553,7 @@ class RespondCommand:
         matched_domains: tuple[str, ...] = (),
         distress_level: str = "none",
         topic_anchor: str | None = None,
+        allowed_tiers: tuple[str, ...] | None = None,
     ):
         timeout_seconds = max(timeout_ms, 1) / 1000
         try:
@@ -537,6 +564,7 @@ class RespondCommand:
                     matched_domains=matched_domains,
                     distress_level=distress_level,
                     topic_anchor=topic_anchor,
+                    allowed_tiers=allowed_tiers,
                 )
             except TypeError:
                 coro = self.context_resolver.resolve(
@@ -734,11 +762,20 @@ class RespondCommand:
                 ) = await self._build_tool_followup(
                     turn.messages_or_prompt, collected_tool_calls, turn.working_request
                 )
-                stream_proposals = self._detect_action_proposals(
-                    turn.working_request,
-                    tuple(collected_tool_calls),
-                    stream_tool_results,
-                    conversation_id=turn.conv_id,
+                native_stream_proposals = [
+                    res.proposal
+                    for res in stream_tool_results
+                    if getattr(res, "proposal", None) is not None
+                ]
+                stream_proposals = (
+                    native_stream_proposals
+                    if native_stream_proposals
+                    else self._detect_action_proposals(
+                        turn.working_request,
+                        tuple(collected_tool_calls),
+                        stream_tool_results,
+                        conversation_id=turn.conv_id,
+                    )
                 )
                 pending_actions.extend(stream_cards)
                 pending_actions.extend(stream_proposals)
@@ -884,7 +921,10 @@ class RespondCommand:
             logger.exception("Assistant stream generation failed")
             yield AssistantRespondData(
                 type="fallback",
-                reply="Hệ thống gặp lỗi khi tạo phản hồi. Bạn thử lại sau nhé.",
+                reply=(
+                    "Hiện tại hệ thống trợ lý AI đang tạm thời gặp gián đoạn khi tạo phản hồi. "
+                    "Bạn vui lòng đợi vài giây rồi thử gửi lại giúp mình nhé."
+                ),
                 sources=[],
                 suggestedActions=[],
                 model="error-guard",

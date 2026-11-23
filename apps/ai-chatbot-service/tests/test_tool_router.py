@@ -78,7 +78,7 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
         self.assertIn("get_my_friend_requests", tool_names)
         self.assertIn("get_friend_recommendations", tool_names)
         self.assertIn("get_user_relationship", tool_names)
-        self.assertIn("get_my_blocked_list", tool_names)
+        self.assertIn("get_my_unread_notifications", tool_names)
 
     def test_router_for_settings_surface(self):
         surface = SurfaceContext(screen="settings.privacy")
@@ -131,6 +131,77 @@ class ToolCatalogAndRouterTest(unittest.TestCase):
         self.assertTrue(len(restricted_tools) > 0)
         for tool in restricted_tools:
             self.assertEqual(tool.policy_scope, "public")
+
+    def test_reserved_surface_slots_not_starved_by_multi_domain_intent(self):
+        # Even when intent matches 2 large domains (social + group = 10 tools),
+        # surface domain ("emotions") keeps up to 2 reserved slots.
+        surface = SurfaceContext(screen="emotions.dashboard")
+        tools = tool_router.route(
+            surface,
+            matched_domains=("social", "group"),
+            ai_policy="FULL",
+        )
+        self.assertEqual(len(tools), MAX_ACTIVE_TOOLS)
+        tool_names = [t.name for t in tools]
+        self.assertIn("get_my_emotion_summary", tool_names)
+        self.assertIn("get_my_emotion_trends", tool_names)
+        self.assertIn("get_my_friends", tool_names)
+
+    def test_pfa_and_pure_empathy_turns_suppress_tools(self):
+        surface = SurfaceContext(screen="emotions")
+        # Acute PFA always suppresses tools
+        self.assertEqual(
+            tool_router.route(
+                surface,
+                matched_domains=("mental_health",),
+                ai_policy="FULL",
+                distress_level="acute_pfa",
+                is_mental_health_turn=True,
+                message="mình hoảng loạn quá, gợi ý nhạc giúp mình",
+            ),
+            [],
+        )
+        # Pure mental-health venting without data/music/exercise cues suppresses tools
+        self.assertEqual(
+            tool_router.route(
+                surface,
+                matched_domains=("mental_health",),
+                ai_policy="FULL",
+                distress_level="mild_cbt",
+                is_mental_health_turn=True,
+                message="hôm nay mình thấy hơi buồn và áp lực công việc",
+            ),
+            [],
+        )
+        # Mental-health turn explicitly asking for music keeps emotion/music tools
+        music_tools = tool_router.route(
+            surface,
+            matched_domains=("mental_health",),
+            ai_policy="FULL",
+            distress_level="mild_cbt",
+            is_mental_health_turn=True,
+            message="mình đang căng thẳng, gợi ý nhạc thư giãn giúp mình",
+        )
+        self.assertIn("get_recommended_music_for_mood", [t.name for t in music_tools])
+
+    def test_propose_account_action_injected_only_under_full_when_requested(self):
+        surface = SurfaceContext(screen="friends")
+        tools_full = tool_router.route(
+            surface,
+            matched_domains=("social",),
+            ai_policy="FULL",
+            include_action_proposal_tool=True,
+        )
+        self.assertLessEqual(len(tools_full), MAX_ACTIVE_TOOLS)
+        self.assertIn("propose_account_action", [t.name for t in tools_full])
+
+        tools_restricted = tool_router.route(
+            surface,
+            matched_domains=("social",),
+            ai_policy="RESTRICTED",
+            include_action_proposal_tool=True,
+        )
+        self.assertNotIn("propose_account_action", [t.name for t in tools_restricted])
 
 
 if __name__ == "__main__":

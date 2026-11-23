@@ -109,6 +109,39 @@ class OpenAICompatibleFallbackProvider:
             return settings.GROQ_TEMPERATURE_TASK
         return settings.GROQ_TEMPERATURE
 
+    def _build_payload(
+        self,
+        prompt: str | Sequence[Any],
+        request: AssistantRespondRequest,
+        *,
+        resolved_model: str,
+        stream: bool,
+        json_mode: bool,
+    ) -> dict[str, Any]:
+        is_gemini_25 = (
+            self.provider_name.lower() == "gemini"
+            or "gemini-2.5" in resolved_model.lower()
+        )
+        max_tokens = (
+            max(settings.GROQ_MAX_TOKENS, 2048)
+            if is_gemini_25
+            else settings.GROQ_MAX_TOKENS
+        )
+        payload: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": _coerce_openai_messages(prompt),
+            "temperature": self._resolve_temperature(request),
+            "max_tokens": max_tokens,
+            "stream": stream,
+        }
+        # Gemini 2.5 shares max_tokens between hidden thinking and visible output;
+        # disable thinking on chat fallback so replies are neither truncated nor slow.
+        if is_gemini_25 and "gemini-2.5-flash" in resolved_model.lower():
+            payload["reasoning_effort"] = "none"
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        return payload
+
     async def generate(
         self,
         prompt: str | Sequence[Any],
@@ -123,15 +156,13 @@ class OpenAICompatibleFallbackProvider:
             raise RuntimeError("Fallback LLM provider API key is not configured")
 
         resolved_model = model or self.model
-        payload: dict[str, Any] = {
-            "model": resolved_model,
-            "messages": _coerce_openai_messages(prompt),
-            "temperature": self._resolve_temperature(request),
-            "max_tokens": settings.GROQ_MAX_TOKENS,
-            "stream": False,
-        }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
+        payload = self._build_payload(
+            prompt,
+            request,
+            resolved_model=resolved_model,
+            stream=False,
+            json_mode=json_mode,
+        )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -148,15 +179,18 @@ class OpenAICompatibleFallbackProvider:
 
         choices = data.get("choices") or []
         content = ""
+        finish_reason: str | None = None
         if choices:
             content = str(
                 (choices[0].get("message") or {}).get("content") or ""
             ).strip()
+            finish_reason = choices[0].get("finish_reason")
         return LlmGeneration(
             content=content,
             model=resolved_model,
             provider=self.provider_name,
             tool_calls=(),
+            finish_reason=finish_reason,
         )
 
     async def stream(
@@ -172,15 +206,13 @@ class OpenAICompatibleFallbackProvider:
             raise RuntimeError("Fallback LLM provider API key is not configured")
 
         resolved_model = model or self.model
-        payload: dict[str, Any] = {
-            "model": resolved_model,
-            "messages": _coerce_openai_messages(prompt),
-            "temperature": self._resolve_temperature(request),
-            "max_tokens": settings.GROQ_MAX_TOKENS,
-            "stream": True,
-        }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
+        payload = self._build_payload(
+            prompt,
+            request,
+            resolved_model=resolved_model,
+            stream=True,
+            json_mode=json_mode,
+        )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -228,9 +260,11 @@ class ResilientLlmProvider:
         failure_threshold: int | None = None,
         cooldown_seconds: float | None = None,
     ) -> None:
-        self.primary: LlmProvider = primary or GroqProvider(bypass_retry=False)
         self.fallback: OpenAICompatibleFallbackProvider = (
             fallback or OpenAICompatibleFallbackProvider()
+        )
+        self.primary: LlmProvider = primary or GroqProvider(
+            bypass_retry=self.fallback.is_enabled
         )
         self.failure_threshold = (
             failure_threshold

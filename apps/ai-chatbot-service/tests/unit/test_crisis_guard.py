@@ -139,3 +139,31 @@ class TestCrisisGuard_NegatedCrisis(unittest.TestCase):
         d = self.guard.evaluate("mình chán đời nhưng không có ý định tự tử đâu")
         self.assertFalse(d.is_crisis)
         self.assertEqual(d.reason, "negated_crisis")
+
+    def test_direct_negation_without_suffix(self) -> None:
+        for text in (
+            "tôi không muốn tự tử",
+            "tôi chưa bao giờ muốn chết",
+            "mình không có ý định tự sát",
+            "i don't want to die",
+        ):
+            with self.subTest(text=text):
+                d = self.guard.evaluate(text)
+                self.assertFalse(d.is_crisis)
+                self.assertEqual(d.reason, "negated_crisis")
+
+    def test_real_crisis_after_earlier_negation_or_pain_not_negated(self) -> None:
+        """Phủ định ở mệnh đề trước hoặc chữ 'đau' (pain -> 'dau') KHÔNG được phủ định câu tự sát thật."""
+        for text in (
+            "tôi không chịu nổi nữa, muốn chết",
+            "tôi đau lòng quá muốn tự tử",
+            "đau quá muốn chết",
+            "không còn ai hiểu tôi, muốn chết",
+            "không biết phải làm sao, tự tử",
+            "chưa bao giờ thấy bế tắc vậy, muốn chết",
+            "mình không ngủ được mấy tuần nay, muốn kết thúc cuộc đời",
+        ):
+            with self.subTest(text=text):
+                d = self.guard.evaluate(text)
+                self.assertTrue(d.is_crisis, f"Expected crisis for: {text}")
+                self.assertEqual(d.severity, "high")

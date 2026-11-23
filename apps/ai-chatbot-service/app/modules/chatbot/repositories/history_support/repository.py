@@ -833,3 +833,37 @@ class ChatHistoryRepository:
 
     async def clear_history_by_user(self, user_id: str) -> int:
         return await self.purge_user_data(user_id)
+
+    async def update_conversation_memory(
+        self,
+        conversation_id: str,
+        *,
+        summary: str | None = None,
+        summarized_turn: int | None = None,
+        session_context: dict[str, Any] | None = None,
+    ) -> None:
+        if not conversation_id or self.db is None:
+            return
+        conv_updates: dict[str, Any] = {}
+        if summary and summary.strip():
+            conv_updates["conversation_summary"] = summary.strip()
+            if summarized_turn is not None:
+                conv_updates["summarized_turn"] = summarized_turn
+        if isinstance(session_context, dict):
+            allowed_ctx_keys = (
+                "current_situation",
+                "current_problem",
+                "obstacles",
+                "attempted_solutions",
+            )
+            for key in allowed_ctx_keys:
+                val = session_context.get(key)
+                if isinstance(val, str) and val.strip():
+                    conv_updates[f"conversation_context.{key}"] = val.strip()
+        if not conv_updates:
+            return
+        conv_updates["updated_at"] = datetime.now(timezone.utc)
+        await self.db["chat_conversations"].update_one(
+            {"id": conversation_id},
+            {"$set": conv_updates},
+        )

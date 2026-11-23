@@ -450,10 +450,10 @@ DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
         GET_MY_BLOCKED_LIST,
     ],
     "groups": [
-        GET_GROUP_CONTEXT,
         GET_MY_GROUPS,
-        GET_GROUP_INVITATIONS,
         GET_GROUP_RECOMMENDATIONS,
+        GET_GROUP_INVITATIONS,
+        GET_GROUP_CONTEXT,
     ],
     "emotions": [
         GET_MY_EMOTION_SUMMARY,
@@ -473,6 +473,39 @@ DOMAIN_TOOLS: dict[str, list[ToolDefinition]] = {
         GET_MY_MODERATION_HISTORY,
     ],
 }
+
+
+PROPOSE_ACCOUNT_ACTION = ToolDefinition(
+    name="propose_account_action",
+    domain="action",
+    target_service="ai-chatbot-service",
+    policy_scope="personal",
+    description=(
+        "Đề xuất thao tác tài khoản toàn cục không mơ hồ đối tượng để người dùng xác nhận trên giao diện "
+        "(KHÔNG tự thực thi). Không dùng cho thao tác gắn với người dùng hay nhóm cụ thể."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "action_name": {
+                "type": "string",
+                "enum": [
+                    "mark_all_notifications_read",
+                ],
+                "description": "Tên hành động toàn cục hợp lệ trong danh mục được phép đề xuất",
+            },
+            "params": {
+                "type": "object",
+                "description": "Tham số của hành động ({} cho mark_all_notifications_read)",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Mô tả ngắn gọn, rõ ràng cho người dùng về thao tác sắp xác nhận",
+            },
+        },
+        "required": ["action_name", "params"],
+    },
+)
 
 
 def get_tool_by_name(name: str) -> ToolDefinition | None:

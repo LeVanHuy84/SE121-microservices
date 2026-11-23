@@ -30,8 +30,27 @@ logger = logging.getLogger("uvicorn.error")
 
 IMPLICIT_CRISIS_COSINE_THRESHOLD = 0.84
 SCOPE_PROMOTION_COSINE_THRESHOLD = 0.76
+ZERO_CONF_MH_PROMOTION_THRESHOLD = 0.845
+ZERO_CONF_MH_MARGIN_OVER_SYS = 0.018
 PHOBERT_EMOTIONAL_CRISIS_THRESHOLD = 0.45
 PHOBERT_HATE_SPEECH_BLOCK_THRESHOLD = 0.50
+
+_FIRST_PERSON_PRONOUNS: tuple[str, ...] = (
+    " minh ",
+    " toi ",
+    " em ",
+    " tao ",
+    " tui ",
+)
+_OOD_TASK_REQUEST_CUES: tuple[str, ...] = (
+    " giai giup ",
+    " viet ho ",
+    " viet cho ",
+    " tinh giup ",
+    " dich giup ",
+    " phuong trinh ",
+    " thuat toan ",
+)
 
 
 def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
@@ -109,6 +128,7 @@ class Stage2GuardVerifier:
         topic_anchor: str | None = None,
         effective_query: str | None = None,
         cached_phobert_res: dict[str, Any] | None = None,
+        in_active_app_session: bool = False,
     ) -> Stage2VerificationResult:
         query_for_embedding = effective_query
         if query_for_embedding is None:
@@ -184,10 +204,17 @@ class Stage2GuardVerifier:
                 matched_domains_override = ("mental_health",)
 
         # 2. PhoBERT Emotional Crisis -> Tier 2 Acute PFA (Stepped-Care)
-        # PhoBERT EMOTIONAL_CRISIS reflects affective distress and depressive symptoms.
-        # It informs the tone/pfa directive for LLM rather than cutting off the turn.
+        # Never let PhoBERT hijack app/system queries without lexical acute_pfa cues
+        # (e.g., "đổi mật khẩu", "rời nhóm", "nhóm cho người mất ngủ") into MENTAL_HEALTH_PFA.
+        from app.modules.chatbot.services.context_resolver import SYSTEM_FEATURE_DOMAINS
+
+        has_system_domain = (
+            bool(set(stage1_scope.matched_domains) & SYSTEM_FEATURE_DOMAINS)
+            or in_active_app_session
+        )
         if (
             phobert_available
+            and not has_system_domain
             and emotional_crisis_score >= PHOBERT_EMOTIONAL_CRISIS_THRESHOLD
         ):
             distress_level = "acute_pfa"
@@ -231,9 +258,31 @@ class Stage2GuardVerifier:
             best_sim = max(mh_sim, sys_sim)
             if best_sim >= SCOPE_PROMOTION_COSINE_THRESHOLD:
                 in_scope_override = True
-                matched_domains_override = (
-                    ("mental_health",) if mh_sim >= sys_sim else ("system",)
-                )
+                if has_system_domain:
+                    matched_domains_override = stage1_scope.matched_domains
+                else:
+                    matched_domains_override = (
+                        ("mental_health",) if mh_sim >= sys_sim else ("system",)
+                    )
+
+        # 4b. Semantic mental-health promotion for natural personal sharing with no hard Stage 1 keywords
+        if (
+            not stage1_scope.in_scope
+            and not in_active_app_session
+            and in_scope_override is None
+            and not stage1_scope.matched_domains
+            and stage1_scope.reason != "privacy"
+            and query_vec
+            and len(text.split()) >= 10
+            and mh_sim >= ZERO_CONF_MH_PROMOTION_THRESHOLD
+            and (mh_sim - sys_sim) >= ZERO_CONF_MH_MARGIN_OVER_SYS
+        ):
+            padded_norm = f" {stage1_scope.normalized_text} "
+            if any(p in padded_norm for p in _FIRST_PERSON_PRONOUNS) and not any(
+                cue in padded_norm for cue in _OOD_TASK_REQUEST_CUES
+            ):
+                in_scope_override = True
+                matched_domains_override = ("mental_health",)
 
         if (
             community_override is True

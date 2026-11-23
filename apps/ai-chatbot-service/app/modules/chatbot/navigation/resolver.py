@@ -32,6 +32,28 @@ _COMMAND_PREFIXES = (
     "quay ve ",
 )
 
+_VIEW_DATA_PREFIXES = (
+    "xem ",
+    "cho toi xem ",
+    "show ",
+    "view ",
+)
+
+READ_TOOL_BACKED_DESTINATIONS: frozenset[str] = frozenset(
+    {
+        "friends",
+        "friends.requests",
+        "friends.suggestions",
+        "friends.blocked",
+        "groups.my_groups",
+        "groups.invites",
+        "emotions",
+        "notifications",
+        "settings.privacy",
+        "settings.moderation",
+    }
+)
+
 _HOWTO_INDICATORS = (
     "lam sao",
     "lam the nao",
@@ -50,6 +72,15 @@ _EXPLANATION_INDICATORS = (
     "sao lai",
     "nguyen nhan",
     "tai vi sao",
+    "tieu chi",
+    "dua tren",
+    "la gi",
+    "khac gi",
+    "khac nhau",
+    "hoat dong nhu the nao",
+    "co nghia la",
+    "dung de lam gi",
+    "muc dich",
 )
 
 _DATA_RETRIEVAL_INDICATORS = (
@@ -150,13 +181,18 @@ class NavResolver:
             )
 
         # Data retrieval inquiry check: "cho tôi biết...", "liệt kê...", "có bao nhiêu..." are data queries, not navigation commands
+        padded_norm = f" {normalized} "
         is_data_retrieval = (not is_howto) and any(
-            indicator in normalized for indicator in _DATA_RETRIEVAL_INDICATORS
+            f" {indicator} " in padded_norm for indicator in _DATA_RETRIEVAL_INDICATORS
         )
         if is_data_retrieval:
             return NavDecision(path="none")
 
         is_command = any(normalized.startswith(prefix) for prefix in _COMMAND_PREFIXES)
+        is_view_data_prefix = any(
+            normalized.startswith(prefix) for prefix in _VIEW_DATA_PREFIXES
+        )
+        is_full_policy = str(ai_policy or "").strip().upper() == "FULL"
 
         # 2. Score all destinations against normalized text
         matches = self._score_destinations(
@@ -170,6 +206,19 @@ class NavResolver:
 
         top_match = matches[0]
         tokens = normalized.split()
+
+        # Under FULL policy, "xem <entity backed by Read Tool>" should flow through
+        # Phase 2 Read Tool (producing a Mini Card) and ride along as a howto button.
+        if (
+            is_full_policy
+            and is_view_data_prefix
+            and top_match.destination_id in READ_TOOL_BACKED_DESTINATIONS
+            and top_match.score >= 0.70
+        ):
+            return NavDecision(
+                path="howto",
+                matches=[top_match],
+            )
 
         # 3. Disambiguate path
         if is_command and top_match.score >= 0.70:
@@ -223,13 +272,6 @@ class NavResolver:
     def _extract_search_intent(
         self, normalized: str, original_text: str, ai_policy: str = "FULL"
     ) -> NavMatch | None:
-        search_entry = self._catalog.get("search")
-        if (
-            ai_policy == "RESTRICTED"
-            and search_entry is not None
-            and search_entry.policy_scope == "personal"
-        ):
-            return None
         # If the user is asking where to find something (howto), don't treat it as a search query
         if any(h in normalized for h in _HOWTO_INDICATORS):
             return None
@@ -291,6 +333,22 @@ class NavResolver:
             params={"q": safe_query, "type": search_type},
         )
 
+    def score_destinations(
+        self, text: str, ai_policy: str = "FULL"
+    ) -> list[NavMatch]:
+        """Score matching non-admin destinations without command/data-retrieval early exits."""
+        normalized = normalize_for_guard(text)
+        if not normalized or len(normalized) < 2:
+            return []
+        if any(admin_term in normalized for admin_term in _ADMIN_KEYWORDS):
+            return []
+        return self._score_destinations(
+            normalized,
+            is_command=True,
+            is_howto=False,
+            ai_policy=ai_policy,
+        )
+
     def _score_destinations(
         self,
         normalized: str,
@@ -304,8 +362,6 @@ class NavResolver:
         num_user_tokens = max(len(user_word_list), 1)
 
         for entry in self._catalog.all_destinations():
-            if ai_policy == "RESTRICTED" and entry.policy_scope == "personal":
-                continue
             best_score = 0.0
 
             for synonym in entry.synonyms:

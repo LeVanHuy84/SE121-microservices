@@ -151,6 +151,120 @@ class TestCrisisAssistantInvariants(unittest.IsolatedAsyncioTestCase):
                         f"Crisis reply missing hotline numbers: '{res.reply}'",
                     )
 
+    async def test_hybrid_crisis_uses_llm_empathy_with_hardcoded_hotlines(self):
+        from app.core.settings import settings
+        from app.providers.base import LlmGeneration
+
+        class _EmpathyProvider:
+            supports_chat_messages = True
+
+            async def generate(self, prompt, request, **kwargs):
+                return LlmGeneration(
+                    content=(
+                        "Mình nghe thấy bạn đang rất đau đớn và hoảng loạn lúc này. "
+                        "Xin hãy đặt dao lam xuống và lùi vào nơi an toàn ngay bây giờ, sự an toàn của bạn là điều quan trọng nhất."
+                    ),
+                    model="test-llm",
+                    provider="test",
+                )
+
+        assistant = AssistantService(
+            provider=_EmpathyProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+        )
+        with (
+            patch.object(settings, "UNIT_TEST_MODE", False),
+            patch.object(settings, "CHATBOT_LLM_STUB_MODE", False),
+            patch(
+                "app.modules.chatbot.services.assistant.emit_crisis_event",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            res = await assistant.respond(
+                AssistantRespondRequest(
+                    userId="user-crisis-hybrid",
+                    message="Mình đang cầm dao lam cắt tay chảy máu rất nhiều",
+                )
+            )
+            self.assertEqual(res.type, "crisis")
+            self.assertEqual(res.suggestedActions, [])
+            self.assertEqual(res.proposals, [])
+            self.assertIn("đặt dao lam xuống", res.reply)
+            self.assertIn("1900 599 830", res.reply)
+            self.assertIn("111", res.reply)
+            self.assertIn("115", res.reply)
+
+    async def test_hybrid_crisis_falls_back_to_static_template_on_llm_error(self):
+        from app.core.settings import settings
+
+        class _FailingProvider:
+            supports_chat_messages = True
+
+            async def generate(self, prompt, request, **kwargs):
+                raise RuntimeError("429 Too Many Requests")
+
+        assistant = AssistantService(
+            provider=_FailingProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+        )
+        with (
+            patch.object(settings, "UNIT_TEST_MODE", False),
+            patch.object(settings, "CHATBOT_LLM_STUB_MODE", False),
+            patch(
+                "app.modules.chatbot.services.assistant.emit_crisis_event",
+                new=AsyncMock(return_value=False),
+            ),
+        ):
+            res = await assistant.respond(
+                AssistantRespondRequest(
+                    userId="user-crisis-fallback",
+                    message="Mình muốn tự tử, mình không chịu nổi nữa",
+                )
+            )
+            self.assertEqual(res.type, "crisis")
+            self.assertEqual(res.suggestedActions, [])
+            self.assertIn("1900 599 830", res.reply)
+            self.assertNotIn("Hệ thống đang chậm", res.reply)
+
+    async def test_hybrid_crisis_rejects_fabricated_phone_numbers_and_falls_back(self):
+        from app.core.settings import settings
+        from app.providers.base import LlmGeneration
+
+        class _FabricatedHotlineProvider:
+            supports_chat_messages = True
+
+            async def generate(self, prompt, request, **kwargs):
+                return LlmGeneration(
+                    content="Mình ở đây với bạn. Bạn hãy gọi số giả 0999888777 ngay nhé.",
+                    model="test-llm",
+                    provider="test",
+                )
+
+        assistant = AssistantService(
+            provider=_FabricatedHotlineProvider(),
+            history_store_instance=self.history_store,
+            profile_repo=self.profile_repo,
+        )
+        with (
+            patch.object(settings, "UNIT_TEST_MODE", False),
+            patch.object(settings, "CHATBOT_LLM_STUB_MODE", False),
+            patch(
+                "app.modules.chatbot.services.assistant.emit_crisis_event",
+                new=AsyncMock(return_value=False),
+            ),
+        ):
+            res = await assistant.respond(
+                AssistantRespondRequest(
+                    userId="user-crisis-fake-num",
+                    message="Mình muốn tự tử",
+                )
+            )
+            self.assertEqual(res.type, "crisis")
+            self.assertNotIn("0999888777", res.reply)
+            self.assertIn("1900 599 830", res.reply)
+
 
 if __name__ == "__main__":
     unittest.main()
