@@ -76,14 +76,23 @@ _EXPLICIT_APP_ACTION_PHRASES: tuple[str, ...] = (
 )
 
 MENTAL_HEALTH_RAG_TIERS: tuple[str, ...] = (
-    "pfa",
-    "cbt",
-    "mental_health",
-    "clinical",
-    "self_help",
-    "psychology",
+    "actionable_worksheet",
+    "clinical_reference",
+    "background_theory",
 )
 APP_GUIDE_RAG_TIERS: tuple[str, ...] = ("system_guide",)
+
+
+def is_system_guide_only_tiers(allowed_tiers: tuple[str, ...] | None) -> bool:
+    return bool(allowed_tiers) and {t.lower() for t in allowed_tiers} == {
+        "system_guide"
+    }
+
+
+def is_mental_health_only_tiers(allowed_tiers: tuple[str, ...] | None) -> bool:
+    return bool(allowed_tiers) and "system_guide" not in {
+        t.lower() for t in allowed_tiers
+    }
 
 
 def has_explicit_app_intent(
@@ -105,10 +114,11 @@ def has_explicit_app_intent(
         return False
     if any(phrase in norm for phrase in _EXPLICIT_APP_ACTION_PHRASES):
         return True
+    padded_norm = f" {norm} "
     has_sys_domain = bool(set(matched_domains) & SYSTEM_FEATURE_DOMAINS)
     if has_sys_domain and (
         any(ind in norm for ind in _HOWTO_INDICATORS)
-        or any(ind in norm for ind in _DATA_RETRIEVAL_INDICATORS)
+        or any(f" {ind} " in padded_norm for ind in _DATA_RETRIEVAL_INDICATORS)
         or any(norm.startswith(p) for p in _VIEW_DATA_PREFIXES)
     ):
         return True
@@ -126,8 +136,9 @@ def is_user_data_query(
     norm = normalize_for_guard(message)
     if not norm:
         return False
+    padded_norm = f" {norm} "
     has_retrieval_phrasing = any(
-        ind in norm for ind in _DATA_RETRIEVAL_INDICATORS
+        f" {ind} " in padded_norm for ind in _DATA_RETRIEVAL_INDICATORS
     ) or any(norm.startswith(p) for p in _VIEW_DATA_PREFIXES)
     if not has_retrieval_phrasing:
         return False
@@ -139,11 +150,13 @@ def is_user_data_query(
 
 def resolve_turn_mode(signals: TurnModeSignals) -> TurnMode:
     """Deterministic priority cascade mapping turn signals to a single canonical TurnMode."""
+    has_sys_domain = bool(set(signals.matched_domains) & SYSTEM_FEATURE_DOMAINS)
     has_mental_health_signal = bool(
         signals.distress_level in {"acute_pfa", "mild_cbt"}
         or signals.has_in_chat_distress
         or signals.has_active_session_anchor
-        or (set(signals.matched_domains) & {"mental_health", "emotion"})
+        or ("mental_health" in signals.matched_domains)
+        or ("emotion" in signals.matched_domains and not has_sys_domain)
     )
     app_intent = has_explicit_app_intent(
         signals.message,

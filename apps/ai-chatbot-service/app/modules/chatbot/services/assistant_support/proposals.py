@@ -510,9 +510,28 @@ def is_global_proposable_action_request(message: str) -> bool:
     return any(kw in lowered for kw in GLOBAL_PROPOSABLE_ACTION_PHRASES)
 
 
+_ACTION_FAQ_EXCLUSIONS: tuple[str, ...] = (
+    "làm sao",
+    "làm thế nào",
+    "cách ",
+    "hướng dẫn",
+    "như thế nào",
+    "ở đâu",
+    "có nhận được",
+    "có biết không",
+    "có thông báo",
+    "thì họ có",
+    "thì người đó có",
+    "thì có bị",
+    "là gì",
+)
+
+
 def is_explicit_action_request(message: str) -> bool:
-    """Return True when the user explicitly asks to execute an in-app action rather than navigate."""
+    """Return True when the user explicitly asks to execute an in-app action rather than navigate or ask FAQ."""
     lowered = (message or "").lower()
+    if any(excl in lowered for excl in _ACTION_FAQ_EXCLUSIONS):
+        return False
     return any(kw in lowered for kw in EXPLICIT_ACTION_PHRASES)
 
 

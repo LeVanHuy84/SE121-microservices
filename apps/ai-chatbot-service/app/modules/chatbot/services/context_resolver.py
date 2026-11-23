@@ -25,6 +25,19 @@ SYSTEM_FEATURE_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
+DOMAIN_TO_GUIDE_DOC_IDS: dict[str, tuple[str, ...]] = {
+    "post": ("guide-post",),
+    "group": ("guide-group-social",),
+    "user_social": ("guide-group-social",),
+    "chat": ("guide-chat",),
+    "call": ("guide-calls-share-emotion",),
+    "privacy": ("guide-settings-support",),
+    "settings_support": ("guide-settings-support",),
+    "auth": ("guide-settings-support",),
+    "search": ("guide-search-notification",),
+    "notification": ("guide-search-notification",),
+}
+
 
 class AssistantContextResolver:
     async def resolve(
@@ -47,7 +60,7 @@ class AssistantContextResolver:
             return self._dedupe(contexts)[:candidate_limit]
 
         dense_query = request.message
-        if topic_anchor and len(request.message.split()) <= 12:
+        if topic_anchor and len(request.message.split()) <= 22:
             dense_query = f"{topic_anchor} {request.message}".strip()
 
         try:
@@ -66,11 +79,44 @@ class AssistantContextResolver:
                     distress_level=distress_level,
                 )
 
-            doc_contexts = await rag_document_service.search_assistant_docs(
-                dense_query,
-                rag_top_k,
-                bm25_query=bm25_query,
+            from app.modules.chatbot.services.assistant_support.turn_mode import (
+                APP_GUIDE_RAG_TIERS,
+                MENTAL_HEALTH_RAG_TIERS,
+                is_system_guide_only_tiers,
             )
+
+            if allowed_tiers is None and self._is_system_turn(matched_domains):
+                # MIXED_SUPPORT_APP: fetch both system_guide and mental_health in parallel
+                # so the ~6,500 mental-health chunks never drown out app guide docs.
+                import asyncio
+
+                sys_docs, mh_docs = await asyncio.gather(
+                    rag_document_service.search_assistant_docs(
+                        dense_query,
+                        3,
+                        bm25_query=None,
+                        allowed_tiers=APP_GUIDE_RAG_TIERS,
+                    ),
+                    rag_document_service.search_assistant_docs(
+                        dense_query,
+                        2,
+                        bm25_query=bm25_query,
+                        allowed_tiers=MENTAL_HEALTH_RAG_TIERS,
+                    ),
+                )
+                doc_contexts = sys_docs[:2] + mh_docs[:2] + sys_docs[2:]
+            else:
+                search_top_k = (
+                    max(rag_top_k, 8)
+                    if is_system_guide_only_tiers(allowed_tiers)
+                    else rag_top_k
+                )
+                doc_contexts = await rag_document_service.search_assistant_docs(
+                    dense_query,
+                    search_top_k,
+                    bm25_query=bm25_query,
+                    allowed_tiers=allowed_tiers,
+                )
         except Exception as exc:
             logger.warning("Assistant docs RAG skipped: %s", exc)
             return self._dedupe(contexts)[:candidate_limit]
@@ -94,20 +140,37 @@ class AssistantContextResolver:
         allowed_tiers: tuple[str, ...],
     ) -> list[AssistantContextItem]:
         """Keep only RAG docs whose tier/source belongs to allowed_tiers."""
-        allowed_set = {t.lower() for t in allowed_tiers}
-        wants_system_only = allowed_set == {"system_guide"}
-        wants_mental_only = "system_guide" not in allowed_set
+        from app.modules.chatbot.services.assistant_support.turn_mode import (
+            is_mental_health_only_tiers,
+            is_system_guide_only_tiers,
+        )
+
+        wants_system_only = is_system_guide_only_tiers(allowed_tiers)
+        wants_mental_only = is_mental_health_only_tiers(allowed_tiers)
 
         filtered: list[AssistantContextItem] = []
         for item in docs:
             src = (item.source or "").lower()
             item_id = (item.id or "").lower()
-            tier_hint = str(getattr(item, "tier", "") or "").lower()
-            is_system_doc = (
-                tier_hint == "system_guide"
-                or "guide-" in src
-                or "guide-" in item_id
-            )
+            metadata = item.metadata or {}
+            tier_hint = str(
+                metadata.get("tier") or getattr(item, "tier", "") or ""
+            ).lower()
+            topic_hint = str(metadata.get("topic") or "").lower()
+            doc_id_hint = str(metadata.get("docId") or "").lower()
+            source_path_hint = str(metadata.get("sourcePath") or "").lower()
+
+            if tier_hint:
+                is_system_doc = tier_hint == "system_guide"
+            elif topic_hint:
+                is_system_doc = topic_hint == "huong-dan"
+            else:
+                is_system_doc = (
+                    "guide-" in src
+                    or "guide-" in item_id
+                    or "guide-" in doc_id_hint
+                    or "guide-" in source_path_hint
+                )
             if wants_system_only and not is_system_doc:
                 continue
             if wants_mental_only and is_system_doc:
@@ -299,6 +362,14 @@ class AssistantContextResolver:
             if is_sys and not is_mh:
                 if tier == "system_guide" or topic == "huong-dan":
                     topic_boost = 1.4
+                    doc_id_lower = str(metadata.get("docId") or "").lower()
+                    preferred_docs = {
+                        d
+                        for dom in matched_domains
+                        for d in DOMAIN_TO_GUIDE_DOC_IDS.get(dom, ())
+                    }
+                    if preferred_docs and doc_id_lower in preferred_docs:
+                        topic_boost *= 1.25
                 else:
                     topic_boost = 1.0
                 emotion_boost = 1.0
@@ -307,6 +378,14 @@ class AssistantContextResolver:
             elif is_sys and is_mh:
                 if tier == "system_guide" or topic == "huong-dan":
                     topic_boost = 1.4
+                    doc_id_lower = str(metadata.get("docId") or "").lower()
+                    preferred_docs = {
+                        d
+                        for dom in matched_domains
+                        for d in DOMAIN_TO_GUIDE_DOC_IDS.get(dom, ())
+                    }
+                    if preferred_docs and doc_id_lower in preferred_docs:
+                        topic_boost *= 1.25
                 elif tier == "actionable_worksheet":
                     topic_boost = 1.55 if is_tier2_pfa else 1.45
                 elif tier == "clinical_reference":

@@ -31,6 +31,7 @@ from app.modules.chatbot.services.assistant_support.turn_mode import (
 )
 from app.modules.chatbot.services.assistant_support.turn_preparer import TurnPreparer
 from app.modules.chatbot.services.assistant_support.turn_helpers import (
+    EMPTY_REPLY_FALLBACK,
     continue_to_llm,
     dedupe_contexts,
     finalize_stream_data,
@@ -72,6 +73,7 @@ __all__ = [
     "extract_cards",
     "extract_proposals_from_llm_reply",
     "farewell_response",
+    "EMPTY_REPLY_FALLBACK",
     "continue_to_llm",
     "dedupe_contexts",
     "finalize_stream_data",

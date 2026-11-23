@@ -47,6 +47,7 @@ from app.modules.chatbot.services.assistant_support import (
     detect_action_proposals,
     emit_crisis_event,
     extract_cards,
+    EMPTY_REPLY_FALLBACK,
     extract_proposals_from_llm_reply,
     farewell_response,
     finalize_stream_data,
@@ -105,9 +106,6 @@ from app.providers.resilient_provider import (
 )
 
 logger = logging.getLogger("uvicorn.error")
-EMPTY_REPLY_FALLBACK = (
-    "Mình chưa thể trả lời ngay lúc này. Bạn thử diễn đạt lại giúp mình nhé."
-)
 _LLM_SEMAPHORE = asyncio.Semaphore(max(settings.CHATBOT_MAX_CONCURRENT_LLM, 1))
 
 __all__ = [
@@ -923,7 +921,10 @@ class RespondCommand:
             logger.exception("Assistant stream generation failed")
             yield AssistantRespondData(
                 type="fallback",
-                reply="Hệ thống gặp lỗi khi tạo phản hồi. Bạn thử lại sau nhé.",
+                reply=(
+                    "Hiện tại hệ thống trợ lý AI đang tạm thời gặp gián đoạn khi tạo phản hồi. "
+                    "Bạn vui lòng đợi vài giây rồi thử gửi lại giúp mình nhé."
+                ),
                 sources=[],
                 suggestedActions=[],
                 model="error-guard",

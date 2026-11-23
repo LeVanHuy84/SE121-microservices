@@ -22,6 +22,36 @@ class _RateLimitError(Exception):
 
 
 class TestResilientProvider(unittest.IsolatedAsyncioTestCase):
+    def test_gemini_25_flash_payload_disables_thinking_and_raises_max_tokens(
+        self,
+    ) -> None:
+        fb = OpenAICompatibleFallbackProvider(
+            api_key="test-key",
+            model="gemini-2.5-flash",
+            provider_name="gemini",
+        )
+        req = AssistantRespondRequest(userId="u1", message="Xin chào")
+        payload = fb._build_payload(
+            "Xin chào",
+            req,
+            resolved_model="gemini-2.5-flash",
+            stream=False,
+            json_mode=False,
+        )
+        self.assertEqual(payload.get("reasoning_effort"), "none")
+        self.assertGreaterEqual(payload["max_tokens"], 2048)
+
+    def test_default_primary_bypasses_retry_when_fallback_enabled(self) -> None:
+        with_fb = ResilientLlmProvider(
+            fallback=OpenAICompatibleFallbackProvider(api_key="test-key")
+        )
+        self.assertTrue(getattr(with_fb.primary, "_bypass_retry", False))
+
+        without_fb = ResilientLlmProvider(
+            fallback=OpenAICompatibleFallbackProvider(api_key="")
+        )
+        self.assertFalse(getattr(without_fb.primary, "_bypass_retry", True))
+
     def test_ollama_is_selected_as_the_primary_provider(self) -> None:
         from app.core.settings import settings
 

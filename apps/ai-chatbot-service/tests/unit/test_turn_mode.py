@@ -192,6 +192,149 @@ class TestTurnModeGoldenRouting(unittest.TestCase):
         )
         self.assertEqual([d.id for d in app_only], ["guide-group-social"])
 
+    def test_rag_tier_filter_reads_metadata_tier_for_assistant_docs(self):
+        resolver = AssistantContextResolver()
+        docs = [
+            AssistantContextItem(
+                type="help_doc",
+                id="post-guide:0",
+                title="Hướng dẫn đăng bài",
+                source="assistant_docs",
+                content="Vào trang chủ để đăng bài",
+                metadata={"tier": "system_guide", "topic": "huong-dan"},
+            ),
+            AssistantContextItem(
+                type="help_doc",
+                id="guide-self-care:0",
+                title="Self Care Guide",
+                source="assistant_docs",
+                content="Bài tập hít thở 4-7-8",
+                metadata={"tier": "actionable_worksheet", "topic": "phuong-phap-chua-tri"},
+            ),
+        ]
+
+        app_only = resolver._filter_docs_by_tiers(
+            docs, rag_tier_filter_for_mode(TurnMode.APP_GUIDE) or ()
+        )
+        self.assertEqual([d.id for d in app_only], ["post-guide:0"])
+
+        mh_only = resolver._filter_docs_by_tiers(
+            docs, rag_tier_filter_for_mode(TurnMode.MENTAL_HEALTH_CBT) or ()
+        )
+        self.assertEqual([d.id for d in mh_only], ["guide-self-care:0"])
+
+    def test_faq_questions_do_not_trigger_action_policy_or_nav_hijack(self):
+        from app.modules.chatbot.navigation.resolver import nav_resolver
+        from app.modules.chatbot.services.assistant_support.proposals import (
+            is_explicit_action_request,
+        )
+        from app.modules.chatbot.services.assistant_support.turn_mode import (
+            is_user_data_query,
+        )
+
+        # CASE_APP_009: FAQ about unfriend notification must not be treated as action command
+        self.assertFalse(
+            is_explicit_action_request(
+                "Hủy kết bạn với một người thì họ có nhận được thông báo không?"
+            )
+        )
+        # Actual imperative command still detected
+        self.assertTrue(is_explicit_action_request("Hủy kết bạn với Nam giúp tôi"))
+
+        # CASE_APP_006: "bài đăng" must not match "ai dang" data retrieval indicator
+        self.assertFalse(
+            is_user_data_query(
+                "Thấy có bài đăng chửi bậy thì làm sao để báo cho ban quản trị?",
+                ("post",),
+            )
+        )
+
+        # CASE_APP_010: conceptual criteria question must not be hijacked as nav command
+        nav_decision = nav_resolver.resolve(
+            "Sentimeta gợi ý bạn bè dựa trên tiêu chí gì vậy?"
+        )
+        self.assertEqual(nav_decision.path, "none")
+
+        # CASE_APP_004: post + emotion domain without distress must stay APP_GUIDE, not MENTAL_HEALTH_CBT
+        mode_app_004 = resolve_turn_mode(
+            TurnModeSignals(
+                message="Mình thả tim vào bài viết của bạn mình mà sao không thấy hiện?",
+                scope_in_scope=True,
+                scope_state="in_scope",
+                matched_domains=("emotion", "post", "search"),
+                distress_level="none",
+            )
+        )
+        self.assertEqual(mode_app_004, TurnMode.APP_GUIDE)
+
+    def test_restricted_policy_gate_blocks_data_retrieval_but_allows_howto(self):
+        from unittest.mock import MagicMock
+
+        from app.modules.chatbot.navigation.resolver import nav_resolver
+        from app.modules.chatbot.schemas import AssistantRespondRequest
+        from app.modules.chatbot.services.assistant_support.restricted_policy_gate import (
+            evaluate_restricted_policy_gate,
+        )
+
+        mock_cmd = MagicMock()
+        mock_cmd.nav_resolver = nav_resolver
+
+        for blocked_query in (
+            "Cho tôi biết danh sách bạn bè của tôi",
+            "Liệt kê lời mời kết bạn",
+            "Tôi có bao nhiêu thông báo chưa đọc?",
+        ):
+            with self.subTest(blocked_query=blocked_query):
+                turn = evaluate_restricted_policy_gate(
+                    mock_cmd,
+                    AssistantRespondRequest(
+                        userId="u1", message=blocked_query, aiPolicy="RESTRICTED"
+                    ),
+                    "conv-1",
+                )
+                self.assertIsNotNone(turn)
+                self.assertTrue(turn.guard_data.policyBlocked)
+                self.assertEqual(turn.guard_data.model, "policy-guard")
+
+        # How-to FAQ under RESTRICTED must NOT be blocked
+        howto_turn = evaluate_restricted_policy_gate(
+            mock_cmd,
+            AssistantRespondRequest(
+                userId="u1",
+                message="Làm sao để xem danh sách bạn bè?",
+                aiPolicy="RESTRICTED",
+            ),
+            "conv-1",
+        )
+        self.assertIsNone(howto_turn)
+
+    def test_domain_to_guide_doc_alignment_prefers_canonical_doc(self):
+        resolver = AssistantContextResolver()
+        chat_doc = AssistantContextItem(
+            type="help_doc",
+            id="guide-chat:1",
+            title="Hướng dẫn Nhắn tin, Trò chuyện",
+            source="assistant_docs",
+            content="Cách tạo nhóm chat nhiều người trên Sentimeta",
+            score=0.80,
+            metadata={"docId": "guide-chat", "tier": "system_guide", "topic": "huong-dan"},
+        )
+        group_doc = AssistantContextItem(
+            type="help_doc",
+            id="guide-group-social:1",
+            title="Hướng dẫn Quản lý Bạn bè và Nhóm",
+            source="assistant_docs",
+            content="Cách tạo nhóm cộng đồng mới trên Sentimeta",
+            score=0.78,
+            metadata={"docId": "guide-group-social", "tier": "system_guide", "topic": "huong-dan"},
+        )
+        ranked = resolver._rank_contexts(
+            "Làm sao để tạo một nhóm mới trên Sentimeta?",
+            [chat_doc, group_doc],
+            matched_domains=("group",),
+        )
+        self.assertEqual(ranked[0].id, "guide-group-social:1")
+
 
 if __name__ == "__main__":
     unittest.main()

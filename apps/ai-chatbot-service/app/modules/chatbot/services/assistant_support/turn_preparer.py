@@ -5,22 +5,20 @@ import logging
 from typing import Any
 
 from app.core.settings import settings
-from app.modules.chatbot.navigation.policy import build_nav_outcome, to_action
-from app.modules.chatbot.navigation.resolver import (
-    READ_TOOL_BACKED_DESTINATIONS,
-    _DATA_RETRIEVAL_INDICATORS,
-    _VIEW_DATA_PREFIXES,
-)
+from app.modules.chatbot.navigation.policy import build_nav_outcome
 from app.modules.chatbot.schemas import (
-    AssistantRespondData,
     AssistantRespondRequest,
     AssistantSource,
-    NavigateAction,
-    NavigatePayload,
+)
+from app.modules.chatbot.services.assistant_support.hybrid_crisis import (
+    build_hybrid_crisis_reply,
 )
 from app.modules.chatbot.services.assistant_support.proposals import (
     is_explicit_action_request,
     is_global_proposable_action_request,
+)
+from app.modules.chatbot.services.assistant_support.restricted_policy_gate import (
+    evaluate_restricted_policy_gate,
 )
 from app.modules.chatbot.services.assistant_support.turn_mode import (
     TurnMode,
@@ -77,7 +75,7 @@ def _is_positive_recovery_cue(text: str) -> bool:
     return False
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 class TurnPreparer:
@@ -85,6 +83,56 @@ class TurnPreparer:
 
     def __init__(self, command: Any) -> None:
         self.cmd = command
+
+    async def _build_crisis_turn(
+        self,
+        request: AssistantRespondRequest,
+        *,
+        conv_id: str,
+        severity: str,
+        reason: str,
+        history: list[Any] | None = None,
+        user_facts: dict[str, Any] | None = None,
+        emotion_snapshot: EmotionSnapshot | None = None,
+        howto_actions: list[Any] | None = None,
+    ) -> PreparedTurn:
+        cmd = self.cmd
+        notification_sent = await cmd._emit_crisis_event(
+            request,
+            severity,
+            reason,
+            conversation_id=conv_id,
+        )
+        reply = await build_hybrid_crisis_reply(
+            cmd,
+            request,
+            severity=severity,
+            notification_sent=notification_sent,
+        )
+        data = cmd._build_crisis_response(
+            reply,
+            severity,
+            notification_sent,
+        )
+        return PreparedTurn(
+            working_request=request.model_copy(update={"conversationId": conv_id}),
+            conv_id=conv_id,
+            history=history or [],
+            user_facts=user_facts or {},
+            emotion_snapshot=emotion_snapshot or EmotionSnapshot(),
+            scope_decision=ScopeDecision(False, "crisis", "", "out_of_scope", 0.0, ()),
+            final_contexts=[],
+            sources=[],
+            active_tools=[],
+            supports_tools=False,
+            pending_actions=[],
+            howto_actions=howto_actions or [],
+            messages_or_prompt="",
+            in_chat_distress=False,
+            is_system_turn=False,
+            guard_data=data,
+            guard_intent="mental_health_crisis",
+        )
 
     async def prepare_turn(
         self,
@@ -108,41 +156,11 @@ class TurnPreparer:
                     "Failed to resolve conversation during crisis turn: %s", exc
                 )
 
-            notification_sent = await cmd._emit_crisis_event(
+            return await self._build_crisis_turn(
                 request,
-                crisis_decision.severity,
-                crisis_decision.reason,
-                conversation_id=conv_id,
-            )
-            reply = cmd.prompt_builder.build_crisis(
-                severity=crisis_decision.severity,
-                notification_sent=notification_sent,
-            )
-            data = cmd._build_crisis_response(
-                reply,
-                crisis_decision.severity,
-                notification_sent,
-            )
-            return PreparedTurn(
-                working_request=request.model_copy(update={"conversationId": conv_id}),
                 conv_id=conv_id,
-                history=[],
-                user_facts={},
-                emotion_snapshot=EmotionSnapshot(),
-                scope_decision=ScopeDecision(
-                    False, "crisis", "", "out_of_scope", 0.0, ()
-                ),
-                final_contexts=[],
-                sources=[],
-                active_tools=[],
-                supports_tools=False,
-                pending_actions=[],
-                howto_actions=[],
-                messages_or_prompt="",
-                in_chat_distress=False,
-                is_system_turn=False,
-                guard_data=data,
-                guard_intent="mental_health_crisis",
+                severity=crisis_decision.severity,
+                reason=crisis_decision.reason,
             )
 
         # Step 1: Pre-State Safety & Navigation Guards (< 50ms)
@@ -333,12 +351,16 @@ class TurnPreparer:
                 guard_intent="community_guard",
             )
 
-        # 3. PhoBERT Profanity Venting Evaluation
+        # 3. PhoBERT Profanity Venting Evaluation (never promote when hate-speech score is elevated)
         if community_decision.reason == "profanity_candidate":
-            if phobert_available and (
-                phobert_label in {"PROFANITY_VENTING", "CLEAN"}
-                or phobert_venting_score >= 0.30
-                or phobert_crisis_score >= 0.30
+            if (
+                phobert_available
+                and phobert_hate_score < 0.50
+                and (
+                    phobert_label in {"PROFANITY_VENTING", "CLEAN"}
+                    or phobert_venting_score >= 0.30
+                    or phobert_crisis_score >= 0.30
+                )
             ):
                 community_decision = CommunityDecision(
                     allowed=True,
@@ -363,41 +385,15 @@ class TurnPreparer:
                 else None
             )
             if recent_crisis is not None and recent_crisis.is_crisis:
-                notification_sent = await cmd._emit_crisis_event(
+                return await self._build_crisis_turn(
                     request,
-                    recent_crisis.severity,
-                    "crisis_follow_up",
-                    conversation_id=conv_id,
-                )
-                reply = cmd.prompt_builder.build_crisis(
-                    severity=recent_crisis.severity,
-                    notification_sent=notification_sent,
-                )
-                data = cmd._build_crisis_response(
-                    reply,
-                    recent_crisis.severity,
-                    notification_sent,
-                )
-                return PreparedTurn(
-                    working_request=request,
                     conv_id=conv_id,
+                    severity=recent_crisis.severity,
+                    reason="crisis_follow_up",
                     history=history,
                     user_facts=user_facts or {},
                     emotion_snapshot=emotion_snapshot,
-                    scope_decision=ScopeDecision(
-                        False, "crisis", "", "out_of_scope", 0.0, ()
-                    ),
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=[],
-                    supports_tools=False,
-                    pending_actions=[],
                     howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    in_chat_distress=False,
-                    is_system_turn=False,
-                    guard_data=data,
-                    guard_intent="mental_health_crisis",
                 )
 
         if normalized_msg in GREETINGS or normalized_msg in FAREWELLS:
@@ -448,41 +444,15 @@ class TurnPreparer:
         if has_follow_up_anchor:
             crisis_decision = cmd.crisis_guard.evaluate(working_request.message)
             if crisis_decision.is_crisis:
-                notification_sent = await cmd._emit_crisis_event(
+                return await self._build_crisis_turn(
                     working_request,
-                    crisis_decision.severity,
-                    crisis_decision.reason,
-                    conversation_id=conv_id,
-                )
-                reply = cmd.prompt_builder.build_crisis(
-                    severity=crisis_decision.severity,
-                    notification_sent=notification_sent,
-                )
-                data = cmd._build_crisis_response(
-                    reply,
-                    crisis_decision.severity,
-                    notification_sent,
-                )
-                return PreparedTurn(
-                    working_request=working_request,
                     conv_id=conv_id,
+                    severity=crisis_decision.severity,
+                    reason=crisis_decision.reason,
                     history=history,
                     user_facts=user_facts or {},
                     emotion_snapshot=emotion_snapshot,
-                    scope_decision=ScopeDecision(
-                        False, "crisis", "", "out_of_scope", 0.0, ()
-                    ),
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=[],
-                    supports_tools=False,
-                    pending_actions=[],
                     howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    in_chat_distress=False,
-                    is_system_turn=False,
-                    guard_data=data,
-                    guard_intent="mental_health_crisis",
                 )
 
         # Step 4: Stage 1 ScopeGuard (Pre-RAG) & Conditional Stage 2 Hybrid Guard
@@ -496,6 +466,32 @@ class TurnPreparer:
             len(working_request.message.split()) <= SHORT_FOLLOWUP_MAX_TOKENS
         )
         is_system_turn = self._compute_is_system_turn(scope_decision.matched_domains)
+        app_topic_anchor, prev_app_domains = self._extract_recent_app_topic_anchor(
+            history, request.userId
+        )
+        in_active_app_session = (
+            bool(app_topic_anchor)
+            and distress_level == "none"
+            and not has_in_chat_emotional_distress(working_request.message)
+            and len(working_request.message.split()) <= 22
+        )
+        if (
+            in_active_app_session
+            and not is_system_turn
+            and not scope_decision.in_scope
+            and not scope_decision.matched_domains
+            and scope_decision.reason != "privacy"
+        ):
+            scope_decision = ScopeDecision(
+                in_scope=True,
+                reason="app_session_followup",
+                normalized_text=scope_decision.normalized_text,
+                state="in_scope",
+                confidence=max(scope_decision.confidence, 0.72),
+                matched_domains=prev_app_domains,
+            )
+            is_system_turn = True
+
         has_active_session_anchor = (
             not is_system_turn
             and prev_ttl > 0
@@ -507,7 +503,11 @@ class TurnPreparer:
         effective_query = (
             f"{prev_topic_anchor} {working_request.message}".strip()
             if has_active_session_anchor
-            else working_request.message
+            else (
+                f"{app_topic_anchor} {working_request.message}".strip()
+                if in_active_app_session and app_topic_anchor
+                else working_request.message
+            )
         )
 
         needs_stage2 = (
@@ -528,58 +528,15 @@ class TurnPreparer:
                         stage1_crisis=crisis_decision,
                         topic_anchor=prev_topic_anchor
                         if has_active_session_anchor
-                        else None,
+                        else (app_topic_anchor if in_active_app_session else None),
                         effective_query=effective_query,
                         cached_phobert_res=phobert_res,
+                        in_active_app_session=in_active_app_session,
                     ),
                     timeout=0.45,
                 )
             except TimeoutError:
                 stage2_res = None
-
-            if (
-                stage2_res is not None
-                and stage2_res.crisis_decision_override is not None
-                and stage2_res.crisis_decision_override.is_crisis
-            ):
-                c_over = stage2_res.crisis_decision_override
-                notification_sent = await cmd._emit_crisis_event(
-                    working_request,
-                    c_over.severity,
-                    c_over.reason,
-                    conversation_id=conv_id,
-                )
-                reply = cmd.prompt_builder.build_crisis(
-                    severity=c_over.severity,
-                    notification_sent=notification_sent,
-                )
-                data = cmd._build_crisis_response(
-                    reply,
-                    c_over.severity,
-                    notification_sent,
-                )
-                return PreparedTurn(
-                    working_request=working_request,
-                    conv_id=conv_id,
-                    history=history,
-                    user_facts=user_facts or {},
-                    emotion_snapshot=emotion_snapshot,
-                    scope_decision=ScopeDecision(
-                        False, "crisis", "", "out_of_scope", 0.0, ()
-                    ),
-                    final_contexts=[],
-                    sources=[],
-                    active_tools=[],
-                    supports_tools=False,
-                    pending_actions=[],
-                    howto_actions=howto_actions,
-                    messages_or_prompt="",
-                    in_chat_distress=True,
-                    is_system_turn=False,
-                    guard_data=data,
-                    guard_intent="mental_health_crisis",
-                    distress_level="acute_pfa",
-                )
 
             if community_decision.reason == "profanity_candidate":
                 is_distressed_venting = (
@@ -590,10 +547,7 @@ class TurnPreparer:
                         and stage2_res.community_allowed_override is True
                     )
                 )
-                if not is_distressed_venting and (
-                    stage2_res is None
-                    or stage2_res.community_allowed_override is not True
-                ):
+                if not is_distressed_venting:
                     data = cmd._community_response("profanity")
                     return PreparedTurn(
                         working_request=working_request,
@@ -643,7 +597,11 @@ class TurnPreparer:
 
         # PhoBERT Moderation direct distress propagation (when distress was not already set)
         if phobert_available and distress_level == "none":
-            if phobert_crisis_score >= 0.45:
+            has_lexical_distress = has_in_chat_emotional_distress(
+                working_request.message
+            )
+            is_pure_system_query = is_system_turn and not has_lexical_distress
+            if not is_pure_system_query and phobert_crisis_score >= 0.45:
                 distress_level = "acute_pfa"
                 if not scope_decision.in_scope:
                     scope_decision = ScopeDecision(
@@ -655,10 +613,22 @@ class TurnPreparer:
                         matched_domains=("mental_health",),
                     )
             elif (
-                phobert_venting_score >= 0.35
+                (not is_pure_system_query and phobert_venting_score >= 0.35)
                 or community_decision.reason == "profanity_venting"
             ):
                 distress_level = "mild_cbt"
+
+        # Inherit active session emotional tier BEFORE TurnMode/RAG/Tool routing
+        inherited_session_anchor = False
+        if (
+            distress_level == "none"
+            and not is_system_turn
+            and has_active_session_anchor
+        ):
+            distress_level = (
+                "acute_pfa" if prev_active_tier == "TIER_2_PFA" else "mild_cbt"
+            )
+            inherited_session_anchor = True
 
         in_chat_distress = distress_level != "none"
         normalized_msg_lower = (working_request.message or "").lower()
@@ -712,13 +682,23 @@ class TurnPreparer:
         elif is_memory_recall_turn or allowed_rag_tiers == ():
             candidate_contexts = []
         else:
+            resolved_topic_anchor = (
+                prev_topic_anchor
+                if has_active_session_anchor
+                else (
+                    app_topic_anchor
+                    if in_active_app_session
+                    and turn_mode in {TurnMode.APP_GUIDE, TurnMode.USER_DATA}
+                    else None
+                )
+            )
             candidate_contexts = await cmd._resolve_contexts_with_budget(
                 working_request,
                 settings.CHATBOT_CONTEXT_RESOLVE_TIMEOUT_MS,
                 emotion_snapshot,
                 matched_domains=scope_decision.matched_domains,
                 distress_level=distress_level,
-                topic_anchor=prev_topic_anchor if has_active_session_anchor else None,
+                topic_anchor=resolved_topic_anchor,
                 allowed_tiers=allowed_rag_tiers,
             )
         prompt_limits = resolve_prompt_limits(request.userId)
@@ -726,6 +706,7 @@ class TurnPreparer:
         if (
             not working_request.contexts
             and distress_level == "none"
+            and turn_mode != TurnMode.APP_GUIDE
             and len(normalized_msg_lower.split()) <= 16
         ):
             max_ctx = min(max_ctx, 2)
@@ -755,7 +736,7 @@ class TurnPreparer:
         supports_tools = cmd._supports_tools(active_tools)
 
         # Multi-turn emotional state transition
-        if distress_level in {"acute_pfa", "mild_cbt"}:
+        if distress_level in {"acute_pfa", "mild_cbt"} and not inherited_session_anchor:
             active_tier = (
                 "TIER_2_PFA" if distress_level == "acute_pfa" else "TIER_3_CBT"
             )
@@ -772,11 +753,7 @@ class TurnPreparer:
                 "topic_anchor": "",
             }
             effective_session_tier = "NONE"
-        elif not is_system_turn and has_active_session_anchor:
-            distress_level = (
-                "acute_pfa" if prev_active_tier == "TIER_2_PFA" else "mild_cbt"
-            )
-            in_chat_distress = True
+        elif inherited_session_anchor:
             next_ttl = max(prev_ttl - 1, 0)
             if next_ttl == 0:
                 session_emotional_state = {
@@ -911,78 +888,47 @@ class TurnPreparer:
     def _evaluate_restricted_policy_gate(
         self, request: AssistantRespondRequest, conv_id: str
     ) -> PreparedTurn | None:
-        """Short-circuit explicit write-action or personal data-retrieval queries under RESTRICTED."""
-        cmd = self.cmd
-        norm_policy_msg = normalize_for_guard(request.message)
-        is_action_req = is_explicit_action_request(request.message)
-        is_data_query = any(
-            ind in norm_policy_msg for ind in _DATA_RETRIEVAL_INDICATORS
-        ) or any(norm_policy_msg.startswith(p) for p in _VIEW_DATA_PREFIXES)
-        matched_nav = cmd.nav_resolver.resolve(request.message, ai_policy="FULL")
-        top_dest = (
-            matched_nav.matches[0] if matched_nav and matched_nav.matches else None
-        )
-        is_personal_data_query = bool(
-            is_data_query
-            and top_dest is not None
-            and top_dest.destination_id in READ_TOOL_BACKED_DESTINATIONS
-        )
-        if not (is_action_req or is_personal_data_query):
-            return None
+        return evaluate_restricted_policy_gate(self.cmd, request, conv_id)
 
-        privacy_action = NavigateAction(
-            label="Cài đặt Quyền riêng tư",
-            payload=NavigatePayload(destinationId="settings.privacy"),
-        )
-        suggested_nav_actions: list[NavigateAction] = [privacy_action]
-        if top_dest is not None and top_dest.destination_id != "settings.privacy":
-            suggested_nav_actions.append(to_action(top_dest))
+    def _extract_recent_app_topic_anchor(
+        self, history: list[Any], user_id: str
+    ) -> tuple[str, tuple[str, ...]]:
+        """Return (anchor_text, system_domains) if recent user history is an active APP_GUIDE thread."""
+        if not history:
+            return "", ()
+        from app.modules.chatbot.services.context_resolver import SYSTEM_FEATURE_DOMAINS
 
-        if is_action_req:
-            policy_reply = (
-                "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
-                "không thể đề xuất hoặc thực hiện thao tác tài khoản. "
-                "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
-                "để sử dụng tính năng này nhé:"
+        checked = 0
+        for item in reversed(history):
+            role = (
+                item.get("role")
+                if isinstance(item, dict)
+                else getattr(item, "role", None)
             )
-        else:
-            policy_reply = (
-                "Tài khoản của bạn hiện đang bật chế độ **Riêng tư tối đa (RESTRICTED)** nên trợ lý AI "
-                "không có quyền đọc dữ liệu cá nhân của bạn. "
-                "Bạn có thể bật chế độ **Đầy đủ tính năng (FULL)** tại **Cài đặt → Quyền riêng tư** "
-                "để trợ lý tra cứu trực tiếp, hoặc bấm nút bên dưới để tự xem thủ công nhé:"
+            if role != "user":
+                continue
+            content = str(
+                item.get("content")
+                if isinstance(item, dict)
+                else getattr(item, "content", "")
+                or ""
+            ).strip()
+            if not content:
+                continue
+            checked += 1
+            if classify_in_chat_distress_level(content) != "none":
+                return "", ()
+            prev_scope = self.cmd.scope_guard.evaluate_scope(
+                AssistantRespondRequest(userId=user_id, message=content)
             )
-
-        policy_data = AssistantRespondData(
-            type="answer",
-            reply=policy_reply,
-            sources=[],
-            suggestedActions=suggested_nav_actions,
-            model="policy-guard",
-            provider="chatbot-service",
-            policyBlocked=True,
-        )
-        return PreparedTurn(
-            working_request=request,
-            conv_id=conv_id,
-            history=[],
-            user_facts={},
-            emotion_snapshot=EmotionSnapshot(),
-            scope_decision=ScopeDecision(
-                True, "policy_restricted", "", "in_scope", 1.0, ("privacy",)
-            ),
-            final_contexts=[],
-            sources=[],
-            active_tools=[],
-            supports_tools=False,
-            pending_actions=suggested_nav_actions,
-            howto_actions=[],
-            messages_or_prompt="",
-            in_chat_distress=False,
-            is_system_turn=True,
-            guard_data=policy_data,
-            guard_intent="policy_restricted",
-        )
+            sys_domains = tuple(
+                d for d in prev_scope.matched_domains if d in SYSTEM_FEATURE_DOMAINS
+            )
+            if sys_domains:
+                return content[:140], sys_domains
+            if checked >= 2:
+                break
+        return "", ()
 
     def _compute_is_system_turn(self, matched_domains: tuple[str, ...]) -> bool:
         if hasattr(self.cmd.context_resolver, "_is_system_turn"):

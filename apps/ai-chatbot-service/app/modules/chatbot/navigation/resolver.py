@@ -72,6 +72,15 @@ _EXPLANATION_INDICATORS = (
     "sao lai",
     "nguyen nhan",
     "tai vi sao",
+    "tieu chi",
+    "dua tren",
+    "la gi",
+    "khac gi",
+    "khac nhau",
+    "hoat dong nhu the nao",
+    "co nghia la",
+    "dung de lam gi",
+    "muc dich",
 )
 
 _DATA_RETRIEVAL_INDICATORS = (
@@ -172,8 +181,9 @@ class NavResolver:
             )
 
         # Data retrieval inquiry check: "cho tôi biết...", "liệt kê...", "có bao nhiêu..." are data queries, not navigation commands
+        padded_norm = f" {normalized} "
         is_data_retrieval = (not is_howto) and any(
-            indicator in normalized for indicator in _DATA_RETRIEVAL_INDICATORS
+            f" {indicator} " in padded_norm for indicator in _DATA_RETRIEVAL_INDICATORS
         )
         if is_data_retrieval:
             return NavDecision(path="none")
@@ -321,6 +331,22 @@ class NavResolver:
             label_vi=f'{label}: "{safe_query}"',
             score=0.95,
             params={"q": safe_query, "type": search_type},
+        )
+
+    def score_destinations(
+        self, text: str, ai_policy: str = "FULL"
+    ) -> list[NavMatch]:
+        """Score matching non-admin destinations without command/data-retrieval early exits."""
+        normalized = normalize_for_guard(text)
+        if not normalized or len(normalized) < 2:
+            return []
+        if any(admin_term in normalized for admin_term in _ADMIN_KEYWORDS):
+            return []
+        return self._score_destinations(
+            normalized,
+            is_command=True,
+            is_howto=False,
+            ai_policy=ai_policy,
         )
 
     def _score_destinations(

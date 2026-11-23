@@ -131,6 +131,11 @@ def community_response(reason: str) -> AssistantRespondData:
             "Mình không thể hỗ trợ nội dung vi phạm tiêu chuẩn cộng đồng. "
             "Bạn hãy đổi sang câu hỏi an toàn và phù hợp hơn để mình hỗ trợ tiếp."
         )
+    elif reason == "hate_speech":
+        message = (
+            "Mình không thể hỗ trợ nội dung có tính chất thù ghét, kích động hoặc phân biệt đối xử. "
+            "Sentimeta luôn hướng tới không gian tôn trọng và an toàn cho mọi người."
+        )
     else:
         message = (
             "Mình chưa thể xử lý câu có từ ngữ tục tĩu hoặc xúc phạm. "
