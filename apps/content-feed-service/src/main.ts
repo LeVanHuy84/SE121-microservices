@@ -1,4 +1,4 @@
-import { initOTel } from "@repo/common";
+import { initOTel, StructuredLoggerService } from "@repo/common";
 initOTel("content-feed-service", { collectDefaultMetrics: false });
 
 import { NestFactory } from "@nestjs/core";
@@ -45,15 +45,8 @@ async function bootstrap() {
   // Ensure required Kafka topics are created to avoid connection exceptions
   await ensureKafkaTopics();
 
-  const isSilent =
-    process.env.NODE_ENV === "production" ||
-    process.env.NODE_ENV === "test" ||
-    process.env.ENABLE_LOAD_TEST_MODE === "true";
-
   const app = await NestFactory.create(AppModule, {
-    logger: isSilent
-      ? ["error", "warn"]
-      : ["log", "error", "warn", "debug", "verbose"],
+    logger: new StructuredLoggerService("content-feed-service"),
   });
   app.enableShutdownHooks();
 

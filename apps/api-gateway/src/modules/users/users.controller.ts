@@ -107,7 +107,6 @@ export class UsersController {
           type: "image",
         }),
       );
-      console.log("Uploaded cover image:", uploaded);
       updateUserDto.coverImage = {
         url: uploaded.url,
         publicId: uploaded.publicId,

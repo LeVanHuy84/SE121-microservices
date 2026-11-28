@@ -1,4 +1,6 @@
+import json
 import logging
+from datetime import datetime, timezone
 import uvicorn
 from fastapi import FastAPI, HTTPException
 
@@ -14,11 +16,37 @@ from app.modules.chatbot.public_router import (
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-# Configure logging according to environment (silence terminal spam during test/production)
+class JsonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, object] = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname.lower(),
+            "service": "ai-chatbot-service",
+            "context": record.name,
+            "message": record.getMessage(),
+        }
+        try:
+            from opentelemetry import trace
+
+            span = trace.get_current_span()
+            span_ctx = span.get_span_context() if span else None
+            if span_ctx and span_ctx.is_valid:
+                payload["traceId"] = format(span_ctx.trace_id, "032x")
+                payload["spanId"] = format(span_ctx.span_id, "016x")
+        except Exception:
+            pass
+        if record.exc_info:
+            payload["stack"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+# Configure structured JSON logging
 log_level = getattr(logging, settings.LOG_LEVEL, logging.INFO)
+_root_handler = logging.StreamHandler()
+_root_handler.setFormatter(JsonLogFormatter())
 logging.basicConfig(
     level=log_level,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    handlers=[_root_handler],
     force=True,
 )
 

@@ -1,4 +1,4 @@
-import { initOTel } from '@repo/common';
+import { initOTel, StructuredLoggerService } from '@repo/common';
 initOTel('search-recommendation-service');
 
 import { NestFactory } from '@nestjs/core';
@@ -59,9 +59,7 @@ async function bootstrap() {
 
   // Tạo Hybrid Application để AppModule và các kết nối chỉ khởi tạo 1 lần duy nhất
   const app = await NestFactory.create(AppModule, {
-    logger: isSilent
-      ? ['error', 'warn']
-      : ['log', 'error', 'warn', 'debug', 'verbose'],
+    logger: new StructuredLoggerService('search-recommendation-service'),
   });
   app.enableShutdownHooks();
 

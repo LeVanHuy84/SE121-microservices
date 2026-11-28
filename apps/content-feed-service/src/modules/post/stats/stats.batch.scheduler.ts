@@ -29,7 +29,7 @@ export class StatsBatchScheduler {
     @InjectRepository(Post)
     private readonly postRepo: Repository<Post>,
   ) {
-    console.log("🔥 StatsBatchScheduler initialized");
+    this.logger.debug("StatsBatchScheduler initialized");
   }
 
   @Cron("*/10 * * * * *") // mỗi 10 giây

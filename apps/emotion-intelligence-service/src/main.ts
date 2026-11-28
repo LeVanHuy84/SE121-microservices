@@ -1,4 +1,4 @@
-import { initOTel } from '@repo/common';
+import { initOTel, StructuredLoggerService } from '@repo/common';
 initOTel('emotion-intelligence-service');
 
 import { NestFactory } from '@nestjs/core';
@@ -45,7 +45,9 @@ async function bootstrap() {
   await ensureKafkaTopics();
 
   // Hybrid Application pattern
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new StructuredLoggerService('emotion-intelligence-service'),
+  });
   app.enableShutdownHooks();
 
   app.useGlobalFilters(new ExceptionsFilter());

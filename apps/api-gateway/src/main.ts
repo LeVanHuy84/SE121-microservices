@@ -1,4 +1,4 @@
-import { initOTel } from "@repo/common";
+import { initOTel, StructuredLoggerService } from "@repo/common";
 initOTel("api-gateway", { collectDefaultMetrics: false });
 
 import { NestFactory } from "@nestjs/core";
@@ -8,16 +8,9 @@ import { DateFormatInterceptor } from "./common/interceptors/date-format.interce
 import { RedisIoAdapter } from "./redis.adapter";
 
 async function bootstrap() {
-  const isSilent =
-    process.env.NODE_ENV === "production" ||
-    process.env.NODE_ENV === "test" ||
-    process.env.ENABLE_LOAD_TEST_MODE === "true";
-
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
-    logger: isSilent
-      ? ["error", "warn"]
-      : ["log", "error", "warn", "debug", "verbose"],
+    logger: new StructuredLoggerService("api-gateway"),
   });
   app.enableShutdownHooks();
   const redisIoAdapter = new RedisIoAdapter(app);

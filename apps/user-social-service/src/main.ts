@@ -1,4 +1,4 @@
-import { initOTel } from "@repo/common";
+import { initOTel, StructuredLoggerService } from "@repo/common";
 initOTel("user-social-service");
 
 import { NestFactory } from "@nestjs/core";
@@ -45,7 +45,9 @@ async function ensureKafkaTopics() {
 async function bootstrap() {
   await ensureKafkaTopics();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new StructuredLoggerService("user-social-service"),
+  });
   app.enableShutdownHooks();
 
   app.connectMicroservice<MicroserviceOptions>({

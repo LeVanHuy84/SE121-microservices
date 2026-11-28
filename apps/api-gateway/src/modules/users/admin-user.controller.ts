@@ -46,7 +46,6 @@ export class AdminUserController {
     @Body("role") role: SystemRole,
     @CurrentUserId() actorId: string,
   ) {
-    console.log("Updating system user role...", userId);
     return this.client.send("update-system-user-role", {
       userId,
       role,

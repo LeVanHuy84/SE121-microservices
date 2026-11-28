@@ -1,4 +1,4 @@
-import { initOTel } from '@repo/common';
+import { initOTel, StructuredLoggerService } from '@repo/common';
 initOTel('chat-service');
 
 import { NestFactory } from '@nestjs/core';
@@ -9,6 +9,7 @@ import { ExceptionsFilter } from '@repo/common';
 async function bootstrap() {
   const app = await NestFactory.createMicroservice(AppModule, {
     transport: Transport.TCP,
+    logger: new StructuredLoggerService('chat-service'),
     options: {
       host: '0.0.0.0',
       port: process.env.PORT ? parseInt(process.env.PORT) : 4004,
