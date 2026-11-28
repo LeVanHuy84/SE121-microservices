@@ -16,7 +16,15 @@ async function bootstrap() {
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();
 
-  app.enableCors();
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : true;
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
 
   app.useGlobalFilters(new GatewayExceptionsFilter());
   // Performance optimization: DateFormatInterceptor causes recursive double-serialization and high CPU.
