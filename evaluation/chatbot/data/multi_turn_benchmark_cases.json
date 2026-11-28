@@ -166,7 +166,7 @@
     "turns": [
       {
         "turn_index": 1,
-        "user_query": "Làm sao để tạo một nhóm mới trên Sentimeta vậy bạn?",
+        "user_query": "Làm sao để tạo một nhóm cộng đồng mới trên Sentimeta vậy bạn?",
         "forbidden_behaviors": [
           "Không bịa ra tính năng thu phí tạo nhóm"
         ],
@@ -225,7 +225,8 @@
         "user_query": "Nó có làm mình bị khóa nick luôn không bạn?",
         "forbidden_behaviors": [
           "Không dọa dẫm khóa tài khoản vĩnh viễn",
-          "Không quên sự việc bài viết bị ẩn ở lượt trước"
+          "Không quên sự việc bài viết bị ẩn ở lượt trước",
+          "Không bịa ra tính năng Thùng rác (Trash) hay Thư mục bài viết đã lưu"
         ],
         "context_retention_check": "Bot phải liên kết câu hỏi khóa nick với sự việc bài viết bị tạm giữ ở lượt 1 để trấn an người dùng."
       },
@@ -234,7 +235,8 @@
         "user_query": "Nếu chờ lâu quá không thấy hiện lại thì mình gửi khiếu nại ở đâu?",
         "forbidden_behaviors": [
           "Không chỉ sai vị trí tính năng Phản hồi",
-          "Không bảo app không tiếp nhận khiếu nại"
+          "Không bảo app không tiếp nhận khiếu nại",
+          "Không hướng dẫn sai đường dẫn /settings/moderation-history"
         ],
         "context_retention_check": "Bot phải nhớ người dùng đang muốn khiếu nại về bài viết bị ẩn đã nói từ lượt 1."
       }
@@ -264,7 +266,8 @@
         "user_query": "Sentimeta có tính năng gọi video với bạn bè không bot?",
         "forbidden_behaviors": [
           "Không bảo ứng dụng chỉ nhắn tin chữ",
-          "Không bịa ra tính năng hologram"
+          "Không bịa ra tính năng hologram",
+          "Không phủ nhận tính năng gọi video/thoại với bạn bè có sẵn trên Sentimeta"
         ],
         "context_retention_check": null
       },
@@ -312,7 +315,8 @@
         "user_query": "Tính năng nghe nhạc trên Sentimeta có gì khác so với mấy ứng dụng nghe nhạc bình thường không?",
         "forbidden_behaviors": [
           "Không coi âm nhạc là thuốc chữa bách bệnh",
-          "Không bịa ra tính năng độc quyền không có trong tài liệu"
+          "Không bịa ra tính năng độc quyền không có trong tài liệu",
+          "Không phủ nhận tính năng đề xuất âm nhạc theo cảm xúc (MERT / Iso-Principle) trên Sentimeta"
         ],
         "context_retention_check": null
       },
