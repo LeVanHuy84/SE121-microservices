@@ -1,0 +1,566 @@
+# Production-Hardened Docker Compose for SE121-microservices
+# Requires environment variables (e.g. via .env.production.local):
+#   GRAFANA_ADMIN_PASSWORD, RABBITMQ_USER, RABBITMQ_PASS, CORS_ORIGINS
+name: se121-prod
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-prod
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_HEAP_OPTS: '-Xmx512M -Xms256M'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9093 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-prod
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-prod
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER must be set}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS must be set}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - app-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.7
+    container_name: elasticsearch-prod
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1280M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: jaeger-prod
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:16686:16686'
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - MEMORY_MAX_TRACES=50000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus-prod
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=2GB'
+    ports:
+      - '127.0.0.1:9090:9090'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager-prod
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - '127.0.0.1:9094:9093'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana-prod
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - '127.0.0.1:3001:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki-prod
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3100:3100'
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - app-network
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail-prod
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infrastructure/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+    networks:
+      - app-network
+
+  api-gateway:
+    image: se121/api-gateway:latest
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: api-gateway-prod
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    env_file:
+      - .env.production.local
+      - apps/api-gateway/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - METRICS_PORT=5000
+      - GATEWAY_PORT=4000
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BROKERS=kafka:9093
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - AI_CHATBOT_SERVICE_URL=http://ai-chatbot-service:4006
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/v1/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  user-social-service:
+    image: se121/user-social-service:latest
+    build:
+      context: .
+      dockerfile: apps/user-social-service/Dockerfile
+    container_name: user-social-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/user-social-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - METRICS_PORT=5001
+      - PORT=4001
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BROKERS=kafka:9093
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  content-feed-service:
+    image: se121/content-feed-service:latest
+    build:
+      context: .
+      dockerfile: apps/content-feed-service/Dockerfile
+    container_name: content-feed-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/content-feed-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - METRICS_PORT=5002
+      - PORT=4002
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BROKERS=kafka:9093
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1536M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5002/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  search-recommendation-service:
+    image: se121/search-recommendation-service:latest
+    build:
+      context: .
+      dockerfile: apps/search-recommendation-service/Dockerfile
+    container_name: search-recommendation-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/search-recommendation-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - NODE_OPTIONS=--max-old-space-size=768
+      - METRICS_PORT=5003
+      - PORT=4003
+      - REDIS_HOST=redis
+      - KAFKA_BROKERS=kafka:9093
+      - ES_NODE=http://elasticsearch:9200
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5003/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  chat-service:
+    image: se121/chat-service:latest
+    build:
+      context: .
+      dockerfile: apps/chat-service/Dockerfile
+    container_name: chat-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/chat-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - METRICS_PORT=5004
+      - PORT=4004
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BROKERS=kafka:9093
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5004/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  emotion-intelligence-service:
+    image: se121/emotion-intelligence-service:latest
+    build:
+      context: .
+      dockerfile: apps/emotion-intelligence-service/Dockerfile
+    container_name: emotion-intelligence-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/emotion-intelligence-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - METRICS_PORT=5005
+      - PORT=4005
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BROKERS=kafka:9093
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5005/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  ai-chatbot-service:
+    image: se121/ai-chatbot-service:latest
+    build:
+      context: ./apps/ai-chatbot-service
+      dockerfile: Dockerfile
+    container_name: ai-chatbot-service-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production.local
+      - apps/ai-chatbot-service/.env.production.local
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=WARNING
+      - METRICS_PORT=5006
+      - PORT=4006
+      - REDIS_HOST=redis
+      - CHATBOT_REDIS_URL=redis://redis:6379/0
+      - KAFKA_BROKERS=kafka:9093
+      - ES_NODE=http://elasticsearch:9200
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - USER_SOCIAL_SERVICE_HOST=user-social-service
+      - CONTENT_FEED_SERVICE_HOST=content-feed-service
+      - CHAT_SERVICE_HOST=chat-service
+      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
+      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2048M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4006/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  kafka_data:
+  redis_data:
+  rabbitmq_data:
+  elastic_data:
+  hf_cache:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:

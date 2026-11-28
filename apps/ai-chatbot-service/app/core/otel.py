@@ -1,10 +1,97 @@
 import os
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, Request
+from prometheus_client import Counter, Histogram, start_http_server
+
+HTTP_REQUESTS_TOTAL = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "route", "status"],
+)
+
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "http_request_duration_seconds",
+    "Duration of HTTP requests in seconds",
+    ["method", "route", "status"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+)
+
+_metrics_server_started = False
+_metrics_httpd = None
+
+
+def shutdown_metrics_server() -> None:
+    global _metrics_server_started, _metrics_httpd
+    if _metrics_httpd is not None:
+        try:
+            _metrics_httpd.shutdown()
+            _metrics_httpd.server_close()
+        except Exception:
+            pass
+        _metrics_httpd = None
+    _metrics_server_started = False
+
+
+def should_enable_otel() -> bool:
+    flag = os.getenv("ENABLE_OTEL", "").strip().lower()
+    if flag == "true":
+        return True
+    if flag == "false":
+        return False
+    env = os.getenv("NODE_ENV", os.getenv("ENVIRONMENT", "")).strip().lower()
+    return env == "production"
+
+
+def register_http_metrics_middleware(app: FastAPI) -> None:
+    @app.middleware("http")
+    async def prometheus_http_middleware(request: Request, call_next):
+        if request.url.path == "/metrics":
+            return await call_next(request)
+
+        start_time = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            duration = time.perf_counter() - start_time
+            route_obj = request.scope.get("route")
+            route_path = getattr(route_obj, "path", None) or request.url.path
+            try:
+                HTTP_REQUESTS_TOTAL.labels(
+                    method=request.method,
+                    route=route_path,
+                    status=str(status_code),
+                ).inc()
+                HTTP_REQUEST_DURATION_SECONDS.labels(
+                    method=request.method,
+                    route=route_path,
+                    status=str(status_code),
+                ).observe(duration)
+            except Exception:
+                pass
+
+
+def start_metrics_server(service_name: str = "ai-chatbot-service") -> None:
+    """Start Prometheus metrics HTTP server inside the serving worker (lifespan)."""
+    global _metrics_server_started, _metrics_httpd
+    metrics_port = os.getenv("METRICS_PORT")
+    if metrics_port and not _metrics_server_started:
+        try:
+            _metrics_httpd, _ = start_http_server(int(metrics_port), addr="0.0.0.0")
+            _metrics_server_started = True
+            print(
+                f"[Metrics] {service_name} metrics server listening on HTTP port {metrics_port} (0.0.0.0)"
+            )
+        except Exception as e:
+            print(f"[Metrics] Failed to start metrics server: {e}")
 
 
 def init_otel(app: FastAPI, service_name: str = "ai-chatbot-service"):
-    enable_otel = os.getenv("ENABLE_OTEL", "false").lower() == "true"
-    if not enable_otel:
+    register_http_metrics_middleware(app)
+
+    if not should_enable_otel():
         return
 
     try:
@@ -32,15 +119,3 @@ def init_otel(app: FastAPI, service_name: str = "ai-chatbot-service"):
         FastAPIInstrumentor.instrument_app(app)
     except Exception as exc:
         print(f"[OTel] Failed to initialize OpenTelemetry: {exc}")
-
-    metrics_port = os.getenv("METRICS_PORT")
-    if metrics_port:
-        try:
-            from prometheus_client import start_http_server
-
-            start_http_server(int(metrics_port), addr="0.0.0.0")
-            print(
-                f"[Metrics] {service_name} metrics server listening on HTTP port {metrics_port} (0.0.0.0)"
-            )
-        except Exception as e:
-            print(f"[Metrics] Failed to start metrics server: {e}")

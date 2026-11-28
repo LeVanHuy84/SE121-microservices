@@ -1,4 +1,10 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import {
+  CommonHealthModule,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from '@repo/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
@@ -16,6 +22,7 @@ import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
+    CommonHealthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
@@ -41,6 +48,16 @@ import { validateEnv } from './config/env.validation';
     CallModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TraceContextInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useFactory: () => new RpcMetricsInterceptor('chat-service'),
+    },
+  ],
 })
 export class AppModule {}

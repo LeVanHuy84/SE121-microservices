@@ -1,4 +1,4 @@
-import { initOTel } from "@repo/common";
+import { initOTel, StructuredLoggerService } from "@repo/common";
 initOTel("api-gateway", { collectDefaultMetrics: false });
 
 import { NestFactory } from "@nestjs/core";
@@ -8,21 +8,23 @@ import { DateFormatInterceptor } from "./common/interceptors/date-format.interce
 import { RedisIoAdapter } from "./redis.adapter";
 
 async function bootstrap() {
-  const isSilent =
-    process.env.NODE_ENV === "production" ||
-    process.env.NODE_ENV === "test" ||
-    process.env.ENABLE_LOAD_TEST_MODE === "true";
-
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
-    logger: isSilent
-      ? ["error", "warn"]
-      : ["log", "error", "warn", "debug", "verbose"],
+    logger: new StructuredLoggerService("api-gateway"),
   });
+  app.enableShutdownHooks();
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();
 
-  app.enableCors();
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : true;
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
 
   app.useGlobalFilters(new GatewayExceptionsFilter());
   // Performance optimization: DateFormatInterceptor causes recursive double-serialization and high CPU.

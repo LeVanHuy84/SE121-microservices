@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.core.settings import settings
 from app.core.database import init_database, close_database
 from app.core.executors import shutdown_executors
+from app.core.otel import start_metrics_server, shutdown_metrics_server
 from app.modules.chatbot.repositories.chat_history import history_store
 
 logger = logging.getLogger("uvicorn.error")
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("[Startup] AI Chatbot & Analysis Service - Initializing...")
     logger.info("=" * 60)
+    start_metrics_server("ai-chatbot-service")
 
     # 1. MongoDB Database & Indexes
     db = init_database()
@@ -131,4 +133,5 @@ async def lifespan(app: FastAPI):
         await history_store.stop()
         await close_database()
         shutdown_executors()
+        shutdown_metrics_server()
         logger.info("[Shutdown] Cleanup complete. Shutdown successful.")

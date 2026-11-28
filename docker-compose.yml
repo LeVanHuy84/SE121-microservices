@@ -18,12 +18,17 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_HEAP_OPTS: '-Xmx256M -Xms128M'
     mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
     volumes:
       - kafka_data:/var/lib/kafka/data
 
-  # Vào production có thể bỏ qua kafka-ui
   # kafka-ui:
   #   image: provectuslabs/kafka-ui:latest
   #   container_name: kafka-ui
@@ -43,6 +48,11 @@ services:
     restart: unless-stopped
     ports:
       - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - app-network
     volumes:
@@ -58,6 +68,11 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
     volumes:
@@ -74,22 +89,16 @@ services:
     ports:
       - '9200:9200'
     mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
     volumes:
       - elastic_data:/usr/share/elasticsearch/data
-
-  # kibana:
-  #   image: docker.elastic.co/kibana/kibana:9.1.7
-  #   container_name: kibana
-  #   depends_on:
-  #     - elasticsearch
-  #   environment:
-  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-  #   ports:
-  #     - '5601:5601'
-  #   networks:
-  #     - app-network
 
   jaeger:
     image: jaegertracing/all-in-one:1.57
@@ -109,6 +118,7 @@ services:
     container_name: prometheus
     volumes:
       - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=6h'
@@ -116,6 +126,24 @@ services:
     ports:
       - '9090:9090'
     mem_limit: 150m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    ports:
+      - '9094:9093'
+    mem_limit: 64m
     networks:
       - app-network
 
@@ -130,6 +158,11 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     mem_limit: 150m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - app-network
 
@@ -155,235 +188,6 @@ services:
     networks:
       - app-network
 
-  api-gateway:
-    image: se121/api-gateway:latest
-    build:
-      context: .
-      dockerfile: apps/api-gateway/Dockerfile
-    container_name: api-gateway
-    restart: unless-stopped
-    ports:
-      - '4000:4000'
-      - '5000:5000'
-    env_file:
-      - .env.production.local
-      - apps/api-gateway/.env.production.local
-    environment:
-      - METRICS_PORT=5000
-      - GATEWAY_PORT=4000
-      - REDIS_HOST=redis
-      - RABBITMQ_HOST=rabbitmq
-      - KAFKA_BROKERS=kafka:9093
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - AI_CHATBOT_SERVICE_URL=http://ai-chatbot-service:4006
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - rabbitmq
-    networks:
-      - app-network
-
-  user-social-service:
-    image: se121/user-social-service:latest
-    build:
-      context: .
-      dockerfile: apps/user-social-service/Dockerfile
-    container_name: user-social-service
-    restart: unless-stopped
-    ports:
-      - '4001:4001'
-      - '5001:5001'
-    env_file:
-      - .env.production.local
-      - apps/user-social-service/.env.production.local
-    environment:
-      - METRICS_PORT=5001
-      - PORT=4001
-      - REDIS_HOST=redis
-      - RABBITMQ_HOST=rabbitmq
-      - KAFKA_BROKERS=kafka:9093
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - rabbitmq
-    networks:
-      - app-network
-
-  content-feed-service:
-    image: se121/content-feed-service:latest
-    build:
-      context: .
-      dockerfile: apps/content-feed-service/Dockerfile
-    container_name: content-feed-service
-    restart: unless-stopped
-    ports:
-      - '4002:4002'
-      - '5002:5002'
-    env_file:
-      - .env.production.local
-      - apps/content-feed-service/.env.production.local
-    environment:
-      - METRICS_PORT=5002
-      - PORT=4002
-      - REDIS_HOST=redis
-      - RABBITMQ_HOST=rabbitmq
-      - KAFKA_BROKERS=kafka:9093
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - rabbitmq
-    networks:
-      - app-network
-
-  search-recommendation-service:
-    image: se121/search-recommendation-service:latest
-    build:
-      context: .
-      dockerfile: apps/search-recommendation-service/Dockerfile
-    container_name: search-recommendation-service
-    restart: unless-stopped
-    ports:
-      - '4003:4003'
-      - '5003:5003'
-    env_file:
-      - .env.production.local
-      - apps/search-recommendation-service/.env.production.local
-    environment:
-      - METRICS_PORT=5003
-      - PORT=4003
-      - REDIS_HOST=redis
-      - KAFKA_BROKERS=kafka:9093
-      - ES_NODE=http://elasticsearch:9200
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - elasticsearch
-    networks:
-      - app-network
-
-  chat-service:
-    image: se121/chat-service:latest
-    build:
-      context: .
-      dockerfile: apps/chat-service/Dockerfile
-    container_name: chat-service
-    restart: unless-stopped
-    ports:
-      - '4004:4004'
-      - '5004:5004'
-    env_file:
-      - .env.production.local
-      - apps/chat-service/.env.production.local
-    environment:
-      - METRICS_PORT=5004
-      - PORT=4004
-      - REDIS_HOST=redis
-      - RABBITMQ_HOST=rabbitmq
-      - KAFKA_BROKERS=kafka:9093
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - rabbitmq
-    networks:
-      - app-network
-
-  emotion-intelligence-service:
-    image: se121/emotion-intelligence-service:latest
-    build:
-      context: .
-      dockerfile: apps/emotion-intelligence-service/Dockerfile
-    container_name: emotion-intelligence-service
-    restart: unless-stopped
-    ports:
-      - '4005:4005'
-      - '5005:5005'
-    env_file:
-      - .env.production.local
-      - apps/emotion-intelligence-service/.env.production.local
-    environment:
-      - METRICS_PORT=5005
-      - PORT=4005
-      - REDIS_HOST=redis
-      - RABBITMQ_HOST=rabbitmq
-      - KAFKA_BROKERS=kafka:9093
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - rabbitmq
-    networks:
-      - app-network
-
-  ai-chatbot-service:
-    image: se121/ai-chatbot-service:latest
-    build:
-      context: ./apps/ai-chatbot-service
-      dockerfile: Dockerfile
-    container_name: ai-chatbot-service
-    restart: unless-stopped
-    ports:
-      - '4006:4006'
-      - '5006:5006'
-    env_file:
-      - .env.production.local
-      - apps/ai-chatbot-service/.env.production.local
-    environment:
-      - NODE_ENV=production
-      - LOG_LEVEL=WARNING
-      - METRICS_PORT=5006
-      - PORT=4006
-      - REDIS_HOST=redis
-      - CHATBOT_REDIS_URL=redis://redis:6379/0
-      - KAFKA_BROKERS=kafka:9093
-      - ES_NODE=http://elasticsearch:9200
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - USER_SOCIAL_SERVICE_HOST=user-social-service
-      - CONTENT_FEED_SERVICE_HOST=content-feed-service
-      - CHAT_SERVICE_HOST=chat-service
-      - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
-      - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
-    depends_on:
-      - redis
-      - kafka
-      - elasticsearch
-    volumes:
-      - hf_cache:/root/.cache/huggingface
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
@@ -393,4 +197,3 @@ volumes:
   redis_data:
   rabbitmq_data:
   elastic_data:
-  hf_cache:

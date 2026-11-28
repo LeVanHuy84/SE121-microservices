@@ -12,8 +12,16 @@ import numpy as np
 import httpx
 from PIL import Image
 from pydantic import BaseModel, Field
+from prometheus_client import Histogram
 
 from app.core.settings import settings
+
+VLM_INFERENCE_DURATION_SECONDS = Histogram(
+    "ai_vlm_inference_duration_seconds",
+    "Duration of VLM multimodal post inference in seconds",
+    ["mode", "status"],
+    buckets=[0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 5.0, 10.0],
+)
 
 logger = logging.getLogger(__name__)
 
@@ -455,18 +463,30 @@ CẤU TRÚC JSON:
         logger.info(
             f"[VLMAnalyzer] Calling VLM API ({self.model_name}) for single post (images={len(compressed_urls)})..."
         )
-        res_json = await self._call_vlm_api_with_retry(
-            client, payload, timeout=60.0, max_retries=4
-        )
+        vlm_status = "success"
+        try:
+            res_json = await self._call_vlm_api_with_retry(
+                client, payload, timeout=60.0, max_retries=4
+            )
 
-        raw_content = res_json["choices"][0]["message"]["content"]
-        parsed_data = json.loads(raw_content)
+            raw_content = res_json["choices"][0]["message"]["content"]
+            parsed_data = json.loads(raw_content)
 
-        raw_output = VLMRawOutput(**parsed_data)
-        normalized = self._normalize_raw_output(raw_output)
-        normalized["latencySeconds"] = round(time.time() - start_time, 3)
-
-        return normalized
+            raw_output = VLMRawOutput(**parsed_data)
+            normalized = self._normalize_raw_output(raw_output)
+            elapsed = time.time() - start_time
+            normalized["latencySeconds"] = round(elapsed, 3)
+            return normalized
+        except Exception:
+            vlm_status = "error"
+            raise
+        finally:
+            try:
+                VLM_INFERENCE_DURATION_SECONDS.labels(
+                    mode="single", status=vlm_status
+                ).observe(time.time() - start_time)
+            except Exception:
+                pass
 
     async def analyze_batch_posts(
         self, posts: List[Dict[str, Any]]

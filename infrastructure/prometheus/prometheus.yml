@@ -1,32 +1,82 @@
+# global:
+#   scrape_interval: 30s
+#   evaluation_interval: 30s
+
+# rule_files:
+#   - '/etc/prometheus/alert-rules.yml'
+
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# scrape_configs:
+#   - job_name: 'api-gateway'
+#     static_configs:
+#       - targets: ['api-gateway:5000']
+
+#   - job_name: 'user-social-service'
+#     static_configs:
+#       - targets: ['user-social-service:5001']
+
+#   - job_name: 'content-feed-service'
+#     static_configs:
+#       - targets: ['content-feed-service:5002']
+
+#   - job_name: 'search-recommendation-service'
+#     static_configs:
+#       - targets: ['search-recommendation-service:5003']
+
+#   - job_name: 'chat-service'
+#     static_configs:
+#       - targets: ['chat-service:5004']
+
+#   - job_name: 'emotion-intelligence-service'
+#     static_configs:
+#       - targets: ['emotion-intelligence-service:5005']
+
+#   - job_name: 'ai-chatbot-service'
+#     static_configs:
+#       - targets: ['ai-chatbot-service:5006']
+
+
 global:
   scrape_interval: 30s
   evaluation_interval: 30s
 
+rule_files:
+  - '/etc/prometheus/alert-rules.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   - job_name: 'api-gateway'
     static_configs:
-      - targets: ['api-gateway:5000']
+      - targets: ['host.docker.internal:5000']
 
   - job_name: 'user-social-service'
     static_configs:
-      - targets: ['user-social-service:5001']
+      - targets: ['host.docker.internal:5001']
 
   - job_name: 'content-feed-service'
     static_configs:
-      - targets: ['content-feed-service:5002']
+      - targets: ['host.docker.internal:5002']
 
   - job_name: 'search-recommendation-service'
     static_configs:
-      - targets: ['search-recommendation-service:5003']
+      - targets: ['host.docker.internal:5003']
 
   - job_name: 'chat-service'
     static_configs:
-      - targets: ['chat-service:5004']
+      - targets: ['host.docker.internal:5004']
 
   - job_name: 'emotion-intelligence-service'
     static_configs:
-      - targets: ['emotion-intelligence-service:5005']
+      - targets: ['host.docker.internal:5005']
 
   - job_name: 'ai-chatbot-service'
     static_configs:
-      - targets: ['ai-chatbot-service:5006']
+      - targets: ['host.docker.internal:5006']

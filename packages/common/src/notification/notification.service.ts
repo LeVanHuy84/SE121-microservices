@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import {
   ClearChatPushStateDto,
@@ -10,8 +10,10 @@ import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
   constructor(@Inject('NOTIFICATION_SERVICE') private client: ClientProxy) {
-    console.log('🔥 NotificationService initialized');
+    this.logger.debug('NotificationService initialized');
   }
 
   async sendNotification(

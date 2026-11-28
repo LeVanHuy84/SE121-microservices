@@ -21,6 +21,7 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "dlq:tool": "node scripts/dlq-tool.js",
     "seed:clerk": "node seed-data/clerk/create-clerk-users.js --limit=50",
     "seed:clerk:reset": "node seed-data/clerk/create-clerk-users.js --limit=50 --reset",
     "seed:clerk:reset-all": "node seed-data/clerk/create-clerk-users.js --reset-all",

@@ -8,7 +8,10 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { context, propagation, Context } from '@opentelemetry/api';
+import { context, propagation, Context, trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
+import { ClientProxy } from '@nestjs/microservices';
+import { Observable } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 
 // Load environmental variables from .env file before reading process.env
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -17,10 +20,20 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
  * Tiêm W3C Trace Context (traceparent) hiện tại vào payload gửi qua NestJS TCP
  */
 export function injectTraceContext<T = any>(data: T): T {
-  if (typeof data !== 'object' || data === null) return data;
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    Array.isArray(data) ||
+    Buffer.isBuffer(data)
+  ) {
+    return data;
+  }
   try {
     const carrier: Record<string, string> = {};
     propagation.inject(context.active(), carrier);
+    if (Object.keys(carrier).length === 0) {
+      return data;
+    }
     return { ...data, _traceContext: carrier };
   } catch {
     return data;
@@ -39,11 +52,273 @@ export interface OTelOptions {
   collectDefaultMetrics?: boolean;
 }
 
+export type HealthCheckResult = { ok: boolean; detail?: string };
+export type HealthCheckFn = () => Promise<HealthCheckResult>;
+
+const readinessChecks = new Map<string, HealthCheckFn>();
+
+export function registerHealthCheck(name: string, fn: HealthCheckFn): void {
+  readinessChecks.set(name, fn);
+}
+
+export async function runReadinessChecks(): Promise<{
+  ready: boolean;
+  checks: Record<string, { status: 'up' | 'down'; detail?: string }>;
+}> {
+  const checks: Record<string, { status: 'up' | 'down'; detail?: string }> = {};
+  let ready = true;
+
+  await Promise.all(
+    Array.from(readinessChecks.entries()).map(async ([name, fn]) => {
+      try {
+        const res = await Promise.race<HealthCheckResult>([
+          fn(),
+          new Promise<HealthCheckResult>((_, reject) =>
+            setTimeout(() => reject(new Error('Health check timeout')), 3000),
+          ),
+        ]);
+        if (res.ok) {
+          checks[name] = { status: 'up', ...(res.detail ? { detail: res.detail } : {}) };
+        } else {
+          ready = false;
+          checks[name] = { status: 'down', ...(res.detail ? { detail: res.detail } : {}) };
+        }
+      } catch (err: any) {
+        ready = false;
+        checks[name] = { status: 'down', detail: err?.message || String(err) };
+      }
+    }),
+  );
+
+  return { ready, checks };
+}
+
+let metricsServerStarted = false;
+let clientProxyTimeoutPatched = false;
+let clientProxyPatched = false;
+
+/**
+ * Apply a safety-net timeout to all NestJS ClientProxy.send() calls across
+ * all microservices (preventing hung inter-service TCP calls).
+ */
+export function enableGlobalRpcClientTimeout(): void {
+  if (clientProxyTimeoutPatched) {
+    return;
+  }
+  clientProxyTimeoutPatched = true;
+
+  const timeoutMs = parseInt(process.env.RPC_CLIENT_TIMEOUT_MS || '10000', 10);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return;
+  }
+
+  const origSend = ClientProxy.prototype.send;
+  ClientProxy.prototype.send = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    return (origSend.call(this, pattern, data) as Observable<TResult>).pipe(
+      timeout(timeoutMs),
+    );
+  };
+}
+
+/**
+ * Automatically inject W3C trace context and record client spans for all
+ * NestJS ClientProxy.send() and ClientProxy.emit() calls.
+ */
+export function enableClientProxyTracing(): void {
+  if (clientProxyPatched) {
+    return;
+  }
+  clientProxyPatched = true;
+
+  const origSend = ClientProxy.prototype.send;
+  const origEmit = ClientProxy.prototype.emit;
+
+  ClientProxy.prototype.send = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    const tracer = trace.getTracer('nestjs-rpc-client');
+    const patternStr =
+      typeof pattern === 'string' ? pattern : JSON.stringify(pattern);
+
+    return new Observable<TResult>((subscriber) => {
+      return tracer.startActiveSpan(
+        `rpc.client:${patternStr}`,
+        {
+          kind: SpanKind.CLIENT,
+          attributes: {
+            'rpc.system': 'nestjs-tcp',
+            'rpc.method': patternStr,
+          },
+        },
+        (span) => {
+          const tracedData = injectTraceContext(data);
+          const sub = (
+            origSend.call(this, pattern, tracedData) as Observable<TResult>
+          ).subscribe({
+            next: (val: TResult) => subscriber.next(val),
+            error: (err) => {
+              span.recordException(err);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err?.message || String(err),
+              });
+              span.end();
+              subscriber.error(err);
+            },
+            complete: () => {
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              subscriber.complete();
+            },
+          });
+          return () => sub.unsubscribe();
+        },
+      );
+    });
+  };
+
+  ClientProxy.prototype.emit = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    const tracer = trace.getTracer('nestjs-rpc-client');
+    const patternStr =
+      typeof pattern === 'string' ? pattern : JSON.stringify(pattern);
+
+    return new Observable<TResult>((subscriber) => {
+      return tracer.startActiveSpan(
+        `rpc.emit:${patternStr}`,
+        {
+          kind: SpanKind.PRODUCER,
+          attributes: {
+            'rpc.system': 'nestjs-event',
+            'rpc.method': patternStr,
+          },
+        },
+        (span) => {
+          const tracedData = injectTraceContext(data);
+          const sub = (
+            origEmit.call(this, pattern, tracedData) as Observable<TResult>
+          ).subscribe({
+            next: (val: TResult) => subscriber.next(val),
+            error: (err) => {
+              span.recordException(err);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err?.message || String(err),
+              });
+              span.end();
+              subscriber.error(err);
+            },
+            complete: () => {
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              subscriber.complete();
+            },
+          });
+          return () => sub.unsubscribe();
+        },
+      );
+    });
+  };
+}
+
+/**
+ * Determine whether OpenTelemetry tracing should be enabled.
+ * Explicit ENABLE_OTEL ('true'/'false') overrides NODE_ENV;
+ * otherwise tracing is enabled by default only in production.
+ */
+export function shouldEnableOTel(): boolean {
+  const flag = process.env.ENABLE_OTEL?.trim().toLowerCase();
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return process.env.NODE_ENV === 'production';
+}
+
+function startMetricsServer(serviceName: string, options?: OTelOptions): void {
+  const metricsPort = process.env.METRICS_PORT;
+  if (!metricsPort || metricsServerStarted) {
+    return;
+  }
+
+  metricsServerStarted = true;
+
+  if (options?.collectDefaultMetrics !== false) {
+    try {
+      collectDefaultMetrics({ register });
+    } catch {
+      // Silently ignore if already registered
+    }
+  }
+
+  http
+    .createServer(async (req, res) => {
+      if (req.url === '/metrics') {
+        try {
+          res.writeHead(200, { 'Content-Type': register.contentType });
+          res.end(await register.metrics());
+        } catch (err) {
+          res.writeHead(500);
+          res.end(String(err));
+        }
+      } else if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            status: 'ok',
+            service: serviceName,
+            uptime: Math.floor(process.uptime()),
+          }),
+        );
+      } else if (req.url === '/ready') {
+        try {
+          const result = await runReadinessChecks();
+          res.writeHead(result.ready ? 200 : 503, {
+            'Content-Type': 'application/json',
+          });
+          res.end(
+            JSON.stringify({
+              status: result.ready ? 'ready' : 'not_ready',
+              service: serviceName,
+              checks: result.checks,
+            }),
+          );
+        } catch (err: any) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: 'not_ready',
+              service: serviceName,
+              error: err?.message || String(err),
+            }),
+          );
+        }
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    })
+    .listen(parseInt(metricsPort, 10), '0.0.0.0', () => {
+      console.log(
+        `[Metrics] ${serviceName} metrics server listening on HTTP port ${metricsPort} (0.0.0.0)`,
+      );
+    });
+}
+
 export function initOTel(serviceName: string, options?: OTelOptions) {
   // Prevent Node.js MaxListenersExceededWarning when OTel instruments DB connection pools
   EventEmitter.defaultMaxListeners = 100;
 
-  if (process.env.ENABLE_OTEL !== 'true') {
+  // Always expose Prometheus metrics on METRICS_PORT regardless of tracing flag
+  startMetricsServer(serviceName, options);
+  // Always guard inter-service ClientProxy.send() calls with a default timeout
+  enableGlobalRpcClientTimeout();
+
+  if (!shouldEnableOTel()) {
     return;
   }
 
@@ -64,41 +339,13 @@ export function initOTel(serviceName: string, options?: OTelOptions) {
   });
 
   sdk.start();
-
-  // Spin up a lightweight metrics HTTP server on METRICS_PORT if specified
-  const metricsPort = process.env.METRICS_PORT;
-  if (metricsPort) {
-    if (options?.collectDefaultMetrics !== false) {
-      try {
-        collectDefaultMetrics({ register });
-      } catch (err) {
-        // Silently ignore if already registered
-      }
-    }
-
-    http.createServer(async (req, res) => {
-      if (req.url === '/metrics') {
-        try {
-          res.writeHead(200, { 'Content-Type': register.contentType });
-          res.end(await register.metrics());
-        } catch (err) {
-          res.writeHead(500);
-          res.end(String(err));
-        }
-      } else {
-        res.writeHead(404);
-        res.end('Not Found');
-      }
-    }).listen(parseInt(metricsPort, 10), '0.0.0.0', () => {
-      console.log(`[Metrics] ${serviceName} metrics server listening on HTTP port ${metricsPort} (0.0.0.0)`);
-    });
-  }
+  enableClientProxyTracing();
 
   process.on('SIGTERM', () => {
-    sdk.shutdown()
+    sdk
+      .shutdown()
       .then(() => console.log('OTel shut down successfully'))
-      .catch((err) => console.log('Error shutting down OTel', err))
-      .finally(() => process.exit(0));
+      .catch((err) => console.log('Error shutting down OTel', err));
   });
 }
 

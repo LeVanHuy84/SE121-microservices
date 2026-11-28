@@ -53,12 +53,6 @@ export class ModerationController {
     @CurrentUserId() userId: string,
     @Param("id") id: string,
   ) {
-    console.log(
-      "Fetching moderation record detail for id:",
-      id,
-      "and userId:",
-      userId,
-    );
     return this.postClient.send("moderation.get-record-detail", {
       id,
       userId,
@@ -93,7 +87,6 @@ export class ModerationController {
   @Get("admin/records/:id")
   @RequireRole(SystemRole.ADMIN, SystemRole.MODERATOR)
   async getAdminModerationRecordDetail(@Param("id") id: string) {
-    console.log(`Admin fetching moderation record detail for id=${id}`);
     return this.postClient.send("moderation.get-record-detail", {
       id,
       userId: null,
