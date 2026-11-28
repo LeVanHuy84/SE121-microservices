@@ -1,0 +1,69 @@
+groups:
+  - name: se121_service_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is DOWN"
+          description: "Prometheus target {{ $labels.instance }} (job={{ $labels.job }}) has been unreachable for more than 1 minute."
+
+      - alert: HighMemoryUsage
+        expr: |
+          (process_resident_memory_bytes{job!="ai-chatbot-service"} > 471859200)
+          or
+          (process_resident_memory_bytes{job="ai-chatbot-service"} > 1782579200)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Process RSS memory on {{ $labels.job }} exceeded 85% of allocated service budget for 5 minutes."
+
+  - name: se121_sla_performance
+    rules:
+      - alert: HighHttpErrorRate
+        expr: |
+          100 * (sum(rate(http_requests_total{job="api-gateway",status=~"5.."}[5m])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total{job="api-gateway"}[5m])), 1) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate on api-gateway (> 1%)"
+          description: "API Gateway 5xx error rate has exceeded the 1% SLA threshold for 5 minutes."
+
+      - alert: HighGatewayLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="api-gateway"}[5m])) by (le)) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API Gateway P95 latency > 300ms"
+          description: "API Gateway P95 latency has exceeded the 300ms SLA threshold for 5 minutes."
+
+      - alert: HighVlmOrChatbotLatency
+        expr: |
+          (histogram_quantile(0.95, sum(rate(ai_vlm_inference_duration_seconds_bucket[5m])) by (le)) > 2.5)
+          or
+          (histogram_quantile(0.95, sum(rate(chatbot_turn_latency_seconds_bucket[5m])) by (le)) > 2.5)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI VLM or Chatbot P95 latency > 2.5s"
+          description: "AI multimodal VLM or Chatbot turn P95 latency has exceeded the 2.5s SLA threshold for 5 minutes."
+
+  - name: se121_messaging_dlq
+    rules:
+      - alert: KafkaDlqMessageDetected
+        expr: increase(kafka_dlq_messages_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka DLQ message detected on topic {{ $labels.topic }}"
+          description: "One or more Kafka events failed processing and were routed to {{ $labels.topic }}.DLQ."

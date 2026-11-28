@@ -131,6 +131,7 @@ services:
     container_name: prometheus
     volumes:
       - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=6h'
@@ -143,6 +144,19 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    ports:
+      - '9094:9093'
+    mem_limit: 64m
     networks:
       - app-network
 
