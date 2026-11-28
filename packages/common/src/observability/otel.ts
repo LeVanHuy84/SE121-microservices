@@ -8,7 +8,9 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { context, propagation, Context } from '@opentelemetry/api';
+import { context, propagation, Context, trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
+import { ClientProxy } from '@nestjs/microservices';
+import { Observable } from 'rxjs';
 
 // Load environmental variables from .env file before reading process.env
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -17,10 +19,20 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
  * Tiêm W3C Trace Context (traceparent) hiện tại vào payload gửi qua NestJS TCP
  */
 export function injectTraceContext<T = any>(data: T): T {
-  if (typeof data !== 'object' || data === null) return data;
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    Array.isArray(data) ||
+    Buffer.isBuffer(data)
+  ) {
+    return data;
+  }
   try {
     const carrier: Record<string, string> = {};
     propagation.inject(context.active(), carrier);
+    if (Object.keys(carrier).length === 0) {
+      return data;
+    }
     return { ...data, _traceContext: carrier };
   } catch {
     return data;
@@ -40,6 +52,111 @@ export interface OTelOptions {
 }
 
 let metricsServerStarted = false;
+let clientProxyPatched = false;
+
+/**
+ * Automatically inject W3C trace context and record client spans for all
+ * NestJS ClientProxy.send() and ClientProxy.emit() calls.
+ */
+export function enableClientProxyTracing(): void {
+  if (clientProxyPatched) {
+    return;
+  }
+  clientProxyPatched = true;
+
+  const origSend = ClientProxy.prototype.send;
+  const origEmit = ClientProxy.prototype.emit;
+
+  ClientProxy.prototype.send = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    const tracer = trace.getTracer('nestjs-rpc-client');
+    const patternStr =
+      typeof pattern === 'string' ? pattern : JSON.stringify(pattern);
+
+    return new Observable<TResult>((subscriber) => {
+      return tracer.startActiveSpan(
+        `rpc.client:${patternStr}`,
+        {
+          kind: SpanKind.CLIENT,
+          attributes: {
+            'rpc.system': 'nestjs-tcp',
+            'rpc.method': patternStr,
+          },
+        },
+        (span) => {
+          const tracedData = injectTraceContext(data);
+          const sub = (
+            origSend.call(this, pattern, tracedData) as Observable<TResult>
+          ).subscribe({
+            next: (val: TResult) => subscriber.next(val),
+            error: (err) => {
+              span.recordException(err);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err?.message || String(err),
+              });
+              span.end();
+              subscriber.error(err);
+            },
+            complete: () => {
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              subscriber.complete();
+            },
+          });
+          return () => sub.unsubscribe();
+        },
+      );
+    });
+  };
+
+  ClientProxy.prototype.emit = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    const tracer = trace.getTracer('nestjs-rpc-client');
+    const patternStr =
+      typeof pattern === 'string' ? pattern : JSON.stringify(pattern);
+
+    return new Observable<TResult>((subscriber) => {
+      return tracer.startActiveSpan(
+        `rpc.emit:${patternStr}`,
+        {
+          kind: SpanKind.PRODUCER,
+          attributes: {
+            'rpc.system': 'nestjs-event',
+            'rpc.method': patternStr,
+          },
+        },
+        (span) => {
+          const tracedData = injectTraceContext(data);
+          const sub = (
+            origEmit.call(this, pattern, tracedData) as Observable<TResult>
+          ).subscribe({
+            next: (val: TResult) => subscriber.next(val),
+            error: (err) => {
+              span.recordException(err);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err?.message || String(err),
+              });
+              span.end();
+              subscriber.error(err);
+            },
+            complete: () => {
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              subscriber.complete();
+            },
+          });
+          return () => sub.unsubscribe();
+        },
+      );
+    });
+  };
+}
 
 /**
  * Determine whether OpenTelemetry tracing should be enabled.
@@ -119,6 +236,7 @@ export function initOTel(serviceName: string, options?: OTelOptions) {
   });
 
   sdk.start();
+  enableClientProxyTracing();
 
   process.on('SIGTERM', () => {
     sdk

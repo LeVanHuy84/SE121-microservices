@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { RpcMetricsInterceptor } from "@repo/common";
+import { RpcMetricsInterceptor, TraceContextInterceptor } from "@repo/common";
 import { DrizzleModule } from "./drizzle/drizzle.module";
 import { UserModule } from "./modules/user/user.module";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -46,6 +46,10 @@ import { GroupModule } from "./modules/group/group.module";
     GroupModule,
   ],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TraceContextInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useFactory: () => new RpcMetricsInterceptor("user-social-service"),

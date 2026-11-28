@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { RpcMetricsInterceptor } from '@repo/common';
+import { RpcMetricsInterceptor, TraceContextInterceptor } from '@repo/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
@@ -45,6 +45,10 @@ import { validateEnv } from './config/env.validation';
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TraceContextInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useFactory: () => new RpcMetricsInterceptor('chat-service'),

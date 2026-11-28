@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { RpcMetricsInterceptor } from "@repo/common";
+import { RpcMetricsInterceptor, TraceContextInterceptor } from "@repo/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -118,6 +118,10 @@ import { LoggingConsumerModule } from "./modules/logging/consumer/consumer.modul
   ],
   controllers: [],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TraceContextInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useFactory: () => new RpcMetricsInterceptor("content-feed-service"),
