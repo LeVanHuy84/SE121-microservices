@@ -30,3 +30,4 @@ export * from './observability/rpc-metrics.interceptor';
 export * from './observability/trace-context.interceptor';
 export * from './observability/common-health.module';
 export * from './observability/structured-logger.service';
+export * from './observability/circuit-breaker';

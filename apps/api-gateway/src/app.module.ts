@@ -5,6 +5,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { LoadTestThrottlerGuard } from "./common/guards/load-test-throttler.guard";
 import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { MetricsInterceptor } from "./common/interceptors/metrics.interceptor";
+import { RpcTimeoutInterceptor } from "./common/interceptors/rpc-timeout.interceptor";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { ClerkAuthGuard } from "./modules/auth/clerk-auth.guard";
@@ -104,6 +105,10 @@ import { MusicModule } from "./modules/music/music.module";
     {
       provide: APP_INTERCEPTOR,
       useClass: MetricsInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RpcTimeoutInterceptor,
     },
     {
       provide: "APP_PIPE",

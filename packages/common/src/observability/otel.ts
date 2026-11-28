@@ -11,6 +11,7 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 import { context, propagation, Context, trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { ClientProxy } from '@nestjs/microservices';
 import { Observable } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 
 // Load environmental variables from .env file before reading process.env
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -93,7 +94,34 @@ export async function runReadinessChecks(): Promise<{
 }
 
 let metricsServerStarted = false;
+let clientProxyTimeoutPatched = false;
 let clientProxyPatched = false;
+
+/**
+ * Apply a safety-net timeout to all NestJS ClientProxy.send() calls across
+ * all microservices (preventing hung inter-service TCP calls).
+ */
+export function enableGlobalRpcClientTimeout(): void {
+  if (clientProxyTimeoutPatched) {
+    return;
+  }
+  clientProxyTimeoutPatched = true;
+
+  const timeoutMs = parseInt(process.env.RPC_CLIENT_TIMEOUT_MS || '10000', 10);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return;
+  }
+
+  const origSend = ClientProxy.prototype.send;
+  ClientProxy.prototype.send = function <TResult = any, TInput = any>(
+    pattern: any,
+    data: TInput,
+  ): Observable<TResult> {
+    return (origSend.call(this, pattern, data) as Observable<TResult>).pipe(
+      timeout(timeoutMs),
+    );
+  };
+}
 
 /**
  * Automatically inject W3C trace context and record client spans for all
@@ -287,6 +315,8 @@ export function initOTel(serviceName: string, options?: OTelOptions) {
 
   // Always expose Prometheus metrics on METRICS_PORT regardless of tracing flag
   startMetricsServer(serviceName, options);
+  // Always guard inter-service ClientProxy.send() calls with a default timeout
+  enableGlobalRpcClientTimeout();
 
   if (!shouldEnableOTel()) {
     return;
