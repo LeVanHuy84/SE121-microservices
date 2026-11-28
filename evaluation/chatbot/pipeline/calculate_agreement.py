@@ -1,9 +1,10 @@
-"""Calculates Inter-Rater Reliability (Cohen's Kappa & Spearman Correlation)
+"""Calculates Inter-Rater Reliability (Cohen's Kappa, PABAK & Spearman Correlation)
 between Human Experts and Google Gemini LLM-as-a-Judge.
 
 Meets the scientific rigor requirements of Section 6 in docs/evaluation/04_chatbot_llm_as_a_judge.md:
   - Inter-Annotator Agreement: Human 1 vs Human 2 (Chứng minh 2 chuyên gia độc lập có sự đồng thuận cao).
   - Human vs Gemini Judge Agreement: Đo lường mức độ tin cậy của mô hình giám khảo.
+Supports both Single-Turn (100 cases) and Multi-Turn (18 scenarios).
 Zero external dependencies (uses standard library math).
 """
 
@@ -21,6 +22,7 @@ except Exception:
 CHATBOT_EVAL_DIR = Path(__file__).resolve().parent.parent
 RESULTS_DIR = CHATBOT_EVAL_DIR / "results"
 SINGLE_JUDGMENTS_FILE = RESULTS_DIR / "single_turn_judgments.json"
+MULTI_JUDGMENTS_FILE = RESULTS_DIR / "multi_turn_judgments.json"
 
 
 def calculate_cohen_kappa(verdicts_a: List[str], verdicts_b: List[str]) -> Tuple[float, float, float]:
@@ -37,7 +39,7 @@ def calculate_cohen_kappa(verdicts_a: List[str], verdicts_b: List[str]) -> Tuple
     for cat in categories:
         a_prob = sum(1 for a in verdicts_a if a == cat) / n
         b_prob = sum(1 for b in verdicts_b if b == cat) / n
-        pe += (a_prob * b_prob)
+        pe += a_prob * b_prob
 
     if math.isclose(pe, 1.0):
         kappa = 1.0
@@ -45,6 +47,13 @@ def calculate_cohen_kappa(verdicts_a: List[str], verdicts_b: List[str]) -> Tuple
         kappa = (po - pe) / (1.0 - pe)
 
     return kappa, po, pe
+
+
+def calculate_pabak(po: float) -> float:
+    """Calculates Prevalence-Adjusted and Bias-Adjusted Kappa (Byrt et al., 1993).
+    Addresses the well-known Kappa Paradox when one category has very high prevalence.
+    """
+    return 2.0 * po - 1.0
 
 
 def calculate_spearman_correlation(x: List[float], y: List[float]) -> float:
@@ -82,7 +91,7 @@ def calculate_spearman_correlation(x: List[float], y: List[float]) -> float:
     return numerator / (denom_x * denom_y)
 
 
-def evaluate_pair(name_a: str, map_a: Dict[str, Any], name_b: str, map_b: Dict[str, Any]):
+def evaluate_pair(name_a: str, map_a: Dict[str, Any], name_b: str, map_b: Dict[str, Any], metrics: List[str]):
     overlap_ids = [cid for cid in map_a if cid in map_b]
     n = len(overlap_ids)
 
@@ -96,7 +105,6 @@ def evaluate_pair(name_a: str, map_a: Dict[str, Any], name_b: str, map_b: Dict[s
     scores_overall_a = []
     scores_overall_b = []
 
-    metrics = ["faithfulness", "relevance", "empathy", "clinical_safety"]
     metric_pairs = {m: ([], []) for m in metrics}
 
     for cid in overlap_ids:
@@ -122,12 +130,13 @@ def evaluate_pair(name_a: str, map_a: Dict[str, Any], name_b: str, map_b: Dict[s
             metric_pairs[m][0].append(float(s_a.get(m, 0)))
             metric_pairs[m][1].append(float(s_b.get(m, 0)))
 
-    # Cohen's Kappa
+    # Cohen's Kappa & PABAK
     kappa, po, pe = calculate_cohen_kappa(verdicts_a, verdicts_b)
+    pabak = calculate_pabak(po)
     # Spearman Overall
     r_overall = calculate_spearman_correlation(scores_overall_a, scores_overall_b)
 
-    print(f"    - Tỷ lệ đồng thuận quan sát (Po) : {po * 100:.1f}%")
+    print(f"    - Tỷ lệ đồng thuận quan sát (Po) : {po * 100:.1f}% ({sum(1 for a, b in zip(verdicts_a, verdicts_b) if a == b)}/{n} ca)")
     print(f"    - Hệ số Cohen's Kappa (κ)         : {kappa:.3f}")
     if kappa >= 0.81:
         desc = "Đồng thuận gần như hoàn hảo (Almost Perfect)"
@@ -136,13 +145,14 @@ def evaluate_pair(name_a: str, map_a: Dict[str, Any], name_b: str, map_b: Dict[s
     elif kappa >= 0.41:
         desc = "Đồng thuận trung bình (Moderate)"
     else:
-        desc = "Đồng thuận thấp (Fair/Poor)"
-    print(f"      -> Đánh giá: {desc}")
+        desc = "Đồng thuận thấp / Hiện tượng Kappa Paradox (Do tỷ lệ Pass áp đảo)"
+    print(f"      -> Đánh giá Cohen's Kappa: {desc}")
+    print(f"    - Chỉ số PABAK (Hiệu chỉnh tỷ lệ): PABAK = {pabak:.3f} (Khắc phục nghịch lý Kappa)")
 
     print(f"    - Tương quan Spearman điểm tổng   : r_s = {r_overall:.3f}")
     for m in metrics:
         r_m = calculate_spearman_correlation(metric_pairs[m][0], metric_pairs[m][1])
-        print(f"      * Trục {m:<18}: r_s = {r_m:.3f}")
+        print(f"      * Trục {m:<20}: r_s = {r_m:.3f}")
 
 
 def load_file_map(path: Path) -> Dict[str, Any]:
@@ -152,65 +162,93 @@ def load_file_map(path: Path) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict):
+                # Detect VLM format collision
+                if "reviewer_info" in data and "samples" in data:
+                    return {}
                 return data
             if isinstance(data, list):
-                return {r["case_id"]: r for r in data if "case_id" in r}
+                # Check for single turn or multi turn
+                res = {}
+                for r in data:
+                    if isinstance(r, dict):
+                        cid = r.get("case_id") or r.get("dialogue_id")
+                        if cid:
+                            res[cid] = r
+                return res
     except Exception:
         pass
     return {}
 
 
-def main():
-    print("=" * 75)
-    print("  SENTIMETA ASSISTANT — ĐỐI SOÁT ĐỘ TIN CẬY ĐỒNG THUẬN (INTER-RATER RELIABILITY)")
-    print("=" * 75)
+def run_benchmark_mode(mode_name: str, judgments_file: Path, pattern: str, metrics: List[str]):
+    print("\n" + "=" * 78)
+    print(f"  PHÂN TÍCH ĐỒNG THUẬN: {mode_name.upper()}")
+    print("=" * 78)
 
-    # 1. Load LLM Judgments
-    llm_map = load_file_map(SINGLE_JUDGMENTS_FILE)
-    print(f"[*] Gemini LLM Judgments : {len(llm_map)} ca đã chấm ({SINGLE_JUDGMENTS_FILE.name})")
+    llm_map = load_file_map(judgments_file)
+    print(f"[*] Gemini LLM Judgments : {len(llm_map)} ca ({judgments_file.name})")
 
-    # 2. Find all human reviewer files
-    human_files = list(RESULTS_DIR.glob("human_eval_single_*.json"))
-    legacy_file = RESULTS_DIR / "human_evaluations.json"
-    if legacy_file.exists() and legacy_file not in human_files:
-        human_files.append(legacy_file)
-
+    human_files = sorted(list(RESULTS_DIR.glob(pattern)))
     if not human_files:
-        print("[!] Chưa tìm thấy file đánh giá chuyên gia con người nào.")
-        print("Vui lòng mở giao diện HITL (http://localhost:8080) và chấm điểm một số mẫu trước!")
-        sys.exit(0)
+        print(f"[!] Không tìm thấy file đánh giá người nào cho mẫu: {pattern}")
+        return
 
     reviewers: Dict[str, Dict[str, Any]] = {}
     for hf in human_files:
         r_map = load_file_map(hf)
-        if r_map:
-            # Extract friendly reviewer name from filename
-            name = hf.stem.replace("human_eval_single_", "").replace("_", " ").title()
-            reviewers[name] = r_map
-            print(f"[*] Chuyên gia: [{name}] — {len(r_map)} ca đã chấm ({hf.name})")
+        prefix = f"human_eval_{'single' if 'single' in pattern else 'multi'}_"
+        name = hf.stem.replace(prefix, "").replace("_", " ").title()
+        if not r_map:
+            # Check why it's empty
+            with open(hf, "r", encoding="utf-8") as f:
+                raw_d = json.load(f)
+            if isinstance(raw_d, dict) and "reviewer_info" in raw_d:
+                print(f"[!] Chuyên gia: [{name}] — Tệp {hf.name} chứa dữ liệu VLM ({raw_d.get('reviewer_info', {}).get('reviewed_count')} mẫu ELITE), chưa chứa ca {mode_name}!")
+            else:
+                print(f"[!] Chuyên gia: [{name}] — Tệp {hf.name} rỗng hoặc không đúng định dạng.")
+            continue
+        reviewers[name] = r_map
+        print(f"[*] Chuyên gia: [{name}] — {len(r_map)} ca đã chấm ({hf.name})")
 
-    # A. If >= 2 human reviewers, calculate Inter-Annotator Agreement (Human vs Human)
+    # 1. Human vs Human
     reviewer_names = list(reviewers.keys())
     if len(reviewer_names) >= 2:
-        print("\n" + "=" * 75)
-        print("  A. ĐỒNG THUẬN GIỮA CÁC CHUYÊN GIA CON NGƯỜI (HUMAN VS HUMAN)")
-        print("=" * 75)
+        print("\n" + "-" * 60)
+        print("  1. ĐỒNG THUẬN GIỮA CÁC CHUYÊN GIA CON NGƯỜI (HUMAN VS HUMAN)")
+        print("-" * 60)
         for i in range(len(reviewer_names)):
             for j in range(i + 1, len(reviewer_names)):
                 name_1 = reviewer_names[i]
                 name_2 = reviewer_names[j]
-                evaluate_pair(name_1, reviewers[name_1], name_2, reviewers[name_2])
+                evaluate_pair(name_1, reviewers[name_1], name_2, reviewers[name_2], metrics)
+    elif len(reviewer_names) == 1:
+        print(f"\n[-] Chỉ có 1 chuyên gia hoàn tất ({reviewer_names[0]}), chưa thể tính Human vs Human.")
 
-    # B. Compare each human reviewer against Gemini LLM Judge
-    if llm_map:
-        print("\n" + "=" * 75)
-        print("  B. ĐỒNG THUẬN GIỮA CON NGƯỜI VÀ MÔ HÌNH GIÁM KHẢO (HUMAN VS GEMINI JUDGE)")
-        print("=" * 75)
+    # 2. Human vs Gemini Judge
+    if llm_map and reviewers:
+        print("\n" + "-" * 60)
+        print("  2. ĐỒNG THUẬN GIỮA CON NGƯỜI VÀ MÔ HÌNH GIÁM KHẢO (HUMAN VS GEMINI JUDGE)")
+        print("-" * 60)
         for name, r_map in reviewers.items():
-            evaluate_pair(name, r_map, "Gemini LLM Judge", llm_map)
+            evaluate_pair(name, r_map, "Gemini LLM Judge", llm_map, metrics)
 
-    print("\n" + "=" * 75)
-    print("[+] Số liệu phân tích sẵn sàng để đưa vào Báo cáo Khóa luận Tốt nghiệp!")
+
+def main():
+    print("=" * 78)
+    print("  SENTIMETA ASSISTANT — ĐỐI SOÁT ĐỘ TIN CẬY ĐỒNG THUẬN (INTER-RATER RELIABILITY)")
+    print("=" * 78)
+
+    single_metrics = ["faithfulness", "relevance", "empathy", "clinical_safety"]
+    multi_metrics = ["faithfulness", "relevance", "empathy", "clinical_safety", "context_consistency"]
+
+    # Run Single-Turn
+    run_benchmark_mode("Single-Turn (Đơn lượt - 100 ca)", SINGLE_JUDGMENTS_FILE, "human_eval_single_*.json", single_metrics)
+
+    # Run Multi-Turn
+    run_benchmark_mode("Multi-Turn (Đa lượt - 18 kịch bản)", MULTI_JUDGMENTS_FILE, "human_eval_multi_*.json", multi_metrics)
+
+    print("\n" + "=" * 78)
+    print("[+] Hoàn tất tính toán chỉ số thống kê Inter-Rater Reliability!")
 
 
 if __name__ == "__main__":
