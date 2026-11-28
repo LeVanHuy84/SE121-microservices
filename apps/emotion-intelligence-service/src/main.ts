@@ -3,7 +3,11 @@ initOTel('emotion-intelligence-service');
 
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ExceptionsFilter } from '@repo/common';
+import {
+  ExceptionsFilter,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from '@repo/common';
 import { Kafka } from 'kafkajs';
 import { EventTopic } from '@repo/dtos';
 import { AppModule } from './app.module';
@@ -49,37 +53,47 @@ async function bootstrap() {
     logger: new StructuredLoggerService('emotion-intelligence-service'),
   });
   app.enableShutdownHooks();
-
   app.useGlobalFilters(new ExceptionsFilter());
+  app.useGlobalInterceptors(
+    new TraceContextInterceptor(),
+    new RpcMetricsInterceptor('emotion-intelligence-service'),
+  );
 
   // 1) TCP Microservice
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4005,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.TCP,
+      options: {
+        host: '0.0.0.0',
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4005,
+      },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
   // 2) Kafka Microservice
   const kafkaFromBeginning = process.env.KAFKA_FROM_BEGINNING === 'true';
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.KAFKA,
-    options: {
-      client: {
-        brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-        clientId: process.env.KAFKA_CLIENT_ID || 'emotion-intelligence-service',
-      },
-      consumer: {
-        groupId: process.env.KAFKA_GROUP_ID
-          ? `${process.env.KAFKA_GROUP_ID}-emotion`
-          : 'emotion-intelligence-service-group',
-      },
-      subscribe: {
-        fromBeginning: kafkaFromBeginning,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+          clientId:
+            process.env.KAFKA_CLIENT_ID || 'emotion-intelligence-service',
+        },
+        consumer: {
+          groupId: process.env.KAFKA_GROUP_ID
+            ? `${process.env.KAFKA_GROUP_ID}-emotion`
+            : 'emotion-intelligence-service-group',
+        },
+        subscribe: {
+          fromBeginning: kafkaFromBeginning,
+        },
       },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
   await app.startAllMicroservices();
   await app.init();

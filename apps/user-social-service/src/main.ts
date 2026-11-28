@@ -4,7 +4,11 @@ initOTel("user-social-service");
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
-import { ExceptionsFilter } from "@repo/common";
+import {
+  ExceptionsFilter,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from "@repo/common";
 import { CommandService } from "./modules/user/command/command.service";
 import { Kafka } from "kafkajs";
 import { EventTopic } from "@repo/dtos";
@@ -49,30 +53,40 @@ async function bootstrap() {
     logger: new StructuredLoggerService("user-social-service"),
   });
   app.enableShutdownHooks();
+  app.useGlobalInterceptors(
+    new TraceContextInterceptor(),
+    new RpcMetricsInterceptor("user-social-service"),
+  );
 
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      host: "0.0.0.0",
-      port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4001,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.TCP,
+      options: {
+        host: "0.0.0.0",
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4001,
+      },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.KAFKA,
-    options: {
-      client: {
-        brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
-        clientId: process.env.KAFKA_CLIENT_ID || "user-service",
-        retry: { retries: 3 },
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+          clientId: process.env.KAFKA_CLIENT_ID || "user-service",
+          retry: { retries: 3 },
+        },
+        consumer: {
+          groupId: process.env.KAFKA_GROUP_ID || "user-service-group",
+          allowAutoTopicCreation: true,
+        },
+        subscribe: { fromBeginning: false },
       },
-      consumer: {
-        groupId: process.env.KAFKA_GROUP_ID || "user-service-group",
-        allowAutoTopicCreation: true,
-      },
-      subscribe: { fromBeginning: false },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
   app.useGlobalFilters(new ExceptionsFilter());
 

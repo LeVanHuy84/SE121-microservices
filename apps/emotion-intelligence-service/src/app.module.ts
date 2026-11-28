@@ -1,10 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import {
-  CommonHealthModule,
-  RpcMetricsInterceptor,
-  TraceContextInterceptor,
-} from '@repo/common';
+import { CommonHealthModule } from '@repo/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MongoModule } from './mongo/mongo.module';
@@ -60,17 +55,6 @@ import { AdminInterventionModule } from './modules/admin-intervention/admin-inte
     AdminInterventionModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TraceContextInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useFactory: () =>
-        new RpcMetricsInterceptor('emotion-intelligence-service'),
-    },
-  ],
+  providers: [AppService],
 })
 export class AppModule {}

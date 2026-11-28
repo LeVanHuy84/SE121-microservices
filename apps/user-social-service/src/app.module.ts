@@ -1,11 +1,5 @@
 import { Inject, Module, OnModuleInit } from "@nestjs/common";
-import { APP_INTERCEPTOR } from "@nestjs/core";
-import {
-  CommonHealthModule,
-  RpcMetricsInterceptor,
-  TraceContextInterceptor,
-  registerHealthCheck,
-} from "@repo/common";
+import { CommonHealthModule, registerHealthCheck } from "@repo/common";
 import { sql } from "drizzle-orm";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { DRIZZLE, DrizzleModule } from "./drizzle/drizzle.module";
@@ -53,16 +47,6 @@ import { GroupModule } from "./modules/group/group.module";
 
     // Group Module
     GroupModule,
-  ],
-  providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TraceContextInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useFactory: () => new RpcMetricsInterceptor("user-social-service"),
-    },
   ],
 })
 export class AppModule implements OnModuleInit {

@@ -1,11 +1,5 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import {
-  CommonHealthModule,
-  RpcMetricsInterceptor,
-  TraceContextInterceptor,
-  registerHealthCheck,
-} from '@repo/common';
+import { CommonHealthModule, registerHealthCheck } from '@repo/common';
 import { Client as ElasticClient } from '@elastic/elasticsearch';
 import { SearchModule } from './modules/search/search-all/search.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -94,17 +88,7 @@ import { PostgresProcessedEvent } from '@repo/common';
     MusicModule,
   ],
   controllers: [],
-  providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TraceContextInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useFactory: () =>
-        new RpcMetricsInterceptor('search-recommendation-service'),
-    },
-  ],
+  providers: [],
 })
 export class AppModule implements OnModuleInit {
   constructor(

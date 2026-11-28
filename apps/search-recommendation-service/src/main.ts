@@ -4,7 +4,11 @@ initOTel('search-recommendation-service');
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { ExceptionsFilter } from '@repo/common';
+import {
+  ExceptionsFilter,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from '@repo/common';
 import { Kafka } from 'kafkajs';
 import { EventTopic } from '@repo/dtos';
 
@@ -62,35 +66,45 @@ async function bootstrap() {
     logger: new StructuredLoggerService('search-recommendation-service'),
   });
   app.enableShutdownHooks();
+  app.useGlobalInterceptors(
+    new TraceContextInterceptor(),
+    new RpcMetricsInterceptor('search-recommendation-service'),
+  );
 
   // Đăng ký TCP Microservice
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: process.env.PORT ? parseInt(process.env.PORT) : 4003,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.TCP,
+      options: {
+        host: '0.0.0.0',
+        port: process.env.PORT ? parseInt(process.env.PORT) : 4003,
+      },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
   // Đăng ký Kafka Microservice
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.KAFKA,
-    options: {
-      client: {
-        brokers: process.env.KAFKA_BROKERS
-          ? process.env.KAFKA_BROKERS.split(',')
-          : ['localhost:9092'],
-        clientId:
-          process.env.KAFKA_CLIENT_ID || 'search-recommendation-service',
-      },
-      consumer: {
-        groupId: process.env.KAFKA_SEARCH_ID || 'search-recommendation-group',
-      },
-      subscribe: {
-        fromBeginning: true,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          brokers: process.env.KAFKA_BROKERS
+            ? process.env.KAFKA_BROKERS.split(',')
+            : ['localhost:9092'],
+          clientId:
+            process.env.KAFKA_CLIENT_ID || 'search-recommendation-service',
+        },
+        consumer: {
+          groupId: process.env.KAFKA_SEARCH_ID || 'search-recommendation-group',
+        },
+        subscribe: {
+          fromBeginning: true,
+        },
       },
     },
-  });
+    { inheritAppConfig: true },
+  );
 
   app.useGlobalFilters(new ExceptionsFilter());
 

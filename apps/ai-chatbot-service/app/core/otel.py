@@ -17,6 +17,19 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
 )
 
 _metrics_server_started = False
+_metrics_httpd = None
+
+
+def shutdown_metrics_server() -> None:
+    global _metrics_server_started, _metrics_httpd
+    if _metrics_httpd is not None:
+        try:
+            _metrics_httpd.shutdown()
+            _metrics_httpd.server_close()
+        except Exception:
+            pass
+        _metrics_httpd = None
+    _metrics_server_started = False
 
 
 def should_enable_otel() -> bool:
@@ -60,22 +73,23 @@ def register_http_metrics_middleware(app: FastAPI) -> None:
                 pass
 
 
-def init_otel(app: FastAPI, service_name: str = "ai-chatbot-service"):
-    global _metrics_server_started
-
-    register_http_metrics_middleware(app)
-
-    # Always expose Prometheus metrics on METRICS_PORT regardless of tracing flag
+def start_metrics_server(service_name: str = "ai-chatbot-service") -> None:
+    """Start Prometheus metrics HTTP server inside the serving worker (lifespan)."""
+    global _metrics_server_started, _metrics_httpd
     metrics_port = os.getenv("METRICS_PORT")
     if metrics_port and not _metrics_server_started:
         try:
-            start_http_server(int(metrics_port), addr="0.0.0.0")
+            _metrics_httpd, _ = start_http_server(int(metrics_port), addr="0.0.0.0")
             _metrics_server_started = True
             print(
                 f"[Metrics] {service_name} metrics server listening on HTTP port {metrics_port} (0.0.0.0)"
             )
         except Exception as e:
             print(f"[Metrics] Failed to start metrics server: {e}")
+
+
+def init_otel(app: FastAPI, service_name: str = "ai-chatbot-service"):
+    register_http_metrics_middleware(app)
 
     if not should_enable_otel():
         return

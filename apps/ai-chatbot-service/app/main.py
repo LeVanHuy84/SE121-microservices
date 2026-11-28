@@ -17,9 +17,17 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 class JsonLogFormatter(logging.Formatter):
+    def __init__(self) -> None:
+        super().__init__()
+        self._datetime = datetime
+        self._utc = timezone.utc
+        self._json_dumps = json.dumps
+
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": self._datetime.fromtimestamp(
+                record.created, tz=self._utc
+            ).isoformat(),
             "level": record.levelname.lower(),
             "service": "ai-chatbot-service",
             "context": record.name,
@@ -37,7 +45,7 @@ class JsonLogFormatter(logging.Formatter):
             pass
         if record.exc_info:
             payload["stack"] = self.formatException(record.exc_info)
-        return json.dumps(payload, ensure_ascii=False)
+        return self._json_dumps(payload, ensure_ascii=False)
 
 
 # Configure structured JSON logging
