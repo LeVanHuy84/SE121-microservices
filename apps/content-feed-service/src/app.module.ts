@@ -1,6 +1,10 @@
 import { Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { RpcMetricsInterceptor, TraceContextInterceptor } from "@repo/common";
+import {
+  CommonHealthModule,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from "@repo/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -47,6 +51,7 @@ import { LoggingConsumerModule } from "./modules/logging/consumer/consumer.modul
 
 @Module({
   imports: [
+    CommonHealthModule,
     PrometheusModule.register(),
     ConfigModule.forRoot({
       isGlobal: true,

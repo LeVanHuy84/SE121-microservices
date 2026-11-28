@@ -51,6 +51,47 @@ export interface OTelOptions {
   collectDefaultMetrics?: boolean;
 }
 
+export type HealthCheckResult = { ok: boolean; detail?: string };
+export type HealthCheckFn = () => Promise<HealthCheckResult>;
+
+const readinessChecks = new Map<string, HealthCheckFn>();
+
+export function registerHealthCheck(name: string, fn: HealthCheckFn): void {
+  readinessChecks.set(name, fn);
+}
+
+export async function runReadinessChecks(): Promise<{
+  ready: boolean;
+  checks: Record<string, { status: 'up' | 'down'; detail?: string }>;
+}> {
+  const checks: Record<string, { status: 'up' | 'down'; detail?: string }> = {};
+  let ready = true;
+
+  await Promise.all(
+    Array.from(readinessChecks.entries()).map(async ([name, fn]) => {
+      try {
+        const res = await Promise.race<HealthCheckResult>([
+          fn(),
+          new Promise<HealthCheckResult>((_, reject) =>
+            setTimeout(() => reject(new Error('Health check timeout')), 3000),
+          ),
+        ]);
+        if (res.ok) {
+          checks[name] = { status: 'up', ...(res.detail ? { detail: res.detail } : {}) };
+        } else {
+          ready = false;
+          checks[name] = { status: 'down', ...(res.detail ? { detail: res.detail } : {}) };
+        }
+      } catch (err: any) {
+        ready = false;
+        checks[name] = { status: 'down', detail: err?.message || String(err) };
+      }
+    }),
+  );
+
+  return { ready, checks };
+}
+
 let metricsServerStarted = false;
 let clientProxyPatched = false;
 
@@ -196,6 +237,38 @@ function startMetricsServer(serviceName: string, options?: OTelOptions): void {
           res.writeHead(500);
           res.end(String(err));
         }
+      } else if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            status: 'ok',
+            service: serviceName,
+            uptime: Math.floor(process.uptime()),
+          }),
+        );
+      } else if (req.url === '/ready') {
+        try {
+          const result = await runReadinessChecks();
+          res.writeHead(result.ready ? 200 : 503, {
+            'Content-Type': 'application/json',
+          });
+          res.end(
+            JSON.stringify({
+              status: result.ready ? 'ready' : 'not_ready',
+              service: serviceName,
+              checks: result.checks,
+            }),
+          );
+        } catch (err: any) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: 'not_ready',
+              service: serviceName,
+              error: err?.message || String(err),
+            }),
+          );
+        }
       } else {
         res.writeHead(404);
         res.end('Not Found');
@@ -242,8 +315,7 @@ export function initOTel(serviceName: string, options?: OTelOptions) {
     sdk
       .shutdown()
       .then(() => console.log('OTel shut down successfully'))
-      .catch((err) => console.log('Error shutting down OTel', err))
-      .finally(() => process.exit(0));
+      .catch((err) => console.log('Error shutting down OTel', err));
   });
 }
 

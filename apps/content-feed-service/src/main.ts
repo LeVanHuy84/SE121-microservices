@@ -55,6 +55,7 @@ async function bootstrap() {
       ? ["error", "warn"]
       : ["log", "error", "warn", "debug", "verbose"],
   });
+  app.enableShutdownHooks();
 
   app.useGlobalFilters(new ExceptionsFilter());
 

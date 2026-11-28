@@ -1,9 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { RpcMetricsInterceptor, TraceContextInterceptor } from '@repo/common';
+import {
+  CommonHealthModule,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+  registerHealthCheck,
+} from '@repo/common';
+import { Client as ElasticClient } from '@elastic/elasticsearch';
 import { SearchModule } from './modules/search/search-all/search.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ElasticsearchModule } from './elastic/elastic.module';
+import { ELASTIC_CLIENT, ElasticsearchModule } from './elastic/elastic.module';
 import { IndexerModule } from './modules/search/indexer/indexer.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InitModule } from './modules/search/_init/init.module';
@@ -30,6 +36,7 @@ import { PostgresProcessedEvent } from '@repo/common';
 
 @Module({
   imports: [
+    CommonHealthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
@@ -99,4 +106,15 @@ import { PostgresProcessedEvent } from '@repo/common';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  constructor(
+    @Inject(ELASTIC_CLIENT) private readonly esClient: ElasticClient,
+  ) {}
+
+  onModuleInit(): void {
+    registerHealthCheck('elasticsearch', async () => {
+      const ok = await this.esClient.ping();
+      return { ok: Boolean(ok) };
+    });
+  }
+}

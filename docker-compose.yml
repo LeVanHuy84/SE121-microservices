@@ -18,6 +18,12 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_HEAP_OPTS: '-Xmx256M -Xms128M'
     mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
     volumes:
@@ -43,6 +49,11 @@ services:
     restart: unless-stopped
     ports:
       - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - app-network
     volumes:
@@ -58,6 +69,11 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
     volumes:
@@ -74,6 +90,12 @@ services:
     ports:
       - '9200:9200'
     mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
     volumes:
@@ -116,6 +138,11 @@ services:
     ports:
       - '9090:9090'
     mem_limit: 150m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - app-network
 
@@ -130,6 +157,11 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     mem_limit: 150m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - app-network
 
@@ -182,8 +214,16 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/v1/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -213,9 +253,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -245,9 +294,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5002/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -277,9 +335,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - elasticsearch
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5003/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -309,9 +376,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5004/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -341,9 +417,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5005/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -376,9 +461,18 @@ services:
       - EMOTION_INTELLIGENCE_SERVICE_HOST=emotion-intelligence-service
       - SEARCH_RECOMMENDATION_SERVICE_HOST=search-recommendation-service
     depends_on:
-      - redis
-      - kafka
-      - elasticsearch
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4006/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - hf_cache:/root/.cache/huggingface
     networks:

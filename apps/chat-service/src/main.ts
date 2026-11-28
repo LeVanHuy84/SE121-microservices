@@ -14,6 +14,7 @@ async function bootstrap() {
       port: process.env.PORT ? parseInt(process.env.PORT) : 4004,
     },
   });
+  app.enableShutdownHooks();
 
   app.useGlobalFilters(new ExceptionsFilter());
   await app.listen();

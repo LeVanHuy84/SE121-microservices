@@ -46,6 +46,7 @@ async function bootstrap() {
   await ensureKafkaTopics();
 
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,

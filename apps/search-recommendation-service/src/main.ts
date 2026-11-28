@@ -63,6 +63,7 @@ async function bootstrap() {
       ? ['error', 'warn']
       : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
+  app.enableShutdownHooks();
 
   // Đăng ký TCP Microservice
   app.connectMicroservice<MicroserviceOptions>({

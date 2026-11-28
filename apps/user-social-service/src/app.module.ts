@@ -1,7 +1,15 @@
-import { Module } from "@nestjs/common";
+import { Inject, Module, OnModuleInit } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { RpcMetricsInterceptor, TraceContextInterceptor } from "@repo/common";
-import { DrizzleModule } from "./drizzle/drizzle.module";
+import {
+  CommonHealthModule,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+  registerHealthCheck,
+} from "@repo/common";
+import { sql } from "drizzle-orm";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { DRIZZLE, DrizzleModule } from "./drizzle/drizzle.module";
+import * as schema from "./drizzle/schema/schema";
 import { UserModule } from "./modules/user/user.module";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { RedisModule } from "@nestjs-modules/ioredis";
@@ -20,6 +28,7 @@ import { GroupModule } from "./modules/group/group.module";
 
 @Module({
   imports: [
+    CommonHealthModule,
     ConfigModule.forRoot({ isGlobal: true }),
     DrizzleModule,
     UserModule,
@@ -56,4 +65,15 @@ import { GroupModule } from "./modules/group/group.module";
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  constructor(
+    @Inject(DRIZZLE) private readonly db: NodePgDatabase<typeof schema>,
+  ) {}
+
+  onModuleInit(): void {
+    registerHealthCheck("postgres-drizzle", async () => {
+      await this.db.execute(sql`SELECT 1`);
+      return { ok: true };
+    });
+  }
+}

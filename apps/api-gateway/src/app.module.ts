@@ -11,7 +11,8 @@ import { ClerkAuthGuard } from "./modules/auth/clerk-auth.guard";
 import { ChatModule } from "./modules/chat/chat.module";
 
 import { RedisModule } from "@nestjs-modules/ioredis";
-import { RabbitmqModule } from "@repo/common";
+import { RabbitmqModule, CommonHealthModule } from "@repo/common";
+import { HealthController } from "./modules/health/health.controller";
 import { AdminModule } from "./modules/admin/admin.module";
 import { EmotionModule } from "./modules/emotion/emotion.module";
 import { FeedModule } from "./modules/feed/feed.module";
@@ -31,6 +32,7 @@ import { MusicModule } from "./modules/music/music.module";
 
 @Module({
   imports: [
+    CommonHealthModule,
     PrometheusModule.register(),
     ConfigModule.forRoot({
       isGlobal: true, // để không cần import ở các module khác
@@ -116,6 +118,6 @@ import { MusicModule } from "./modules/music/music.module";
     },
   ],
 
-  controllers: [],
+  controllers: [HealthController],
 })
 export class AppModule {}

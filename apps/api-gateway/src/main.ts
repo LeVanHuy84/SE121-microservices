@@ -19,6 +19,7 @@ async function bootstrap() {
       ? ["error", "warn"]
       : ["log", "error", "warn", "debug", "verbose"],
   });
+  app.enableShutdownHooks();
   const redisIoAdapter = new RedisIoAdapter(app);
   await redisIoAdapter.connectToRedis();
 

@@ -46,6 +46,7 @@ async function bootstrap() {
 
   // Hybrid Application pattern
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   app.useGlobalFilters(new ExceptionsFilter());
 

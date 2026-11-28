@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { RpcMetricsInterceptor, TraceContextInterceptor } from '@repo/common';
+import {
+  CommonHealthModule,
+  RpcMetricsInterceptor,
+  TraceContextInterceptor,
+} from '@repo/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MongoModule } from './mongo/mongo.module';
@@ -24,6 +28,7 @@ import { AdminInterventionModule } from './modules/admin-intervention/admin-inte
 
 @Module({
   imports: [
+    CommonHealthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
