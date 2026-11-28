@@ -26,3 +26,4 @@ export * from './event';
 
 // observability
 export * from './observability/otel';
+export * from './observability/rpc-metrics.interceptor';

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RpcMetricsInterceptor } from '@repo/common';
 import { SearchModule } from './modules/search/search-all/search.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ElasticsearchModule } from './elastic/elastic.module';
@@ -85,6 +87,12 @@ import { PostgresProcessedEvent } from '@repo/common';
     MusicModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useFactory: () =>
+        new RpcMetricsInterceptor('search-recommendation-service'),
+    },
+  ],
 })
 export class AppModule {}

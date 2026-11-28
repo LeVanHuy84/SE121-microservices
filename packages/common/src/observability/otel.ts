@@ -39,11 +39,66 @@ export interface OTelOptions {
   collectDefaultMetrics?: boolean;
 }
 
+let metricsServerStarted = false;
+
+/**
+ * Determine whether OpenTelemetry tracing should be enabled.
+ * Explicit ENABLE_OTEL ('true'/'false') overrides NODE_ENV;
+ * otherwise tracing is enabled by default only in production.
+ */
+export function shouldEnableOTel(): boolean {
+  const flag = process.env.ENABLE_OTEL?.trim().toLowerCase();
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return process.env.NODE_ENV === 'production';
+}
+
+function startMetricsServer(serviceName: string, options?: OTelOptions): void {
+  const metricsPort = process.env.METRICS_PORT;
+  if (!metricsPort || metricsServerStarted) {
+    return;
+  }
+
+  metricsServerStarted = true;
+
+  if (options?.collectDefaultMetrics !== false) {
+    try {
+      collectDefaultMetrics({ register });
+    } catch {
+      // Silently ignore if already registered
+    }
+  }
+
+  http
+    .createServer(async (req, res) => {
+      if (req.url === '/metrics') {
+        try {
+          res.writeHead(200, { 'Content-Type': register.contentType });
+          res.end(await register.metrics());
+        } catch (err) {
+          res.writeHead(500);
+          res.end(String(err));
+        }
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    })
+    .listen(parseInt(metricsPort, 10), '0.0.0.0', () => {
+      console.log(
+        `[Metrics] ${serviceName} metrics server listening on HTTP port ${metricsPort} (0.0.0.0)`,
+      );
+    });
+}
+
 export function initOTel(serviceName: string, options?: OTelOptions) {
   // Prevent Node.js MaxListenersExceededWarning when OTel instruments DB connection pools
   EventEmitter.defaultMaxListeners = 100;
 
-  if (process.env.ENABLE_OTEL !== 'true') {
+  // Always expose Prometheus metrics on METRICS_PORT regardless of tracing flag
+  startMetricsServer(serviceName, options);
+
+  if (!shouldEnableOTel()) {
     return;
   }
 
@@ -65,37 +120,9 @@ export function initOTel(serviceName: string, options?: OTelOptions) {
 
   sdk.start();
 
-  // Spin up a lightweight metrics HTTP server on METRICS_PORT if specified
-  const metricsPort = process.env.METRICS_PORT;
-  if (metricsPort) {
-    if (options?.collectDefaultMetrics !== false) {
-      try {
-        collectDefaultMetrics({ register });
-      } catch (err) {
-        // Silently ignore if already registered
-      }
-    }
-
-    http.createServer(async (req, res) => {
-      if (req.url === '/metrics') {
-        try {
-          res.writeHead(200, { 'Content-Type': register.contentType });
-          res.end(await register.metrics());
-        } catch (err) {
-          res.writeHead(500);
-          res.end(String(err));
-        }
-      } else {
-        res.writeHead(404);
-        res.end('Not Found');
-      }
-    }).listen(parseInt(metricsPort, 10), '0.0.0.0', () => {
-      console.log(`[Metrics] ${serviceName} metrics server listening on HTTP port ${metricsPort} (0.0.0.0)`);
-    });
-  }
-
   process.on('SIGTERM', () => {
-    sdk.shutdown()
+    sdk
+      .shutdown()
       .then(() => console.log('OTel shut down successfully'))
       .catch((err) => console.log('Error shutting down OTel', err))
       .finally(() => process.exit(0));

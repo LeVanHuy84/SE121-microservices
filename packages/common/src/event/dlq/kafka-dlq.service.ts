@@ -1,5 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Counter, register } from 'prom-client';
 import { KafkaProducerService } from '../../kafka-producer';
+
+const kafkaDlqMessagesTotal =
+  (register.getSingleMetric('kafka_dlq_messages_total') as Counter<string>) ||
+  new Counter({
+    name: 'kafka_dlq_messages_total',
+    help: 'Total number of messages sent to Kafka Dead Letter Queue',
+    labelNames: ['topic'],
+  });
 
 @Injectable()
 export class KafkaDLQService {
@@ -27,6 +36,11 @@ export class KafkaDLQService {
     };
 
     await this.producer.sendMessage(dlqTopic, payload);
+    try {
+      kafkaDlqMessagesTotal.labels(topic).inc();
+    } catch {
+      // Prevent metrics errors from breaking DLQ logging
+    }
 
     this.logger.warn(
       `☠️ Sent message to DLQ [${dlqTopic}] - reason: ${error?.message}`,
